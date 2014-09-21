@@ -1,0 +1,10 @@
+{
+	"ImportPath": "github.com/launchdarkly/go-client",
+	"GoVersion": "go1.3",
+	"Deps": [
+		{
+			"ImportPath": "github.com/gregjones/httpcache",
+			"Rev": "e3c27449581612aaef17e1ed7a35a6099fcaae3b"
+		}
+	]
+}
