@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/gregjones/httpcache"
 	"io"
 	"io/ioutil"
@@ -201,47 +202,47 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	return nil, true
 }
 
-func (client LDClient) GetFlag(key string, user User, defaultVal bool) bool {
+func (client LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
 
 	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
 
 	if reqErr != nil {
-		// TODO log error here
-		return defaultVal
+		return defaultVal, reqErr
 	}
 
 	req.Header.Add("Authorization", "api_key "+client.ApiKey)
 	req.Header.Add("User-Agent", "GoClient/"+Version)
 
-	res, _ := client.httpClient.Do(req)
+	res, resErr := client.httpClient.Do(req)
 	defer res.Body.Close()
+
+	if resErr != nil {
+		return defaultVal, resErr
+	}
 
 	body, err := ioutil.ReadAll(res.Body)
 
 	if err != nil {
-		// TODO log error here
-		return defaultVal
+		return defaultVal, err
 	}
 
 	var feature Feature
 	jsonErr := json.Unmarshal(body, &feature)
 
 	if jsonErr != nil {
-		// TODO log error here
-		return defaultVal
+		return defaultVal, jsonErr
 	}
 
 	value, pass := feature.Evaluate(user)
 
 	if pass {
-		return defaultVal
+		return defaultVal, nil
 	}
 
 	result, ok := value.(bool)
 
 	if !ok {
-		// TODO log error here
-		return defaultVal
+		return defaultVal, errors.New("Feature flag returned non-bool value")
 	}
-	return result
+	return result, nil
 }
