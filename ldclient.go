@@ -216,6 +216,18 @@ func (client LDClient) GetFlag(key string, user User, defaultVal bool) (bool, er
 	res, resErr := client.httpClient.Do(req)
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusUnauthorized {
+		return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
+	}
+
+	if res.StatusCode == http.StatusNotFound {
+		return defaultVal, errors.New("Invalid feature key. Verify that this feature key exists. Returning default value.")
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
+	}
+
 	if resErr != nil {
 		return defaultVal, resErr
 	}
