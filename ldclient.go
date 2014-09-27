@@ -21,11 +21,11 @@ const (
 var Version string
 
 type User struct {
-	Key       *string                 `json:"key,omitempty"`
-	Secondary *string                 `json:"secondary,omitempty"`
-	Ip        *string                 `json:"ip,omitempty"`
-	Country   *string                 `json:"country,omitempty"`
-	Custom    *map[string]interface{} `json"custom,omitempty"`
+	Key       *string                 `json:"key,omitempty" bson:"key,omitempty"`
+	Secondary *string                 `json:"secondary,omitempty" bson:"secondary,omitempty"`
+	Ip        *string                 `json:"ip,omitempty" bson:"ip,omitempty"`
+	Country   *string                 `json:"country,omitempty" bson:"country,omitempty"`
+	Custom    *map[string]interface{} `json:"custom,omitempty" bson:"custom,omitempty"`
 }
 
 type Operator string
