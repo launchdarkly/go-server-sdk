@@ -18,7 +18,7 @@ const (
 	long_scale = float32(0xFFFFFFFFFFFFFFF)
 )
 
-var Version string
+var Version string = "2"
 
 type User struct {
 	Key       *string                 `json:"key,omitempty" bson:"key,omitempty"`
