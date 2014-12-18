@@ -43,9 +43,9 @@ type Feature struct {
 }
 
 type TargetRule struct {
-	Attribute string   `json:"attribute"`
-	Op        Operator `json:"op"`
-	Values    []string `json:"values"`
+	Attribute string        `json:"attribute"`
+	Op        Operator      `json:"op"`
+	Values    []interface{} `json:"values"`
 }
 
 type Variation struct {
@@ -112,22 +112,21 @@ func matchCustom(target TargetRule, user User) bool {
 		return false
 	}
 
-	switch v.(type) {
-	case string:
-		return compareValues(v.(string), target.Values)
-	case []interface{}:
-		for _, cVal := range v.([]interface{}) {
-			if reflect.TypeOf(cVal).Kind() == reflect.String && compareValues(cVal.(string), target.Values) {
+	val := reflect.ValueOf(v)
+
+	if val.Kind() == reflect.Array || val.Kind() == reflect.Slice {
+		for i := 0; i < val.Len(); i++ {
+			if compareValues(val.Index(i).Interface(), target.Values) {
 				return true
 			}
 		}
-	default:
 		return false
+	} else {
+		return compareValues(v, target.Values)
 	}
-	return false
 }
 
-func compareValues(value string, values []string) bool {
+func compareValues(value interface{}, values []interface{}) bool {
 	if value == "" {
 		return false
 	} else {
