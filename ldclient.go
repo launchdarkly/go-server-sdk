@@ -8,7 +8,9 @@ import (
 	"github.com/gregjones/httpcache"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -66,12 +68,14 @@ type Config struct {
 	BaseUri       string
 	Capacity      int
 	FlushInterval time.Duration
+	Logger        *log.Logger
 }
 
 var DefaultConfig = Config{
 	BaseUri:       "https://app.launchdarkly.com",
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
+	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
@@ -234,7 +238,13 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	req.Header.Add("User-Agent", "GoClient/"+Version)
 
 	res, resErr := client.httpClient.Do(req)
-	defer res.Body.Close()
+
+	defer func() {
+		if res.Body != nil {
+			ioutil.ReadAll(res.Body)
+			res.Body.Close()
+		}
+	}()
 
 	if res.StatusCode == http.StatusUnauthorized {
 		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))

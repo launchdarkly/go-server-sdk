@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -52,7 +53,7 @@ func newEventProcessor(apiKey string, config Config) *eventProcessor {
 
 	go func() {
 		if err := recover(); err != nil {
-			// TODO log an error
+			res.config.Logger.Printf("Unexpected panic in event processing thread: %+v", err)
 		}
 
 		ticker := time.NewTicker(config.FlushInterval)
@@ -62,7 +63,6 @@ func newEventProcessor(apiKey string, config Config) *eventProcessor {
 				res.flush()
 			case <-res.closer:
 				ticker.Stop()
-				res.flush()
 				return
 			}
 		}
@@ -73,6 +73,7 @@ func newEventProcessor(apiKey string, config Config) *eventProcessor {
 
 func (ep *eventProcessor) close() {
 	close(ep.closer)
+	ep.flush()
 }
 
 func (ep *eventProcessor) flush() {
@@ -89,23 +90,28 @@ func (ep *eventProcessor) flush() {
 	payload, marshalErr := json.Marshal(events)
 
 	if marshalErr != nil {
-		// TODO log an error
+		ep.config.Logger.Printf("Unexpected error marshalling event json: %+v", marshalErr)
 	}
 
 	req, reqErr := http.NewRequest("POST", ep.config.BaseUri+"/api/events/bulk", bytes.NewReader(payload))
 
 	if reqErr != nil {
-		// TODO log an error
+		ep.config.Logger.Printf("Unexpected error while creating event request: %+v", reqErr)
 	}
 
 	req.Header.Add("Authorization", "api_key "+ep.apiKey)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("User-Agent", "GoClient/"+Version)
 
-	_, respErr := ep.client.Do(req)
+	resp, respErr := ep.client.Do(req)
 
 	if respErr != nil {
-		// TODO log an error
+		ep.config.Logger.Printf("Unexpected error while sending events: %+v", respErr)
+	}
+
+	if resp.Body != nil {
+		ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 	}
 
 }
