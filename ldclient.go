@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -55,27 +56,37 @@ type Variation struct {
 }
 
 type LDClient struct {
-	ApiKey     string
+	apiKey     string
 	config     Config
 	httpClient *http.Client
+	processor  *eventProcessor
 }
 
 type Config struct {
-	BaseUri string
+	BaseUri       string
+	Capacity      int
+	FlushInterval time.Duration
+}
+
+var DefaultConfig = Config{
+	BaseUri:       "https://app.launchdarkly.com",
+	Capacity:      1000,
+	FlushInterval: 5 * time.Second,
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
+	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	return LDClient{
-		ApiKey:     apiKey,
+		apiKey:     apiKey,
 		config:     config,
 		httpClient: httpcache.NewMemoryCacheTransport().Client(),
+		processor:  newEventProcessor(apiKey, config),
 	}
 }
 
-func MakeClient(apiKey string) LDClient {
-	return MakeCustomClient(apiKey, Config{
-		BaseUri: "https://app.launchdarkly.com",
-	})
+func MakeClient(apiKey string) *LDClient {
+	res := MakeCustomClient(apiKey, DefaultConfig)
+	return &res
 }
 
 func (b Feature) paramForId(user User) (float32, bool) {
@@ -201,39 +212,54 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	return nil, true
 }
 
-func (client LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
+func (client *LDClient) Track(key string, user User, data interface{}) error {
+	evt := newCustomEvent(key, user, data)
+	return client.processor.sendEvent(evt)
+}
+
+func (client *LDClient) Close() {
+	client.processor.close()
+}
+
+func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
 
 	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
 
 	if reqErr != nil {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, reqErr
 	}
 
-	req.Header.Add("Authorization", "api_key "+client.ApiKey)
+	req.Header.Add("Authorization", "api_key "+client.apiKey)
 	req.Header.Add("User-Agent", "GoClient/"+Version)
 
 	res, resErr := client.httpClient.Do(req)
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusUnauthorized {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
 	}
 
 	if res.StatusCode == http.StatusNotFound {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, errors.New("Invalid feature key. Verify that this feature key exists. Returning default value.")
 	}
 
 	if res.StatusCode != http.StatusOK {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
 	}
 
 	if resErr != nil {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, resErr
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
 
 	if err != nil {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, err
 	}
 
@@ -241,19 +267,24 @@ func (client LDClient) GetFlag(key string, user User, defaultVal bool) (bool, er
 	jsonErr := json.Unmarshal(body, &feature)
 
 	if jsonErr != nil {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, jsonErr
 	}
 
 	value, pass := feature.Evaluate(user)
 
 	if pass {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, nil
 	}
 
 	result, ok := value.(bool)
 
 	if !ok {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, errors.New("Feature flag returned non-bool value")
 	}
+
+	client.processor.sendEvent(newFeatureRequestEvent(key, user, result))
 	return result, nil
 }
