@@ -47,6 +47,7 @@ func newEventProcessor(apiKey string, config Config) *eventProcessor {
 		config: config,
 		client: &http.Client{},
 		closer: make(chan struct{}),
+		mu:     &sync.Mutex{},
 	}
 
 	go func() {
