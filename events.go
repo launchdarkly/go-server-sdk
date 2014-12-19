@@ -77,6 +77,11 @@ func (ep *eventProcessor) close() {
 func (ep *eventProcessor) flush() {
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
+
+	if len(ep.queue) == 0 {
+		return
+	}
+
 	events := ep.queue
 	ep.queue = make([]Event, 0)
 
