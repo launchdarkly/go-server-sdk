@@ -78,13 +78,15 @@ func (ep *eventProcessor) close() {
 
 func (ep *eventProcessor) flush() {
 	ep.mu.Lock()
-	defer ep.mu.Unlock()
 
 	if len(ep.queue) == 0 {
+		ep.mu.Unlock()
 		return
 	}
 
 	events := ep.queue
+	ep.mu.Unlock()
+
 	ep.queue = make([]Event, 0)
 
 	payload, marshalErr := json.Marshal(events)
