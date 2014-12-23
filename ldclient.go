@@ -245,11 +245,16 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	res, resErr := client.httpClient.Do(req)
 
 	defer func() {
-		if res.Body != nil {
+		if res != nil && res.Body != nil {
 			ioutil.ReadAll(res.Body)
 			res.Body.Close()
 		}
 	}()
+
+	if resErr != nil {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		return defaultVal, resErr
+	}
 
 	if res.StatusCode == http.StatusUnauthorized {
 		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
@@ -264,11 +269,6 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	if res.StatusCode != http.StatusOK {
 		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
-	}
-
-	if resErr != nil {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
-		return defaultVal, resErr
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
