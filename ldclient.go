@@ -69,6 +69,7 @@ type Config struct {
 	Capacity      int
 	FlushInterval time.Duration
 	Logger        *log.Logger
+	Timeout       time.Duration
 }
 
 var DefaultConfig = Config{
@@ -76,14 +77,18 @@ var DefaultConfig = Config{
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
+	Timeout:       1500 * time.Millisecond,
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
+	httpClient := httpcache.NewMemoryCacheTransport().Client()
+	httpClient.Timeout = config.Timeout
+
 	return LDClient{
 		apiKey:     apiKey,
 		config:     config,
-		httpClient: httpcache.NewMemoryCacheTransport().Client(),
+		httpClient: httpClient,
 		processor:  newEventProcessor(apiKey, config),
 	}
 }
