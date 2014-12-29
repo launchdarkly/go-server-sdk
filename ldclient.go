@@ -69,6 +69,7 @@ type Config struct {
 	Capacity      int
 	FlushInterval time.Duration
 	Logger        *log.Logger
+	Timeout       time.Duration
 }
 
 var DefaultConfig = Config{
@@ -76,14 +77,18 @@ var DefaultConfig = Config{
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
+	Timeout:       1500 * time.Millisecond,
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
+	httpClient := httpcache.NewMemoryCacheTransport().Client()
+	httpClient.Timeout = config.Timeout
+
 	return LDClient{
 		apiKey:     apiKey,
 		config:     config,
-		httpClient: httpcache.NewMemoryCacheTransport().Client(),
+		httpClient: httpClient,
 		processor:  newEventProcessor(apiKey, config),
 	}
 }
@@ -240,11 +245,16 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	res, resErr := client.httpClient.Do(req)
 
 	defer func() {
-		if res.Body != nil {
+		if res != nil && res.Body != nil {
 			ioutil.ReadAll(res.Body)
 			res.Body.Close()
 		}
 	}()
+
+	if resErr != nil {
+		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		return defaultVal, resErr
+	}
 
 	if res.StatusCode == http.StatusUnauthorized {
 		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
@@ -259,11 +269,6 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	if res.StatusCode != http.StatusOK {
 		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
 		return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
-	}
-
-	if resErr != nil {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
-		return defaultVal, resErr
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
