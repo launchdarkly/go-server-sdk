@@ -28,6 +28,10 @@ type User struct {
 	Secondary *string                 `json:"secondary,omitempty" bson:"secondary,omitempty"`
 	Ip        *string                 `json:"ip,omitempty" bson:"ip,omitempty"`
 	Country   *string                 `json:"country,omitempty" bson:"country,omitempty"`
+	Email     *string                 `json:"email,omitempty" bson:"email,omitempty"`
+	FirstName *string                 `json:"firstName,omitempty" bson:"firstName,omitempty"`
+	LastName  *string                 `json:"lastName,omitempty" bson:"lastName,omitempty"`
+	Gender    *string                 `json:"gender,omitempty" bson:"gender,omitempty"`
 	Custom    *map[string]interface{} `json:"custom,omitempty" bson:"custom,omitempty"`
 }
 
@@ -174,6 +178,22 @@ func matchTarget(targets []TargetRule, user User) bool {
 			if user.Country != nil {
 				uValue = *user.Country
 			}
+		} else if target.Attribute == "email" {
+			if user.Email != nil {
+				uValue = *user.Email
+			}
+		} else if target.Attribute == "firstName" {
+			if user.FirstName != nil {
+				uValue = *user.FirstName
+			}
+		} else if target.Attribute == "lastName" {
+			if user.LastName != nil {
+				uValue = *user.LastName
+			}
+		} else if target.Attribute == "gender" {
+			if user.Gender != nil {
+				uValue = *user.Gender
+			}
 		} else {
 			if matchCustom(target, user) {
 				return true
@@ -219,6 +239,11 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	}
 
 	return nil, true
+}
+
+func (client *LDClient) Identify(user User) error {
+	evt := newIdentifyEvent(user)
+	return client.processor.sendEvent(evt)
 }
 
 func (client *LDClient) Track(key string, user User, data interface{}) error {
