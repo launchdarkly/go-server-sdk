@@ -39,6 +39,7 @@ type FeatureRequestEvent struct {
 const (
 	FEATURE_REQUEST_EVENT = "feature"
 	CUSTOM_EVENT          = "custom"
+	IDENTIFY_EVENT        = "identify"
 )
 
 func newEventProcessor(apiKey string, config Config) *eventProcessor {
@@ -171,6 +172,35 @@ func (evt CustomEvent) GetBase() BaseEvent {
 }
 
 func (evt CustomEvent) GetKind() string {
+	return evt.Kind
+}
+
+type IdentifyEvent struct {
+	BaseEvent
+}
+
+func newIdentifyEvent(user User) IdentifyEvent {
+	var key string
+	if user.Key == nil {
+		key = ""
+	} else {
+		key = *user.Key
+	}
+	return IdentifyEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: now(),
+			Key:          key,
+			User:         user,
+			Kind:         IDENTIFY_EVENT,
+		},
+	}
+}
+
+func (evt IdentifyEvent) GetBase() BaseEvent {
+	return evt.BaseEvent
+}
+
+func (evt IdentifyEvent) GetKind() string {
 	return evt.Kind
 }
 
