@@ -31,7 +31,8 @@ type User struct {
 	Email     *string                 `json:"email,omitempty" bson:"email,omitempty"`
 	FirstName *string                 `json:"firstName,omitempty" bson:"firstName,omitempty"`
 	LastName  *string                 `json:"lastName,omitempty" bson:"lastName,omitempty"`
-	Gender    *string                 `json:"gender,omitempty" bson:"gender,omitempty"`
+	Avatar    *string                 `json:"avatar,omitempty" bson:"avatar,omitempty"`
+	Name      *string                 `json:"name,omitempty" bson:"name,omitempty"`
 	Custom    *map[string]interface{} `json:"custom,omitempty" bson:"custom,omitempty"`
 }
 
@@ -190,9 +191,13 @@ func matchTarget(targets []TargetRule, user User) bool {
 			if user.LastName != nil {
 				uValue = *user.LastName
 			}
-		} else if target.Attribute == "gender" {
-			if user.Gender != nil {
-				uValue = *user.Gender
+		} else if target.Attribute == "avatar" {
+			if user.Avatar != nil {
+				uValue = *user.Avatar
+			}
+		} else if target.Attribute == "name" {
+			if user.Name != nil {
+				uValue = *user.Name
 			}
 		} else {
 			if matchCustom(target, user) {
