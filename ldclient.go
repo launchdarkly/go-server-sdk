@@ -216,21 +216,26 @@ func matchTarget(targets []TargetRule, user User) bool {
 	return false
 }
 
-func (f Feature) Evaluate(user User) (interface{}, bool) {
+func (f Feature) Evaluate(user User) (value interface{}, rulesPassed bool) {
+	value, _, rulesPassed = f.EvaluateExplain(user)
+	return
+}
+
+func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch bool, rulesPassed bool) {
 
 	if !*f.On {
-		return nil, true
+		return nil, false, true
 	}
 
 	param, passErr := f.paramForId(user)
 
 	if passErr {
-		return nil, true
+		return nil, false, true
 	}
 
 	for _, variation := range *f.Variations {
 		if matchTarget(variation.Targets, user) {
-			return variation.Value, false
+			return variation.Value, true, false
 		}
 	}
 
@@ -239,11 +244,11 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	for _, variation := range *f.Variations {
 		sum += float32(variation.Weight) / 100.0
 		if param < sum {
-			return variation.Value, false
+			return variation.Value, false, false
 		}
 	}
 
-	return nil, true
+	return nil, false, true
 }
 
 func (client *LDClient) Identify(user User) error {
