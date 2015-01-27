@@ -67,6 +67,7 @@ type LDClient struct {
 	config     Config
 	httpClient *http.Client
 	processor  *eventProcessor
+	offline    bool
 }
 
 type Config struct {
@@ -95,6 +96,7 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 		config:     config,
 		httpClient: httpClient,
 		processor:  newEventProcessor(apiKey, config),
+		offline:    false,
 	}
 }
 
@@ -247,13 +249,31 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 }
 
 func (client *LDClient) Identify(user User) error {
+	if client.offline {
+		return nil
+	}
 	evt := newIdentifyEvent(user)
 	return client.processor.sendEvent(evt)
 }
 
 func (client *LDClient) Track(key string, user User, data interface{}) error {
+	if client.offline {
+		return nil
+	}
 	evt := newCustomEvent(key, user, data)
 	return client.processor.sendEvent(evt)
+}
+
+func (client *LDClient) SetOffline() {
+	client.offline = false
+}
+
+func (client *LDClient) SetOnline() {
+	client.offline = true
+}
+
+func (client *LDClient) IsOffline() bool {
+	return client.offline
 }
 
 func (client *LDClient) Close() {
@@ -261,6 +281,9 @@ func (client *LDClient) Close() {
 }
 
 func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
+	if client.IsOffline() {
+		return defaultVal, nil
+	}
 
 	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
 
