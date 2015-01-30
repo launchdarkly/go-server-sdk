@@ -57,10 +57,10 @@ type TargetRule struct {
 }
 
 type Variation struct {
-	Value    interface{}  `json:"value"`
-	Weight   int          `json:"weight"`
-	Targets  []TargetRule `json:"targets"`
-	UserRule TargetRule   `json:"userRule"`
+	Value      interface{}  `json:"value"`
+	Weight     int          `json:"weight"`
+	Targets    []TargetRule `json:"targets"`
+	UserTarget *TargetRule  `json:"userRule,omitempty"`
 }
 
 type LDClient struct {
@@ -167,54 +167,70 @@ func compareValues(value interface{}, values []interface{}) bool {
 	return false
 }
 
-func matchTarget(targets []TargetRule, user User) bool {
-	for _, target := range targets {
-		var uValue string
-		if target.Attribute == "key" {
-			if user.Key != nil {
-				uValue = *user.Key
-			}
-		} else if target.Attribute == "ip" {
-			if user.Ip != nil {
-				uValue = *user.Ip
-			}
-		} else if target.Attribute == "country" {
-			if user.Country != nil {
-				uValue = *user.Country
-			}
-		} else if target.Attribute == "email" {
-			if user.Email != nil {
-				uValue = *user.Email
-			}
-		} else if target.Attribute == "firstName" {
-			if user.FirstName != nil {
-				uValue = *user.FirstName
-			}
-		} else if target.Attribute == "lastName" {
-			if user.LastName != nil {
-				uValue = *user.LastName
-			}
-		} else if target.Attribute == "avatar" {
-			if user.Avatar != nil {
-				uValue = *user.Avatar
-			}
-		} else if target.Attribute == "name" {
-			if user.Name != nil {
-				uValue = *user.Name
-			}
-		} else {
-			if matchCustom(target, user) {
-				return true
-			} else {
-				continue
-			}
+func (target TargetRule) matchTarget(user User) bool {
+	var uValue string
+	if target.Attribute == "key" {
+		if user.Key != nil {
+			uValue = *user.Key
 		}
-
-		if compareValues(uValue, target.Values) {
+	} else if target.Attribute == "ip" {
+		if user.Ip != nil {
+			uValue = *user.Ip
+		}
+	} else if target.Attribute == "country" {
+		if user.Country != nil {
+			uValue = *user.Country
+		}
+	} else if target.Attribute == "email" {
+		if user.Email != nil {
+			uValue = *user.Email
+		}
+	} else if target.Attribute == "firstName" {
+		if user.FirstName != nil {
+			uValue = *user.FirstName
+		}
+	} else if target.Attribute == "lastName" {
+		if user.LastName != nil {
+			uValue = *user.LastName
+		}
+	} else if target.Attribute == "avatar" {
+		if user.Avatar != nil {
+			uValue = *user.Avatar
+		}
+	} else if target.Attribute == "name" {
+		if user.Name != nil {
+			uValue = *user.Name
+		}
+	} else {
+		if matchCustom(target, user) {
 			return true
 		} else {
+			return false
+		}
+	}
+
+	if compareValues(uValue, target.Values) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (variation Variation) matchTarget(user User) bool {
+	for _, target := range variation.Targets {
+		if variation.UserTarget != nil && target.Attribute == "key" {
 			continue
 		}
+		if target.matchTarget(user) {
+			return true
+		}
+	}
+	return false
+}
+
+func (variation Variation) matchUser(user User) bool {
+	if variation.UserTarget != nil && variation.UserTarget.matchTarget(user) {
+		return true
 	}
 	return false
 }
@@ -232,7 +248,13 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	}
 
 	for _, variation := range *f.Variations {
-		if matchTarget(variation.Targets, user) {
+		if variation.matchUser(user) {
+			return variation.Value, false
+		}
+	}
+
+	for _, variation := range *f.Variations {
+		if variation.matchTarget(user) {
 			return variation.Value, false
 		}
 	}

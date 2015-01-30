@@ -15,7 +15,7 @@ var config = Config{
 	Timeout:       1500 * time.Millisecond,
 }
 
-func TestOfflineMOdeAlwaysReturnsDefaultValue(t *testing.T) {
+func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	client := MakeCustomClient("api_key", config)
 	client.SetOffline()
 	var key = "foo"
