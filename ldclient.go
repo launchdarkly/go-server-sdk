@@ -57,9 +57,10 @@ type TargetRule struct {
 }
 
 type Variation struct {
-	Value   interface{}  `json:"value"`
-	Weight  int          `json:"weight"`
-	Targets []TargetRule `json:"targets"`
+	Value    interface{}  `json:"value"`
+	Weight   int          `json:"weight"`
+	Targets  []TargetRule `json:"targets"`
+	UserRule TargetRule   `json:"userRule"`
 }
 
 type LDClient struct {
@@ -264,12 +265,20 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 	return client.processor.sendEvent(evt)
 }
 
+func (client *LDClient) sendFlagRequestEvent(key string, user User, value interface{}) error {
+	if client.offline {
+		return nil
+	}
+	evt := newFeatureRequestEvent(key, user, value)
+	return client.processor.sendEvent(evt)
+}
+
 func (client *LDClient) SetOffline() {
-	client.offline = false
+	client.offline = true
 }
 
 func (client *LDClient) SetOnline() {
-	client.offline = true
+	client.offline = false
 }
 
 func (client *LDClient) IsOffline() bool {
@@ -288,7 +297,7 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
 
 	if reqErr != nil {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, reqErr
 	}
 
@@ -305,29 +314,29 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	}()
 
 	if resErr != nil {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, resErr
 	}
 
 	if res.StatusCode == http.StatusUnauthorized {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
 	}
 
 	if res.StatusCode == http.StatusNotFound {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, errors.New("Invalid feature key. Verify that this feature key exists. Returning default value.")
 	}
 
 	if res.StatusCode != http.StatusOK {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
 
 	if err != nil {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, err
 	}
 
@@ -335,24 +344,24 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	jsonErr := json.Unmarshal(body, &feature)
 
 	if jsonErr != nil {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, jsonErr
 	}
 
 	value, pass := feature.Evaluate(user)
 
 	if pass {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, nil
 	}
 
 	result, ok := value.(bool)
 
 	if !ok {
-		client.processor.sendEvent(newFeatureRequestEvent(key, user, defaultVal))
+		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, errors.New("Feature flag returned non-bool value")
 	}
 
-	client.processor.sendEvent(newFeatureRequestEvent(key, user, result))
+	client.sendFlagRequestEvent(key, user, result)
 	return result, nil
 }
