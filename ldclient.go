@@ -216,47 +216,55 @@ func (target TargetRule) matchTarget(user User) bool {
 	}
 }
 
-func (variation Variation) matchTarget(user User) bool {
+func (variation Variation) matchTarget(user User) *TargetRule {
 	for _, target := range variation.Targets {
 		if variation.UserTarget != nil && target.Attribute == "key" {
 			continue
 		}
 		if target.matchTarget(user) {
-			return true
+			return &target
 		}
 	}
-	return false
+	return nil
 }
 
-func (variation Variation) matchUser(user User) bool {
+func (variation Variation) matchUser(user User) *TargetRule {
 	if variation.UserTarget != nil && variation.UserTarget.matchTarget(user) {
-		return true
+		return variation.UserTarget
 	}
-	return false
+	return nil
 }
 
-func (f Feature) Evaluate(user User) (interface{}, bool) {
+func (f Feature) Evaluate(user User) (value interface{}, rulesPassed bool) {
+	value, _, rulesPassed = f.EvaluateExplain(user)
+	return
+}
+
+func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *TargetRule, rulesPassed bool) {
 
 	if !*f.On {
-		return nil, true
+		return nil, nil, true
 	}
 
 	param, passErr := f.paramForId(user)
 
 	if passErr {
-		return nil, true
+		return nil, nil, true
 	}
 
 	for _, variation := range *f.Variations {
-		if variation.matchUser(user) {
-			return variation.Value, false
+		target := variation.matchTarget(user)
+		if target != nil {
+			return variation.Value, target, false
 		}
 	}
 
 	for _, variation := range *f.Variations {
-		if variation.matchTarget(user) {
-			return variation.Value, false
+		target := variation.matchTarget(user)
+		if target != nil {
+			return variation.Value, target, false
 		}
+
 	}
 
 	var sum float32 = 0.0
@@ -264,11 +272,11 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	for _, variation := range *f.Variations {
 		sum += float32(variation.Weight) / 100.0
 		if param < sum {
-			return variation.Value, false
+			return variation.Value, nil, false
 		}
 	}
 
-	return nil, true
+	return nil, nil, true
 }
 
 func (client *LDClient) Identify(user User) error {
