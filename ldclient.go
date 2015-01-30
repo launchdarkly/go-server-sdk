@@ -164,7 +164,7 @@ func compareValues(value interface{}, values []interface{}) bool {
 	return false
 }
 
-func matchTarget(targets []TargetRule, user User) bool {
+func matchTarget(targets []TargetRule, user User) *TargetRule {
 	for _, target := range targets {
 		var uValue string
 		if target.Attribute == "key" {
@@ -201,36 +201,42 @@ func matchTarget(targets []TargetRule, user User) bool {
 			}
 		} else {
 			if matchCustom(target, user) {
-				return true
+				return &target
 			} else {
 				continue
 			}
 		}
 
 		if compareValues(uValue, target.Values) {
-			return true
+			return &target
 		} else {
 			continue
 		}
 	}
-	return false
+	return nil
 }
 
-func (f Feature) Evaluate(user User) (interface{}, bool) {
+func (f Feature) Evaluate(user User) (value interface{}, rulesPassed bool) {
+	value, _, rulesPassed = f.EvaluateExplain(user)
+	return
+}
+
+func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *TargetRule, rulesPassed bool) {
 
 	if !*f.On {
-		return nil, true
+		return nil, nil, true
 	}
 
 	param, passErr := f.paramForId(user)
 
 	if passErr {
-		return nil, true
+		return nil, nil, true
 	}
 
 	for _, variation := range *f.Variations {
-		if matchTarget(variation.Targets, user) {
-			return variation.Value, false
+		target := matchTarget(variation.Targets, user)
+		if target != nil {
+			return variation.Value, target, false
 		}
 	}
 
@@ -239,11 +245,11 @@ func (f Feature) Evaluate(user User) (interface{}, bool) {
 	for _, variation := range *f.Variations {
 		sum += float32(variation.Weight) / 100.0
 		if param < sum {
-			return variation.Value, false
+			return variation.Value, nil, false
 		}
 	}
 
-	return nil, true
+	return nil, nil, true
 }
 
 func (client *LDClient) Identify(user User) error {
