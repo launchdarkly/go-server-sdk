@@ -253,7 +253,7 @@ func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *Tar
 	}
 
 	for _, variation := range *f.Variations {
-		target := variation.matchTarget(user)
+		target := variation.matchUser(user)
 		if target != nil {
 			return variation.Value, target, false
 		}
