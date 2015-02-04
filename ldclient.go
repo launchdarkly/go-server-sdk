@@ -319,6 +319,10 @@ func (client *LDClient) Close() {
 	client.processor.close()
 }
 
+func (client *LDClient) Flush() {
+	client.processor.flush()
+}
+
 func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
 	if client.IsOffline() {
 		return defaultVal, nil
