@@ -90,7 +90,8 @@ var DefaultConfig = Config{
 func MakeCustomClient(apiKey string, config Config) LDClient {
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	httpClient := httpcache.NewMemoryCacheTransport().Client()
-	httpClient.Timeout = config.Timeout
+	// Client Transport of type *httpcache.Transport doesn't support CancelRequest; Timeout not supported
+	// httpClient.Timeout = config.Timeout
 
 	return LDClient{
 		apiKey:     apiKey,
