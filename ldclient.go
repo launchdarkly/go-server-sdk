@@ -57,10 +57,10 @@ type TargetRule struct {
 }
 
 type Variation struct {
-	Value    interface{}  `json:"value"`
-	Weight   int          `json:"weight"`
-	Targets  []TargetRule `json:"targets"`
-	UserRule TargetRule   `json:"userRule"`
+	Value      interface{}  `json:"value"`
+	Weight     int          `json:"weight"`
+	Targets    []TargetRule `json:"targets"`
+	UserTarget *TargetRule  `json:"userRule,omitempty"`
 }
 
 type LDClient struct {
@@ -90,7 +90,8 @@ var DefaultConfig = Config{
 func MakeCustomClient(apiKey string, config Config) LDClient {
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	httpClient := httpcache.NewMemoryCacheTransport().Client()
-	httpClient.Timeout = config.Timeout
+	// Client Transport of type *httpcache.Transport doesn't support CancelRequest; Timeout not supported
+	// httpClient.Timeout = config.Timeout
 
 	return LDClient{
 		apiKey:     apiKey,
@@ -167,54 +168,70 @@ func compareValues(value interface{}, values []interface{}) bool {
 	return false
 }
 
-func matchTarget(targets []TargetRule, user User) *TargetRule {
-	for _, target := range targets {
-		var uValue string
-		if target.Attribute == "key" {
-			if user.Key != nil {
-				uValue = *user.Key
-			}
-		} else if target.Attribute == "ip" {
-			if user.Ip != nil {
-				uValue = *user.Ip
-			}
-		} else if target.Attribute == "country" {
-			if user.Country != nil {
-				uValue = *user.Country
-			}
-		} else if target.Attribute == "email" {
-			if user.Email != nil {
-				uValue = *user.Email
-			}
-		} else if target.Attribute == "firstName" {
-			if user.FirstName != nil {
-				uValue = *user.FirstName
-			}
-		} else if target.Attribute == "lastName" {
-			if user.LastName != nil {
-				uValue = *user.LastName
-			}
-		} else if target.Attribute == "avatar" {
-			if user.Avatar != nil {
-				uValue = *user.Avatar
-			}
-		} else if target.Attribute == "name" {
-			if user.Name != nil {
-				uValue = *user.Name
-			}
-		} else {
-			if matchCustom(target, user) {
-				return &target
-			} else {
-				continue
-			}
+func (target TargetRule) matchTarget(user User) bool {
+	var uValue string
+	if target.Attribute == "key" {
+		if user.Key != nil {
+			uValue = *user.Key
 		}
-
-		if compareValues(uValue, target.Values) {
-			return &target
+	} else if target.Attribute == "ip" {
+		if user.Ip != nil {
+			uValue = *user.Ip
+		}
+	} else if target.Attribute == "country" {
+		if user.Country != nil {
+			uValue = *user.Country
+		}
+	} else if target.Attribute == "email" {
+		if user.Email != nil {
+			uValue = *user.Email
+		}
+	} else if target.Attribute == "firstName" {
+		if user.FirstName != nil {
+			uValue = *user.FirstName
+		}
+	} else if target.Attribute == "lastName" {
+		if user.LastName != nil {
+			uValue = *user.LastName
+		}
+	} else if target.Attribute == "avatar" {
+		if user.Avatar != nil {
+			uValue = *user.Avatar
+		}
+	} else if target.Attribute == "name" {
+		if user.Name != nil {
+			uValue = *user.Name
+		}
+	} else {
+		if matchCustom(target, user) {
+			return true
 		} else {
+			return false
+		}
+	}
+
+	if compareValues(uValue, target.Values) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (variation Variation) matchTarget(user User) *TargetRule {
+	for _, target := range variation.Targets {
+		if variation.UserTarget != nil && target.Attribute == "key" {
 			continue
 		}
+		if target.matchTarget(user) {
+			return &target
+		}
+	}
+	return nil
+}
+
+func (variation Variation) matchUser(user User) *TargetRule {
+	if variation.UserTarget != nil && variation.UserTarget.matchTarget(user) {
+		return variation.UserTarget
 	}
 	return nil
 }
@@ -237,10 +254,18 @@ func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *Tar
 	}
 
 	for _, variation := range *f.Variations {
-		target := matchTarget(variation.Targets, user)
+		target := variation.matchUser(user)
 		if target != nil {
 			return variation.Value, target, false
 		}
+	}
+
+	for _, variation := range *f.Variations {
+		target := variation.matchTarget(user)
+		if target != nil {
+			return variation.Value, target, false
+		}
+
 	}
 
 	var sum float32 = 0.0
@@ -293,6 +318,10 @@ func (client *LDClient) IsOffline() bool {
 
 func (client *LDClient) Close() {
 	client.processor.close()
+}
+
+func (client *LDClient) Flush() {
+	client.processor.flush()
 }
 
 func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
