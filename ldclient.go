@@ -60,7 +60,7 @@ type Variation struct {
 	Value      interface{}  `json:"value"`
 	Weight     int          `json:"weight"`
 	Targets    []TargetRule `json:"targets"`
-	UserTarget *TargetRule  `json:"userRule,omitempty"`
+	UserTarget *TargetRule  `json:"userTarget,omitempty"`
 }
 
 type LDClient struct {
