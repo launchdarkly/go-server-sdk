@@ -34,7 +34,7 @@ type User struct {
 	Avatar    *string                      `json:"avatar,omitempty" bson:"avatar,omitempty"`
 	Name      *string                      `json:"name,omitempty" bson:"name,omitempty"`
 	Custom    *map[string]interface{}      `json:"custom,omitempty" bson:"custom,omitempty"`
-	Derived   *map[string]DerivedAttribute `json:"-" bson:"derived,omitempty"`
+	Derived   map[string]*DerivedAttribute `json:"-" bson:"derived,omitempty"`
 }
 
 type DerivedAttribute struct {
