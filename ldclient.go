@@ -33,6 +33,7 @@ type User struct {
 	LastName  *string                      `json:"lastName,omitempty" bson:"lastName,omitempty"`
 	Avatar    *string                      `json:"avatar,omitempty" bson:"avatar,omitempty"`
 	Name      *string                      `json:"name,omitempty" bson:"name,omitempty"`
+	Anonymous *bool                        `json:"anonymous,omitempty" bson:"anonymous,omitempty"`
 	Custom    *map[string]interface{}      `json:"custom,omitempty" bson:"custom,omitempty"`
 	Derived   map[string]*DerivedAttribute `json:"derived,omitempty" bson:"derived,omitempty"`
 }
@@ -175,7 +176,7 @@ func compareValues(value interface{}, values []interface{}) bool {
 }
 
 func (target TargetRule) matchTarget(user User) bool {
-	var uValue string
+	var uValue interface{}
 	if target.Attribute == "key" {
 		if user.Key != nil {
 			uValue = *user.Key
@@ -207,6 +208,10 @@ func (target TargetRule) matchTarget(user User) bool {
 	} else if target.Attribute == "name" {
 		if user.Name != nil {
 			uValue = *user.Name
+		}
+	} else if target.Attribute == "anonymous" {
+		if user.Anonymous != nil {
+			uValue = *user.Anonymous
 		}
 	} else {
 		if matchCustom(target, user) {
@@ -331,6 +336,10 @@ func (client *LDClient) Flush() {
 }
 
 func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
+	return client.Toggle(key, user, defaultVal)
+}
+
+func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, error) {
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
