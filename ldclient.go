@@ -295,7 +295,7 @@ func (client *LDClient) Identify(user User) error {
 	if client.offline {
 		return nil
 	}
-	evt := newIdentifyEvent(user)
+	evt := NewIdentifyEvent(user)
 	return client.processor.sendEvent(evt)
 }
 
@@ -303,7 +303,7 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 	if client.offline {
 		return nil
 	}
-	evt := newCustomEvent(key, user, data)
+	evt := NewCustomEvent(key, user, data)
 	return client.processor.sendEvent(evt)
 }
 

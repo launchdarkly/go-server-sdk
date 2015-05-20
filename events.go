@@ -130,6 +130,8 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	return nil
 }
 
+// Used to just create the event. Normally, you don't need to call this;
+// the event is created and queued automatically by Toggle.
 func NewFeatureRequestEvent(key string, user User, value interface{}) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{
@@ -155,7 +157,9 @@ type CustomEvent struct {
 	Data interface{} `json:"data"`
 }
 
-func newCustomEvent(key string, user User, data interface{}) CustomEvent {
+// Used to just create the event. Most likely, you want Track to create the
+// event and queue it for sending to LaunchDarkly.
+func NewCustomEvent(key string, user User, data interface{}) CustomEvent {
 	return CustomEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -179,7 +183,9 @@ type IdentifyEvent struct {
 	BaseEvent
 }
 
-func newIdentifyEvent(user User) IdentifyEvent {
+// Used to just create the identify event. Most likely, you want Identify to create the
+// event and queue it for sending to LaunchDarkly.
+func NewIdentifyEvent(user User) IdentifyEvent {
 	var key string
 	if user.Key == nil {
 		key = ""
