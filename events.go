@@ -130,7 +130,7 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	return nil
 }
 
-func newFeatureRequestEvent(key string, user User, value interface{}) FeatureRequestEvent {
+func NewFeatureRequestEvent(key string, user User, value interface{}) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),

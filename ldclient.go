@@ -311,7 +311,7 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value interf
 	if client.offline {
 		return nil
 	}
-	evt := newFeatureRequestEvent(key, user, value)
+	evt := NewFeatureRequestEvent(key, user, value)
 	return client.processor.sendEvent(evt)
 }
 
