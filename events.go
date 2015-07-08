@@ -130,7 +130,7 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	return nil
 }
 
-func newFeatureRequestEvent(key string, user User, value interface{}) FeatureRequestEvent {
+func NewFeatureRequestEvent(key string, user User, value interface{}) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -155,7 +155,7 @@ type CustomEvent struct {
 	Data interface{} `json:"data"`
 }
 
-func newCustomEvent(key string, user User, data interface{}) CustomEvent {
+func NewCustomEvent(key string, user User, data interface{}) CustomEvent {
 	return CustomEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -179,7 +179,7 @@ type IdentifyEvent struct {
 	BaseEvent
 }
 
-func newIdentifyEvent(user User) IdentifyEvent {
+func NewIdentifyEvent(user User) IdentifyEvent {
 	var key string
 	if user.Key == nil {
 		key = ""
