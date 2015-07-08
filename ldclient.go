@@ -52,7 +52,6 @@ type Feature struct {
 	Salt         *string      `json:"salt"`
 	On           *bool        `json:"on"`
 	Variations   *[]Variation `json:"variations"`
-	Ttl          *int         `json:"ttl"`
 	CommitDate   *time.Time   `json:"commitDate"`
 	CreationDate *time.Time   `json:"creationDate"`
 }
