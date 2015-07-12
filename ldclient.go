@@ -79,18 +79,22 @@ type LDClient struct {
 
 type Config struct {
 	BaseUri       string
+	StreamUri     string
 	Capacity      int
 	FlushInterval time.Duration
 	Logger        *log.Logger
 	Timeout       time.Duration
+	Stream        bool
 }
 
 var DefaultConfig = Config{
 	BaseUri:       "https://app.launchdarkly.com",
+	StreamUri:     "https://stream.launchdarkly.com",
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	Timeout:       1500 * time.Millisecond,
+	Stream:        false,
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {

@@ -1,7 +1,11 @@
 {
 	"ImportPath": "github.com/launchdarkly/go-client",
-	"GoVersion": "go1.3",
+	"GoVersion": "go1.4.1",
 	"Deps": [
+		{
+			"ImportPath": "github.com/donovanhide/eventsource",
+			"Rev": "1612860c8bb8547e478e7b6a4da4e4063a4e452f"
+		},
 		{
 			"ImportPath": "github.com/gregjones/httpcache",
 			"Rev": "e3c27449581612aaef17e1ed7a35a6099fcaae3b"
