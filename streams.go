@@ -22,30 +22,30 @@ func NewStream(url string) (*StreamProcessor, error) {
 	stream, err := es.Subscribe(url, "")
 
 	return &StreamProcessor{
-		store:  NewMemoryStreamStore(),
+		store:  NewInMemoryFeatureStore(),
 		stream: stream,
 	}, err
 }
 
 // A memory based StreamStore implementation
-type MemoryStreamStore struct {
+type InMemoryFeatureStore struct {
 	Features map[string]*Feature
 	sync.RWMutex
 }
 
-func NewMemoryStreamStore() *MemoryStreamStore {
-	return &MemoryStreamStore{
+func NewInMemoryFeatureStore() *InMemoryFeatureStore {
+	return &InMemoryFeatureStore{
 		Features: make(map[string]*Feature),
 	}
 }
 
-func (store *MemoryStreamStore) Get(key string) *Feature {
+func (store *InMemoryFeatureStore) Get(key string) *Feature {
 	store.RLock()
 	defer store.RUnlock()
 	return store.Features[key]
 }
 
-func (store *MemoryStreamStore) All() map[string]*Feature {
+func (store *InMemoryFeatureStore) All() map[string]*Feature {
 	store.RLock()
 	defer store.RUnlock()
 	fs := make(map[string]*Feature)
@@ -56,13 +56,13 @@ func (store *MemoryStreamStore) All() map[string]*Feature {
 	return fs
 }
 
-func (store *MemoryStreamStore) Delete(key string) {
+func (store *InMemoryFeatureStore) Delete(key string) {
 	store.Lock()
 	defer store.Unlock()
 	delete(store.Features, key)
 }
 
-func (store *MemoryStreamStore) Set(fs map[string]*Feature) {
+func (store *InMemoryFeatureStore) Set(fs map[string]*Feature) {
 	store.Lock()
 	defer store.Unlock()
 
@@ -73,7 +73,7 @@ func (store *MemoryStreamStore) Set(fs map[string]*Feature) {
 	}
 }
 
-func (store *MemoryStreamStore) Upsert(key string, f *Feature) {
+func (store *InMemoryFeatureStore) Upsert(key string, f *Feature) {
 	store.Lock()
 	defer store.Unlock()
 
