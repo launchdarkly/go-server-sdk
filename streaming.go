@@ -48,12 +48,7 @@ func (sp *StreamProcessor) GetFeature(key string) (*Feature, error) {
 }
 
 func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
-	store := NewInMemoryFeatureStore()
-
-	return NewStreamWithStore(apiKey, config, store)
-}
-
-func NewStreamWithStore(apiKey string, config Config, store FeatureStore) (*StreamProcessor, error) {
+	var store FeatureStore
 	headers := make(http.Header)
 
 	headers.Add("Authorization", "api_key "+apiKey)
@@ -63,6 +58,12 @@ func NewStreamWithStore(apiKey string, config Config, store FeatureStore) (*Stre
 
 	if err != nil {
 		return nil, err
+	}
+
+	if config.FeatureStore != nil {
+		store = config.FeatureStore
+	} else {
+		store = NewInMemoryFeatureStore()
 	}
 
 	sp := &StreamProcessor{

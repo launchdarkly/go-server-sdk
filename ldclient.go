@@ -86,6 +86,7 @@ type Config struct {
 	Logger        *log.Logger
 	Timeout       time.Duration
 	Stream        bool
+	FeatureStore  FeatureStore
 }
 
 var DefaultConfig = Config{
@@ -96,9 +97,10 @@ var DefaultConfig = Config{
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	Timeout:       1500 * time.Millisecond,
 	Stream:        false,
+	FeatureStore:  nil,
 }
 
-func MakeCustomClient(apiKey string, config Config, store FeatureStore) LDClient {
+func MakeCustomClient(apiKey string, config Config) LDClient {
 	var sp *StreamProcessor
 	var streamErr error
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
@@ -107,11 +109,7 @@ func MakeCustomClient(apiKey string, config Config, store FeatureStore) LDClient
 	// httpClient.Timeout = config.Timeout
 
 	if config.Stream {
-		if store != nil {
-			sp, streamErr = NewStreamWithStore(apiKey, config, store)
-		} else {
-			sp, streamErr = NewStream(apiKey, config)
-		}
+		sp, streamErr = NewStream(apiKey, config)
 		config.Logger.Printf("Error initializing stream processor: %+v", streamErr)
 	}
 
@@ -126,7 +124,7 @@ func MakeCustomClient(apiKey string, config Config, store FeatureStore) LDClient
 }
 
 func MakeClient(apiKey string) *LDClient {
-	res := MakeCustomClient(apiKey, DefaultConfig, nil)
+	res := MakeCustomClient(apiKey, DefaultConfig)
 	return &res
 }
 
