@@ -14,6 +14,7 @@ import (
 // received retry delays and event id's.
 type Stream struct {
 	c           http.Client
+	headers     http.Header
 	url         string
 	lastEventId string
 	retry       time.Duration
@@ -37,13 +38,20 @@ func (e SubscriptionError) Error() string {
 
 // Subscribe to the Events emitted from the specified url.
 // If lastEventId is non-empty it will be sent to the server in case it can replay missed events.
-func Subscribe(url, lastEventId string) (*Stream, error) {
+func Subscribe(url string, headers http.Header, lastEventId string) (*Stream, error) {
+	hs := make(http.Header)
+
+	for k, v := range headers {
+		hs[k] = v
+	}
+
 	stream := &Stream{
 		url:         url,
 		lastEventId: lastEventId,
 		retry:       (time.Millisecond * 3000),
 		Events:      make(chan Event),
 		Errors:      make(chan error),
+		headers:     hs,
 	}
 	r, err := stream.connect()
 	if err != nil {
@@ -59,6 +67,7 @@ func (stream *Stream) connect() (r io.ReadCloser, err error) {
 	if req, err = http.NewRequest("GET", stream.url, nil); err != nil {
 		return
 	}
+	req.Header = stream.headers
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Accept", "text/event-stream")
 	if len(stream.lastEventId) > 0 {

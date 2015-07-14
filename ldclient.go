@@ -70,11 +70,12 @@ type Variation struct {
 }
 
 type LDClient struct {
-	apiKey     string
-	config     Config
-	httpClient *http.Client
-	processor  *eventProcessor
-	offline    bool
+	apiKey          string
+	config          Config
+	httpClient      *http.Client
+	eventProcessor  *eventProcessor
+	offline         bool
+	streamProcessor *StreamProcessor
 }
 
 type Config struct {
@@ -97,23 +98,35 @@ var DefaultConfig = Config{
 	Stream:        false,
 }
 
-func MakeCustomClient(apiKey string, config Config) LDClient {
+func MakeCustomClient(apiKey string, config Config, store FeatureStore) LDClient {
+	var sp *StreamProcessor
+	var streamErr error
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	httpClient := httpcache.NewMemoryCacheTransport().Client()
 	// Client Transport of type *httpcache.Transport doesn't support CancelRequest; Timeout not supported
 	// httpClient.Timeout = config.Timeout
 
+	if config.Stream {
+		if store != nil {
+			sp, streamErr = NewStreamWithStore(apiKey, config, store)
+		} else {
+			sp, streamErr = NewStream(apiKey, config)
+		}
+		config.Logger.Printf("Error initializing stream processor: %+v", streamErr)
+	}
+
 	return LDClient{
-		apiKey:     apiKey,
-		config:     config,
-		httpClient: httpClient,
-		processor:  newEventProcessor(apiKey, config),
-		offline:    false,
+		apiKey:          apiKey,
+		config:          config,
+		httpClient:      httpClient,
+		eventProcessor:  newEventProcessor(apiKey, config),
+		offline:         false,
+		streamProcessor: sp,
 	}
 }
 
 func MakeClient(apiKey string) *LDClient {
-	res := MakeCustomClient(apiKey, DefaultConfig)
+	res := MakeCustomClient(apiKey, DefaultConfig, nil)
 	return &res
 }
 
@@ -299,7 +312,7 @@ func (client *LDClient) Identify(user User) error {
 		return nil
 	}
 	evt := NewIdentifyEvent(user)
-	return client.processor.sendEvent(evt)
+	return client.eventProcessor.sendEvent(evt)
 }
 
 func (client *LDClient) Track(key string, user User, data interface{}) error {
@@ -307,7 +320,7 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 		return nil
 	}
 	evt := NewCustomEvent(key, user, data)
-	return client.processor.sendEvent(evt)
+	return client.eventProcessor.sendEvent(evt)
 }
 
 func (client *LDClient) sendFlagRequestEvent(key string, user User, value interface{}) error {
@@ -315,7 +328,7 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value interf
 		return nil
 	}
 	evt := NewFeatureRequestEvent(key, user, value)
-	return client.processor.sendEvent(evt)
+	return client.eventProcessor.sendEvent(evt)
 }
 
 func (client *LDClient) SetOffline() {
@@ -331,11 +344,11 @@ func (client *LDClient) IsOffline() bool {
 }
 
 func (client *LDClient) Close() {
-	client.processor.close()
+	client.eventProcessor.close()
 }
 
 func (client *LDClient) Flush() {
-	client.processor.flush()
+	client.eventProcessor.flush()
 }
 
 func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, error) {
@@ -343,62 +356,80 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 }
 
 func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, error) {
+	var feature Feature
+	var streamErr error
+
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
 
-	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
-
-	if reqErr != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, reqErr
-	}
-
-	req.Header.Add("Authorization", "api_key "+client.apiKey)
-	req.Header.Add("User-Agent", "GoClient/"+Version)
-
-	res, resErr := client.httpClient.Do(req)
-
-	defer func() {
-		if res != nil && res.Body != nil {
-			ioutil.ReadAll(res.Body)
-			res.Body.Close()
+	if client.config.Stream && client.streamProcessor.Initialized() && client.streamProcessor != nil {
+		var featurePtr *Feature
+		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
+		if streamErr != nil {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, streamErr
 		}
-	}()
 
-	if resErr != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, resErr
-	}
+		if featurePtr != nil {
+			feature = *featurePtr
+		} else {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+		}
+	} else {
+		req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
 
-	if res.StatusCode == http.StatusUnauthorized {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
-	}
+		if reqErr != nil {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, reqErr
+		}
 
-	if res.StatusCode == http.StatusNotFound {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, errors.New("Invalid feature key. Verify that this feature key exists. Returning default value.")
-	}
+		req.Header.Add("Authorization", "api_key "+client.apiKey)
+		req.Header.Add("User-Agent", "GoClient/"+Version)
 
-	if res.StatusCode != http.StatusOK {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
-	}
+		res, resErr := client.httpClient.Do(req)
 
-	body, err := ioutil.ReadAll(res.Body)
+		defer func() {
+			if res != nil && res.Body != nil {
+				ioutil.ReadAll(res.Body)
+				res.Body.Close()
+			}
+		}()
 
-	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, err
-	}
+		if resErr != nil {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, resErr
+		}
 
-	var feature Feature
-	jsonErr := json.Unmarshal(body, &feature)
+		if res.StatusCode == http.StatusUnauthorized {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
+		}
 
-	if jsonErr != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, jsonErr
+		if res.StatusCode == http.StatusNotFound {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+		}
+
+		if res.StatusCode != http.StatusOK {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
+		}
+
+		body, err := ioutil.ReadAll(res.Body)
+
+		if err != nil {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, err
+		}
+
+		jsonErr := json.Unmarshal(body, &feature)
+
+		if jsonErr != nil {
+			client.sendFlagRequestEvent(key, user, defaultVal)
+			return defaultVal, jsonErr
+		}
 	}
 
 	value, pass := feature.Evaluate(user)
