@@ -110,7 +110,9 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 
 	if config.Stream {
 		sp, streamErr = NewStream(apiKey, config)
-		config.Logger.Printf("Error initializing stream processor: %+v", streamErr)
+		if streamErr != nil {
+			config.Logger.Printf("Error initializing stream processor: %+v", streamErr)
+		}
 	}
 
 	return LDClient{

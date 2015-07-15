@@ -13,7 +13,7 @@ import (
 // It will try and reconnect if the connection is lost, respecting both
 // received retry delays and event id's.
 type Stream struct {
-	c           http.Client
+	c           *http.Client
 	headers     http.Header
 	url         string
 	lastEventId string
@@ -42,7 +42,6 @@ func Subscribe(url string, headers http.Header, lastEventId string) (*Stream, er
 	hs := make(http.Header)
 
 	for k, v := range headers {
-		fmt.Printf("Header: %s, %s\n", k, v)
 		hs[k] = v
 	}
 
@@ -53,6 +52,7 @@ func Subscribe(url string, headers http.Header, lastEventId string) (*Stream, er
 		Events:      make(chan Event),
 		Errors:      make(chan error),
 		headers:     hs,
+		c:           &http.Client{},
 	}
 	r, err := stream.connect()
 	if err != nil {
@@ -62,19 +62,24 @@ func Subscribe(url string, headers http.Header, lastEventId string) (*Stream, er
 	return stream, nil
 }
 
+func copyHeader(dst, src http.Header) {
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+}
+
 func (stream *Stream) connect() (r io.ReadCloser, err error) {
 	var resp *http.Response
 	var req *http.Request
 	if req, err = http.NewRequest("GET", stream.url, nil); err != nil {
 		return
 	}
-	req.Header = stream.headers
+
+	copyHeader(req.Header, stream.headers)
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Accept", "text/event-stream")
-
-	for k, v := range req.Header {
-		fmt.Printf("Connect Header: %s, %s\n", k, v)
-	}
 
 	if len(stream.lastEventId) > 0 {
 		req.Header.Set("Last-Event-ID", stream.lastEventId)

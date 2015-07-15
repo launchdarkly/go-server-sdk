@@ -19,7 +19,7 @@
 		},
 		{
 			"ImportPath": "github.com/launchdarkly/eventsource",
-			"Rev": "9364f4fb8a92fd993eb989e6d287600058a5382f"
+			"Rev": "b948508b604ac2c367c19a2229127c32dad38a65"
 		}
 	]
 }

@@ -54,7 +54,7 @@ func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
 	headers.Add("Authorization", "api_key "+apiKey)
 	headers.Add("User-Agent", "GoClient/"+Version)
 
-	stream, err := es.Subscribe(config.StreamUri, headers, "")
+	stream, err := es.Subscribe(config.StreamUri+"/", headers, "")
 
 	if err != nil {
 		return nil, err
