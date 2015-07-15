@@ -42,6 +42,7 @@ func Subscribe(url string, headers http.Header, lastEventId string) (*Stream, er
 	hs := make(http.Header)
 
 	for k, v := range headers {
+		fmt.Printf("Header: %s, %s\n", k, v)
 		hs[k] = v
 	}
 
@@ -70,6 +71,11 @@ func (stream *Stream) connect() (r io.ReadCloser, err error) {
 	req.Header = stream.headers
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Accept", "text/event-stream")
+
+	for k, v := range req.Header {
+		fmt.Printf("Connect Header: %s, %s\n", k, v)
+	}
+
 	if len(stream.lastEventId) > 0 {
 		req.Header.Set("Last-Event-ID", stream.lastEventId)
 	}

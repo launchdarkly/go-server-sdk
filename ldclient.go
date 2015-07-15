@@ -361,7 +361,7 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 		return defaultVal, nil
 	}
 
-	if client.config.Stream && client.streamProcessor.Initialized() && client.streamProcessor != nil {
+	if client.config.Stream && client.streamProcessor != nil && client.streamProcessor.Initialized() && client.streamProcessor != nil {
 		var featurePtr *Feature
 		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
 		if streamErr != nil {
