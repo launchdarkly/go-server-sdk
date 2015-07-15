@@ -355,7 +355,7 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	return client.Toggle(key, user, defaultVal)
 }
 
-func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, error) {
+func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
 	var feature Feature
 	var streamErr error
 
@@ -367,21 +367,18 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 		var featurePtr *Feature
 		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
 		if streamErr != nil {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, streamErr
 		}
 
 		if featurePtr != nil {
 			feature = *featurePtr
 		} else {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 		}
 	} else {
 		req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
 
 		if reqErr != nil {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, reqErr
 		}
 
@@ -398,36 +395,30 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 		}()
 
 		if resErr != nil {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, resErr
 		}
 
 		if res.StatusCode == http.StatusUnauthorized {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
 		}
 
 		if res.StatusCode == http.StatusNotFound {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 		}
 
 		if res.StatusCode != http.StatusOK {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
 		}
 
 		body, err := ioutil.ReadAll(res.Body)
 
 		if err != nil {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, err
 		}
 
 		jsonErr := json.Unmarshal(body, &feature)
 
 		if jsonErr != nil {
-			client.sendFlagRequestEvent(key, user, defaultVal)
 			return defaultVal, jsonErr
 		}
 	}
@@ -435,8 +426,18 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 	value, pass := feature.Evaluate(user)
 
 	if pass {
-		client.sendFlagRequestEvent(key, user, defaultVal)
 		return defaultVal, nil
+	}
+
+	return value, nil
+}
+
+func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, error) {
+	value, err := client.evaluate(key, user, defaultVal)
+
+	if err != nil {
+		client.sendFlagRequestEvent(key, user, defaultVal)
+		return defaultVal, err
 	}
 
 	result, ok := value.(bool)
@@ -446,6 +447,45 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 		return defaultVal, errors.New("Feature flag returned non-bool value")
 	}
 
-	client.sendFlagRequestEvent(key, user, result)
+	client.sendFlagRequestEvent(key, user, value)
+	return result, nil
+}
+
+func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int, error) {
+	value, err := client.evaluate(key, user, defaultVal)
+
+	if err != nil {
+		client.sendFlagRequestEvent(key, user, defaultVal)
+		return defaultVal, err
+	}
+
+	// json numbers are deserialized into float64s
+	result, ok := value.(float64)
+
+	if !ok {
+		client.sendFlagRequestEvent(key, user, defaultVal)
+		return defaultVal, errors.New("Feature flag returned non-int value")
+	}
+
+	client.sendFlagRequestEvent(key, user, value)
+	return int(result), nil
+}
+
+func (client *LDClient) Float64Variation(key string, user User, defaultVal float64) (float64, error) {
+	value, err := client.evaluate(key, user, defaultVal)
+
+	if err != nil {
+		client.sendFlagRequestEvent(key, user, defaultVal)
+		return defaultVal, err
+	}
+
+	result, ok := value.(float64)
+
+	if !ok {
+		client.sendFlagRequestEvent(key, user, defaultVal)
+		return defaultVal, errors.New("Feature flag returned non-int value")
+	}
+
+	client.sendFlagRequestEvent(key, user, value)
 	return result, nil
 }
