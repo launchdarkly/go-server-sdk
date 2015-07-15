@@ -35,6 +35,10 @@ type FeaturePatchData struct {
 	Data Feature `json:"data"`
 }
 
+type FeatureDeleteData struct {
+	Path string `json:"path"`
+}
+
 func (sp *StreamProcessor) Initialized() bool {
 	return sp.store.Initialized()
 }
@@ -96,6 +100,14 @@ func (sp *StreamProcessor) Start() {
 			} else {
 				key := strings.TrimLeft(patch.Path, "/")
 				sp.store.Upsert(key, patch.Data)
+			}
+		case DELETE_FEATURE:
+			var data FeatureDeleteData
+			if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
+				sp.config.Logger.Printf("Unexpected error unmarshalling feature delete json: %+v", err)
+			} else {
+				key := strings.TrimLeft(data.Path, "/")
+				sp.store.Delete(key)
 			}
 		default:
 			sp.config.Logger.Printf("Unexpected event found in stream: %s", event.Event())
