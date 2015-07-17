@@ -3,6 +3,7 @@ package ldclient
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	es "github.com/launchdarkly/eventsource"
 	"net/http"
 	"strings"
@@ -111,21 +112,39 @@ func (sp *StreamProcessor) Errors() {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
+			sp.setDisconnected()
 			time.Sleep(2 * time.Second)
 			continue
 		}
 		err := <-sp.stream.Errors
 		sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-		sp.setDisconnected()
+		if err != nil {
+			sp.setDisconnected()
+		}
 	}
 }
 
-func (sp *StreamProcessor) setDisconnected() {
+func (sp *StreamProcessor) setConnected() {
 	sp.RLock()
 	if sp.disconnected != nil {
 		sp.RUnlock()
 		sp.Lock()
 		if sp.disconnected != nil {
+			sp.disconnected = nil
+		}
+		sp.Unlock()
+	} else {
+		sp.RUnlock()
+	}
+
+}
+
+func (sp *StreamProcessor) setDisconnected() {
+	sp.RLock()
+	if sp.disconnected == nil {
+		sp.RUnlock()
+		sp.Lock()
+		if sp.disconnected == nil {
 			now := time.Now()
 			sp.disconnected = &now
 		}
@@ -145,6 +164,7 @@ func (sp *StreamProcessor) Start() {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
+			sp.setDisconnected()
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -156,6 +176,7 @@ func (sp *StreamProcessor) Start() {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
 			} else {
 				sp.store.Init(features)
+				sp.setConnected()
 			}
 		case PATCH_FEATURE:
 			var patch FeaturePatchData
@@ -164,6 +185,7 @@ func (sp *StreamProcessor) Start() {
 			} else {
 				key := strings.TrimLeft(patch.Path, "/")
 				sp.store.Upsert(key, patch.Data)
+				sp.setConnected()
 			}
 		case DELETE_FEATURE:
 			var data FeatureDeleteData
@@ -172,9 +194,11 @@ func (sp *StreamProcessor) Start() {
 			} else {
 				key := strings.TrimLeft(data.Path, "/")
 				sp.store.Delete(key)
+				sp.setConnected()
 			}
 		default:
 			sp.config.Logger.Printf("Unexpected event found in stream: %s", event.Event())
+			sp.setConnected()
 		}
 	}
 }
