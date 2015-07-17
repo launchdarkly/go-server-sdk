@@ -101,19 +101,10 @@ var DefaultConfig = Config{
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
-	var sp *StreamProcessor
-	var streamErr error
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	httpClient := httpcache.NewMemoryCacheTransport().Client()
 	// Client Transport of type *httpcache.Transport doesn't support CancelRequest; Timeout not supported
 	// httpClient.Timeout = config.Timeout
-
-	if config.Stream {
-		sp, streamErr = NewStream(apiKey, config)
-		if streamErr != nil {
-			config.Logger.Printf("Error initializing stream processor: %+v", streamErr)
-		}
-	}
 
 	return LDClient{
 		apiKey:          apiKey,
@@ -121,7 +112,7 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 		httpClient:      httpClient,
 		eventProcessor:  newEventProcessor(apiKey, config),
 		offline:         false,
-		streamProcessor: sp,
+		streamProcessor: newStream(apiKey, config),
 	}
 }
 
@@ -416,7 +407,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		return defaultVal, nil
 	}
 
-	if client.config.Stream && client.streamProcessor != nil && client.streamProcessor.Initialized() && client.streamProcessor != nil {
+	if client.config.Stream && client.streamProcessor != nil && client.streamProcessor.Initialized() {
 		var featurePtr *Feature
 		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
 
@@ -431,6 +422,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		}
 
 		if streamErr != nil {
+			client.config.Logger.Printf("Encountered error in stream: %+v", streamErr)
 			return defaultVal, streamErr
 		}
 

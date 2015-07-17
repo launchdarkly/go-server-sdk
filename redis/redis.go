@@ -9,9 +9,8 @@ import (
 )
 
 type RedisFeatureStore struct {
-	isInitialized bool
-	prefix        string
-	pool          *r.Pool
+	prefix string
+	pool   *r.Pool
 }
 
 var pool *r.Pool
@@ -44,9 +43,8 @@ func NewRedisFeatureStore(host string, port int, prefix string) *RedisFeatureSto
 	}
 
 	store := RedisFeatureStore{
-		isInitialized: false,
-		prefix:        prefix,
-		pool:          pool,
+		prefix: prefix,
+		pool:   pool,
 	}
 
 	return &store
@@ -151,5 +149,8 @@ func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
 func (store *RedisFeatureStore) Initialized() bool {
 	c := store.getConn()
 	defer c.Close()
-	return store.isInitialized
+
+	init, err := r.Bool(c.Do("EXISTS", store.featuresKey()))
+
+	return err == nil && init
 }

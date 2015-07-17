@@ -21,6 +21,7 @@ type StreamProcessor struct {
 	stream       *es.Stream
 	config       Config
 	disconnected *time.Time
+	apiKey       string
 	sync.RWMutex
 }
 
@@ -54,18 +55,8 @@ func (sp *StreamProcessor) GetFeature(key string) (*Feature, error) {
 	}
 }
 
-func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
+func newStream(apiKey string, config Config) *StreamProcessor {
 	var store FeatureStore
-	headers := make(http.Header)
-
-	headers.Add("Authorization", "api_key "+apiKey)
-	headers.Add("User-Agent", "GoClient/"+Version)
-
-	stream, err := es.Subscribe(config.StreamUri+"/", headers, "")
-
-	if err != nil {
-		return nil, err
-	}
 
 	if config.FeatureStore != nil {
 		store = config.FeatureStore
@@ -75,20 +66,54 @@ func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
 
 	sp := &StreamProcessor{
 		store:  store,
-		stream: stream,
 		config: config,
+		apiKey: apiKey,
 	}
 
 	go sp.Start()
 
 	go sp.Errors()
 
-	return sp, nil
+	return sp
+}
 
+func (sp *StreamProcessor) subscribe() {
+	sp.Lock()
+	defer sp.Unlock()
+
+	if sp.stream == nil {
+		headers := make(http.Header)
+
+		headers.Add("Authorization", "api_key "+sp.apiKey)
+		headers.Add("User-Agent", "GoClient/"+Version)
+
+		if stream, err := es.Subscribe(sp.config.StreamUri+"/", headers, ""); err != nil {
+			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
+		} else {
+			sp.stream = stream
+		}
+	}
+}
+
+func (sp *StreamProcessor) checkSubscribe() bool {
+	sp.RLock()
+	if sp.stream == nil {
+		sp.RUnlock()
+		sp.subscribe()
+		return sp.stream != nil
+	} else {
+		sp.RUnlock()
+		return true
+	}
 }
 
 func (sp *StreamProcessor) Errors() {
 	for {
+		subscribed := sp.checkSubscribe()
+		if !subscribed {
+			time.Sleep(2 * time.Second)
+			continue
+		}
 		err := <-sp.stream.Errors
 		sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
 		sp.setDisconnected()
@@ -118,6 +143,11 @@ func (sp *StreamProcessor) ShouldFallbackUpdate() bool {
 
 func (sp *StreamProcessor) Start() {
 	for {
+		subscribed := sp.checkSubscribe()
+		if !subscribed {
+			time.Sleep(2 * time.Second)
+			continue
+		}
 		event := <-sp.stream.Events
 		switch event.Event() {
 		case PUT_FEATURE:
