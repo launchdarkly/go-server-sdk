@@ -355,6 +355,59 @@ func (client *LDClient) GetFlag(key string, user User, defaultVal bool) (bool, e
 	return client.Toggle(key, user, defaultVal)
 }
 
+func (client *LDClient) makeRequest(key string) (*Feature, error) {
+	var feature Feature
+
+	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
+
+	if reqErr != nil {
+		return nil, reqErr
+	}
+
+	req.Header.Add("Authorization", "api_key "+client.apiKey)
+	req.Header.Add("User-Agent", "GoClient/"+Version)
+
+	res, resErr := client.httpClient.Do(req)
+
+	defer func() {
+		if res != nil && res.Body != nil {
+			ioutil.ReadAll(res.Body)
+			res.Body.Close()
+		}
+	}()
+
+	if resErr != nil {
+		return nil, resErr
+	}
+
+	if res.StatusCode == http.StatusUnauthorized {
+		return nil, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
+	}
+
+	if res.StatusCode == http.StatusNotFound {
+		return nil, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
+	}
+
+	body, err := ioutil.ReadAll(res.Body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	jsonErr := json.Unmarshal(body, &feature)
+
+	if jsonErr != nil {
+		return nil, jsonErr
+	} else {
+		return &feature, nil
+	}
+
+}
+
 func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
 	var feature Feature
 	var streamErr error
@@ -366,6 +419,17 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	if client.config.Stream && client.streamProcessor != nil && client.streamProcessor.Initialized() && client.streamProcessor != nil {
 		var featurePtr *Feature
 		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
+
+		if client.streamProcessor.ShouldFallbackUpdate() {
+			go func() {
+				if feature, err := client.makeRequest(key); err != nil {
+					client.config.Logger.Printf("Failed to update feature in fallback mode. Flag values may be stale.")
+				} else {
+					client.streamProcessor.store.Upsert(*feature.Key, *feature)
+				}
+			}()
+		}
+
 		if streamErr != nil {
 			return defaultVal, streamErr
 		}
@@ -376,50 +440,10 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 		}
 	} else {
-		req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
-
-		if reqErr != nil {
+		if featurePtr, reqErr := client.makeRequest(key); reqErr != nil {
 			return defaultVal, reqErr
-		}
-
-		req.Header.Add("Authorization", "api_key "+client.apiKey)
-		req.Header.Add("User-Agent", "GoClient/"+Version)
-
-		res, resErr := client.httpClient.Do(req)
-
-		defer func() {
-			if res != nil && res.Body != nil {
-				ioutil.ReadAll(res.Body)
-				res.Body.Close()
-			}
-		}()
-
-		if resErr != nil {
-			return defaultVal, resErr
-		}
-
-		if res.StatusCode == http.StatusUnauthorized {
-			return defaultVal, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
-		}
-
-		if res.StatusCode == http.StatusNotFound {
-			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
-		}
-
-		if res.StatusCode != http.StatusOK {
-			return defaultVal, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
-		}
-
-		body, err := ioutil.ReadAll(res.Body)
-
-		if err != nil {
-			return defaultVal, err
-		}
-
-		jsonErr := json.Unmarshal(body, &feature)
-
-		if jsonErr != nil {
-			return defaultVal, jsonErr
+		} else {
+			feature = *featurePtr
 		}
 	}
 

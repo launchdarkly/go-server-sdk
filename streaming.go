@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -16,9 +17,11 @@ var (
 )
 
 type StreamProcessor struct {
-	store  FeatureStore
-	stream *es.Stream
-	config Config
+	store        FeatureStore
+	stream       *es.Stream
+	config       Config
+	disconnected *time.Time
+	sync.RWMutex
 }
 
 type FeatureStore interface {
@@ -78,8 +81,39 @@ func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
 
 	go sp.Start()
 
+	go sp.Errors()
+
 	return sp, nil
 
+}
+
+func (sp *StreamProcessor) Errors() {
+	for {
+		err := <-sp.stream.Errors
+		sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+		sp.setDisconnected()
+	}
+}
+
+func (sp *StreamProcessor) setDisconnected() {
+	sp.RLock()
+	if sp.disconnected != nil {
+		sp.RUnlock()
+		sp.Lock()
+		if sp.disconnected != nil {
+			now := time.Now()
+			sp.disconnected = &now
+		}
+		sp.Unlock()
+	} else {
+		sp.RUnlock()
+	}
+}
+
+func (sp *StreamProcessor) ShouldFallbackUpdate() bool {
+	sp.RLock()
+	defer sp.RUnlock()
+	return sp.disconnected != nil && sp.disconnected.Before(time.Now().Add(-2*time.Minute))
 }
 
 func (sp *StreamProcessor) Start() {
