@@ -3,7 +3,6 @@ package ldclient
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	es "github.com/launchdarkly/eventsource"
 	"net/http"
 	"strings"
