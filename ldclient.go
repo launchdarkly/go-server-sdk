@@ -101,10 +101,16 @@ var DefaultConfig = Config{
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
+	var streamProcessor *StreamProcessor
+
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	httpClient := httpcache.NewMemoryCacheTransport().Client()
 	// Client Transport of type *httpcache.Transport doesn't support CancelRequest; Timeout not supported
 	// httpClient.Timeout = config.Timeout
+
+	if config.Stream {
+		streamProcessor = newStream(apiKey, config)
+	}
 
 	return LDClient{
 		apiKey:          apiKey,
@@ -112,7 +118,7 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 		httpClient:      httpClient,
 		eventProcessor:  newEventProcessor(apiKey, config),
 		offline:         false,
-		streamProcessor: newStream(apiKey, config),
+		streamProcessor: streamProcessor,
 	}
 }
 
