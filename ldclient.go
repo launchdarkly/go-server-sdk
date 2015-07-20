@@ -464,7 +464,7 @@ func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int
 
 	if !ok {
 		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-int value")
+		return defaultVal, errors.New("Feature flag returned non-numeric value")
 	}
 
 	client.sendFlagRequestEvent(key, user, value)
@@ -483,7 +483,7 @@ func (client *LDClient) Float64Variation(key string, user User, defaultVal float
 
 	if !ok {
 		client.sendFlagRequestEvent(key, user, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-int value")
+		return defaultVal, errors.New("Feature flag returned non-numeric value")
 	}
 
 	client.sendFlagRequestEvent(key, user, value)
