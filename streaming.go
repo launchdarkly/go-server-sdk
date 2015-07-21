@@ -102,7 +102,7 @@ func (sp *StreamProcessor) checkSubscribe() bool {
 		sp.subscribe()
 		return sp.stream != nil
 	} else {
-		sp.RUnlock()
+		defer sp.RUnlock()
 		return true
 	}
 }
@@ -127,11 +127,10 @@ func (sp *StreamProcessor) setConnected() {
 	sp.RLock()
 	if sp.disconnected != nil {
 		sp.RUnlock()
-		sp.Lock()
+		defer sp.Lock()
 		if sp.disconnected != nil {
 			sp.disconnected = nil
 		}
-		sp.Unlock()
 	} else {
 		sp.RUnlock()
 	}
@@ -143,11 +142,11 @@ func (sp *StreamProcessor) setDisconnected() {
 	if sp.disconnected == nil {
 		sp.RUnlock()
 		sp.Lock()
+		defer sp.Unlock()
 		if sp.disconnected == nil {
 			now := time.Now()
 			sp.disconnected = &now
 		}
-		sp.Unlock()
 	} else {
 		sp.RUnlock()
 	}
