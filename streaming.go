@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -16,9 +17,12 @@ var (
 )
 
 type StreamProcessor struct {
-	store  FeatureStore
-	stream *es.Stream
-	config Config
+	store        FeatureStore
+	stream       *es.Stream
+	config       Config
+	disconnected *time.Time
+	apiKey       string
+	sync.RWMutex
 }
 
 type FeatureStore interface {
@@ -51,18 +55,8 @@ func (sp *StreamProcessor) GetFeature(key string) (*Feature, error) {
 	}
 }
 
-func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
+func newStream(apiKey string, config Config) *StreamProcessor {
 	var store FeatureStore
-	headers := make(http.Header)
-
-	headers.Add("Authorization", "api_key "+apiKey)
-	headers.Add("User-Agent", "GoClient/"+Version)
-
-	stream, err := es.Subscribe(config.StreamUri+"/", headers, "")
-
-	if err != nil {
-		return nil, err
-	}
 
 	if config.FeatureStore != nil {
 		store = config.FeatureStore
@@ -72,18 +66,106 @@ func NewStream(apiKey string, config Config) (*StreamProcessor, error) {
 
 	sp := &StreamProcessor{
 		store:  store,
-		stream: stream,
 		config: config,
+		apiKey: apiKey,
 	}
 
 	go sp.Start()
 
-	return sp, nil
+	go sp.Errors()
 
+	return sp
+}
+
+func (sp *StreamProcessor) subscribe() {
+	sp.Lock()
+	defer sp.Unlock()
+
+	if sp.stream == nil {
+		headers := make(http.Header)
+
+		headers.Add("Authorization", "api_key "+sp.apiKey)
+		headers.Add("User-Agent", "GoClient/"+Version)
+
+		if stream, err := es.Subscribe(sp.config.StreamUri+"/", headers, ""); err != nil {
+			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
+		} else {
+			sp.stream = stream
+		}
+	}
+}
+
+func (sp *StreamProcessor) checkSubscribe() bool {
+	sp.RLock()
+	if sp.stream == nil {
+		sp.RUnlock()
+		sp.subscribe()
+		return sp.stream != nil
+	} else {
+		defer sp.RUnlock()
+		return true
+	}
+}
+
+func (sp *StreamProcessor) Errors() {
+	for {
+		subscribed := sp.checkSubscribe()
+		if !subscribed {
+			sp.setDisconnected()
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		err := <-sp.stream.Errors
+		sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+		if err != nil {
+			sp.setDisconnected()
+		}
+	}
+}
+
+func (sp *StreamProcessor) setConnected() {
+	sp.RLock()
+	if sp.disconnected != nil {
+		sp.RUnlock()
+		defer sp.Lock()
+		if sp.disconnected != nil {
+			sp.disconnected = nil
+		}
+	} else {
+		sp.RUnlock()
+	}
+
+}
+
+func (sp *StreamProcessor) setDisconnected() {
+	sp.RLock()
+	if sp.disconnected == nil {
+		sp.RUnlock()
+		sp.Lock()
+		defer sp.Unlock()
+		if sp.disconnected == nil {
+			now := time.Now()
+			sp.disconnected = &now
+		}
+	} else {
+		sp.RUnlock()
+	}
+}
+
+func (sp *StreamProcessor) ShouldFallbackUpdate() bool {
+	sp.RLock()
+	defer sp.RUnlock()
+	return sp.disconnected != nil && sp.disconnected.Before(time.Now().Add(-2*time.Minute))
 }
 
 func (sp *StreamProcessor) Start() {
 	for {
+		subscribed := sp.checkSubscribe()
+		if !subscribed {
+			sp.setDisconnected()
+			time.Sleep(2 * time.Second)
+			continue
+		}
 		event := <-sp.stream.Events
 		switch event.Event() {
 		case PUT_FEATURE:
@@ -92,6 +174,7 @@ func (sp *StreamProcessor) Start() {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
 			} else {
 				sp.store.Init(features)
+				sp.setConnected()
 			}
 		case PATCH_FEATURE:
 			var patch FeaturePatchData
@@ -100,6 +183,7 @@ func (sp *StreamProcessor) Start() {
 			} else {
 				key := strings.TrimLeft(patch.Path, "/")
 				sp.store.Upsert(key, patch.Data)
+				sp.setConnected()
 			}
 		case DELETE_FEATURE:
 			var data FeatureDeleteData
@@ -108,9 +192,11 @@ func (sp *StreamProcessor) Start() {
 			} else {
 				key := strings.TrimLeft(data.Path, "/")
 				sp.store.Delete(key)
+				sp.setConnected()
 			}
 		default:
 			sp.config.Logger.Printf("Unexpected event found in stream: %s", event.Event())
+			sp.setConnected()
 		}
 	}
 }
