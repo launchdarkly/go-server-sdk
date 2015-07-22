@@ -452,7 +452,7 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 }
 
 func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int, error) {
-	value, err := client.evaluate(key, user, defaultVal)
+	value, err := client.evaluate(key, user, float64(defaultVal))
 
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal)
