@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/facebookgo/httpcontrol"
 	"github.com/gregjones/httpcache"
 	"io"
 	"io/ioutil"
@@ -95,7 +96,7 @@ var DefaultConfig = Config{
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
-	Timeout:       1500 * time.Millisecond,
+	Timeout:       3000 * time.Millisecond,
 	Stream:        false,
 	FeatureStore:  nil,
 }
@@ -104,9 +105,21 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 	var streamProcessor *StreamProcessor
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
-	httpClient := httpcache.NewMemoryCacheTransport().Client()
-	// Client Transport of type *httpcache.Transport doesn't support CancelRequest; Timeout not supported
-	// httpClient.Timeout = config.Timeout
+
+	baseTransport := httpcontrol.Transport{
+		RequestTimeout: config.Timeout,
+		DialTimeout:    config.Timeout,
+		DialKeepAlive:  1 * time.Minute,
+		MaxTries:       3,
+	}
+
+	cachingTransport := &httpcache.Transport{
+		Cache:               httpcache.NewMemoryCache(),
+		MarkCachedResponses: true,
+		Transport:           &baseTransport,
+	}
+
+	httpClient := cachingTransport.Client()
 
 	if config.Stream {
 		streamProcessor = newStream(apiKey, config)
