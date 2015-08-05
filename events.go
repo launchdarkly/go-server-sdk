@@ -110,6 +110,7 @@ func (ep *eventProcessor) flush() {
 
 	if respErr != nil {
 		ep.config.Logger.Printf("Unexpected error while sending events: %+v", respErr)
+		return
 	}
 
 	if resp.Body != nil {
