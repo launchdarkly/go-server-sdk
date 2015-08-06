@@ -127,7 +127,8 @@ func (sp *StreamProcessor) setConnected() {
 	sp.RLock()
 	if sp.disconnected != nil {
 		sp.RUnlock()
-		defer sp.Lock()
+		sp.Lock()
+		defer sp.Unlock()
 		if sp.disconnected != nil {
 			sp.disconnected = nil
 		}
