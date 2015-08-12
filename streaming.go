@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	es "github.com/launchdarkly/eventsource"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -116,7 +117,10 @@ func (sp *StreamProcessor) Errors() {
 			continue
 		}
 		err := <-sp.stream.Errors
-		sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+
+		if err != io.EOF {
+			sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+		}
 		if err != nil {
 			sp.setDisconnected()
 		}
