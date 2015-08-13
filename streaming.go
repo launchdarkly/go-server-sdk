@@ -250,7 +250,7 @@ func (store *InMemoryFeatureStore) Delete(key string, version int) error {
 	store.Lock()
 	defer store.Unlock()
 	f := store.features[key]
-	if f.Version < version {
+	if f != nil && f.Version < version {
 		delete(store.features, key)
 	}
 	return nil
