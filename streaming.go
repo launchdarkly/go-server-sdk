@@ -30,7 +30,7 @@ type FeatureStore interface {
 	Get(key string) (*Feature, error)
 	All() (map[string]*Feature, error)
 	Init(map[string]*Feature) error
-	Delete(key string) error
+	Delete(key string, version int) error
 	Upsert(key string, f Feature) error
 	Initialized() bool
 }
@@ -41,7 +41,8 @@ type FeaturePatchData struct {
 }
 
 type FeatureDeleteData struct {
-	Path string `json:"path"`
+	Path    string `json:"path"`
+	Version int    `json:"version"`
 }
 
 func (sp *StreamProcessor) Initialized() bool {
@@ -196,7 +197,7 @@ func (sp *StreamProcessor) Start() {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature delete json: %+v", err)
 			} else {
 				key := strings.TrimLeft(data.Path, "/")
-				sp.store.Delete(key)
+				sp.store.Delete(key, data.Version)
 				sp.setConnected()
 			}
 		default:
@@ -223,7 +224,13 @@ func NewInMemoryFeatureStore() *InMemoryFeatureStore {
 func (store *InMemoryFeatureStore) Get(key string) (*Feature, error) {
 	store.RLock()
 	defer store.RUnlock()
-	return store.features[key], nil
+	f := store.features[key]
+
+	if f == nil || f.Deleted {
+		return nil, nil
+	} else {
+		return f, nil
+	}
 }
 
 func (store *InMemoryFeatureStore) All() (map[string]*Feature, error) {
@@ -232,15 +239,20 @@ func (store *InMemoryFeatureStore) All() (map[string]*Feature, error) {
 	fs := make(map[string]*Feature)
 
 	for k, v := range store.features {
-		fs[k] = v
+		if !v.Deleted {
+			fs[k] = v
+		}
 	}
 	return fs, nil
 }
 
-func (store *InMemoryFeatureStore) Delete(key string) error {
+func (store *InMemoryFeatureStore) Delete(key string, version int) error {
 	store.Lock()
 	defer store.Unlock()
-	delete(store.features, key)
+	f := store.features[key]
+	if f.Version < version {
+		delete(store.features, key)
+	}
 	return nil
 }
 
@@ -260,8 +272,11 @@ func (store *InMemoryFeatureStore) Init(fs map[string]*Feature) error {
 func (store *InMemoryFeatureStore) Upsert(key string, f Feature) error {
 	store.Lock()
 	defer store.Unlock()
+	old := store.features[key]
 
-	store.features[key] = &f
+	if old == nil || old.Version < f.Version {
+		store.features[key] = &f
+	}
 	return nil
 }
 

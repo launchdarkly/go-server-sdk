@@ -55,6 +55,8 @@ type Feature struct {
 	Variations   *[]Variation `json:"variations"`
 	CommitDate   *time.Time   `json:"commitDate"`
 	CreationDate *time.Time   `json:"creationDate"`
+	Version      int          `json:"version,omitempty"`
+	Deleted      bool         `json:"deleted,omitempty"`
 }
 
 type TargetRule struct {

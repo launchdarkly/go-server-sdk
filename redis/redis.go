@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// TODO update this feature store to respect versions
 type RedisFeatureStore struct {
 	prefix string
 	pool   *r.Pool
@@ -73,6 +74,10 @@ func (store *RedisFeatureStore) Get(key string) (*ld.Feature, error) {
 		return nil, jsonErr
 	}
 
+	if feature.Deleted {
+		return nil, nil
+	}
+
 	return &feature, nil
 }
 
@@ -97,7 +102,9 @@ func (store *RedisFeatureStore) All() (map[string]*ld.Feature, error) {
 			return nil, err
 		}
 
-		results[k] = &feature
+		if !feature.Deleted {
+			results[k] = &feature
+		}
 	}
 	return results, nil
 }
@@ -122,11 +129,33 @@ func (store *RedisFeatureStore) Init(features map[string]*ld.Feature) error {
 	return err
 }
 
-func (store *RedisFeatureStore) Delete(key string) error {
+func (store *RedisFeatureStore) Delete(key string, version int) error {
 	c := store.getConn()
 	defer c.Close()
 
-	_, err := c.Do("HDEL", store.featuresKey(), key)
+	c.Send("WATCH", store.featuresKey())
+	defer c.Send("UNWATCH")
+
+	feature, featureErr := store.Get(key)
+
+	if featureErr != nil {
+		return featureErr
+	}
+
+	if feature != nil && feature.Version >= version {
+		return nil
+	}
+
+	feature.Deleted = true
+	feature.Version = version
+
+	data, jsonErr := json.Marshal(feature)
+
+	if jsonErr != nil {
+		return jsonErr
+	}
+
+	_, err := c.Do("HSET", store.featuresKey(), data)
 
 	return err
 }
@@ -134,6 +163,19 @@ func (store *RedisFeatureStore) Delete(key string) error {
 func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
 	c := store.getConn()
 	defer c.Close()
+
+	c.Send("WATCH", store.featuresKey())
+	defer c.Send("UNWATCH")
+
+	o, featureErr := store.Get(key)
+
+	if featureErr != nil {
+		return featureErr
+	}
+
+	if o.Version >= f.Version {
+		return nil
+	}
 
 	data, jsonErr := json.Marshal(f)
 
