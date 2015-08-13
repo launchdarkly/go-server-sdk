@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// TODO update this feature store to respect versions
 type RedisFeatureStore struct {
 	prefix string
 	pool   *r.Pool
