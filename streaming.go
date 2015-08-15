@@ -254,6 +254,9 @@ func (store *InMemoryFeatureStore) Delete(key string, version int) error {
 		f.Deleted = true
 		f.Version = version
 		store.features[key] = f
+	} else if f == nil {
+		f = &Feature{Deleted: true, Version: version}
+		store.features[key] = f
 	}
 	return nil
 }
