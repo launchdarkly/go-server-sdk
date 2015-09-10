@@ -355,6 +355,10 @@ func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
+func (client *LDClient) IsStreamDisconnected() bool {
+	return client.config.Stream == false || client.streamProcessor == nil || client.streamProcessor.ShouldFallbackUpdate()
+}
+
 func (client *LDClient) Close() {
 	client.eventProcessor.close()
 }
