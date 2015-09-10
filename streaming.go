@@ -72,9 +72,11 @@ func newStream(apiKey string, config Config) *StreamProcessor {
 		apiKey: apiKey,
 	}
 
-	go sp.Start()
+	if !config.UseLdd {
+		go sp.Start()
 
-	go sp.Errors()
+		go sp.Errors()
+	}
 
 	return sp
 }

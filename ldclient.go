@@ -90,6 +90,7 @@ type Config struct {
 	Timeout       time.Duration
 	Stream        bool
 	FeatureStore  FeatureStore
+	UseLdd        bool
 }
 
 var DefaultConfig = Config{
@@ -101,6 +102,7 @@ var DefaultConfig = Config{
 	Timeout:       3000 * time.Millisecond,
 	Stream:        false,
 	FeatureStore:  nil,
+	UseLdd:        false,
 }
 
 func MakeCustomClient(apiKey string, config Config) LDClient {
@@ -355,6 +357,14 @@ func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
+func (client *LDClient) IsStreamDisconnected() bool {
+	return client.config.Stream == false || client.streamProcessor == nil || client.streamProcessor.ShouldFallbackUpdate()
+}
+
+func (client *LDClient) IsStreamInitialized() bool {
+	return client.config.Stream && client.streamProcessor != nil && client.streamProcessor.Initialized()
+}
+
 func (client *LDClient) Close() {
 	client.eventProcessor.close()
 }
@@ -428,11 +438,11 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		return defaultVal, nil
 	}
 
-	if client.config.Stream && client.streamProcessor != nil && client.streamProcessor.Initialized() {
+	if client.IsStreamInitialized() {
 		var featurePtr *Feature
 		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
 
-		if client.streamProcessor.ShouldFallbackUpdate() {
+		if !client.config.UseLdd && client.IsStreamDisconnected() {
 			go func() {
 				if feature, err := client.makeRequest(key); err != nil {
 					client.config.Logger.Printf("Failed to update feature in fallback mode. Flag values may be stale.")
