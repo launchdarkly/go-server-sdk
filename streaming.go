@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	PUT_FEATURE    = "put/features"
-	PATCH_FEATURE  = "patch/features"
-	DELETE_FEATURE = "delete/features"
+	PUT    = "put"
+	PATCH  = "patch"
+	DELETE = "delete"
 )
 
 type StreamProcessor struct {
@@ -91,7 +91,7 @@ func (sp *StreamProcessor) subscribe() {
 		headers.Add("Authorization", "api_key "+sp.apiKey)
 		headers.Add("User-Agent", "GoClient/"+Version)
 
-		if stream, err := es.Subscribe(sp.config.StreamUri+"/", headers, ""); err != nil {
+		if stream, err := es.Subscribe(sp.config.StreamUri+"/features", headers, ""); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
 		} else {
 			sp.stream = stream
@@ -176,7 +176,7 @@ func (sp *StreamProcessor) Start() {
 		}
 		event := <-sp.stream.Events
 		switch event.Event() {
-		case PUT_FEATURE:
+		case PUT:
 			var features map[string]*Feature
 			if err := json.Unmarshal([]byte(event.Data()), &features); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
@@ -184,7 +184,7 @@ func (sp *StreamProcessor) Start() {
 				sp.store.Init(features)
 				sp.setConnected()
 			}
-		case PATCH_FEATURE:
+		case PATCH:
 			var patch FeaturePatchData
 			if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature patch json: %+v", err)
@@ -193,7 +193,7 @@ func (sp *StreamProcessor) Start() {
 				sp.store.Upsert(key, patch.Data)
 				sp.setConnected()
 			}
-		case DELETE_FEATURE:
+		case DELETE:
 			var data FeatureDeleteData
 			if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature delete json: %+v", err)
