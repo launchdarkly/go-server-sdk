@@ -1,6 +1,8 @@
 LaunchDarkly SDK for Go
 ===========================
 
+[![Circle CI](https://circleci.com/gh/launchdarkly/go-client.svg?style=svg)](https://circleci.com/gh/launchdarkly/go-client)
+
 Quick setup
 -----------
 
