@@ -158,8 +158,8 @@ type CustomEvent struct {
 	Data interface{} `json:"data"`
 }
 
-// Used to just create the event. Most likely, you want Track to create the
-// event and queue it for sending to LaunchDarkly.
+// Constructs a new custom event, but does not send it. Typically, Track should be used to both create the
+// event and send it to LaunchDarkly.
 func NewCustomEvent(key string, user User, data interface{}) CustomEvent {
 	return CustomEvent{
 		BaseEvent: BaseEvent{
@@ -184,8 +184,8 @@ type IdentifyEvent struct {
 	BaseEvent
 }
 
-// Used to just create the identify event. Most likely, you want Identify to create the
-// event and queue it for sending to LaunchDarkly.
+// Constructs a new identify event, but does not send it. Typically, Identify should be used to both create the
+// event and send it to LaunchDarkly.
 func NewIdentifyEvent(user User) IdentifyEvent {
 	var key string
 	if user.Key == nil {

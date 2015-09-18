@@ -4,6 +4,13 @@ import (
 	"sync"
 )
 
+// A data structure that maintains the live
+// collection of features. It is used by LaunchDarkly when streaming mode is
+// enabled, and stores feature events returned by the streaming API. Custom
+// FeatureStore implementations can be passed to the LaunchDarkly client via
+// a custom Config object. LaunchDarkly provides two FeatureStore implementations:
+// one backed by an in-memory map, and one backed by Redis.
+// Implementations must be thread-safe.
 type FeatureStore interface {
 	Get(key string) (*Feature, error)
 	All() (map[string]*Feature, error)
@@ -13,13 +20,14 @@ type FeatureStore interface {
 	Initialized() bool
 }
 
-// A memory based FeatureStore implementation
+// A memory based FeatureStore implementation, backed by a lock-striped map.
 type InMemoryFeatureStore struct {
 	features      map[string]*Feature
 	isInitialized bool
 	sync.RWMutex
 }
 
+// Creates a new in-memory FeatureStore instance.
 func NewInMemoryFeatureStore() *InMemoryFeatureStore {
 	return &InMemoryFeatureStore{
 		features:      make(map[string]*Feature),

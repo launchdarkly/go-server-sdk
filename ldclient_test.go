@@ -19,10 +19,10 @@ func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	client := MakeCustomClient("api_key", config)
 	client.SetOffline()
 	var key = "foo"
-	res, err := client.GetFlag("anything", User{Key: &key}, true)
+	res, err := client.Toggle("anything", User{Key: &key}, true)
 
 	if err != nil {
-		t.Errorf("Unexpected error in GetFlag")
+		t.Errorf("Unexpected error in Toggle")
 	}
 
 	if !res {

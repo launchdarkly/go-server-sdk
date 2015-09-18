@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// A Redis-backed feature store.
 type RedisFeatureStore struct {
 	prefix string
 	pool   *r.Pool
@@ -35,6 +36,9 @@ func (store *RedisFeatureStore) getConn() r.Conn {
 	return store.pool.Get()
 }
 
+// Constructs a new Redis-backed feature store connecting to the specified host and port.
+// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
+// specified prefix is the empty string, it defaults to "launchdarkly"
 func NewRedisFeatureStore(host string, port int, prefix string) *RedisFeatureStore {
 	pool := newPool(host, port)
 
