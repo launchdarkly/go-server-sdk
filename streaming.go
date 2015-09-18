@@ -26,15 +26,6 @@ type StreamProcessor struct {
 	sync.RWMutex
 }
 
-type FeatureStore interface {
-	Get(key string) (*Feature, error)
-	All() (map[string]*Feature, error)
-	Init(map[string]*Feature) error
-	Delete(key string, version int) error
-	Upsert(key string, f Feature) error
-	Initialized() bool
-}
-
 type FeaturePatchData struct {
 	Path string  `json:"path"`
 	Data Feature `json:"data"`
@@ -54,109 +45,6 @@ func (sp *StreamProcessor) GetFeature(key string) (*Feature, error) {
 		return nil, errors.New("Requested stream data before initialization completed")
 	} else {
 		return sp.store.Get(key)
-	}
-}
-
-func newStream(apiKey string, config Config) *StreamProcessor {
-	var store FeatureStore
-
-	if config.FeatureStore != nil {
-		store = config.FeatureStore
-	} else {
-		store = NewInMemoryFeatureStore()
-	}
-
-	sp := &StreamProcessor{
-		store:  store,
-		config: config,
-		apiKey: apiKey,
-	}
-
-	if !config.UseLdd {
-		go sp.Start()
-
-		go sp.Errors()
-	}
-
-	return sp
-}
-
-func (sp *StreamProcessor) subscribe() {
-	sp.Lock()
-	defer sp.Unlock()
-
-	if sp.stream == nil {
-		headers := make(http.Header)
-
-		headers.Add("Authorization", "api_key "+sp.apiKey)
-		headers.Add("User-Agent", "GoClient/"+Version)
-
-		if stream, err := es.Subscribe(sp.config.StreamUri+"/features", headers, ""); err != nil {
-			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
-		} else {
-			sp.stream = stream
-		}
-	}
-}
-
-func (sp *StreamProcessor) checkSubscribe() bool {
-	sp.RLock()
-	if sp.stream == nil {
-		sp.RUnlock()
-		sp.subscribe()
-		return sp.stream != nil
-	} else {
-		defer sp.RUnlock()
-		return true
-	}
-}
-
-func (sp *StreamProcessor) Errors() {
-	for {
-		subscribed := sp.checkSubscribe()
-		if !subscribed {
-			sp.setDisconnected()
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		err := <-sp.stream.Errors
-
-		if err != io.EOF {
-			sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-		}
-		if err != nil {
-			sp.setDisconnected()
-		}
-	}
-}
-
-func (sp *StreamProcessor) setConnected() {
-	sp.RLock()
-	if sp.disconnected != nil {
-		sp.RUnlock()
-		sp.Lock()
-		defer sp.Unlock()
-		if sp.disconnected != nil {
-			sp.disconnected = nil
-		}
-	} else {
-		sp.RUnlock()
-	}
-
-}
-
-func (sp *StreamProcessor) setDisconnected() {
-	sp.RLock()
-	if sp.disconnected == nil {
-		sp.RUnlock()
-		sp.Lock()
-		defer sp.Unlock()
-		if sp.disconnected == nil {
-			now := time.Now()
-			sp.disconnected = &now
-		}
-	} else {
-		sp.RUnlock()
 	}
 }
 
@@ -209,86 +97,105 @@ func (sp *StreamProcessor) Start() {
 	}
 }
 
-// A memory based FeatureStore implementation
-type InMemoryFeatureStore struct {
-	features      map[string]*Feature
-	isInitialized bool
-	sync.RWMutex
-}
+func newStream(apiKey string, config Config) *StreamProcessor {
+	var store FeatureStore
 
-func NewInMemoryFeatureStore() *InMemoryFeatureStore {
-	return &InMemoryFeatureStore{
-		features:      make(map[string]*Feature),
-		isInitialized: false,
-	}
-}
-
-func (store *InMemoryFeatureStore) Get(key string) (*Feature, error) {
-	store.RLock()
-	defer store.RUnlock()
-	f := store.features[key]
-
-	if f == nil || f.Deleted {
-		return nil, nil
+	if config.FeatureStore != nil {
+		store = config.FeatureStore
 	} else {
-		return f, nil
+		store = NewInMemoryFeatureStore()
 	}
+
+	sp := &StreamProcessor{
+		store:  store,
+		config: config,
+		apiKey: apiKey,
+	}
+
+	if !config.UseLdd {
+		go sp.Start()
+
+		go sp.errors()
+	}
+
+	return sp
 }
 
-func (store *InMemoryFeatureStore) All() (map[string]*Feature, error) {
-	store.RLock()
-	defer store.RUnlock()
-	fs := make(map[string]*Feature)
+func (sp *StreamProcessor) subscribe() {
+	sp.Lock()
+	defer sp.Unlock()
 
-	for k, v := range store.features {
-		if !v.Deleted {
-			fs[k] = v
+	if sp.stream == nil {
+		headers := make(http.Header)
+
+		headers.Add("Authorization", "api_key "+sp.apiKey)
+		headers.Add("User-Agent", "GoClient/"+Version)
+
+		if stream, err := es.Subscribe(sp.config.StreamUri+"/features", headers, ""); err != nil {
+			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
+		} else {
+			sp.stream = stream
 		}
 	}
-	return fs, nil
 }
 
-func (store *InMemoryFeatureStore) Delete(key string, version int) error {
-	store.Lock()
-	defer store.Unlock()
-	f := store.features[key]
-	if f != nil && f.Version < version {
-		f.Deleted = true
-		f.Version = version
-		store.features[key] = f
-	} else if f == nil {
-		f = &Feature{Deleted: true, Version: version}
-		store.features[key] = f
+func (sp *StreamProcessor) checkSubscribe() bool {
+	sp.RLock()
+	if sp.stream == nil {
+		sp.RUnlock()
+		sp.subscribe()
+		return sp.stream != nil
+	} else {
+		defer sp.RUnlock()
+		return true
 	}
-	return nil
 }
 
-func (store *InMemoryFeatureStore) Init(fs map[string]*Feature) error {
-	store.Lock()
-	defer store.Unlock()
+func (sp *StreamProcessor) errors() {
+	for {
+		subscribed := sp.checkSubscribe()
+		if !subscribed {
+			sp.setDisconnected()
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		err := <-sp.stream.Errors
 
-	store.features = make(map[string]*Feature)
-
-	for k, v := range fs {
-		store.features[k] = v
+		if err != io.EOF {
+			sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+		}
+		if err != nil {
+			sp.setDisconnected()
+		}
 	}
-	store.isInitialized = true
-	return nil
 }
 
-func (store *InMemoryFeatureStore) Upsert(key string, f Feature) error {
-	store.Lock()
-	defer store.Unlock()
-	old := store.features[key]
-
-	if old == nil || old.Version < f.Version {
-		store.features[key] = &f
+func (sp *StreamProcessor) setConnected() {
+	sp.RLock()
+	if sp.disconnected != nil {
+		sp.RUnlock()
+		sp.Lock()
+		defer sp.Unlock()
+		if sp.disconnected != nil {
+			sp.disconnected = nil
+		}
+	} else {
+		sp.RUnlock()
 	}
-	return nil
+
 }
 
-func (store *InMemoryFeatureStore) Initialized() bool {
-	store.RLock()
-	defer store.RUnlock()
-	return store.isInitialized
+func (sp *StreamProcessor) setDisconnected() {
+	sp.RLock()
+	if sp.disconnected == nil {
+		sp.RUnlock()
+		sp.Lock()
+		defer sp.Unlock()
+		if sp.disconnected == nil {
+			now := time.Now()
+			sp.disconnected = &now
+		}
+	} else {
+		sp.RUnlock()
+	}
 }
