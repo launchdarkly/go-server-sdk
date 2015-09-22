@@ -11,13 +11,13 @@ import (
 	"time"
 )
 
-var (
-	PUT    = "put"
-	PATCH  = "patch"
-	DELETE = "delete"
+const (
+	putEvent    = "put"
+	patchEvent  = "patch"
+	deleteEvent = "delete"
 )
 
-type StreamProcessor struct {
+type streamProcessor struct {
 	store        FeatureStore
 	stream       *es.Stream
 	config       Config
@@ -26,21 +26,21 @@ type StreamProcessor struct {
 	sync.RWMutex
 }
 
-type FeaturePatchData struct {
+type featurePatchData struct {
 	Path string  `json:"path"`
 	Data Feature `json:"data"`
 }
 
-type FeatureDeleteData struct {
+type featureDeleteData struct {
 	Path    string `json:"path"`
 	Version int    `json:"version"`
 }
 
-func (sp *StreamProcessor) Initialized() bool {
+func (sp *streamProcessor) Initialized() bool {
 	return sp.store.Initialized()
 }
 
-func (sp *StreamProcessor) GetFeature(key string) (*Feature, error) {
+func (sp *streamProcessor) GetFeature(key string) (*Feature, error) {
 	if !sp.store.Initialized() {
 		return nil, errors.New("Requested stream data before initialization completed")
 	} else {
@@ -48,13 +48,13 @@ func (sp *StreamProcessor) GetFeature(key string) (*Feature, error) {
 	}
 }
 
-func (sp *StreamProcessor) ShouldFallbackUpdate() bool {
+func (sp *streamProcessor) ShouldFallbackUpdate() bool {
 	sp.RLock()
 	defer sp.RUnlock()
 	return sp.disconnected != nil && sp.disconnected.Before(time.Now().Add(-2*time.Minute))
 }
 
-func (sp *StreamProcessor) Start() {
+func (sp *streamProcessor) Start() {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
@@ -64,7 +64,7 @@ func (sp *StreamProcessor) Start() {
 		}
 		event := <-sp.stream.Events
 		switch event.Event() {
-		case PUT:
+		case putEvent:
 			var features map[string]*Feature
 			if err := json.Unmarshal([]byte(event.Data()), &features); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
@@ -72,8 +72,8 @@ func (sp *StreamProcessor) Start() {
 				sp.store.Init(features)
 				sp.setConnected()
 			}
-		case PATCH:
-			var patch FeaturePatchData
+		case patchEvent:
+			var patch featurePatchData
 			if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature patch json: %+v", err)
 			} else {
@@ -81,8 +81,8 @@ func (sp *StreamProcessor) Start() {
 				sp.store.Upsert(key, patch.Data)
 				sp.setConnected()
 			}
-		case DELETE:
-			var data FeatureDeleteData
+		case deleteEvent:
+			var data featureDeleteData
 			if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature delete json: %+v", err)
 			} else {
@@ -97,7 +97,7 @@ func (sp *StreamProcessor) Start() {
 	}
 }
 
-func newStream(apiKey string, config Config) *StreamProcessor {
+func newStream(apiKey string, config Config) *streamProcessor {
 	var store FeatureStore
 
 	if config.FeatureStore != nil {
@@ -106,7 +106,7 @@ func newStream(apiKey string, config Config) *StreamProcessor {
 		store = NewInMemoryFeatureStore()
 	}
 
-	sp := &StreamProcessor{
+	sp := &streamProcessor{
 		store:  store,
 		config: config,
 		apiKey: apiKey,
@@ -121,7 +121,7 @@ func newStream(apiKey string, config Config) *StreamProcessor {
 	return sp
 }
 
-func (sp *StreamProcessor) subscribe() {
+func (sp *streamProcessor) subscribe() {
 	sp.Lock()
 	defer sp.Unlock()
 
@@ -139,7 +139,7 @@ func (sp *StreamProcessor) subscribe() {
 	}
 }
 
-func (sp *StreamProcessor) checkSubscribe() bool {
+func (sp *streamProcessor) checkSubscribe() bool {
 	sp.RLock()
 	if sp.stream == nil {
 		sp.RUnlock()
@@ -151,7 +151,7 @@ func (sp *StreamProcessor) checkSubscribe() bool {
 	}
 }
 
-func (sp *StreamProcessor) errors() {
+func (sp *streamProcessor) errors() {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
@@ -170,7 +170,7 @@ func (sp *StreamProcessor) errors() {
 	}
 }
 
-func (sp *StreamProcessor) setConnected() {
+func (sp *streamProcessor) setConnected() {
 	sp.RLock()
 	if sp.disconnected != nil {
 		sp.RUnlock()
@@ -185,7 +185,7 @@ func (sp *StreamProcessor) setConnected() {
 
 }
 
-func (sp *StreamProcessor) setDisconnected() {
+func (sp *streamProcessor) setDisconnected() {
 	sp.RLock()
 	if sp.disconnected == nil {
 		sp.RUnlock()
