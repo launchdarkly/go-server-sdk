@@ -53,7 +53,7 @@ var DefaultConfig = Config{
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	Timeout:       3000 * time.Millisecond,
-	Stream:        false,
+	Stream:        true,
 	FeatureStore:  nil,
 	UseLdd:        false,
 }
