@@ -23,6 +23,7 @@ type streamProcessor struct {
 	config       Config
 	disconnected *time.Time
 	apiKey       string
+	ignition     sync.Once
 	sync.RWMutex
 }
 
@@ -54,7 +55,16 @@ func (sp *streamProcessor) ShouldFallbackUpdate() bool {
 	return sp.disconnected != nil && sp.disconnected.Before(time.Now().Add(-2*time.Minute))
 }
 
-func (sp *streamProcessor) Start() {
+func (sp *streamProcessor) StartOnce() {
+	sp.ignition.Do(func() {
+		if !sp.config.UseLdd {
+			go sp.start()
+			go sp.errors()
+		}
+	})
+}
+
+func (sp *streamProcessor) start() {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
@@ -110,12 +120,6 @@ func newStream(apiKey string, config Config) *streamProcessor {
 		store:  store,
 		config: config,
 		apiKey: apiKey,
-	}
-
-	if !config.UseLdd {
-		go sp.Start()
-
-		go sp.errors()
 	}
 
 	return sp

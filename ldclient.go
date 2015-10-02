@@ -134,6 +134,14 @@ func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
+// Eagerly initializes the stream connection. If InitializeStream is not called, the stream will
+// be initialized lazily with the first call to Toggle.
+func (client *LDClient) InitializeStream() {
+	if client.config.Stream {
+		client.streamProcessor.StartOnce()
+	}
+}
+
 // Returns false if the LaunchDarkly client does not have an active connection to
 // the LaunchDarkly streaming endpoint. If streaming mode is disabled in the client
 // configuration, this will always return false.
@@ -317,6 +325,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 		}
 	} else {
+		client.InitializeStream()
 		if featurePtr, reqErr := client.makeRequest(key); reqErr != nil {
 			return defaultVal, reqErr
 		} else {
