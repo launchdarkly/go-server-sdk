@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -14,6 +15,8 @@ func operatorFn(operator Operator) opFn {
 		return operatorEndsWith
 	case "startsWith":
 		return operatorStartsWith
+	case "matches":
+		return operatorMatches
 	default:
 		return operatorNone
 	}
@@ -36,6 +39,19 @@ func operatorEndsWith(uValue interface{}, cValue interface{}) bool {
 	if uStr, ok := uValue.(string); ok {
 		if cStr, ok := cValue.(string); ok {
 			return strings.HasSuffix(uStr, cStr)
+		}
+	}
+	return false
+}
+
+func operatorMatches(uValue interface{}, cValue interface{}) bool {
+	if uStr, ok := uValue.(string); ok {
+		if pattern, ok := cValue.(string); ok {
+			if matched, err := regexp.MatchString(pattern, uStr); err == nil {
+				return matched
+			} else {
+				return false
+			}
 		}
 	}
 	return false
