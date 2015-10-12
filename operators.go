@@ -5,28 +5,35 @@ import (
 	"strings"
 )
 
+const (
+	operatorIn         = "in"
+	operatorEndsWith   = "endsWith"
+	operatorStartsWith = "startsWith"
+	operatorMatches    = "matches"
+)
+
 type opFn (func(interface{}, interface{}) bool)
 
 func operatorFn(operator Operator) opFn {
 	switch operator {
-	case "in":
-		return operatorIn
-	case "endsWith":
-		return operatorEndsWith
-	case "startsWith":
-		return operatorStartsWith
-	case "matches":
-		return operatorMatches
+	case operatorIn:
+		return operatorInFn
+	case operatorEndsWith:
+		return operatorEndsWithFn
+	case operatorStartsWith:
+		return operatorStartsWithFn
+	case operatorMatches:
+		return operatorMatchesFn
 	default:
-		return operatorNone
+		return operatorNoneFn
 	}
 }
 
-func operatorIn(uValue interface{}, cValue interface{}) bool {
+func operatorInFn(uValue interface{}, cValue interface{}) bool {
 	return uValue == cValue
 }
 
-func operatorStartsWith(uValue interface{}, cValue interface{}) bool {
+func operatorStartsWithFn(uValue interface{}, cValue interface{}) bool {
 	if uStr, ok := uValue.(string); ok {
 		if cStr, ok := cValue.(string); ok {
 			return strings.HasPrefix(uStr, cStr)
@@ -35,7 +42,7 @@ func operatorStartsWith(uValue interface{}, cValue interface{}) bool {
 	return false
 }
 
-func operatorEndsWith(uValue interface{}, cValue interface{}) bool {
+func operatorEndsWithFn(uValue interface{}, cValue interface{}) bool {
 	if uStr, ok := uValue.(string); ok {
 		if cStr, ok := cValue.(string); ok {
 			return strings.HasSuffix(uStr, cStr)
@@ -44,7 +51,7 @@ func operatorEndsWith(uValue interface{}, cValue interface{}) bool {
 	return false
 }
 
-func operatorMatches(uValue interface{}, cValue interface{}) bool {
+func operatorMatchesFn(uValue interface{}, cValue interface{}) bool {
 	if uStr, ok := uValue.(string); ok {
 		if pattern, ok := cValue.(string); ok {
 			if matched, err := regexp.MatchString(pattern, uStr); err == nil {
@@ -57,6 +64,6 @@ func operatorMatches(uValue interface{}, cValue interface{}) bool {
 	return false
 }
 
-func operatorNone(uValue interface{}, cValue interface{}) bool {
+func operatorNoneFn(uValue interface{}, cValue interface{}) bool {
 	return false
 }
