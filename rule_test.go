@@ -4,6 +4,12 @@ import (
 	"testing"
 )
 
+/*
+
+Tests rules (conjunctions of clauses)
+
+*/
+
 // [email in {gmail.com, hotmail.com}] && [group in {Microsoft, Google}]
 var hotmailOrGmailAndMsOrGoogleRule = Rule{
 	Conditions: []Clause{hotmailOrGmailClause, msOrGoogleClause},

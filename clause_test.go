@@ -4,6 +4,12 @@ import (
 	"testing"
 )
 
+/*
+
+Tests individual clauses
+
+*/
+
 var (
 	key              = "sample-key"
 	gmailAddress     = "foo@gmail.com"

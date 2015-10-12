@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	operatorIn         = "in"
-	operatorEndsWith   = "endsWith"
-	operatorStartsWith = "startsWith"
-	operatorMatches    = "matches"
+	operatorIn         Operator = "in"
+	operatorEndsWith   Operator = "endsWith"
+	operatorStartsWith Operator = "startsWith"
+	operatorMatches    Operator = "matches"
 )
 
 type opFn (func(interface{}, interface{}) bool)

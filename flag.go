@@ -18,6 +18,7 @@ type FeatureFlag struct {
 	Conditions   []Rule      `json:"conditions"`
 	Fallthrough  Rule        `json:"fallthrough"`
 	OffVariation interface{} `json:"offVariation"`
+	Archived     bool        `json:"archived"`
 }
 
 type Clause struct {
