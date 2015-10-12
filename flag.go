@@ -9,34 +9,33 @@ import (
 )
 
 type FeatureFlag struct {
-	Name         string
-	Description  string
-	Key          string
-	Version      int
-	On           bool
-	Salt         string
-	Sel          string
-	Conditions   []Rule
-	Fallthrough  Rule
-	OffVariation interface{}
+	Name         string      `json:"name"`
+	Key          string      `json:"key"`
+	Version      int         `json:"version"`
+	On           bool        `json:"on"`
+	Salt         string      `json:"salt"`
+	Sel          string      `json:"sel"`
+	Conditions   []Rule      `json:"conditions"`
+	Fallthrough  Rule        `json:"fallthrough"`
+	OffVariation interface{} `json:"offVariation"`
 }
 
 type Clause struct {
-	Attribute string
-	Op        Operator
-	Values    []interface{} // An array, interpreted as an OR of values
-	Negate    bool
+	Attribute string        `json:"attribute"`
+	Op        Operator      `json:"operator"`
+	Values    []interface{} `json:"values"` // An array, interpreted as an OR of values
+	Negate    bool          `json:"negate"`
 }
 
 type WeightedVariation struct {
-	Variation interface{}
-	Weight    int // Ranges from 0 to 100000
+	Variation interface{} `json:"variation"`
+	Weight    int         `json:"weight"` // Ranges from 0 to 100000
 }
 
 type Rule struct {
-	Conditions []Clause
-	Variation  interface{}
-	Rollout    []WeightedVariation
+	Conditions []Clause            `json:"conditions,omitempty"`
+	Variation  interface{}         `json:"variation,omitempty"`
+	Rollout    []WeightedVariation `json:"rollout,omitempty"`
 }
 
 func (f FeatureFlag) bucketUser(user User) (float32, bool) {
