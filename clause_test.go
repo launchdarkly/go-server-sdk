@@ -33,7 +33,7 @@ var msOrGoogleClause = Clause{
 }
 
 // not(group in {Youtube, Nest})
-var notYoutubeOrNest = Clause{
+var notYoutubeOrNestClause = Clause{
 	Attribute: "group",
 	Op:        operatorIn,
 	Values:    []interface{}{"Youtube", "Nest"},
@@ -52,6 +52,22 @@ var googleEmployee = User{
 	Custom: &youtubeCustom,
 }
 
+var emptyUser = User{
+	Key: nil,
+}
+
+func TestEmptyUserNeverMatchesClause(t *testing.T) {
+	if hotmailOrGmailClause.matchesUser(emptyUser) {
+		t.Error("Empty user should not match any clauses")
+	}
+	if msOrGoogleClause.matchesUser(emptyUser) {
+		t.Error("Empty user should not match any clauses")
+	}
+	if notYoutubeOrNestClause.matchesUser(emptyUser) {
+		t.Error("Empty user should not match any clauses")
+	}
+}
+
 func TestHotmailOrGmailEmail(t *testing.T) {
 	if !hotmailOrGmailClause.matchesUser(googleEmployee) {
 		t.Error("Expecting Google employee to match email rule")
@@ -65,10 +81,10 @@ func TestMsOrGoogleGroup(t *testing.T) {
 }
 
 func TestNotYoutubeOrNest(t *testing.T) {
-	if !notYoutubeOrNest.matchesUser(msEmployee) {
+	if !notYoutubeOrNestClause.matchesUser(msEmployee) {
 		t.Error("Expecting Microsoft employee to match not Youtube rule")
 	}
-	if notYoutubeOrNest.matchesUser(googleEmployee) {
+	if notYoutubeOrNestClause.matchesUser(googleEmployee) {
 		t.Error("Expecting Google employee to not match Youtube rule")
 	}
 }

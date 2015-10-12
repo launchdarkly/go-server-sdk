@@ -10,9 +10,9 @@ var hotmailOrGmailAndMsOrGoogleRule = Rule{
 	Variation:  true,
 }
 
-// [email in {gmail.com, hotmail.com}] && [not(group in {Youtube, Bazzle})]
-var hotmailOrGmailAndNotYoutubeOrBazzle = Rule{
-	Conditions: []Clause{hotmailOrGmailClause, notYoutubeOrNest},
+// [email in {gmail.com, hotmail.com}] && [not(group in {Youtube, Nest})]
+var hotmailOrGmailAndNotYoutubeOrNest = Rule{
+	Conditions: []Clause{hotmailOrGmailClause, notYoutubeOrNestClause},
 }
 
 func TestGoogleGroupAndEmailRule(t *testing.T) {
@@ -22,7 +22,7 @@ func TestGoogleGroupAndEmailRule(t *testing.T) {
 }
 
 func TestGoogleEmailButNotYoutubeGroup(t *testing.T) {
-	if hotmailOrGmailAndNotYoutubeOrBazzle.matchesUser(googleEmployee) {
+	if hotmailOrGmailAndNotYoutubeOrNest.matchesUser(googleEmployee) {
 		t.Errorf("Google employee should not match rule (YouTube group should be excluded)")
 	}
 }
