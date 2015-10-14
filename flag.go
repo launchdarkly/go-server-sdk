@@ -15,10 +15,17 @@ type FeatureFlag struct {
 	On           bool        `json:"on"`
 	Salt         string      `json:"salt"`
 	Sel          string      `json:"sel"`
-	Conditions   []Rule      `json:"conditions"`
+	Targets      []Target    `json:"targets"`
+	Rules        []Rule      `json:"rules"`
 	Fallthrough  Rule        `json:"fallthrough"`
 	OffVariation interface{} `json:"offVariation"`
 	Archived     bool        `json:"archived"`
+}
+
+type Rule struct {
+	Clauses   []Clause            `json:"clauses,omitempty"`
+	Variation interface{}         `json:"variation,omitempty"`
+	Rollout   []WeightedVariation `json:"rollout,omitempty"`
 }
 
 type Clause struct {
@@ -33,20 +40,23 @@ type WeightedVariation struct {
 	Weight    int         `json:"weight"` // Ranges from 0 to 100000
 }
 
-type Rule struct {
-	Conditions []Clause            `json:"conditions,omitempty"`
-	Variation  interface{}         `json:"variation,omitempty"`
-	Rollout    []WeightedVariation `json:"rollout,omitempty"`
+type Target struct {
+	Values    []string    `json:"values"`
+	Variation interface{} `json:"variation"`
 }
 
-func (f FeatureFlag) bucketUser(user User) (float32, bool) {
+// An explanation is either a target or a rule
+type Explanation struct {
+	Kind string `json:"kind"`
+	*Target
+	*Rule
+}
+
+func (f FeatureFlag) bucketUser(user User) float32 {
 	var idHash string
 
-	if user.Key != nil {
-		idHash = *user.Key
-	} else { // without a key, this rule should pass
-		return 0, true
-	}
+	// Precondition: we've already checked that the key is non-nil
+	idHash = *user.Key
 
 	if user.Secondary != nil {
 		idHash = idHash + "." + *user.Secondary
@@ -60,37 +70,45 @@ func (f FeatureFlag) bucketUser(user User) (float32, bool) {
 
 	bucket := float32(intVal) / long_scale
 
-	return bucket, false
+	return bucket
 }
 
-func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Rule, bool) {
-	if !f.On {
-		return f.OffVariation, nil, true
+func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
+	// TODO: The toggle algorithm should check the kill switch. We won't check it here
+	// so we can potentially compute an explanation even if the kill switch is hit
+	if user.Key == nil {
+		return f.OffVariation, nil
 	}
 
-	bucket, passErr := f.bucketUser(user)
-
-	if passErr {
-		return f.OffVariation, nil, true
-	}
-
-	for _, rule := range f.Conditions {
-		if rule.matchesUser(user) {
-			variation, passErr := rule.valueForUser(user, bucket)
-
-			if passErr {
-				return f.OffVariation, nil, true
-			} else {
-				return variation, &rule, false
+	for _, target := range f.Targets {
+		for _, value := range target.Values {
+			if value == *user.Key {
+				explanation := Explanation{Kind: "target", Target: &target}
+				return target.Variation, &explanation
 			}
 		}
 	}
 
-	return f.OffVariation, nil, true
+	bucket := f.bucketUser(user)
+
+	for _, rule := range f.Rules {
+		if rule.matchesUser(user) {
+			variation, passErr := rule.valueForUser(user, bucket)
+
+			if passErr {
+				return f.OffVariation, nil
+			} else {
+				explanation := Explanation{Kind: "rule", Rule: &rule}
+				return variation, &explanation
+			}
+		}
+	}
+
+	return f.OffVariation, nil
 }
 
 func (r Rule) matchesUser(user User) bool {
-	for _, clause := range r.Conditions {
+	for _, clause := range r.Clauses {
 		if !clause.matchesUser(user) {
 			return false
 		}

@@ -14,17 +14,18 @@ const (
 
 type opFn (func(interface{}, interface{}) bool)
 
+var allOps = map[Operator]opFn{
+	operatorIn:         operatorInFn,
+	operatorEndsWith:   operatorEndsWithFn,
+	operatorStartsWith: operatorStartsWithFn,
+	operatorMatches:    operatorMatchesFn,
+}
+
+// Turn this into a static map
 func operatorFn(operator Operator) opFn {
-	switch operator {
-	case operatorIn:
-		return operatorInFn
-	case operatorEndsWith:
-		return operatorEndsWithFn
-	case operatorStartsWith:
-		return operatorStartsWithFn
-	case operatorMatches:
-		return operatorMatchesFn
-	default:
+	if op, ok := allOps[operator]; ok {
+		return op
+	} else {
 		return operatorNoneFn
 	}
 }
