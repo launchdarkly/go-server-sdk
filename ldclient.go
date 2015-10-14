@@ -1,15 +1,9 @@
 package ldclient
 
 import (
-	"encoding/json"
 	"errors"
-	"github.com/facebookgo/httpcontrol"
-	"github.com/gregjones/httpcache"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -22,10 +16,10 @@ const Version string = "0.0.3"
 type LDClient struct {
 	apiKey          string
 	config          Config
-	httpClient      *http.Client
 	eventProcessor  *eventProcessor
 	offline         bool
 	streamProcessor *streamProcessor
+	requestor       *requestor
 }
 
 // Exposes advanced configuration options for the LaunchDarkly client.
@@ -71,21 +65,6 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 
-	baseTransport := httpcontrol.Transport{
-		RequestTimeout: config.Timeout,
-		DialTimeout:    config.Timeout,
-		DialKeepAlive:  1 * time.Minute,
-		MaxTries:       3,
-	}
-
-	cachingTransport := &httpcache.Transport{
-		Cache:               httpcache.NewMemoryCache(),
-		MarkCachedResponses: true,
-		Transport:           &baseTransport,
-	}
-
-	httpClient := cachingTransport.Client()
-
 	if config.Stream {
 		streamProcessor = newStream(apiKey, config)
 	}
@@ -93,7 +72,7 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 	return LDClient{
 		apiKey:          apiKey,
 		config:          config,
-		httpClient:      httpClient,
+		requestor:       newRequestor(apiKey, config),
 		eventProcessor:  newEventProcessor(apiKey, config),
 		offline:         false,
 		streamProcessor: streamProcessor,
@@ -239,59 +218,6 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value interf
 	return client.eventProcessor.sendEvent(evt)
 }
 
-func (client *LDClient) makeRequest(key string) (*Feature, error) {
-	var feature Feature
-
-	req, reqErr := http.NewRequest("GET", client.config.BaseUri+"/api/eval/features/"+key, nil)
-
-	if reqErr != nil {
-		return nil, reqErr
-	}
-
-	req.Header.Add("Authorization", "api_key "+client.apiKey)
-	req.Header.Add("User-Agent", "GoClient/"+Version)
-
-	res, resErr := client.httpClient.Do(req)
-
-	defer func() {
-		if res != nil && res.Body != nil {
-			ioutil.ReadAll(res.Body)
-			res.Body.Close()
-		}
-	}()
-
-	if resErr != nil {
-		return nil, resErr
-	}
-
-	if res.StatusCode == http.StatusUnauthorized {
-		return nil, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
-	}
-
-	if res.StatusCode == http.StatusNotFound {
-		return nil, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
-	}
-
-	body, err := ioutil.ReadAll(res.Body)
-
-	if err != nil {
-		return nil, err
-	}
-
-	jsonErr := json.Unmarshal(body, &feature)
-
-	if jsonErr != nil {
-		return nil, jsonErr
-	} else {
-		return &feature, nil
-	}
-
-}
-
 func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
 	var feature Feature
 	var streamErr error
@@ -306,7 +232,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 
 		if !client.config.UseLdd && client.IsStreamDisconnected() {
 			go func() {
-				if feature, err := client.makeRequest(key); err != nil {
+				if feature, err := client.requestor.makeRequest(key); err != nil {
 					client.config.Logger.Printf("Failed to update feature in fallback mode. Flag values may be stale.")
 				} else {
 					client.streamProcessor.store.Upsert(*feature.Key, *feature)
@@ -326,7 +252,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		}
 	} else {
 		client.InitializeStream()
-		if featurePtr, reqErr := client.makeRequest(key); reqErr != nil {
+		if featurePtr, reqErr := client.requestor.makeRequest(key); reqErr != nil {
 			return defaultVal, reqErr
 		} else {
 			feature = *featurePtr

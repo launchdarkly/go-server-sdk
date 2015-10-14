@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	putEvent    = "put"
-	patchEvent  = "patch"
-	deleteEvent = "delete"
+	putEvent           = "put"
+	patchEvent         = "patch"
+	deleteEvent        = "delete"
+	indirectPatchEvent = "indirect/patch"
 )
 
 type streamProcessor struct {
@@ -91,6 +92,7 @@ func (sp *streamProcessor) start() {
 				sp.store.Upsert(key, patch.Data)
 				sp.setConnected()
 			}
+		// TODO handle the indirect patch event
 		case deleteEvent:
 			var data featureDeleteData
 			if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
