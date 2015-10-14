@@ -65,14 +65,16 @@ func MakeCustomClient(apiKey string, config Config) LDClient {
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 
+	requestor := newRequestor(apiKey, config)
+
 	if config.Stream {
-		streamProcessor = newStream(apiKey, config)
+		streamProcessor = newStream(apiKey, config, requestor)
 	}
 
 	return LDClient{
 		apiKey:          apiKey,
 		config:          config,
-		requestor:       newRequestor(apiKey, config),
+		requestor:       requestor,
 		eventProcessor:  newEventProcessor(apiKey, config),
 		offline:         false,
 		streamProcessor: streamProcessor,
