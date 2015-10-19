@@ -9,45 +9,45 @@ import (
 )
 
 type FeatureFlag struct {
-	Name         string      `json:"name"`
-	Key          string      `json:"key"`
-	Version      int         `json:"version"`
-	On           bool        `json:"on"`
-	Salt         string      `json:"salt"`
-	Sel          string      `json:"sel"`
-	Targets      []Target    `json:"targets"`
-	Rules        []Rule      `json:"rules"`
-	Fallthrough  Rule        `json:"fallthrough"`
-	OffVariation interface{} `json:"offVariation"`
-	Archived     bool        `json:"archived"`
+	Name         string      `json:"name" bson:"name"`
+	Key          string      `json:"key" bson:"key"`
+	Version      int         `json:"version" bson:"version"`
+	On           bool        `json:"on" bson:"on"`
+	Salt         string      `json:"salt" bson:"salt"`
+	Sel          string      `json:"sel" bson:"sel"`
+	Targets      []Target    `json:"targets" bson:"targets"`
+	Rules        []Rule      `json:"rules" bson:"rules"`
+	Fallthrough  Rule        `json:"fallthrough" bson:"fallthrough"`
+	OffVariation interface{} `json:"offVariation" bson:"offVariation"`
+	Archived     bool        `json:"archived" bson:"archived"`
 }
 
 type Rule struct {
-	Clauses   []Clause            `json:"clauses,omitempty"`
-	Variation interface{}         `json:"variation,omitempty"`
-	Rollout   []WeightedVariation `json:"rollout,omitempty"`
+	Clauses   []Clause            `json:"clauses,omitempty" bson:"clauses"`
+	Variation interface{}         `json:"variation,omitempty" bson:"variation"`
+	Rollout   []WeightedVariation `json:"rollout,omitempty" bson:"rollout"`
 }
 
 type Clause struct {
-	Attribute string        `json:"attribute"`
-	Op        Operator      `json:"operator"`
-	Values    []interface{} `json:"values"` // An array, interpreted as an OR of values
-	Negate    bool          `json:"negate"`
+	Attribute string        `json:"attribute" bson:"attribute"`
+	Op        Operator      `json:"op" bson:"op"`
+	Values    []interface{} `json:"values" bson:"values"` // An array, interpreted as an OR of values
+	Negate    bool          `json:"negate" bson:"negate"`
 }
 
 type WeightedVariation struct {
-	Variation interface{} `json:"variation"`
-	Weight    int         `json:"weight"` // Ranges from 0 to 100000
+	Variation interface{} `json:"variation" bson:"variation"`
+	Weight    int         `json:"weight" bson:"weight"` // Ranges from 0 to 100000
 }
 
 type Target struct {
-	Values    []string    `json:"values"`
-	Variation interface{} `json:"variation"`
+	Values    []string    `json:"values" bson:"values"`
+	Variation interface{} `json:"variation" bson:"variation"`
 }
 
 // An explanation is either a target or a rule
 type Explanation struct {
-	Kind string `json:"kind"`
+	Kind string `json:"kind" bson:"kind"`
 	*Target
 	*Rule
 }
