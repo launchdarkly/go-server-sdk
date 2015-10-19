@@ -3,7 +3,7 @@ package redis
 import (
 	"encoding/json"
 	r "github.com/garyburd/redigo/redis"
-	ld "github.com/launchdarkly/go-client"
+	ld "github.com/launchdarkly/go-client-private"
 	"strconv"
 	"time"
 )
