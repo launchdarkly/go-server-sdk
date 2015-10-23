@@ -23,9 +23,14 @@ type FeatureFlag struct {
 }
 
 type Rule struct {
-	Clauses   []Clause            `json:"clauses,omitempty" bson:"clauses"`
-	Variation interface{}         `json:"variation,omitempty" bson:"variation"`
-	Rollout   []WeightedVariation `json:"rollout,omitempty" bson:"rollout"`
+	Clauses   []Clause    `json:"clauses,omitempty" bson:"clauses"`
+	Variation interface{} `json:"variation,omitempty" bson:"variation"`
+	Rollout   *Rollout    `json:"rollout,omitempty" bson:"rollout"`
+}
+
+type Rollout struct {
+	Variations []WeightedVariation `json:"variations,omitempty" bson:"variations"`
+	BucketBy   *string             `json:"bucketBy,omitempty" bson:"bucketBy"`
 }
 
 type Clause struct {
@@ -52,25 +57,27 @@ type Explanation struct {
 	*Rule
 }
 
-func (f FeatureFlag) bucketUser(user User) float32 {
-	var idHash string
+func bucketUser(user User, key, attr, salt string) float32 {
 
-	// Precondition: we've already checked that the key is non-nil
-	idHash = *user.Key
+	uValue, pass := user.valueOf(attr)
 
-	if user.Secondary != nil {
-		idHash = idHash + "." + *user.Secondary
+	if idHash, ok := uValue.(string); pass || !ok {
+		return 0
+	} else {
+		if user.Secondary != nil {
+			idHash = idHash + "." + *user.Secondary
+		}
+
+		h := sha1.New()
+		io.WriteString(h, key+"."+salt+"."+idHash)
+		hash := hex.EncodeToString(h.Sum(nil))[:15]
+
+		intVal, _ := strconv.ParseInt(hash, 16, 64)
+
+		bucket := float32(intVal) / long_scale
+
+		return bucket
 	}
-
-	h := sha1.New()
-	io.WriteString(h, f.Key+"."+f.Salt+"."+idHash)
-	hash := hex.EncodeToString(h.Sum(nil))[:15]
-
-	intVal, _ := strconv.ParseInt(hash, 16, 64)
-
-	bucket := float32(intVal) / long_scale
-
-	return bucket
 }
 
 func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
@@ -89,11 +96,9 @@ func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 		}
 	}
 
-	bucket := f.bucketUser(user)
-
 	for _, rule := range f.Rules {
 		if rule.matchesUser(user) {
-			variation, passErr := rule.valueForUser(user, bucket)
+			variation, passErr := rule.valueForUser(user, f.Key, f.Salt)
 
 			if passErr {
 				return f.OffVariation, nil
@@ -158,18 +163,25 @@ func matchAny(fn opFn, value interface{}, values []interface{}) bool {
 	return false
 }
 
-func (r Rule) valueForUser(user User, bucket float32) (interface{}, bool) {
+func (r Rule) valueForUser(user User, key, salt string) (interface{}, bool) {
 	if r.Variation != nil {
 		return r.Variation, false
-	}
-
-	var sum float32 = 0.0
-
-	for _, wv := range r.Rollout {
-		sum += float32(wv.Weight) / 100000.0
-		if bucket < sum {
-			return wv.Variation, false
+	} else if r.Rollout != nil {
+		bucketBy := "key"
+		if r.Rollout.BucketBy != nil {
+			bucketBy = *r.Rollout.BucketBy
 		}
+
+		var bucket = bucketUser(user, key, bucketBy, salt)
+		var sum float32 = 0.0
+
+		for _, wv := range r.Rollout.Variations {
+			sum += float32(wv.Weight) / 100000.0
+			if bucket < sum {
+				return wv.Variation, false
+			}
+		}
+
 	}
 
 	return nil, true
