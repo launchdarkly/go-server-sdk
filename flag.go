@@ -22,15 +22,19 @@ type FeatureFlag struct {
 	Archived     bool        `json:"archived" bson:"archived"`
 }
 
+// Expresses a set of AND-ed matching conditions for a user, along with
+// either the fixed variation or percent rollout to serve if the conditions
+// match.
+// Invariant: one of the variation or rollout must be non-nil.
 type Rule struct {
-	Clauses   []Clause    `json:"clauses,omitempty" bson:"clauses"`
-	Variation interface{} `json:"variation,omitempty" bson:"variation"`
-	Rollout   *Rollout    `json:"rollout,omitempty" bson:"rollout"`
+	Clauses   []Clause    `json:"clauses,omitempty" bson:"clauses,omitempty"`
+	Variation interface{} `json:"variation,omitempty" bson:"variation,omitempty"`
+	Rollout   *Rollout    `json:"rollout,omitempty" bson:"rollout,omitempty"`
 }
 
 type Rollout struct {
 	Variations []WeightedVariation `json:"variations,omitempty" bson:"variations"`
-	BucketBy   *string             `json:"bucketBy,omitempty" bson:"bucketBy"`
+	BucketBy   *string             `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
 
 type Clause struct {
