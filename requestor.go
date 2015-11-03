@@ -47,7 +47,7 @@ func (r *requestor) makeRequest(key string, latest bool) (*Feature, error) {
 	var resource string
 
 	if latest {
-		resource = "/api/eval/latest_features/"
+		resource = "/api/eval/latest-features/"
 	} else {
 		resource = "/api/eval/features/"
 	}
