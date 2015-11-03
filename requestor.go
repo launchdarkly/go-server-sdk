@@ -96,7 +96,6 @@ func (r *requestor) makeRequest(key string, latest bool) (*Feature, error) {
 
 	if jsonErr != nil {
 		return nil, jsonErr
-	} else {
-		return &feature, nil
 	}
+	return &feature, nil
 }
