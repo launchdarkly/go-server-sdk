@@ -98,7 +98,7 @@ func (sp *streamProcessor) start() {
 			if err := json.Unmarshal([]byte(event.Data()), &key); err != nil {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature key: %+v", err)
 			} else {
-				if feature, err := sp.requestor.makeRequest(key); err != nil {
+				if feature, err := sp.requestor.makeRequest(key, true); err != nil {
 					sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
 				} else {
 					sp.store.Upsert(key, *feature)

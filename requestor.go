@@ -41,10 +41,18 @@ func newRequestor(apiKey string, config Config) *requestor {
 	return &requestor
 }
 
-func (r *requestor) makeRequest(key string) (*Feature, error) {
+func (r *requestor) makeRequest(key string, latest bool) (*Feature, error) {
 	var feature Feature
 
-	req, reqErr := http.NewRequest("GET", r.config.BaseUri+"/api/eval/features/"+key, nil)
+	var resource string
+
+	if latest {
+		resource = "/api/eval/latest_features/"
+	} else {
+		resource = "/api/eval/features/"
+	}
+
+	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource+key, nil)
 
 	if reqErr != nil {
 		return nil, reqErr

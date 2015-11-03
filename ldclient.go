@@ -234,7 +234,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 
 		if !client.config.UseLdd && client.IsStreamDisconnected() {
 			go func() {
-				if feature, err := client.requestor.makeRequest(key); err != nil {
+				if feature, err := client.requestor.makeRequest(key, true); err != nil {
 					client.config.Logger.Printf("Failed to update feature in fallback mode. Flag values may be stale.")
 				} else {
 					client.streamProcessor.store.Upsert(*feature.Key, *feature)
@@ -254,7 +254,9 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		}
 	} else {
 		client.InitializeStream()
-		if featurePtr, reqErr := client.requestor.makeRequest(key); reqErr != nil {
+		// If streaming mode is enabled, get the latest version of the feature
+		// Otherwise, respect the TTL
+		if featurePtr, reqErr := client.requestor.makeRequest(key, client.config.Stream); reqErr != nil {
 			return defaultVal, reqErr
 		} else {
 			feature = *featurePtr
