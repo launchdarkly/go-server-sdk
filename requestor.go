@@ -48,9 +48,9 @@ func (r *requestor) makeAllRequest(latest bool) (map[string]*Feature, error) {
 	var resource string
 
 	if latest {
-		resource = "/api/eval/latest-features/"
+		resource = "/api/eval/latest-features"
 	} else {
-		resource = "/api/eval/features/"
+		resource = "/api/eval/features"
 	}
 
 	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)

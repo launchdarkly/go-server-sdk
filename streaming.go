@@ -95,15 +95,11 @@ func (sp *streamProcessor) start() {
 				sp.setConnected()
 			}
 		case indirectPatchEvent:
-			var key string
-			if err := json.Unmarshal([]byte(event.Data()), &key); err != nil {
-				sp.config.Logger.Printf("Unexpected error unmarshalling feature key: %+v", err)
+			key := event.Data()
+			if feature, err := sp.requestor.makeRequest(key, true); err != nil {
+				sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
 			} else {
-				if feature, err := sp.requestor.makeRequest(key, true); err != nil {
-					sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
-				} else {
-					sp.store.Upsert(key, *feature)
-				}
+				sp.store.Upsert(key, *feature)
 				sp.setConnected()
 			}
 		case indirectPutEvent:
