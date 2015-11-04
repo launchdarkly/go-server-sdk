@@ -36,6 +36,7 @@ func newRequestor(apiKey string, config Config) *requestor {
 	requestor := requestor{
 		apiKey:     apiKey,
 		httpClient: httpClient,
+		config:     config,
 	}
 
 	return &requestor
