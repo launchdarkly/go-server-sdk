@@ -15,6 +15,7 @@ const (
 	putEvent           = "put"
 	patchEvent         = "patch"
 	deleteEvent        = "delete"
+	indirectPutEvent   = "indirect/put"
 	indirectPatchEvent = "indirect/patch"
 )
 
@@ -103,6 +104,13 @@ func (sp *streamProcessor) start() {
 				} else {
 					sp.store.Upsert(key, *feature)
 				}
+				sp.setConnected()
+			}
+		case indirectPutEvent:
+			if features, err := sp.requestor.makeAllRequest(true); err != nil {
+				sp.config.Logger.Printf("Unexpected error requesting all features: %+v", err)
+			} else {
+				sp.store.Init(features)
 				sp.setConnected()
 			}
 		case deleteEvent:
