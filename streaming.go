@@ -12,13 +12,16 @@ import (
 )
 
 const (
-	putEvent    = "put"
-	patchEvent  = "patch"
-	deleteEvent = "delete"
+	putEvent           = "put"
+	patchEvent         = "patch"
+	deleteEvent        = "delete"
+	indirectPutEvent   = "indirect/put"
+	indirectPatchEvent = "indirect/patch"
 )
 
 type streamProcessor struct {
 	store        FeatureStore
+	requestor    *requestor
 	stream       *es.Stream
 	config       Config
 	disconnected *time.Time
@@ -91,6 +94,21 @@ func (sp *streamProcessor) start() {
 				sp.store.Upsert(key, patch.Data)
 				sp.setConnected()
 			}
+		case indirectPatchEvent:
+			key := event.Data()
+			if feature, err := sp.requestor.makeRequest(key, true); err != nil {
+				sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
+			} else {
+				sp.store.Upsert(key, *feature)
+				sp.setConnected()
+			}
+		case indirectPutEvent:
+			if features, err := sp.requestor.makeAllRequest(true); err != nil {
+				sp.config.Logger.Printf("Unexpected error requesting all features: %+v", err)
+			} else {
+				sp.store.Init(features)
+				sp.setConnected()
+			}
 		case deleteEvent:
 			var data featureDeleteData
 			if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
@@ -107,7 +125,7 @@ func (sp *streamProcessor) start() {
 	}
 }
 
-func newStream(apiKey string, config Config) *streamProcessor {
+func newStream(apiKey string, config Config, requestor *requestor) *streamProcessor {
 	var store FeatureStore
 
 	if config.FeatureStore != nil {
@@ -117,9 +135,10 @@ func newStream(apiKey string, config Config) *streamProcessor {
 	}
 
 	sp := &streamProcessor{
-		store:  store,
-		config: config,
-		apiKey: apiKey,
+		store:     store,
+		config:    config,
+		apiKey:    apiKey,
+		requestor: requestor,
 	}
 
 	return sp
