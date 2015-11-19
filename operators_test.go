@@ -42,6 +42,25 @@ func TestEndsWithOperator(t *testing.T) {
 	}
 }
 
+func TestContainsOperator(t *testing.T) {
+	var bar = "bar"
+	if !operatorContainsFn("foo@bar", bar) {
+		t.Errorf("Expected %s to contain bar", "foo@bar")
+	}
+
+	if !operatorContainsFn("abarba", bar) {
+		t.Errorf("Expected %s to contain a", "bar")
+	}
+
+	if operatorContainsFn(4, bar) {
+		t.Errorf("Did not expect %d to contain bar", 4)
+	}
+
+	if operatorContainsFn(true, bar) {
+		t.Errorf("Did not expect %t to contain bar", true)
+	}
+}
+
 func TestMatchesOperator(t *testing.T) {
 	var pattern = "[A-Za-z]+"
 

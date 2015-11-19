@@ -10,6 +10,7 @@ const (
 	operatorEndsWith   Operator = "endsWith"
 	operatorStartsWith Operator = "startsWith"
 	operatorMatches    Operator = "matches"
+	operatorContains   Operator = "contains"
 )
 
 type opFn (func(interface{}, interface{}) bool)
@@ -19,6 +20,7 @@ var allOps = map[Operator]opFn{
 	operatorEndsWith:   operatorEndsWithFn,
 	operatorStartsWith: operatorStartsWithFn,
 	operatorMatches:    operatorMatchesFn,
+	operatorContains:   operatorContainsFn,
 }
 
 // Turn this into a static map
@@ -60,6 +62,15 @@ func operatorMatchesFn(uValue interface{}, cValue interface{}) bool {
 			} else {
 				return false
 			}
+		}
+	}
+	return false
+}
+
+func operatorContainsFn(uValue interface{}, cValue interface{}) bool {
+	if uStr, ok := uValue.(string); ok {
+		if cStr, ok := cValue.(string); ok {
+			return strings.Contains(uStr, cStr)
 		}
 	}
 	return false

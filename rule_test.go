@@ -12,13 +12,13 @@ Tests rules (conjunctions of clauses)
 
 // [email in {gmail.com, hotmail.com}] && [group in {Microsoft, Google}]
 var hotmailOrGmailAndMsOrGoogleRule = Rule{
-	Conditions: []Clause{hotmailOrGmailClause, msOrGoogleClause},
-	Variation:  true,
+	Clauses:   []Clause{hotmailOrGmailClause, msOrGoogleClause},
+	Variation: true,
 }
 
 // [email in {gmail.com, hotmail.com}] && [not(group in {Youtube, Nest})]
 var hotmailOrGmailAndNotYoutubeOrNest = Rule{
-	Conditions: []Clause{hotmailOrGmailClause, notYoutubeOrNestClause},
+	Clauses: []Clause{hotmailOrGmailClause, notYoutubeOrNestClause},
 }
 
 func TestGoogleGroupAndEmailRule(t *testing.T) {
