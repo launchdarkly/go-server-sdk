@@ -176,7 +176,7 @@ func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
 		return featureErr
 	}
 
-	if o.Version >= f.Version {
+	if o != nil && o.Version >= f.Version {
 		return nil
 	}
 
