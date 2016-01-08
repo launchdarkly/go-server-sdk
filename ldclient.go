@@ -228,6 +228,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		return defaultVal, nil
 	}
 
+	client.InitializeStream()
 	if client.IsStreamInitialized() {
 		var featurePtr *Feature
 		featurePtr, streamErr = client.streamProcessor.GetFeature(key)
@@ -253,7 +254,6 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 			return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 		}
 	} else {
-		client.InitializeStream()
 		// If streaming mode is enabled, get the latest version of the feature
 		// Otherwise, respect the TTL
 		if featurePtr, reqErr := client.requestor.makeRequest(key, client.config.Stream); reqErr != nil {
