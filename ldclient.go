@@ -33,6 +33,7 @@ type Config struct {
 	Stream        bool
 	FeatureStore  FeatureStore
 	UseLdd        bool
+	SendEvents    bool
 }
 
 // Provides the default configuration options for the LaunchDarkly client.
@@ -50,6 +51,7 @@ var DefaultConfig = Config{
 	Stream:        true,
 	FeatureStore:  nil,
 	UseLdd:        false,
+	SendEvents:    true,
 }
 
 // Creates a new client instance that connects to LaunchDarkly with the default configuration. In most
