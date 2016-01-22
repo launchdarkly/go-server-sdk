@@ -123,6 +123,10 @@ func (ep *eventProcessor) flush() {
 }
 
 func (ep *eventProcessor) sendEvent(evt Event) error {
+	if !ep.config.SendEvents {
+		return nil
+	}
+
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
 
