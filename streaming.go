@@ -149,15 +149,15 @@ func (sp *streamProcessor) subscribe() {
 	defer sp.Unlock()
 
 	if sp.stream == nil {
-		headers := make(http.Header)
+		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/features", nil)
+		req.Header.Add("Authorization", "api_key "+sp.apiKey)
+		req.Header.Add("User-Agent", "GoClient/"+Version)
 
-		headers.Add("Authorization", "api_key "+sp.apiKey)
-		headers.Add("User-Agent", "GoClient/"+Version)
-
-		if stream, err := es.Subscribe(sp.config.StreamUri+"/features", headers, ""); err != nil {
+		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
 		} else {
 			sp.stream = stream
+			sp.stream.Logger = sp.config.Logger
 		}
 	}
 }
