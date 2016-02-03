@@ -245,7 +245,7 @@ func (store *RedisFeatureStore) Initialized() bool {
 
 	init, err := r.Bool(c.Do("EXISTS", store.featuresKey()))
 
-	if store != nil && err == nil && init {
+	if store.cache != nil && err == nil && init {
 		store.cache.Set("$initialized", true, store.timeout)
 	}
 
