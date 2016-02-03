@@ -108,19 +108,25 @@ func (ep *eventProcessor) flush() {
 
 	resp, respErr := ep.client.Do(req)
 
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+		}
+	}()
+
 	if respErr != nil {
 		ep.config.Logger.Printf("Unexpected error while sending events: %+v", respErr)
 		return
 	}
 
-	if resp.Body != nil {
-		ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
-	}
-
 }
 
 func (ep *eventProcessor) sendEvent(evt Event) error {
+	if !ep.config.SendEvents {
+		return nil
+	}
+
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
 

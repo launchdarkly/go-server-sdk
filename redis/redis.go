@@ -158,7 +158,7 @@ func (store *RedisFeatureStore) Delete(key string, version int) error {
 		return jsonErr
 	}
 
-	_, err := c.Do("HSET", store.featuresKey(), data)
+	_, err := c.Do("HSET", store.featuresKey(), key, data)
 
 	return err
 }
@@ -176,7 +176,7 @@ func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
 		return featureErr
 	}
 
-	if o.Version >= f.Version {
+	if o != nil && o.Version >= f.Version {
 		return nil
 	}
 
