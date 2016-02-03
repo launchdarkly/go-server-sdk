@@ -4,14 +4,17 @@ import (
 	"encoding/json"
 	r "github.com/garyburd/redigo/redis"
 	ld "github.com/launchdarkly/go-client-private"
+	"github.com/patrickmn/go-cache"
 	"strconv"
 	"time"
 )
 
 // A Redis-backed feature store.
 type RedisFeatureStore struct {
-	prefix string
-	pool   *r.Pool
+	prefix  string
+	pool    *r.Pool
+	cache   *cache.Cache
+	timeout time.Duration
 }
 
 var pool *r.Pool
@@ -39,16 +42,23 @@ func (store *RedisFeatureStore) getConn() r.Conn {
 // Constructs a new Redis-backed feature store connecting to the specified host and port.
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly"
-func NewRedisFeatureStore(host string, port int, prefix string) *RedisFeatureStore {
+func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration) *RedisFeatureStore {
+	var c *cache.Cache
 	pool := newPool(host, port)
 
 	if prefix == "" {
 		prefix = "launchdarkly"
 	}
 
+	if timeout > 0 {
+		c = cache.New(timeout, 5*time.Minute)
+	}
+
 	store := RedisFeatureStore{
-		prefix: prefix,
-		pool:   pool,
+		prefix:  prefix,
+		pool:    pool,
+		cache:   c,
+		timeout: timeout,
 	}
 
 	return &store
@@ -60,6 +70,17 @@ func (store *RedisFeatureStore) featuresKey() string {
 
 func (store *RedisFeatureStore) Get(key string) (*ld.Feature, error) {
 	var feature ld.Feature
+
+	if store.cache != nil {
+		if data, present := store.cache.Get(key); present {
+			if feature, ok := data.(ld.Feature); ok {
+				if feature.Deleted {
+					return nil, nil
+				}
+				return &feature, nil
+			}
+		}
+	}
 
 	c := store.getConn()
 	defer c.Close()
@@ -79,6 +100,10 @@ func (store *RedisFeatureStore) Get(key string) (*ld.Feature, error) {
 
 	if feature.Deleted {
 		return nil, nil
+	}
+
+	if store.cache != nil {
+		store.cache.Set(key, feature, store.timeout)
 	}
 
 	return &feature, nil
@@ -119,6 +144,10 @@ func (store *RedisFeatureStore) Init(features map[string]*ld.Feature) error {
 	c.Send("MULTI")
 	c.Send("DEL", store.featuresKey())
 
+	if store.cache != nil {
+		store.cache.Flush()
+	}
+
 	for k, v := range features {
 		data, jsonErr := json.Marshal(v)
 
@@ -127,6 +156,11 @@ func (store *RedisFeatureStore) Init(features map[string]*ld.Feature) error {
 		}
 
 		c.Send("HSET", store.featuresKey(), k, data)
+
+		if store.cache != nil {
+			store.cache.Set(k, v, store.timeout)
+		}
+
 	}
 	_, err := c.Do("EXEC")
 	return err
@@ -160,6 +194,10 @@ func (store *RedisFeatureStore) Delete(key string, version int) error {
 
 	_, err := c.Do("HSET", store.featuresKey(), key, data)
 
+	if err == nil && store.cache != nil {
+		store.cache.Set(key, feature, store.timeout)
+	}
+
 	return err
 }
 
@@ -188,14 +226,28 @@ func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
 
 	_, err := c.Do("HSET", store.featuresKey(), key, data)
 
+	if err == nil && store.cache != nil {
+		store.cache.Set(key, f, store.timeout)
+	}
+
 	return err
 }
 
 func (store *RedisFeatureStore) Initialized() bool {
+	if store.cache != nil {
+		if _, present := store.cache.Get("$initialized$"); present {
+			return true
+		}
+	}
+
 	c := store.getConn()
 	defer c.Close()
 
 	init, err := r.Bool(c.Do("EXISTS", store.featuresKey()))
+
+	if store.cache != nil && err == nil && init {
+		store.cache.Set("$initialized", true, store.timeout)
+	}
 
 	return err == nil && init
 }
