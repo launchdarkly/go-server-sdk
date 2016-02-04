@@ -17,6 +17,8 @@ type RedisFeatureStore struct {
 	timeout time.Duration
 }
 
+const init_key = "$initialized$"
+
 var pool *r.Pool
 
 func newPool(host string, port int) *r.Pool {
@@ -235,7 +237,7 @@ func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
 
 func (store *RedisFeatureStore) Initialized() bool {
 	if store.cache != nil {
-		if _, present := store.cache.Get("$initialized$"); present {
+		if _, present := store.cache.Get(init_key); present {
 			return true
 		}
 	}
@@ -246,7 +248,7 @@ func (store *RedisFeatureStore) Initialized() bool {
 	init, err := r.Bool(c.Do("EXISTS", store.featuresKey()))
 
 	if store.cache != nil && err == nil && init {
-		store.cache.Set("$initialized", true, store.timeout)
+		store.cache.Set(init_key, true, store.timeout)
 	}
 
 	return err == nil && init
