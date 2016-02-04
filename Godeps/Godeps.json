@@ -1,10 +1,21 @@
 {
 	"ImportPath": "github.com/launchdarkly/go-client",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.4",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/facebookgo/httpcontrol",
 			"Rev": "ccde4420e1fee9af5da365cb76075b95683f39a6"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "535138d7bcd717d6531c701ef5933d98b1866257"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "535138d7bcd717d6531c701ef5933d98b1866257"
 		},
 		{
 			"ImportPath": "github.com/gregjones/httpcache",
@@ -12,7 +23,11 @@
 		},
 		{
 			"ImportPath": "github.com/launchdarkly/eventsource",
-			"Rev": "e88deb7f4409208dc3d97cd1e7d990c3145f1ca3"
+			"Rev": "7a80b789e2ea45aa2f320c59203c306e8ded8f06"
+		},
+		{
+			"ImportPath": "github.com/patrickmn/go-cache",
+			"Rev": "1881a9bccb818787f68c52bfba648c6cf34c34fa"
 		}
 	]
 }
