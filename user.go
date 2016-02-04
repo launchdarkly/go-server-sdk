@@ -35,3 +35,56 @@ type DerivedAttribute struct {
 	Value       interface{} `json:"value" bson:"value"`
 	LastDerived time.Time   `json:"lastDerived" bson:"lastDerived"`
 }
+
+func (user User) valueOf(attr string) (interface{}, bool) {
+	if attr == "key" {
+		if user.Key != nil {
+			return *user.Key, false
+		}
+	} else if attr == "ip" {
+		if user.Ip != nil {
+			return *user.Ip, false
+		}
+	} else if attr == "country" {
+		if user.Country != nil {
+			return *user.Country, false
+		}
+	} else if attr == "email" {
+		if user.Email != nil {
+			return *user.Email, false
+		}
+	} else if attr == "firstName" {
+		if user.FirstName != nil {
+			return *user.FirstName, false
+		}
+	} else if attr == "lastName" {
+		if user.LastName != nil {
+			return *user.LastName, false
+		}
+	} else if attr == "avatar" {
+		if user.Avatar != nil {
+			return *user.Avatar, false
+		}
+	} else if attr == "name" {
+		if user.Name != nil {
+			return *user.Name, false
+		}
+	} else if attr == "anonymous" {
+		if user.Anonymous != nil {
+			return *user.Anonymous, false
+		}
+	}
+
+	// Select a custom attribute
+	if user.Custom == nil {
+		return nil, true
+	}
+
+	v := (*user.Custom)[attr]
+
+	if v == nil {
+		return nil, true
+	}
+
+	return v, false
+}
