@@ -96,7 +96,7 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected error marshalling event json: %+v", marshalErr)
 	}
 
-	req, reqErr := http.NewRequest("POST", ep.config.BaseUri+"/api/events/bulk", bytes.NewReader(payload))
+	req, reqErr := http.NewRequest("POST", ep.config.EventsUri+"/bulk", bytes.NewReader(payload))
 
 	if reqErr != nil {
 		ep.config.Logger.Printf("Unexpected error while creating event request: %+v", reqErr)

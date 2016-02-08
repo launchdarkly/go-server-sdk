@@ -26,6 +26,7 @@ type LDClient struct {
 type Config struct {
 	BaseUri       string
 	StreamUri     string
+	EventsUri     string
 	Capacity      int
 	FlushInterval time.Duration
 	Logger        *log.Logger
@@ -44,6 +45,7 @@ type Config struct {
 var DefaultConfig = Config{
 	BaseUri:       "https://app.launchdarkly.com",
 	StreamUri:     "https://stream.launchdarkly.com",
+	EventsUri:     "https://events.launchdarkly.com",
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
