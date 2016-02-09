@@ -33,7 +33,8 @@ type BaseEvent struct {
 
 type FeatureRequestEvent struct {
 	BaseEvent
-	Value interface{} `json:"value"`
+	Value   interface{} `json:"value"`
+	Default interface{} `json:"default"`
 }
 
 const (
@@ -139,7 +140,7 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 
 // Used to just create the event. Normally, you don't need to call this;
 // the event is created and queued automatically by Toggle.
-func NewFeatureRequestEvent(key string, user User, value interface{}) FeatureRequestEvent {
+func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -147,7 +148,8 @@ func NewFeatureRequestEvent(key string, user User, value interface{}) FeatureReq
 			User:         user,
 			Kind:         FEATURE_REQUEST_EVENT,
 		},
-		Value: value,
+		Value:   value,
+		Default: defaultVal,
 	}
 }
 

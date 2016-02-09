@@ -158,18 +158,18 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 	value, err := client.evaluate(key, user, defaultVal)
 
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
 	}
 
 	result, ok := value.(bool)
 
 	if !ok {
-		client.sendFlagRequestEvent(key, user, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, errors.New("Feature flag returned non-bool value")
 	}
 
-	client.sendFlagRequestEvent(key, user, value)
+	client.sendFlagRequestEvent(key, user, value, defaultVal)
 	return result, nil
 }
 
@@ -179,7 +179,7 @@ func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int
 	value, err := client.evaluate(key, user, float64(defaultVal))
 
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
 	}
 
@@ -187,11 +187,11 @@ func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int
 	result, ok := value.(float64)
 
 	if !ok {
-		client.sendFlagRequestEvent(key, user, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, errors.New("Feature flag returned non-numeric value")
 	}
 
-	client.sendFlagRequestEvent(key, user, value)
+	client.sendFlagRequestEvent(key, user, value, defaultVal)
 	return int(result), nil
 }
 
@@ -201,26 +201,26 @@ func (client *LDClient) Float64Variation(key string, user User, defaultVal float
 	value, err := client.evaluate(key, user, defaultVal)
 
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
 	}
 
 	result, ok := value.(float64)
 
 	if !ok {
-		client.sendFlagRequestEvent(key, user, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, errors.New("Feature flag returned non-numeric value")
 	}
 
-	client.sendFlagRequestEvent(key, user, value)
+	client.sendFlagRequestEvent(key, user, value, defaultVal)
 	return result, nil
 }
 
-func (client *LDClient) sendFlagRequestEvent(key string, user User, value interface{}) error {
+func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defaultVal interface{}) error {
 	if client.offline {
 		return nil
 	}
-	evt := NewFeatureRequestEvent(key, user, value)
+	evt := NewFeatureRequestEvent(key, user, value, defaultVal)
 	return client.eventProcessor.sendEvent(evt)
 }
 
