@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"encoding/json"
-	"errors"
 	es "github.com/launchdarkly/eventsource"
 	"io"
 	"net/http"
@@ -20,13 +19,13 @@ const (
 )
 
 type streamProcessor struct {
-	store        FeatureStore
-	requestor    *requestor
-	stream       *es.Stream
-	config       Config
-	disconnected *time.Time
-	apiKey       string
-	ignition     sync.Once
+	store              FeatureStore
+	requestor          *requestor
+	stream             *es.Stream
+	config             Config
+	apiKey             string
+	setInitializedOnce sync.Once
+	isInitialized      bool
 	sync.RWMutex
 }
 
@@ -40,38 +39,19 @@ type featureDeleteData struct {
 	Version int    `json:"version"`
 }
 
-func (sp *streamProcessor) Initialized() bool {
-	return sp.store.Initialized()
+func (sp *streamProcessor) initialized() bool {
+	return sp.isInitialized
 }
 
-func (sp *streamProcessor) GetFeature(key string) (*Feature, error) {
-	if !sp.store.Initialized() {
-		return nil, errors.New("Requested stream data before initialization completed")
-	} else {
-		return sp.store.Get(key)
-	}
+func (sp *streamProcessor) start(ch chan<- bool) {
+	go sp.startOnce(ch)
+	go sp.errors()
 }
 
-func (sp *streamProcessor) ShouldFallbackUpdate() bool {
-	sp.RLock()
-	defer sp.RUnlock()
-	return sp.disconnected != nil && sp.disconnected.Before(time.Now().Add(-2*time.Minute))
-}
-
-func (sp *streamProcessor) StartOnce() {
-	sp.ignition.Do(func() {
-		if !sp.config.UseLdd {
-			go sp.start()
-			go sp.errors()
-		}
-	})
-}
-
-func (sp *streamProcessor) start() {
+func (sp *streamProcessor) startOnce(ch chan<- bool) {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
-			sp.setDisconnected()
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -83,7 +63,10 @@ func (sp *streamProcessor) start() {
 				sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
 			} else {
 				sp.store.Init(features)
-				sp.setConnected()
+				sp.setInitializedOnce.Do(func() {
+					sp.isInitialized = true
+					ch <- true
+				})
 			}
 		case patchEvent:
 			var patch featurePatchData
@@ -92,7 +75,6 @@ func (sp *streamProcessor) start() {
 			} else {
 				key := strings.TrimLeft(patch.Path, "/")
 				sp.store.Upsert(key, patch.Data)
-				sp.setConnected()
 			}
 		case indirectPatchEvent:
 			key := event.Data()
@@ -100,14 +82,15 @@ func (sp *streamProcessor) start() {
 				sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
 			} else {
 				sp.store.Upsert(key, *feature)
-				sp.setConnected()
 			}
 		case indirectPutEvent:
 			if features, err := sp.requestor.makeAllRequest(true); err != nil {
 				sp.config.Logger.Printf("Unexpected error requesting all features: %+v", err)
 			} else {
 				sp.store.Init(features)
-				sp.setConnected()
+				sp.setInitializedOnce.Do(func() {
+					sp.isInitialized = true
+				})
 			}
 		case deleteEvent:
 			var data featureDeleteData
@@ -116,24 +99,14 @@ func (sp *streamProcessor) start() {
 			} else {
 				key := strings.TrimLeft(data.Path, "/")
 				sp.store.Delete(key, data.Version)
-				sp.setConnected()
 			}
 		default:
 			sp.config.Logger.Printf("Unexpected event found in stream: %s", event.Event())
-			sp.setConnected()
 		}
 	}
 }
 
-func newStream(apiKey string, config Config, requestor *requestor) *streamProcessor {
-	var store FeatureStore
-
-	if config.FeatureStore != nil {
-		store = config.FeatureStore
-	} else {
-		store = NewInMemoryFeatureStore()
-	}
-
+func newStreamProcessor(apiKey string, config Config, store FeatureStore, requestor *requestor) updateProcessor {
 	sp := &streamProcessor{
 		store:     store,
 		config:    config,
@@ -178,7 +151,6 @@ func (sp *streamProcessor) errors() {
 	for {
 		subscribed := sp.checkSubscribe()
 		if !subscribed {
-			sp.setDisconnected()
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -188,37 +160,11 @@ func (sp *streamProcessor) errors() {
 			sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
 		}
 		if err != nil {
-			sp.setDisconnected()
 		}
 	}
 }
 
-func (sp *streamProcessor) setConnected() {
-	sp.RLock()
-	if sp.disconnected != nil {
-		sp.RUnlock()
-		sp.Lock()
-		defer sp.Unlock()
-		if sp.disconnected != nil {
-			sp.disconnected = nil
-		}
-	} else {
-		sp.RUnlock()
-	}
-
-}
-
-func (sp *streamProcessor) setDisconnected() {
-	sp.RLock()
-	if sp.disconnected == nil {
-		sp.RUnlock()
-		sp.Lock()
-		defer sp.Unlock()
-		if sp.disconnected == nil {
-			now := time.Now()
-			sp.disconnected = &now
-		}
-	} else {
-		sp.RUnlock()
-	}
+func (sp *streamProcessor) close() {
+	// TODO : the EventSource library doesn't support close() yet.
+	// when it does, call it here
 }
