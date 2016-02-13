@@ -96,7 +96,7 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 		if config.Stream {
 			updateProcessor = newStreamProcessor(apiKey, config, store, requestor)
 		} else {
-			updateProcessor = newPollingProcessor(apiKey, config, store, requestor)
+			updateProcessor = newPollingProcessor(config, store, requestor)
 		}
 		updateProcessor.start(ch)
 	}
