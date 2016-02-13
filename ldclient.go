@@ -63,8 +63,8 @@ var DefaultConfig = Config{
 	Offline:       false,
 }
 
-var InitializationTimeoutError = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
-var ClientNotInitializedError = errors.New("Toggle called before LaunchDarkly client initialization completed")
+var ErrInitializationTimeout = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
+var ErrClientNotInitialized = errors.New("Toggle called before LaunchDarkly client initialization completed")
 
 // Creates a new client instance that connects to LaunchDarkly with the default configuration. In most
 // cases, you should use this method to instantiate your client. The optional duration parameter allows callers to
@@ -117,10 +117,9 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 			return &client, nil
 		case <-timeout:
 			if waitFor > 0 {
-				return &client, InitializationTimeoutError
-			} else {
-				return &client, nil
+				return &client, ErrInitializationTimeout
 			}
+			return &client, nil
 		}
 	}
 }
@@ -264,7 +263,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	var featurePtr *Feature
 
 	if !client.Initialized() {
-		return defaultVal, ClientNotInitializedError
+		return defaultVal, ErrClientNotInitialized
 	}
 
 	featurePtr, storeErr = client.store.Get(key)
