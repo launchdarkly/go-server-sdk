@@ -12,6 +12,7 @@ type pollingProcessor struct {
 	setInitializedOnce sync.Once
 	isInitialized      bool
 	lastHeaders        *cacheHeaders
+	quit               chan bool
 }
 
 func newPollingProcessor(config Config, store FeatureStore, requestor *requestor) updateProcessor {
@@ -19,6 +20,7 @@ func newPollingProcessor(config Config, store FeatureStore, requestor *requestor
 		store:     store,
 		requestor: requestor,
 		config:    config,
+		quit:      make(chan bool),
 	}
 
 	return pp
@@ -27,18 +29,23 @@ func newPollingProcessor(config Config, store FeatureStore, requestor *requestor
 func (pp *pollingProcessor) start(ch chan<- bool) {
 	go func() {
 		for {
-			then := time.Now()
-			err := pp.poll()
-			if err == nil {
-				pp.setInitializedOnce.Do(func() {
-					pp.isInitialized = true
-					ch <- true
-				})
-			}
-			delta := (1 * time.Second) - time.Since(then)
+			select {
+			case <-pp.quit:
+				return
+			default:
+				then := time.Now()
+				err := pp.poll()
+				if err == nil {
+					pp.setInitializedOnce.Do(func() {
+						pp.isInitialized = true
+						ch <- true
+					})
+				}
+				delta := (1 * time.Second) - time.Since(then)
 
-			if delta > 0 {
-				time.Sleep(delta)
+				if delta > 0 {
+					time.Sleep(delta)
+				}
 			}
 		}
 	}()
@@ -60,9 +67,8 @@ func (pp *pollingProcessor) poll() error {
 	return nil
 }
 
-// TODO add support for canceling the goroutine
 func (pp *pollingProcessor) close() {
-
+	pp.quit <- true
 }
 
 func (pp *pollingProcessor) initialized() bool {
