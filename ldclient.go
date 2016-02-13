@@ -106,6 +106,7 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 		config:          config,
 		eventProcessor:  newEventProcessor(apiKey, config),
 		updateProcessor: updateProcessor,
+		store:           store,
 	}
 
 	timeout := time.After(waitFor)
