@@ -28,6 +28,7 @@ type Config struct {
 	EventsUri     string
 	Capacity      int
 	FlushInterval time.Duration
+	PollInterval  time.Duration
 	Logger        *log.Logger
 	Timeout       time.Duration
 	Stream        bool
@@ -54,6 +55,7 @@ var DefaultConfig = Config{
 	EventsUri:     "https://events.launchdarkly.com",
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
+	PollInterval:  1 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	Timeout:       3000 * time.Millisecond,
 	Stream:        true,
@@ -86,17 +88,21 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 
 	requestor := newRequestor(apiKey, config)
 
-	if config.FeatureStore != nil {
-		store = config.FeatureStore
-	} else {
-		store = NewInMemoryFeatureStore()
+	if config.FeatureStore == nil {
+		config.FeatureStore = NewInMemoryFeatureStore()
 	}
+
+	if config.PollInterval < (1 * time.Second) {
+		config.PollInterval = 1 * time.Second
+	}
+
+	store = config.FeatureStore
 
 	if !config.UseLdd && !config.Offline {
 		if config.Stream {
-			updateProcessor = newStreamProcessor(apiKey, config, store, requestor)
+			updateProcessor = newStreamProcessor(apiKey, config, requestor)
 		} else {
-			updateProcessor = newPollingProcessor(config, store, requestor)
+			updateProcessor = newPollingProcessor(config, requestor)
 		}
 		updateProcessor.start(ch)
 	}

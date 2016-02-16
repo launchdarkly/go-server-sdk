@@ -106,9 +106,9 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 	}
 }
 
-func newStreamProcessor(apiKey string, config Config, store FeatureStore, requestor *requestor) updateProcessor {
+func newStreamProcessor(apiKey string, config Config, requestor *requestor) updateProcessor {
 	sp := &streamProcessor{
-		store:     store,
+		store:     config.FeatureStore,
 		config:    config,
 		apiKey:    apiKey,
 		requestor: requestor,

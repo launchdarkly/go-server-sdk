@@ -15,9 +15,9 @@ type pollingProcessor struct {
 	quit               chan bool
 }
 
-func newPollingProcessor(config Config, store FeatureStore, requestor *requestor) updateProcessor {
+func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
 	pp := &pollingProcessor{
-		store:     store,
+		store:     config.FeatureStore,
 		requestor: requestor,
 		config:    config,
 		quit:      make(chan bool),
@@ -41,7 +41,7 @@ func (pp *pollingProcessor) start(ch chan<- bool) {
 						ch <- true
 					})
 				}
-				delta := (1 * time.Second) - time.Since(then)
+				delta := pp.config.PollInterval - time.Since(then)
 
 				if delta > 0 {
 					time.Sleep(delta)
