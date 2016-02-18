@@ -44,9 +44,8 @@ func (store *RedisFeatureStore) getConn() r.Conn {
 // Constructs a new Redis-backed feature store connecting to the specified host and port.
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly"
-func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration) *RedisFeatureStore {
+func NewRedisFeatureStore(pool *r.Pool, prefix string, timeout time.Duration) *RedisFeatureStore {
 	var c *cache.Cache
-	pool := newPool(host, port)
 
 	if prefix == "" {
 		prefix = "launchdarkly"
@@ -64,6 +63,10 @@ func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Dur
 	}
 
 	return &store
+}
+
+func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration) *RedisFeatureStore {
+	return NewRedisFeatureStore(prefix, timeout, newPool(host, port))
 }
 
 func (store *RedisFeatureStore) featuresKey() string {
