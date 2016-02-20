@@ -84,7 +84,7 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 				sp.store.Upsert(key, *feature)
 			}
 		case indirectPutEvent:
-			if features, _, err := sp.requestor.makeAllRequest(nil, true); err != nil {
+			if features, _, err := sp.requestor.makeAllRequest(true); err != nil {
 				sp.config.Logger.Printf("Unexpected error requesting all features: %+v", err)
 			} else {
 				sp.store.Init(features)

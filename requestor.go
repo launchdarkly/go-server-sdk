@@ -3,6 +3,7 @@ package ldclient
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/facebookgo/httpcontrol"
 	"github.com/gregjones/httpcache"
 	"io/ioutil"
@@ -15,11 +16,6 @@ type requestor struct {
 	apiKey     string
 	httpClient *http.Client
 	config     Config
-}
-
-type cacheHeaders struct {
-	etag         string
-	lastModified string
 }
 
 func newRequestor(apiKey string, config Config) *requestor {
@@ -47,7 +43,7 @@ func newRequestor(apiKey string, config Config) *requestor {
 	return &requestor
 }
 
-func (r *requestor) makeAllRequest(ch *cacheHeaders, latest bool) (map[string]*Feature, *cacheHeaders, error) {
+func (r *requestor) makeAllRequest(latest bool) (map[string]*Feature, bool, error) {
 	var features map[string]*Feature
 
 	var resource string
@@ -61,19 +57,11 @@ func (r *requestor) makeAllRequest(ch *cacheHeaders, latest bool) (map[string]*F
 	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)
 
 	if reqErr != nil {
-		return nil, nil, reqErr
+		return nil, false, reqErr
 	}
 
 	req.Header.Add("Authorization", "api_key "+r.apiKey)
 	req.Header.Add("User-Agent", "GoClient/"+Version)
-
-	if ch != nil && ch.etag != "" {
-		req.Header.Add("If-None-Match", ch.etag)
-	}
-
-	if ch != nil && ch.lastModified != "" {
-		req.Header.Add("If-Modified-Since", ch.lastModified)
-	}
 
 	res, resErr := r.httpClient.Do(req)
 
@@ -85,43 +73,38 @@ func (r *requestor) makeAllRequest(ch *cacheHeaders, latest bool) (map[string]*F
 	}()
 
 	if resErr != nil {
-		return nil, nil, resErr
+		return nil, false, resErr
 	}
 
 	if res.StatusCode == http.StatusUnauthorized {
-		return nil, nil, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
+		return nil, false, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
 	}
 
 	if res.StatusCode == http.StatusNotFound {
-		return nil, nil, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+		return nil, false, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 	}
 
-	if res.StatusCode == http.StatusNotModified {
-		return nil, nil, nil
+	if res.Header.Get(httpcache.XFromCache) != "" {
+		return nil, true, nil
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, nil, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
+		return nil, false, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, false, err
 	}
 
 	jsonErr := json.Unmarshal(body, &features)
 
 	if jsonErr != nil {
-		return nil, nil, jsonErr
+		return nil, false, jsonErr
 	}
 
-	newHeaders := cacheHeaders{
-		etag:         res.Header.Get("ETag"),
-		lastModified: res.Header.Get("LastModified"),
-	}
-
-	return features, &newHeaders, nil
+	return features, false, nil
 }
 
 func (r *requestor) makeRequest(key string, latest bool) (*Feature, error) {
