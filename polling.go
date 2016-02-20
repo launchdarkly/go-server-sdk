@@ -62,6 +62,7 @@ func (pp *pollingProcessor) poll() error {
 	// update the store. Otherwise we'll have gotten a 304 (do nothing) or an
 	// error
 	if nextHdrs != nil {
+		pp.lastHeaders = nextHdrs
 		return pp.store.Init(features)
 	}
 	return nil
