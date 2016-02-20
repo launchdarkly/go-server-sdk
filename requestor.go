@@ -3,7 +3,6 @@ package ldclient
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/facebookgo/httpcontrol"
 	"github.com/gregjones/httpcache"
 	"io/ioutil"
