@@ -13,16 +13,17 @@ var config = Config{
 	FlushInterval: 5 * time.Second,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	Timeout:       1500 * time.Millisecond,
+	Stream:        true,
+	Offline:       true,
 }
 
 func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
-	client := MakeCustomClient("api_key", config)
-	client.SetOffline()
+	client, _ := MakeCustomClient("api_key", config, 0)
 	var key = "foo"
 	res, err := client.Toggle("anything", User{Key: &key}, true)
 
 	if err != nil {
-		t.Errorf("Unexpected error in Toggle")
+		t.Errorf("Unexpected error in Toggle: %+v", err)
 	}
 
 	if !res {
