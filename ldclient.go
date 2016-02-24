@@ -115,6 +115,10 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 		store:           store,
 	}
 
+	if config.UseLdd || config.Offline {
+		return &client, nil
+	}
+
 	timeout := time.After(waitFor)
 
 	for {
