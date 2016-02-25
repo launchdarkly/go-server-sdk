@@ -24,6 +24,8 @@ var pool *r.Pool
 func newPool(url string) *r.Pool {
 	pool = &r.Pool{
 		MaxIdle:     20,
+		MaxActive:   16,
+		Wait:        true,
 		IdleTimeout: 300 * time.Second,
 		Dial: func() (c r.Conn, err error) {
 			c, err = r.DialURL(url)
@@ -41,14 +43,18 @@ func (store *RedisFeatureStore) getConn() r.Conn {
 	return store.pool.Get()
 }
 
+// Constructs a new Redis-backed feature store connecting to the specified URL with a default
+// connection pool configuration (16 concurrent connections, connection requests block).
+// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
+// specified prefix is the empty string, it defaults to "launchdarkly".
 func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration) *RedisFeatureStore {
 	return NewRedisFeatureStoreWithPool(newPool(url), prefix, timeout)
 
 }
 
-// Constructs a new Redis-backed feature store connecting to the specified host and port.
+// Constructs a new Redis-backed feature store with the specified redigo pool configuration.
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
-// specified prefix is the empty string, it defaults to "launchdarkly"
+// specified prefix is the empty string, it defaults to "launchdarkly".
 func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Duration) *RedisFeatureStore {
 	var c *cache.Cache
 
@@ -70,7 +76,8 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 	return &store
 }
 
-// Constructs a new Redis-backed feature store connecting to the specified host and port.
+// Constructs a new Redis-backed feature store connecting to the specified host and port with a default
+// connection pool configuration (16 concurrent connections, connection requests block).
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly"
 func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration) *RedisFeatureStore {
