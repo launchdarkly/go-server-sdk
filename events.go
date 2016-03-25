@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -42,6 +43,13 @@ const (
 	CUSTOM_EVENT          = "custom"
 	IDENTIFY_EVENT        = "identify"
 )
+
+var rGen *rand.Rand
+
+func init() {
+	s1 := rand.NewSource(time.Now().UnixNano())
+	rGen = rand.New(s1)
+}
 
 func newEventProcessor(apiKey string, config Config) *eventProcessor {
 	res := &eventProcessor{
@@ -125,6 +133,10 @@ func (ep *eventProcessor) flush() {
 
 func (ep *eventProcessor) sendEvent(evt Event) error {
 	if !ep.config.SendEvents {
+		return nil
+	}
+
+	if ep.config.SamplingInterval > 0 && rGen.Int31n(ep.config.SamplingInterval) != 0 {
 		return nil
 	}
 
