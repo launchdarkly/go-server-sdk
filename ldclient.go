@@ -23,19 +23,20 @@ type LDClient struct {
 
 // Exposes advanced configuration options for the LaunchDarkly client.
 type Config struct {
-	BaseUri       string
-	StreamUri     string
-	EventsUri     string
-	Capacity      int
-	FlushInterval time.Duration
-	PollInterval  time.Duration
-	Logger        *log.Logger
-	Timeout       time.Duration
-	Stream        bool
-	FeatureStore  FeatureStore
-	UseLdd        bool
-	SendEvents    bool
-	Offline       bool
+	BaseUri          string
+	StreamUri        string
+	EventsUri        string
+	Capacity         int
+	FlushInterval    time.Duration
+	SamplingInterval int32
+	PollInterval     time.Duration
+	Logger           *log.Logger
+	Timeout          time.Duration
+	Stream           bool
+	FeatureStore     FeatureStore
+	UseLdd           bool
+	SendEvents       bool
+	Offline          bool
 }
 
 type updateProcessor interface {
