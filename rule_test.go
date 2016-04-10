@@ -13,7 +13,7 @@ Tests rules (conjunctions of clauses)
 // [email in {gmail.com, hotmail.com}] && [group in {Microsoft, Google}]
 var hotmailOrGmailAndMsOrGoogleRule = Rule{
 	Clauses:   []Clause{hotmailOrGmailClause, msOrGoogleClause},
-	Variation: true,
+	Variation: nil,
 }
 
 // [email in {gmail.com, hotmail.com}] && [not(group in {Youtube, Nest})]
