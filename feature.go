@@ -6,21 +6,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
-	"time"
 )
-
-type Feature struct {
-	Name         *string      `json:"name"`
-	Key          *string      `json:"key"`
-	Kind         *string      `json:"kind"`
-	Salt         *string      `json:"salt"`
-	On           *bool        `json:"on"`
-	Variations   *[]Variation `json:"variations"`
-	CommitDate   *time.Time   `json:"commitDate"`
-	CreationDate *time.Time   `json:"creationDate"`
-	Version      int          `json:"version,omitempty"`
-	Deleted      bool         `json:"deleted,omitempty"`
-}
 
 type TargetRule struct {
 	Attribute string        `json:"attribute"`
@@ -41,51 +27,7 @@ const (
 	long_scale = float32(0xFFFFFFFFFFFFFFF)
 )
 
-func (f Feature) Evaluate(user User) (value interface{}, rulesPassed bool) {
-	value, _, rulesPassed = f.EvaluateExplain(user)
-	return
-}
-
-func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *TargetRule, rulesPassed bool) {
-
-	if !*f.On {
-		return nil, nil, true
-	}
-
-	param, passErr := f.paramForId(user)
-
-	if passErr {
-		return nil, nil, true
-	}
-
-	for _, variation := range *f.Variations {
-		target := variation.matchUser(user)
-		if target != nil {
-			return variation.Value, target, false
-		}
-	}
-
-	for _, variation := range *f.Variations {
-		target := variation.matchTarget(user)
-		if target != nil {
-			return variation.Value, target, false
-		}
-
-	}
-
-	var sum float32 = 0.0
-
-	for _, variation := range *f.Variations {
-		sum += float32(variation.Weight) / 100.0
-		if param < sum {
-			return variation.Value, nil, false
-		}
-	}
-
-	return nil, nil, true
-}
-
-func (b Feature) paramForId(user User) (float32, bool) {
+func (b FeatureFlag) paramForId(user User) (float32, bool) {
 	var idHash string
 
 	if user.Key != nil {

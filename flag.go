@@ -9,16 +9,17 @@ import (
 )
 
 type FeatureFlag struct {
-	Key          string        `json:"key" bson:"key"`
-	Version      int           `json:"version" bson:"version"`
-	On           bool          `json:"on" bson:"on"`
-	Salt         string        `json:"salt" bson:"salt"`
-	Sel          string        `json:"sel" bson:"sel"`
-	Targets      []Target      `json:"targets" bson:"targets"`
-	Rules        []Rule        `json:"rules" bson:"rules"`
-	Fallthrough  Rule          `json:"fallthrough" bson:"fallthrough"`
-	OffVariation *int          `json:"offVariation" bson:"offVariation"`
-	Variations   []interface{} `json:"variations" bson:"variations"`
+	Key          *string        `json:"key" bson:"key"`
+	Version      int            `json:"version" bson:"version"`
+	On           *bool          `json:"on" bson:"on"`
+	Salt         *string        `json:"salt" bson:"salt"`
+	Sel          *string        `json:"sel" bson:"sel"`
+	Targets      *[]Target      `json:"targets" bson:"targets"`
+	Rules        *[]Rule        `json:"rules" bson:"rules"`
+	Fallthrough  *Rule          `json:"fallthrough" bson:"fallthrough"`
+	OffVariation *int           `json:"offVariation" bson:"offVariation"`
+	Variations   *[]interface{} `json:"variations" bson:"variations"`
+	Deleted      bool           `json:"deleted,omitempty" bson:"deleted"`
 }
 
 // Expresses a set of AND-ed matching conditions for a user, along with
@@ -86,10 +87,10 @@ func bucketUser(user User, key, attr, salt string) float32 {
 func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 	index, explanation := f.evaluateExplainIndex(user)
 
-	if index == nil || *index >= len(f.Variations) {
+	if index == nil || *index >= len(*f.Variations) {
 		return nil, explanation
 	} else {
-		return f.Variations[*index], explanation
+		return (*f.Variations)[*index], explanation
 	}
 
 }
@@ -102,7 +103,7 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	}
 
 	// Check to see if targets match
-	for _, target := range f.Targets {
+	for _, target := range *f.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
 				explanation := Explanation{Kind: "target", Target: &target}
@@ -112,9 +113,9 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	}
 
 	// Now walk through the rules and see if any match
-	for _, rule := range f.Rules {
+	for _, rule := range *f.Rules {
 		if rule.matchesUser(user) {
-			variation := rule.variationIndexForUser(user, f.Key, f.Salt)
+			variation := rule.variationIndexForUser(user, *f.Key, *f.Salt)
 
 			if variation == nil {
 				return f.OffVariation, nil // TODO should this continue, or return the off variation?
@@ -126,12 +127,12 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	}
 
 	// Walk through the fallthrough and see if it matches
-	variation := f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
+	variation := f.Fallthrough.variationIndexForUser(user, *f.Key, *f.Salt)
 
 	if variation == nil {
 		return f.OffVariation, nil
 	} else {
-		explanation := Explanation{Kind: "fallthrough", Rule: &f.Fallthrough}
+		explanation := Explanation{Kind: "fallthrough", Rule: f.Fallthrough}
 		return variation, &explanation
 	}
 }
