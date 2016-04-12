@@ -9,7 +9,6 @@ import (
 )
 
 type FeatureFlag struct {
-	Name         string        `json:"name" bson:"name"`
 	Key          string        `json:"key" bson:"key"`
 	Version      int           `json:"version" bson:"version"`
 	On           bool          `json:"on" bson:"on"`
@@ -19,7 +18,6 @@ type FeatureFlag struct {
 	Rules        []Rule        `json:"rules" bson:"rules"`
 	Fallthrough  Rule          `json:"fallthrough" bson:"fallthrough"`
 	OffVariation *int          `json:"offVariation" bson:"offVariation"`
-	Archived     bool          `json:"archived" bson:"archived"`
 	Variations   []interface{} `json:"variations" bson:"variations"`
 }
 
