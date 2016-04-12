@@ -9,18 +9,18 @@ import (
 )
 
 type FeatureFlag struct {
-	Name         string    `json:"name" bson:"name"`
-	Key          string    `json:"key" bson:"key"`
-	Version      int       `json:"version" bson:"version"`
-	On           bool      `json:"on" bson:"on"`
-	Salt         string    `json:"salt" bson:"salt"`
-	Sel          string    `json:"sel" bson:"sel"`
-	Targets      []Target  `json:"targets" bson:"targets"`
-	Rules        []Rule    `json:"rules" bson:"rules"`
-	Fallthrough  Rule      `json:"fallthrough" bson:"fallthrough"`
-	OffVariation *int      `json:"offVariation" bson:"offVariation"`
-	Archived     bool      `json:"archived" bson:"archived"`
-	Variations   []Variate `json:"variations" bson:"variations"`
+	Name         string        `json:"name" bson:"name"`
+	Key          string        `json:"key" bson:"key"`
+	Version      int           `json:"version" bson:"version"`
+	On           bool          `json:"on" bson:"on"`
+	Salt         string        `json:"salt" bson:"salt"`
+	Sel          string        `json:"sel" bson:"sel"`
+	Targets      []Target      `json:"targets" bson:"targets"`
+	Rules        []Rule        `json:"rules" bson:"rules"`
+	Fallthrough  Rule          `json:"fallthrough" bson:"fallthrough"`
+	OffVariation *int          `json:"offVariation" bson:"offVariation"`
+	Archived     bool          `json:"archived" bson:"archived"`
+	Variations   []interface{} `json:"variations" bson:"variations"`
 }
 
 // Expresses a set of AND-ed matching conditions for a user, along with
@@ -53,12 +53,6 @@ type WeightedVariation struct {
 type Target struct {
 	Values    []string `json:"values" bson:"values"`
 	Variation int      `json:"variation" bson:"variation"`
-}
-
-type Variate struct {
-	Value       interface{} `json:"value" bson:"value"`
-	Description string      `json:"description,omitempty" bson:"description"`
-	Name        string      `json:"name,omitempty" bson:"name"`
 }
 
 // An explanation is either a target or a rule
@@ -97,7 +91,7 @@ func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 	if index == nil || *index >= len(f.Variations) {
 		return nil, explanation
 	} else {
-		return f.Variations[*index].Value, explanation
+		return f.Variations[*index], explanation
 	}
 
 }
