@@ -9,17 +9,16 @@ import (
 )
 
 type FeatureFlag struct {
-	Name         string      `json:"name" bson:"name"`
-	Key          string      `json:"key" bson:"key"`
-	Version      int         `json:"version" bson:"version"`
-	On           bool        `json:"on" bson:"on"`
-	Salt         string      `json:"salt" bson:"salt"`
-	Sel          string      `json:"sel" bson:"sel"`
-	Targets      []Target    `json:"targets" bson:"targets"`
-	Rules        []Rule      `json:"rules" bson:"rules"`
-	Fallthrough  Rule        `json:"fallthrough" bson:"fallthrough"`
-	OffVariation interface{} `json:"offVariation" bson:"offVariation"`
-	Archived     bool        `json:"archived" bson:"archived"`
+	Key          string        `json:"key" bson:"key"`
+	Version      int           `json:"version" bson:"version"`
+	On           bool          `json:"on" bson:"on"`
+	Salt         string        `json:"salt" bson:"salt"`
+	Sel          string        `json:"sel" bson:"sel"`
+	Targets      []Target      `json:"targets" bson:"targets"`
+	Rules        []Rule        `json:"rules" bson:"rules"`
+	Fallthrough  Rule          `json:"fallthrough" bson:"fallthrough"`
+	OffVariation *int          `json:"offVariation" bson:"offVariation"`
+	Variations   []interface{} `json:"variations" bson:"variations"`
 }
 
 // Expresses a set of AND-ed matching conditions for a user, along with
@@ -27,9 +26,9 @@ type FeatureFlag struct {
 // match.
 // Invariant: one of the variation or rollout must be non-nil.
 type Rule struct {
-	Clauses   []Clause    `json:"clauses,omitempty" bson:"clauses,omitempty"`
-	Variation interface{} `json:"variation,omitempty" bson:"variation,omitempty"`
-	Rollout   *Rollout    `json:"rollout,omitempty" bson:"rollout,omitempty"`
+	Clauses   []Clause `json:"clauses,omitempty" bson:"clauses,omitempty"`
+	Variation *int     `json:"variation,omitempty" bson:"variation,omitempty"`
+	Rollout   *Rollout `json:"rollout,omitempty" bson:"rollout,omitempty"`
 }
 
 type Rollout struct {
@@ -45,13 +44,13 @@ type Clause struct {
 }
 
 type WeightedVariation struct {
-	Variation interface{} `json:"variation" bson:"variation"`
-	Weight    int         `json:"weight" bson:"weight"` // Ranges from 0 to 100000
+	Variation int `json:"variation" bson:"variation"`
+	Weight    int `json:"weight" bson:"weight"` // Ranges from 0 to 100000
 }
 
 type Target struct {
-	Values    []string    `json:"values" bson:"values"`
-	Variation interface{} `json:"variation" bson:"variation"`
+	Values    []string `json:"values" bson:"values"`
+	Variation int      `json:"variation" bson:"variation"`
 }
 
 // An explanation is either a target or a rule
@@ -85,27 +84,40 @@ func bucketUser(user User, key, attr, salt string) float32 {
 }
 
 func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
+	index, explanation := f.evaluateExplainIndex(user)
+
+	if index == nil || *index >= len(f.Variations) {
+		return nil, explanation
+	} else {
+		return f.Variations[*index], explanation
+	}
+
+}
+
+func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	// TODO: The toggle algorithm should check the kill switch. We won't check it here
 	// so we can potentially compute an explanation even if the kill switch is hit
 	if user.Key == nil {
 		return f.OffVariation, nil
 	}
 
+	// Check to see if targets match
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
 				explanation := Explanation{Kind: "target", Target: &target}
-				return target.Variation, &explanation
+				return &target.Variation, &explanation
 			}
 		}
 	}
 
+	// Now walk through the rules and see if any match
 	for _, rule := range f.Rules {
 		if rule.matchesUser(user) {
-			variation, passErr := rule.valueForUser(user, f.Key, f.Salt)
+			variation := rule.variationIndexForUser(user, f.Key, f.Salt)
 
-			if passErr {
-				return f.OffVariation, nil
+			if variation == nil {
+				return f.OffVariation, nil // TODO should this continue, or return the off variation?
 			} else {
 				explanation := Explanation{Kind: "rule", Rule: &rule}
 				return variation, &explanation
@@ -113,7 +125,15 @@ func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 		}
 	}
 
-	return f.OffVariation, nil
+	// Walk through the fallthrough and see if it matches
+	variation := f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
+
+	if variation == nil {
+		return f.OffVariation, nil
+	} else {
+		explanation := Explanation{Kind: "fallthrough", Rule: &f.Fallthrough}
+		return variation, &explanation
+	}
 }
 
 func (r Rule) matchesUser(user User) bool {
@@ -167,9 +187,9 @@ func matchAny(fn opFn, value interface{}, values []interface{}) bool {
 	return false
 }
 
-func (r Rule) valueForUser(user User, key, salt string) (interface{}, bool) {
+func (r Rule) variationIndexForUser(user User, key, salt string) *int {
 	if r.Variation != nil {
-		return r.Variation, false
+		return r.Variation
 	} else if r.Rollout != nil {
 		bucketBy := "key"
 		if r.Rollout.BucketBy != nil {
@@ -182,11 +202,11 @@ func (r Rule) valueForUser(user User, key, salt string) (interface{}, bool) {
 		for _, wv := range r.Rollout.Variations {
 			sum += float32(wv.Weight) / 100000.0
 			if bucket < sum {
-				return wv.Variation, false
+				return &wv.Variation
 			}
 		}
 
 	}
 
-	return nil, true
+	return nil
 }
