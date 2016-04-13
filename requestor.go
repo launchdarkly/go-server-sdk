@@ -42,8 +42,8 @@ func newRequestor(apiKey string, config Config) *requestor {
 	return &requestor
 }
 
-func (r *requestor) makeAllRequest(latest bool) (map[string]*Feature, bool, error) {
-	var features map[string]*Feature
+func (r *requestor) makeAllRequest(latest bool) (map[string]*FeatureFlag, bool, error) {
+	var features map[string]*FeatureFlag
 
 	var resource string
 
@@ -106,8 +106,8 @@ func (r *requestor) makeAllRequest(latest bool) (map[string]*Feature, bool, erro
 	return features, false, nil
 }
 
-func (r *requestor) makeRequest(key string, latest bool) (*Feature, error) {
-	var feature Feature
+func (r *requestor) makeRequest(key string, latest bool) (*FeatureFlag, error) {
+	var feature FeatureFlag
 
 	var resource string
 

@@ -88,12 +88,12 @@ func (store *RedisFeatureStore) featuresKey() string {
 	return store.prefix + ":features"
 }
 
-func (store *RedisFeatureStore) Get(key string) (*ld.Feature, error) {
-	var feature ld.Feature
+func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
+	var feature ld.FeatureFlag
 
 	if store.cache != nil {
 		if data, present := store.cache.Get(key); present {
-			if feature, ok := data.(ld.Feature); ok {
+			if feature, ok := data.(ld.FeatureFlag); ok {
 				if feature.Deleted {
 					return nil, nil
 				}
@@ -129,10 +129,10 @@ func (store *RedisFeatureStore) Get(key string) (*ld.Feature, error) {
 	return &feature, nil
 }
 
-func (store *RedisFeatureStore) All() (map[string]*ld.Feature, error) {
-	var feature ld.Feature
+func (store *RedisFeatureStore) All() (map[string]*ld.FeatureFlag, error) {
+	var feature ld.FeatureFlag
 
-	results := make(map[string]*ld.Feature)
+	results := make(map[string]*ld.FeatureFlag)
 
 	c := store.getConn()
 	defer c.Close()
@@ -157,7 +157,7 @@ func (store *RedisFeatureStore) All() (map[string]*ld.Feature, error) {
 	return results, nil
 }
 
-func (store *RedisFeatureStore) Init(features map[string]*ld.Feature) error {
+func (store *RedisFeatureStore) Init(features map[string]*ld.FeatureFlag) error {
 	c := store.getConn()
 	defer c.Close()
 
@@ -221,7 +221,7 @@ func (store *RedisFeatureStore) Delete(key string, version int) error {
 	return err
 }
 
-func (store *RedisFeatureStore) Upsert(key string, f ld.Feature) error {
+func (store *RedisFeatureStore) Upsert(key string, f ld.FeatureFlag) error {
 	c := store.getConn()
 	defer c.Close()
 
