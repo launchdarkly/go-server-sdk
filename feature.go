@@ -1,11 +1,7 @@
 package ldclient
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
-	"io"
 	"reflect"
-	"strconv"
 )
 
 type TargetRule struct {
@@ -26,30 +22,6 @@ type Variation struct {
 const (
 	long_scale = float32(0xFFFFFFFFFFFFFFF)
 )
-
-func (b FeatureFlag) paramForId(user User) (float32, bool) {
-	var idHash string
-
-	if user.Key != nil {
-		idHash = *user.Key
-	} else { // without a key, this rule should pass
-		return 0, true
-	}
-
-	if user.Secondary != nil {
-		idHash = idHash + "." + *user.Secondary
-	}
-
-	h := sha1.New()
-	io.WriteString(h, *b.Key+"."+*b.Salt+"."+idHash)
-	hash := hex.EncodeToString(h.Sum(nil))[:15]
-
-	intVal, _ := strconv.ParseInt(hash, 16, 64)
-
-	param := float32(intVal) / long_scale
-
-	return param, false
-}
 
 func (target TargetRule) matchCustom(user User) bool {
 	if user.Custom == nil {
