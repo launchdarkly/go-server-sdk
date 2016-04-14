@@ -15,6 +15,8 @@ const (
 
 type opFn (func(interface{}, interface{}) bool)
 
+type Operator string
+
 var allOps = map[Operator]opFn{
 	operatorIn:         operatorInFn,
 	operatorEndsWith:   operatorEndsWithFn,

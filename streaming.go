@@ -122,7 +122,7 @@ func (sp *streamProcessor) subscribe() {
 	defer sp.Unlock()
 
 	if sp.stream == nil {
-		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/features", nil)
+		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/flags", nil)
 		req.Header.Add("Authorization", "api_key "+sp.apiKey)
 		req.Header.Add("User-Agent", "GoClient/"+Version)
 
