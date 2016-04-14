@@ -8,6 +8,10 @@ import (
 	"strconv"
 )
 
+const (
+	long_scale = float32(0xFFFFFFFFFFFFFFF)
+)
+
 type FeatureFlag struct {
 	Key          string        `json:"key" bson:"key"`
 	Version      int           `json:"version" bson:"version"`

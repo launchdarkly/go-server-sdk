@@ -290,9 +290,16 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 		return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
 	}
 
-	var value interface{}
 	if feature.On {
-		value, _ = feature.EvaluateExplain(user)
+		value, err := feature.EvaluateExplain(user)
+		if err != nil {
+			return defaultVal, nil
+		}
+		return value, nil
+	}
+
+	if feature.OffVariation != nil && *feature.OffVariation < len(feature.Variations) {
+		value := feature.Variations[*feature.OffVariation]
 		return value, nil
 	}
 	return defaultVal, nil
