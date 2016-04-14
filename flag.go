@@ -96,14 +96,13 @@ func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 	} else {
 		return f.Variations[*index], explanation
 	}
-
 }
 
 func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	// TODO: The toggle algorithm should check the kill switch. We won't check it here
 	// so we can potentially compute an explanation even if the kill switch is hit
 	if user.Key == nil {
-		return f.OffVariation, nil
+		return nil, nil
 	}
 
 	// Check to see if targets match
@@ -122,7 +121,7 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 			variation := rule.variationIndexForUser(user, f.Key, f.Salt)
 
 			if variation == nil {
-				return f.OffVariation, nil // TODO should this continue, or return the off variation?
+				return nil, nil
 			} else {
 				explanation := Explanation{Kind: "rule", Rule: &rule}
 				return variation, &explanation
@@ -134,7 +133,7 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	variation := f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
 
 	if variation == nil {
-		return f.OffVariation, nil
+		return nil, nil
 	} else {
 		explanation := Explanation{Kind: "fallthrough", Rule: &f.Fallthrough}
 		return variation, &explanation

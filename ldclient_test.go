@@ -17,7 +17,8 @@ var (
 		Stream:        true,
 		Offline:       true,
 	}
-	client *LDClient
+	client  *LDClient
+	userKey string = "userKey"
 )
 
 const (
@@ -45,6 +46,7 @@ type evaluateTestData struct {
 	on            bool
 	deleted       bool
 	featureKey    string
+	userKeyPtr    *string
 	expectedValue interface{}
 	expectError   bool
 }
@@ -55,18 +57,21 @@ func TestEvaluate(t *testing.T) {
 			on:            true,
 			deleted:       false,
 			featureKey:    validFeatureKey,
+			userKeyPtr:    &userKey,
 			expectedValue: fallThroughValue,
 		},
 		evaluateTestData{
 			on:            false,
 			deleted:       false,
 			featureKey:    validFeatureKey,
+			userKeyPtr:    &userKey,
 			expectedValue: defaultValue,
 		},
 		evaluateTestData{
 			on:            true,
 			deleted:       true,
 			featureKey:    validFeatureKey,
+			userKeyPtr:    &userKey,
 			expectedValue: defaultValue,
 			expectError:   true,
 		},
@@ -74,6 +79,7 @@ func TestEvaluate(t *testing.T) {
 			on:            true,
 			deleted:       false,
 			featureKey:    invalidFeatureKey,
+			userKeyPtr:    &userKey,
 			expectedValue: defaultValue,
 			expectError:   true,
 		},
@@ -81,17 +87,25 @@ func TestEvaluate(t *testing.T) {
 			on:            false,
 			deleted:       false,
 			featureKey:    invalidFeatureKey,
+			userKeyPtr:    &userKey,
 			expectedValue: defaultValue,
 			expectError:   true,
+		},
+		evaluateTestData{
+			on:            false,
+			deleted:       false,
+			featureKey:    validFeatureKey,
+			userKeyPtr:    nil,
+			expectedValue: defaultValue,
 		},
 	}
 
 	for _, td := range testData {
-		t.Logf("Testing evaluate with: On: %v, Deleted: %v, Feature Key: %v, Expected Value: %v, Expect Error? %v", td.on, td.deleted, td.featureKey, td.expectedValue, td.expectError)
+		t.Logf("Testing evaluate with: \n\tOn: %v, \n\tDeleted: %v, \n\tFeature Key: %v, \n\tUser Key: %+v \n\tExpected Value: %v, \n\tExpect Error? %v",
+			td.on, td.deleted, td.featureKey, td.userKeyPtr, td.expectedValue, td.expectError)
 		client, _ = MakeCustomClient("api_key", config, 0)
 		upsertFeatureFlag(td)
-		userKey := "userKey"
-		result, err := client.evaluate(td.featureKey, User{Key: &userKey}, defaultValue)
+		result, err := client.evaluate(td.featureKey, User{Key: td.userKeyPtr}, defaultValue)
 
 		if err != nil {
 			if td.expectError {
