@@ -1,0 +1,191 @@
+[
+  {
+    "featureKey": "validFeatureKey1",
+    "defaultValue": "DefaultValue1",
+    "expectedValue": "FallthroughValue1",
+    "expectError": false,
+    "user": {
+      "key": "key"
+    },
+    "featureFlag": {
+      "key": "validFeatureKey1",
+      "version": 0,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue1"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "featureKey": "validFeatureKey2",
+    "defaultValue": "DefaultValue2",
+    "expectedValue": "DefaultValue2",
+    "expectError": true,
+    "user": {
+      "key": "key"
+    },
+    "featureFlag": {
+      "key": "validFeatureKey2",
+      "version": 0,
+      "on": false,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue2"
+      ],
+      "deleted": true
+    }
+  },
+  {
+    "featureKey": "validFeatureKey3",
+    "defaultValue": "DefaultValue3",
+    "expectedValue": "DefaultValue3",
+    "expectError": true,
+    "user": {
+      "key": "key"
+    },
+    "featureFlag": {
+      "key": "validFeatureKey3",
+      "version": 0,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue3"
+      ],
+      "deleted": true
+    }
+  },
+  {
+    "featureKey": "INVALID4",
+    "defaultValue": "DefaultValue4",
+    "expectedValue": "DefaultValue4",
+    "expectError": true,
+    "user": {
+      "key": "key"
+    },
+    "featureFlag": {
+      "key": "validFeatureKey4",
+      "version": 0,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue4"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "featureKey": "INVALID5",
+    "defaultValue": "DefaultValue5",
+    "expectedValue": "DefaultValue5",
+    "expectError": true,
+    "user": {
+      "key": "key"
+    },
+    "featureFlag": {
+      "key": "validFeatureKey5",
+      "version": 0,
+      "on": false,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue5"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "featureKey": "validFeatureKey6",
+    "defaultValue": "DefaultValue6",
+    "expectedValue": "DefaultValue6",
+    "expectError": false,
+    "user": {
+      "key": null
+    },
+    "featureFlag": {
+      "key": "validFeatureKey6",
+      "version": 0,
+      "on": false,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue6"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "featureKey": "validFeatureKey7",
+    "defaultValue": "DefaultValue7",
+    "expectedValue": "DefaultValue7",
+    "expectError": false,
+    "user": {
+      "key": ""
+    },
+    "featureFlag": {
+      "key": "validFeatureKey7",
+      "version": 0,
+      "on": false,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue7"
+      ],
+      "deleted": false
+    }
+  }
+]

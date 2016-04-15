@@ -1,6 +1,8 @@
 package ldclient
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"os"
 	"testing"
@@ -17,15 +19,7 @@ var (
 		Stream:        true,
 		Offline:       true,
 	}
-	client  *LDClient
-	userKey string = "userKey"
-)
-
-const (
-	validFeatureKey   = "validFeatureKey1"
-	invalidFeatureKey = "invalidFeatureKey1"
-	fallThroughValue  = "FallthroughValue"
-	defaultValue      = "DefaultValue"
+	client *LDClient
 )
 
 func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
@@ -42,102 +36,56 @@ func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	}
 }
 
+func TestSomething(t *testing.T) {
+	key := "key"
+	u := User{Key: &key}
+	s, _ := json.MarshalIndent(u, "", "  ")
+	t.Logf(string(s) + "\n")
+}
+
 type evaluateTestData struct {
-	on            bool
-	deleted       bool
-	featureKey    string
-	userKeyPtr    *string
-	expectedValue interface{}
-	expectError   bool
+	FeatureKey    string      `json:"featureKey"`
+	DefaultValue  string      `json:"defaultValue"`
+	ExpectedValue string      `json:"expectedValue"`
+	ExpectError   bool        `json:"expectError"`
+	User          User        `json:"user"`
+	FeatureFlag   FeatureFlag `json:"featureFlag"`
 }
 
 func TestEvaluate(t *testing.T) {
-	testData := []evaluateTestData{
-		evaluateTestData{
-			on:            true,
-			deleted:       false,
-			featureKey:    validFeatureKey,
-			userKeyPtr:    &userKey,
-			expectedValue: fallThroughValue,
-		},
-		evaluateTestData{
-			on:            false,
-			deleted:       false,
-			featureKey:    validFeatureKey,
-			userKeyPtr:    &userKey,
-			expectedValue: defaultValue,
-		},
-		evaluateTestData{
-			on:            true,
-			deleted:       true,
-			featureKey:    validFeatureKey,
-			userKeyPtr:    &userKey,
-			expectedValue: defaultValue,
-			expectError:   true,
-		},
-		evaluateTestData{
-			on:            true,
-			deleted:       false,
-			featureKey:    invalidFeatureKey,
-			userKeyPtr:    &userKey,
-			expectedValue: defaultValue,
-			expectError:   true,
-		},
-		evaluateTestData{
-			on:            false,
-			deleted:       false,
-			featureKey:    invalidFeatureKey,
-			userKeyPtr:    &userKey,
-			expectedValue: defaultValue,
-			expectError:   true,
-		},
-		evaluateTestData{
-			on:            false,
-			deleted:       false,
-			featureKey:    validFeatureKey,
-			userKeyPtr:    nil,
-			expectedValue: defaultValue,
-		},
+	var container []evaluateTestData
+	file, err := ioutil.ReadFile("./test_data.json")
+	if err != nil {
+		t.Errorf("Error loading test_data.json file: %v\n", err)
+		return
+	}
+	err = json.Unmarshal(file, &container)
+	if err != nil {
+		t.Errorf("Error unmarshalling test_data.json file: %v\n", err)
+		return
 	}
 
-	for _, td := range testData {
-		t.Logf("Testing evaluate with: \n\tOn: %v, \n\tDeleted: %v, \n\tFeature Key: %v, \n\tUser Key: %+v \n\tExpected Value: %v, \n\tExpect Error? %v",
-			td.on, td.deleted, td.featureKey, td.userKeyPtr, td.expectedValue, td.expectError)
+	for _, td := range container {
+		json, _ := json.MarshalIndent(td, "", "  ")
+		t.Logf("Test data: %s", string(json))
 		client, _ = MakeCustomClient("api_key", config, 0)
-		upsertFeatureFlag(td)
-		result, err := client.evaluate(td.featureKey, User{Key: td.userKeyPtr}, defaultValue)
+		client.store.Upsert(td.FeatureFlag.Key, td.FeatureFlag)
+		result, err := client.evaluate(td.FeatureKey, User{Key: td.User.Key}, td.DefaultValue)
 
 		if err != nil {
-			if td.expectError {
+			if td.ExpectError {
 				t.Logf("\tGot Expected error: %+v", err)
 			} else {
 				t.Errorf("\tUnexpected error: %+v", err)
 			}
 		} else {
-			if td.expectError {
+			if td.ExpectError {
 				t.Errorf("\tDidn't get expected error")
 			}
 		}
 
-		if result != td.expectedValue {
-			t.Errorf("\tExpected value: %+v. Instead got: %+v", td.expectedValue, result)
+		if result != td.ExpectedValue {
+			t.Errorf("\tExpected value: %+v. Instead got: %+v", td.ExpectedValue, result)
 		}
 	}
-}
-
-func upsertFeatureFlag(etd evaluateTestData) {
-	fallThroughVariation := 1
-	fallthroughRule := Rule{[]Clause{}, &fallThroughVariation, nil}
-	variations := []interface{}{"You shouldn't get this", fallThroughValue}
-
-	client.store.Upsert(validFeatureKey, FeatureFlag{
-		Key:          validFeatureKey,
-		On:           etd.on,
-		Targets:      []Target{},
-		Rules:        []Rule{},
-		Fallthrough:  fallthroughRule,
-		OffVariation: nil,
-		Variations:   variations,
-		Deleted:      etd.deleted,
-	})
 }
