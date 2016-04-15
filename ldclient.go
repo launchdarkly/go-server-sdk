@@ -291,11 +291,12 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	}
 
 	if feature.On {
-		value, err := feature.EvaluateExplain(user)
-		if err != nil {
-			return defaultVal, nil
+		value, _ := feature.EvaluateExplain(user)
+
+		if value != nil {
+			return value, nil
 		}
-		return value, nil
+		return defaultVal, nil
 	}
 
 	if feature.OffVariation != nil && *feature.OffVariation < len(feature.Variations) {
