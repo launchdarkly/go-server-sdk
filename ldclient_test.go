@@ -47,7 +47,7 @@ type evaluateTestData struct {
 
 func TestEvaluate(t *testing.T) {
 	var container []evaluateTestData
-	file, err := ioutil.ReadFile("./test_data.json")
+	file, err := ioutil.ReadFile("./testdata/test_data.json")
 	if err != nil {
 		t.Errorf("Error loading test_data.json file: %v\n", err)
 		return
