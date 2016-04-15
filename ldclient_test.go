@@ -36,13 +36,6 @@ func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	}
 }
 
-func TestSomething(t *testing.T) {
-	key := "key"
-	u := User{Key: &key}
-	s, _ := json.MarshalIndent(u, "", "  ")
-	t.Logf(string(s) + "\n")
-}
-
 type evaluateTestData struct {
 	FeatureKey    string      `json:"featureKey"`
 	DefaultValue  string      `json:"defaultValue"`
