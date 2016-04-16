@@ -337,7 +337,106 @@
     }
   },
   {
-    "name": "EndsWith operator",
+    "name": "StartsWith operator",
+    "featureKey": "startsWithFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "StartsWith",
+        "expectError": false,
+        "user": {
+          "key": "startsWithKey",
+          "custom": {
+            "startsWith": "startsWithAok"
+          }
+        }
+      },
+      {
+        "expectedValue": "StartsWith",
+        "expectError": false,
+        "user": {
+          "key": "startsWithKey",
+          "custom": {
+            "startsWith": "startsWithB"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "Fallthrough",
+          "custom": {
+            "startsWith": "does not startsWith"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "Fallthrough",
+          "custom": {
+            "startsWith": 4
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "Fallthrough",
+          "custom": {
+            "startsWith": true
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "startsWithFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "startsWith",
+              "op": "startsWith",
+              "values": [
+                "startsWithA",
+                "startsWithB"
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "StartsWith"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "Endswith operator",
     "featureKey": "endsWithFeatureKey",
     "defaultValue": "DefaultValue",
     "usersAndExpectations": [
@@ -406,6 +505,265 @@
         "OffVariation",
         "FallthroughValue",
         "EndsWith"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "Matches operator",
+    "featureKey": "matchesFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "MatchesName",
+        "expectError": false,
+        "user": {
+          "key": "matchesNameKey",
+          "name": "matchThisName"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "doesNotMatchNameKey",
+          "name": "_Don't match This Name"
+        }
+      },
+      {
+        "expectedValue": "MatchesCustomAttribute",
+        "expectError": false,
+        "user": {
+          "key": "matchesCustomAttributeKey",
+          "custom": {
+            "customAttribute": "Ozzz"
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "matchesFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "name",
+              "op": "matches",
+              "values": [
+                "^[A-Za-z]+"
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        },
+        {
+          "clauses": [
+            {
+              "attribute": "customAttribute",
+              "op": "matches",
+              "values": [
+                ".*"
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 3,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "MatchesName",
+        "MatchesCustomAttribute"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "LessThan operator",
+    "featureKey": "lessThanFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "LessThan",
+        "expectError": false,
+        "user": {
+          "key": "matchesLessThanKey",
+          "custom": {
+            "lessThanAttribute": -100.000001
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "doesNotMatchLessThanKey",
+          "custom": {
+            "lessThanAttribute": 10e6
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "missingAttributeKey"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "nullAttributeKey",
+          "custom": {
+            "lessThanAttribute": null
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "lessThanFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "lessThanAttribute",
+              "op": "lessThan",
+              "values": [
+                -100.0
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "LessThan"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "GreaterThan operator",
+    "featureKey": "greaterThanFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "GreaterThan",
+        "expectError": false,
+        "user": {
+          "key": "matchesGreaterThanKey",
+          "custom": {
+            "greaterThanAttribute": 99.0001
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "doesNotMatchGreaterThanKey",
+          "custom": {
+            "greaterThanAttribute": 10e-6
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "missingAttributeKey"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "nullAttributeKey",
+          "custom": {
+            "greaterThanAttribute": null
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "greaterThanFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "greaterThanAttribute",
+              "op": "greaterThan",
+              "values": [
+                99
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "GreaterThan"
       ],
       "deleted": false
     }

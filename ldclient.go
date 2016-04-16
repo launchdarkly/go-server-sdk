@@ -291,7 +291,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	if featurePtr != nil {
 		feature = *featurePtr
 	} else {
-		return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+		return defaultVal, errors.New(fmt.Sprintf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key))
 	}
 
 	if feature.On {
