@@ -1,14 +1,120 @@
 [
   {
-    "featureKey": "validFeatureKey1",
-    "defaultValue": "DefaultValue1",
-    "expectedValue": "FallthroughValue1",
-    "expectError": false,
-    "user": {
-      "key": "key"
-    },
+    "name": "Feature returns fallthrough",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
     "featureFlag": {
-      "key": "validFeatureKey1",
+      "key": "validFeatureKey",
+      "version": 0,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 0
+      },
+      "offVariation": null,
+      "variations": [
+        "FallthroughValue"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "Feature off without offVariation returns default",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "validFeatureKey",
+      "version": 0,
+      "on": false,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 0
+      },
+      "offVariation": null,
+      "variations": [
+        "FallthroughValue"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "Feature off with offVariation returns offVariation",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "OffVariation",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "validFeatureKey",
+      "version": 0,
+      "on": false,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [],
+      "fallthrough": {
+        "variation": 0
+      },
+      "offVariation": 1,
+      "variations": [
+        "FallthroughValue",
+        "OffVariation"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "Feature deleted returns default",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "validFeatureKey",
       "version": 0,
       "on": true,
       "salt": "",
@@ -21,48 +127,26 @@
       "offVariation": null,
       "variations": [
         "You shouldn't get this",
-        "FallthroughValue1"
-      ],
-      "deleted": false
-    }
-  },
-  {
-    "featureKey": "validFeatureKey2",
-    "defaultValue": "DefaultValue2",
-    "expectedValue": "DefaultValue2",
-    "expectError": true,
-    "user": {
-      "key": "key"
-    },
-    "featureFlag": {
-      "key": "validFeatureKey2",
-      "version": 0,
-      "on": false,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": null,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue2"
+        "FallthroughValue"
       ],
       "deleted": true
     }
   },
   {
-    "featureKey": "validFeatureKey3",
-    "defaultValue": "DefaultValue3",
-    "expectedValue": "DefaultValue3",
-    "expectError": true,
-    "user": {
-      "key": "key"
-    },
+    "name": "Invalid feature key returns default",
+    "featureKey": "INVALID",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
     "featureFlag": {
-      "key": "validFeatureKey3",
+      "key": "validFeatureKey",
       "version": 0,
       "on": true,
       "salt": "",
@@ -72,118 +156,385 @@
       "fallthrough": {
         "variation": 1
       },
-      "offVariation": null,
+      "offVariation": 0,
       "variations": [
         "You shouldn't get this",
-        "FallthroughValue3"
+        "FallthroughValue"
       ],
-      "deleted": true
+      "deleted": false
     }
   },
   {
-    "featureKey": "INVALID4",
-    "defaultValue": "DefaultValue4",
-    "expectedValue": "DefaultValue4",
-    "expectError": true,
-    "user": {
-      "key": "key"
-    },
+    "name": "In operator",
+    "featureKey": "inFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "InGroup",
+        "expectError": false,
+        "user": {
+          "key": "keyInGroup1",
+          "custom": {
+            "group": "group1"
+          }
+        }
+      },
+      {
+        "expectedValue": "InGroup",
+        "expectError": false,
+        "user": {
+          "key": "keyInGroup2",
+          "custom": {
+            "group": "group2"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyNotIn",
+          "custom": {
+            "group": "excludedGroup"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyWithoutGroup"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
     "featureFlag": {
-      "key": "validFeatureKey4",
-      "version": 0,
+      "key": "inFeatureKey",
+      "version": 1,
       "on": true,
       "salt": "",
       "sel": "",
       "targets": [],
-      "rules": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "group",
+              "op": "in",
+              "values": [
+                "group1",
+                "group2"
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
       "fallthrough": {
         "variation": 1
       },
       "offVariation": null,
       "variations": [
         "You shouldn't get this",
-        "FallthroughValue4"
+        "FallthroughValue",
+        "InGroup"
       ],
       "deleted": false
     }
   },
   {
-    "featureKey": "INVALID5",
-    "defaultValue": "DefaultValue5",
-    "expectedValue": "DefaultValue5",
-    "expectError": true,
-    "user": {
-      "key": "key"
-    },
+    "name": "In operator with negation",
+    "featureKey": "inFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyInGroup1",
+          "custom": {
+            "group": "group1"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyInGroup2",
+          "custom": {
+            "group": "group2"
+          }
+        }
+      },
+      {
+        "expectedValue": "NotInGroups",
+        "expectError": false,
+        "user": {
+          "key": "keyNotIn",
+          "custom": {
+            "group": "notInGroups"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyWithoutGroup_IS_THIS_ONE_RIGHT?"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
     "featureFlag": {
-      "key": "validFeatureKey5",
-      "version": 0,
-      "on": false,
+      "key": "inFeatureKey",
+      "version": 1,
+      "on": true,
       "salt": "",
       "sel": "",
       "targets": [],
-      "rules": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "group",
+              "op": "in",
+              "values": [
+                "group1",
+                "group2"
+              ],
+              "negate": true
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
       "fallthrough": {
         "variation": 1
       },
       "offVariation": null,
       "variations": [
         "You shouldn't get this",
-        "FallthroughValue5"
+        "FallthroughValue",
+        "NotInGroups"
       ],
       "deleted": false
     }
   },
   {
-    "featureKey": "validFeatureKey6",
-    "defaultValue": "DefaultValue6",
-    "expectedValue": "DefaultValue6",
-    "expectError": false,
-    "user": {
-      "key": null
-    },
+    "name": "EndsWith operator",
+    "featureKey": "endsWithFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "EndsWith",
+        "expectError": false,
+        "user": {
+          "key": "gmail",
+          "email": "user@gmail.com"
+        }
+      },
+      {
+        "expectedValue": "EndsWith",
+        "expectError": false,
+        "user": {
+          "key": "hotmail",
+          "email": "user@hotmail.com"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null,
+          "email": "null@gmail.com"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "Fallthrough",
+          "email": "fall@through.com"
+        }
+      }
+    ],
     "featureFlag": {
-      "key": "validFeatureKey6",
-      "version": 0,
-      "on": false,
+      "key": "endsWithFeatureKey",
+      "version": 1,
+      "on": true,
       "salt": "",
       "sel": "",
       "targets": [],
-      "rules": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "email",
+              "op": "endsWith",
+              "values": [
+                "gmail.com",
+                "hotmail.com"
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
       "fallthrough": {
         "variation": 1
       },
-      "offVariation": null,
+      "offVariation": 0,
       "variations": [
-        "You shouldn't get this",
-        "FallthroughValue6"
+        "OffVariation",
+        "FallthroughValue",
+        "EndsWith"
       ],
       "deleted": false
     }
   },
   {
-    "featureKey": "validFeatureKey7",
-    "defaultValue": "DefaultValue7",
-    "expectedValue": "DefaultValue7",
-    "expectError": false,
-    "user": {
-      "key": ""
-    },
+    "name": "Multiple clauses in one rule",
+    "featureKey": "clausesKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "MatchesAllClauses",
+        "expectError": false,
+        "user": {
+          "key": "inAll",
+          "email": "user@EndsWithB.com",
+          "custom": {
+            "group": "GroupA",
+            "exclude": "false"
+          }
+        }
+      },
+      {
+        "expectedValue": "MatchesAllClauses",
+        "expectError": false,
+        "user": {
+          "key": "inAll",
+          "email": "user@EndsWithA.com",
+          "custom": {
+            "group": "GroupB",
+            "exclude": "no"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "inOne",
+          "email": "user@EndsWithA.com",
+          "custom": {
+            "group": "GroupNotInTheClauses"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "excluded",
+          "email": "user@EndsWithA.com",
+          "custom": {
+            "group": "GroupA",
+            "exclude": "yes"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "inNone",
+          "email": "user@notIncluded.com",
+          "custom": {
+            "group": "GroupNotInTheClauses"
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null,
+          "email": "user@EndsWithA.com",
+          "custom": {
+            "group": "GroupB"
+          }
+        }
+      }
+    ],
     "featureFlag": {
-      "key": "validFeatureKey7",
-      "version": 0,
-      "on": false,
+      "key": "clausesKey",
+      "version": 1,
+      "on": true,
       "salt": "",
       "sel": "",
       "targets": [],
-      "rules": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "email",
+              "op": "endsWith",
+              "values": [
+                "EndsWithA.com",
+                "EndsWithB.com"
+              ],
+              "negate": false
+            },
+            {
+              "attribute": "group",
+              "op": "in",
+              "values": [
+                "GroupA",
+                "GroupB"
+              ],
+              "negate": false
+            },
+            {
+              "attribute": "exclude",
+              "op": "in",
+              "values": [
+                "true",
+                "yes"
+              ],
+              "negate": true
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
       "fallthrough": {
         "variation": 1
       },
-      "offVariation": null,
+      "offVariation": 0,
       "variations": [
-        "You shouldn't get this",
-        "FallthroughValue7"
+        "OffVariation",
+        "FallthroughValue",
+        "MatchesAllClauses"
       ],
       "deleted": false
     }

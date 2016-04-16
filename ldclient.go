@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"fmt"
 )
 
 const Version string = "0.0.3"
@@ -269,6 +270,9 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 }
 
 func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
+	if user.Key == nil {
+		return defaultVal, errors.New(fmt.Sprintf("User.Key cannot be nil for user: %+v", user))
+	}
 	var feature FeatureFlag
 	var storeErr error
 	var featurePtr *FeatureFlag
