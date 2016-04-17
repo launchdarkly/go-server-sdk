@@ -271,7 +271,7 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 
 func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
 	if user.Key == nil {
-		return defaultVal, errors.New(fmt.Sprintf("User.Key cannot be nil for user: %+v", user))
+		return defaultVal, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
 	}
 	var feature FeatureFlag
 	var storeErr error
@@ -291,7 +291,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	if featurePtr != nil {
 		feature = *featurePtr
 	} else {
-		return defaultVal, errors.New(fmt.Sprintf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key))
+		return defaultVal, fmt.Errorf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key)
 	}
 
 	if feature.On {
