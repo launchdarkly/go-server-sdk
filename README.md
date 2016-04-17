@@ -16,7 +16,7 @@ Quick setup
 
 2. Create a new LDClient with your API key:
 
-        ld_client := ld.MakeClient("YOUR_API_KEY", time.SECOND)
+        ld_client, err := ld.MakeClient("YOUR_API_KEY", time.Second)
 
 Your first feature flag
 -----------------------
