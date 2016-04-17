@@ -1,9 +1,6 @@
 package ldclient
 
 import (
-	"errors"
-	"fmt"
-	_ "fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -12,7 +9,6 @@ import (
 )
 
 const (
-	//RFC3339Millis = "2006-01-02T15:04:05.999Z07:00"
 	operatorIn          Operator = "in"
 	operatorEndsWith    Operator = "endsWith"
 	operatorStartsWith  Operator = "startsWith"
@@ -22,7 +18,7 @@ const (
 	operatorGreaterThan Operator = "greaterThan"
 	operatorBefore      Operator = "before"
 	operatorAfter       Operator = "after"
-	operatorWithin      Operator = "within"
+	//operatorWithin      Operator = "within"
 )
 
 type opFn (func(interface{}, interface{}) bool)
@@ -37,8 +33,8 @@ var allOps = map[Operator]opFn{
 	operatorContains:    operatorContainsFn,
 	operatorLessThan:    operatorLessThanFn,
 	operatorGreaterThan: operatorGreaterThanFn,
-	//operatorBefore:      operatorBeforeFn, //dates accept string or number, then parse as either epoch millis or ISO8601
-	//operatorAfter:       operatorAfterFn,
+	operatorBefore:      operatorBeforeFn,
+	operatorAfter:       operatorAfterFn,
 	//operatorWithin:      operatorWithinFn,
 }
 
@@ -96,6 +92,7 @@ func operatorContainsFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func operatorLessThanFn(uValue interface{}, cValue interface{}) bool {
+	//TODO: Allow all kinds of numbers? or just float64 like this:
 	if uFloat64, ok := uValue.(float64); ok {
 		if cFloat64, ok := cValue.(float64); ok {
 			return uFloat64 < cFloat64
@@ -105,6 +102,7 @@ func operatorLessThanFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func operatorGreaterThanFn(uValue interface{}, cValue interface{}) bool {
+	//TODO: Allow all kinds of numbers? or just float64 like this:
 	if uFloat64, ok := uValue.(float64); ok {
 		if cFloat64, ok := cValue.(float64); ok {
 			return uFloat64 > cFloat64
@@ -114,57 +112,102 @@ func operatorGreaterThanFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func operatorBeforeFn(uValue interface{}, cValue interface{}) bool {
-	if uFloat64, ok := uValue.(float64); ok {
-		//we got epoch millis
-
-		if cFloat64, ok := cValue.(float64); ok {
-			return uFloat64 > cFloat64
+	uTime := parseTime(uValue)
+	if uTime != nil {
+		cTime := parseTime(cValue)
+		if cTime != nil {
+			return uTime.Before(*cTime)
 		}
 	}
 	return false
 }
+
+func operatorAfterFn(uValue interface{}, cValue interface{}) bool {
+	uTime := parseTime(uValue)
+	if uTime != nil {
+		cTime := parseTime(cValue)
+		if cTime != nil {
+			return uTime.After(*cTime)
+		}
+	}
+	return false
+}
+
+// Awaiting further discussion of this operator.
+//func operatorWithinFn(uValue interface{}, cValue interface{}) bool {
+//
+//	uTime := parseTime(uValue)
+//	if uTime != nil {
+//		//TODO: Allow all kinds of numbers? or just float64 like this:
+//		if cFloat64, ok := cValue.(float64); ok {
+//		}
+//	}
+//	return false
+//}
 
 func operatorNoneFn(uValue interface{}, cValue interface{}) bool {
 	return false
 }
 
-// Converts any of the following into a time.Time value:
-//   RFC3339 timestamp (example: 2006-01-02T15:04:05.999Z07:00)
+// Converts any of the following into a pointer to a time.Time value:
+//   RFC3339/ISO8601 timestamp (example: 2006-01-02T15:04:05.999Z07:00)
 //   Unix epoch milliseconds as string
 //   Unix milliseconds as number
-// Passing in a time.Time value will result in returning the same value.
+// Passing in a time.Time value will return a pointer to the input value.
+// Unparsable inputs will return nil
 // More info on RFC3339: http://stackoverflow.com/questions/522251/whats-the-difference-between-iso-8601-and-rfc-3339-date-formats
-func parseTime(input interface{}) (time.Time, error) {
+func parseTime(input interface{}) *time.Time {
 	if input == nil {
-		return time.Time{}, errors.New("Cannot parse nil value as date")
+		return nil
+	}
+
+	// First check if we can easily detect the type as a time.Time or timestamp as string
+	switch typedInput := input.(type) {
+	case time.Time:
+		return &typedInput
+	case string:
+		value, err := time.Parse(time.RFC3339Nano, typedInput)
+		if err == nil {
+			utcValue := value.UTC()
+			return &utcValue
+		}
+	}
+
+	// Is it a number or can it be parsed as a number?
+	parsedNumberPtr := parseNumber(input)
+	if parsedNumberPtr != nil {
+		value := unixMillisToUtcTime(*parsedNumberPtr)
+		return &value
+	}
+	return nil
+}
+
+// Parses numeric value as float64 from a string or another numeric type.
+// Returns nil pointer if input is nil or unparsable.
+func parseNumber(input interface{}) *float64 {
+	if input == nil {
+		return nil
 	}
 
 	switch typedInput := input.(type) {
-	case time.Time:
-		return typedInput, nil
+	case float64:
+		return &typedInput
 	case string:
-		// stringified number?
 		inputFloat64, err := strconv.ParseFloat(typedInput, 64)
 		if err == nil {
-			return unixMillisToUtcTime(inputFloat64), nil
+			return &inputFloat64
 		}
-		// timestamp?
-		value, err := time.Parse(time.RFC3339Nano, typedInput)
-		if err != nil {
-			return time.Time{}, err
-		}
-		return value.UTC(), nil
 	default:
-		// is it numeric?
 		float64Type := reflect.TypeOf(float64(0))
 		v := reflect.ValueOf(input)
 		v = reflect.Indirect(v)
 		if v.Type().ConvertibleTo(float64Type) {
 			floatValue := v.Convert(float64Type)
-			return unixMillisToUtcTime(floatValue.Float()), nil
+			f64 := floatValue.Float()
+			return &f64
 		}
-		return time.Time{}, errors.New(fmt.Sprintf("Could not parse value: %+v as unix epoch millis or RFC3339 timestamp", input))
 	}
+	return nil
 }
 
 // Convert a Unix epoch milliseconds float64 value to the equivalent time.Time value with UTC location

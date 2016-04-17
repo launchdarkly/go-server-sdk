@@ -769,6 +769,296 @@
     }
   },
   {
+    "name": "Before operator",
+    "featureKey": "beforeFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "BeforeValue",
+        "expectError": false,
+        "user": {
+          "key": "beforeKey",
+          "custom": {
+            "beforeAttribute": 999
+          }
+        }
+      },
+      {
+        "expectedValue": "BeforeValue",
+        "expectError": false,
+        "user": {
+          "key": "beforeKey",
+          "custom": {
+            "beforeAttribute": "999"
+          }
+        }
+      },
+      {
+        "expectedValue": "BeforeValue",
+        "expectError": false,
+        "user": {
+          "key": "beforeKey",
+          "custom": {
+            "beforeAttribute": "1970-01-01T00:00:00.500Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "equalsDoesNotMatchBeforeKey",
+          "custom": {
+            "beforeAttribute": 1000
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "equalsDoesNotMatchBeforeKey",
+          "custom": {
+            "beforeAttribute": "1970-01-01T00:00:01Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "afterDoesNotMatchBeforeKey",
+          "custom": {
+            "beforeAttribute": 1001
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "afterDoesNotMatchBeforeKey",
+          "custom": {
+            "beforeAttribute": "1970-01-01T00:00:01.001Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "invalidTimestampNotMatchBeforeKey",
+          "custom": {
+            "beforeAttribute": "1970-01-01"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "trueDoesNotMatchBeforeKey",
+          "custom": {
+            "beforeAttribute": true
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "missingAttributeKey"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "nullAttributeKey",
+          "custom": {
+            "beforeAttribute": null
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "beforeFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "beforeAttribute",
+              "op": "before",
+              "values": [
+                1000
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "BeforeValue"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "After operator",
+    "featureKey": "afterFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "AfterValue",
+        "expectError": false,
+        "user": {
+          "key": "afterKey",
+          "custom": {
+            "afterAttribute": 1001
+          }
+        }
+      },
+      {
+        "expectedValue": "AfterValue",
+        "expectError": false,
+        "user": {
+          "key": "afterKey",
+          "custom": {
+            "afterAttribute": "1001"
+          }
+        }
+      },
+      {
+        "expectedValue": "AfterValue",
+        "expectError": false,
+        "user": {
+          "key": "afterKey",
+          "custom": {
+            "afterAttribute": "1970-01-01T00:00:01.001Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "equalsDoesNotMatchAfterKey",
+          "custom": {
+            "afterAttribute": 1000
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "equalsDoesNotMatchAfterKey",
+          "custom": {
+            "afterAttribute": "1970-01-01T00:00:01Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "beforeDoesNotMatchAfterKey",
+          "custom": {
+            "afterAttribute": 999
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "beforeDoesNotMatchAfterKey",
+          "custom": {
+            "afterAttribute": "1970-01-01T00:00:00.999Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "missingAttributeKey"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "nullAttributeKey",
+          "custom": {
+            "greaterThanAttribute": null
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "afterFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "afterAttribute",
+              "op": "after",
+              "values": [
+                1000
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "AfterValue"
+      ],
+      "deleted": false
+    }
+  },
+  {
     "name": "Multiple clauses in one rule",
     "featureKey": "clausesKey",
     "defaultValue": "DefaultValue",
