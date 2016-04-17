@@ -2,74 +2,78 @@ package ldclient
 
 import (
 	"testing"
+	"time"
 )
 
-func TestStartsWithOperator(t *testing.T) {
-	var bar = "bar"
-	if !operatorStartsWithFn("bar@foo", bar) {
-		t.Errorf("Expected %s to start with bar", "foo@bar")
-	}
-
-	if !operatorStartsWithFn("bar", bar) {
-		t.Errorf("Expected %s to start with bar", "bar")
-	}
-
-	if operatorStartsWithFn(4, bar) {
-		t.Errorf("Did not expect %d to start with bar", 4)
-	}
-
-	if operatorStartsWithFn(true, bar) {
-		t.Errorf("Did not expect %t to start with bar", true)
+func TestParseNilDate(t *testing.T) {
+	_, err := parseTime(nil)
+	if err == nil {
+		t.Errorf("Didn't get expected error when parsing nil date")
 	}
 }
 
-func TestEndsWithOperator(t *testing.T) {
-	var bar = "bar"
-	if !operatorEndsWithFn("foo@bar", bar) {
-		t.Errorf("Expected %s to end with bar", "foo@bar")
-	}
-
-	if !operatorEndsWithFn("bar", bar) {
-		t.Errorf("Expected %s to end with bar", "bar")
-	}
-
-	if operatorEndsWithFn(4, bar) {
-		t.Errorf("Did not expect %d to end with bar", 4)
-	}
-
-	if operatorEndsWithFn(true, bar) {
-		t.Errorf("Did not expect %t to end with bar", true)
-	}
+func TestParseDateZero(t *testing.T) {
+	expectedTimeStamp := "1970-01-01T00:00:00Z"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParse(t, expected, expected)
+	testParse(t, 0, expected)
+	testParse(t, 0.0, expected)
+	testParse(t, "0", expected)
+	testParse(t, "0.0", expected)
+	testParse(t, expectedTimeStamp, expected)
 }
 
-func TestContainsOperator(t *testing.T) {
-	var bar = "bar"
-	if !operatorContainsFn("foo@bar", bar) {
-		t.Errorf("Expected %s to contain bar", "foo@bar")
-	}
-
-	if !operatorContainsFn("abarba", bar) {
-		t.Errorf("Expected %s to contain a", "bar")
-	}
-
-	if operatorContainsFn(4, bar) {
-		t.Errorf("Did not expect %d to contain bar", 4)
-	}
-
-	if operatorContainsFn(true, bar) {
-		t.Errorf("Did not expect %t to contain bar", true)
-	}
+func TestParseUtcTimestamp(t *testing.T) {
+	expectedTimeStamp := "2016-04-16T22:57:31.684Z"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParse(t, expected, expected)
+	testParse(t, 1460847451684, expected)
+	testParse(t, 1460847451684.0, expected)
+	testParse(t, "1460847451684", expected)
+	testParse(t, "1460847451684.0", expected)
+	testParse(t, expectedTimeStamp, expected)
 }
 
-func TestMatchesOperator(t *testing.T) {
-	var pattern = "[A-Za-z]+"
+func TestParseTimezone(t *testing.T) {
+	expectedTimeStamp := "2016-04-16T17:09:12.759-07:00"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParse(t, expected, expected)
+	testParse(t, 1460851752759, expected)
+	testParse(t, 1460851752759.0, expected)
+	testParse(t, "1460851752759", expected)
+	testParse(t, "1460851752759.0", expected)
+	testParse(t, expectedTimeStamp, expected)
+}
 
-	if !operatorMatchesFn("Ozzz", pattern) {
-		t.Errorf("Expected %S to match pattern %s", "Ozzz", pattern)
+func TestParseTimezoneNoMillis(t *testing.T) {
+	expectedTimeStamp := "2016-04-16T17:09:12-07:00"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParse(t, expected, expected)
+	testParse(t, 1460851752000, expected)
+	testParse(t, 1460851752000.0, expected)
+	testParse(t, "1460851752000", expected)
+	testParse(t, "1460851752000.0", expected)
+	testParse(t, expectedTimeStamp, expected)
+}
+
+func TestParseTimestampBeforeEpoch(t *testing.T) {
+	expectedTimeStamp := "1969-12-31T23:57:56.544-00:00"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParse(t, expected, expected)
+	testParse(t, -123456, expected)
+	testParse(t, -123456.0, expected)
+	testParse(t, "-123456", expected)
+	testParse(t, "-123456.0", expected)
+	testParse(t, expectedTimeStamp, expected)
+}
+
+func testParse(t *testing.T, input interface{}, expected time.Time) {
+	actual, err := parseTime(input)
+	if err != nil {
+		t.Errorf("Got unexpected error: %+v when parsing: %+v", err, input)
 	}
 
-	if operatorMatchesFn("", pattern) {
-		t.Errorf("Did not expect empty string to match pattern %s", pattern)
+	if !actual.Equal(expected) {
+		t.Errorf("Got unexpected result: %+v Expected: %+v when parsing: %+v", actual, expected, input)
 	}
-
 }
