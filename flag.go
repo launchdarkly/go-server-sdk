@@ -89,6 +89,9 @@ func bucketUser(user User, key, attr, salt string) float32 {
 }
 
 func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
+	if user.Key == nil {
+		return nil, nil
+	}
 	index, explanation := f.evaluateExplainIndex(user)
 
 	if index == nil || *index >= len(f.Variations) {

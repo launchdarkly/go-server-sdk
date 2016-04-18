@@ -48,7 +48,21 @@ func operatorFn(operator Operator) opFn {
 }
 
 func operatorInFn(uValue interface{}, cValue interface{}) bool {
-	return uValue == cValue
+	if uValue == cValue {
+		return true
+	}
+	uFloat64 := parseNumber(uValue)
+	if uFloat64 != nil {
+		cFloat64 := parseNumber(cValue)
+		if cFloat64 != nil {
+			if *uFloat64 == *cFloat64 {
+				return true
+			}
+		}
+	}
+	//TODO: Smarter check to allow for time equality?
+	// See comments here: https://catamorphic.quip.com/GUmsAbApuoD9
+	return false
 }
 
 func operatorStartsWithFn(uValue interface{}, cValue interface{}) bool {
@@ -92,20 +106,22 @@ func operatorContainsFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func operatorLessThanFn(uValue interface{}, cValue interface{}) bool {
-	//TODO: Allow all kinds of numbers? or just float64 like this:
-	if uFloat64, ok := uValue.(float64); ok {
-		if cFloat64, ok := cValue.(float64); ok {
-			return uFloat64 < cFloat64
+	uFloat64 := parseNumber(uValue)
+	if uFloat64 != nil {
+		cFloat64 := parseNumber(cValue)
+		if cFloat64 != nil {
+			return *uFloat64 < *cFloat64
 		}
 	}
 	return false
 }
 
 func operatorGreaterThanFn(uValue interface{}, cValue interface{}) bool {
-	//TODO: Allow all kinds of numbers? or just float64 like this:
-	if uFloat64, ok := uValue.(float64); ok {
-		if cFloat64, ok := cValue.(float64); ok {
-			return uFloat64 > cFloat64
+	uFloat64 := parseNumber(uValue)
+	if uFloat64 != nil {
+		cFloat64 := parseNumber(cValue)
+		if cFloat64 != nil {
+			return *uFloat64 > *cFloat64
 		}
 	}
 	return false

@@ -614,6 +614,16 @@
         }
       },
       {
+        "expectedValue": "LessThan",
+        "expectError": false,
+        "user": {
+          "key": "matchesLessThanKey",
+          "custom": {
+            "lessThanAttribute": "-100.000001"
+          }
+        }
+      },
+      {
         "expectedValue": "FallthroughValue",
         "expectError": false,
         "user": {

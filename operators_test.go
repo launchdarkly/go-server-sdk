@@ -4,6 +4,26 @@ import (
 	"testing"
 	"time"
 )
+// We should only be testing go-specific things here.
+// Business logic test cases should be in the json test data when possible.
+
+func TestLessThanOperator(t *testing.T) {
+	if !operatorLessThanFn(int(1), float64(1.99999)) {
+		t.Errorf("LessThan operator got unexpected result from input: 1 < 1.99")
+	}
+	if !operatorLessThanFn(int(1), uint(2)) {
+		t.Errorf("LessThan operator got unexpected result from input: 1 < 2")
+	}
+}
+
+func TestGreaterThanOperator(t *testing.T) {
+	if !operatorGreaterThanFn(int(2), float64(1.99999)) {
+		t.Errorf("GreaterThan operator got unexpected result from input: 2 > 1.99")
+	}
+	if !operatorGreaterThanFn(int(2), uint(1)) {
+		t.Errorf("GreaterThan operator got unexpected result from input: 2 > 1")
+	}
+}
 
 func TestParseNilTime(t *testing.T) {
 	if parseTime(nil) != nil {
