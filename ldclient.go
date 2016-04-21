@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"fmt"
 )
 
 const Version string = "0.0.3"
@@ -269,6 +270,9 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 }
 
 func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
+	if user.Key == nil {
+		return defaultVal, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
+	}
 	var feature FeatureFlag
 	var storeErr error
 	var featurePtr *FeatureFlag
@@ -287,7 +291,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	if featurePtr != nil {
 		feature = *featurePtr
 	} else {
-		return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+		return defaultVal, fmt.Errorf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key)
 	}
 
 	if feature.On {

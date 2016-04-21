@@ -89,6 +89,9 @@ func bucketUser(user User, key, attr, salt string) float32 {
 }
 
 func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
+	if user.Key == nil {
+		return nil, nil
+	}
 	index, explanation := f.evaluateExplainIndex(user)
 
 	if index == nil || *index >= len(f.Variations) {
@@ -101,9 +104,6 @@ func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	// TODO: The toggle algorithm should check the kill switch. We won't check it here
 	// so we can potentially compute an explanation even if the kill switch is hit
-	if user.Key == nil {
-		return nil, nil
-	}
 
 	// Check to see if targets match
 	for _, target := range f.Targets {

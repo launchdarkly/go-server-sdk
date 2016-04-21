@@ -2,11 +2,16 @@ package ldclient
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"testing"
 	"time"
+)
+
+const (
+	TestDataPath = "./testdata/test_data.json"
 )
 
 var (
@@ -37,48 +42,87 @@ func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 }
 
 type evaluateTestData struct {
-	FeatureKey    string      `json:"featureKey"`
-	DefaultValue  string      `json:"defaultValue"`
-	ExpectedValue string      `json:"expectedValue"`
-	ExpectError   bool        `json:"expectError"`
-	User          User        `json:"user"`
-	FeatureFlag   FeatureFlag `json:"featureFlag"`
+	Name                 string                 `json:"name"`
+	FeatureKey           string                 `json:"featureKey"`
+	DefaultValue         string                 `json:"defaultValue"`
+	UsersAndExpectations []usersAndExpectations `json:"usersAndExpectations"`
+	FeatureFlag          FeatureFlag            `json:"featureFlag"`
+}
+
+type usersAndExpectations struct {
+	ExpectedValue string `json:"expectedValue"`
+	ExpectError   bool   `json:"expectError"`
+	User          User   `json:"user"`
 }
 
 func TestEvaluate(t *testing.T) {
 	var container []evaluateTestData
-	file, err := ioutil.ReadFile("./testdata/test_data.json")
+	t.Logf("Loading test data from %v", TestDataPath)
+
+	file, err := ioutil.ReadFile(TestDataPath)
 	if err != nil {
-		t.Errorf("Error loading test_data.json file: %v\n", err)
-		return
+		t.Fatalf("FATAL: Error loading test_data.json file: %v", err)
 	}
+
 	err = json.Unmarshal(file, &container)
 	if err != nil {
-		t.Errorf("Error unmarshalling test_data.json file: %v\n", err)
-		return
+		t.Fatalf("FATAL: Error unmarshalling test_data.json file: %v", err)
 	}
 
-	for _, td := range container {
-		json, _ := json.MarshalIndent(td, "", "  ")
-		t.Logf("Test data: %s", string(json))
-		client, _ = MakeCustomClient("api_key", config, 0)
-		client.store.Upsert(td.FeatureFlag.Key, td.FeatureFlag)
-		result, err := client.evaluate(td.FeatureKey, User{Key: td.User.Key}, td.DefaultValue)
+	count := len(container)
+	if count == 0 {
+		t.Fatalf("FATAL: Found zero Feature Flags to evaluate")
+	}
+	t.Logf("Found %d Feature Flags to evaluate:", count)
 
+	for i, td := range container {
+		pre := fmt.Sprintf("(%d/%d) ", i+1, count)
+		t.Log("")
+		t.Logf("%sEvaluating Feature Flag: %s", pre, td.Name)
+		//featureJson, _ := json.MarshalIndent(td.FeatureFlag, "", "  ")
+		//t.Logf("%s%s", pre, string(featureJson))
+
+		userCount := len(td.UsersAndExpectations)
+		if userCount == 0 {
+			t.Errorf("%s\tERROR: Found zero users for evaluation")
+			continue
+		}
+		t.Logf("%s\tFound %d users to evaluate", pre, userCount)
+
+		client, err = MakeCustomClient("api_key", config, 0)
 		if err != nil {
-			if td.ExpectError {
-				t.Logf("\tGot Expected error: %+v", err)
-			} else {
-				t.Errorf("\tUnexpected error: %+v", err)
-			}
-		} else {
-			if td.ExpectError {
-				t.Errorf("\tDidn't get expected error")
-			}
+			t.Fatalf("%s\tFATAL: Error creating client: %v",pre,  err)
 		}
 
-		if result != td.ExpectedValue {
-			t.Errorf("\tExpected value: %+v. Instead got: %+v", td.ExpectedValue, result)
+		err = client.store.Upsert(td.FeatureFlag.Key, td.FeatureFlag)
+		if err != nil {
+			t.Fatalf("%s\tFATAL: Error upserting Feature Flag: %v", pre, err)
+		}
+
+		for _, ue := range td.UsersAndExpectations {
+			userOk := true
+			result, err := client.evaluate(td.FeatureKey, ue.User, td.DefaultValue)
+			if err != nil {
+				if ue.ExpectError {
+					//t.Logf("%sGot Expected error: %+v", pre, err)
+				} else {
+					userOk = false
+					t.Errorf("%s\tERROR: Unexpected error: %+v", pre, err)
+				}
+			} else {
+				if ue.ExpectError {
+					userOk = false
+					t.Errorf("%s\tERROR: Didn't get expected error", pre)
+				}
+			}
+			if result != ue.ExpectedValue {
+				userOk = false
+				t.Errorf("%s\tERROR: Expected value: %+v. Instead got: %+v", pre, ue.ExpectedValue, result)
+			}
+			if !userOk {
+				user, _ := json.Marshal(ue.User)
+				t.Errorf("%s\t\tWhen evaluating user: %s", pre, string(user))
+			}
 		}
 	}
 }
