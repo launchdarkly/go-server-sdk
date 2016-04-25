@@ -13,17 +13,18 @@ const (
 )
 
 type FeatureFlag struct {
-	Key          string        `json:"key" bson:"key"`
-	Version      int           `json:"version" bson:"version"`
-	On           bool          `json:"on" bson:"on"`
-	Salt         string        `json:"salt" bson:"salt"`
-	Sel          string        `json:"sel" bson:"sel"`
-	Targets      []Target      `json:"targets" bson:"targets"`
-	Rules        []Rule        `json:"rules" bson:"rules"`
-	Fallthrough  Rule          `json:"fallthrough" bson:"fallthrough"`
-	OffVariation *int          `json:"offVariation" bson:"offVariation"`
-	Variations   []interface{} `json:"variations" bson:"variations"`
-	Deleted      bool          `json:"deleted,omitempty" bson:"deleted"`
+	Key           string         `json:"key" bson:"key"`
+	Version       int            `json:"version" bson:"version"`
+	On            bool           `json:"on" bson:"on"`
+	Prerequisites []Prerequisite `json:"prerequisites,omitempty" bson:"prerequisites"`
+	Salt          string         `json:"salt" bson:"salt"`
+	Sel           string         `json:"sel" bson:"sel"`
+	Targets       []Target       `json:"targets" bson:"targets"`
+	Rules         []Rule         `json:"rules" bson:"rules"`
+	Fallthrough   Rule           `json:"fallthrough" bson:"fallthrough"`
+	OffVariation  *int           `json:"offVariation" bson:"offVariation"`
+	Variations    []interface{}  `json:"variations" bson:"variations"`
+	Deleted       bool           `json:"deleted,omitempty" bson:"deleted"`
 }
 
 // Expresses a set of AND-ed matching conditions for a user, along with
@@ -58,11 +59,17 @@ type Target struct {
 	Variation int      `json:"variation" bson:"variation"`
 }
 
-// An explanation is either a target or a rule
+// An explanation is either a target or a rule or a prerequisite that wasn't met
 type Explanation struct {
-	Kind string `json:"kind" bson:"kind"`
-	*Target
-	*Rule
+	Kind          string `json:"kind" bson:"kind"`
+	*Target       `json:"target,omitempty"`
+	*Rule         `json:"rule,omitempty"`
+	*Prerequisite `json:"prerequisite,omitempty"`
+}
+
+type Prerequisite struct {
+	Key       string `json:"key"`
+	Variation int    `json:"variation"`
 }
 
 func bucketUser(user User, key, attr, salt string) float32 {
