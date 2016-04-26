@@ -251,6 +251,218 @@
     }
   },
   {
+    "name": "In operator with dates",
+    "featureKey": "inFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DatesMatchValue",
+        "expectError": false,
+        "user": {
+          "key": "keyMatches",
+          "custom": {
+            "dateAttr": "1970-01-01T00:00:01.001Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "DatesMatchValue",
+        "expectError": false,
+        "user": {
+          "key": "keyMatches",
+          "custom": {
+            "dateAttr": 1001
+          }
+        }
+      },
+      {
+        "expectedValue": "DatesMatchValue",
+        "expectError": false,
+        "user": {
+          "key": "keyMatches",
+          "custom": {
+            "dateAttr": "1970-01-01T00:00:01Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "DatesMatchValue",
+        "expectError": false,
+        "user": {
+          "key": "keyMatches",
+          "custom": {
+            "dateAttr": "1000"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "notADateKey",
+          "custom": {
+            "dateAttr": true
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyWithoutAttr"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "inFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "dateAttr",
+              "op": "in",
+              "values": [
+                "1970-01-01T00:00:01.001Z",
+                1000
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue",
+        "DatesMatchValue"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "In operator with numbers",
+    "featureKey": "inFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "NumbersMatchValue",
+        "expectError": false,
+        "user": {
+          "key": "keyMatches",
+          "custom": {
+            "numberAttr": 10
+          }
+        }
+      },
+      {
+        "expectedValue": "NumbersMatchValue",
+        "expectError": false,
+        "user": {
+          "key": "keyMatches",
+          "custom": {
+            "numberAttr": "11.01"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "doesNotMatchKey",
+          "custom": {
+            "numberAttr": 0
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "notANumberKey",
+          "custom": {
+            "numberAttr": true
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "timeStampKey",
+          "custom": {
+            "numberAttr": "1970-01-01T00:00:01.001Z"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyWithoutAttr"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "inFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "numberAttr",
+              "op": "in",
+              "values": [
+                10,
+                11.01
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": null,
+      "variations": [
+        "You shouldn't get this",
+        "FallthroughValue",
+        "NumbersMatchValue"
+      ],
+      "deleted": false
+    }
+  },
+  {
     "name": "In operator with negation",
     "featureKey": "inFeatureKey",
     "defaultValue": "DefaultValue",
@@ -694,6 +906,111 @@
     }
   },
   {
+    "name": "LessThanOrEqual operator",
+    "featureKey": "lessThanOrEqualFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "LessThanOrEqual",
+        "expectError": false,
+        "user": {
+          "key": "matchesLessThanOrEqualKey",
+          "custom": {
+            "lessThanOrEqualAttribute": -100.0
+          }
+        }
+      },
+      {
+        "expectedValue": "LessThanOrEqual",
+        "expectError": false,
+        "user": {
+          "key": "matchesLessThanOrEqualKey",
+          "custom": {
+            "lessThanOrEqualAttribute": "-100.00"
+          }
+        }
+      },
+      {
+        "expectedValue": "LessThanOrEqual",
+        "expectError": false,
+        "user": {
+          "key": "matchesLessThanOrEqualKey",
+          "custom": {
+            "lessThanOrEqualAttribute": "-100.01"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "doesNotMatchLessThanKey",
+          "custom": {
+            "lessThanOrEqualAttribute": 10e6
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "missingAttributeKey"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "nullAttributeKey",
+          "custom": {
+            "lessThanOrEqualAttribute": null
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "lessThanOrEqualFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "lessThanOrEqualAttribute",
+              "op": "lessThanOrEqual",
+              "values": [
+                -100.0
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "LessThanOrEqual"
+      ],
+      "deleted": false
+    }
+  },
+  {
     "name": "GreaterThan operator",
     "featureKey": "greaterThanFeatureKey",
     "defaultValue": "DefaultValue",
@@ -774,6 +1091,101 @@
         "OffVariation",
         "FallthroughValue",
         "GreaterThan"
+      ],
+      "deleted": false
+    }
+  },
+  {
+    "name": "GreaterThanOrEqual operator",
+    "featureKey": "greaterThanOrEqualFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "GreaterThanOrEqual",
+        "expectError": false,
+        "user": {
+          "key": "matchesGreaterThanOrEqualKey",
+          "custom": {
+            "greaterThanOrEqualAttribute": 99
+          }
+        }
+      },
+      {
+        "expectedValue": "GreaterThanOrEqual",
+        "expectError": false,
+        "user": {
+          "key": "matchesGreaterThanOrEqualKey",
+          "custom": {
+            "greaterThanOrEqualAttribute": "99.0001"
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "doesNotMatchGreaterThanOrEqualKey",
+          "custom": {
+            "greaterThanOrEqualAttribute": 10e-6
+          }
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "missingAttributeKey"
+        }
+      },
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "nullAttributeKey",
+          "custom": {
+            "greaterThanOrEqualAttribute": null
+          }
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlag": {
+      "key": "greaterThanOrEqualFeatureKey",
+      "version": 1,
+      "on": true,
+      "salt": "",
+      "sel": "",
+      "targets": [],
+      "rules": [
+        {
+          "clauses": [
+            {
+              "attribute": "greaterThanOrEqualAttribute",
+              "op": "greaterThanOrEqual",
+              "values": [
+                99
+              ],
+              "negate": false
+            }
+          ],
+          "variation": 2,
+          "rollout": null
+        }
+      ],
+      "fallthrough": {
+        "variation": 1
+      },
+      "offVariation": 0,
+      "variations": [
+        "OffVariation",
+        "FallthroughValue",
+        "GreaterThanOrEqual"
       ],
       "deleted": false
     }
