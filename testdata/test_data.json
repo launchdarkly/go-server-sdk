@@ -334,7 +334,7 @@
               "attribute": "dateAttr",
               "op": "in",
               "values": [
-                "1970-01-01T00:00:01.001Z",
+                1001,
                 1000
               ],
               "negate": false

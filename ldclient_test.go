@@ -79,8 +79,6 @@ func TestEvaluate(t *testing.T) {
 		pre := fmt.Sprintf("(%d/%d) ", i+1, count)
 		t.Log("")
 		t.Logf("%sEvaluating Feature Flag: %s", pre, td.Name)
-		//featureJson, _ := json.MarshalIndent(td.FeatureFlag, "", "  ")
-		//t.Logf("%s%s", pre, string(featureJson))
 
 		userCount := len(td.UsersAndExpectations)
 		if userCount == 0 {
@@ -91,7 +89,7 @@ func TestEvaluate(t *testing.T) {
 
 		client, err = MakeCustomClient("api_key", config, 0)
 		if err != nil {
-			t.Fatalf("%s\tFATAL: Error creating client: %v",pre,  err)
+			t.Fatalf("%s\tFATAL: Error creating client: %v", pre, err)
 		}
 
 		err = client.store.Upsert(td.FeatureFlag.Key, td.FeatureFlag)
@@ -103,9 +101,7 @@ func TestEvaluate(t *testing.T) {
 			userOk := true
 			result, err := client.evaluate(td.FeatureKey, ue.User, td.DefaultValue)
 			if err != nil {
-				if ue.ExpectError {
-					//t.Logf("%sGot Expected error: %+v", pre, err)
-				} else {
+				if !ue.ExpectError {
 					userOk = false
 					t.Errorf("%s\tERROR: Unexpected error: %+v", pre, err)
 				}
