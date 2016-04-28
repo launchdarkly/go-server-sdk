@@ -69,28 +69,6 @@ func parseFloat64(input interface{}) *float64 {
 	return nil
 }
 
-// Converts a number of any type to an int.
-func numberToInt(input interface{}) (int, error) {
-	if input == nil {
-		return 0, nil
-	}
-
-	switch typedInput := input.(type) {
-	case int:
-		return typedInput, nil
-	default:
-		intType := reflect.TypeOf(int(0))
-		v := reflect.ValueOf(input)
-		v = reflect.Indirect(v)
-		if v.Type().ConvertibleTo(intType) {
-			intValue := v.Convert(intType)
-			return int(intValue.Int()), nil
-		}
-	}
-	return 0, fmt.Errorf("Could not convert: %+v to int!", input)
-
-}
-
 // Convert a Unix epoch milliseconds float64 value to the equivalent time.Time value with UTC location
 func unixMillisToUtcTime(unixMillis float64) time.Time {
 	return time.Unix(0, int64(unixMillis)*int64(time.Millisecond)).UTC()

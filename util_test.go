@@ -115,26 +115,6 @@ func testParseBadNumber(t *testing.T, input interface{}) {
 	}
 }
 
-func TestNumberToInt(t *testing.T) {
-	expected := int(1)
-	inputs := [4]interface{}{
-		float32(1.0),
-		int(1),
-		uint8(1),
-		float64(1),
-	}
-
-	for _, input := range inputs {
-		actual, err := numberToInt(input)
-		if err != nil {
-			t.Errorf("Got unexpected error: %+v", err.Error())
-		}
-		if expected != actual {
-			t.Errorf("Got unexpected result: %+v but was expecting: %+v", actual, expected)
-		}
-	}
-}
-
 func TestToJsonRawMessage(t *testing.T) {
 	expectedJsonString := `{"FieldName":"fieldValue","NumericField":1.02}`
 

@@ -117,10 +117,10 @@ func TestToggle(t *testing.T) {
 }
 
 func TestIntVariation(t *testing.T) {
-	expected := 100
+	expected := float64(100)
 
 	variations := make([]interface{}, 2)
-	variations[0] = -1
+	variations[0] = float64(-1)
 	variations[1] = expected
 
 	client := makeClientWithFeatureFlag(variations)
@@ -132,7 +132,7 @@ func TestIntVariation(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error when calling IntVariation: %+v", err)
 	}
-	if actual != expected {
+	if actual != int(expected) {
 		t.Errorf("Got unexpected result when calling IntVariation: %+v but expected: %+v", actual, expected)
 	}
 }

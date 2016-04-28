@@ -198,12 +198,9 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 // Returns the value of a feature flag (whose variations are integers) for the given user.
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int, error) {
-	value, err := client.variation(key, user, float64(defaultVal), reflect.TypeOf(int(0)))
-	intValue, intErr := numberToInt(value)
-	if intErr != nil {
-		return defaultVal, intErr
-	}
-	return intValue, err
+	value, err := client.variation(key, user, float64(defaultVal), reflect.TypeOf(float64(0)))
+	result, _ := value.(float64)
+	return int(result), err
 }
 
 // Returns the value of a feature flag (whose variations are floats) for the given user.
