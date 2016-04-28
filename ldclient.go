@@ -253,7 +253,7 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 }
 
 // Generic method for evaluating a feature flag for a given user. The type of the returned interface{}
-// will always be the type of defaultVal.
+// will always be expectedType or the actual defaultValue will be returned.
 func (client *LDClient) variation(key string, user User, defaultVal interface{}, expectedType reflect.Type) (interface{}, error) {
 	if client.IsOffline() {
 		return defaultVal, nil
