@@ -32,13 +32,13 @@ type FeatureFlag struct {
 // match.
 // Invariant: one of the variation or rollout must be non-nil.
 type Rule struct {
-	Clauses   []Clause `json:"clauses,omitempty" bson:"clauses,omitempty"`
+	Clauses   []Clause `json:"clauses" bson:"clauses"`
 	Variation *int     `json:"variation,omitempty" bson:"variation,omitempty"`
 	Rollout   *Rollout `json:"rollout,omitempty" bson:"rollout,omitempty"`
 }
 
 type Rollout struct {
-	Variations []WeightedVariation `json:"variations,omitempty" bson:"variations"`
+	Variations []WeightedVariation `json:"variations" bson:"variations"`
 	BucketBy   *string             `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
 

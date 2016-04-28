@@ -98,9 +98,9 @@ func operatorContainsFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func numericOperator(uValue interface{}, cValue interface{}, fn func(float64, float64) bool) bool {
-	uFloat64 := parseNumber(uValue)
+	uFloat64 := parseFloat64(uValue)
 	if uFloat64 != nil {
-		cFloat64 := parseNumber(cValue)
+		cFloat64 := parseFloat64(cValue)
 		if cFloat64 != nil {
 			return fn(*uFloat64, *cFloat64)
 		}

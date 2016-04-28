@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strconv"
 	"time"
+	"encoding/json"
+	"fmt"
 )
 
 // Converts any of the following into a pointer to a time.Time value:
@@ -31,7 +33,7 @@ func parseTime(input interface{}) *time.Time {
 	}
 
 	// Is it a number or can it be parsed as a number?
-	parsedNumberPtr := parseNumber(input)
+	parsedNumberPtr := parseFloat64(input)
 	if parsedNumberPtr != nil {
 		value := unixMillisToUtcTime(*parsedNumberPtr)
 		return &value
@@ -41,7 +43,7 @@ func parseTime(input interface{}) *time.Time {
 
 // Parses numeric value as float64 from a string or another numeric type.
 // Returns nil pointer if input is nil or unparsable.
-func parseNumber(input interface{}) *float64 {
+func parseFloat64(input interface{}) *float64 {
 	if input == nil {
 		return nil
 	}
@@ -67,7 +69,52 @@ func parseNumber(input interface{}) *float64 {
 	return nil
 }
 
+// Converts a number of any type to an int.
+func numberToInt(input interface{}) (int, error) {
+	if input == nil {
+		return 0, nil
+	}
+
+	switch typedInput := input.(type) {
+	case int:
+		return typedInput, nil
+	default:
+		intType := reflect.TypeOf(int(0))
+		v := reflect.ValueOf(input)
+		v = reflect.Indirect(v)
+		if v.Type().ConvertibleTo(intType) {
+			intValue := v.Convert(intType)
+			return int(intValue.Int()), nil
+		}
+	}
+	return 0, fmt.Errorf("Could not convert: %+v to int!", input)
+
+}
+
 // Convert a Unix epoch milliseconds float64 value to the equivalent time.Time value with UTC location
 func unixMillisToUtcTime(unixMillis float64) time.Time {
-	return time.Unix(0, int64(unixMillis)*1000000).UTC()
+	return time.Unix(0, int64(unixMillis)*int64(time.Millisecond)).UTC()
+}
+
+// Converts input to a *json.RawMessage if possible.
+func toJsonRawMessage(input interface{}) (json.RawMessage, error) {
+	if input == nil {
+		return nil, nil
+	}
+	switch typedInput := input.(type) {
+	//already json, so just return casted input value
+	case json.RawMessage:
+		return typedInput, nil
+	case []byte:
+		inputJsonRawMessage := json.RawMessage(typedInput)
+		return inputJsonRawMessage, nil
+	default:
+		inputJsonBytes, err := json.Marshal(input)
+		if err != nil {
+			return nil, fmt.Errorf("Could not marshal: %+v to json", input)
+		}
+		inputJsonRawMessage := json.RawMessage(inputJsonBytes)
+		return inputJsonRawMessage, nil
+	}
+	return nil, fmt.Errorf("Could not convert: %+v to json.RawMessage", input)
 }
