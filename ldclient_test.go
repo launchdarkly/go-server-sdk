@@ -236,13 +236,7 @@ func featureFlagWithVariations(variations []interface{}) FeatureFlag {
 		Key:     "validFeatureKey",
 		Version: 1,
 		On:      true,
-		Salt:    "",
-		Sel:     "",
-		//Targets: { },
-		//Rules: {},
 		Fallthrough:  Rule{Variation: &fallThroughVariation},
-		OffVariation: nil,
 		Variations:   variations,
-		Deleted:      false,
 	}
 }
