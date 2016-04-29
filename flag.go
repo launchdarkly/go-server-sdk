@@ -32,13 +32,13 @@ type FeatureFlag struct {
 // match.
 // Invariant: one of the variation or rollout must be non-nil.
 type Rule struct {
-	Clauses   []Clause `json:"clauses,omitempty" bson:"clauses,omitempty"`
+	Clauses   []Clause `json:"clauses" bson:"clauses"`
 	Variation *int     `json:"variation,omitempty" bson:"variation,omitempty"`
 	Rollout   *Rollout `json:"rollout,omitempty" bson:"rollout,omitempty"`
 }
 
 type Rollout struct {
-	Variations []WeightedVariation `json:"variations,omitempty" bson:"variations"`
+	Variations []WeightedVariation `json:"variations" bson:"variations"`
 	BucketBy   *string             `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
 
@@ -73,7 +73,6 @@ type Prerequisite struct {
 }
 
 func bucketUser(user User, key, attr, salt string) float32 {
-
 	uValue, pass := user.valueOf(attr)
 
 	if idHash, ok := uValue.(string); pass || !ok {
@@ -109,9 +108,6 @@ func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
 }
 
 func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
-	// TODO: The toggle algorithm should check the kill switch. We won't check it here
-	// so we can potentially compute an explanation even if the kill switch is hit
-
 	// Check to see if targets match
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
@@ -216,8 +212,6 @@ func (r Rule) variationIndexForUser(user User, key, salt string) *int {
 				return &wv.Variation
 			}
 		}
-
 	}
-
 	return nil
 }

@@ -9,4 +9,4 @@ dependencies:
 
 test:
   override:
-    - godep go test ./...
+    - godep go test ./... -v

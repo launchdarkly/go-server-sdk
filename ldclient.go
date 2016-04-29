@@ -1,12 +1,14 @@
 package ldclient
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"time"
-	"fmt"
 )
 
 const Version string = "0.0.3"
@@ -188,77 +190,87 @@ func (client *LDClient) Flush() {
 // there is an error, if the flag doesn't exist, the client hasn't completed initialization,
 // or the feature is turned off.
 func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, error) {
-	if client.IsOffline() {
-		return defaultVal, nil
-	}
-
-	value, err := client.evaluate(key, user, defaultVal)
-
-	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, err
-	}
-
-	result, ok := value.(bool)
-
-	if !ok {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-boolean value")
-	}
-
-	client.sendFlagRequestEvent(key, user, value, defaultVal)
-	return result, nil
+	value, err := client.variation(key, user, defaultVal, reflect.TypeOf(bool(true)))
+	result, _ := value.(bool)
+	return result, err
 }
 
 // Returns the value of a feature flag (whose variations are integers) for the given user.
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int, error) {
-	if client.IsOffline() {
-		return defaultVal, nil
-	}
-
-	value, err := client.evaluate(key, user, float64(defaultVal))
-
-	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, err
-	}
-
-	// json numbers are deserialized into float64s
-	result, ok := value.(float64)
-
-	if !ok {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-numeric value")
-	}
-
-	client.sendFlagRequestEvent(key, user, value, defaultVal)
-	return int(result), nil
+	value, err := client.variation(key, user, float64(defaultVal), reflect.TypeOf(float64(0)))
+	result, _ := value.(float64)
+	return int(result), err
 }
 
 // Returns the value of a feature flag (whose variations are floats) for the given user.
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 func (client *LDClient) Float64Variation(key string, user User, defaultVal float64) (float64, error) {
+	value, err := client.variation(key, user, defaultVal, reflect.TypeOf(float64(0)))
+	result, _ := value.(float64)
+	return result, err
+}
+
+// Returns the value of a feature flag (whose variations are strings) for the given user.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
+func (client *LDClient) StringVariation(key string, user User, defaultVal string) (string, error) {
+	value, err := client.variation(key, user, defaultVal, reflect.TypeOf(string("string")))
+	result, _ := value.(string)
+	return result, err
+}
+
+// Returns the value of a feature flag (whose variations are timestamps) for the given user.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
+func (client *LDClient) TimeVariation(key string, user User, defaultVal time.Time) (time.Time, error) {
+	value, err := client.variation(key, user, defaultVal, reflect.TypeOf(float64(0)))
+	result := parseTime(value)
+	if result == nil {
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		return defaultVal, fmt.Errorf("Unable to parse %+v as time.Time", value)
+	}
+	return *result, err
+}
+
+// Returns the value of a feature flag (whose variations are JSON) for the given user.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
+func (client *LDClient) JsonVariation(key string, user User, defaultVal json.RawMessage) (json.RawMessage, error) {
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-
 	value, err := client.evaluate(key, user, defaultVal)
 
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
 	}
-
-	result, ok := value.(float64)
-
-	if !ok {
+	valueJsonRawMessage, err := toJsonRawMessage(value)
+	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-numeric value")
+		return defaultVal, err
+	}
+	client.sendFlagRequestEvent(key, user, valueJsonRawMessage, defaultVal)
+	return valueJsonRawMessage, nil
+}
+
+// Generic method for evaluating a feature flag for a given user. The type of the returned interface{}
+// will always be expectedType or the actual defaultValue will be returned.
+func (client *LDClient) variation(key string, user User, defaultVal interface{}, expectedType reflect.Type) (interface{}, error) {
+	if client.IsOffline() {
+		return defaultVal, nil
+	}
+	value, err := client.evaluate(key, user, defaultVal)
+	if err != nil {
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		return defaultVal, err
 	}
 
+	valueType := reflect.TypeOf(value)
+	if expectedType != valueType {
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		return defaultVal, fmt.Errorf("Feature flag returned value: %+v of incompatible type: %+v; Expected: %+v", value, valueType, expectedType)
+	}
 	client.sendFlagRequestEvent(key, user, value, defaultVal)
-	return result, nil
+	return value, nil
 }
 
 func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defaultVal interface{}) error {
