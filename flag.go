@@ -3,6 +3,7 @@ package ldclient
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -94,16 +95,81 @@ func bucketUser(user User, key, attr, salt string) float32 {
 	}
 }
 
-func (f FeatureFlag) EvaluateExplain(user User) (interface{}, *Explanation) {
+type EvalResult struct {
+	Value                interface{}
+	Explanation          *Explanation
+	FeatureRequestEvents []FeatureRequestEvent //to be sent to LD
+}
+
+//struct only used in this file to allow for cycle detection in prereqs.
+type evalResultInternal struct {
+	EvalResult
+	visitedFeatureKeys map[string]bool
+}
+
+func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult, error) {
 	if user.Key == nil {
 		return nil, nil
 	}
-	index, explanation := f.evaluateExplainIndex(user)
+	events := make([]FeatureRequestEvent, 1)
+	visited := make(map[string]bool)
+	evalResultInternal, err := f.evaluateExplain(user, store, events, visited)
+	if evalResultInternal != nil {
+		return &evalResultInternal.EvalResult, err
+	}
+	return nil, err
+}
 
+func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []FeatureRequestEvent, visited map[string]bool) (*evalResultInternal, error) {
+	var failedPrereq Prerequisite
+	prereqsOk := true
+	for _, prereq := range f.Prerequisites {
+		visited[f.Key] = true
+		if _, ok := visited[prereq.Key]; ok {
+			//TODO: ok to skip sending actual EvalResult in these error cases?
+			return nil, fmt.Errorf("Cycle detected in prerequisites when evaluating feature key: %s", prereq.Key)
+		}
+		prereqFeatureFlag, err := store.Get(prereq.Key)
+		if err != nil {
+			return nil, err
+		}
+		if prereqFeatureFlag == nil {
+			return nil, fmt.Errorf("Prerequisite feature flag not found: %+v", prereq.Key)
+		}
+		if !prereqFeatureFlag.On {
+			//TODO: use offVariation or set prereqsOk to false?
+			//TODO: Should we keep recursing prereqs?
+		}
+
+		prereqEvalResult, err := prereqFeatureFlag.evaluateExplain(user, store, events, visited)
+		if err != nil {
+			return nil, err
+		}
+		visited = prereqEvalResult.visitedFeatureKeys
+		events = prereqEvalResult.FeatureRequestEvents
+		events = append(events, NewFeatureRequestEvent(prereq.Key, user, prereqEvalResult.Value, nil))
+		if prereqEvalResult.Value != prereqFeatureFlag.getVariation(&prereq.Variation) {
+			failedPrereq = prereq
+			prereqsOk = false
+		}
+	}
+	if !prereqsOk {
+		explanation := Explanation{
+			Kind:         "prerequisite",
+			Prerequisite: &failedPrereq} //return the last prereq to fail
+
+		return &evalResultInternal{EvalResult{nil, &explanation, events}, visited}, nil
+	}
+
+	index, explanation := f.evaluateExplainIndex(user)
+	return &evalResultInternal{EvalResult{f.getVariation(index), explanation, events}, visited}, nil
+}
+
+func (f FeatureFlag) getVariation(index *int) interface{} {
 	if index == nil || *index >= len(f.Variations) {
-		return nil, explanation
+		return nil
 	} else {
-		return f.Variations[*index], explanation
+		return f.Variations[*index]
 	}
 }
 

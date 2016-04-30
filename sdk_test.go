@@ -19,7 +19,7 @@ type evaluateTestData struct {
 	FeatureKey           string                 `json:"featureKey"`
 	DefaultValue         string                 `json:"defaultValue"`
 	UsersAndExpectations []usersAndExpectations `json:"usersAndExpectations"`
-	FeatureFlag          FeatureFlag            `json:"featureFlag"`
+	FeatureFlags         []FeatureFlag          `json:"featureFlags"`
 }
 
 type usersAndExpectations struct {
@@ -76,9 +76,11 @@ func TestSdk(t *testing.T) {
 			t.Fatalf("%s\tFATAL: Error creating client: %v", pre, err)
 		}
 
-		err = client.store.Upsert(td.FeatureFlag.Key, td.FeatureFlag)
-		if err != nil {
-			t.Fatalf("%s\tFATAL: Error upserting Feature Flag: %v", pre, err)
+		for _, featureFlag := range td.FeatureFlags {
+			err = client.store.Upsert(featureFlag.Key, featureFlag)
+			if err != nil {
+				t.Fatalf("%s\tFATAL: Error upserting Feature Flag: %v", pre, err)
+			}
 		}
 
 		for _, ue := range td.UsersAndExpectations {
@@ -88,6 +90,8 @@ func TestSdk(t *testing.T) {
 				if !ue.ExpectError {
 					userOk = false
 					t.Errorf("%s\tERROR: Unexpected error: %+v", pre, err)
+				} else {
+					t.Logf("Got Expected Error: %+v", err)
 				}
 			} else {
 				if ue.ExpectError {
