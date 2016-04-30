@@ -2009,5 +2009,122 @@
         "deleted": false
       }
     ]
+  },
+  {
+    "name": "Prerequisite with offVariation = expected variation is met",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereqWithOffVariationFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereqWithOffVariationFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "prereqOffFallthroughValue",
+          "prereqOffVariation"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite with offVariation not set",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereqWithoutOffVariationFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereqWithoutOffVariationFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "prereqOffFallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
   }
 ]

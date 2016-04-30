@@ -312,7 +312,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 			return defaultVal, err
 		}
 		if !client.IsOffline() {
-			for _, event := range evalResult.FeatureRequestEvents {
+			for _, event := range evalResult.PrerequisiteRequestEvents {
 				err := client.eventProcessor.sendEvent(event)
 				if err != nil {
 					client.config.Logger.Printf("WARN: Error sending feature request event to LaunchDarkly: %+v", err)

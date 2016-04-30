@@ -96,9 +96,9 @@ func bucketUser(user User, key, attr, salt string) float32 {
 }
 
 type EvalResult struct {
-	Value                interface{}
-	Explanation          *Explanation
-	FeatureRequestEvents []FeatureRequestEvent //to be sent to LD
+	Value                     interface{}
+	Explanation               *Explanation
+	PrerequisiteRequestEvents []FeatureRequestEvent //to be sent to LD
 }
 
 //struct only used in this file to allow for cycle detection in prereqs.
@@ -121,8 +121,7 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 }
 
 func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []FeatureRequestEvent, visited map[string]bool) (*evalResultInternal, error) {
-	var failedPrereq Prerequisite
-	prereqsOk := true
+	var failedPrereq *Prerequisite
 	for _, prereq := range f.Prerequisites {
 		visited[f.Key] = true
 		if _, ok := visited[prereq.Key]; ok {
@@ -136,28 +135,29 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []Fea
 		if prereqFeatureFlag == nil {
 			return nil, fmt.Errorf("Prerequisite feature flag not found: %+v", prereq.Key)
 		}
-		if !prereqFeatureFlag.On {
-			//TODO: use offVariation or set prereqsOk to false?
-			//TODO: Should we keep recursing prereqs?
+		var prereqValue interface{}
+		if prereqFeatureFlag.On {
+			prereqEvalResult, err := prereqFeatureFlag.evaluateExplain(user, store, events, visited)
+			if err != nil {
+				return nil, err
+			}
+			prereqValue = prereqEvalResult.Value
+			visited = prereqEvalResult.visitedFeatureKeys
+			events = prereqEvalResult.PrerequisiteRequestEvents
+		} else {
+			prereqValue = prereqFeatureFlag.getVariation(prereqFeatureFlag.OffVariation)
 		}
-
-		prereqEvalResult, err := prereqFeatureFlag.evaluateExplain(user, store, events, visited)
-		if err != nil {
-			return nil, err
-		}
-		visited = prereqEvalResult.visitedFeatureKeys
-		events = prereqEvalResult.FeatureRequestEvents
 		//TODO: something to indicate this feature request event was made when resolving prereqs.
-		events = append(events, NewFeatureRequestEvent(prereq.Key, user, prereqEvalResult.Value, nil))
-		if prereqEvalResult.Value != prereqFeatureFlag.getVariation(&prereq.Variation) {
-			failedPrereq = prereq
-			prereqsOk = false
+		events = append(events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
+		if prereqValue == nil || prereqValue != prereqFeatureFlag.getVariation(&prereq.Variation) {
+			failedPrereq = &prereq
 		}
 	}
-	if !prereqsOk {
+
+	if failedPrereq != nil {
 		explanation := Explanation{
 			Kind:         "prerequisite",
-			Prerequisite: &failedPrereq} //return the last prereq to fail
+			Prerequisite: failedPrereq} //return the last prereq to fail
 
 		return &evalResultInternal{EvalResult{nil, &explanation, events}, visited}, nil
 	}
