@@ -2051,7 +2051,7 @@
       {
         "key": "prereqWithOffVariationFeatureKey",
         "version": 0,
-        "on": true,
+        "on": false,
         "prerequisites": [],
         "salt": "",
         "sel": "",
@@ -2060,7 +2060,7 @@
         "fallthrough": {
           "variation": 1
         },
-        "offVariation": 0,
+        "offVariation": 1,
         "variations": [
           "prereqOffFallthroughValue",
           "prereqOffVariation"
@@ -2110,7 +2110,7 @@
       {
         "key": "prereqWithoutOffVariationFeatureKey",
         "version": 0,
-        "on": true,
+        "on": false,
         "prerequisites": [],
         "salt": "",
         "sel": "",
