@@ -19,23 +19,25 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "validFeatureKey",
-      "version": 0,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [],
-      "fallthrough": {
-        "variation": 0
-      },
-      "offVariation": null,
-      "variations": [
-        "FallthroughValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": null,
+        "variations": [
+          "FallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Feature off without offVariation returns default",
@@ -50,23 +52,25 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "validFeatureKey",
-      "version": 0,
-      "on": false,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [],
-      "fallthrough": {
-        "variation": 0
-      },
-      "offVariation": null,
-      "variations": [
-        "FallthroughValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": false,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": null,
+        "variations": [
+          "FallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Feature off with offVariation returns offVariation",
@@ -81,24 +85,26 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "validFeatureKey",
-      "version": 0,
-      "on": false,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [],
-      "fallthrough": {
-        "variation": 0
-      },
-      "offVariation": 1,
-      "variations": [
-        "FallthroughValue",
-        "OffVariation"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": false,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": 1,
+        "variations": [
+          "FallthroughValue",
+          "OffVariation"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Feature deleted returns default",
@@ -113,24 +119,26 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "validFeatureKey",
-      "version": 0,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": null,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue"
-      ],
-      "deleted": true
-    }
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "You shouldn't get this",
+          "FallthroughValue"
+        ],
+        "deleted": true
+      }
+    ]
   },
   {
     "name": "Invalid feature key returns default",
@@ -145,24 +153,26 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "validFeatureKey",
-      "version": 0,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "You shouldn't get this",
+          "FallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "In operator",
@@ -214,41 +224,43 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "inFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "group",
-              "op": "in",
-              "values": [
-                "group1",
-                "group2"
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": null,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue",
-        "InGroup"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "inFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "group",
+                "op": "in",
+                "values": [
+                  "group1",
+                  "group2"
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "You shouldn't get this",
+          "FallthroughValue",
+          "InGroup"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "In operator with dates",
@@ -320,41 +332,43 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "inFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "dateAttr",
-              "op": "in",
-              "values": [
-                1001,
-                1000
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": null,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue",
-        "DatesMatchValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "inFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "dateAttr",
+                "op": "in",
+                "values": [
+                  1001,
+                  1000
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "You shouldn't get this",
+          "FallthroughValue",
+          "DatesMatchValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "In operator with numbers",
@@ -426,41 +440,43 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "inFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "numberAttr",
-              "op": "in",
-              "values": [
-                10,
-                11.01
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": null,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue",
-        "NumbersMatchValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "inFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "numberAttr",
+                "op": "in",
+                "values": [
+                  10,
+                  11.01
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "You shouldn't get this",
+          "FallthroughValue",
+          "NumbersMatchValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "In operator with negation",
@@ -512,41 +528,43 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "inFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "group",
-              "op": "in",
-              "values": [
-                "group1",
-                "group2"
-              ],
-              "negate": true
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": null,
-      "variations": [
-        "You shouldn't get this",
-        "FallthroughValue",
-        "NotInGroups"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "inFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "group",
+                "op": "in",
+                "values": [
+                  "group1",
+                  "group2"
+                ],
+                "negate": true
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "You shouldn't get this",
+          "FallthroughValue",
+          "NotInGroups"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "StartsWith operator",
@@ -611,41 +629,43 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "startsWithFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "startsWith",
-              "op": "startsWith",
-              "values": [
-                "startsWithA",
-                "startsWithB"
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "StartsWith"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "startsWithFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "startsWith",
+                "op": "startsWith",
+                "values": [
+                  "startsWithA",
+                  "startsWithB"
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "StartsWith"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Endswith operator",
@@ -685,41 +705,43 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "endsWithFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "email",
-              "op": "endsWith",
-              "values": [
-                "gmail.com",
-                "hotmail.com"
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "EndsWith"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "endsWithFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "email",
+                "op": "endsWith",
+                "values": [
+                  "gmail.com",
+                  "hotmail.com"
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "EndsWith"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Matches operator",
@@ -760,55 +782,57 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "matchesFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "name",
-              "op": "matches",
-              "values": [
-                "^[A-Za-z]+"
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
+    "featureFlags": [
+      {
+        "key": "matchesFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "name",
+                "op": "matches",
+                "values": [
+                  "^[A-Za-z]+"
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          },
+          {
+            "clauses": [
+              {
+                "attribute": "customAttribute",
+                "op": "matches",
+                "values": [
+                  ".*"
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 3,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
         },
-        {
-          "clauses": [
-            {
-              "attribute": "customAttribute",
-              "op": "matches",
-              "values": [
-                ".*"
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 3,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "MatchesName",
-        "MatchesCustomAttribute"
-      ],
-      "deleted": false
-    }
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "MatchesName",
+          "MatchesCustomAttribute"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "LessThan operator",
@@ -870,40 +894,42 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "lessThanFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "lessThanAttribute",
-              "op": "lessThan",
-              "values": [
-                -100.0
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "LessThan"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "lessThanFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "lessThanAttribute",
+                "op": "lessThan",
+                "values": [
+                  -100.0
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "LessThan"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "LessThanOrEqual operator",
@@ -975,40 +1001,42 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "lessThanOrEqualFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "lessThanOrEqualAttribute",
-              "op": "lessThanOrEqual",
-              "values": [
-                -100.0
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "LessThanOrEqual"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "lessThanOrEqualFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "lessThanOrEqualAttribute",
+                "op": "lessThanOrEqual",
+                "values": [
+                  -100.0
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "LessThanOrEqual"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "GreaterThan operator",
@@ -1060,40 +1088,42 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "greaterThanFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "greaterThanAttribute",
-              "op": "greaterThan",
-              "values": [
-                99
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "GreaterThan"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "greaterThanFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "greaterThanAttribute",
+                "op": "greaterThan",
+                "values": [
+                  99
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "GreaterThan"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "GreaterThanOrEqual operator",
@@ -1155,40 +1185,42 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "greaterThanOrEqualFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "greaterThanOrEqualAttribute",
-              "op": "greaterThanOrEqual",
-              "values": [
-                99
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "GreaterThanOrEqual"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "greaterThanOrEqualFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "greaterThanOrEqualAttribute",
+                "op": "greaterThanOrEqual",
+                "values": [
+                  99
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "GreaterThanOrEqual"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Before operator",
@@ -1310,40 +1342,42 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "beforeFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "beforeAttribute",
-              "op": "before",
-              "values": [
-                1000
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "BeforeValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "beforeFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "beforeAttribute",
+                "op": "before",
+                "values": [
+                  1000
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "BeforeValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "After operator",
@@ -1445,40 +1479,42 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "afterFeatureKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "afterAttribute",
-              "op": "after",
-              "values": [
-                1000
-              ],
-              "negate": false
-            }
-          ],
-          "variation": 2,
-          "rollout": null
-        }
-      ],
-      "fallthrough": {
-        "variation": 1
-      },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "AfterValue"
-      ],
-      "deleted": false
-    }
+    "featureFlags": [
+      {
+        "key": "afterFeatureKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "afterAttribute",
+                "op": "after",
+                "values": [
+                  1000
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "AfterValue"
+        ],
+        "deleted": false
+      }
+    ]
   },
   {
     "name": "Multiple clauses in one rule",
@@ -1555,58 +1591,540 @@
         }
       }
     ],
-    "featureFlag": {
-      "key": "clausesKey",
-      "version": 1,
-      "on": true,
-      "salt": "",
-      "sel": "",
-      "targets": [],
-      "rules": [
-        {
-          "clauses": [
-            {
-              "attribute": "email",
-              "op": "endsWith",
-              "values": [
-                "EndsWithA.com",
-                "EndsWithB.com"
-              ],
-              "negate": false
-            },
-            {
-              "attribute": "group",
-              "op": "in",
-              "values": [
-                "GroupA",
-                "GroupB"
-              ],
-              "negate": false
-            },
-            {
-              "attribute": "exclude",
-              "op": "in",
-              "values": [
-                "true",
-                "yes"
-              ],
-              "negate": true
-            }
-          ],
-          "variation": 2,
-          "rollout": null
+    "featureFlags": [
+      {
+        "key": "clausesKey",
+        "version": 1,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "email",
+                "op": "endsWith",
+                "values": [
+                  "EndsWithA.com",
+                  "EndsWithB.com"
+                ],
+                "negate": false
+              },
+              {
+                "attribute": "group",
+                "op": "in",
+                "values": [
+                  "GroupA",
+                  "GroupB"
+                ],
+                "negate": false
+              },
+              {
+                "attribute": "exclude",
+                "op": "in",
+                "values": [
+                  "true",
+                  "yes"
+                ],
+                "negate": true
+              }
+            ],
+            "variation": 2,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 0,
+        "variations": [
+          "OffVariation",
+          "FallthroughValue",
+          "MatchesAllClauses"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite..",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
         }
-      ],
-      "fallthrough": {
-        "variation": 1
       },
-      "offVariation": 0,
-      "variations": [
-        "OffVariation",
-        "FallthroughValue",
-        "MatchesAllClauses"
-      ],
-      "deleted": false
-    }
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": null
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereqFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": null,
+        "variations": [
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereqFeatureKey",
+        "version": 0,
+        "on": true,
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "prereqFallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite cycle detection: root->root",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "validFeatureKey",
+            "variation": 0
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": null,
+        "variations": [
+          "FallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite cycle detection: root->prereq->root",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereqFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": null,
+        "variations": [
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereqFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "validFeatureKey",
+            "variation": 0
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "prereqFallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite cycle detection: root->prereq1->prereq2->prereq1",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": true,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereq1FeatureKey",
+            "variation": 0
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 0
+        },
+        "offVariation": null,
+        "variations": [
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereq1FeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereq2FeatureKey",
+            "variation": 0
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "prereq1FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereq2FeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereq1FeatureKey",
+            "variation": 0
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "prereq2FallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisites: root->prereq1a + root->prereq1b->prereq1a",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "keyWithMatchingPrereqs"
+        }
+      },
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": false,
+        "user": {
+          "key": "keyNotMatchingPrereqs",
+          "email": "notMatchingPrerequisite@spaghett.io"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereq1aFeatureKey",
+            "variation": 1
+          },
+          {
+            "key": "prereq1bFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereq1aFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [
+          {
+            "clauses": [
+              {
+                "attribute": "email",
+                "op": "endsWith",
+                "values": [
+                  "spaghett.io"
+                ],
+                "negate": false
+              }
+            ],
+            "variation": 0,
+            "rollout": null
+          }
+        ],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "prereq1aFallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereq1bFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereq1aFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "prereq2FallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite with offVariation = expected variation is met",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "FallthroughValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereqWithOffVariationFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereqWithOffVariationFeatureKey",
+        "version": 0,
+        "on": false,
+        "prerequisites": [],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": 1,
+        "variations": [
+          "prereqOffFallthroughValue",
+          "prereqOffVariation"
+        ],
+        "deleted": false
+      }
+    ]
+  },
+  {
+    "name": "Prerequisite with offVariation not set",
+    "featureKey": "validFeatureKey",
+    "defaultValue": "DefaultValue",
+    "usersAndExpectations": [
+      {
+        "expectedValue": "DefaultValue",
+        "expectError": false,
+        "user": {
+          "key": "key"
+        }
+      }
+    ],
+    "featureFlags": [
+      {
+        "key": "validFeatureKey",
+        "version": 0,
+        "on": true,
+        "prerequisites": [
+          {
+            "key": "prereqWithoutOffVariationFeatureKey",
+            "variation": 1
+          }
+        ],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "NO",
+          "FallthroughValue"
+        ],
+        "deleted": false
+      },
+      {
+        "key": "prereqWithoutOffVariationFeatureKey",
+        "version": 0,
+        "on": false,
+        "prerequisites": [],
+        "salt": "",
+        "sel": "",
+        "targets": [],
+        "rules": [],
+        "fallthrough": {
+          "variation": 1
+        },
+        "offVariation": null,
+        "variations": [
+          "prereqOffFallthroughValue"
+        ],
+        "deleted": false
+      }
+    ]
   }
 ]
