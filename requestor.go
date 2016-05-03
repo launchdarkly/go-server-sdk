@@ -48,9 +48,9 @@ func (r *requestor) makeAllRequest(latest bool) (map[string]*FeatureFlag, bool, 
 	var resource string
 
 	if latest {
-		resource = "/api/eval/latest-features"
+		resource = "/sdk/latest-flags"
 	} else {
-		resource = "/api/eval/features"
+		resource = "/sdk/flags"
 	}
 
 	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)
