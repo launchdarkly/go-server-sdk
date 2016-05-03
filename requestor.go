@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	LatestFlagsPath = "/sdk/latest-flags/"
-	FlagsPath       = "/sdk/flags/"
+	LatestFlagsPath = "/sdk/latest-flags"
+	FlagsPath       = "/sdk/flags"
 )
 
 type requestor struct {
@@ -66,7 +66,7 @@ func (r *requestor) requestAllFlags(latest bool) (map[string]*FeatureFlag, bool,
 
 func (r *requestor) requestFlag(key string, latest bool) (*FeatureFlag, error) {
 	var feature FeatureFlag
-	resource := r.makeFlagsResource(latest) + key
+	resource := r.makeFlagsResource(latest) + "/" + key
 	body, _, err := r.makeRequest(resource)
 	if err != nil {
 		return nil, err
