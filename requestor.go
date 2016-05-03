@@ -90,7 +90,7 @@ func (r *requestor) makeFlagsResource(latest bool) string {
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)
-	url := req.URL.RequestURI()
+	url := req.URL.String()
 	if reqErr != nil {
 		return nil, false, reqErr
 	}
