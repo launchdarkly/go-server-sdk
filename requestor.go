@@ -2,13 +2,18 @@ package ldclient
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"github.com/facebookgo/httpcontrol"
 	"github.com/gregjones/httpcache"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
+)
+
+const (
+	LatestFlagsPath = "/sdk/latest-flags/"
+	FlagsPath       = "sdk/flags/"
 )
 
 type requestor struct {
@@ -42,19 +47,50 @@ func newRequestor(apiKey string, config Config) *requestor {
 	return &requestor
 }
 
-func (r *requestor) makeAllRequest(latest bool) (map[string]*FeatureFlag, bool, error) {
+func (r *requestor) requestAllFlags(latest bool) (map[string]*FeatureFlag, bool, error) {
 	var features map[string]*FeatureFlag
+	body, cached, err := r.makeRequest(r.makeFlagsResource(latest))
+	if err != nil {
+		return nil, false, err
+	}
+	if cached {
+		return nil, true, nil
+	}
+	jsonErr := json.Unmarshal(body, &features)
 
-	var resource string
+	if jsonErr != nil {
+		return nil, false, jsonErr
+	}
+	return features, cached, nil
+}
 
-	if latest {
-		resource = "/sdk/latest-flags"
-	} else {
-		resource = "/sdk/flags"
+func (r *requestor) requestFlag(key string, latest bool) (*FeatureFlag, error) {
+	var feature FeatureFlag
+	resource := r.makeFlagsResource(latest) + key
+	body, _, err := r.makeRequest(resource)
+	if err != nil {
+		return nil, err
 	}
 
-	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)
+	jsonErr := json.Unmarshal(body, &feature)
 
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+	return &feature, nil
+}
+
+func (r *requestor) makeFlagsResource(latest bool) string {
+	if latest {
+		return LatestFlagsPath
+	} else {
+		return FlagsPath
+	}
+}
+
+func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
+	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)
+	url := req.URL.RequestURI()
 	if reqErr != nil {
 		return nil, false, reqErr
 	}
@@ -76,91 +112,23 @@ func (r *requestor) makeAllRequest(latest bool) (map[string]*FeatureFlag, bool, 
 	}
 
 	if res.StatusCode == http.StatusUnauthorized {
-		return nil, false, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
+		return nil, false, fmt.Errorf("Invalid API key when accessing URL: %s. Verify that your API key is correct.", url)
 	}
 
 	if res.StatusCode == http.StatusNotFound {
-		return nil, false, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
-	}
-
-	if res.Header.Get(httpcache.XFromCache) != "" {
-		return nil, true, nil
+		return nil, false, fmt.Errorf("Resource not found when accessing URL: %s. Verify that this resource exists.", url)
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, false, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
+		return nil, false, fmt.Errorf("Unexpected response code: %s when accessing URL: %s"+strconv.Itoa(res.StatusCode), url)
 	}
+
+	cached := res.Header.Get(httpcache.XFromCache) != ""
 
 	body, err := ioutil.ReadAll(res.Body)
 
 	if err != nil {
 		return nil, false, err
 	}
-
-	jsonErr := json.Unmarshal(body, &features)
-
-	if jsonErr != nil {
-		return nil, false, jsonErr
-	}
-
-	return features, false, nil
-}
-
-func (r *requestor) makeRequest(key string, latest bool) (*FeatureFlag, error) {
-	var feature FeatureFlag
-
-	var resource string
-
-	if latest {
-		resource = "/api/eval/latest-features/"
-	} else {
-		resource = "/api/eval/features/"
-	}
-
-	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource+key, nil)
-
-	if reqErr != nil {
-		return nil, reqErr
-	}
-
-	req.Header.Add("Authorization", "api_key "+r.apiKey)
-	req.Header.Add("User-Agent", "GoClient/"+Version)
-
-	res, resErr := r.httpClient.Do(req)
-
-	defer func() {
-		if res != nil && res.Body != nil {
-			ioutil.ReadAll(res.Body)
-			res.Body.Close()
-		}
-	}()
-
-	if resErr != nil {
-		return nil, resErr
-	}
-
-	if res.StatusCode == http.StatusUnauthorized {
-		return nil, errors.New("Invalid API key. Verify that your API key is correct. Returning default value.")
-	}
-
-	if res.StatusCode == http.StatusNotFound {
-		return nil, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, errors.New("Unexpected response code: " + strconv.Itoa(res.StatusCode))
-	}
-
-	body, err := ioutil.ReadAll(res.Body)
-
-	if err != nil {
-		return nil, err
-	}
-
-	jsonErr := json.Unmarshal(body, &feature)
-
-	if jsonErr != nil {
-		return nil, jsonErr
-	}
-	return &feature, nil
+	return body, cached, err
 }
