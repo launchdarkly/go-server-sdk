@@ -13,7 +13,7 @@ import (
 
 const (
 	LatestFlagsPath = "/sdk/latest-flags/"
-	FlagsPath       = "sdk/flags/"
+	FlagsPath       = "/sdk/flags/"
 )
 
 type requestor struct {
