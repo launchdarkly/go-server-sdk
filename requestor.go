@@ -120,7 +120,7 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("Unexpected response code: %s when accessing URL: %s"+strconv.Itoa(res.StatusCode), url)
+		return nil, false, fmt.Errorf("Unexpected response code: %d when accessing URL: %s", res.StatusCode, url)
 	}
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
