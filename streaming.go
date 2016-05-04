@@ -78,13 +78,13 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 			}
 		case indirectPatchEvent:
 			key := event.Data()
-			if feature, err := sp.requestor.makeRequest(key, true); err != nil {
+			if feature, err := sp.requestor.requestFlag(key, true); err != nil {
 				sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
 			} else {
 				sp.store.Upsert(key, *feature)
 			}
 		case indirectPutEvent:
-			if features, _, err := sp.requestor.makeAllRequest(true); err != nil {
+			if features, _, err := sp.requestor.requestAllFlags(true); err != nil {
 				sp.config.Logger.Printf("Unexpected error requesting all features: %+v", err)
 			} else {
 				sp.store.Init(features)
