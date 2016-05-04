@@ -7,7 +7,6 @@ import (
 	"github.com/gregjones/httpcache"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 )
 
