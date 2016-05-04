@@ -30,7 +30,7 @@ type streamProcessor struct {
 }
 
 type featurePatchData struct {
-	Path string  `json:"path"`
+	Path string      `json:"path"`
 	Data FeatureFlag `json:"data"`
 }
 
@@ -44,6 +44,7 @@ func (sp *streamProcessor) initialized() bool {
 }
 
 func (sp *streamProcessor) start(ch chan<- bool) {
+	sp.config.Logger.Printf("Starting LaunchDarkly streaming connection")
 	go sp.startOnce(ch)
 	go sp.errors()
 }
@@ -125,9 +126,10 @@ func (sp *streamProcessor) subscribe() {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/flags", nil)
 		req.Header.Add("Authorization", "api_key "+sp.apiKey)
 		req.Header.Add("User-Agent", "GoClient/"+Version)
+		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
-			sp.config.Logger.Printf("Error subscribing to stream: %+v", err)
+			sp.config.Logger.Printf("Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
 		} else {
 			sp.stream = stream
 			sp.stream.Logger = sp.config.Logger
