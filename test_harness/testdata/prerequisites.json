@@ -3,7 +3,8 @@
     "name": "Prerequisite..",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "FallthroughValue",
         "expectError": false,
@@ -39,7 +40,8 @@
         },
         "offVariation": null,
         "variations": [
-          "FallthroughValue"
+          "FallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       },
@@ -67,7 +69,8 @@
     "name": "Prerequisite cycle detection: root->root",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": true,
@@ -96,7 +99,8 @@
         },
         "offVariation": null,
         "variations": [
-          "FallthroughValue"
+          "FallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       }
@@ -106,7 +110,8 @@
     "name": "Prerequisite cycle detection: root->prereq->root",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": true,
@@ -135,7 +140,8 @@
         },
         "offVariation": null,
         "variations": [
-          "FallthroughValue"
+          "FallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       },
@@ -169,7 +175,8 @@
     "name": "Prerequisite cycle detection: root->prereq1->prereq2->prereq1",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": true,
@@ -198,7 +205,8 @@
         },
         "offVariation": null,
         "variations": [
-          "FallthroughValue"
+          "FallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       },
@@ -256,7 +264,8 @@
     "name": "Prerequisites: root->prereq1a + root->prereq1b->prereq1a",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "FallthroughValue",
         "expectError": false,
@@ -366,7 +375,8 @@
     "name": "Prerequisite with offVariation = expected variation is met",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "FallthroughValue",
         "expectError": false,
@@ -425,7 +435,8 @@
     "name": "Prerequisite with offVariation not set",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": false,
@@ -473,7 +484,8 @@
         },
         "offVariation": null,
         "variations": [
-          "prereqOffFallthroughValue"
+          "prereqOffFallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       }

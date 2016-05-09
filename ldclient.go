@@ -237,7 +237,7 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-	value, err := client.evaluate(key, user, defaultVal)
+	value, err := client.Evaluate(key, user, defaultVal)
 
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
@@ -258,7 +258,7 @@ func (client *LDClient) variation(key string, user User, defaultVal interface{},
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-	value, err := client.evaluate(key, user, defaultVal)
+	value, err := client.Evaluate(key, user, defaultVal)
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
@@ -281,7 +281,7 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 	return client.eventProcessor.sendEvent(evt)
 }
 
-func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
+func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
 	if user.Key == nil {
 		return defaultVal, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
 	}
