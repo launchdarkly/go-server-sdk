@@ -65,6 +65,7 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 			} else {
 				sp.store.Init(features)
 				sp.setInitializedOnce.Do(func() {
+					sp.config.Logger.Printf("Started LaunchDarkly streaming client")
 					sp.isInitialized = true
 					ch <- true
 				})
@@ -90,6 +91,7 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 			} else {
 				sp.store.Init(features)
 				sp.setInitializedOnce.Do(func() {
+					sp.config.Logger.Printf("Started LaunchDarkly streaming client")
 					sp.isInitialized = true
 				})
 			}
