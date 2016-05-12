@@ -17,7 +17,7 @@ type FeatureFlag struct {
 	Key           string         `json:"key" bson:"key"`
 	Version       int            `json:"version" bson:"version"`
 	On            bool           `json:"on" bson:"on"`
-	Prerequisites []Prerequisite `json:"prerequisites,omitempty" bson:"prerequisites"`
+	Prerequisites []Prerequisite `json:"prerequisites" bson:"prerequisites"`
 	Salt          string         `json:"salt" bson:"salt"`
 	Sel           string         `json:"sel" bson:"sel"`
 	Targets       []Target       `json:"targets" bson:"targets"`
