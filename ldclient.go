@@ -191,6 +191,7 @@ func (client *LDClient) Flush() {
 // Returns a map from feature flag keys to boolean feature flag values for a given user. The
 // map will contain nil for any flags that are off. If the client is offline or has not been initialized,
 // a nil map will be returned. This method will not send analytics events back to LaunchDarkly.
+// The most common use case for this is bootstrapping client-side feature flags from a back-end service.
 func (client *LDClient) AllFlags(user User) (map[string]*bool, error) {
 	if client.IsOffline() {
 		return nil, nil
