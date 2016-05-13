@@ -55,9 +55,9 @@ func operatorInFn(uValue interface{}, cValue interface{}) bool {
 		return true
 	}
 
-	uTime := parseTime(uValue)
+	uTime := ParseTime(uValue)
 	if uTime != nil {
-		cTime := parseTime(cValue)
+		cTime := ParseTime(cValue)
 		if cTime != nil {
 			return uTime.Equal(*cTime)
 		}
@@ -98,9 +98,9 @@ func operatorContainsFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func numericOperator(uValue interface{}, cValue interface{}, fn func(float64, float64) bool) bool {
-	uFloat64 := parseFloat64(uValue)
+	uFloat64 := ParseFloat64(uValue)
 	if uFloat64 != nil {
-		cFloat64 := parseFloat64(cValue)
+		cFloat64 := ParseFloat64(cValue)
 		if cFloat64 != nil {
 			return fn(*uFloat64, *cFloat64)
 		}
@@ -125,9 +125,9 @@ func operatorGreaterThanOrEqualFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func operatorBeforeFn(uValue interface{}, cValue interface{}) bool {
-	uTime := parseTime(uValue)
+	uTime := ParseTime(uValue)
 	if uTime != nil {
-		cTime := parseTime(cValue)
+		cTime := ParseTime(cValue)
 		if cTime != nil {
 			return uTime.Before(*cTime)
 		}
@@ -136,9 +136,9 @@ func operatorBeforeFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func operatorAfterFn(uValue interface{}, cValue interface{}) bool {
-	uTime := parseTime(uValue)
+	uTime := ParseTime(uValue)
 	if uTime != nil {
-		cTime := parseTime(cValue)
+		cTime := ParseTime(cValue)
 		if cTime != nil {
 			return uTime.After(*cTime)
 		}

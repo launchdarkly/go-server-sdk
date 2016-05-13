@@ -17,7 +17,7 @@ type FeatureFlag struct {
 	Key           string         `json:"key" bson:"key"`
 	Version       int            `json:"version" bson:"version"`
 	On            bool           `json:"on" bson:"on"`
-	Prerequisites []Prerequisite `json:"prerequisites,omitempty" bson:"prerequisites"`
+	Prerequisites []Prerequisite `json:"prerequisites" bson:"prerequisites"`
 	Salt          string         `json:"salt" bson:"salt"`
 	Sel           string         `json:"sel" bson:"sel"`
 	Targets       []Target       `json:"targets" bson:"targets"`
@@ -25,7 +25,7 @@ type FeatureFlag struct {
 	Fallthrough   Rule           `json:"fallthrough" bson:"fallthrough"`
 	OffVariation  *int           `json:"offVariation" bson:"offVariation"`
 	Variations    []interface{}  `json:"variations" bson:"variations"`
-	Deleted       bool           `json:"deleted,omitempty" bson:"deleted"`
+	Deleted       bool           `json:"deleted" bson:"deleted"`
 }
 
 // Expresses a set of AND-ed matching conditions for a user, along with

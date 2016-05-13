@@ -6,9 +6,67 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+	"github.com/launchdarkly/go-client"
+	"github.com/deckarep/golang-set"
 )
+type AllTestData struct {
+	Scenarios            []Scenario             // All scenarios for evaluation
+	FeatureKeysToDelete  []string               // Feature keys to delete before starting
+	FeatureFlagsToCreate []ldclient.FeatureFlag // Flags to create before starting
+}
 
-func LoadTestDataFiles(basePath string) (map[string][]Scenario, error) {
+
+// Load all test data and uniqify each feature key in case there are duplicates
+// create a set of feature keys to delete before creating them
+// create a set of feature flags to create in the system being tested
+func LoadTestData(basePath string) (*AllTestData, error) {
+	scenariosMap, err := loadTestDataFiles(basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	allScenarios := make([]Scenario, 0, 0)
+	featureKeysToDeleteSet := mapset.NewSet()
+	featureFlagsToCreate := make([]ldclient.FeatureFlag, 0, 0)
+
+	for filePath, scenarios := range scenariosMap {
+		_, fileName := filepath.Split(filePath)
+		fileNameWithoutSuffix := strings.TrimSuffix(fileName, ".json")
+		for i, s := range scenarios {
+			//prefix all feature keys so they are unique.
+			featureKeyPrefix := fmt.Sprintf("%s.%02d.", fileNameWithoutSuffix, i)
+			featureKey := featureKeyPrefix + s.FeatureKey
+			s.FeatureKey = featureKey
+			featureKeysToDeleteSet.Add(featureKey)
+			if len(s.TestCases) == 0 {
+				return nil, fmt.Errorf("Found zero test cases to evaluate for file: %s for scenario: %s", filePath, s.Name)
+			}
+			for f, _ := range s.FeatureFlags {
+				featureKey = featureKeyPrefix + s.FeatureFlags[f].Key
+				s.FeatureFlags[f].Key = featureKey
+				featureKeysToDeleteSet.Add(featureKey)
+				featureFlagsToCreate = append(featureFlagsToCreate, s.FeatureFlags[f])
+				for p, _ := range s.FeatureFlags[f].Prerequisites {
+					featureKey = featureKeyPrefix + s.FeatureFlags[f].Prerequisites[p].Key
+					s.FeatureFlags[f].Prerequisites[p].Key = featureKey
+					featureKeysToDeleteSet.Add(featureKey)
+				}
+			}
+			allScenarios = append(allScenarios, s)
+		}
+	}
+
+	slice := featureKeysToDeleteSet.ToSlice()
+	featureKeysToDelete := make([]string, len(slice))
+	for i, key := range slice {
+		if keyString, ok := key.(string) ; ok {
+			featureKeysToDelete[i] = keyString
+		}
+	}
+	return &AllTestData{allScenarios, featureKeysToDelete, featureFlagsToCreate}, nil
+}
+
+func loadTestDataFiles(basePath string) (map[string][]Scenario, error) {
 	filePaths, err := readTestDataDir(basePath)
 	if err != nil {
 		return nil, err

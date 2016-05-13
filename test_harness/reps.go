@@ -19,13 +19,13 @@ type TestCase struct {
 	User          ldclient.User `json:"user"`
 }
 
-type ToggleFeatureRequest struct {
+type EvalFeatureRequest struct {
 	User         ldclient.User `json:"user"`
-	DefaultValue bool          `json:"defaultValue"`
+	DefaultValue interface{}   `json:"defaultValue"`
 }
 
-type ToggleFeatureResponse struct {
-	Key    string `json:"key"`
-	Result bool   `json:"result"`
-	Error  *string `json:"error"`
+type EvalFeatureResponse struct {
+	Key    string      `json:"key"`
+	Result interface{} `json:"result"`
+	Error  *string     `json:"error"`
 }

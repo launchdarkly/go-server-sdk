@@ -15,7 +15,7 @@ import (
 // Passing in a time.Time value will return a pointer to the input value.
 // Unparsable inputs will return nil
 // More info on RFC3339: http://stackoverflow.com/questions/522251/whats-the-difference-between-iso-8601-and-rfc-3339-date-formats
-func parseTime(input interface{}) *time.Time {
+func ParseTime(input interface{}) *time.Time {
 	if input == nil {
 		return nil
 	}
@@ -33,7 +33,7 @@ func parseTime(input interface{}) *time.Time {
 	}
 
 	// Is it a number or can it be parsed as a number?
-	parsedNumberPtr := parseFloat64(input)
+	parsedNumberPtr := ParseFloat64(input)
 	if parsedNumberPtr != nil {
 		value := unixMillisToUtcTime(*parsedNumberPtr)
 		return &value
@@ -43,7 +43,7 @@ func parseTime(input interface{}) *time.Time {
 
 // Parses numeric value as float64 from a string or another numeric type.
 // Returns nil pointer if input is nil or unparsable.
-func parseFloat64(input interface{}) *float64 {
+func ParseFloat64(input interface{}) *float64 {
 	if input == nil {
 		return nil
 	}
@@ -75,7 +75,7 @@ func unixMillisToUtcTime(unixMillis float64) time.Time {
 }
 
 // Converts input to a *json.RawMessage if possible.
-func toJsonRawMessage(input interface{}) (json.RawMessage, error) {
+func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 	if input == nil {
 		return nil, nil
 	}
