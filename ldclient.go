@@ -66,8 +66,13 @@ var DefaultConfig = Config{
 	Offline:       false,
 }
 
-var ErrInitializationTimeout = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
-var ErrClientNotInitialized = errors.New("Toggle called before LaunchDarkly client initialization completed")
+var (
+	ErrNonBooleanValue       = errors.New("Feature flag returned non-boolean value")
+	ErrNonNumericValue       = errors.New("Feature flag returned non-numeric value")
+	ErrInitializationTimeout = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
+	ErrClientNotInitialized  = errors.New("Toggle called before LaunchDarkly client initialization completed")
+	ErrUnknownFeatureKey     = errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+)
 
 // Creates a new client instance that connects to LaunchDarkly with the default configuration. In most
 // cases, you should use this method to instantiate your client. The optional duration parameter allows callers to
@@ -183,6 +188,46 @@ func (client *LDClient) Flush() {
 	client.eventProcessor.flush()
 }
 
+// Returns a map from feature flag keys to boolean feature flag values for a given user. The
+// map will contain nil for any flags that are off. If the client is offline or has not been initialized,
+// a nil map will be returned. This method will not send analytics events back to LaunchDarkly.
+func (client *LDClient) AllFlags(user User) (map[string]*bool, error) {
+	if client.IsOffline() {
+		return nil, nil
+	}
+
+	if !client.Initialized() {
+		return nil, ErrClientNotInitialized
+	}
+
+	allFlags, err := client.store.All()
+
+	if err != nil {
+		return nil, err
+	}
+
+	results := make(map[string]*bool)
+
+	for key, _ := range allFlags {
+		value, err := client.evaluate(key, user, nil)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if value != nil {
+			bval, ok := value.(bool)
+
+			if !ok {
+				return nil, ErrNonBooleanValue
+			}
+			results[key] = &bval
+		}
+	}
+
+	return results, nil
+}
+
 // Returns the value of a boolean feature flag for a given user. Returns defaultVal if
 // there is an error, if the flag doesn't exist, the client hasn't completed initialization,
 // or the feature is turned off.
@@ -202,7 +247,7 @@ func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, er
 
 	if !ok {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-boolean value")
+		return defaultVal, ErrNonBooleanValue
 	}
 
 	client.sendFlagRequestEvent(key, user, value, defaultVal)
@@ -228,7 +273,7 @@ func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int
 
 	if !ok {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-numeric value")
+		return defaultVal, ErrNonNumericValue
 	}
 
 	client.sendFlagRequestEvent(key, user, value, defaultVal)
@@ -253,7 +298,7 @@ func (client *LDClient) Float64Variation(key string, user User, defaultVal float
 
 	if !ok {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, errors.New("Feature flag returned non-numeric value")
+		return defaultVal, ErrNonNumericValue
 	}
 
 	client.sendFlagRequestEvent(key, user, value, defaultVal)
@@ -287,7 +332,7 @@ func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) 
 	if featurePtr != nil {
 		feature = *featurePtr
 	} else {
-		return defaultVal, errors.New("Unknown feature key. Verify that this feature key exists. Returning default value.")
+		return defaultVal, ErrUnknownFeatureKey
 	}
 
 	value, pass := feature.Evaluate(user)
