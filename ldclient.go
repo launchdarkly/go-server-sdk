@@ -222,6 +222,8 @@ func (client *LDClient) AllFlags(user User) (map[string]*bool, error) {
 				return nil, ErrNonBooleanValue
 			}
 			results[key] = &bval
+		} else {
+			results[key] = nil
 		}
 	}
 
