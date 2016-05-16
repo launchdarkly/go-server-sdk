@@ -44,13 +44,6 @@ const (
 	IDENTIFY_EVENT        = "identify"
 )
 
-var rGen *rand.Rand
-
-func init() {
-	s1 := rand.NewSource(time.Now().UnixNano())
-	rGen = rand.New(s1)
-}
-
 func newEventProcessor(apiKey string, config Config) *eventProcessor {
 	res := &eventProcessor{
 		queue:  make([]Event, 0),
@@ -136,7 +129,7 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 		return nil
 	}
 
-	if ep.config.SamplingInterval > 0 && rGen.Int31n(ep.config.SamplingInterval) != 0 {
+	if ep.config.SamplingInterval > 0 && rand.Int31n(ep.config.SamplingInterval) != 0 {
 		return nil
 	}
 
