@@ -111,7 +111,7 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 	if user.Key == nil {
 		return nil, nil
 	}
-	events := make([]FeatureRequestEvent, 1)
+	events := make([]FeatureRequestEvent, 0)
 	visited := make(map[string]bool)
 	evalResultInternal, err := f.evaluateExplain(user, store, events, visited)
 	if evalResultInternal != nil {
