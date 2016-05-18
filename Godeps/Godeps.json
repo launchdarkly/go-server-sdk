@@ -8,7 +8,7 @@
 		},
 		{
 			"ImportPath": "github.com/gregjones/httpcache",
-			"Rev": "e3c27449581612aaef17e1ed7a35a6099fcaae3b"
+			"Rev": "ae1d6feaf2d3354cece07d7dcf420de6745ad7b6"
 		},
 		{
 			"ImportPath": "github.com/launchdarkly/eventsource",
