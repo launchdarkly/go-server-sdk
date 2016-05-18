@@ -1,0 +1,18 @@
+{
+	"ImportPath": "github.com/launchdarkly/go-client",
+	"GoVersion": "go1.5",
+	"Deps": [
+		{
+			"ImportPath": "github.com/facebookgo/httpcontrol",
+			"Rev": "ccde4420e1fee9af5da365cb76075b95683f39a6"
+		},
+		{
+			"ImportPath": "github.com/gregjones/httpcache",
+			"Rev": "ae1d6feaf2d3354cece07d7dcf420de6745ad7b6"
+		},
+		{
+			"ImportPath": "github.com/launchdarkly/eventsource",
+			"Rev": "7a80b789e2ea45aa2f320c59203c306e8ded8f06"
+		}
+	]
+}
