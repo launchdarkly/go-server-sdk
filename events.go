@@ -26,7 +26,7 @@ type Event interface {
 }
 
 type BaseEvent struct {
-	CreationDate float64 `json:"creationDate"`
+	CreationDate uint64 `json:"creationDate"`
 	Key          string `json:"key"`
 	Kind         string `json:"kind"`
 	User         User   `json:"user"`
@@ -231,8 +231,8 @@ func (evt IdentifyEvent) GetKind() string {
 	return evt.Kind
 }
 
-func now() float64 {
-	return float64(toUnixMillis(time.Now()))
+func now() uint64 {
+	return toUnixMillis(time.Now())
 }
 
 func toUnixMillis(t time.Time) uint64 {
