@@ -25,13 +25,13 @@ func TestGreaterThanOperator(t *testing.T) {
 }
 
 func TestParseNilTime(t *testing.T) {
-	if parseTime(nil) != nil {
+	if ParseTime(nil) != nil {
 		t.Errorf("Didn't get expected error when parsing nil date")
 	}
 }
 
 func TestParseInvalidTimestamp(t *testing.T) {
-	if parseTime("May 10, 1987") != nil {
+	if ParseTime("May 10, 1987") != nil {
 		t.Errorf("Didn't get expected error when parsing invalid timestamp")
 	}
 

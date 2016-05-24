@@ -1,9 +1,13 @@
 package httpcache
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -76,11 +80,30 @@ func (s *S) SetUpSuite(c *C) {
 		w.Header().Set("Vary", "Accept, Accept-Language")
 		w.Write([]byte("Some text content"))
 	}))
+	mux.HandleFunc("/2varyheaders", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "max-age=3600")
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Add("Vary", "Accept")
+		w.Header().Add("Vary", "Accept-Language")
+		w.Write([]byte("Some text content"))
+	}))
 	mux.HandleFunc("/varyunused", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "max-age=3600")
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("Vary", "X-Madeup-Header")
 		w.Write([]byte("Some text content"))
+	}))
+
+	updateFieldsCounter := 0
+	mux.HandleFunc("/updatefields", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Counter", strconv.Itoa(updateFieldsCounter))
+		w.Header().Set("Etag", `"e"`)
+		updateFieldsCounter++
+		if r.Header.Get("if-none-match") != "" {
+			w.WriteHeader(http.StatusNotModified)
+		} else {
+			w.Write([]byte("Some text content"))
+		}
 	}))
 }
 
@@ -230,6 +253,57 @@ func (s *S) TestGetWithDoubleVary(c *C) {
 	c.Assert(resp4.Header.Get(XFromCache), Equals, "")
 }
 
+func (s *S) TestGetWith2VaryHeaders(c *C) {
+	// Tests that multiple Vary headers' comma-separated lists are
+	// merged. See https://github.com/gregjones/httpcache/issues/27.
+	const (
+		accept         = "text/plain"
+		acceptLanguage = "da, en-gb;q=0.8, en;q=0.7"
+	)
+	req, err := http.NewRequest("GET", s.server.URL+"/2varyheaders", nil)
+	req.Header.Set("Accept", accept)
+	req.Header.Set("Accept-Language", acceptLanguage)
+	resp, err := s.client.Do(req)
+	defer resp.Body.Close()
+	c.Assert(err, IsNil)
+	c.Assert(resp.Header.Get("Vary"), Not(Equals), "")
+
+	resp2, err2 := s.client.Do(req)
+	defer resp2.Body.Close()
+	c.Assert(err2, IsNil)
+	c.Assert(resp2.Header.Get(XFromCache), Equals, "1")
+
+	req.Header.Set("Accept-Language", "")
+	resp3, err3 := s.client.Do(req)
+	defer resp3.Body.Close()
+	c.Assert(err3, IsNil)
+	c.Assert(resp3.Header.Get(XFromCache), Equals, "")
+
+	req.Header.Set("Accept-Language", "da")
+	resp4, err4 := s.client.Do(req)
+	defer resp4.Body.Close()
+	c.Assert(err4, IsNil)
+	c.Assert(resp4.Header.Get(XFromCache), Equals, "")
+
+	req.Header.Set("Accept-Language", acceptLanguage)
+	req.Header.Set("Accept", "")
+	resp5, err5 := s.client.Do(req)
+	defer resp5.Body.Close()
+	c.Assert(err5, IsNil)
+	c.Assert(resp5.Header.Get(XFromCache), Equals, "")
+
+	req.Header.Set("Accept", "image/png")
+	resp6, err6 := s.client.Do(req)
+	defer resp6.Body.Close()
+	c.Assert(err6, IsNil)
+	c.Assert(resp6.Header.Get(XFromCache), Equals, "")
+
+	resp7, err7 := s.client.Do(req)
+	defer resp7.Body.Close()
+	c.Assert(err7, IsNil)
+	c.Assert(resp7.Header.Get(XFromCache), Equals, "1")
+}
+
 func (s *S) TestGetVaryUnused(c *C) {
 	req, err := http.NewRequest("GET", s.server.URL+"/varyunused", nil)
 	req.Header.Set("Accept", "text/plain")
@@ -242,6 +316,22 @@ func (s *S) TestGetVaryUnused(c *C) {
 	defer resp2.Body.Close()
 	c.Assert(err2, IsNil)
 	c.Assert(resp2.Header.Get(XFromCache), Equals, "1")
+}
+
+func (s *S) TestUpdateFields(c *C) {
+	req, err := http.NewRequest("GET", s.server.URL+"/updatefields", nil)
+	resp, err := s.client.Do(req)
+	defer resp.Body.Close()
+	c.Assert(err, IsNil)
+	counter := resp.Header.Get("x-counter")
+
+	resp2, err2 := s.client.Do(req)
+	defer resp2.Body.Close()
+	c.Assert(err2, IsNil)
+	c.Assert(resp2.Header.Get(XFromCache), Equals, "1")
+	counter2 := resp2.Header.Get("x-counter")
+
+	c.Assert(counter, Not(Equals), counter2)
 }
 
 func (s *S) TestParseCacheControl(c *C) {
@@ -400,4 +490,208 @@ func (s *S) TestMaxStaleValue(c *C) {
 	clock = &fakeClock{elapsed: 30 * time.Second}
 
 	c.Assert(getFreshness(respHeaders, reqHeaders), Equals, stale)
+}
+
+func containsHeader(headers []string, header string) bool {
+	for _, v := range headers {
+		if http.CanonicalHeaderKey(v) == http.CanonicalHeaderKey(header) {
+			return true
+		}
+	}
+	return false
+}
+
+type containsHeaderChecker struct {
+	*CheckerInfo
+}
+
+func (c *containsHeaderChecker) Check(params []interface{}, names []string) (bool, string) {
+	items, ok := params[0].([]string)
+	if !ok {
+		return false, "Expected first param to be []string"
+	}
+	value, ok := params[1].(string)
+	if !ok {
+		return false, "Expected 2nd param to be string"
+	}
+	return containsHeader(items, value), ""
+}
+
+var ContainsHeader Checker = &containsHeaderChecker{&CheckerInfo{Name: "Contains", Params: []string{"Container", "expected to contain"}}}
+
+func (s *S) TestGetEndToEndHeaders(c *C) {
+	var (
+		headers http.Header
+		end2end []string
+	)
+
+	headers = http.Header{}
+	headers.Set("content-type", "text/html")
+	headers.Set("te", "deflate")
+
+	end2end = getEndToEndHeaders(headers)
+	c.Check(end2end, ContainsHeader, "content-type")
+	c.Check(end2end, Not(ContainsHeader), "te")
+
+	headers = http.Header{}
+	headers.Set("connection", "content-type")
+	headers.Set("content-type", "text/csv")
+	headers.Set("te", "deflate")
+	end2end = getEndToEndHeaders(headers)
+	c.Check(end2end, Not(ContainsHeader), "connection")
+	c.Check(end2end, Not(ContainsHeader), "content-type")
+	c.Check(end2end, Not(ContainsHeader), "te")
+
+	headers = http.Header{}
+	end2end = getEndToEndHeaders(headers)
+	c.Check(end2end, HasLen, 0)
+
+	headers = http.Header{}
+	headers.Set("connection", "content-type")
+	end2end = getEndToEndHeaders(headers)
+	c.Check(end2end, HasLen, 0)
+}
+
+type transportMock struct {
+	response *http.Response
+	err      error
+}
+
+func (t transportMock) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	return t.response, t.err
+}
+
+func (s *S) TestStaleIfErrorRequest(c *C) {
+	now := time.Now()
+	tmock := transportMock{
+		response: &http.Response{
+			Header: http.Header{
+				"Date":          []string{now.Format(time.RFC1123)},
+				"Cache-Control": []string{"no-cache"},
+			},
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte("some data"))),
+		},
+		err: nil,
+	}
+	t := NewMemoryCacheTransport()
+	t.Transport = &tmock
+
+	// First time, response is cached on success
+	r, _ := http.NewRequest("GET", "http://somewhere.com/", nil)
+	r.Header.Set("Cache-Control", "stale-if-error")
+	resp, err := t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// On failure, response is returned from the cache
+	tmock.response = nil
+	tmock.err = errors.New("some error")
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+}
+
+func (s *S) TestStaleIfErrorRequestLifetime(c *C) {
+	now := time.Now()
+	tmock := transportMock{
+		response: &http.Response{
+			Header: http.Header{
+				"Date":          []string{now.Format(time.RFC1123)},
+				"Cache-Control": []string{"no-cache"},
+			},
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte("some data"))),
+		},
+		err: nil,
+	}
+	t := NewMemoryCacheTransport()
+	t.Transport = &tmock
+
+	// First time, response is cached on success
+	r, _ := http.NewRequest("GET", "http://somewhere.com/", nil)
+	r.Header.Set("Cache-Control", "stale-if-error=100")
+	resp, err := t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// On failure, response is returned from the cache
+	tmock.response = nil
+	tmock.err = errors.New("some error")
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// Same for http errors
+	tmock.response = &http.Response{StatusCode: http.StatusInternalServerError}
+	tmock.err = nil
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// If failure last more than max stale, error is returned
+	clock = &fakeClock{elapsed: 200 * time.Second}
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, tmock.err)
+}
+
+func (s *S) TestStaleIfErrorResponse(c *C) {
+	now := time.Now()
+	tmock := transportMock{
+		response: &http.Response{
+			Header: http.Header{
+				"Date":          []string{now.Format(time.RFC1123)},
+				"Cache-Control": []string{"no-cache, stale-if-error"},
+			},
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte("some data"))),
+		},
+		err: nil,
+	}
+	t := NewMemoryCacheTransport()
+	t.Transport = &tmock
+
+	// First time, response is cached on success
+	r, _ := http.NewRequest("GET", "http://somewhere.com/", nil)
+	resp, err := t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// On failure, response is returned from the cache
+	tmock.response = nil
+	tmock.err = errors.New("some error")
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+}
+
+func (s *S) TestStaleIfErrorResponseLifetime(c *C) {
+	now := time.Now()
+	tmock := transportMock{
+		response: &http.Response{
+			Header: http.Header{
+				"Date":          []string{now.Format(time.RFC1123)},
+				"Cache-Control": []string{"no-cache, stale-if-error=100"},
+			},
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte("some data"))),
+		},
+		err: nil,
+	}
+	t := NewMemoryCacheTransport()
+	t.Transport = &tmock
+
+	// First time, response is cached on success
+	r, _ := http.NewRequest("GET", "http://somewhere.com/", nil)
+	resp, err := t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// On failure, response is returned from the cache
+	tmock.response = nil
+	tmock.err = errors.New("some error")
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, nil)
+	c.Assert(resp, NotNil)
+
+	// If failure last more than max stale, error is returned
+	clock = &fakeClock{elapsed: 200 * time.Second}
+	resp, err = t.RoundTrip(r)
+	c.Assert(err, Equals, tmock.err)
 }

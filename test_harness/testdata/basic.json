@@ -3,7 +3,8 @@
     "name": "Feature returns fallthrough",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "FallthroughValue",
         "expectError": false,
@@ -33,7 +34,8 @@
         },
         "offVariation": null,
         "variations": [
-          "FallthroughValue"
+          "FallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       }
@@ -43,7 +45,8 @@
     "name": "Feature off without offVariation returns default",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": false,
@@ -66,7 +69,8 @@
         },
         "offVariation": null,
         "variations": [
-          "FallthroughValue"
+          "FallthroughValue",
+          "AnotherValue"
         ],
         "deleted": false
       }
@@ -76,7 +80,8 @@
     "name": "Feature off with offVariation returns offVariation",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "OffVariation",
         "expectError": false,
@@ -110,7 +115,8 @@
     "name": "Feature deleted returns default",
     "featureKey": "validFeatureKey",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": true,
@@ -144,7 +150,8 @@
     "name": "Invalid feature key returns default",
     "featureKey": "INVALID",
     "defaultValue": "DefaultValue",
-    "usersAndExpectations": [
+    "valueType": "string",
+    "testCases": [
       {
         "expectedValue": "DefaultValue",
         "expectError": true,

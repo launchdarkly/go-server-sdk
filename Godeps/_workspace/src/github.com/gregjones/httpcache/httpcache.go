@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"strings"
@@ -88,6 +90,33 @@ func NewMemoryCache() *MemoryCache {
 	return c
 }
 
+// onEOFReader executes a function on reader EOF or close
+type onEOFReader struct {
+	rc io.ReadCloser
+	fn func()
+}
+
+func (r *onEOFReader) Read(p []byte) (n int, err error) {
+	n, err = r.rc.Read(p)
+	if err == io.EOF {
+		r.runFunc()
+	}
+	return
+}
+
+func (r *onEOFReader) Close() error {
+	err := r.rc.Close()
+	r.runFunc()
+	return err
+}
+
+func (r *onEOFReader) runFunc() {
+	if fn := r.fn; fn != nil {
+		fn()
+		r.fn = nil
+	}
+}
+
 // Transport is an implementation of http.RoundTripper that will return values from a cache
 // where possible (avoiding a network request) and will additionally add validators (etag/if-modified-since)
 // to repeated requests allowing servers to return 304 / Not Modified
@@ -98,6 +127,10 @@ type Transport struct {
 	Cache     Cache
 	// If true, responses returned from the cache will be given an extra header, X-From-Cache
 	MarkCachedResponses bool
+	// guards modReq
+	mu sync.RWMutex
+	// Mapping of original request => cloned
+	modReq map[*http.Request]*http.Request
 }
 
 // NewTransport returns a new Transport with the
@@ -114,14 +147,27 @@ func (t *Transport) Client() *http.Client {
 // varyMatches will return false unless all of the cached values for the headers listed in Vary
 // match the new request
 func varyMatches(cachedResp *http.Response, req *http.Request) bool {
-	respVarys := cachedResp.Header.Get("vary")
-	for _, header := range strings.Split(respVarys, ",") {
-		header = http.CanonicalHeaderKey(strings.Trim(header, " "))
+	for _, header := range headerAllCommaSepValues(cachedResp.Header, "vary") {
+		header = http.CanonicalHeaderKey(header)
 		if header != "" && req.Header.Get(header) != cachedResp.Header.Get("X-Varied-"+header) {
 			return false
 		}
 	}
 	return true
+}
+
+// setModReq maintains a mapping between original requests and their associated cloned requests
+func (t *Transport) setModReq(orig, mod *http.Request) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.modReq == nil {
+		t.modReq = make(map[*http.Request]*http.Request)
+	}
+	if mod == nil {
+		delete(t.modReq, orig)
+	} else {
+		t.modReq[orig] = mod
+	}
 }
 
 // RoundTrip takes a Request and returns a Response
@@ -133,7 +179,6 @@ func varyMatches(cachedResp *http.Response, req *http.Request) bool {
 // to give the server a chance to respond with NotModified. If this happens, then the cached Response
 // will be returned.
 func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
-	req = cloneRequest(req)
 	cacheKey := cacheKey(req)
 	cacheableMethod := req.Method == "GET" || req.Method == "HEAD"
 	var cachedResp *http.Response
@@ -162,14 +207,38 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 			}
 
 			if freshness == stale {
+				var req2 *http.Request
 				// Add validators if caller hasn't already done so
 				etag := cachedResp.Header.Get("etag")
 				if etag != "" && req.Header.Get("etag") == "" {
-					req.Header.Set("if-none-match", etag)
+					req2 = cloneRequest(req)
+					req2.Header.Set("if-none-match", etag)
 				}
 				lastModified := cachedResp.Header.Get("last-modified")
 				if lastModified != "" && req.Header.Get("last-modified") == "" {
-					req.Header.Set("if-modified-since", lastModified)
+					if req2 == nil {
+						req2 = cloneRequest(req)
+					}
+					req2.Header.Set("if-modified-since", lastModified)
+				}
+				if req2 != nil {
+					// Associate original request with cloned request so we can refer to
+					// it in CancelRequest()
+					t.setModReq(req, req2)
+					req = req2
+					defer func() {
+						// Release req/clone mapping on error
+						if err != nil {
+							t.setModReq(req, nil)
+						}
+						if resp != nil {
+							// Release req/clone mapping on body close/EOF
+							resp.Body = &onEOFReader{
+								rc: resp.Body,
+								fn: func() { t.setModReq(req, nil) },
+							}
+						}
+					}()
 				}
 			}
 		}
@@ -177,17 +246,21 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 		resp, err = transport.RoundTrip(req)
 		if err == nil && req.Method == "GET" && resp.StatusCode == http.StatusNotModified {
 			// Replace the 304 response with the one from cache, but update with some new headers
-			headersToMerge := getHopByHopHeaders(resp)
-			for _, headerKey := range headersToMerge {
-				key := http.CanonicalHeaderKey(headerKey)
-				if v, ok := resp.Header[key]; ok {
-					cachedResp.Header[key] = v
-				}
+			endToEndHeaders := getEndToEndHeaders(resp.Header)
+			for _, header := range endToEndHeaders {
+				cachedResp.Header[header] = resp.Header[header]
 			}
 			cachedResp.Status = fmt.Sprintf("%d %s", http.StatusOK, http.StatusText(http.StatusOK))
 			cachedResp.StatusCode = http.StatusOK
 
 			resp = cachedResp
+		} else if (err != nil || (cachedResp != nil && resp.StatusCode >= 500)) &&
+			req.Method == "GET" && canStaleOnError(cachedResp.Header, req.Header) {
+			// In case of transport failure and stale-if-error activated, returns cached content
+			// when available
+			cachedResp.Status = fmt.Sprintf("%d %s", http.StatusOK, http.StatusText(http.StatusOK))
+			cachedResp.StatusCode = http.StatusOK
+			return cachedResp, nil
 		} else {
 			if err != nil || resp.StatusCode != http.StatusOK {
 				t.Cache.Delete(cacheKey)
@@ -212,9 +285,8 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 	respCacheControl := parseCacheControl(resp.Header)
 
 	if canStore(reqCacheControl, respCacheControl) {
-		vary := resp.Header.Get("Vary")
-		for _, varyKey := range strings.Split(vary, ",") {
-			varyKey = http.CanonicalHeaderKey(strings.Trim(varyKey, " "))
+		for _, varyKey := range headerAllCommaSepValues(resp.Header, "vary") {
+			varyKey = http.CanonicalHeaderKey(varyKey)
 			fakeHeader := "X-Varied-" + varyKey
 			reqValue := req.Header.Get(varyKey)
 			if reqValue != "" {
@@ -229,6 +301,31 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 		t.Cache.Delete(cacheKey)
 	}
 	return resp, nil
+}
+
+// CancelRequest calls CancelRequest on the underlaying transport if implemented or
+// throw a warning otherwise.
+func (t *Transport) CancelRequest(req *http.Request) {
+	type canceler interface {
+		CancelRequest(*http.Request)
+	}
+	tr, ok := t.Transport.(canceler)
+	if !ok {
+		log.Printf("httpcache: Client Transport of type %T doesn't support CancelRequest; Timeout not supported", t.Transport)
+		return
+	}
+
+	t.mu.RLock()
+	if modReq, ok := t.modReq[req]; ok {
+		t.mu.RUnlock()
+		t.mu.Lock()
+		delete(t.modReq, req)
+		t.mu.Unlock()
+		tr.CancelRequest(modReq)
+	} else {
+		t.mu.RUnlock()
+		tr.CancelRequest(req)
+	}
 }
 
 // ErrNoDateHeader indicates that the HTTP headers contained no Date header.
@@ -347,17 +444,76 @@ func getFreshness(respHeaders, reqHeaders http.Header) (freshness int) {
 	return stale
 }
 
-func getHopByHopHeaders(resp *http.Response) []string {
-	// These headers are always hop-by-hop
-	headers := []string{"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade"}
+// Returns true if either the request or the response includes the stale-if-error
+// cache control extension: https://tools.ietf.org/html/rfc5861
+func canStaleOnError(respHeaders, reqHeaders http.Header) bool {
+	respCacheControl := parseCacheControl(respHeaders)
+	reqCacheControl := parseCacheControl(reqHeaders)
 
-	for _, extra := range strings.Split(resp.Header.Get("connection"), ",") {
-		// any header listed in connection, if present, is also considered hop-by-hop
-		if strings.Trim(extra, " ") != "" {
-			headers = append(headers, extra)
+	var err error
+	lifetime := time.Duration(-1)
+
+	if staleMaxAge, ok := respCacheControl["stale-if-error"]; ok {
+		if staleMaxAge != "" {
+			lifetime, err = time.ParseDuration(staleMaxAge + "s")
+			if err != nil {
+				return false
+			}
+		} else {
+			return true
 		}
 	}
-	return headers
+	if staleMaxAge, ok := reqCacheControl["stale-if-error"]; ok {
+		if staleMaxAge != "" {
+			lifetime, err = time.ParseDuration(staleMaxAge + "s")
+			if err != nil {
+				return false
+			}
+		} else {
+			return true
+		}
+	}
+
+	if lifetime >= 0 {
+		date, err := Date(respHeaders)
+		if err != nil {
+			return false
+		}
+		currentAge := clock.since(date)
+		if lifetime > currentAge {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getEndToEndHeaders(respHeaders http.Header) []string {
+	// These headers are always hop-by-hop
+	hopByHopHeaders := map[string]struct{}{
+		"Connection":          struct{}{},
+		"Keep-Alive":          struct{}{},
+		"Proxy-Authenticate":  struct{}{},
+		"Proxy-Authorization": struct{}{},
+		"Te":                struct{}{},
+		"Trailers":          struct{}{},
+		"Transfer-Encoding": struct{}{},
+		"Upgrade":           struct{}{},
+	}
+
+	for _, extra := range strings.Split(respHeaders.Get("connection"), ",") {
+		// any header listed in connection, if present, is also considered hop-by-hop
+		if strings.Trim(extra, " ") != "" {
+			hopByHopHeaders[http.CanonicalHeaderKey(extra)] = struct{}{}
+		}
+	}
+	endToEndHeaders := []string{}
+	for respHeader, _ := range respHeaders {
+		if _, ok := hopByHopHeaders[respHeader]; !ok {
+			endToEndHeaders = append(endToEndHeaders, respHeader)
+		}
+	}
+	return endToEndHeaders
 }
 
 func canStore(reqCacheControl, respCacheControl cacheControl) (canStore bool) {
@@ -413,6 +569,24 @@ func parseCacheControl(headers http.Header) cacheControl {
 		}
 	}
 	return cc
+}
+
+// headerAllCommaSepValues returns all comma-separated values (each
+// with whitespace trimmed) for header name in headers. According to
+// Section 4.2 of the HTTP/1.1 spec
+// (http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2),
+// values from multiple occurrences of a header should be concatenated, if
+// the header's value is a comma-separated list.
+func headerAllCommaSepValues(headers http.Header, name string) []string {
+	var vals []string
+	for _, val := range headers[http.CanonicalHeaderKey(name)] {
+		fields := strings.Split(val, ",")
+		for i, f := range fields {
+			fields[i] = strings.TrimSpace(f)
+		}
+		vals = append(vals, fields...)
+	}
+	return vals
 }
 
 // NewMemoryCacheTransport returns a new Transport using the in-memory cache implementation

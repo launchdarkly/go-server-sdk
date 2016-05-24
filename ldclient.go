@@ -223,7 +223,7 @@ func (client *LDClient) StringVariation(key string, user User, defaultVal string
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 func (client *LDClient) TimeVariation(key string, user User, defaultVal time.Time) (time.Time, error) {
 	value, err := client.variation(key, user, defaultVal, reflect.TypeOf(float64(0)))
-	result := parseTime(value)
+	result := ParseTime(value)
 	if result == nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, fmt.Errorf("Unable to parse %+v as time.Time", value)
@@ -237,13 +237,13 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-	value, err := client.evaluate(key, user, defaultVal)
+	value, err := client.Evaluate(key, user, defaultVal)
 
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
 	}
-	valueJsonRawMessage, err := toJsonRawMessage(value)
+	valueJsonRawMessage, err := ToJsonRawMessage(value)
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
@@ -258,7 +258,7 @@ func (client *LDClient) variation(key string, user User, defaultVal interface{},
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-	value, err := client.evaluate(key, user, defaultVal)
+	value, err := client.Evaluate(key, user, defaultVal)
 	if err != nil {
 		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
 		return defaultVal, err
@@ -281,7 +281,7 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 	return client.eventProcessor.sendEvent(evt)
 }
 
-func (client *LDClient) evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
+func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
 	if user.Key == nil {
 		return defaultVal, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
 	}

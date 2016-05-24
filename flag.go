@@ -25,7 +25,7 @@ type FeatureFlag struct {
 	Fallthrough   Rule           `json:"fallthrough" bson:"fallthrough"`
 	OffVariation  *int           `json:"offVariation" bson:"offVariation"`
 	Variations    []interface{}  `json:"variations" bson:"variations"`
-	Deleted       bool           `json:"deleted,omitempty" bson:"deleted"`
+	Deleted       bool           `json:"deleted" bson:"deleted"`
 }
 
 // Expresses a set of AND-ed matching conditions for a user, along with
@@ -111,7 +111,7 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 	if user.Key == nil {
 		return nil, nil
 	}
-	events := make([]FeatureRequestEvent, 1)
+	events := make([]FeatureRequestEvent, 0)
 	visited := make(map[string]bool)
 	evalResultInternal, err := f.evaluateExplain(user, store, events, visited)
 	if evalResultInternal != nil {
