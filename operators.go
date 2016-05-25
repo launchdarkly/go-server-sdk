@@ -6,17 +6,17 @@ import (
 )
 
 const (
-	operatorIn                 Operator = "in"
-	operatorEndsWith           Operator = "endsWith"
-	operatorStartsWith         Operator = "startsWith"
-	operatorMatches            Operator = "matches"
-	operatorContains           Operator = "contains"
-	operatorLessThan           Operator = "lessThan"
-	operatorLessThanOrEqual    Operator = "lessThanOrEqual"
-	operatorGreaterThan        Operator = "greaterThan"
-	operatorGreaterThanOrEqual Operator = "greaterThanOrEqual"
-	operatorBefore             Operator = "before"
-	operatorAfter              Operator = "after"
+	OperatorIn                 Operator = "in"
+	OperatorEndsWith           Operator = "endsWith"
+	OperatorStartsWith         Operator = "startsWith"
+	OperatorMatches            Operator = "matches"
+	OperatorContains           Operator = "contains"
+	OperatorLessThan           Operator = "lessThan"
+	OperatorLessThanOrEqual    Operator = "lessThanOrEqual"
+	OperatorGreaterThan        Operator = "greaterThan"
+	OperatorGreaterThanOrEqual Operator = "greaterThanOrEqual"
+	OperatorBefore             Operator = "before"
+	OperatorAfter              Operator = "after"
 )
 
 type opFn (func(interface{}, interface{}) bool)
@@ -24,17 +24,17 @@ type opFn (func(interface{}, interface{}) bool)
 type Operator string
 
 var allOps = map[Operator]opFn{
-	operatorIn:                 operatorInFn,
-	operatorEndsWith:           operatorEndsWithFn,
-	operatorStartsWith:         operatorStartsWithFn,
-	operatorMatches:            operatorMatchesFn,
-	operatorContains:           operatorContainsFn,
-	operatorLessThan:           operatorLessThanFn,
-	operatorLessThanOrEqual:    operatorLessThanOrEqualFn,
-	operatorGreaterThan:        operatorGreaterThanFn,
-	operatorGreaterThanOrEqual: operatorGreaterThanOrEqualFn,
-	operatorBefore:             operatorBeforeFn,
-	operatorAfter:              operatorAfterFn,
+	OperatorIn:                 operatorInFn,
+	OperatorEndsWith:           operatorEndsWithFn,
+	OperatorStartsWith:         operatorStartsWithFn,
+	OperatorMatches:            operatorMatchesFn,
+	OperatorContains:           operatorContainsFn,
+	OperatorLessThan:           operatorLessThanFn,
+	OperatorLessThanOrEqual:    operatorLessThanOrEqualFn,
+	OperatorGreaterThan:        operatorGreaterThanFn,
+	OperatorGreaterThanOrEqual: operatorGreaterThanOrEqualFn,
+	OperatorBefore:             operatorBeforeFn,
+	OperatorAfter:              operatorAfterFn,
 }
 
 // Turn this into a static map
