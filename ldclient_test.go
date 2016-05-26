@@ -71,16 +71,6 @@ func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 		t.Errorf("Offline mode should return default value, but doesn't")
 	}
 
-	//TimeVariation
-	expectedTime := time.Now()
-	actualTime, err := client.TimeVariation("featureKey", user, expectedTime)
-	if err != nil {
-		t.Errorf("Unexpected error in TimeVariation: %+v", err)
-	}
-	if !actualTime.Equal(expectedTime) {
-		t.Errorf("Offline mode should return default value (%+v), instead got: %+v", expectedTime, actualTime)
-	}
-
 	//JsonVariation
 	expectedJsonString := `{"fieldName":"fieldValue"}`
 	expectedJson := json.RawMessage([]byte(expectedJsonString))
@@ -158,28 +148,6 @@ func TestFloat64Variation(t *testing.T) {
 	}
 }
 
-func TestTimeVariation(t *testing.T) {
-	expected := 100.0
-	expectedTime := unixMillisToUtcTime(expected)
-
-	variations := make([]interface{}, 2)
-	variations[0] = 10.0
-	variations[1] = expected
-
-	client := makeClientWithFeatureFlag(variations)
-	defer client.Close()
-
-	userKey := "userKey"
-	actual, err := client.TimeVariation("validFeatureKey", User{Key: &userKey}, time.Now())
-
-	if err != nil {
-		t.Errorf("Unexpected error when calling TimeVariation: %+v", err)
-	}
-	if !actual.Equal(expectedTime) {
-		t.Errorf("Got unexpected result when calling TimeVariation: %+v but expected: %+v", actual, expectedTime)
-	}
-}
-
 func TestJsonVariation(t *testing.T) {
 	expectedJsonString := `{"jsonFieldName2":"fallthroughValue"}`
 
@@ -233,10 +201,10 @@ func featureFlagWithVariations(variations []interface{}) FeatureFlag {
 	fallThroughVariation := 1
 
 	return FeatureFlag{
-		Key:     "validFeatureKey",
-		Version: 1,
-		On:      true,
-		Fallthrough:  Rule{Variation: &fallThroughVariation},
-		Variations:   variations,
+		Key:         "validFeatureKey",
+		Version:     1,
+		On:          true,
+		Fallthrough: Rule{Variation: &fallThroughVariation},
+		Variations:  variations,
 	}
 }

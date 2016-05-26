@@ -99,12 +99,7 @@ type EvalResult struct {
 	Value                     interface{}
 	Explanation               *Explanation
 	PrerequisiteRequestEvents []FeatureRequestEvent //to be sent to LD
-}
-
-//struct only used in this file to allow for cycle detection in prereqs.
-type evalResultInternal struct {
-	EvalResult
-	visitedFeatureKeys map[string]bool
+	visitedFeatureKeys        map[string]bool
 }
 
 func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult, error) {
@@ -113,14 +108,10 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 	}
 	events := make([]FeatureRequestEvent, 0)
 	visited := make(map[string]bool)
-	evalResultInternal, err := f.evaluateExplain(user, store, events, visited)
-	if evalResultInternal != nil {
-		return &evalResultInternal.EvalResult, err
-	}
-	return nil, err
+	return f.evaluateExplain(user, store, events, visited)
 }
 
-func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []FeatureRequestEvent, visited map[string]bool) (*evalResultInternal, error) {
+func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []FeatureRequestEvent, visited map[string]bool) (*EvalResult, error) {
 	var failedPrereq *Prerequisite
 	for _, prereq := range f.Prerequisites {
 		visited[f.Key] = true
@@ -159,11 +150,11 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []Fea
 			Kind:         "prerequisite",
 			Prerequisite: failedPrereq} //return the last prereq to fail
 
-		return &evalResultInternal{EvalResult{nil, &explanation, events}, visited}, nil
+		return &EvalResult{nil, &explanation, events, visited}, nil
 	}
 
 	index, explanation := f.evaluateExplainIndex(user)
-	return &evalResultInternal{EvalResult{f.getVariation(index), explanation, events}, visited}, nil
+	return &EvalResult{f.getVariation(index), explanation, events, visited}, nil
 }
 
 func (f FeatureFlag) getVariation(index *int) interface{} {
