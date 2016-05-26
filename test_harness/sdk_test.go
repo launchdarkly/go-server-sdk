@@ -13,7 +13,7 @@ const (
 	TestDataPath = "./testdata"
 )
 
-func TestSdk(t *testing.T) {
+func TestPrerequisiteCycleDetection(t *testing.T) {
 	allTestData, err := LoadTestData(TestDataPath)
 	if err != nil {
 		t.Fatalf("Error loading test data: %+v", err)
