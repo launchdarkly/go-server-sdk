@@ -219,18 +219,6 @@ func (client *LDClient) StringVariation(key string, user User, defaultVal string
 	return result, err
 }
 
-// Returns the value of a feature flag (whose variations are timestamps) for the given user.
-// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
-func (client *LDClient) TimeVariation(key string, user User, defaultVal time.Time) (time.Time, error) {
-	value, err := client.variation(key, user, defaultVal, reflect.TypeOf(float64(0)))
-	result := ParseTime(value)
-	if result == nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
-		return defaultVal, fmt.Errorf("Unable to parse %+v as time.Time", value)
-	}
-	return *result, err
-}
-
 // Returns the value of a feature flag (whose variations are JSON) for the given user.
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 func (client *LDClient) JsonVariation(key string, user User, defaultVal json.RawMessage) (json.RawMessage, error) {
