@@ -20,6 +20,7 @@ type TestCase struct {
 }
 
 type EvalFeatureRequest struct {
+	Type         string        `json:"type"`
 	User         ldclient.User `json:"user"`
 	DefaultValue interface{}   `json:"defaultValue"`
 }
