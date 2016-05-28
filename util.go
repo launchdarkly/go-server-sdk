@@ -2,14 +2,13 @@ package ldclient
 
 import (
 	"reflect"
-	"strconv"
 	"time"
 	"encoding/json"
 	"fmt"
 )
 
 // Converts any of the following into a pointer to a time.Time value:
-//   RFC3339/ISO8601 timestamp (example: 2006-01-02T15:04:05.999Z07:00)
+//   RFC3339/ISO8601 timestamp (example: 2016-04-16T17:09:12.759-07:00)
 //   Unix epoch milliseconds as string
 //   Unix milliseconds as number
 // Passing in a time.Time value will return a pointer to the input value.
@@ -51,11 +50,6 @@ func ParseFloat64(input interface{}) *float64 {
 	switch typedInput := input.(type) {
 	case float64:
 		return &typedInput
-	case string:
-		inputFloat64, err := strconv.ParseFloat(typedInput, 64)
-		if err == nil {
-			return &inputFloat64
-		}
 	default:
 		float64Type := reflect.TypeOf(float64(0))
 		v := reflect.ValueOf(input)

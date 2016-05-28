@@ -48,20 +48,7 @@ func TestPrerequisiteCycleDetection(t *testing.T) {
 		t.Logf("\tFound %d test cases to evaluate", len(s.TestCases))
 		for _, testCase := range s.TestCases {
 			userOk := true
-			result, err := client.Evaluate(s.FeatureKey, testCase.User, s.DefaultValue)
-			if err != nil {
-				if !testCase.ExpectError {
-					userOk = false
-					t.Errorf("\tERROR: Unexpected error: %+v", err)
-				} else {
-					t.Logf("\tGot Expected Error: %+v", err)
-				}
-			} else {
-				if testCase.ExpectError {
-					userOk = false
-					t.Error("\tFAIL: Didn't get expected error")
-				}
-			}
+			result, _ := client.Evaluate(s.FeatureKey, testCase.User, s.DefaultValue)
 			if result != testCase.ExpectedValue {
 				userOk = false
 				t.Errorf("\tFAIL: Expected value: %+v. Instead got: %+v", testCase.ExpectedValue, result)

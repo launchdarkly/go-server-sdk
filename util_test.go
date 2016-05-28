@@ -12,8 +12,6 @@ func TestParseDateZero(t *testing.T) {
 	testParseTime(t, expected, expected)
 	testParseTime(t, 0, expected)
 	testParseTime(t, 0.0, expected)
-	testParseTime(t, "0", expected)
-	testParseTime(t, "0.0", expected)
 	testParseTime(t, expectedTimeStamp, expected)
 }
 
@@ -23,8 +21,6 @@ func TestParseUtcTimestamp(t *testing.T) {
 	testParseTime(t, expected, expected)
 	testParseTime(t, 1460847451684, expected)
 	testParseTime(t, 1460847451684.0, expected)
-	testParseTime(t, "1460847451684", expected)
-	testParseTime(t, "1460847451684.0", expected)
 	testParseTime(t, expectedTimeStamp, expected)
 }
 
@@ -34,8 +30,6 @@ func TestParseTimezone(t *testing.T) {
 	testParseTime(t, expected, expected)
 	testParseTime(t, 1460851752759, expected)
 	testParseTime(t, 1460851752759.0, expected)
-	testParseTime(t, "1460851752759", expected)
-	testParseTime(t, "1460851752759.0", expected)
 	testParseTime(t, expectedTimeStamp, expected)
 }
 
@@ -45,8 +39,6 @@ func TestParseTimezoneNoMillis(t *testing.T) {
 	testParseTime(t, expected, expected)
 	testParseTime(t, 1460851752000, expected)
 	testParseTime(t, 1460851752000.0, expected)
-	testParseTime(t, "1460851752000", expected)
-	testParseTime(t, "1460851752000.0", expected)
 	testParseTime(t, expectedTimeStamp, expected)
 }
 
@@ -56,8 +48,6 @@ func TestParseTimestampBeforeEpoch(t *testing.T) {
 	testParseTime(t, expected, expected)
 	testParseTime(t, -123456, expected)
 	testParseTime(t, -123456.0, expected)
-	testParseTime(t, "-123456", expected)
-	testParseTime(t, "-123456.0", expected)
 	testParseTime(t, expectedTimeStamp, expected)
 }
 
@@ -74,17 +64,14 @@ func testParseTime(t *testing.T, input interface{}, expected time.Time) {
 }
 
 func TestParseFloat64(t *testing.T) {
-	testParseFloat64(t, "123", 123.0)
 	testParseFloat64(t, 123, 123.0)
 	testParseFloat64(t, 123.0, 123.0)
 
-	testParseFloat64(t, "-20", -20.0)
-	testParseFloat64(t, "-20.0", -20.0)
+	testParseFloat64(t, -20, -20.0)
 	testParseFloat64(t, -20.0, -20.0)
 
 	testParseFloat64(t, 4e-2, .04)
-	testParseFloat64(t, "4e-2", .04)
-	testParseFloat64(t, "4.0e-2", .04)
+	testParseFloat64(t, 4.0e-2, .04)
 }
 
 func testParseFloat64(t *testing.T, input interface{}, expected float64) {
@@ -106,6 +93,7 @@ func TestParseBadNumber(t *testing.T) {
 	testParseBadNumber(t, nil)
 	testParseBadNumber(t, "1,000.0")
 	testParseBadNumber(t, "$1000")
+	testParseBadNumber(t, "1000")
 }
 
 func testParseBadNumber(t *testing.T, input interface{}) {

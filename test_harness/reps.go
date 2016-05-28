@@ -15,12 +15,11 @@ type Scenario struct {
 
 type TestCase struct {
 	ExpectedValue interface{}   `json:"expectedValue"`
-	ExpectError   bool          `json:"expectError"`
 	User          ldclient.User `json:"user"`
 }
 
 type EvalFeatureRequest struct {
-	Type         string        `json:"type"`
+	ValueType    string        `json:"valueType"`
 	User         ldclient.User `json:"user"`
 	DefaultValue interface{}   `json:"defaultValue"`
 }
