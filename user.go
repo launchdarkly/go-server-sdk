@@ -41,6 +41,10 @@ func (user User) valueOf(attr string) (interface{}, bool) {
 		if user.Key != nil {
 			return *user.Key, false
 		}
+	} else if attr == "secondary" {
+		if user.Secondary != nil {
+			return *user.Secondary, false
+		}
 	} else if attr == "ip" {
 		if user.Ip != nil {
 			return *user.Ip, false
