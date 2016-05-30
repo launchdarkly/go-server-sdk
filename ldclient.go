@@ -89,15 +89,14 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	config.EventsUri = strings.TrimRight(config.EventsUri, "/")
+	if config.PollInterval < (1 * time.Second) {
+		config.PollInterval = 1 * time.Second
+	}
 
 	requestor := newRequestor(apiKey, config)
 
 	if config.FeatureStore == nil {
 		config.FeatureStore = NewInMemoryFeatureStore()
-	}
-
-	if config.PollInterval < (1 * time.Second) {
-		config.PollInterval = 1 * time.Second
 	}
 
 	store = config.FeatureStore
