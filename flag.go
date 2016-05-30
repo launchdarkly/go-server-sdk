@@ -135,12 +135,12 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []Fea
 			prereqValue = prereqEvalResult.Value
 			visited = prereqEvalResult.visitedFeatureKeys
 			events = prereqEvalResult.PrerequisiteRequestEvents
+			//TODO: something to indicate this feature request event was made when resolving prereqs.
+			events = append(events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
+			if prereqValue == nil || prereqValue != prereqFeatureFlag.getVariation(&prereq.Variation) {
+				failedPrereq = &prereq
+			}
 		} else {
-			prereqValue = prereqFeatureFlag.getVariation(prereqFeatureFlag.OffVariation)
-		}
-		//TODO: something to indicate this feature request event was made when resolving prereqs.
-		events = append(events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
-		if prereqValue == nil || prereqValue != prereqFeatureFlag.getVariation(&prereq.Variation) {
 			failedPrereq = &prereq
 		}
 	}
