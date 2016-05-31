@@ -9,7 +9,7 @@ func TestVariationIndexForUser(t *testing.T) {
 	wv1 := WeightedVariation{Variation: 0, Weight: 60000.0}
 	wv2 := WeightedVariation{Variation: 1, Weight: 40000.0}
 	rollout := Rollout{Variations: []WeightedVariation{wv1, wv2}}
-	rule := Rule{Rollout: &rollout}
+	rule := Rule{VariationOrRollout: VariationOrRollout{Rollout: &rollout}}
 
 	userKey := "userKeyA"
 	variationIndex := rule.variationIndexForUser(User{Key: &userKey}, "hashKey", "saltyA")

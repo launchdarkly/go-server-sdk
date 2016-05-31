@@ -62,7 +62,7 @@ func newFlagWithPrereq(key string, prereq string) FeatureFlag {
 		Key:           key,
 		On:            true,
 		Prerequisites: []Prerequisite{Prerequisite{Key: prereq, Variation: 0}},
-		Fallthrough:   Rule{Variation: &fallthroughVariation},
+		Fallthrough:   VariationOrRollout{Variation: &fallthroughVariation},
 		Variations:    []interface{}{"a", "b"},
 	}
 }

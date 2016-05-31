@@ -14,26 +14,30 @@ const (
 )
 
 type FeatureFlag struct {
-	Key           string         `json:"key" bson:"key"`
-	Version       int            `json:"version" bson:"version"`
-	On            bool           `json:"on" bson:"on"`
-	Prerequisites []Prerequisite `json:"prerequisites" bson:"prerequisites"`
-	Salt          string         `json:"salt" bson:"salt"`
-	Sel           string         `json:"sel" bson:"sel"`
-	Targets       []Target       `json:"targets" bson:"targets"`
-	Rules         []Rule         `json:"rules" bson:"rules"`
-	Fallthrough   Rule           `json:"fallthrough" bson:"fallthrough"`
-	OffVariation  *int           `json:"offVariation" bson:"offVariation"`
-	Variations    []interface{}  `json:"variations" bson:"variations"`
-	Deleted       bool           `json:"deleted" bson:"deleted"`
+	Key           string             `json:"key" bson:"key"`
+	Version       int                `json:"version" bson:"version"`
+	On            bool               `json:"on" bson:"on"`
+	Prerequisites []Prerequisite     `json:"prerequisites" bson:"prerequisites"`
+	Salt          string             `json:"salt" bson:"salt"`
+	Sel           string             `json:"sel" bson:"sel"`
+	Targets       []Target           `json:"targets" bson:"targets"`
+	Rules         []Rule             `json:"rules" bson:"rules"`
+	Fallthrough   VariationOrRollout `json:"fallthrough" bson:"fallthrough"`
+	OffVariation  *int               `json:"offVariation" bson:"offVariation"`
+	Variations    []interface{}      `json:"variations" bson:"variations"`
+	Deleted       bool               `json:"deleted" bson:"deleted"`
 }
 
-// Expresses a set of AND-ed matching conditions for a user, along with
-// either the fixed variation or percent rollout to serve if the conditions
-// match.
-// Invariant: one of the variation or rollout must be non-nil.
+// Expresses a set of AND-ed matching conditions for a user, along with either a fixed
+// variation or a set of rollout percentages
 type Rule struct {
-	Clauses   []Clause `json:"clauses" bson:"clauses"`
+	VariationOrRollout
+	Clauses []Clause `json:"clauses" bson:"clauses"`
+}
+
+// Contains either the fixed variation or percent rollout to serve.
+// Invariant: one of the variation or rollout must be non-nil.
+type VariationOrRollout struct {
 	Variation *int     `json:"variation,omitempty" bson:"variation,omitempty"`
 	Rollout   *Rollout `json:"rollout,omitempty" bson:"rollout,omitempty"`
 }
@@ -62,10 +66,11 @@ type Target struct {
 
 // An explanation is either a target or a rule or a prerequisite that wasn't met
 type Explanation struct {
-	Kind          string `json:"kind" bson:"kind"`
-	*Target       `json:"target,omitempty"`
-	*Rule         `json:"rule,omitempty"`
-	*Prerequisite `json:"prerequisite,omitempty"`
+	Kind                string `json:"kind" bson:"kind"`
+	*Target             `json:"target,omitempty"`
+	*Rule               `json:"rule,omitempty"`
+	*Prerequisite       `json:"prerequisite,omitempty"`
+	*VariationOrRollout `json:"fallthrough, omitempty"`
 }
 
 type Prerequisite struct {
@@ -190,16 +195,13 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 		}
 	}
 
-	// Walk through the fallthrough and see if it matches
-	var fallThroughVariationForUser *int
-	if f.Fallthrough.matchesUser(user) {
-		fallThroughVariationForUser = f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
-	}
-	if fallThroughVariationForUser == nil {
+	variation := f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
+
+	if variation == nil {
 		return nil, nil
 	} else {
-		explanation := Explanation{Kind: "fallthrough", Rule: &f.Fallthrough}
-		return fallThroughVariationForUser, &explanation
+		explanation := Explanation{Kind: "fallthrough", VariationOrRollout: &f.Fallthrough}
+		return variation, &explanation
 	}
 }
 
@@ -254,7 +256,7 @@ func matchAny(fn opFn, value interface{}, values []interface{}) bool {
 	return false
 }
 
-func (r Rule) variationIndexForUser(user User, key, salt string) *int {
+func (r VariationOrRollout) variationIndexForUser(user User, key, salt string) *int {
 	if r.Variation != nil {
 		return r.Variation
 	} else if r.Rollout != nil {
