@@ -191,13 +191,15 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	}
 
 	// Walk through the fallthrough and see if it matches
-	variation := f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
-
-	if variation == nil {
+	var fallThroughVariationForUser *int
+	if f.Fallthrough.matchesUser(user) {
+		fallThroughVariationForUser = f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
+	}
+	if fallThroughVariationForUser == nil {
 		return nil, nil
 	} else {
 		explanation := Explanation{Kind: "fallthrough", Rule: &f.Fallthrough}
-		return variation, &explanation
+		return fallThroughVariationForUser, &explanation
 	}
 }
 
