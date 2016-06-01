@@ -31,8 +31,8 @@ type FeatureFlag struct {
 // Expresses a set of AND-ed matching conditions for a user, along with either a fixed
 // variation or a set of rollout percentages
 type Rule struct {
-	VariationOrRollout
-	Clauses []Clause `json:"clauses" bson:"clauses"`
+	VariationOrRollout `bson:",inline"`
+	Clauses            []Clause `json:"clauses" bson:"clauses"`
 }
 
 // Contains either the fixed variation or percent rollout to serve.
@@ -64,13 +64,13 @@ type Target struct {
 	Variation int      `json:"variation" bson:"variation"`
 }
 
-// An explanation is either a target or a rule or a prerequisite that wasn't met
+// An explanation is one of: target, rule, prerequisite that wasn't met, or fallthrough rollout/variation
 type Explanation struct {
 	Kind                string `json:"kind" bson:"kind"`
 	*Target             `json:"target,omitempty"`
 	*Rule               `json:"rule,omitempty"`
 	*Prerequisite       `json:"prerequisite,omitempty"`
-	*VariationOrRollout `json:"fallthrough, omitempty"`
+	*VariationOrRollout `json:"fallthrough,omitempty"`
 }
 
 type Prerequisite struct {
