@@ -93,6 +93,7 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 				sp.setInitializedOnce.Do(func() {
 					sp.config.Logger.Printf("Started LaunchDarkly streaming client")
 					sp.isInitialized = true
+					ch <- true
 				})
 			}
 		case deleteEvent:
