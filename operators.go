@@ -23,6 +23,24 @@ type opFn (func(interface{}, interface{}) bool)
 
 type Operator string
 
+var OpsList = []Operator{
+	OperatorIn,
+	OperatorEndsWith,
+	OperatorStartsWith,
+	OperatorMatches,
+	OperatorContains,
+	OperatorLessThan,
+	OperatorLessThanOrEqual,
+	OperatorGreaterThan,
+	OperatorGreaterThanOrEqual,
+	OperatorBefore,
+	OperatorAfter,
+}
+
+func (op Operator) Name() string {
+	return string(op)
+}
+
 var allOps = map[Operator]opFn{
 	OperatorIn:                 operatorInFn,
 	OperatorEndsWith:           operatorEndsWithFn,
