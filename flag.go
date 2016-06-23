@@ -104,7 +104,6 @@ type EvalResult struct {
 	Value                     interface{}
 	Explanation               *Explanation
 	PrerequisiteRequestEvents []FeatureRequestEvent //to be sent to LD
-	visitedFeatureKeys        map[string]bool
 }
 
 func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult, error) {
@@ -113,35 +112,37 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 	}
 	events := make([]FeatureRequestEvent, 0)
 	visited := make(map[string]bool)
-	return f.evaluateExplain(user, store, events, visited)
+	value, explanation, err := f.evaluateExplain(user, store, &events, visited)
+
+	return &EvalResult{
+		Value:                     value,
+		Explanation:               explanation,
+		PrerequisiteRequestEvents: events,
+	}, err
 }
 
-func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []FeatureRequestEvent, visited map[string]bool) (*EvalResult, error) {
+func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]FeatureRequestEvent, visited map[string]bool) (interface{}, *Explanation, error) {
 	var failedPrereq *Prerequisite
 	for _, prereq := range f.Prerequisites {
 		visited[f.Key] = true
 		if _, ok := visited[prereq.Key]; ok {
 			//TODO: ok to skip sending actual EvalResult in these error cases?
-			return nil, fmt.Errorf("Cycle detected in prerequisites when evaluating feature key: %s", prereq.Key)
+			return nil, nil, fmt.Errorf("Cycle detected in prerequisites when evaluating feature key: %s", prereq.Key)
 		}
 		prereqFeatureFlag, err := store.Get(prereq.Key)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if prereqFeatureFlag == nil {
-			return nil, fmt.Errorf("Prerequisite feature flag not found: %+v", prereq.Key)
+			return nil, nil, fmt.Errorf("Prerequisite feature flag not found: %+v", prereq.Key)
 		}
-		var prereqValue interface{}
 		if prereqFeatureFlag.On {
-			prereqEvalResult, err := prereqFeatureFlag.evaluateExplain(user, store, events, visited)
+			prereqValue, _, err := prereqFeatureFlag.evaluateExplain(user, store, events, visited)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			prereqValue = prereqEvalResult.Value
-			visited = prereqEvalResult.visitedFeatureKeys
-			events = prereqEvalResult.PrerequisiteRequestEvents
-			//TODO: something to indicate this feature request event was made when resolving prereqs.
-			events = append(events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
+
+			*events = append(*events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
 			if prereqValue == nil || prereqValue != prereqFeatureFlag.getVariation(&prereq.Variation) {
 				failedPrereq = &prereq
 			}
@@ -155,11 +156,11 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events []Fea
 			Kind:         "prerequisite",
 			Prerequisite: failedPrereq} //return the last prereq to fail
 
-		return &EvalResult{nil, &explanation, events, visited}, nil
+		return nil, &explanation, nil
 	}
 
 	index, explanation := f.evaluateExplainIndex(user)
-	return &EvalResult{f.getVariation(index), explanation, events, visited}, nil
+	return f.getVariation(index), explanation, nil
 }
 
 func (f FeatureFlag) getVariation(index *int) interface{} {
