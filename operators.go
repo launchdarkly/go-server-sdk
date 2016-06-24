@@ -73,13 +73,6 @@ func operatorInFn(uValue interface{}, cValue interface{}) bool {
 		return true
 	}
 
-	uTime := ParseTime(uValue)
-	if uTime != nil {
-		cTime := ParseTime(cValue)
-		if cTime != nil {
-			return uTime.Equal(*cTime)
-		}
-	}
 	return false
 }
 
