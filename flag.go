@@ -3,6 +3,7 @@ package ldclient
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -137,7 +138,8 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 			}
 
 			*events = append(*events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
-			if prereqValue == nil || prereqValue != prereqFeatureFlag.getVariation(&prereq.Variation) {
+			variation, verr := prereqFeatureFlag.getVariation(&prereq.Variation)
+			if prereqValue == nil || verr != nil || prereqValue != variation {
 				failedPrereq = &prereq
 			}
 		} else {
@@ -154,14 +156,22 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 	}
 
 	index, explanation := f.evaluateExplainIndex(user)
-	return f.getVariation(index), explanation, nil
+	variation, verr := f.getVariation(index)
+
+	if verr != nil {
+		return nil, explanation, verr
+	}
+	return variation, explanation, nil
 }
 
-func (f FeatureFlag) getVariation(index *int) interface{} {
+func (f FeatureFlag) getVariation(index *int) (interface{}, error) {
+	if index == nil {
+		return nil, nil
+	}
 	if index == nil || *index >= len(f.Variations) {
-		return nil
+		return nil, errors.New("Invalid variation index")
 	} else {
-		return f.Variations[*index]
+		return f.Variations[*index], nil
 	}
 }
 

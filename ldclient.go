@@ -310,7 +310,7 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 		if evalResult.Value != nil {
 			return evalResult.Value, nil
 		}
-		return defaultVal, nil
+		// If the value is nil, but the error is not, fall through and use the off variation
 	}
 
 	if feature.OffVariation != nil && *feature.OffVariation < len(feature.Variations) {
