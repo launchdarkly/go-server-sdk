@@ -4,7 +4,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -125,16 +124,14 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 	var failedPrereq *Prerequisite
 	for _, prereq := range f.Prerequisites {
 		prereqFeatureFlag, err := store.Get(prereq.Key)
-		if err != nil {
-			return nil, nil, err
-		}
-		if prereqFeatureFlag == nil {
-			return nil, nil, fmt.Errorf("Prerequisite feature flag not found: %+v", prereq.Key)
+		if err != nil || prereqFeatureFlag == nil {
+			failedPrereq = &prereq
+			break
 		}
 		if prereqFeatureFlag.On {
 			prereqValue, _, err := prereqFeatureFlag.evaluateExplain(user, store, events)
 			if err != nil {
-				return nil, nil, err
+				failedPrereq = &prereq
 			}
 
 			*events = append(*events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
