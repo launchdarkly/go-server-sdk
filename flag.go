@@ -132,7 +132,6 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 			prereqValue, _, err := prereqFeatureFlag.evaluateExplain(user, store, events)
 			if err != nil {
 				failedPrereq = &prereq
-				break
 			}
 
 			*events = append(*events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
@@ -142,14 +141,13 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 			}
 		} else {
 			failedPrereq = &prereq
-			break
 		}
 	}
 
 	if failedPrereq != nil {
 		explanation := Explanation{
 			Kind:         "prerequisite",
-			Prerequisite: failedPrereq} //return the first prereq to fail
+			Prerequisite: failedPrereq} //return the last prereq to fail
 
 		return nil, &explanation, nil
 	}
