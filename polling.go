@@ -54,7 +54,7 @@ func (pp *pollingProcessor) start(ch chan<- bool) {
 }
 
 func (pp *pollingProcessor) poll() error {
-	features, cached, err := pp.requestor.requestAllFlags(true)
+	features, cached, err := pp.requestor.requestAllFlags()
 
 	if err != nil {
 		return err
