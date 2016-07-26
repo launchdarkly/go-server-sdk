@@ -31,6 +31,7 @@ func (pp *pollingProcessor) start(ch chan<- bool) {
 		for {
 			select {
 			case <-pp.quit:
+				pp.config.Logger.Printf("Polling Processor closed.")
 				return
 			default:
 				then := time.Now()
@@ -68,6 +69,7 @@ func (pp *pollingProcessor) poll() error {
 }
 
 func (pp *pollingProcessor) close() {
+	pp.config.Logger.Printf("Closing Polling Processor")
 	pp.quit <- true
 }
 

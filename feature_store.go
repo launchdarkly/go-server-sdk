@@ -1,6 +1,8 @@
 package ldclient
 
 import (
+	"log"
+	"os"
 	"sync"
 )
 
@@ -25,13 +27,18 @@ type InMemoryFeatureStore struct {
 	features      map[string]*FeatureFlag
 	isInitialized bool
 	sync.RWMutex
+	logger *log.Logger
 }
 
 // Creates a new in-memory FeatureStore instance.
-func NewInMemoryFeatureStore() *InMemoryFeatureStore {
+func NewInMemoryFeatureStore(logger *log.Logger) *InMemoryFeatureStore {
+	if logger == nil {
+		logger = log.New(os.Stderr, "[LaunchDarkly InMemoryFeatureStore]", log.LstdFlags)
+	}
 	return &InMemoryFeatureStore{
 		features:      make(map[string]*FeatureFlag),
 		isInitialized: false,
+		logger:        logger,
 	}
 }
 
@@ -40,7 +47,11 @@ func (store *InMemoryFeatureStore) Get(key string) (*FeatureFlag, error) {
 	defer store.RUnlock()
 	f := store.features[key]
 
-	if f == nil || f.Deleted {
+	if f == nil {
+		store.logger.Printf("WARN: Feature flag not found in store. Key: %s", key)
+		return nil, nil
+	} else if f.Deleted {
+		store.logger.Printf("WARN: Attempted to get deleted feature flag. Key: %s", key)
 		return nil, nil
 	} else {
 		return f, nil

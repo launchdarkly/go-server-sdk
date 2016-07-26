@@ -70,7 +70,7 @@ var DefaultConfig = Config{
 }
 
 var ErrInitializationTimeout = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
-var ErrClientNotInitialized = errors.New("Toggle called before LaunchDarkly client initialization completed")
+var ErrClientNotInitialized = errors.New("Feature flag evaluation called before LaunchDarkly client initialization completed")
 
 // Creates a new client instance that connects to LaunchDarkly with the default configuration. In most
 // cases, you should use this method to instantiate your client. The optional duration parameter allows callers to
@@ -83,8 +83,6 @@ func MakeClient(apiKey string, waitFor time.Duration) (*LDClient, error) {
 // block until the client has connected to LaunchDarkly and is properly initialized.
 func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	var updateProcessor updateProcessor
-	var store FeatureStore
-
 	ch := make(chan bool)
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
@@ -93,43 +91,45 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 		config.PollInterval = 1 * time.Second
 	}
 
-	requestor := newRequestor(apiKey, config)
-
 	if config.FeatureStore == nil {
-		config.FeatureStore = NewInMemoryFeatureStore()
-	}
-
-	store = config.FeatureStore
-
-	if !config.UseLdd && !config.Offline {
-		if config.Stream {
-			updateProcessor = newStreamProcessor(apiKey, config, requestor)
-		} else {
-			updateProcessor = newPollingProcessor(config, requestor)
-		}
-		updateProcessor.start(ch)
+		config.FeatureStore = NewInMemoryFeatureStore(config.Logger)
 	}
 
 	client := LDClient{
-		apiKey:          apiKey,
-		config:          config,
-		eventProcessor:  newEventProcessor(apiKey, config),
-		updateProcessor: updateProcessor,
-		store:           store,
+		apiKey: apiKey,
+		config: config,
+		store:  config.FeatureStore,
 	}
 
-	if config.UseLdd || config.Offline {
+	if config.Offline {
+		config.Logger.Println("Started Launchdarkly in offline mode")
+		client.config.SendEvents = false
 		return &client, nil
 	}
 
-	timeout := time.After(waitFor)
+	if config.UseLdd {
+		config.Logger.Println("Started Launchdarkly in LDD mode")
+		return &client, nil
+	}
 
+	requestor := newRequestor(apiKey, config)
+
+	if config.Stream {
+		client.updateProcessor = newStreamProcessor(apiKey, config, requestor)
+	} else {
+		client.updateProcessor = newPollingProcessor(config, requestor)
+	}
+	updateProcessor.start(ch)
+	client.eventProcessor = newEventProcessor(apiKey, config)
+	timeout := time.After(waitFor)
 	for {
 		select {
 		case <-ch:
+			config.Logger.Println("Successfully initialized LaunchDarkly client!")
 			return &client, nil
 		case <-timeout:
 			if waitFor > 0 {
+				config.Logger.Println("Timeout exceeded when initializing LauncDarkly client.")
 				return &client, ErrInitializationTimeout
 			}
 			return &client, nil
@@ -141,6 +141,9 @@ func (client *LDClient) Identify(user User) error {
 	if client.IsOffline() {
 		return nil
 	}
+	if user.Key == nil || *user.Key == "" {
+		client.config.Logger.Printf("WARN: Identify called with empty/nil user key!")
+	}
 	evt := NewIdentifyEvent(user)
 	return client.eventProcessor.sendEvent(evt)
 }
@@ -150,6 +153,9 @@ func (client *LDClient) Identify(user User) error {
 func (client *LDClient) Track(key string, user User, data interface{}) error {
 	if client.IsOffline() {
 		return nil
+	}
+	if user.Key == nil || *user.Key == "" {
+		client.config.Logger.Printf("WARN: Track called with empty/nil user key!")
 	}
 	evt := NewCustomEvent(key, user, data)
 	return client.eventProcessor.sendEvent(evt)
@@ -168,6 +174,7 @@ func (client *LDClient) Initialized() bool {
 // Shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
 // should no longer be used.
 func (client *LDClient) Close() {
+	client.config.Logger.Println("Closing LaunchDarkly Client")
 	if client.IsOffline() {
 		return
 	}
@@ -224,18 +231,18 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-	value, err := client.Evaluate(key, user, defaultVal)
+	value, version, err := client.Evaluate(key, user, defaultVal)
 
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
 		return defaultVal, err
 	}
 	valueJsonRawMessage, err := ToJsonRawMessage(value)
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
 		return defaultVal, err
 	}
-	client.sendFlagRequestEvent(key, user, valueJsonRawMessage, defaultVal)
+	client.sendFlagRequestEvent(key, user, valueJsonRawMessage, defaultVal, *version)
 	return valueJsonRawMessage, nil
 }
 
@@ -245,58 +252,58 @@ func (client *LDClient) variation(key string, user User, defaultVal interface{},
 	if client.IsOffline() {
 		return defaultVal, nil
 	}
-	value, err := client.Evaluate(key, user, defaultVal)
+	value, version, err := client.Evaluate(key, user, defaultVal)
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
 		return defaultVal, err
 	}
 
 	valueType := reflect.TypeOf(value)
 	if expectedType != valueType {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
 		return defaultVal, fmt.Errorf("Feature flag returned value: %+v of incompatible type: %+v; Expected: %+v", value, valueType, expectedType)
 	}
-	client.sendFlagRequestEvent(key, user, value, defaultVal)
+	client.sendFlagRequestEvent(key, user, value, defaultVal, *version)
 	return value, nil
 }
 
-func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defaultVal interface{}) error {
+func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defaultVal interface{}, version int) error {
 	if client.IsOffline() {
 		return nil
 	}
-	evt := NewFeatureRequestEvent(key, user, value, defaultVal)
+	evt := NewFeatureRequestEvent(key, user, value, defaultVal, version, nil)
 	return client.eventProcessor.sendEvent(evt)
 }
 
-func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, error) {
-	if user.Key == nil {
-		return defaultVal, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
+func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, *int, error) {
+	if user.Key == nil || *user.Key == "" {
+		return defaultVal, nil, fmt.Errorf("User.Key cannot be nil/empty for user: %+v", user)
 	}
 	var feature FeatureFlag
 	var storeErr error
 	var featurePtr *FeatureFlag
 
 	if !client.Initialized() {
-		return defaultVal, ErrClientNotInitialized
+		return defaultVal, nil, ErrClientNotInitialized
 	}
 
 	featurePtr, storeErr = client.store.Get(key)
 
 	if storeErr != nil {
 		client.config.Logger.Printf("Encountered error fetching feature from store: %+v", storeErr)
-		return defaultVal, storeErr
+		return defaultVal, nil, storeErr
 	}
 
 	if featurePtr != nil {
 		feature = *featurePtr
 	} else {
-		return defaultVal, fmt.Errorf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key)
+		return defaultVal, nil, fmt.Errorf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key)
 	}
 
 	if feature.On {
 		evalResult, err := feature.EvaluateExplain(user, client.store)
 		if err != nil {
-			return defaultVal, err
+			return defaultVal, &feature.Version, err
 		}
 		if !client.IsOffline() {
 			for _, event := range evalResult.PrerequisiteRequestEvents {
@@ -308,14 +315,14 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 		}
 
 		if evalResult.Value != nil {
-			return evalResult.Value, nil
+			return evalResult.Value, &feature.Version, nil
 		}
 		// If the value is nil, but the error is not, fall through and use the off variation
 	}
 
 	if feature.OffVariation != nil && *feature.OffVariation < len(feature.Variations) {
 		value := feature.Variations[*feature.OffVariation]
-		return value, nil
+		return value, &feature.Version, nil
 	}
-	return defaultVal, nil
+	return defaultVal, &feature.Version, nil
 }
