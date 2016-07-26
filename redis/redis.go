@@ -6,6 +6,8 @@ import (
 	r "github.com/garyburd/redigo/redis"
 	ld "github.com/launchdarkly/go-client"
 	"github.com/patrickmn/go-cache"
+	"log"
+	"os"
 	"time"
 )
 
@@ -15,6 +17,7 @@ type RedisFeatureStore struct {
 	pool    *r.Pool
 	cache   *cache.Cache
 	timeout time.Duration
+	logger  *log.Logger
 }
 
 const initKey = "$initialized$"
@@ -47,22 +50,32 @@ func (store *RedisFeatureStore) getConn() r.Conn {
 // connection pool configuration (16 concurrent connections, connection requests block).
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly".
-func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration) *RedisFeatureStore {
-	return NewRedisFeatureStoreWithPool(newPool(url), prefix, timeout)
+func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration, logger *log.Logger) *RedisFeatureStore {
+	if logger == nil {
+		logger = defaultLogger()
+	}
+	logger.Printf("RedisFeatureStore: Using url: %s", url)
+	return NewRedisFeatureStoreWithPool(newPool(url), prefix, timeout, logger)
 
 }
 
 // Constructs a new Redis-backed feature store with the specified redigo pool configuration.
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly".
-func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Duration) *RedisFeatureStore {
+func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Duration, logger *log.Logger) *RedisFeatureStore {
 	var c *cache.Cache
+
+	if logger == nil {
+		logger = defaultLogger()
+	}
 
 	if prefix == "" {
 		prefix = "launchdarkly"
 	}
+	logger.Printf("RedisFeatureStore: Using prefix: %s ", prefix)
 
 	if timeout > 0 {
+		logger.Printf("RedisFeatureStore: Using local cache with timeout: %v", timeout)
 		c = cache.New(timeout, 5*time.Minute)
 	}
 
@@ -71,8 +84,8 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 		pool:    pool,
 		cache:   c,
 		timeout: timeout,
+		logger:  logger,
 	}
-
 	return &store
 }
 
@@ -80,8 +93,8 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 // connection pool configuration (16 concurrent connections, connection requests block).
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly"
-func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration) *RedisFeatureStore {
-	return NewRedisFeatureStoreFromUrl(fmt.Sprintf("redis://%s:%d", host, port), prefix, timeout)
+func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration, logger *log.Logger) *RedisFeatureStore {
+	return NewRedisFeatureStoreFromUrl(fmt.Sprintf("redis://%s:%d", host, port), prefix, timeout, logger)
 }
 
 func (store *RedisFeatureStore) featuresKey() string {
@@ -95,6 +108,7 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 		if data, present := store.cache.Get(key); present {
 			if feature, ok := data.(ld.FeatureFlag); ok {
 				if feature.Deleted {
+					store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from local cache). Key: %s", key)
 					return nil, nil
 				}
 				return &feature, nil
@@ -109,6 +123,7 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 
 	if err != nil {
 		if err == r.ErrNil {
+			store.logger.Printf("RedisFeatureStore: WARN: Feature flag not found in store. Key: %s", key)
 			return nil, nil
 		}
 		return nil, err
@@ -119,6 +134,7 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 	}
 
 	if feature.Deleted {
+		store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from redis). Key: %s", key)
 		return nil, nil
 	}
 
@@ -270,4 +286,8 @@ func (store *RedisFeatureStore) Initialized() bool {
 	}
 
 	return err == nil && init
+}
+
+func defaultLogger() *log.Logger {
+	return log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags)
 }

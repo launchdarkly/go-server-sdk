@@ -34,8 +34,10 @@ type BaseEvent struct {
 
 type FeatureRequestEvent struct {
 	BaseEvent
-	Value   interface{} `json:"value"`
-	Default interface{} `json:"default"`
+	Value    interface{} `json:"value"`
+	Default  interface{} `json:"default"`
+	Version  *int        `json:"version,omitempty"`
+	PrereqOf *string     `json:"prereqOf,omitempty"`
 }
 
 const (
@@ -87,6 +89,7 @@ func (ep *eventProcessor) close() {
 }
 
 func (ep *eventProcessor) flush() {
+	uri := ep.config.EventsUri + "/bulk"
 	ep.mu.Lock()
 
 	if len(ep.queue) == 0 {
@@ -105,7 +108,7 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected error marshalling event json: %+v", marshalErr)
 	}
 
-	req, reqErr := http.NewRequest("POST", ep.config.EventsUri+"/bulk", bytes.NewReader(payload))
+	req, reqErr := http.NewRequest("POST", uri, bytes.NewReader(payload))
 
 	if reqErr != nil {
 		ep.config.Logger.Printf("Unexpected error while creating event request: %+v", reqErr)
@@ -128,7 +131,10 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected error while sending events: %+v", respErr)
 		return
 	}
-
+	err := checkStatusCode(resp.StatusCode, uri)
+	if err != nil {
+		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", respErr)
+	}
 }
 
 func (ep *eventProcessor) sendEvent(evt Event) error {
@@ -151,8 +157,8 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 }
 
 // Used to just create the event. Normally, you don't need to call this;
-// the event is created and queued automatically by Toggle.
-func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}) FeatureRequestEvent {
+// the event is created and queued automatically during feature flag evaluation.
+func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}, version *int, prereqOf *string) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -160,8 +166,10 @@ func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}
 			User:         user,
 			Kind:         FEATURE_REQUEST_EVENT,
 		},
-		Value:   value,
-		Default: defaultVal,
+		Value:    value,
+		Default:  defaultVal,
+		Version:  version,
+		PrereqOf: prereqOf,
 	}
 }
 

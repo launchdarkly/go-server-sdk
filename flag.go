@@ -134,7 +134,7 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 				failedPrereq = &prereq
 			}
 
-			*events = append(*events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil))
+			*events = append(*events, NewFeatureRequestEvent(prereq.Key, user, prereqValue, nil, &prereqFeatureFlag.Version, &f.Key))
 			variation, verr := prereqFeatureFlag.getVariation(&prereq.Variation)
 			if prereqValue == nil || verr != nil || prereqValue != variation {
 				failedPrereq = &prereq

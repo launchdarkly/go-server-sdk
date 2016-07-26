@@ -189,7 +189,7 @@ func makeClientWithFeatureFlag(variations []interface{}) *LDClient {
 		config:          config,
 		eventProcessor:  newEventProcessor("apiKey", config),
 		updateProcessor: TestUpdateProcessor{},
-		store:           NewInMemoryFeatureStore(),
+		store:           NewInMemoryFeatureStore(nil),
 	}
 	featureFlag := featureFlagWithVariations(variations)
 

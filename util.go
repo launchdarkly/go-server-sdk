@@ -1,10 +1,11 @@
 package ldclient
 
 import (
-	"reflect"
-	"time"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"reflect"
+	"time"
 )
 
 // Converts any of the following into a pointer to a time.Time value:
@@ -89,4 +90,19 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 		return inputJsonRawMessage, nil
 	}
 	return nil, fmt.Errorf("Could not convert: %+v to json.RawMessage", input)
+}
+
+func checkStatusCode(statusCode int, url string) error {
+	if statusCode == http.StatusUnauthorized {
+		return fmt.Errorf("Invalid API key when accessing URL: %s. Verify that your API key is correct.", url)
+	}
+
+	if statusCode == http.StatusNotFound {
+		return fmt.Errorf("Resource not found when accessing URL: %s. Verify that this resource exists.", url)
+	}
+
+	if statusCode/100 != 2 {
+		return fmt.Errorf("Unexpected response code: %d when accessing URL: %s", statusCode, url)
+	}
+	return nil
 }

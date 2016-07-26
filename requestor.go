@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/facebookgo/httpcontrol"
 	"github.com/gregjones/httpcache"
 	"io/ioutil"
@@ -101,16 +100,9 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 		return nil, false, resErr
 	}
 
-	if res.StatusCode == http.StatusUnauthorized {
-		return nil, false, fmt.Errorf("Invalid API key when accessing URL: %s. Verify that your API key is correct.", url)
-	}
-
-	if res.StatusCode == http.StatusNotFound {
-		return nil, false, fmt.Errorf("Resource not found when accessing URL: %s. Verify that this resource exists.", url)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("Unexpected response code: %d when accessing URL: %s", res.StatusCode, url)
+	err := checkStatusCode(res.StatusCode, url)
+	if err != nil {
+		return nil, false, err
 	}
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
