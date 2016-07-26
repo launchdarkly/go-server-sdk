@@ -52,9 +52,9 @@ func (store *RedisFeatureStore) getConn() r.Conn {
 // specified prefix is the empty string, it defaults to "launchdarkly".
 func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration, logger *log.Logger) *RedisFeatureStore {
 	if logger == nil {
-		logger = log.New(os.Stderr, "[LaunchDarkly RedisFeatureStore]", log.LstdFlags)
+		logger = defaultLogger()
 	}
-	logger.Printf("Using url: %s", url)
+	logger.Printf("RedisFeatureStore: Using url: %s", url)
 	return NewRedisFeatureStoreWithPool(newPool(url), prefix, timeout, logger)
 
 }
@@ -66,16 +66,16 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 	var c *cache.Cache
 
 	if logger == nil {
-		logger = log.New(os.Stderr, "[LaunchDarkly RedisFeatureStore]", log.LstdFlags)
+		logger = defaultLogger()
 	}
 
 	if prefix == "" {
 		prefix = "launchdarkly"
 	}
-	logger.Printf("Using prefix: %s ", prefix)
+	logger.Printf("RedisFeatureStore: Using prefix: %s ", prefix)
 
 	if timeout > 0 {
-		logger.Printf("Using local cache with timeout: %v", timeout)
+		logger.Printf("RedisFeatureStore: Using local cache with timeout: %v", timeout)
 		c = cache.New(timeout, 5*time.Minute)
 	}
 
@@ -108,7 +108,7 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 		if data, present := store.cache.Get(key); present {
 			if feature, ok := data.(ld.FeatureFlag); ok {
 				if feature.Deleted {
-					store.logger.Printf("WARN: Attempted to get deleted feature flag (from local cache). Key: %s", key)
+					store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from local cache). Key: %s", key)
 					return nil, nil
 				}
 				return &feature, nil
@@ -123,7 +123,7 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 
 	if err != nil {
 		if err == r.ErrNil {
-			store.logger.Printf("WARN: Feature flag not found in store. Key: %s", key)
+			store.logger.Printf("RedisFeatureStore: WARN: Feature flag not found in store. Key: %s", key)
 			return nil, nil
 		}
 		return nil, err
@@ -134,7 +134,7 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 	}
 
 	if feature.Deleted {
-		store.logger.Printf("WARN: Attempted to get deleted feature flag (from redis). Key: %s", key)
+		store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from redis). Key: %s", key)
 		return nil, nil
 	}
 
@@ -286,4 +286,8 @@ func (store *RedisFeatureStore) Initialized() bool {
 	}
 
 	return err == nil && init
+}
+
+func defaultLogger() *log.Logger {
+	return log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags)
 }
