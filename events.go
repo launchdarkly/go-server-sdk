@@ -154,7 +154,7 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 
 // Used to just create the event. Normally, you don't need to call this;
 // the event is created and queued automatically during feature flag evaluation.
-func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}, version int, prereqOf *string) FeatureRequestEvent {
+func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}, version *int, prereqOf *string) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -164,7 +164,7 @@ func NewFeatureRequestEvent(key string, user User, value, defaultVal interface{}
 		},
 		Value:    value,
 		Default:  defaultVal,
-		Version:  &version,
+		Version:  version,
 		PrereqOf: prereqOf,
 	}
 }

@@ -271,7 +271,7 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 	if client.IsOffline() {
 		return nil
 	}
-	evt := NewFeatureRequestEvent(key, user, value, defaultVal, version, nil)
+	evt := NewFeatureRequestEvent(key, user, value, defaultVal, &version, nil)
 	return client.eventProcessor.sendEvent(evt)
 }
 
