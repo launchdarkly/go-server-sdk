@@ -233,15 +233,15 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 	value, version, err := client.Evaluate(key, user, defaultVal)
 
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, version)
 		return defaultVal, err
 	}
 	valueJsonRawMessage, err := ToJsonRawMessage(value)
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, version)
 		return defaultVal, err
 	}
-	client.sendFlagRequestEvent(key, user, valueJsonRawMessage, defaultVal, *version)
+	client.sendFlagRequestEvent(key, user, valueJsonRawMessage, defaultVal, version)
 	return valueJsonRawMessage, nil
 }
 
@@ -253,24 +253,24 @@ func (client *LDClient) variation(key string, user User, defaultVal interface{},
 	}
 	value, version, err := client.Evaluate(key, user, defaultVal)
 	if err != nil {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, version)
 		return defaultVal, err
 	}
 
 	valueType := reflect.TypeOf(value)
 	if expectedType != valueType {
-		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, *version)
+		client.sendFlagRequestEvent(key, user, defaultVal, defaultVal, version)
 		return defaultVal, fmt.Errorf("Feature flag returned value: %+v of incompatible type: %+v; Expected: %+v", value, valueType, expectedType)
 	}
-	client.sendFlagRequestEvent(key, user, value, defaultVal, *version)
+	client.sendFlagRequestEvent(key, user, value, defaultVal, version)
 	return value, nil
 }
 
-func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defaultVal interface{}, version int) error {
+func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defaultVal interface{}, version *int) error {
 	if client.IsOffline() {
 		return nil
 	}
-	evt := NewFeatureRequestEvent(key, user, value, defaultVal, &version, nil)
+	evt := NewFeatureRequestEvent(key, user, value, defaultVal, version, nil)
 	return client.eventProcessor.sendEvent(evt)
 }
 
