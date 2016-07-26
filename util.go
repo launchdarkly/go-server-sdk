@@ -101,7 +101,7 @@ func checkStatusCode(statusCode int, url string) error {
 		return fmt.Errorf("Resource not found when accessing URL: %s. Verify that this resource exists.", url)
 	}
 
-	if statusCode != http.StatusOK {
+	if statusCode/100 != 2 {
 		return fmt.Errorf("Unexpected response code: %d when accessing URL: %s", statusCode, url)
 	}
 	return nil

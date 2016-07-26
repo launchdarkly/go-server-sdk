@@ -89,6 +89,7 @@ func (ep *eventProcessor) close() {
 }
 
 func (ep *eventProcessor) flush() {
+	uri := ep.config.EventsUri + "/bulk"
 	ep.mu.Lock()
 
 	if len(ep.queue) == 0 {
@@ -107,7 +108,7 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected error marshalling event json: %+v", marshalErr)
 	}
 
-	req, reqErr := http.NewRequest("POST", ep.config.EventsUri+"/bulk", bytes.NewReader(payload))
+	req, reqErr := http.NewRequest("POST", uri, bytes.NewReader(payload))
 
 	if reqErr != nil {
 		ep.config.Logger.Printf("Unexpected error while creating event request: %+v", reqErr)
@@ -130,7 +131,10 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected error while sending events: %+v", respErr)
 		return
 	}
-
+	err := checkStatusCode(resp.StatusCode, uri)
+	if err != nil {
+		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", respErr)
+	}
 }
 
 func (ep *eventProcessor) sendEvent(evt Event) error {
