@@ -82,7 +82,6 @@ func MakeClient(apiKey string, waitFor time.Duration) (*LDClient, error) {
 // Creates a new client instance that connects to LaunchDarkly with a custom configuration. The optional duration parameter allows callers to
 // block until the client has connected to LaunchDarkly and is properly initialized.
 func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDClient, error) {
-	var updateProcessor updateProcessor
 	ch := make(chan bool)
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
@@ -119,7 +118,7 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 	} else {
 		client.updateProcessor = newPollingProcessor(config, requestor)
 	}
-	updateProcessor.start(ch)
+	client.updateProcessor.start(ch)
 	client.eventProcessor = newEventProcessor(apiKey, config)
 	timeout := time.After(waitFor)
 	for {
