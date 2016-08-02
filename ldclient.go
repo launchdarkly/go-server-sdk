@@ -200,7 +200,7 @@ func (client *LDClient) BoolVariation(key string, user User, defaultVal bool) (b
 	return result, err
 }
 
-// Deprecated. Use BoolVariation().
+// Deprecated: Use BoolVariation().
 func (client *LDClient) Toggle(key string, user User, defaultVal bool) (bool, error) {
 	client.config.Logger.Println("WARN: Deprecated Toggle() called on LDClient. Use BoolVariation() instead.")
 	return client.BoolVariation(key, user, defaultVal)
