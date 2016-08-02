@@ -25,7 +25,7 @@ Your first feature flag
 2. In your application code, use the feature's key to check wthether the flag is on for each user:
 
         key := "user@test.com"
-        show_feature := ld_client.GetFlag("your.flag.key", ld.User{Key: &key,}, false)
+        show_feature := ld_client.BoolVariation("your.flag.key", ld.User{Key: &key,}, false)
         if (show_feature) {
             # application code to show the feature
         } else {
