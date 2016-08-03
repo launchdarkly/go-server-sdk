@@ -169,6 +169,21 @@ func TestJsonVariation(t *testing.T) {
 	}
 }
 
+func TestSecureModeHash(t *testing.T) {
+	expected := "aa747c502a898200f9e4fa21bac68136f886a0e27aec70ba06daf2e2a5cb5597"
+	key := "Message"
+	config := DefaultConfig
+	config.Offline = true
+
+	client, _ := MakeCustomClient("secret", config, 0*time.Second)
+
+	hash := client.SecureModeHash(User{Key: &key})
+
+	if hash != expected {
+		t.Errorf("Got unexpected result when calling SecureModeHash: %s but expected %s", hash, expected)
+	}
+}
+
 // Creates LdClient loaded with one feature flag with key: "validFeatureKey".
 // Variations param should have at least 2 items with variations[1] being the expected
 // fallthrough value when passing in a valid user

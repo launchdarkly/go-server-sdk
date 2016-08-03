@@ -1,6 +1,9 @@
 package ldclient
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -163,6 +166,16 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 // Returns whether the LaunchDarkly client is in offline mode.
 func (client *LDClient) IsOffline() bool {
 	return client.config.Offline
+}
+
+func (client *LDClient) SecureModeHash(user User) string {
+	if user.Key == nil {
+		return ""
+	}
+	key := []byte(client.apiKey)
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(*user.Key))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Returns whether the LaunchDarkly client is initialized.
