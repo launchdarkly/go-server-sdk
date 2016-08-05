@@ -94,7 +94,7 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 
 func checkStatusCode(statusCode int, url string) error {
 	if statusCode == http.StatusUnauthorized {
-		return fmt.Errorf("Invalid API key when accessing URL: %s. Verify that your API key is correct.", url)
+		return fmt.Errorf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url)
 	}
 
 	if statusCode == http.StatusNotFound {

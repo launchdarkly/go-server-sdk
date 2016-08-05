@@ -13,7 +13,7 @@ import (
 
 type eventProcessor struct {
 	queue  []Event
-	apiKey string
+	sdkKey string
 	config Config
 	mu     *sync.Mutex
 	client *http.Client
@@ -53,10 +53,10 @@ func init() {
 	rGen = rand.New(s1)
 }
 
-func newEventProcessor(apiKey string, config Config) *eventProcessor {
+func newEventProcessor(sdkKey string, config Config) *eventProcessor {
 	res := &eventProcessor{
 		queue:  make([]Event, 0),
-		apiKey: apiKey,
+		sdkKey: sdkKey,
 		config: config,
 		client: &http.Client{},
 		closer: make(chan struct{}),
@@ -114,7 +114,7 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected error while creating event request: %+v", reqErr)
 	}
 
-	req.Header.Add("Authorization", "api_key "+ep.apiKey)
+	req.Header.Add("Authorization", ep.sdkKey)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("User-Agent", "GoClient/"+Version)
 
