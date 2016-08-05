@@ -1,19 +1,8 @@
 {
 	"ImportPath": "github.com/launchdarkly/go-client",
 	"GoVersion": "go1.5",
-	"Packages": [
-		"./..."
-	],
+	"GodepVersion": "v74",
 	"Deps": [
-		{
-			"ImportPath": "github.com/davecgh/go-spew/spew",
-			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
-		},
-		{
-			"ImportPath": "github.com/deckarep/golang-set",
-			"Comment": "v1.5-4-g1f0f4ff",
-			"Rev": "1f0f4ff8d3fbef9328522993ce71c35890f67554"
-		},
 		{
 			"ImportPath": "github.com/facebookgo/httpcontrol",
 			"Rev": "ccde4420e1fee9af5da365cb76075b95683f39a6"

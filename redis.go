@@ -1,11 +1,10 @@
-package redis
+package ldclient
 
 import (
 	"encoding/json"
 	"fmt"
 	r "github.com/garyburd/redigo/redis"
 	"github.com/patrickmn/go-cache"
-	ld "gopkg.in/launchdarkly/go-client.v2"
 	"log"
 	"os"
 	"time"
@@ -101,12 +100,12 @@ func (store *RedisFeatureStore) featuresKey() string {
 	return store.prefix + ":features"
 }
 
-func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
-	var feature ld.FeatureFlag
+func (store *RedisFeatureStore) Get(key string) (*FeatureFlag, error) {
+	var feature FeatureFlag
 
 	if store.cache != nil {
 		if data, present := store.cache.Get(key); present {
-			if feature, ok := data.(ld.FeatureFlag); ok {
+			if feature, ok := data.(FeatureFlag); ok {
 				if feature.Deleted {
 					store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from local cache). Key: %s", key)
 					return nil, nil
@@ -145,10 +144,10 @@ func (store *RedisFeatureStore) Get(key string) (*ld.FeatureFlag, error) {
 	return &feature, nil
 }
 
-func (store *RedisFeatureStore) All() (map[string]*ld.FeatureFlag, error) {
-	var feature ld.FeatureFlag
+func (store *RedisFeatureStore) All() (map[string]*FeatureFlag, error) {
+	var feature FeatureFlag
 
-	results := make(map[string]*ld.FeatureFlag)
+	results := make(map[string]*FeatureFlag)
 
 	c := store.getConn()
 	defer c.Close()
@@ -173,7 +172,7 @@ func (store *RedisFeatureStore) All() (map[string]*ld.FeatureFlag, error) {
 	return results, nil
 }
 
-func (store *RedisFeatureStore) Init(features map[string]*ld.FeatureFlag) error {
+func (store *RedisFeatureStore) Init(features map[string]*FeatureFlag) error {
 	c := store.getConn()
 	defer c.Close()
 
@@ -237,7 +236,7 @@ func (store *RedisFeatureStore) Delete(key string, version int) error {
 	return err
 }
 
-func (store *RedisFeatureStore) Upsert(key string, f ld.FeatureFlag) error {
+func (store *RedisFeatureStore) Upsert(key string, f FeatureFlag) error {
 	c := store.getConn()
 	defer c.Close()
 
