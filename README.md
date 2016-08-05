@@ -14,9 +14,9 @@ Quick setup
 
         import ld "github.com/launchdarkly/go-client"
 
-2. Create a new LDClient with your API key:
+2. Create a new LDClient with your SDK key:
 
-        ld_client := ld.MakeClient("YOUR_API_KEY")
+        ld_client := ld.MakeClient("YOUR_SDK_KEY")
 
 Your first feature flag
 -----------------------

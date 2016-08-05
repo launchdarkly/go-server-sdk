@@ -20,7 +20,7 @@ const Version string = "2.0.0"
 // Applications should instantiate a single instance for the lifetime
 // of their application.
 type LDClient struct {
-	apiKey          string
+	sdkKey          string
 	config          Config
 	eventProcessor  *eventProcessor
 	updateProcessor updateProcessor
@@ -78,13 +78,13 @@ var ErrClientNotInitialized = errors.New("Feature flag evaluation called before 
 // Creates a new client instance that connects to LaunchDarkly with the default configuration. In most
 // cases, you should use this method to instantiate your client. The optional duration parameter allows callers to
 // block until the client has connected to LaunchDarkly and is properly initialized.
-func MakeClient(apiKey string, waitFor time.Duration) (*LDClient, error) {
-	return MakeCustomClient(apiKey, DefaultConfig, waitFor)
+func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
+	return MakeCustomClient(sdkKey, DefaultConfig, waitFor)
 }
 
 // Creates a new client instance that connects to LaunchDarkly with a custom configuration. The optional duration parameter allows callers to
 // block until the client has connected to LaunchDarkly and is properly initialized.
-func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDClient, error) {
+func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	ch := make(chan bool)
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
@@ -98,7 +98,7 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	client := LDClient{
-		apiKey: apiKey,
+		sdkKey: sdkKey,
 		config: config,
 		store:  config.FeatureStore,
 	}
@@ -114,15 +114,15 @@ func MakeCustomClient(apiKey string, config Config, waitFor time.Duration) (*LDC
 		return &client, nil
 	}
 
-	requestor := newRequestor(apiKey, config)
+	requestor := newRequestor(sdkKey, config)
 
 	if config.Stream {
-		client.updateProcessor = newStreamProcessor(apiKey, config, requestor)
+		client.updateProcessor = newStreamProcessor(sdkKey, config, requestor)
 	} else {
 		client.updateProcessor = newPollingProcessor(config, requestor)
 	}
 	client.updateProcessor.start(ch)
-	client.eventProcessor = newEventProcessor(apiKey, config)
+	client.eventProcessor = newEventProcessor(sdkKey, config)
 	timeout := time.After(waitFor)
 	for {
 		select {
@@ -172,7 +172,7 @@ func (client *LDClient) SecureModeHash(user User) string {
 	if user.Key == nil {
 		return ""
 	}
-	key := []byte(client.apiKey)
+	key := []byte(client.sdkKey)
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(*user.Key))
 	return hex.EncodeToString(h.Sum(nil))

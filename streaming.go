@@ -23,7 +23,7 @@ type streamProcessor struct {
 	requestor          *requestor
 	stream             *es.Stream
 	config             Config
-	apiKey             string
+	sdkKey             string
 	setInitializedOnce sync.Once
 	isInitialized      bool
 	sync.RWMutex
@@ -110,11 +110,11 @@ func (sp *streamProcessor) startOnce(ch chan<- bool) {
 	}
 }
 
-func newStreamProcessor(apiKey string, config Config, requestor *requestor) updateProcessor {
+func newStreamProcessor(sdkKey string, config Config, requestor *requestor) updateProcessor {
 	sp := &streamProcessor{
 		store:     config.FeatureStore,
 		config:    config,
-		apiKey:    apiKey,
+		sdkKey:    sdkKey,
 		requestor: requestor,
 	}
 
@@ -127,7 +127,7 @@ func (sp *streamProcessor) subscribe() {
 
 	if sp.stream == nil {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/flags", nil)
-		req.Header.Add("Authorization", "api_key "+sp.apiKey)
+		req.Header.Add("Authorization", sp.sdkKey)
 		req.Header.Add("User-Agent", "GoClient/"+Version)
 		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 

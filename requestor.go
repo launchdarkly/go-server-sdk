@@ -14,12 +14,12 @@ const (
 )
 
 type requestor struct {
-	apiKey     string
+	sdkKey     string
 	httpClient *http.Client
 	config     Config
 }
 
-func newRequestor(apiKey string, config Config) *requestor {
+func newRequestor(sdkKey string, config Config) *requestor {
 	baseTransport := httpcontrol.Transport{
 		RequestTimeout: config.Timeout,
 		DialTimeout:    config.Timeout,
@@ -36,7 +36,7 @@ func newRequestor(apiKey string, config Config) *requestor {
 	httpClient := cachingTransport.Client()
 
 	requestor := requestor{
-		apiKey:     apiKey,
+		sdkKey:     sdkKey,
 		httpClient: httpClient,
 		config:     config,
 	}
@@ -84,7 +84,7 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 		return nil, false, reqErr
 	}
 
-	req.Header.Add("Authorization", "api_key "+r.apiKey)
+	req.Header.Add("Authorization", r.sdkKey)
 	req.Header.Add("User-Agent", "GoClient/"+Version)
 
 	res, resErr := r.httpClient.Do(req)
