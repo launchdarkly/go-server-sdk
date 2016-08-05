@@ -204,6 +204,48 @@ func (client *LDClient) Flush() {
 	client.eventProcessor.flush()
 }
 
+// Returns a map from feature flag keys to values for
+// a given user. If the result of the flag's evaluation would
+// result in the default value, `nil` will be returned. This method
+// does not send analytics events back to LaunchDarkly
+func (client *LDClient) AllFlags(user User) map[string]interface{} {
+	if client.IsOffline() {
+		client.config.Logger.Println("WARN: Called AllFlags in offline mode. Returning nil map")
+		return nil
+	}
+
+	if !client.Initialized() {
+		client.config.Logger.Println("WARN: Called AllFlags before client initialization. Returning nil map")
+		return nil
+	}
+
+	if user.Key == nil {
+		client.config.Logger.Println("WARN: Called AllFlags with nil user key. Returning nil map")
+		return nil
+	}
+
+	results := make(map[string]interface{})
+
+	flags, err := client.store.All()
+
+	if err != nil {
+		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning nil map. Error: " + err.Error())
+		return nil
+	}
+
+	for _, flag := range flags {
+		evalResult, err := flag.EvaluateExplain(user, client.store)
+
+		if err != nil {
+			client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
+		} else {
+			results[flag.Key] = evalResult.Value
+		}
+	}
+
+	return results
+}
+
 // Returns the value of a boolean feature flag for a given user. Returns defaultVal if
 // there is an error, if the flag doesn't exist, the client hasn't completed initialization,
 // or the feature is turned off.
