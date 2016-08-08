@@ -234,12 +234,22 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	}
 
 	for _, flag := range flags {
-		evalResult, err := flag.EvaluateExplain(user, client.store)
+		if flag.On {
+			evalResult, err := flag.EvaluateExplain(user, client.store)
+			if err != nil {
+				client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
+			}
 
-		if err != nil {
-			client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
-		} else {
-			results[flag.Key] = evalResult.Value
+			if evalResult.Value != nil {
+				results[flag.Key] = evalResult.Value
+				break
+			}
+			// If the value is nil, but the error is not, fall through and use the off variation
+		}
+
+		if flag.OffVariation != nil && *flag.OffVariation < len(flag.Variations) {
+			value := flag.Variations[*flag.OffVariation]
+			results[flag.Key] = value
 		}
 	}
 
