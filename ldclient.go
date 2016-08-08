@@ -245,7 +245,7 @@ func (client *LDClient) evalFlag(flag FeatureFlag, user User) (interface{}, []Fe
 	if flag.On {
 		evalResult, err := flag.EvaluateExplain(user, client.store)
 		if err != nil {
-			return nil, prereqEvents
+			return nil, evalResult.PrerequisiteRequestEvents
 		}
 
 		if evalResult.Value != nil {
