@@ -241,15 +241,17 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 }
 
 func (client *LDClient) evalFlag(flag FeatureFlag, user User) (interface{}, []FeatureRequestEvent) {
-	prereqEvents := make([]FeatureRequestEvent, 0)
+	var prereqEvents []FeatureRequestEvent
 	if flag.On {
 		evalResult, err := flag.EvaluateExplain(user, client.store)
+		prereqEvents = evalResult.PrerequisiteRequestEvents
+
 		if err != nil {
-			return nil, evalResult.PrerequisiteRequestEvents
+			return nil, prereqEvents
 		}
 
 		if evalResult.Value != nil {
-			return evalResult.Value, evalResult.PrerequisiteRequestEvents
+			return evalResult.Value, prereqEvents
 		}
 		// If the value is nil, but the error is not, fall through and use the off variation
 	}
