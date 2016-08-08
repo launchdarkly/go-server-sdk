@@ -356,6 +356,10 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 	if user.Key == nil {
 		return defaultVal, nil, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
 	}
+	if *user.Key == "" {
+		client.config.Logger.Printf("WARN: User.Key is blank. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.")
+	}
+
 	var feature FeatureFlag
 	var storeErr error
 	var featurePtr *FeatureFlag
