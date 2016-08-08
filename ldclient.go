@@ -232,7 +232,7 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning nil map. Error: " + err.Error())
 		return nil
 	}
-
+Loop:
 	for _, flag := range flags {
 		if flag.On {
 			evalResult, err := flag.EvaluateExplain(user, client.store)
@@ -240,7 +240,7 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 				client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
 			} else if evalResult.Value != nil {
 				results[flag.Key] = evalResult.Value
-				break
+				break Loop
 			}
 			// If the value is nil, but the error is not, fall through and use the off variation
 		}
