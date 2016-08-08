@@ -353,8 +353,8 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 }
 
 func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, *int, error) {
-	if user.Key == nil || *user.Key == "" {
-		return defaultVal, nil, fmt.Errorf("User.Key cannot be nil/empty for user: %+v", user)
+	if user.Key == nil {
+		return defaultVal, nil, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
 	}
 	var feature FeatureFlag
 	var storeErr error
