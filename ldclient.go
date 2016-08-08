@@ -243,11 +243,11 @@ func (client *LDClient) evalFlag(flag FeatureFlag, user User) interface{} {
 	if flag.On {
 		evalResult, err := flag.EvaluateExplain(user, client.store)
 		if err != nil {
-			client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
 			return nil
 		}
+
 		if evalResult.Value != nil {
-			return evalResult.Value
+			return nil
 		}
 		// If the value is nil, but the error is not, fall through and use the off variation
 	}
