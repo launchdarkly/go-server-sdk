@@ -238,7 +238,9 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 			evalResult, err := flag.EvaluateExplain(user, client.store)
 			if err != nil {
 				client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
-			} else if evalResult.Value != nil {
+				break
+			}
+			if evalResult.Value != nil {
 				results[flag.Key] = evalResult.Value
 				break
 			}
