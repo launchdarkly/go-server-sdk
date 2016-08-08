@@ -145,7 +145,6 @@ func (store *RedisFeatureStore) Get(key string) (*FeatureFlag, error) {
 }
 
 func (store *RedisFeatureStore) All() (map[string]*FeatureFlag, error) {
-	var feature FeatureFlag
 
 	results := make(map[string]*FeatureFlag)
 
@@ -159,6 +158,7 @@ func (store *RedisFeatureStore) All() (map[string]*FeatureFlag, error) {
 	}
 
 	for k, v := range values {
+		var feature FeatureFlag
 		jsonErr := json.Unmarshal([]byte(v), &feature)
 
 		if jsonErr != nil {
