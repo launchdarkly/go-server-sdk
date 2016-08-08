@@ -233,30 +233,32 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 		return nil
 	}
 	for _, flag := range flags {
-		results[flag.Key] = client.evalFlag(*flag, user)
+		result, _ := client.evalFlag(*flag, user)
+		results[flag.Key] =  result
 	}
 
 	return results
 }
 
-func (client *LDClient) evalFlag(flag FeatureFlag, user User) interface{} {
+func (client *LDClient) evalFlag(flag FeatureFlag, user User) (interface{}, []FeatureRequestEvent) {
+	prereqEvents := make([]FeatureRequestEvent, 0)
 	if flag.On {
 		evalResult, err := flag.EvaluateExplain(user, client.store)
 		if err != nil {
-			return nil
+			return nil, prereqEvents
 		}
 
 		if evalResult.Value != nil {
-			return evalResult.Value
+			return evalResult.Value, evalResult.PrerequisiteRequestEvents
 		}
 		// If the value is nil, but the error is not, fall through and use the off variation
 	}
 
 	if flag.OffVariation != nil && *flag.OffVariation < len(flag.Variations) {
 		value := flag.Variations[*flag.OffVariation]
-		return value
+		return value, prereqEvents
 	}
-	return nil
+	return nil, prereqEvents
 }
 
 // Returns the value of a boolean feature flag for a given user. Returns defaultVal if
@@ -373,29 +375,17 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 		return defaultVal, nil, fmt.Errorf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key)
 	}
 
-	if feature.On {
-		evalResult, err := feature.EvaluateExplain(user, client.store)
-		if err != nil {
-			return defaultVal, &feature.Version, err
-		}
+	result, prereqEvents := client.evalFlag(feature, user)
 		if !client.IsOffline() {
-			for _, event := range evalResult.PrerequisiteRequestEvents {
+			for _, event := range prereqEvents {
 				err := client.eventProcessor.sendEvent(event)
 				if err != nil {
 					client.config.Logger.Printf("WARN: Error sending feature request event to LaunchDarkly: %+v", err)
 				}
 			}
 		}
-
-		if evalResult.Value != nil {
-			return evalResult.Value, &feature.Version, nil
-		}
-		// If the value is nil, but the error is not, fall through and use the off variation
-	}
-
-	if feature.OffVariation != nil && *feature.OffVariation < len(feature.Variations) {
-		value := feature.Variations[*feature.OffVariation]
-		return value, &feature.Version, nil
+	if result != nil {
+		return result, &feature.Version, nil
 	}
 	return defaultVal, &feature.Version, nil
 }
