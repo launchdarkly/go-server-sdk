@@ -232,26 +232,31 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning nil map. Error: " + err.Error())
 		return nil
 	}
-Loop:
 	for _, flag := range flags {
-		if flag.On {
-			evalResult, err := flag.EvaluateExplain(user, client.store)
-			if err != nil {
-				client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
-			} else if evalResult.Value != nil {
-				results[flag.Key] = evalResult.Value
-				break Loop
-			}
-			// If the value is nil, but the error is not, fall through and use the off variation
-		}
-
-		if flag.OffVariation != nil && *flag.OffVariation < len(flag.Variations) {
-			value := flag.Variations[*flag.OffVariation]
-			results[flag.Key] = value
-		}
+		results[flag.Key] = client.evalFlag(*flag, user)
 	}
 
 	return results
+}
+
+func (client *LDClient) evalFlag(flag FeatureFlag, user User) interface{} {
+	if flag.On {
+		evalResult, err := flag.EvaluateExplain(user, client.store)
+		if err != nil {
+			client.config.Logger.Println("WARN: Unable to evaluate flag in AllFlags. Error: " + err.Error())
+			return nil
+		}
+		if evalResult.Value != nil {
+			return evalResult.Value
+		}
+		// If the value is nil, but the error is not, fall through and use the off variation
+	}
+
+	if flag.OffVariation != nil && *flag.OffVariation < len(flag.Variations) {
+		value := flag.Variations[*flag.OffVariation]
+		return value
+	}
+	return nil
 }
 
 // Returns the value of a boolean feature flag for a given user. Returns defaultVal if
