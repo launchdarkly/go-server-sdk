@@ -247,7 +247,7 @@ func (client *LDClient) evalFlag(flag FeatureFlag, user User) interface{} {
 		}
 
 		if evalResult.Value != nil {
-			return nil
+			return evalResult.Value
 		}
 		// If the value is nil, but the error is not, fall through and use the off variation
 	}
