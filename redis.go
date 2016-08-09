@@ -208,32 +208,21 @@ func (store *RedisFeatureStore) Delete(key string, version int) error {
 	c.Send("WATCH", store.featuresKey())
 	defer c.Send("UNWATCH")
 
-	feature, featureErr := store.Get(key)
+	f, featureErr := store.Get(key)
 
 	if featureErr != nil {
 		return featureErr
 	}
+	if f != nil && f.Version < version {
+		f.Deleted = true
+		f.Version = version
+		return store.put(c, key, *f)
 
-	if feature != nil && feature.Version >= version {
-		return nil
+	} else if f == nil {
+		f = &FeatureFlag{Deleted: true, Version: version}
+		return store.put(c, key, *f)
 	}
-
-	feature.Deleted = true
-	feature.Version = version
-
-	data, jsonErr := json.Marshal(feature)
-
-	if jsonErr != nil {
-		return jsonErr
-	}
-
-	_, err := c.Do("HSET", store.featuresKey(), key, data)
-
-	if err == nil && store.cache != nil {
-		store.cache.Set(key, feature, store.timeout)
-	}
-
-	return err
+	return nil
 }
 
 func (store *RedisFeatureStore) Upsert(key string, f FeatureFlag) error {
@@ -252,7 +241,10 @@ func (store *RedisFeatureStore) Upsert(key string, f FeatureFlag) error {
 	if o != nil && o.Version >= f.Version {
 		return nil
 	}
+	return store.put(c, key, f)
+}
 
+func (store *RedisFeatureStore) put(c r.Conn, key string, f FeatureFlag) error {
 	data, jsonErr := json.Marshal(f)
 
 	if jsonErr != nil {
