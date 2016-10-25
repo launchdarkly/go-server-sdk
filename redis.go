@@ -7,8 +7,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"log"
 	"os"
-	"reflect"
 	"time"
+	"reflect"
 )
 
 // A Redis-backed feature store.
@@ -119,7 +119,7 @@ func (store *RedisFeatureStore) Get(key string) (*FeatureFlag, error) {
 				}
 				return &feature, nil
 			} else {
-				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %s. Expected FeatureFlag",
+				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %v. Expected FeatureFlag",
 					reflect.TypeOf(feature))
 			}
 		}
@@ -161,7 +161,7 @@ func (store *RedisFeatureStore) All() (map[string]*FeatureFlag, error) {
 			if features, ok := data.(map[string]*FeatureFlag); ok {
 				return features, nil
 			} else {
-				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %s. Expected map[string]*FeatureFlag",
+				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %v. Expected map[string]*FeatureFlag",
 					reflect.TypeOf(features))
 			}
 		}
