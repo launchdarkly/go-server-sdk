@@ -7,8 +7,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"log"
 	"os"
-	"time"
 	"reflect"
+	"time"
 )
 
 // A Redis-backed feature store.
@@ -24,8 +24,8 @@ const (
 	initKey = "$initialized$"
 
 	// stored alongside flag keys.
-	// # is not a valid character for flag keys, so there will never be a collision.
-	allFlagsKey = "#all_flags"
+	// $ is not a valid character for flag keys, so there will never be a collision.
+	allFlagsKey = "$all_flags$"
 )
 
 var pool *r.Pool
@@ -116,11 +116,11 @@ func (store *RedisFeatureStore) Get(key string) (*FeatureFlag, error) {
 				if feature.Deleted {
 					store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from local cache). Key: %s", key)
 					return nil, nil
-				} else {
-					store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %s. Expected FeatureFlag",
-						reflect.TypeOf(feature))
 				}
 				return &feature, nil
+			} else {
+				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %s. Expected FeatureFlag",
+					reflect.TypeOf(feature))
 			}
 		}
 	}
