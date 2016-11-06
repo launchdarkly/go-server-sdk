@@ -3,7 +3,6 @@ package ldclient
 import (
 	"testing"
 )
-
 // We should only be testing go-specific things here.
 // Business logic test cases should be in the json test data when possible.
 
