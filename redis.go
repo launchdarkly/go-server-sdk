@@ -7,8 +7,8 @@ import (
 	"github.com/patrickmn/go-cache"
 	"log"
 	"os"
-	"time"
 	"reflect"
+	"time"
 )
 
 // A Redis-backed feature store.

@@ -234,7 +234,7 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	}
 	for _, flag := range flags {
 		result, _ := client.evalFlag(*flag, user)
-		results[flag.Key] =  result
+		results[flag.Key] = result
 	}
 
 	return results
@@ -382,14 +382,14 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 	}
 
 	result, prereqEvents := client.evalFlag(feature, user)
-		if !client.IsOffline() {
-			for _, event := range prereqEvents {
-				err := client.eventProcessor.sendEvent(event)
-				if err != nil {
-					client.config.Logger.Printf("WARN: Error sending feature request event to LaunchDarkly: %+v", err)
-				}
+	if !client.IsOffline() {
+		for _, event := range prereqEvents {
+			err := client.eventProcessor.sendEvent(event)
+			if err != nil {
+				client.config.Logger.Printf("WARN: Error sending feature request event to LaunchDarkly: %+v", err)
 			}
 		}
+	}
 	if result != nil {
 		return result, &feature.Version, nil
 	}
