@@ -8,11 +8,11 @@ Quick setup
 
 1. Install the SDK with the `go` tool:
 
-        go get github.com/launchdarkly/go-client
+        go get gopkg.in/launchdarkly/go-client.v2
 
 2. Import the LaunchDarkly client:
 
-        import ld "github.com/launchdarkly/go-client"
+        import ld "gopkg.in/launchdarkly/go-client.v2"
 
 2. Create a new LDClient with your SDK key:
 
@@ -36,7 +36,7 @@ Your first feature flag
 Learn more
 -----------
 
-Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/v1.0/docs/go-sdk-reference).
+Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/v2.0/docs/go-sdk-reference).
 
 Testing
 -------
