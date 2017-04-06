@@ -65,23 +65,23 @@ type MemoryCache struct {
 // Get returns the []byte representation of the response and true if present, false if not
 func (c *MemoryCache) Get(key string) (resp []byte, ok bool) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
 	resp, ok = c.items[key]
+	c.mu.RUnlock()
 	return resp, ok
 }
 
 // Set saves response resp to the cache with key
 func (c *MemoryCache) Set(key string, resp []byte) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.items[key] = resp
+	c.mu.Unlock()
 }
 
 // Delete removes key from the cache
 func (c *MemoryCache) Delete(key string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	delete(c.items, key)
+	c.mu.Unlock()
 }
 
 // NewMemoryCache returns a new Cache that will store items in an in-memory map
@@ -159,7 +159,6 @@ func varyMatches(cachedResp *http.Response, req *http.Request) bool {
 // setModReq maintains a mapping between original requests and their associated cloned requests
 func (t *Transport) setModReq(orig, mod *http.Request) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.modReq == nil {
 		t.modReq = make(map[*http.Request]*http.Request)
 	}
@@ -168,6 +167,7 @@ func (t *Transport) setModReq(orig, mod *http.Request) {
 	} else {
 		t.modReq[orig] = mod
 	}
+	t.mu.Unlock()
 }
 
 // RoundTrip takes a Request and returns a Response
@@ -180,9 +180,9 @@ func (t *Transport) setModReq(orig, mod *http.Request) {
 // will be returned.
 func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	cacheKey := cacheKey(req)
-	cacheableMethod := req.Method == "GET" || req.Method == "HEAD"
+	cacheable := (req.Method == "GET" || req.Method == "HEAD") && req.Header.Get("range") == ""
 	var cachedResp *http.Response
-	if cacheableMethod {
+	if cacheable {
 		cachedResp, err = CachedResponse(t.Cache, req)
 	} else {
 		// Need to invalidate an existing value
@@ -194,7 +194,7 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 		transport = http.DefaultTransport
 	}
 
-	if cachedResp != nil && err == nil && cacheableMethod && req.Header.Get("range") == "" {
+	if cacheable && cachedResp != nil && err == nil {
 		if t.MarkCachedResponses {
 			cachedResp.Header.Set(XFromCache, "1")
 		}
@@ -223,22 +223,22 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 				}
 				if req2 != nil {
 					// Associate original request with cloned request so we can refer to
-					// it in CancelRequest()
+					// it in CancelRequest(). Release the mapping when it's no longer needed.
 					t.setModReq(req, req2)
-					req = req2
-					defer func() {
+					defer func(originalReq *http.Request) {
 						// Release req/clone mapping on error
 						if err != nil {
-							t.setModReq(req, nil)
+							t.setModReq(originalReq, nil)
 						}
 						if resp != nil {
 							// Release req/clone mapping on body close/EOF
 							resp.Body = &onEOFReader{
 								rc: resp.Body,
-								fn: func() { t.setModReq(req, nil) },
+								fn: func() { t.setModReq(originalReq, nil) },
 							}
 						}
-					}()
+					}(req)
+					req = req2
 				}
 			}
 		}
@@ -281,10 +281,7 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 		}
 	}
 
-	reqCacheControl := parseCacheControl(req.Header)
-	respCacheControl := parseCacheControl(resp.Header)
-
-	if canStore(reqCacheControl, respCacheControl) {
+	if cacheable && canStore(parseCacheControl(req.Header), parseCacheControl(resp.Header)) {
 		for _, varyKey := range headerAllCommaSepValues(resp.Header, "vary") {
 			varyKey = http.CanonicalHeaderKey(varyKey)
 			fakeHeader := "X-Varied-" + varyKey
