@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/launchdarkly/go-client",
 	"GoVersion": "go1.5",
-	"GodepVersion": "v74",
+	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
 	],
@@ -24,7 +24,7 @@
 		},
 		{
 			"ImportPath": "github.com/gregjones/httpcache",
-			"Rev": "ae1d6feaf2d3354cece07d7dcf420de6745ad7b6"
+			"Rev": "d02018f006d98f58512bf3adfc171d88d17626df"
 		},
 		{
 			"ImportPath": "github.com/launchdarkly/eventsource",
