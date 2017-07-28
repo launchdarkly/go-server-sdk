@@ -1,0 +1,68 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "5rPfda8jFccr3A6heL+JAmi9K9g=",
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
+		},
+		{
+			"checksumSHA1": "a2yC46a1qsJomgY6rb+FkTFiqmE=",
+			"path": "github.com/davecgh/go-spew/spew/testdata",
+			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
+		},
+		{
+			"checksumSHA1": "aIb20NobDZnQMGJzDAHh0fDuOEg=",
+			"path": "github.com/facebookgo/httpcontrol",
+			"revision": "ccde4420e1fee9af5da365cb76075b95683f39a6"
+		},
+		{
+			"checksumSHA1": "vbuxBkbT6EO/tBBvFSa3QSK5rSQ=",
+			"path": "github.com/facebookgo/httpcontrol/httpcache",
+			"revision": "ccde4420e1fee9af5da365cb76075b95683f39a6"
+		},
+		{
+			"checksumSHA1": "2UmMbNHc8FBr98mJFN1k8ISOIHk=",
+			"path": "github.com/garyburd/redigo/internal",
+			"revision": "836b6e58b3358112c8291565d01c35b8764070d7"
+		},
+		{
+			"checksumSHA1": "wnZ8GNIx+TaSUZ/YSMsjGDx9Xis=",
+			"path": "github.com/garyburd/redigo/internal/redistest",
+			"revision": "836b6e58b3358112c8291565d01c35b8764070d7"
+		},
+		{
+			"checksumSHA1": "rD2qkFpmML4hNlIHQugTrrhgMtY=",
+			"path": "github.com/garyburd/redigo/redis",
+			"revision": "836b6e58b3358112c8291565d01c35b8764070d7"
+		},
+		{
+			"checksumSHA1": "Yys4Zg9FS1VnJyrNpaoPT5LyxhA=",
+			"path": "github.com/gregjones/httpcache",
+			"revision": "d02018f006d98f58512bf3adfc171d88d17626df"
+		},
+		{
+			"checksumSHA1": "sZ1ADTK3Y1AuvR2BDs1QTJFz3wY=",
+			"path": "github.com/launchdarkly/eventsource",
+			"revision": "7a80b789e2ea45aa2f320c59203c306e8ded8f06"
+		},
+		{
+			"checksumSHA1": "vNL7xL08iaySNAxSUz+AoXGu3DQ=",
+			"path": "github.com/patrickmn/go-cache",
+			"revision": "1881a9bccb818787f68c52bfba648c6cf34c34fa"
+		},
+		{
+			"checksumSHA1": "LuFv4/jlrmFNnDb/5SCSEPAM9vU=",
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2"
+		},
+		{
+			"checksumSHA1": "Bn333k9lTndxU3D6n/G5c+GMcYY=",
+			"comment": "v1.1.3-6-g6fe211e",
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "6fe211e493929a8aac0469b93f28b1d0688a9a3a"
+		}
+	],
+	"rootPath": "github.com/launchdarkly/go-client-private"
+}
