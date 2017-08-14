@@ -354,10 +354,10 @@ func (client *LDClient) sendFlagRequestEvent(key string, user User, value, defau
 
 func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, *int, error) {
 	if user.Key == nil {
-		return defaultVal, nil, fmt.Errorf("User.Key cannot be nil for user: %+v", user)
+		return defaultVal, nil, fmt.Errorf("User.Key cannot be nil for user: %+v when evaluating flag: %s", user, key)
 	}
 	if *user.Key == "" {
-		client.config.Logger.Printf("WARN: User.Key is blank. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.")
+		client.config.Logger.Printf("WARN: User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
 	}
 
 	var feature FeatureFlag
