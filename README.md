@@ -28,6 +28,8 @@ if err != nil {
 defer ld_client.Close()
 ```
 
+If you are reusing a global instance you probably want to not  `defer dl_client.Close()` but instead close it when the application exits.
+
 Your first feature flag
 -----------------------
 
