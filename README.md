@@ -16,7 +16,11 @@ Quick setup
 
 2. Create a new LDClient with your SDK key:
 
-        ld_client := ld.MakeClient("YOUR_SDK_KEY")
+        ld_client, err := ld.MakeClient("YOUR_SDK_KEY")
+        if err != nil {
+          log.Fatalf("Error creating launch darkly client: %v", err.Error())
+        }
+        defer ld_client.Close()
 
 Your first feature flag
 -----------------------
