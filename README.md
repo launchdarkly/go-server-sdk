@@ -8,15 +8,27 @@ Quick setup
 
 1. Install the SDK with the `go` tool:
 
-        go get gopkg.in/launchdarkly/go-client.v2
+```bash
+go get gopkg.in/launchdarkly/go-client.v2
+```
 
 2. Import the LaunchDarkly client:
 
-        import ld "gopkg.in/launchdarkly/go-client.v2"
+```go
+import ld "gopkg.in/launchdarkly/go-client.v2"
+```
 
 2. Create a new LDClient with your SDK key:
 
-        ld_client := ld.MakeClient("YOUR_SDK_KEY")
+```go
+ld_client, err := ld.MakeClient("YOUR_SDK_KEY")
+if err != nil {
+  log.Fatalf("Error creating launch darkly client: %v", err.Error())
+}
+defer ld_client.Close()
+```
+
+If you are reusing a global instance you probably want to not  `defer dl_client.Close()` but instead close it when the application exits.
 
 Your first feature flag
 -----------------------
@@ -24,13 +36,15 @@ Your first feature flag
 1. Create a new feature flag on your [dashboard](https://app.launchdarkly.com)
 2. In your application code, use the feature's key to check wthether the flag is on for each user:
 
-        key := "user@test.com"
-        show_feature := ld_client.BoolVariation("your.flag.key", ld.User{Key: &key,}, false)
-        if (show_feature) {
-            # application code to show the feature
-        } else {
-            # the code to run if the feature is off 
-        }
+```go
+key := "user@test.com"
+show_feature := ld_client.BoolVariation("your.flag.key", ld.User{Key: &key,}, false)
+if (show_feature) {
+    # application code to show the feature
+} else {
+    # the code to run if the feature is off 
+}
+```
 
 
 Learn more
