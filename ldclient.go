@@ -134,6 +134,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 				config.Logger.Println("Timeout exceeded when initializing LauncDarkly client.")
 				return &client, ErrInitializationTimeout
 			}
+
+			go func() { <-ch }() // Don't block the updateProcessor when not waiting
 			return &client, nil
 		}
 	}
