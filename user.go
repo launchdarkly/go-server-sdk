@@ -27,6 +27,10 @@ type User struct {
 	Anonymous *bool                        `json:"anonymous,omitempty" bson:"anonymous,omitempty"`
 	Custom    *map[string]interface{}      `json:"custom,omitempty" bson:"custom,omitempty"`
 	Derived   map[string]*DerivedAttribute `json:"derived,omitempty" bson:"derived,omitempty"`
+
+	// PrivateAttributes contains a list of attribute names that were included in the user,
+	// but were marked as private. As such, these attributes are not included in the fields above.
+	PrivateAttributes []string `json:"privateAttributes,omitempty" bson:"privateAttributes,omitempty"`
 }
 
 // The Derived attribute map is for internal use by LaunchDarkly only. Derived attributes
