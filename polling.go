@@ -25,7 +25,7 @@ func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
 	return pp
 }
 
-func (pp *pollingProcessor) start(ch chan<- bool) {
+func (pp *pollingProcessor) start(closeWhenReady chan<- struct{}) {
 	pp.config.Logger.Printf("Starting LaunchDarkly polling processor with interval: %+v", pp.config.PollInterval)
 	go func() {
 		for {
@@ -39,7 +39,7 @@ func (pp *pollingProcessor) start(ch chan<- bool) {
 				if err == nil {
 					pp.setInitializedOnce.Do(func() {
 						pp.isInitialized = true
-						ch <- true
+						close(closeWhenReady)
 					})
 				} else {
 					pp.config.Logger.Printf("Error when requesting feature updates: %+v", err)

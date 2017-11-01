@@ -14,7 +14,6 @@ const (
 	putEvent           = "put"
 	patchEvent         = "patch"
 	deleteEvent        = "delete"
-	indirectPutEvent   = "indirect/put"
 	indirectPatchEvent = "indirect/patch"
 )
 
@@ -26,7 +25,7 @@ type streamProcessor struct {
 	sdkKey             string
 	setInitializedOnce sync.Once
 	isInitialized      bool
-	sync.RWMutex
+	halt               chan struct{}
 }
 
 type featurePatchData struct {
@@ -43,69 +42,59 @@ func (sp *streamProcessor) initialized() bool {
 	return sp.isInitialized
 }
 
-func (sp *streamProcessor) start(ch chan<- bool) {
+func (sp *streamProcessor) start(closeWhenReady chan<- struct{}) {
 	sp.config.Logger.Printf("Starting LaunchDarkly streaming connection")
-	go sp.startOnce(ch)
-	go sp.errors()
+	go sp.subscribe(closeWhenReady)
 }
 
-func (sp *streamProcessor) startOnce(ch chan<- bool) {
+func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 	for {
-		subscribed := sp.checkSubscribe()
-		if !subscribed {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		event := <-sp.stream.Events
-		switch event.Event() {
-		case putEvent:
-			var features map[string]*FeatureFlag
-			if err := json.Unmarshal([]byte(event.Data()), &features); err != nil {
-				sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
-			} else {
-				sp.store.Init(features)
-				sp.setInitializedOnce.Do(func() {
-					sp.config.Logger.Printf("Started LaunchDarkly streaming client")
-					sp.isInitialized = true
-					ch <- true
-				})
+		select {
+		case event, ok := <-sp.stream.Events:
+			if !ok {
+				sp.config.Logger.Printf("Event stream closed.")
+				return
 			}
-		case patchEvent:
-			var patch featurePatchData
-			if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
-				sp.config.Logger.Printf("Unexpected error unmarshalling feature patch json: %+v", err)
-			} else {
-				key := strings.TrimLeft(patch.Path, "/")
-				sp.store.Upsert(key, patch.Data)
+			switch event.Event() {
+			case putEvent:
+				var features map[string]*FeatureFlag
+				if err := json.Unmarshal([]byte(event.Data()), &features); err != nil {
+					sp.config.Logger.Printf("Unexpected error unmarshalling feature json: %+v", err)
+				} else {
+					sp.store.Init(features)
+					sp.setInitializedOnce.Do(func() {
+						sp.config.Logger.Printf("Started LaunchDarkly streaming client")
+						sp.isInitialized = true
+						close(closeWhenReady)
+					})
+				}
+			case patchEvent:
+				var patch featurePatchData
+				if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
+					sp.config.Logger.Printf("Unexpected error unmarshalling feature patch json: %+v", err)
+				} else {
+					key := strings.TrimLeft(patch.Path, "/")
+					sp.store.Upsert(key, patch.Data)
+				}
+			case indirectPatchEvent:
+				key := event.Data()
+				if feature, err := sp.requestor.requestFlag(key); err != nil {
+					sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
+				} else {
+					sp.store.Upsert(key, *feature)
+				}
+			case deleteEvent:
+				var data featureDeleteData
+				if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
+					sp.config.Logger.Printf("Unexpected error unmarshalling feature delete json: %+v", err)
+				} else {
+					key := strings.TrimLeft(data.Path, "/")
+					sp.store.Delete(key, data.Version)
+
+				}
 			}
-		case indirectPatchEvent:
-			key := event.Data()
-			if feature, err := sp.requestor.requestFlag(key); err != nil {
-				sp.config.Logger.Printf("Unexpected error requesting feature: %+v", err)
-			} else {
-				sp.store.Upsert(key, *feature)
-			}
-		case indirectPutEvent:
-			if features, _, err := sp.requestor.requestAllFlags(); err != nil {
-				sp.config.Logger.Printf("Unexpected error requesting all features: %+v", err)
-			} else {
-				sp.store.Init(features)
-				sp.setInitializedOnce.Do(func() {
-					sp.config.Logger.Printf("Started LaunchDarkly streaming client")
-					sp.isInitialized = true
-					ch <- true
-				})
-			}
-		case deleteEvent:
-			var data featureDeleteData
-			if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
-				sp.config.Logger.Printf("Unexpected error unmarshalling feature delete json: %+v", err)
-			} else {
-				key := strings.TrimLeft(data.Path, "/")
-				sp.store.Delete(key, data.Version)
-			}
-		default:
-			sp.config.Logger.Printf("Unexpected event found in stream: %s", event.Event())
+		case <-sp.halt:
+			return
 		}
 	}
 }
@@ -116,16 +105,14 @@ func newStreamProcessor(sdkKey string, config Config, requestor *requestor) upda
 		config:    config,
 		sdkKey:    sdkKey,
 		requestor: requestor,
+		halt:      make(chan struct{}),
 	}
 
 	return sp
 }
 
-func (sp *streamProcessor) subscribe() {
-	sp.Lock()
-	defer sp.Unlock()
-
-	if sp.stream == nil {
+func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
+	for {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/flags", nil)
 		req.Header.Add("Authorization", sp.sdkKey)
 		req.Header.Add("User-Agent", "GoClient/"+Version)
@@ -133,43 +120,47 @@ func (sp *streamProcessor) subscribe() {
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
+
+			// Halt immediately if we've been closed already
+			select {
+			case <-sp.halt:
+				return
+			default:
+				time.Sleep(2 * time.Second)
+			}
+
 		} else {
 			sp.stream = stream
 			sp.stream.Logger = sp.config.Logger
-		}
-	}
-}
 
-func (sp *streamProcessor) checkSubscribe() bool {
-	sp.RLock()
-	if sp.stream == nil {
-		sp.RUnlock()
-		sp.subscribe()
-		return sp.stream != nil
-	} else {
-		defer sp.RUnlock()
-		return true
+			go sp.events(closeWhenReady)
+			go sp.errors()
+
+			return
+		}
 	}
 }
 
 func (sp *streamProcessor) errors() {
 	for {
-		subscribed := sp.checkSubscribe()
-		if !subscribed {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		err := <-sp.stream.Errors
-
-		if err != io.EOF {
-			sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-		}
-		if err != nil {
+		select {
+		case err, ok := <-sp.stream.Errors:
+			if !ok {
+				sp.config.Logger.Printf("Event error stream closed.")
+				return
+			}
+			if err != io.EOF {
+				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+			}
+		case <-sp.halt:
+			return
 		}
 	}
 }
 
 func (sp *streamProcessor) close() {
-	// TODO : the EventSource library doesn't support close() yet.
-	// when it does, call it here
+	sp.config.Logger.Printf("Closing event stream.")
+	// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
+	// sp.stream.Close()
+	close(sp.halt)
 }

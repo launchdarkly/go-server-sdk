@@ -1,0 +1,55 @@
+version: 2
+
+experimental:
+  notify:
+    branches:
+      only:
+        - master
+        - v2
+
+jobs:
+  go-test:
+    working_directory: ~/go/src/github.com/launchdarkly/go-client-private
+
+    docker:
+      - image: circleci/golang:1.8
+        environment:
+          - COMMON_GO_PACKAGES: >
+              github.com/GoASTScanner/gas
+              github.com/kardianos/govendor
+              golang.org/x/tools/cmd/goimports
+              honnef.co/go/tools/cmd/staticcheck
+
+    steps:
+      - checkout
+
+      - run: echo $GOPATH
+      - run: echo $GOBIN
+      - run: |
+          cat >> $BASH_ENV << EOF
+          export GOPATH=~/go
+          export GOBIN=~/go/bin
+          export PATH="$HOME/go/bin:$GOROOT/bin:$PATH"
+          EOF
+
+      - run: go get -d -u -v $COMMON_GO_PACKAGES
+      - run: go install $COMMON_GO_PACKAGES
+      - run: go version
+
+      # Source code checks
+      - run: |
+          govendor status && exit 0
+          govendor sync -n  # Spit out any sync errors that may have caused the status failure
+          exit 1
+
+      # TOOD: Fix this after eventsource passes
+      # - run: govendor tool vet -composites=false +local
+      - run: gas -skip=**vendor/** -exclude=G101,G104 ./...
+      - run: staticcheck $(govendor list -no-status +l)
+      - run: govendor test -race +local
+
+workflows:
+  version: 2
+  test_and_package:
+    jobs:
+      - go-test

@@ -13,7 +13,7 @@ type TestUpdateProcessor struct{}
 
 func (u TestUpdateProcessor) initialized() bool { return true }
 func (u TestUpdateProcessor) close()            {}
-func (u TestUpdateProcessor) start(chan<- bool) {}
+func (u TestUpdateProcessor) start(chan<- struct{}) {}
 
 func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	config := Config{

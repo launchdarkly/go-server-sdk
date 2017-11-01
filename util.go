@@ -89,7 +89,6 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 		inputJsonRawMessage := json.RawMessage(inputJsonBytes)
 		return inputJsonRawMessage, nil
 	}
-	return nil, fmt.Errorf("Could not convert: %+v to json.RawMessage", input)
 }
 
 func checkStatusCode(statusCode int, url string) error {
