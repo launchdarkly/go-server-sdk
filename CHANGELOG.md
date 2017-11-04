@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.1.0] - 2017-11-04
+
+### Added
+- Stop processing streaming events and errors after `Close()`.
+
 ## [2.0.0] - 2016-08-08
 ### Added
 - Support for multivariate feature flags. New methods `StringVariation`, `JsonVariation` and `IntVariation` and `Float64Variation` for multivariates.
