@@ -30,7 +30,7 @@ type User struct {
 
 	// PrivateAttributes contains a list of attribute names that were included in the user,
 	// but were marked as private. As such, these attributes are not included in the fields above.
-	PrivateAttributes []string `json:"privateAttributes,omitempty" bson:"privateAttributes,omitempty"`
+	PrivateAttributes []string `json:"privateAttrs,omitempty" bson:"privateAttrs,omitempty"`
 }
 
 // The Derived attribute map is for internal use by LaunchDarkly only. Derived attributes
