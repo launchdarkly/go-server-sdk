@@ -29,20 +29,21 @@ type LDClient struct {
 
 // Exposes advanced configuration options for the LaunchDarkly client.
 type Config struct {
-	BaseUri          string
-	StreamUri        string
-	EventsUri        string
-	Capacity         int
-	FlushInterval    time.Duration
-	SamplingInterval int32
-	PollInterval     time.Duration
-	Logger           *log.Logger
-	Timeout          time.Duration
-	Stream           bool
-	FeatureStore     FeatureStore
-	UseLdd           bool
-	SendEvents       bool
-	Offline          bool
+	BaseUri              string
+	StreamUri            string
+	EventsUri            string
+	Capacity             int
+	FlushInterval        time.Duration
+	SamplingInterval     int32
+	PollInterval         time.Duration
+	Logger               *log.Logger
+	Timeout              time.Duration
+	Stream               bool
+	FeatureStore         FeatureStore
+	UseLdd               bool
+	SendEvents           bool
+	Offline              bool
+	AllAttributesPrivate bool
 }
 
 type updateProcessor interface {
@@ -109,6 +110,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return &client, nil
 	}
 
+	client.eventProcessor = newEventProcessor(sdkKey, config)
+
 	if config.UseLdd {
 		config.Logger.Println("Started Launchdarkly in LDD mode")
 		return &client, nil
@@ -122,7 +125,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.updateProcessor = newPollingProcessor(config, requestor)
 	}
 	client.updateProcessor.start(closeWhenReady)
-	client.eventProcessor = newEventProcessor(sdkKey, config)
 	timeout := time.After(waitFor)
 	for {
 		select {
@@ -236,7 +238,7 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	}
 	for _, flag := range flags {
 		result, _ := client.evalFlag(*flag, user)
-		results[flag.Key] =  result
+		results[flag.Key] = result
 	}
 
 	return results
@@ -384,14 +386,14 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 	}
 
 	result, prereqEvents := client.evalFlag(feature, user)
-		if !client.IsOffline() {
-			for _, event := range prereqEvents {
-				err := client.eventProcessor.sendEvent(event)
-				if err != nil {
-					client.config.Logger.Printf("WARN: Error sending feature request event to LaunchDarkly: %+v", err)
-				}
+	if !client.IsOffline() {
+		for _, event := range prereqEvents {
+			err := client.eventProcessor.sendEvent(event)
+			if err != nil {
+				client.config.Logger.Printf("WARN: Error sending feature request event to LaunchDarkly: %+v", err)
 			}
 		}
+	}
 	if result != nil {
 		return result, &feature.Version, nil
 	}
