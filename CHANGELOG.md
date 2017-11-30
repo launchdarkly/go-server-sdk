@@ -8,9 +8,6 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 
 - Allow user to stop user attributes from being sent in analytics events back to LaunchDarkly.  Set `PrivateAttributeNames` to a list of attributes to avoid sending, or set `AllAttributesPrivate` to `true` to send no attributes. 
 
-### Added
-- Stop processing streaming events and errors after `Close()`.
-
 ## [2.1.0] - 2017-11-16
 
 ### Added
