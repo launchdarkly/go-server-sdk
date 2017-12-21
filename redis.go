@@ -227,8 +227,7 @@ func (store *RedisFeatureStore) Init(features map[string]*FeatureFlag) error {
 	}
 	_, err := c.Do("EXEC")
 
-	store.inited = true
-	store.initCheck.Do(func() { })
+	store.initCheck.Do(func() { store.inited = true })
 
 	return err
 }
