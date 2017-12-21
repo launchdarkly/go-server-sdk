@@ -2,6 +2,17 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.2.0] - 2017-12-21
+
+### Added 
+
+- Allow user to stop user attributes from being sent in analytics events back to LaunchDarkly.  Set `PrivateAttributeNames` to a list of attributes to avoid sending, or set `AllAttributesPrivate` to `true` to send no attributes. 
+
+### Changed
+
+- Accept an interface for the `Logger` configuration option (thanks @ZiaoGeorgeJiang).
+
+
 ## [2.1.0] - 2017-11-16
 
 ### Added
