@@ -91,9 +91,8 @@ func (ep *eventProcessor) flush() {
 	}
 
 	events := ep.queue
-	ep.mu.Unlock()
-
 	ep.queue = make([]Event, 0)
+	ep.mu.Unlock()
 
 	payload, marshalErr := json.Marshal(events)
 
@@ -145,7 +144,24 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	if len(ep.queue) >= ep.config.Capacity {
 		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
 	}
-	ep.queue = append(ep.queue, evt)
+
+	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames)
+
+  var newEvent Event
+	switch evt := evt.(type) {
+	case FeatureRequestEvent:
+		evt.User = scrubbedUser
+		newEvent = evt
+	case CustomEvent:
+		evt.User = scrubbedUser
+		newEvent = evt
+	case IdentifyEvent:
+		evt.User = scrubbedUser
+		newEvent = evt
+	default:
+		return errors.New("unknown event type")
+	}
+	ep.queue = append(ep.queue, newEvent)
 	return nil
 }
 
@@ -240,4 +256,78 @@ func toUnixMillis(t time.Time) uint64 {
 	ms := time.Duration(t.UnixNano()) / time.Millisecond
 
 	return uint64(ms)
+}
+
+func scrubUser(user User, allAttributesPrivate bool, globalPrivateAttributes []string) User {
+	user.PrivateAttributes = nil
+
+	if len(user.PrivateAttributeNames) == 0 && len(globalPrivateAttributes) == 0 && !allAttributesPrivate {
+		return user
+	}
+
+	isPrivate := map[string]bool{}
+	for _, n := range globalPrivateAttributes {
+		isPrivate[n] = true
+	}
+	for _, n := range user.PrivateAttributeNames {
+		isPrivate[n] = true
+	}
+
+	if user.Custom != nil {
+		var custom = map[string]interface{}{}
+		for k, v := range *user.Custom {
+			if allAttributesPrivate || isPrivate[k] {
+				user.PrivateAttributes = append(user.PrivateAttributes, k)
+			} else {
+				custom[k] = v
+			}
+		}
+		user.Custom = &custom
+	}
+
+	if !isEmpty(user.Avatar) && (allAttributesPrivate || isPrivate["avatar"]) {
+		user.Avatar = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "avatar")
+	}
+
+	if !isEmpty(user.Country) && (allAttributesPrivate || isPrivate["country"]) {
+		user.Country = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "country")
+	}
+
+	if !isEmpty(user.Ip) && (allAttributesPrivate || isPrivate["ip"]) {
+		user.Ip = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "ip")
+	}
+
+	if !isEmpty(user.FirstName) && (allAttributesPrivate || isPrivate["firstName"]) {
+		user.FirstName = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "firstName")
+	}
+
+	if !isEmpty(user.LastName) && (allAttributesPrivate || isPrivate["lastName"]) {
+		user.LastName = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "lastName")
+	}
+
+	if !isEmpty(user.Name) && (allAttributesPrivate || isPrivate["name"]) {
+		user.Name = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "name")
+	}
+
+	if !isEmpty(user.Secondary) && (allAttributesPrivate || isPrivate["secondary"]) {
+		user.Secondary = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "secondary")
+	}
+
+	if !isEmpty(user.Email) && (allAttributesPrivate || isPrivate["email"]) {
+		user.Email = nil
+		user.PrivateAttributes = append(user.PrivateAttributes, "email")
+	}
+
+	return user
+}
+
+func isEmpty(s *string) bool {
+	return s == nil || *s == ""
 }
