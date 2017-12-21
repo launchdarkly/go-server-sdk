@@ -9,20 +9,21 @@ import (
 	"os"
 	"time"
 	"reflect"
+	"sync"
 )
 
 // A Redis-backed feature store.
 type RedisFeatureStore struct {
-	prefix  string
-	pool    *r.Pool
-	cache   *cache.Cache
-	timeout time.Duration
-	logger  *log.Logger
+	prefix    string
+	pool      *r.Pool
+	cache     *cache.Cache
+	timeout   time.Duration
+	logger    *log.Logger
+	inited    bool
+	initCheck sync.Once
 }
 
 const (
-	initKey = "$initialized$"
-
 	// stored alongside flag keys.
 	// $ is not a valid character for flag keys, so there will never be a collision.
 	allFlagsKey = "$all_flags$"
@@ -91,6 +92,7 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 		cache:   c,
 		timeout: timeout,
 		logger:  logger,
+		inited:  false,
 	}
 	return &store
 }
@@ -224,6 +226,10 @@ func (store *RedisFeatureStore) Init(features map[string]*FeatureFlag) error {
 		store.cache.Set(allFlagsKey, features, store.timeout)
 	}
 	_, err := c.Do("EXEC")
+
+	store.inited = true
+	store.initCheck.Do(func() { })
+
 	return err
 }
 
@@ -288,22 +294,13 @@ func (store *RedisFeatureStore) put(c r.Conn, key string, f FeatureFlag) error {
 }
 
 func (store *RedisFeatureStore) Initialized() bool {
-	if store.cache != nil {
-		if _, present := store.cache.Get(initKey); present {
-			return true
-		}
-	}
-
-	c := store.getConn()
-	defer c.Close()
-
-	init, err := r.Bool(c.Do("EXISTS", store.featuresKey()))
-
-	if store.cache != nil && err == nil && init {
-		store.cache.Set(initKey, true, store.timeout)
-	}
-
-	return err == nil && init
+	store.initCheck.Do(func() {
+		c := store.getConn()
+		defer c.Close()
+		inited, _ := r.Bool(c.Do("EXISTS", store.featuresKey()))
+		store.inited = inited
+	})
+	return store.inited
 }
 
 func defaultLogger() *log.Logger {
