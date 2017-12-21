@@ -23,7 +23,7 @@ func init() {
 }
 
 func TestScrubUser(t *testing.T) {
-	t.Run("private built-in attributes", func(t *testing.T) {
+	t.Run("private built-in attributes per user", func(t *testing.T) {
 		user := User{
 			Key:       strPtr("user-key"),
 			FirstName: strPtr("sam"),
@@ -38,7 +38,28 @@ func TestScrubUser(t *testing.T) {
 
 		for _, attr := range BuiltinAttributes {
 			user.PrivateAttributeNames = []string{attr}
-			scrubbedUser := scrubUser(user, false)
+			scrubbedUser := scrubUser(user, false, nil)
+			assert.Equal(t, []string{attr}, scrubbedUser.PrivateAttributes)
+			scrubbedUser.PrivateAttributes = nil
+			assert.NotEqual(t, user, scrubbedUser)
+		}
+	})
+
+	t.Run("global private built-in attributes", func(t *testing.T) {
+		user := User{
+			Key:       strPtr("user-key"),
+			FirstName: strPtr("sam"),
+			LastName:  strPtr("smith"),
+			Name:      strPtr("sammy"),
+			Country:   strPtr("freedonia"),
+			Avatar:    strPtr("my-avatar"),
+			Ip:        strPtr("123.456.789"),
+			Email:     strPtr("me@example.com"),
+			Secondary: strPtr("abcdef"),
+		}
+
+		for _, attr := range BuiltinAttributes {
+			scrubbedUser := scrubUser(user, false, []string{attr})
 			assert.Equal(t, []string{attr}, scrubbedUser.PrivateAttributes)
 			scrubbedUser.PrivateAttributes = nil
 			assert.NotEqual(t, user, scrubbedUser)
@@ -54,7 +75,7 @@ func TestScrubUser(t *testing.T) {
 				"my-secret-attr": "my secret value",
 			}}
 
-		scrubbedUser := scrubUser(user, false)
+		scrubbedUser := scrubUser(user, false, nil)
 
 		assert.Equal(t, []string{"my-secret-attr"}, scrubbedUser.PrivateAttributes)
 		assert.NotContains(t, *scrubbedUser.Custom, "my-secret-attr")
@@ -76,7 +97,7 @@ func TestScrubUser(t *testing.T) {
 				"my-secret-attr": "my secret value",
 			}}
 
-		scrubbedUser := scrubUser(user, true)
+		scrubbedUser := scrubUser(user, true, nil)
 		sort.Strings(scrubbedUser.PrivateAttributes)
 		expectedAttributes := append(BuiltinAttributes, "my-secret-attr")
 		sort.Strings(expectedAttributes)
@@ -86,6 +107,17 @@ func TestScrubUser(t *testing.T) {
 		assert.Equal(t, User{Key: &userKey, Custom: &map[string]interface{}{}}, scrubbedUser)
 		assert.NotContains(t, *scrubbedUser.Custom, "my-secret-attr")
 		assert.Nil(t, scrubbedUser.Name)
+	})
+
+	t.Run("anonymous attribute can't be private", func(t *testing.T) {
+		userKey := "userKey"
+		anon := true
+		user := User{
+			Key:       &userKey,
+			Anonymous: &anon}
+
+		scrubbedUser := scrubUser(user, true, nil)
+		assert.Equal(t, scrubbedUser, user)
 	})
 }
 

@@ -145,8 +145,9 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
 	}
 
-	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate)
-	var newEvent Event
+	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames)
+
+  var newEvent Event
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
 		evt.User = scrubbedUser
@@ -257,21 +258,23 @@ func toUnixMillis(t time.Time) uint64 {
 	return uint64(ms)
 }
 
-func scrubUser(user User, allAttributesPrivate bool) User {
+func scrubUser(user User, allAttributesPrivate bool, globalPrivateAttributes []string) User {
 	user.PrivateAttributes = nil
 
-	if len(user.PrivateAttributeNames) == 0 && !allAttributesPrivate {
+	if len(user.PrivateAttributeNames) == 0 && len(globalPrivateAttributes) == 0 && !allAttributesPrivate {
 		return user
 	}
 
 	isPrivate := map[string]bool{}
+	for _, n := range globalPrivateAttributes {
+		isPrivate[n] = true
+	}
 	for _, n := range user.PrivateAttributeNames {
 		isPrivate[n] = true
 	}
 
-	var custom map[string]interface{}
 	if user.Custom != nil {
-		custom = map[string]interface{}{}
+		var custom = map[string]interface{}{}
 		for k, v := range *user.Custom {
 			if allAttributesPrivate || isPrivate[k] {
 				user.PrivateAttributes = append(user.PrivateAttributes, k)
