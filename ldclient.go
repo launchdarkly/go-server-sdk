@@ -217,8 +217,12 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	}
 
 	if !client.Initialized() {
-		client.config.Logger.Println("WARN: Called AllFlags before client initialization. Returning nil map")
-		return nil
+		if (client.store.Initialized()) {
+			client.config.Logger.Println("WARN: Called AllFlags before client initialization; using last known values from feature store")
+		} else {
+			client.config.Logger.Println("WARN: Called AllFlags before client initialization. Feature store not available; returning nil map")
+			return nil
+		}
 	}
 
 	if user.Key == nil {
@@ -367,7 +371,11 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 	var featurePtr *FeatureFlag
 
 	if !client.Initialized() {
-		return defaultVal, nil, ErrClientNotInitialized
+		if client.store.Initialized() {
+			client.config.Logger.Printf("WARN: Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
+		} else {
+			return defaultVal, nil, ErrClientNotInitialized
+		}
 	}
 
 	featurePtr, storeErr = client.store.Get(key)
