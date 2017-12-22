@@ -107,10 +107,10 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
 
-	body, ioerr := ioutil.ReadAll(res.Body)
+	body, err := ioutil.ReadAll(res.Body)
 
-	if ioerr != nil {
-		return nil, false, ioerr
+	if err != nil {
+		return nil, false, err
 	}
-	return body, cached, nil
+	return body, cached, err
 }
