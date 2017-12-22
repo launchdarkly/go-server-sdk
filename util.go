@@ -100,21 +100,21 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 	}
 }
 
-func checkStatusCode(statusCode int, url string) *HttpStatusError {
+func checkStatusCode(statusCode int, url string) error {
 	if statusCode == http.StatusUnauthorized {
-		return &HttpStatusError {
+		return HttpStatusError {
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
 			Code: statusCode }
 	}
 
 	if statusCode == http.StatusNotFound {
-		return &HttpStatusError {
+		return HttpStatusError {
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
 			Code: statusCode }
 	}
 
 	if statusCode/100 != 2 {
-		return &HttpStatusError {
+		return HttpStatusError {
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
 			Code: statusCode }
 	}

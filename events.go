@@ -134,10 +134,12 @@ func (ep *eventProcessor) flush() {
 	}
 	err := checkStatusCode(resp.StatusCode, uri)
 	if err != nil {
-		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", respErr)
-		if err.Code == 401 {
-			ep.config.Logger.Printf("Received 401 error, no further events will be posted since SDK key is invalid")
-			ep.close()
+		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", err)
+		if hse, ok := err.(HttpStatusError); ok {
+			if hse.Code == 401 {
+				ep.config.Logger.Printf("Received 401 error, no further events will be posted since SDK key is invalid")
+				ep.close()
+			}
 		}
 	}
 }
