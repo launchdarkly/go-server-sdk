@@ -171,8 +171,10 @@ func (sp *streamProcessor) closeIfUnauthorized(err error) {
 }
 
 func (sp *streamProcessor) close() {
-	sp.config.Logger.Printf("Closing event stream.")
-	// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
-	// sp.stream.Close()
-	sp.closeOnce.Do(func() { close(sp.halt) })
+	sp.closeOnce.Do(func() {
+		sp.config.Logger.Printf("Closing event stream.")
+		// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
+		// sp.stream.Close()
+		close(sp.halt)
+	})
 }

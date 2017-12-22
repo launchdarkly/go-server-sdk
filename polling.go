@@ -12,6 +12,7 @@ type pollingProcessor struct {
 	setInitializedOnce sync.Once
 	isInitialized      bool
 	quit               chan bool
+	closeOnce          sync.Once
 }
 
 func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
@@ -19,7 +20,7 @@ func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
 		store:     config.FeatureStore,
 		requestor: requestor,
 		config:    config,
-		quit:      make(chan bool),
+		quit:      make(chan bool, 1),
 	}
 
 	return pp
@@ -75,8 +76,10 @@ func (pp *pollingProcessor) poll() error {
 }
 
 func (pp *pollingProcessor) close() {
-	pp.config.Logger.Printf("Closing Polling Processor")
-	pp.quit <- true
+	pp.closeOnce.Do(func() {
+		pp.config.Logger.Printf("Closing Polling Processor")
+		pp.quit <- true
+	})
 }
 
 func (pp *pollingProcessor) initialized() bool {
