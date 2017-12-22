@@ -151,6 +151,12 @@ func (sp *streamProcessor) errors() {
 			}
 			if err != io.EOF {
 				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+				if se, ok := err.(es.SubscriptionError); ok {
+					if se.Code == 401 {
+						sp.config.Logger.Printf("Received 401 error, no further streaming connection will be made since SDK key is invalid")
+						sp.close()
+					}
+				}
 			}
 		case <-sp.halt:
 			return

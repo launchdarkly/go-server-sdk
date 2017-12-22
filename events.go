@@ -15,6 +15,7 @@ type eventProcessor struct {
 	queue  []Event
 	sdkKey string
 	config Config
+	closed bool
 	mu     *sync.Mutex
 	client *http.Client
 	closer chan struct{}
@@ -77,8 +78,15 @@ func newEventProcessor(sdkKey string, config Config) *eventProcessor {
 }
 
 func (ep *eventProcessor) close() {
-	close(ep.closer)
-	ep.flush()
+	ep.mu.Lock()
+	closed := ep.closed
+	ep.closed = true
+	ep.mu.Unlock()
+
+	if !closed {
+		close(ep.closer)
+		ep.flush()
+	}
 }
 
 func (ep *eventProcessor) flush() {
@@ -127,6 +135,10 @@ func (ep *eventProcessor) flush() {
 	err := checkStatusCode(resp.StatusCode, uri)
 	if err != nil {
 		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", respErr)
+		if err.Code == 401 {
+			ep.config.Logger.Printf("Received 401 error, no further events will be posted since SDK key is invalid")
+			ep.close()
+		}
 	}
 }
 
@@ -142,10 +154,12 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	ep.mu.Lock()
 	defer ep.mu.Unlock()
 
-	if len(ep.queue) >= ep.config.Capacity {
-		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
+	if !ep.closed {
+		if len(ep.queue) >= ep.config.Capacity {
+			return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
+		}
+		ep.queue = append(ep.queue, evt)
 	}
-	ep.queue = append(ep.queue, evt)
 	return nil
 }
 
