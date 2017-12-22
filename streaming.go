@@ -26,6 +26,7 @@ type streamProcessor struct {
 	setInitializedOnce sync.Once
 	isInitialized      bool
 	halt               chan struct{}
+	closeOnce          sync.Once
 }
 
 type featurePatchData struct {
@@ -120,6 +121,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
+			sp.closeIfUnauthorized(err)
 
 			// Halt immediately if we've been closed already
 			select {
@@ -151,15 +153,19 @@ func (sp *streamProcessor) errors() {
 			}
 			if err != io.EOF {
 				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-				if se, ok := err.(es.SubscriptionError); ok {
-					if se.Code == 401 {
-						sp.config.Logger.Printf("Received 401 error, no further streaming connection will be made since SDK key is invalid")
-						sp.close()
-					}
-				}
+				sp.closeIfUnauthorized(err)
 			}
 		case <-sp.halt:
 			return
+		}
+	}
+}
+
+func (sp *streamProcessor) closeIfUnauthorized(err error) {
+	if se, ok := err.(es.SubscriptionError); ok {
+		if se.Code == 401 {
+			sp.config.Logger.Printf("Received 401 error, no further streaming connection will be made since SDK key is invalid")
+			sp.close()
 		}
 	}
 }
@@ -168,5 +174,5 @@ func (sp *streamProcessor) close() {
 	sp.config.Logger.Printf("Closing event stream.")
 	// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
 	// sp.stream.Close()
-	close(sp.halt)
+	sp.closeOnce.Do(func() { close(sp.halt) })
 }
