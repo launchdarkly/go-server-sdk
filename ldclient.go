@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const Version = "2.2.2"
+const Version = "2.2.3"
 
 // The LaunchDarkly client. Client instances are thread-safe.
 // Applications should instantiate a single instance for the lifetime
