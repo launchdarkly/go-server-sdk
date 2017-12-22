@@ -158,7 +158,10 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	if ep.closed {
 		return nil
 	}
-
+	if len(ep.queue) >= ep.config.Capacity {
+ 		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
+ 	}
+ 	
 	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames)
 
 	var newEvent Event
