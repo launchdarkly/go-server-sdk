@@ -11,7 +11,7 @@ type pollingProcessor struct {
 	config             Config
 	setInitializedOnce sync.Once
 	isInitialized      bool
-	quit               chan bool
+	quit               chan struct{}
 	closeOnce          sync.Once
 }
 
@@ -20,7 +20,7 @@ func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
 		store:     config.FeatureStore,
 		requestor: requestor,
 		config:    config,
-		quit:      make(chan bool, 1),
+		quit:      make(chan struct{}),
 	}
 
 	return pp
@@ -78,7 +78,7 @@ func (pp *pollingProcessor) poll() error {
 func (pp *pollingProcessor) close() {
 	pp.closeOnce.Do(func() {
 		pp.config.Logger.Printf("Closing Polling Processor")
-		pp.quit <- true
+		close(pp.quit)
 	})
 }
 
