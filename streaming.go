@@ -121,7 +121,9 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
-			sp.closeIfUnauthorized(err)
+			if sp.checkUnauthorized(err) {
+				sp.close()
+			}
 
 			// Halt immediately if we've been closed already
 			select {
@@ -153,7 +155,9 @@ func (sp *streamProcessor) errors() {
 			}
 			if err != io.EOF {
 				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-				sp.closeIfUnauthorized(err)
+				if sp.checkUnauthorized(err) {
+					sp.close()
+				}
 			}
 		case <-sp.halt:
 			return
@@ -161,13 +165,14 @@ func (sp *streamProcessor) errors() {
 	}
 }
 
-func (sp *streamProcessor) closeIfUnauthorized(err error) {
+func (sp *streamProcessor) checkUnauthorized(err error) bool {
 	if se, ok := err.(es.SubscriptionError); ok {
 		if se.Code == 401 {
 			sp.config.Logger.Printf("Received 401 error, no further streaming connection will be made since SDK key is invalid")
-			sp.close()
+			return true
 		}
 	}
+	return false
 }
 
 func (sp *streamProcessor) close() {
