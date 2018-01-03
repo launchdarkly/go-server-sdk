@@ -44,6 +44,12 @@ func (pp *pollingProcessor) start(closeWhenReady chan<- struct{}) {
 					})
 				} else {
 					pp.config.Logger.Printf("Error when requesting feature updates: %+v", err)
+					if hse, ok := err.(HttpStatusError); ok {
+						if hse.Code == 401 {
+							pp.config.Logger.Printf("Received 401 error, no further polling requests will be made since SDK key is invalid")
+							return
+						}
+					}
 				}
 				delta := pp.config.PollInterval - time.Since(then)
 
@@ -59,12 +65,6 @@ func (pp *pollingProcessor) poll() error {
 	features, cached, err := pp.requestor.requestAllFlags()
 
 	if err != nil {
-		if hse, ok := err.(HttpStatusError); ok {
-			if hse.Code == 401 {
-				pp.config.Logger.Printf("Received 401 error, no further polling requests will be made since SDK key is invalid")
-				pp.close()
-			}
-		}
 		return err
 	}
 
