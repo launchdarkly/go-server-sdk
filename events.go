@@ -80,9 +80,9 @@ func newEventProcessor(sdkKey string, config Config) *eventProcessor {
 
 func (ep *eventProcessor) close() {
 	ep.closeOnce.Do(func() {
-		ep.closed = true
 		close(ep.closer)
 		ep.flush()
+		ep.closed = true
 	})
 }
 
@@ -90,7 +90,7 @@ func (ep *eventProcessor) flush() {
 	uri := ep.config.EventsUri + "/bulk"
 	ep.mu.Lock()
 
-	if len(ep.queue) == 0 {
+	if len(ep.queue) == 0 || ep.closed {
 		ep.mu.Unlock()
 		return
 	}
@@ -133,7 +133,9 @@ func (ep *eventProcessor) flush() {
 		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", err)
 		if err != nil && err.Code == 401 {
 			ep.config.Logger.Printf("Received 401 error, no further events will be posted since SDK key is invalid")
-			ep.close()
+			ep.mu.Lock()
+			ep.closed = true
+			ep.mu.Unlock()
 		}
 	}
 }
