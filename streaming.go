@@ -122,7 +122,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
 			if sp.checkUnauthorized(err) {
-				sp.close()
+				return
 			}
 
 			// Halt immediately if we've been closed already
