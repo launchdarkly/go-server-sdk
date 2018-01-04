@@ -12,14 +12,13 @@ import (
 )
 
 type eventProcessor struct {
-	queue     []Event
-	sdkKey    string
-	config    Config
-	closed    bool
-	closeOnce sync.Once
-	mu        *sync.Mutex
-	client    *http.Client
-	closer    chan struct{}
+	queue  []Event
+	sdkKey string
+	config Config
+	closed bool
+	mu     *sync.Mutex
+	client *http.Client
+	closer chan struct{}
 }
 
 type Event interface {
@@ -79,11 +78,15 @@ func newEventProcessor(sdkKey string, config Config) *eventProcessor {
 }
 
 func (ep *eventProcessor) close() {
-	ep.closeOnce.Do(func() {
+	ep.mu.Lock()
+	closed := ep.closed
+	ep.closed = true
+	ep.mu.Unlock()
+
+	if !closed {
 		close(ep.closer)
 		ep.flush()
-		ep.closed = true
-	})
+	}
 }
 
 func (ep *eventProcessor) flush() {
