@@ -94,6 +94,17 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 
 				}
 			}
+		case err, ok := <-sp.stream.Errors:
+			if !ok {
+				sp.config.Logger.Printf("Event error stream closed.")
+			}
+			if err != io.EOF {
+				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+				if sp.checkUnauthorized(err) {
+					sp.close()
+					return
+				}
+			}
 		case <-sp.halt:
 			return
 		}
@@ -138,28 +149,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			sp.stream.Logger = sp.config.Logger
 
 			go sp.events(closeWhenReady)
-			go sp.errors()
 
-			return
-		}
-	}
-}
-
-func (sp *streamProcessor) errors() {
-	for {
-		select {
-		case err, ok := <-sp.stream.Errors:
-			if !ok {
-				sp.config.Logger.Printf("Event error stream closed.")
-				return
-			}
-			if err != io.EOF {
-				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-				if sp.checkUnauthorized(err) {
-					sp.close()
-				}
-			}
-		case <-sp.halt:
 			return
 		}
 	}
