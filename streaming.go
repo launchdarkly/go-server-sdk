@@ -101,7 +101,12 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 			if err != io.EOF {
 				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
 				if sp.checkUnauthorized(err) {
-					sp.close()
+					sp.closeOnce.Do(func() {
+						sp.config.Logger.Printf("Closing event stream.")
+						// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
+						// Until we're able to close it explicitly here, we won't be able to stop it from trying to reconnect after a 401 error.
+						// sp.stream.Close()
+					}
 					return
 				}
 			}
