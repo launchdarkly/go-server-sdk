@@ -106,7 +106,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 						// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
 						// Until we're able to close it explicitly here, we won't be able to stop it from trying to reconnect after a 401 error.
 						// sp.stream.Close()
-					}
+					})
 					return
 				}
 			}
