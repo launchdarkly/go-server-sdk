@@ -43,9 +43,10 @@
 			"revision": "d02018f006d98f58512bf3adfc171d88d17626df"
 		},
 		{
-			"checksumSHA1": "sZ1ADTK3Y1AuvR2BDs1QTJFz3wY=",
+			"checksumSHA1": "hNJyOkzYgQxH+tjGQNVFkxk0Hjg=",
 			"path": "github.com/launchdarkly/eventsource",
-			"revision": "7a80b789e2ea45aa2f320c59203c306e8ded8f06"
+			"revision": "a45c212c667804d2687d2780839b04e288e2160d",
+			"revisionTime": "2017-12-20T01:50:56Z"
 		},
 		{
 			"checksumSHA1": "vNL7xL08iaySNAxSUz+AoXGu3DQ=",
@@ -64,5 +65,5 @@
 			"revision": "6fe211e493929a8aac0469b93f28b1d0688a9a3a"
 		}
 	],
-	"rootPath": "github.com/launchdarkly/go-client-private"
+	"rootPath": "github.com/launchdarkly/go-client"
 }
