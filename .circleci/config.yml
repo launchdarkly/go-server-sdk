@@ -15,7 +15,7 @@ jobs:
       - image: circleci/golang:1.8
         environment:
           - COMMON_GO_PACKAGES: >
-              github.com/GoASTScanner/gas
+              github.com/GoASTScanner/gas/...
               github.com/kardianos/govendor
               golang.org/x/tools/cmd/goimports
               honnef.co/go/tools/cmd/staticcheck
@@ -44,7 +44,7 @@ jobs:
 
       # TOOD: Fix this after eventsource passes
       # - run: govendor tool vet -composites=false +local
-      - run: gas -skip=**vendor/** -exclude=G101,G104 ./...
+      - run: gas -exclude=G101,G104 ./...
       - run: staticcheck $(govendor list -no-status +l)
       - run: govendor test -race +local
 
