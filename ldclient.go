@@ -47,6 +47,10 @@ type Config struct {
 	PrivateAttributeNames []string
 }
 
+// The minimum value for Config.PollInterval. If you specify a smaller interval,
+// the minimum will be used instead.
+const MinimumPollInterval = 30 * time.Second
+
 type updateProcessor interface {
 	initialized() bool
 	close()
@@ -64,7 +68,7 @@ var DefaultConfig = Config{
 	EventsUri:     "https://events.launchdarkly.com",
 	Capacity:      1000,
 	FlushInterval: 5 * time.Second,
-	PollInterval:  1 * time.Second,
+	PollInterval:  MinimumPollInterval,
 	Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	Timeout:       3000 * time.Millisecond,
 	Stream:        true,
@@ -91,8 +95,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	config.EventsUri = strings.TrimRight(config.EventsUri, "/")
-	if config.PollInterval < (1 * time.Second) {
-		config.PollInterval = 1 * time.Second
+	if config.PollInterval < MinimumPollInterval {
+		config.PollInterval = MinimumPollInterval
 	}
 
 	if config.FeatureStore == nil {
@@ -123,6 +127,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if config.Stream {
 		client.updateProcessor = newStreamProcessor(sdkKey, config, requestor)
 	} else {
+		config.Logger.Println("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 		client.updateProcessor = newPollingProcessor(config, requestor)
 	}
 	client.updateProcessor.start(closeWhenReady)
