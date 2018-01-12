@@ -3,6 +3,8 @@ package ldclient
 import (
 	"regexp"
 	"strings"
+	
+	"github.com/blang/semver"
 )
 
 const (
@@ -17,6 +19,9 @@ const (
 	OperatorGreaterThanOrEqual Operator = "greaterThanOrEqual"
 	OperatorBefore             Operator = "before"
 	OperatorAfter              Operator = "after"
+	OperatorSemVerEqual        Operator = "semVerEqual"
+	OperatorSemVerLessThan     Operator = "semVerLessThan"
+	OperatorSemVerGreaterThan  Operator = "semVerGreaterThan"
 )
 
 type opFn (func(interface{}, interface{}) bool)
@@ -35,6 +40,9 @@ var OpsList = []Operator{
 	OperatorGreaterThanOrEqual,
 	OperatorBefore,
 	OperatorAfter,
+	OperatorSemVerEqual,
+	OperatorSemVerLessThan,
+	OperatorSemVerGreaterThan,
 }
 
 func (op Operator) Name() string {
@@ -53,6 +61,9 @@ var allOps = map[Operator]opFn{
 	OperatorGreaterThanOrEqual: operatorGreaterThanOrEqualFn,
 	OperatorBefore:             operatorBeforeFn,
 	OperatorAfter:              operatorAfterFn,
+	OperatorSemVerEqual:        operatorSemVerEqualFn,
+	OperatorSemVerLessThan:     operatorSemVerLessThanFn,
+	OperatorSemVerGreaterThan:  operatorSemVerGreaterThanFn,
 }
 
 // Turn this into a static map
@@ -155,6 +166,33 @@ func operatorAfterFn(uValue interface{}, cValue interface{}) bool {
 		}
 	}
 	return false
+}
+
+func parseSemVer(value interface{}) (semver.Version, bool) {
+	if str, ok := value.(string); ok {
+		if sv, err := semver.ParseTolerant(str); err == nil {
+			return sv, true
+		}
+	}
+	return semver.Version{}, false
+}
+
+func semVerOperator(uValue interface{}, cValue interface{}, fn func(semver.Version, semver.Version) bool) bool {
+	u, uOk := parseSemVer(uValue)
+	c, cOk := parseSemVer(cValue)
+	return uOk && cOk && fn(u, c)
+}
+
+func operatorSemVerEqualFn(uValue interface{}, cValue interface{}) bool {
+	return semVerOperator(uValue, cValue, semver.Version.Equals)
+}
+
+func operatorSemVerLessThanFn(uValue interface{}, cValue interface{}) bool {
+	return semVerOperator(uValue, cValue, semver.Version.LT)
+}
+
+func operatorSemVerGreaterThanFn(uValue interface{}, cValue interface{}) bool {
+	return semVerOperator(uValue, cValue, semver.Version.GT)
 }
 
 func operatorNoneFn(uValue interface{}, cValue interface{}) bool {
