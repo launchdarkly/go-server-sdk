@@ -30,6 +30,23 @@ defer ld_client.Close()
 
 If you are reusing a global instance you probably want to not  `defer dl_client.Close()` but instead close it when the application exits.
 
+
+HTTPS proxy
+------------
+Go's standard HTTP library provides built-in support for the use of a HTTPS proxy. If the HTTPS_PROXY environment variable is present then the SDK will proxy all network requests through the URL provided.
+
+How to set the HTTPS_PROXY environment variable on Mac/Linux systems:
+```
+export HTTPS_PROXY=https://web-proxy.domain.com:8080
+```
+
+
+How to set the HTTPS_PROXY environment variable on Windows systems:
+```
+set HTTPS_PROXY=https://web-proxy.domain.com:8080
+```
+
+
 Your first feature flag
 -----------------------
 
