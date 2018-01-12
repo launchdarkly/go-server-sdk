@@ -1,3 +1,5 @@
+// +build !launchdarkly_no_redis
+
 package ldclient
 
 import (

@@ -46,6 +46,14 @@ if (show_feature) {
 }
 ```
 
+Building without Redis
+----------------------
+
+The SDK includes an adapter for caching feature flag data in [Redis](https://redis.io), using [Redigo](https://github.com/garyburd/redigo). If you don't intend to use Redis and would like to avoid installing Redigo, add the following build tag to your `go build` command:
+
+```
+-tags launchdarkly_no_redis
+```
 
 Learn more
 -----------
@@ -85,4 +93,3 @@ About LaunchDarkly
     * [docs.launchdarkly.com](http://docs.launchdarkly.com/  "LaunchDarkly Documentation") for our documentation and SDKs
     * [apidocs.launchdarkly.com](http://apidocs.launchdarkly.com/  "LaunchDarkly API Documentation") for our API documentation
     * [blog.launchdarkly.com](http://blog.launchdarkly.com/  "LaunchDarkly Blog Documentation") for the latest product updates
-
