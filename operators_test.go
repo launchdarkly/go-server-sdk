@@ -82,6 +82,7 @@ var operatorTests = []opTestInfo {
 	// semver operators
 	{"semVerEqual", "2.0.0", "2.0.0", true},
 	{"semVerEqual", "2.0", "2.0.0", true},
+	{"semVerEqual", "2-rc1", "2.0.0-rc1", true},
 	{"semVerEqual", "2.0.0", "2.0.1", false},
 	{"semVerLessThan", "2.0.0", "2.0.1", true},
 	{"semVerLessThan", "2.0", "2.0.1", true},
