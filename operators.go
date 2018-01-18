@@ -45,7 +45,7 @@ var OpsList = []Operator{
 	OperatorSemVerGreaterThan,
 }
 
-var versionNumericComponentsRegex, _ = regexp.Compile("^[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?")
+var versionNumericComponentsRegex, _ = regexp.Compile(`^\d+(\.\d+)?(\.\d+)?`)
 
 func (op Operator) Name() string {
 	return string(op)
@@ -171,21 +171,21 @@ func operatorAfterFn(uValue interface{}, cValue interface{}) bool {
 }
 
 func parseSemVer(value interface{}) (semver.Version, bool) {
-	if str, ok := value.(string); ok {
-		if sv, err := semver.Parse(str); err == nil {
+	if versionStr, ok := value.(string); ok {
+		if sv, err := semver.Parse(versionStr); err == nil {
 			return sv, true
 		}
 		// Failed to parse as-is; see if we can fix it by adding zeroes
-		matchParts := versionNumericComponentsRegex.FindStringSubmatch(str)
+		matchParts := versionNumericComponentsRegex.FindStringSubmatch(versionStr)
 		if matchParts != nil {
-			str1 := matchParts[0]
+			transformedVersionStr := matchParts[0]
 			for i := 1; i < len(matchParts); i++ {
-				if (matchParts[i] == "") {
-					str1 += ".0"
+				if matchParts[i] == "" {
+					transformedVersionStr += ".0"
 				}
 			}
-			str1 += str[len(matchParts[0]):]
-			if sv, err := semver.Parse(str1); err == nil {
+			transformedVersionStr += versionStr[len(matchParts[0]):]
+			if sv, err := semver.Parse(transformedVersionStr); err == nil {
 				return sv, true
 			}
 		}
