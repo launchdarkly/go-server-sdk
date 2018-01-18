@@ -45,7 +45,7 @@ var OpsList = []Operator{
 	OperatorSemVerGreaterThan,
 }
 
-var versionNumericComponentsRegex, _ = regexp.Compile(`^\d+(\.\d+)?(\.\d+)?`)
+var versionNumericComponentsRegex = regexp.MustCompile(`^\d+(\.\d+)?(\.\d+)?`)
 
 func (op Operator) Name() string {
 	return string(op)
