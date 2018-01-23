@@ -53,7 +53,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() FeatureStore) {
 		feature1a := FeatureFlag{Key: "feature", Version: feature1.Version + 1}
 		store.Upsert(feature1.Key, feature1a)
 		
-		result, _ := store.Get(feature1.Key)
+		result, err := store.Get(feature1.Key)
+		assert.Nil(t, err)
 		assert.Equal(t, feature1a.Version, result.Version)
 	})
 	
@@ -66,7 +67,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() FeatureStore) {
 		feature1a := FeatureFlag{Key: "feature", Version: feature1.Version - 1}
 		store.Upsert(feature1.Key, feature1a)
 		
-		result, _ := store.Get(feature1.Key)
+		result, err := store.Get(feature1.Key)
+		assert.Nil(t, err)
 		assert.Equal(t, feature1.Version, result.Version)
 	})
 	
@@ -78,7 +80,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() FeatureStore) {
 		
 		store.Delete(feature1.Key, feature1.Version + 1)
 		
-		result, _ := store.Get(feature1.Key)
+		result, err := store.Get(feature1.Key)
+		assert.Nil(t, err)
 		assert.Nil(t, result)	
 	})
 	
@@ -90,7 +93,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() FeatureStore) {
 		
 		store.Delete(feature1.Key, feature1.Version - 1)
 		
-		result, _ := store.Get(feature1.Key)
+		result, err := store.Get(feature1.Key)
+		assert.Nil(t, err)
 		assert.NotNil(t, result)
 	})
 	
@@ -99,7 +103,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() FeatureStore) {
 		
 		store.Delete("no", 1)
 		
-		result, _ := store.Get("no")
+		result, err := store.Get("no")
+		assert.Nil(t, err)
 		assert.Nil(t, result)
 	})
 	
@@ -113,7 +118,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() FeatureStore) {
 		
 		store.Upsert(feature1.Key, feature1)
 		
-		result, _ := store.Get(feature1.Key)
+		result, err := store.Get(feature1.Key)
+		assert.Nil(t, err)
 		assert.Nil(t, result)
 	})
 }
