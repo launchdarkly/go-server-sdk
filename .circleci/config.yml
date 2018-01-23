@@ -19,6 +19,7 @@ jobs:
               github.com/kardianos/govendor
               golang.org/x/tools/cmd/goimports
               honnef.co/go/tools/cmd/staticcheck
+      - image: redis
 
     steps:
       - checkout
@@ -46,6 +47,11 @@ jobs:
       # - run: govendor tool vet -composites=false +local
       - run: gas -exclude=G101,G104 ./...
       - run: staticcheck $(govendor list -no-status +l)
+
+      - run:
+          name: Wait for services to be ready
+          command: dockerize -wait tcp://localhost:6379 -timeout 1m  # redis
+
       - run: govendor test -race +local
 
 workflows:
