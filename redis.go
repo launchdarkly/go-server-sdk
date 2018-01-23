@@ -227,7 +227,7 @@ func (store *RedisFeatureStore) Upsert(key string, f FeatureFlag) error {
 	c.Send("WATCH", store.featuresKey())
 	defer c.Send("UNWATCH")
 
-	o, featureErr := store.Get(key)
+	o, featureErr := store.getEvenIfDeleted(key)
 
 	if featureErr != nil {
 		return featureErr
