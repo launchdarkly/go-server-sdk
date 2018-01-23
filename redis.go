@@ -112,50 +112,12 @@ func (store *RedisFeatureStore) featuresKey() string {
 }
 
 func (store *RedisFeatureStore) Get(key string) (*FeatureFlag, error) {
-	var feature FeatureFlag
-
-	if store.cache != nil {
-		if data, present := store.cache.Get(key); present {
-			if feature, ok := data.(FeatureFlag); ok {
-				if feature.Deleted {
-					store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from local cache). Key: %s", key)
+	feature, err := store.getEvenIfDeleted(key)
+	if err == nil && feature != nil && feature.Deleted {
+		store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag. Key: %s", key)
 					return nil, nil
-				}
-				return &feature, nil
-			} else {
-				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %v. Expected FeatureFlag",
-					reflect.TypeOf(data))
-			}
-		}
 	}
-
-	c := store.getConn()
-	defer c.Close()
-
-	jsonStr, err := r.String(c.Do("HGET", store.featuresKey(), key))
-
-	if err != nil {
-		if err == r.ErrNil {
-			store.logger.Printf("RedisFeatureStore: WARN: Feature flag not found in store. Key: %s", key)
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	if jsonErr := json.Unmarshal([]byte(jsonStr), &feature); jsonErr != nil {
-		return nil, jsonErr
-	}
-
-	if feature.Deleted {
-		store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag (from redis). Key: %s", key)
-		return nil, nil
-	}
-
-	if store.cache != nil {
-		store.cache.Set(key, feature, store.timeout)
-	}
-
-	return &feature, nil
+	return feature, err
 }
 
 func (store *RedisFeatureStore) All() (map[string]*FeatureFlag, error) {
@@ -275,6 +237,44 @@ func (store *RedisFeatureStore) Upsert(key string, f FeatureFlag) error {
 		return nil
 	}
 	return store.put(c, key, f)
+}
+
+func (store *RedisFeatureStore) getEvenIfDeleted(key string) (*FeatureFlag, error) {
+	var feature FeatureFlag
+
+	if store.cache != nil {
+		if data, present := store.cache.Get(key); present {
+			if feature, ok := data.(FeatureFlag); ok {
+				return &feature, nil
+			} else {
+				store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %v. Expected FeatureFlag",
+					reflect.TypeOf(data))
+			}
+		}
+	}
+
+	c := store.getConn()
+	defer c.Close()
+
+	jsonStr, err := r.String(c.Do("HGET", store.featuresKey(), key))
+
+	if err != nil {
+		if err == r.ErrNil {
+			store.logger.Printf("RedisFeatureStore: WARN: Feature flag not found in store. Key: %s", key)
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if jsonErr := json.Unmarshal([]byte(jsonStr), &feature); jsonErr != nil {
+		return nil, jsonErr
+	}
+
+	if store.cache != nil {
+		store.cache.Set(key, feature, store.timeout)
+	}
+
+	return &feature, nil
 }
 
 func (store *RedisFeatureStore) put(c r.Conn, key string, f FeatureFlag) error {
