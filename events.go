@@ -15,6 +15,7 @@ type eventProcessor struct {
 	queue  []Event
 	sdkKey string
 	config Config
+	closed bool
 	mu     *sync.Mutex
 	client *http.Client
 	closer chan struct{}
@@ -77,15 +78,22 @@ func newEventProcessor(sdkKey string, config Config) *eventProcessor {
 }
 
 func (ep *eventProcessor) close() {
-	close(ep.closer)
-	ep.flush()
+	ep.mu.Lock()
+	closed := ep.closed
+	ep.closed = true
+	ep.mu.Unlock()
+
+	if !closed {
+		close(ep.closer)
+		ep.flush()
+	}
 }
 
 func (ep *eventProcessor) flush() {
 	uri := ep.config.EventsUri + "/bulk"
 	ep.mu.Lock()
 
-	if len(ep.queue) == 0 {
+	if len(ep.queue) == 0 || ep.closed {
 		ep.mu.Unlock()
 		return
 	}
@@ -125,7 +133,13 @@ func (ep *eventProcessor) flush() {
 	}
 	err := checkStatusCode(resp.StatusCode, uri)
 	if err != nil {
-		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", respErr)
+		ep.config.Logger.Printf("Unexpected status code when sending events: %+v", err)
+		if err != nil && err.Code == 401 {
+			ep.config.Logger.Printf("Received 401 error, no further events will be posted since SDK key is invalid")
+			ep.mu.Lock()
+			ep.closed = true
+			ep.mu.Unlock()
+		}
 	}
 }
 
@@ -138,16 +152,8 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 		return nil
 	}
 
-	ep.mu.Lock()
-	defer ep.mu.Unlock()
-
-	if len(ep.queue) >= ep.config.Capacity {
-		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
-	}
-
-	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames)
-
-  var newEvent Event
+	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames) 	
+	var newEvent Event
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
 		evt.User = scrubbedUser
@@ -161,6 +167,16 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 	default:
 		return errors.New("unknown event type")
 	}
+
+	ep.mu.Lock()
+	defer ep.mu.Unlock()
+
+	if ep.closed {
+		return nil
+	}
+	if len(ep.queue) >= ep.config.Capacity {
+ 		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
+ 	}
 	ep.queue = append(ep.queue, newEvent)
 	return nil
 }

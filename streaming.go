@@ -26,6 +26,7 @@ type streamProcessor struct {
 	setInitializedOnce sync.Once
 	isInitialized      bool
 	halt               chan struct{}
+	closeOnce          sync.Once
 }
 
 type featurePatchData struct {
@@ -93,6 +94,22 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 
 				}
 			}
+		case err, ok := <-sp.stream.Errors:
+			if !ok {
+				sp.config.Logger.Printf("Event error stream closed.")
+			}
+			if err != io.EOF {
+				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
+				if sp.checkUnauthorized(err) {
+					sp.closeOnce.Do(func() {
+						sp.config.Logger.Printf("Closing event stream.")
+						// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
+						// Until we're able to close it explicitly here, we won't be able to stop it from trying to reconnect after a 401 error.
+						// sp.stream.Close()
+					})
+					return
+				}
+			}
 		case <-sp.halt:
 			return
 		}
@@ -120,6 +137,9 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
+			if sp.checkUnauthorized(err) {
+				return
+			}
 
 			// Halt immediately if we've been closed already
 			select {
@@ -134,33 +154,27 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			sp.stream.Logger = sp.config.Logger
 
 			go sp.events(closeWhenReady)
-			go sp.errors()
 
 			return
 		}
 	}
 }
 
-func (sp *streamProcessor) errors() {
-	for {
-		select {
-		case err, ok := <-sp.stream.Errors:
-			if !ok {
-				sp.config.Logger.Printf("Event error stream closed.")
-				return
-			}
-			if err != io.EOF {
-				sp.config.Logger.Printf("Error encountered processing stream: %+v", err)
-			}
-		case <-sp.halt:
-			return
+func (sp *streamProcessor) checkUnauthorized(err error) bool {
+	if se, ok := err.(es.SubscriptionError); ok {
+		if se.Code == 401 {
+			sp.config.Logger.Printf("Received 401 error, no further streaming connection will be made since SDK key is invalid")
+			return true
 		}
 	}
+	return false
 }
 
 func (sp *streamProcessor) close() {
-	sp.config.Logger.Printf("Closing event stream.")
-	// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
-	// sp.stream.Close()
-	close(sp.halt)
+	sp.closeOnce.Do(func() {
+		sp.config.Logger.Printf("Closing event stream.")
+		// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
+		// sp.stream.Close()
+		close(sp.halt)
+	})
 }

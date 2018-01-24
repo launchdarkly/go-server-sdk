@@ -11,7 +11,8 @@ type pollingProcessor struct {
 	config             Config
 	setInitializedOnce sync.Once
 	isInitialized      bool
-	quit               chan bool
+	quit               chan struct{}
+	closeOnce          sync.Once
 }
 
 func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
@@ -19,7 +20,7 @@ func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
 		store:     config.FeatureStore,
 		requestor: requestor,
 		config:    config,
-		quit:      make(chan bool),
+		quit:      make(chan struct{}),
 	}
 
 	return pp
@@ -43,6 +44,12 @@ func (pp *pollingProcessor) start(closeWhenReady chan<- struct{}) {
 					})
 				} else {
 					pp.config.Logger.Printf("Error when requesting feature updates: %+v", err)
+					if hse, ok := err.(HttpStatusError); ok {
+						if hse.Code == 401 {
+							pp.config.Logger.Printf("Received 401 error, no further polling requests will be made since SDK key is invalid")
+							return
+						}
+					}
 				}
 				delta := pp.config.PollInterval - time.Since(then)
 
@@ -69,8 +76,10 @@ func (pp *pollingProcessor) poll() error {
 }
 
 func (pp *pollingProcessor) close() {
-	pp.config.Logger.Printf("Closing Polling Processor")
-	pp.quit <- true
+	pp.closeOnce.Do(func() {
+		pp.config.Logger.Printf("Closing Polling Processor")
+		close(pp.quit)
+	})
 }
 
 func (pp *pollingProcessor) initialized() bool {
