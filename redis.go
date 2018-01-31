@@ -5,13 +5,14 @@ package ldclient
 import (
 	"encoding/json"
 	"fmt"
-	r "github.com/garyburd/redigo/redis"
-	"github.com/patrickmn/go-cache"
 	"log"
 	"os"
-	"time"
 	"reflect"
 	"sync"
+	"time"
+
+	r "github.com/garyburd/redigo/redis"
+	"github.com/patrickmn/go-cache"
 )
 
 // A Redis-backed feature store.
@@ -113,9 +114,12 @@ func (store *RedisFeatureStore) featuresKey() string {
 
 func (store *RedisFeatureStore) Get(key string) (*FeatureFlag, error) {
 	feature, err := store.getEvenIfDeleted(key)
+	if err == nil && feature == nil {
+		store.logger.Printf("RedisFeatureStore: WARN: Feature flag not found in store. Key: %s", key)
+	}
 	if err == nil && feature != nil && feature.Deleted {
 		store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted feature flag. Key: %s", key)
-					return nil, nil
+		return nil, nil
 	}
 	return feature, err
 }
@@ -260,7 +264,6 @@ func (store *RedisFeatureStore) getEvenIfDeleted(key string) (*FeatureFlag, erro
 
 	if err != nil {
 		if err == r.ErrNil {
-			store.logger.Printf("RedisFeatureStore: WARN: Feature flag not found in store. Key: %s", key)
 			return nil, nil
 		}
 		return nil, err
