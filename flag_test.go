@@ -41,6 +41,21 @@ func TestBucketUser(t *testing.T) {
 	userKey = "userKeyC"
 	user = User{Key: &userKey}
 	bucket = bucketUser(user, "hashKey", "key", "saltyA")
-	t.Log(bucket)
 	assert.InEpsilon(t, 0.10343106, bucket, 0.0000001)
+
+	userKey = "userKeyD"
+	custom := map[string]interface{}{
+		"intAttr": 3,
+	}
+	user = User{Key: &userKey, Custom: &custom}
+	bucket = bucketUser(user, "hashKey", "intAttr", "saltyA")
+	assert.InEpsilon(t, 0.0073090503, bucket, 0.0000001)
+
+	userKey = "userKeyE"
+	custom = map[string]interface{}{
+		"floatAttr": 999.999,
+	}
+	user = User{Key: &userKey, Custom: &custom}
+	bucket = bucketUser(user, "hashKey", "floatAttr", "saltyA")
+	assert.InDelta(t, 0.0, bucket, 0.0000001)
 }
