@@ -34,7 +34,7 @@ jobs:
       - run: |
           mkdir -p $CIRCLE_TEST_REPORTS
           trap "go-junit-report < output.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
-          go test -race ./... | tee output.txt
+          go test -race -v ./... | tee output.txt
 
       - store_test_results:
           path: /tmp/circle-reports
