@@ -9,13 +9,13 @@ Quick setup
 1. Install the SDK with the `go` tool:
 
 ```bash
-go get gopkg.in/launchdarkly/go-client.v2
+go get gopkg.in/launchdarkly/go-client.v3
 ```
 
 2. Import the LaunchDarkly client:
 
 ```go
-import ld "gopkg.in/launchdarkly/go-client.v2"
+import ld "gopkg.in/launchdarkly/go-client.v3"
 ```
 
 2. Create a new LDClient with your SDK key:

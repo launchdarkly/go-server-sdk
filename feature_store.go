@@ -6,106 +6,117 @@ import (
 	"sync"
 )
 
-// A data structure that maintains the live
-// collection of features. It is used by LaunchDarkly when streaming mode is
-// enabled, and stores feature events returned by the streaming API. Custom
-// FeatureStore implementations can be passed to the LaunchDarkly client via
-// a custom Config object. LaunchDarkly provides two FeatureStore implementations:
-// one backed by an in-memory map, and one backed by Redis.
+// A data structure that maintains the live collection of features and related objects.
+// It is used by LaunchDarkly when streaming mode is enabled, and stores data returned
+// by the streaming API. Custom FeatureStore implementations can be passed to the
+// LaunchDarkly client via a custom Config object. LaunchDarkly provides two FeatureStore
+// implementations: one backed by an in-memory map, and one backed by Redis.
 // Implementations must be thread-safe.
 type FeatureStore interface {
-	Get(key string) (*FeatureFlag, error)
-	All() (map[string]*FeatureFlag, error)
-	Init(map[string]*FeatureFlag) error
-	Delete(key string, version int) error
-	Upsert(key string, f FeatureFlag) error
+	Get(kind VersionedDataKind, key string) (VersionedData, error)
+	All(kind VersionedDataKind) (map[string]VersionedData, error)
+	Init(map[VersionedDataKind]map[string]VersionedData) error
+	Delete(kind VersionedDataKind, key string, version int) error
+	Upsert(kind VersionedDataKind, item VersionedData) error
 	Initialized() bool
 }
 
 // A memory based FeatureStore implementation, backed by a lock-striped map.
 type InMemoryFeatureStore struct {
-	features      map[string]*FeatureFlag
+	allData       map[VersionedDataKind]map[string]VersionedData
 	isInitialized bool
 	sync.RWMutex
-	logger *log.Logger
+	logger Logger
 }
 
 // Creates a new in-memory FeatureStore instance.
-func NewInMemoryFeatureStore(logger *log.Logger) *InMemoryFeatureStore {
+func NewInMemoryFeatureStore(logger Logger) *InMemoryFeatureStore {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[LaunchDarkly InMemoryFeatureStore]", log.LstdFlags)
 	}
 	return &InMemoryFeatureStore{
-		features:      make(map[string]*FeatureFlag),
+		allData:       make(map[VersionedDataKind]map[string]VersionedData),
 		isInitialized: false,
 		logger:        logger,
 	}
 }
 
-func (store *InMemoryFeatureStore) Get(key string) (*FeatureFlag, error) {
+func (store *InMemoryFeatureStore) Get(kind VersionedDataKind, key string) (VersionedData, error) {
 	store.RLock()
 	defer store.RUnlock()
-	f := store.features[key]
+	if store.allData[kind] == nil {
+		store.allData[kind] = make(map[string]VersionedData)
+	}
+	item := store.allData[kind][key]
 
-	if f == nil {
-		store.logger.Printf("WARN: Feature flag not found in store. Key: %s", key)
+	if item == nil {
+		store.logger.Printf("WARN: Key: %s not found in \"%s\".", key, kind.GetNamespace())
 		return nil, nil
-	} else if f.Deleted {
-		store.logger.Printf("WARN: Attempted to get deleted feature flag. Key: %s", key)
+	} else if item.IsDeleted() {
+		store.logger.Printf("WARN: Attempted to get deleted item in \"%s\". Key: %s", kind.GetNamespace(), key)
 		return nil, nil
 	} else {
-		return f, nil
+		return item, nil
 	}
 }
 
-func (store *InMemoryFeatureStore) All() (map[string]*FeatureFlag, error) {
+func (store *InMemoryFeatureStore) All(kind VersionedDataKind) (map[string]VersionedData, error) {
 	store.RLock()
 	defer store.RUnlock()
-	fs := make(map[string]*FeatureFlag)
+	ret := make(map[string]VersionedData)
 
-	for k, v := range store.features {
-		if !v.Deleted {
-			fs[k] = v
+	for k, v := range store.allData[kind] {
+		if !v.IsDeleted() {
+			ret[k] = v
 		}
 	}
-	return fs, nil
+	return ret, nil
 }
 
-func (store *InMemoryFeatureStore) Delete(key string, version int) error {
+func (store *InMemoryFeatureStore) Delete(kind VersionedDataKind, key string, version int) error {
 	store.Lock()
 	defer store.Unlock()
-	f := store.features[key]
-	if f != nil && f.Version < version {
-		f.Deleted = true
-		f.Version = version
-		store.features[key] = f
-	} else if f == nil {
-		f = &FeatureFlag{Deleted: true, Version: version}
-		store.features[key] = f
+	if store.allData[kind] == nil {
+		store.allData[kind] = make(map[string]VersionedData)
+	}
+	items := store.allData[kind]
+	item := items[key]
+	if item == nil || item.GetVersion() < version {
+		deletedItem := kind.MakeDeletedItem(key, version)
+		items[key] = deletedItem
 	}
 	return nil
 }
 
-func (store *InMemoryFeatureStore) Init(fs map[string]*FeatureFlag) error {
+func (store *InMemoryFeatureStore) Init(allData map[VersionedDataKind]map[string]VersionedData) error {
 	store.Lock()
 	defer store.Unlock()
 
-	store.features = make(map[string]*FeatureFlag)
+	store.allData = make(map[VersionedDataKind]map[string]VersionedData)
 
-	for k, v := range fs {
-		store.features[k] = v
+	for k, v := range allData {
+		items := make(map[string]VersionedData)
+		for k1, v1 := range v {
+			items[k1] = v1
+		}
+		store.allData[k] = items
 	}
+
 	store.isInitialized = true
 	return nil
 }
 
-func (store *InMemoryFeatureStore) Upsert(key string, f FeatureFlag) error {
+func (store *InMemoryFeatureStore) Upsert(kind VersionedDataKind, item VersionedData) error {
 	store.Lock()
 	defer store.Unlock()
-	old := store.features[key]
+	if store.allData[kind] == nil {
+		store.allData[kind] = make(map[string]VersionedData)
+	}
+	items := store.allData[kind]
+	old := items[item.GetKey()]
 
-	if old == nil || old.Version < f.Version {
-		store.features[key] = &f
+	if old == nil || old.GetVersion() < item.GetVersion() {
+		items[item.GetKey()] = item
 	}
 	return nil
 }

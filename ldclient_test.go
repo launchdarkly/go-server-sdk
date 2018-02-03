@@ -11,9 +11,9 @@ import (
 
 type TestUpdateProcessor struct{}
 
-func (u TestUpdateProcessor) initialized() bool { return true }
-func (u TestUpdateProcessor) close()            {}
-func (u TestUpdateProcessor) start(chan<- struct{}) {}
+func (u TestUpdateProcessor) Initialized() bool     { return true }
+func (u TestUpdateProcessor) Close()                {}
+func (u TestUpdateProcessor) Start(chan<- struct{}) {}
 
 func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	config := Config{
@@ -208,7 +208,7 @@ func makeClientWithFeatureFlag(variations []interface{}) *LDClient {
 	}
 	featureFlag := featureFlagWithVariations(variations)
 
-	client.store.Upsert(featureFlag.Key, featureFlag)
+	client.store.Upsert(Features, &featureFlag)
 	return &client
 }
 

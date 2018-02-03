@@ -28,6 +28,39 @@ type FeatureFlag struct {
 	Deleted       bool               `json:"deleted" bson:"deleted"`
 }
 
+func (f *FeatureFlag) GetKey() string {
+	return f.Key
+}
+
+func (f *FeatureFlag) GetVersion() int {
+	return f.Version
+}
+
+func (f *FeatureFlag) IsDeleted() bool {
+	return f.Deleted
+}
+
+func (f *FeatureFlag) Clone() VersionedData {
+	f1 := *f;
+	return &f1;
+}
+
+type FeatureFlagVersionedDataKind struct{}
+
+func (fk FeatureFlagVersionedDataKind) GetNamespace() string {
+	return "features"
+}
+
+func (fk FeatureFlagVersionedDataKind) GetDefaultItem() interface{} {
+	return &FeatureFlag{}
+}
+
+func (fk FeatureFlagVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
+	return &FeatureFlag{Key: key, Version: version, Deleted: true}
+}
+
+var Features FeatureFlagVersionedDataKind
+
 // Expresses a set of AND-ed matching conditions for a user, along with either a fixed
 // variation or a set of rollout percentages
 type Rule struct {
@@ -123,11 +156,12 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]FeatureRequestEvent) (interface{}, *Explanation, error) {
 	var failedPrereq *Prerequisite
 	for _, prereq := range f.Prerequisites {
-		prereqFeatureFlag, err := store.Get(prereq.Key)
-		if err != nil || prereqFeatureFlag == nil {
+		data, err := store.Get(Features, prereq.Key)
+		if err != nil || data == nil {
 			failedPrereq = &prereq
 			break
 		}
+		prereqFeatureFlag, _ := data.(*FeatureFlag)
 		if prereqFeatureFlag.On {
 			prereqValue, _, err := prereqFeatureFlag.evaluateExplain(user, store, events)
 			if err != nil {
@@ -147,12 +181,13 @@ func (f FeatureFlag) evaluateExplain(user User, store FeatureStore, events *[]Fe
 	if failedPrereq != nil {
 		explanation := Explanation{
 			Kind:         "prerequisite",
-			Prerequisite: failedPrereq} //return the last prereq to fail
+			Prerequisite: failedPrereq,
+		} //return the last prereq to fail
 
 		return nil, &explanation, nil
 	}
 
-	index, explanation := f.evaluateExplainIndex(user)
+	index, explanation := f.evaluateExplainIndex(store, user)
 	variation, verr := f.getVariation(index)
 
 	if verr != nil {
@@ -172,7 +207,7 @@ func (f FeatureFlag) getVariation(index *int) (interface{}, error) {
 	}
 }
 
-func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
+func (f FeatureFlag) evaluateExplainIndex(store FeatureStore, user User) (*int, *Explanation) {
 	// Check to see if targets match
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
@@ -185,7 +220,7 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 
 	// Now walk through the rules and see if any match
 	for _, rule := range f.Rules {
-		if rule.matchesUser(user) {
+		if rule.matchesUser(store, user) {
 			variation := rule.variationIndexForUser(user, f.Key, f.Salt)
 
 			if variation == nil {
@@ -207,16 +242,16 @@ func (f FeatureFlag) evaluateExplainIndex(user User) (*int, *Explanation) {
 	}
 }
 
-func (r Rule) matchesUser(user User) bool {
+func (r Rule) matchesUser(store FeatureStore, user User) bool {
 	for _, clause := range r.Clauses {
-		if !clause.matchesUser(user) {
+		if !clause.matchesUser(store, user) {
 			return false
 		}
 	}
 	return true
 }
 
-func (c Clause) matchesUser(user User) bool {
+func (c Clause) matchesUserNoSegments(user User) bool {
 	uValue, pass := user.valueOf(c.Attribute)
 
 	if pass {
@@ -239,6 +274,27 @@ func (c Clause) matchesUser(user User) bool {
 	}
 
 	return c.maybeNegate(matchAny(matchFn, uValue, c.Values))
+}
+
+func (c Clause) matchesUser(store FeatureStore, user User) bool {
+	// In the case of a segment match operator, we check if the user is in any of the segments,
+	// and possibly negate
+	if c.Op == OperatorSegmentMatch {
+		for _, value := range c.Values {
+			if vStr, ok := value.(string); ok {
+				// TODO do something with the segment lookup error
+				data, _ := store.Get(Segments, vStr)
+				if segment, ok := data.(*Segment); ok {
+					if matches, _ := segment.ContainsUser(user); matches {
+						return c.maybeNegate(true)
+					}
+				}
+			}
+		}
+		return c.maybeNegate(false)
+	}
+
+	return c.matchesUserNoSegments(user)
 }
 
 func (c Clause) maybeNegate(b bool) bool {

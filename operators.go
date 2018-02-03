@@ -3,7 +3,7 @@ package ldclient
 import (
 	"regexp"
 	"strings"
-	
+
 	"github.com/blang/semver"
 )
 
@@ -19,6 +19,7 @@ const (
 	OperatorGreaterThanOrEqual Operator = "greaterThanOrEqual"
 	OperatorBefore             Operator = "before"
 	OperatorAfter              Operator = "after"
+	OperatorSegmentMatch       Operator = "segmentMatch"
 	OperatorSemVerEqual        Operator = "semVerEqual"
 	OperatorSemVerLessThan     Operator = "semVerLessThan"
 	OperatorSemVerGreaterThan  Operator = "semVerGreaterThan"
@@ -40,6 +41,7 @@ var OpsList = []Operator{
 	OperatorGreaterThanOrEqual,
 	OperatorBefore,
 	OperatorAfter,
+	OperatorSegmentMatch,
 	OperatorSemVerEqual,
 	OperatorSemVerLessThan,
 	OperatorSemVerGreaterThan,

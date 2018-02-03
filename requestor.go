@@ -2,15 +2,18 @@ package ldclient
 
 import (
 	"encoding/json"
-	"github.com/facebookgo/httpcontrol"
-	"github.com/gregjones/httpcache"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/facebookgo/httpcontrol"
+	"github.com/gregjones/httpcache"
 )
 
 const (
-	LatestFlagsPath = "/sdk/latest-flags"
+	LatestFlagsPath    = "/sdk/latest-flags"
+	LatestSegmentsPath = "/sdk/latest-segments"
+	LatestAllPath      = "/sdk/latest-all"
 )
 
 type requestor struct {
@@ -35,30 +38,30 @@ func newRequestor(sdkKey string, config Config) *requestor {
 
 	httpClient := cachingTransport.Client()
 
-	requestor := requestor{
+	httpRequestor := requestor{
 		sdkKey:     sdkKey,
 		httpClient: httpClient,
 		config:     config,
 	}
 
-	return &requestor
+	return &httpRequestor
 }
 
-func (r *requestor) requestAllFlags() (map[string]*FeatureFlag, bool, error) {
-	var features map[string]*FeatureFlag
-	body, cached, err := r.makeRequest(LatestFlagsPath)
+func (r *requestor) requestAll() (allData, bool, error) {
+	var data allData
+	body, cached, err := r.makeRequest(LatestAllPath)
 	if err != nil {
-		return nil, false, err
+		return allData{}, false, err
 	}
 	if cached {
-		return nil, true, nil
+		return allData{}, true, nil
 	}
-	jsonErr := json.Unmarshal(body, &features)
+	jsonErr := json.Unmarshal(body, &data)
 
 	if jsonErr != nil {
-		return nil, false, jsonErr
+		return allData{}, false, jsonErr
 	}
-	return features, cached, nil
+	return data, cached, nil
 }
 
 func (r *requestor) requestFlag(key string) (*FeatureFlag, error) {
@@ -75,6 +78,22 @@ func (r *requestor) requestFlag(key string) (*FeatureFlag, error) {
 		return nil, jsonErr
 	}
 	return &feature, nil
+}
+
+func (r *requestor) requestSegment(key string) (*Segment, error) {
+	var segment Segment
+	resource := LatestSegmentsPath + "/" + key
+	body, _, err := r.makeRequest(resource)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonErr := json.Unmarshal(body, &segment)
+
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+	return &segment, nil
 }
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {

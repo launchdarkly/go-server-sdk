@@ -102,21 +102,37 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 
 func checkStatusCode(statusCode int, url string) *HttpStatusError {
 	if statusCode == http.StatusUnauthorized {
-		return &HttpStatusError {
+		return &HttpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
-			Code: statusCode }
+			Code:    statusCode}
 	}
 
 	if statusCode == http.StatusNotFound {
-		return &HttpStatusError {
+		return &HttpStatusError{
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
-			Code: statusCode }
+			Code:    statusCode}
 	}
 
 	if statusCode/100 != 2 {
-		return &HttpStatusError {
+		return &HttpStatusError{
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
-			Code: statusCode }
+			Code:    statusCode}
 	}
 	return nil
+}
+
+func MakeAllVersionedDataMap(
+	features map[string]*FeatureFlag,
+	segments map[string]*Segment) map[VersionedDataKind]map[string]VersionedData {
+
+	allData := make(map[VersionedDataKind]map[string]VersionedData)
+	allData[Features] = make(map[string]VersionedData)
+	allData[Segments] = make(map[string]VersionedData)
+	for k, v := range features {
+		allData[Features][k] = v
+	}
+	for k, v := range segments {
+		allData[Segments][k] = v
+	}
+	return allData
 }

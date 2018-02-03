@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const Version = "2.3.0"
+const Version = "3.0.0"
 
 // The LaunchDarkly client. Client instances are thread-safe.
 // Applications should instantiate a single instance for the lifetime
@@ -23,8 +23,13 @@ type LDClient struct {
 	sdkKey          string
 	config          Config
 	eventProcessor  *eventProcessor
-	updateProcessor updateProcessor
+	updateProcessor UpdateProcessor
 	store           FeatureStore
+}
+
+type Logger interface {
+	Println(...interface{})
+	Printf(string, ...interface{})
 }
 
 // Exposes advanced configuration options for the LaunchDarkly client.
@@ -36,7 +41,7 @@ type Config struct {
 	FlushInterval         time.Duration
 	SamplingInterval      int32
 	PollInterval          time.Duration
-	Logger                *log.Logger
+	Logger                Logger
 	Timeout               time.Duration
 	Stream                bool
 	FeatureStore          FeatureStore
@@ -45,16 +50,17 @@ type Config struct {
 	Offline               bool
 	AllAttributesPrivate  bool
 	PrivateAttributeNames []string
+	UpdateProcessor       UpdateProcessor
 }
 
 // The minimum value for Config.PollInterval. If you specify a smaller interval,
 // the minimum will be used instead.
 const MinimumPollInterval = 30 * time.Second
 
-type updateProcessor interface {
-	initialized() bool
-	close()
-	start(chan<- struct{})
+type UpdateProcessor interface {
+	Initialized() bool
+	Close()
+	Start(closeWhenReady chan<- struct{})
 }
 
 // Provides the default configuration options for the LaunchDarkly client.
@@ -124,13 +130,15 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	requestor := newRequestor(sdkKey, config)
 
-	if config.Stream {
+	if config.UpdateProcessor != nil {
+		client.updateProcessor = config.UpdateProcessor
+	} else if config.Stream {
 		client.updateProcessor = newStreamProcessor(sdkKey, config, requestor)
 	} else {
 		config.Logger.Println("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 		client.updateProcessor = newPollingProcessor(config, requestor)
 	}
-	client.updateProcessor.start(closeWhenReady)
+	client.updateProcessor.Start(closeWhenReady)
 	timeout := time.After(waitFor)
 	for {
 		select {
@@ -143,7 +151,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 				return &client, ErrInitializationTimeout
 			}
 
-			go func() { <-closeWhenReady }() // Don't block the updateProcessor when not waiting
+			go func() { <-closeWhenReady }() // Don't block the UpdateProcessor when not waiting
 			return &client, nil
 		}
 	}
@@ -190,7 +198,7 @@ func (client *LDClient) SecureModeHash(user User) string {
 
 // Returns whether the LaunchDarkly client is initialized.
 func (client *LDClient) Initialized() bool {
-	return client.IsOffline() || client.config.UseLdd || client.updateProcessor.initialized()
+	return client.IsOffline() || client.config.UseLdd || client.updateProcessor.Initialized()
 }
 
 // Shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
@@ -202,7 +210,7 @@ func (client *LDClient) Close() {
 	}
 	client.eventProcessor.close()
 	if !client.config.UseLdd {
-		client.updateProcessor.close()
+		client.updateProcessor.Close()
 	}
 }
 
@@ -225,7 +233,7 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	}
 
 	if !client.Initialized() {
-		if (client.store.Initialized()) {
+		if client.store.Initialized() {
 			client.config.Logger.Println("WARN: Called AllFlags before client initialization; using last known values from feature store")
 		} else {
 			client.config.Logger.Println("WARN: Called AllFlags before client initialization. Feature store not available; returning nil map")
@@ -240,15 +248,17 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 
 	results := make(map[string]interface{})
 
-	flags, err := client.store.All()
+	items, err := client.store.All(Features)
 
 	if err != nil {
 		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning nil map. Error: " + err.Error())
 		return nil
 	}
-	for _, flag := range flags {
-		result, _ := client.evalFlag(*flag, user)
-		results[flag.Key] = result
+	for _, item := range items {
+		if flag, ok := item.(*FeatureFlag); ok {
+			result, _ := client.evalFlag(*flag, user)
+			results[flag.Key] = result
+		}
 	}
 
 	return results
@@ -374,9 +384,9 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 		client.config.Logger.Printf("WARN: User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
 	}
 
-	var feature FeatureFlag
+	var feature *FeatureFlag
 	var storeErr error
-	var featurePtr *FeatureFlag
+	var ok bool
 
 	if !client.Initialized() {
 		if client.store.Initialized() {
@@ -386,20 +396,23 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 		}
 	}
 
-	featurePtr, storeErr = client.store.Get(key)
+	data, storeErr := client.store.Get(Features, key)
 
 	if storeErr != nil {
 		client.config.Logger.Printf("Encountered error fetching feature from store: %+v", storeErr)
 		return defaultVal, nil, storeErr
 	}
 
-	if featurePtr != nil {
-		feature = *featurePtr
+	if data != nil {
+		feature, ok = data.(*FeatureFlag)
+		if !ok {
+			return defaultVal, nil, fmt.Errorf("Unexpected data type (%T) found in store for feature key: %s. Returning default value.", data, key)
+		}
 	} else {
 		return defaultVal, nil, fmt.Errorf("Unknown feature key: %s Verify that this feature key exists. Returning default value.", key)
 	}
 
-	result, prereqEvents := client.evalFlag(feature, user)
+	result, prereqEvents := client.evalFlag(*feature, user)
 	if !client.IsOffline() {
 		for _, event := range prereqEvents {
 			err := client.eventProcessor.sendEvent(event)

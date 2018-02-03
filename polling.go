@@ -15,7 +15,7 @@ type pollingProcessor struct {
 	closeOnce          sync.Once
 }
 
-func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
+func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor {
 	pp := &pollingProcessor{
 		store:     config.FeatureStore,
 		requestor: requestor,
@@ -26,7 +26,7 @@ func newPollingProcessor(config Config, requestor *requestor) updateProcessor {
 	return pp
 }
 
-func (pp *pollingProcessor) start(closeWhenReady chan<- struct{}) {
+func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.config.Logger.Printf("Starting LaunchDarkly polling processor with interval: %+v", pp.config.PollInterval)
 	go func() {
 		for {
@@ -43,10 +43,10 @@ func (pp *pollingProcessor) start(closeWhenReady chan<- struct{}) {
 						close(closeWhenReady)
 					})
 				} else {
-					pp.config.Logger.Printf("Error when requesting feature updates: %+v", err)
+					pp.config.Logger.Printf("ERROR: Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(HttpStatusError); ok {
 						if hse.Code == 401 {
-							pp.config.Logger.Printf("Received 401 error, no further polling requests will be made since SDK key is invalid")
+							pp.config.Logger.Printf("ERROR: Received 401 error, no further polling requests will be made since SDK key is invalid")
 							return
 						}
 					}
@@ -62,7 +62,7 @@ func (pp *pollingProcessor) start(closeWhenReady chan<- struct{}) {
 }
 
 func (pp *pollingProcessor) poll() error {
-	features, cached, err := pp.requestor.requestAllFlags()
+	allData, cached, err := pp.requestor.requestAll()
 
 	if err != nil {
 		return err
@@ -70,18 +70,18 @@ func (pp *pollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		return pp.store.Init(features)
+		return pp.store.Init(MakeAllVersionedDataMap(allData.Flags, allData.Segments))
 	}
 	return nil
 }
 
-func (pp *pollingProcessor) close() {
+func (pp *pollingProcessor) Close() {
 	pp.closeOnce.Do(func() {
 		pp.config.Logger.Printf("Closing Polling Processor")
 		close(pp.quit)
 	})
 }
 
-func (pp *pollingProcessor) initialized() bool {
+func (pp *pollingProcessor) Initialized() bool {
 	return pp.isInitialized
 }
