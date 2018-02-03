@@ -37,7 +37,7 @@ jobs:
           go test -race ./... | tee output.txt
 
       - store_test_results:
-          path: $CIRCLE_TEST_REPORTS
+          path: /tmp/circle-reports
 
 workflows:
   version: 2
