@@ -28,7 +28,7 @@ func TestVariationIndexForUser(t *testing.T) {
 	assert.Equal(t, 0, *variationIndex)
 }
 
-func TestBucketUser(t *testing.T) {
+func TestBucketUserByKey(t *testing.T) {
 	userKey := "userKeyA"
 	user := User{Key: &userKey}
 	bucket := bucketUser(user, "hashKey", "key", "saltyA")
@@ -42,6 +42,32 @@ func TestBucketUser(t *testing.T) {
 	userKey = "userKeyC"
 	user = User{Key: &userKey}
 	bucket = bucketUser(user, "hashKey", "key", "saltyA")
-	t.Log(bucket)
 	assert.InEpsilon(t, 0.10343106, bucket, 0.0000001)
+}
+
+func TestBucketUserByIntAttr(t *testing.T) {
+	userKey := "userKeyD"
+	custom := map[string]interface{}{
+		"intAttr": 33333,
+	}
+	user := User{Key: &userKey, Custom: &custom}
+	bucket := bucketUser(user, "hashKey", "intAttr", "saltyA")
+	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
+
+	custom = map[string]interface{}{
+		"stringAttr": "33333",
+	}
+	user = User{Key: &userKey, Custom: &custom}
+	bucket2 := bucketUser(user, "hashKey", "stringAttr", "saltyA")
+	assert.InEpsilon(t, bucket, bucket2, 0.0000001)
+}
+
+func TestBucketUserByFloatAttrNotAllowed(t *testing.T) {
+	userKey := "userKeyE"
+	custom := map[string]interface{}{
+		"floatAttr": 999.999,
+	}
+	user := User{Key: &userKey, Custom: &custom}
+	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
+	assert.InDelta(t, 0.0, bucket, 0.0000001)
 }

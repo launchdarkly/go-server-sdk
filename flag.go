@@ -114,7 +114,7 @@ type Prerequisite struct {
 func bucketUser(user User, key, attr, salt string) float32 {
 	uValue, pass := user.valueOf(attr)
 
-	if idHash, ok := uValue.(string); pass || !ok {
+	if idHash, ok := bucketableStringValue(uValue); pass || !ok {
 		return 0
 	} else {
 		if user.Secondary != nil {
@@ -131,6 +131,16 @@ func bucketUser(user User, key, attr, salt string) float32 {
 
 		return bucket
 	}
+}
+
+func bucketableStringValue(uValue interface{}) (string, bool) {
+	if s, ok := uValue.(string); ok {
+		return s, true
+	}
+	if i, ok := uValue.(int); ok {
+		return strconv.Itoa(i), true
+	}
+	return "", false
 }
 
 type EvalResult struct {
