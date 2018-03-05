@@ -45,6 +45,11 @@ type DerivedAttribute struct {
 	LastDerived time.Time   `json:"lastDerived" bson:"lastDerived"`
 }
 
+// NewUser creates a new user identified by the given key.
+func NewUser(key string) User {
+	return User{Key: &key}
+}
+
 func (user User) valueOf(attr string) (interface{}, bool) {
 	if attr == "key" {
 		if user.Key != nil {
