@@ -50,6 +50,12 @@ func NewUser(key string) User {
 	return User{Key: &key}
 }
 
+// NewAnonymousUser creates a new anonymous user identified by the given key.
+func NewAnonymousUser(key string) User {
+	anonymous := true
+	return User{Key: &key, Anonymous: &anonymous}
+}
+
 func (user User) valueOf(attr string) (interface{}, bool) {
 	if attr == "key" {
 		if user.Key != nil {
