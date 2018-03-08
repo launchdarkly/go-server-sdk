@@ -147,7 +147,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			return &client, nil
 		case <-timeout:
 			if waitFor > 0 {
-				config.Logger.Println("Timeout exceeded when initializing LauncDarkly client.")
+				config.Logger.Println("Timeout exceeded when initializing LaunchDarkly client.")
 				return &client, ErrInitializationTimeout
 			}
 
