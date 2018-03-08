@@ -41,8 +41,8 @@ func (f *FeatureFlag) IsDeleted() bool {
 }
 
 func (f *FeatureFlag) Clone() VersionedData {
-	f1 := *f;
-	return &f1;
+	f1 := *f
+	return &f1
 }
 
 type FeatureFlagVersionedDataKind struct{}

@@ -107,7 +107,7 @@ func TestToJsonRawMessage(t *testing.T) {
 	expectedJsonString := `{"FieldName":"fieldValue","NumericField":1.02}`
 
 	type expected struct {
-		FieldName string  `json:"FieldName"`
+		FieldName    string  `json:"FieldName"`
 		NumericField float64 `json:"NumericField"`
 	}
 	expectedStruct := expected{FieldName: "fieldValue", NumericField: 1.02}
@@ -128,4 +128,3 @@ func TestToJsonRawMessage(t *testing.T) {
 		}
 	}
 }
-
