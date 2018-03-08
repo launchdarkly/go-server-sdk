@@ -116,7 +116,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	if config.Offline {
-		config.Logger.Println("Started Launchdarkly in offline mode")
+		config.Logger.Println("Started LaunchDarkly in offline mode")
 		client.config.SendEvents = false
 		return &client, nil
 	}
@@ -124,7 +124,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.eventProcessor = newEventProcessor(sdkKey, config)
 
 	if config.UseLdd {
-		config.Logger.Println("Started Launchdarkly in LDD mode")
+		config.Logger.Println("Started LaunchDarkly in LDD mode")
 		return &client, nil
 	}
 
