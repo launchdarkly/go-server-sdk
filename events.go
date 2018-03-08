@@ -152,7 +152,7 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 		return nil
 	}
 
-	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames) 	
+	scrubbedUser := scrubUser(evt.GetBase().User, ep.config.AllAttributesPrivate, ep.config.PrivateAttributeNames)
 	var newEvent Event
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
@@ -175,8 +175,8 @@ func (ep *eventProcessor) sendEvent(evt Event) error {
 		return nil
 	}
 	if len(ep.queue) >= ep.config.Capacity {
- 		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
- 	}
+		return errors.New("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
+	}
 	ep.queue = append(ep.queue, newEvent)
 	return nil
 }
