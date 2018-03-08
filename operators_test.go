@@ -15,11 +15,12 @@ const invalidDate = "hey what's this?"
 
 type opTestInfo struct {
 	opName      Operator
-	userValue      interface{}
-	clauseValue      interface{}
+	userValue   interface{}
+	clauseValue interface{}
 	expected    bool
 }
-var operatorTests = []opTestInfo {
+
+var operatorTests = []opTestInfo{
 	// numeric operators
 	{"in", int(99), int(99), true},
 	{"in", float64(99.0001), float64(99.0001), true},
