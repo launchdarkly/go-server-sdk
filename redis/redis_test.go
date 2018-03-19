@@ -19,39 +19,70 @@ func TestRedisFeatureStore(t *testing.T) {
 	ldtest.RunFeatureStoreTests(t, makeRedisStore)
 }
 
-func TestUpsertRaceConditionAgainstExternalClient(t *testing.T) {
+func concurrentModificationFunction(t *testing.T, otherClient r.Conn, flag ld.FeatureFlag,
+	startVersion int, endVersion int) func() {
+	versionCounter := startVersion
+	return func() {
+		if versionCounter <= endVersion {
+			flag.Version = versionCounter
+			data, jsonErr := json.Marshal(flag)
+			assert.NoError(t, jsonErr)
+			otherClient.Do("HSET", "launchdarkly:features", flag.Key, data)
+			versionCounter++
+		}
+	}
+}
+
+func TestUpsertRaceConditionAgainstExternalClientWithLowerVersion(t *testing.T) {
 	store := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
 	otherClient, err := r.DialURL("redis://localhost:6379")
 	assert.NoError(t, err)
 	defer otherClient.Close()
 
-	feature1 := ld.FeatureFlag{
+	flag := ld.FeatureFlag{
 		Key:     "foo",
 		Version: 1,
 	}
-	intermediateVer := feature1
-	finalVer := ld.FeatureFlag{
-		Key:     "foo",
-		Version: 10,
-	}
 	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: map[string]ld.VersionedData{feature1.Key: &feature1},
+		ld.Features: map[string]ld.VersionedData{flag.Key: &flag},
 	}
 	store.Init(allData)
 
-	store.testTxHook = func() {
-		intermediateVer.Version++
-		if intermediateVer.Version < 5 {
-			data, jsonErr := json.Marshal(intermediateVer)
-			assert.NoError(t, jsonErr)
-			otherClient.Do("HSET", "launchdarkly:features", feature1.Key, data)
-		}
-	}
+	store.testTxHook = concurrentModificationFunction(t, otherClient, flag, 2, 4)
 
-	store.Upsert(ld.Features, &finalVer)
+	flag.Version = 10
+	store.Upsert(ld.Features, &flag)
+
 	var result ld.VersionedData
-	result, err = store.Get(ld.Features, feature1.Key)
+	result, err = store.Get(ld.Features, flag.Key)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, finalVer.Version, result.(*ld.FeatureFlag).Version)
+	assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
+}
+
+func TestUpsertRaceConditionAgainstExternalClientWithHigherVersion(t *testing.T) {
+	store := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
+	otherClient, err := r.DialURL("redis://localhost:6379")
+	assert.NoError(t, err)
+	defer otherClient.Close()
+
+	flag := ld.FeatureFlag{
+		Key:     "foo",
+		Version: 1,
+	}
+	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		ld.Features: map[string]ld.VersionedData{flag.Key: &flag},
+	}
+	store.Init(allData)
+
+	store.testTxHook = concurrentModificationFunction(t, otherClient, flag, 3, 3)
+
+	flag.Version = 2
+	store.Upsert(ld.Features, &flag)
+
+	var result ld.VersionedData
+	result, err = store.Get(ld.Features, flag.Key)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
 }
