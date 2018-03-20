@@ -190,7 +190,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	for {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/all", nil)
 		req.Header.Add("Authorization", sp.sdkKey)
-		req.Header.Add("User-Agent", "GoClient/"+Version)
+		req.Header.Add("User-Agent", sp.config.UserAgent)
 		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {

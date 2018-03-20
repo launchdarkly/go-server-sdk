@@ -51,6 +51,7 @@ type Config struct {
 	AllAttributesPrivate  bool
 	PrivateAttributeNames []string
 	UpdateProcessor       UpdateProcessor
+	UserAgent             string
 }
 
 // The minimum value for Config.PollInterval. If you specify a smaller interval,
@@ -82,6 +83,7 @@ var DefaultConfig = Config{
 	UseLdd:        false,
 	SendEvents:    true,
 	Offline:       false,
+	UserAgent:     "GoClient/" + Version,
 }
 
 var ErrInitializationTimeout = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
