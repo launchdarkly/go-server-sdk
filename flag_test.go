@@ -326,7 +326,8 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 		Key:      "segkey",
 		Included: []string{"foo"},
 	}
-	f := booleanFlagWithClause(Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}})
+	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}}
+	f := booleanFlagWithClause(clause)
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
@@ -336,11 +337,27 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 }
 
 func TestSegmentMatchClauseFallsThroughIfSegmentNotFound(t *testing.T) {
-	f := booleanFlagWithClause(Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}})
+	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}}
+	f := booleanFlagWithClause(clause)
 	user := NewUser("foo")
 
 	value, _ := f.Evaluate(user, emptyFeatureStore)
 	assert.Equal(t, false, value)
+}
+
+func TestCanMatchJustOneSegmentFromList(t *testing.T) {
+	segment := Segment{
+		Key:      "segkey",
+		Included: []string{"foo"},
+	}
+	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"unknownsegkey", "segkey"}}
+	f := booleanFlagWithClause(clause)
+	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore.Upsert(Segments, &segment)
+	user := NewUser("foo")
+
+	value, _ := f.Evaluate(user, featureStore)
+	assert.Equal(t, true, value)
 }
 
 func TestVariationIndexForUser(t *testing.T) {
@@ -349,35 +366,29 @@ func TestVariationIndexForUser(t *testing.T) {
 	rollout := Rollout{Variations: []WeightedVariation{wv1, wv2}}
 	rule := Rule{VariationOrRollout: VariationOrRollout{Rollout: &rollout}}
 
-	userKey := "userKeyA"
-	variationIndex := rule.variationIndexForUser(User{Key: &userKey}, "hashKey", "saltyA")
+	variationIndex := rule.variationIndexForUser(NewUser("userKeyA"), "hashKey", "saltyA")
 	assert.NotNil(t, variationIndex)
 	assert.Equal(t, 0, *variationIndex)
 
-	userKey = "userKeyB"
-	variationIndex = rule.variationIndexForUser(User{Key: &userKey}, "hashKey", "saltyA")
+	variationIndex = rule.variationIndexForUser(NewUser("userKeyB"), "hashKey", "saltyA")
 	assert.NotNil(t, variationIndex)
 	assert.Equal(t, 1, *variationIndex)
 
-	userKey = "userKeyC"
-	variationIndex = rule.variationIndexForUser(User{Key: &userKey}, "hashKey", "saltyA")
+	variationIndex = rule.variationIndexForUser(NewUser("userKeyC"), "hashKey", "saltyA")
 	assert.NotNil(t, variationIndex)
 	assert.Equal(t, 0, *variationIndex)
 }
 
 func TestBucketUserByKey(t *testing.T) {
-	userKey := "userKeyA"
-	user := User{Key: &userKey}
+	user := NewUser("userKeyA")
 	bucket := bucketUser(user, "hashKey", "key", "saltyA")
 	assert.InEpsilon(t, 0.42157587, bucket, 0.0000001)
 
-	userKey = "userKeyB"
-	user = User{Key: &userKey}
+	user = NewUser("userKeyB")
 	bucket = bucketUser(user, "hashKey", "key", "saltyA")
 	assert.InEpsilon(t, 0.6708485, bucket, 0.0000001)
 
-	userKey = "userKeyC"
-	user = User{Key: &userKey}
+	user = NewUser("userKeyC")
 	bucket = bucketUser(user, "hashKey", "key", "saltyA")
 	assert.InEpsilon(t, 0.10343106, bucket, 0.0000001)
 }
