@@ -265,26 +265,7 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 }
 
 func (client *LDClient) evalFlag(flag FeatureFlag, user User) (interface{}, []FeatureRequestEvent) {
-	var prereqEvents []FeatureRequestEvent
-	if flag.On {
-		evalResult, err := flag.EvaluateExplain(user, client.store)
-		prereqEvents = evalResult.PrerequisiteRequestEvents
-
-		if err != nil {
-			return nil, prereqEvents
-		}
-
-		if evalResult.Value != nil {
-			return evalResult.Value, prereqEvents
-		}
-		// If the value is nil, but the error is not, fall through and use the off variation
-	}
-
-	if flag.OffVariation != nil && *flag.OffVariation < len(flag.Variations) {
-		value := flag.Variations[*flag.OffVariation]
-		return value, prereqEvents
-	}
-	return nil, prereqEvents
+	return flag.Evaluate(user, client.store)
 }
 
 // Returns the value of a boolean feature flag for a given user. Returns defaultVal if
