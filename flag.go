@@ -149,6 +149,29 @@ type EvalResult struct {
 	PrerequisiteRequestEvents []FeatureRequestEvent //to be sent to LD
 }
 
+func (f FeatureFlag) Evaluate(user User, store FeatureStore) (interface{}, []FeatureRequestEvent) {
+	var prereqEvents []FeatureRequestEvent
+	if f.On {
+		evalResult, err := f.EvaluateExplain(user, store)
+		prereqEvents = evalResult.PrerequisiteRequestEvents
+
+		if err != nil {
+			return nil, prereqEvents
+		}
+
+		if evalResult.Value != nil {
+			return evalResult.Value, prereqEvents
+		}
+		// If the value is nil, but the error is not, fall through and use the off variation
+	}
+
+	if f.OffVariation != nil && *f.OffVariation < len(f.Variations) {
+		value := f.Variations[*f.OffVariation]
+		return value, prereqEvents
+	}
+	return nil, prereqEvents
+}
+
 func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult, error) {
 	if user.Key == nil {
 		return nil, nil
@@ -292,8 +315,9 @@ func (c Clause) matchesUser(store FeatureStore, user User) bool {
 	if c.Op == OperatorSegmentMatch {
 		for _, value := range c.Values {
 			if vStr, ok := value.(string); ok {
-				// TODO do something with the segment lookup error
 				data, _ := store.Get(Segments, vStr)
+				// If segment is not found or the store got an error, data will be nil and we'll just fall through
+				// the next block. Unfortunately we have no access to a logger here so this failure is silent.
 				if segment, ok := data.(*Segment); ok {
 					if matches, _ := segment.ContainsUser(user); matches {
 						return c.maybeNegate(true)
