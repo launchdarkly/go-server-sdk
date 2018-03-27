@@ -116,7 +116,7 @@ func (ep *eventProcessor) flush() {
 
 	req.Header.Add("Authorization", ep.sdkKey)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("User-Agent", "GoClient/"+Version)
+	req.Header.Add("User-Agent", ep.config.UserAgent)
 
 	resp, respErr := ep.client.Do(req)
 
