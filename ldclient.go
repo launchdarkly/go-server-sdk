@@ -83,7 +83,7 @@ var DefaultConfig = Config{
 	UseLdd:        false,
 	SendEvents:    true,
 	Offline:       false,
-	UserAgent:     "GoClient/" + Version,
+	UserAgent:     "",
 }
 
 var ErrInitializationTimeout = errors.New("Timeout encountered waiting for LaunchDarkly client initialization")
@@ -106,6 +106,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if config.PollInterval < MinimumPollInterval {
 		config.PollInterval = MinimumPollInterval
 	}
+	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
 	if config.FeatureStore == nil {
 		config.FeatureStore = NewInMemoryFeatureStore(config.Logger)
