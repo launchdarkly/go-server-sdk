@@ -27,7 +27,8 @@ func concurrentModificationFunction(t *testing.T, otherClient r.Conn, flag ld.Fe
 			flag.Version = versionCounter
 			data, jsonErr := json.Marshal(flag)
 			assert.NoError(t, jsonErr)
-			otherClient.Do("HSET", "launchdarkly:features", flag.Key, data)
+			_, err := otherClient.Do("HSET", "launchdarkly:features", flag.Key, data)
+			assert.NoError(t, err)
 			versionCounter++
 		}
 	}
@@ -46,12 +47,12 @@ func TestUpsertRaceConditionAgainstExternalClientWithLowerVersion(t *testing.T) 
 	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 		ld.Features: map[string]ld.VersionedData{flag.Key: &flag},
 	}
-	store.Init(allData)
+	assert.NoError(t, store.Init(allData))
 
 	store.testTxHook = concurrentModificationFunction(t, otherClient, flag, 2, 4)
 
 	flag.Version = 10
-	store.Upsert(ld.Features, &flag)
+	assert.NoError(t, store.Upsert(ld.Features, &flag))
 
 	var result ld.VersionedData
 	result, err = store.Get(ld.Features, flag.Key)
@@ -73,12 +74,12 @@ func TestUpsertRaceConditionAgainstExternalClientWithHigherVersion(t *testing.T)
 	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 		ld.Features: map[string]ld.VersionedData{flag.Key: &flag},
 	}
-	store.Init(allData)
+	assert.NoError(t, store.Init(allData))
 
 	store.testTxHook = concurrentModificationFunction(t, otherClient, flag, 3, 3)
 
 	flag.Version = 2
-	store.Upsert(ld.Features, &flag)
+	assert.NoError(t, store.Upsert(ld.Features, &flag))
 
 	var result ld.VersionedData
 	result, err = store.Get(ld.Features, flag.Key)
