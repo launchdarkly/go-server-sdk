@@ -19,7 +19,7 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 		feature1 := ld.FeatureFlag{Key: "feature"}
 		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"feature": &feature1}, make(map[string]*ld.Segment))
-		store.Init(allData)
+		assert.NoError(t, store.Init(allData))
 
 		assert.True(t, store.Initialized())
 	})
@@ -27,7 +27,7 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 	t.Run("get existing feature", func(t *testing.T) {
 		store := reinitStore()
 		feature1 := ld.FeatureFlag{Key: "feature"}
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NotNil(t, result)
@@ -49,8 +49,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 		feature1 := ld.FeatureFlag{Key: "feature1"}
 		feature2 := ld.FeatureFlag{Key: "feature2"}
-		store.Upsert(ld.Features, &feature1)
-		store.Upsert(ld.Features, &feature2)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		assert.NoError(t, store.Upsert(ld.Features, &feature2))
 
 		result, err := store.All(ld.Features)
 		assert.NotNil(t, result)
@@ -67,10 +67,10 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
 		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version + 1}
-		store.Upsert(ld.Features, &feature1a)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1a))
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
@@ -82,10 +82,10 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
 		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version - 1}
-		store.Upsert(ld.Features, &feature1a)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1a))
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
@@ -97,9 +97,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
-		store.Delete(ld.Features, feature1.Key, feature1.Version+1)
+		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1))
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
@@ -110,9 +110,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
-		store.Delete(ld.Features, feature1.Key, feature1.Version-1)
+		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version-1))
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
@@ -122,7 +122,7 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 	t.Run("delete unknown feature", func(t *testing.T) {
 		store := reinitStore()
 
-		store.Delete(ld.Features, "no", 1)
+		assert.NoError(t, store.Delete(ld.Features, "no", 1))
 
 		result, err := store.Get(ld.Features, "no")
 		assert.NoError(t, err)
@@ -133,11 +133,11 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		store := reinitStore()
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
-		store.Delete(ld.Features, feature1.Key, feature1.Version+1)
+		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1))
 
-		store.Upsert(ld.Features, &feature1)
+		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
