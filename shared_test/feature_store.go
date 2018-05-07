@@ -33,8 +33,10 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 
-		r := result.(*ld.FeatureFlag)
-		assert.Equal(t, feature1.Key, r.Key)
+		r, ok := result.(*ld.FeatureFlag)
+		if assert.True(t, ok) {
+			assert.Equal(t, feature1.Key, r.Key)
+		}
 	})
 
 	t.Run("get nonexisting feature", func(t *testing.T) {
@@ -57,10 +59,14 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.NoError(t, err)
 
 		assert.Len(t, result, 2)
-		r1 := result["feature1"].(*ld.FeatureFlag)
-		assert.Equal(t, "feature1", r1.Key)
-		r2 := result["feature2"].(*ld.FeatureFlag)
-		assert.Equal(t, "feature2", r2.Key)
+		r1, ok := result["feature1"].(*ld.FeatureFlag)
+		if assert.True(t, ok) {
+			assert.Equal(t, "feature1", r1.Key)
+		}
+		r2, ok := result["feature2"].(*ld.FeatureFlag)
+		if assert.True(t, ok) {
+			assert.Equal(t, "feature2", r2.Key)
+		}
 	})
 
 	t.Run("upsert with newer version", func(t *testing.T) {
@@ -74,8 +80,10 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
-		r := result.(*ld.FeatureFlag)
-		assert.Equal(t, feature1a.Version, r.Version)
+		r, ok := result.(*ld.FeatureFlag)
+		if assert.True(t, ok) {
+			assert.Equal(t, feature1a.Version, r.Version)
+		}
 	})
 
 	t.Run("upsert with older version", func(t *testing.T) {
@@ -89,8 +97,10 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
-		r := result.(*ld.FeatureFlag)
-		assert.Equal(t, feature1.Version, r.Version)
+		r, ok := result.(*ld.FeatureFlag)
+		if assert.True(t, ok) {
+			assert.Equal(t, feature1.Version, r.Version)
+		}
 	})
 
 	t.Run("delete with newer version", func(t *testing.T) {
