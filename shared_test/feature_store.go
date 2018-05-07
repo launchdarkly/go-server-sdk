@@ -49,16 +49,22 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 
 	t.Run("get all ld.Features", func(t *testing.T) {
 		store := reinitStore()
+
+		result, err := store.All(ld.Features)
+		assert.NotNil(t, result)
+		assert.NoError(t, err)
+		assert.Len(t, result, 0)
+
 		feature1 := ld.FeatureFlag{Key: "feature1"}
 		feature2 := ld.FeatureFlag{Key: "feature2"}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 		assert.NoError(t, store.Upsert(ld.Features, &feature2))
 
-		result, err := store.All(ld.Features)
+		result, err = store.All(ld.Features)
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
-
 		assert.Len(t, result, 2)
+
 		r1, ok := result["feature1"].(*ld.FeatureFlag)
 		if assert.True(t, ok) {
 			assert.Equal(t, "feature1", r1.Key)
