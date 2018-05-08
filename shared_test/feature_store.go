@@ -33,8 +33,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 
-		r, ok := result.(*ld.FeatureFlag)
-		if assert.True(t, ok) {
+		if assert.IsType(t, &ld.FeatureFlag{}, result) {
+			r := result.(*ld.FeatureFlag)
 			assert.Equal(t, feature1.Key, r.Key)
 		}
 	})
@@ -65,13 +65,14 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
 
-		r1, ok := result["feature1"].(*ld.FeatureFlag)
-		if assert.True(t, ok) {
-			assert.Equal(t, "feature1", r1.Key)
+		if assert.IsType(t, &ld.FeatureFlag{}, result["feature1"]) {
+			r := result["feature1"].(*ld.FeatureFlag)
+			assert.Equal(t, "feature1", r.Key)
 		}
-		r2, ok := result["feature2"].(*ld.FeatureFlag)
-		if assert.True(t, ok) {
-			assert.Equal(t, "feature2", r2.Key)
+
+		if assert.IsType(t, &ld.FeatureFlag{}, result["feature2"]) {
+			r := result["feature2"].(*ld.FeatureFlag)
+			assert.Equal(t, "feature2", r.Key)
 		}
 	})
 
@@ -86,8 +87,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
-		r, ok := result.(*ld.FeatureFlag)
-		if assert.True(t, ok) {
+
+		if assert.IsType(t, &ld.FeatureFlag{}, result) {
+			r := result.(*ld.FeatureFlag)
 			assert.Equal(t, feature1a.Version, r.Version)
 		}
 	})
@@ -103,8 +105,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
-		r, ok := result.(*ld.FeatureFlag)
-		if assert.True(t, ok) {
+
+		if assert.IsType(t, &ld.FeatureFlag{}, result) {
+			r := result.(*ld.FeatureFlag)
 			assert.Equal(t, feature1.Version, r.Version)
 		}
 	})
