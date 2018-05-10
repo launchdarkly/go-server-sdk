@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	ld "gopkg.in/launchdarkly/go-client.v3"
+	ld "gopkg.in/launchdarkly/go-client.v4"
 )
 
 func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
