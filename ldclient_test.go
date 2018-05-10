@@ -7,13 +7,29 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type TestUpdateProcessor struct{}
+type testUpdateProcessor struct{}
 
-func (u TestUpdateProcessor) Initialized() bool     { return true }
-func (u TestUpdateProcessor) Close()                {}
-func (u TestUpdateProcessor) Start(chan<- struct{}) {}
+func (u testUpdateProcessor) Initialized() bool     { return true }
+func (u testUpdateProcessor) Close() error          { return nil }
+func (u testUpdateProcessor) Start(chan<- struct{}) {}
+
+type testEventProcessor struct {
+	events []Event
+}
+
+func (t *testEventProcessor) SendEvent(e Event) {
+	t.events = append(t.events, e)
+}
+
+func (t *testEventProcessor) Flush() {}
+
+func (t *testEventProcessor) Close() error {
+	return nil
+}
 
 func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	config := Config{
@@ -27,125 +43,84 @@ func TestOfflineModeAlwaysReturnsDefaultValue(t *testing.T) {
 	}
 	client, _ := MakeCustomClient("api_key", config, 0)
 	defer client.Close()
-	client.config.Offline = true
-	key := "foo"
-	user := User{Key: &key}
 
-	//Toggle
-	expected := true
-	actual, err := client.Toggle("featureKey", user, expected)
-	if err != nil {
-		t.Errorf("Unexpected error in Toggle: %+v", err)
-	}
-	if actual != expected {
-		t.Errorf("Offline mode should return default value, but doesn't")
-	}
+	user := NewUser("foo")
+
+	//BoolVariation
+	actual, err := client.BoolVariation("featureKey", user, true)
+	assert.NoError(t, err)
+	assert.True(t, actual)
 
 	//IntVariation
 	expectedInt := 100
 	actualInt, err := client.IntVariation("featureKey", user, expectedInt)
-	if err != nil {
-		t.Errorf("Unexpected error in IntVariation: %+v", err)
-	}
-	if actualInt != expectedInt {
-		t.Errorf("Offline mode should return default value: %+v, instead returned: %+v", expectedInt, actualInt)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expectedInt, actualInt)
 
 	//Float64Variation
 	expectedFloat64 := 100.0
 	actualFloat64, err := client.Float64Variation("featureKey", user, expectedFloat64)
-	if err != nil {
-		t.Errorf("Unexpected error in Float64Variation: %+v", err)
-	}
-	if actualFloat64 != expectedFloat64 {
-		t.Errorf("Offline mode should return default value, but doesn't")
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expectedFloat64, actualFloat64)
 
 	//StringVariation
 	expectedString := "expected"
 	actualString, err := client.StringVariation("featureKey", user, expectedString)
-	if err != nil {
-		t.Errorf("Unexpected error in StringVariation: %+v", err)
-	}
-	if actualString != expectedString {
-		t.Errorf("Offline mode should return default value, but doesn't")
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expectedString, actualString)
 
 	//JsonVariation
 	expectedJsonString := `{"fieldName":"fieldValue"}`
 	expectedJson := json.RawMessage([]byte(expectedJsonString))
 	actualJson, err := client.JsonVariation("featureKey", user, expectedJson)
-	if err != nil {
-		t.Errorf("Unexpected error in JsonVariation: %+v", err)
-	}
-	if string([]byte(actualJson)) != string([]byte(expectedJson)) {
-		t.Errorf("Offline mode should return default value (%+v), instead got: %+v", expectedJson, actualJson)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, string([]byte(expectedJson)), string([]byte(actualJson)))
 
 	client.Close()
 }
 
-func TestToggle(t *testing.T) {
+func TestBoolVariation(t *testing.T) {
 	expected := true
+	variations := []interface{}{false, true}
 
-	variations := make([]interface{}, 2)
-	variations[0] = false
-	variations[1] = expected
-
-	client := makeClientWithFeatureFlag(variations)
+	client := makeTestClient()
 	defer client.Close()
+	client.store.Upsert(Features, featureFlagWithVariations("validFeatureKey", variations))
 
-	userKey := "userKey"
-	actual, err := client.Toggle("validFeatureKey", User{Key: &userKey}, false)
+	actual, err := client.BoolVariation("validFeatureKey", NewUser("userKey"), false)
 
-	if err != nil {
-		t.Errorf("Unexpected error when calling Toggle: %+v", err)
-	}
-	if actual != expected {
-		t.Errorf("Got unexpected result when calling Toggle: %+v but expected: %+v", actual, expected)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expected, actual)
 }
 
 func TestIntVariation(t *testing.T) {
 	expected := float64(100)
 
-	variations := make([]interface{}, 2)
-	variations[0] = float64(-1)
-	variations[1] = expected
+	variations := []interface{}{float64(-1), expected}
 
-	client := makeClientWithFeatureFlag(variations)
+	client := makeTestClient()
 	defer client.Close()
+	client.store.Upsert(Features, featureFlagWithVariations("validFeatureKey", variations))
 
-	userKey := "userKey"
-	actual, err := client.IntVariation("validFeatureKey", User{Key: &userKey}, 10000)
+	actual, err := client.IntVariation("validFeatureKey", NewUser("userKey"), 10000)
 
-	if err != nil {
-		t.Errorf("Unexpected error when calling IntVariation: %+v", err)
-	}
-	if actual != int(expected) {
-		t.Errorf("Got unexpected result when calling IntVariation: %+v but expected: %+v", actual, expected)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, int(expected), actual)
 }
 
 func TestFloat64Variation(t *testing.T) {
 	expected := 100.01
 
-	variations := make([]interface{}, 2)
-	variations[0] = -1.0
-	variations[1] = expected
+	variations := []interface{}{-1.0, expected}
 
-	client := makeClientWithFeatureFlag(variations)
+	client := makeTestClient()
 	defer client.Close()
+	client.store.Upsert(Features, featureFlagWithVariations("validFeatureKey", variations))
 
-	userKey := "userKey"
-	actual, err := client.Float64Variation("validFeatureKey", User{Key: &userKey}, 0.0)
+	actual, err := client.Float64Variation("validFeatureKey", NewUser("userKey"), 0.0)
 
-	if err != nil {
-		t.Errorf("Unexpected error when calling Float64Variation: %+v", err)
-	}
-	if actual != expected {
-		t.Errorf("Got unexpected result when calling Float64Variation: %+v but expected: %+v", actual, expected)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expected, actual)
 }
 
 func TestJsonVariation(t *testing.T) {
@@ -154,19 +129,15 @@ func TestJsonVariation(t *testing.T) {
 	var variations []interface{}
 	json.Unmarshal([]byte(fmt.Sprintf(`[{"jsonFieldName1" : "jsonFieldValue"},%s]`, expectedJsonString)), &variations)
 
-	client := makeClientWithFeatureFlag(variations)
+	client := makeTestClient()
 	defer client.Close()
+	client.store.Upsert(Features, featureFlagWithVariations("validFeatureKey", variations))
 
-	userKey := "userKey"
 	var actual json.RawMessage
-	actual, err := client.JsonVariation("validFeatureKey", User{Key: &userKey}, []byte(`{"default":"default"}`))
+	actual, err := client.JsonVariation("validFeatureKey", NewUser("userKey"), []byte(`{"default":"default"}`))
 
-	if err != nil {
-		t.Errorf("Unexpected error when calling JsonVariation: %+v", err)
-	}
-	if string(actual) != expectedJsonString {
-		t.Errorf("Got unexpected result when calling JsonVariation: %+v but expected: %+v", string(actual), expectedJsonString)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expectedJsonString, string(actual))
 }
 
 func TestSecureModeHash(t *testing.T) {
@@ -179,44 +150,199 @@ func TestSecureModeHash(t *testing.T) {
 
 	hash := client.SecureModeHash(User{Key: &key})
 
-	if hash != expected {
-		t.Errorf("Got unexpected result when calling SecureModeHash: %s but expected %s", hash, expected)
+	assert.Equal(t, expected, hash)
+}
+
+func TestEvaluatingExistingFlagSendsEvent(t *testing.T) {
+	flag := featureFlagWithVariations("flagKey", []interface{}{"a", "b"})
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	user := NewUser("userKey")
+	_, err := client.StringVariation(flag.Key, user, "x")
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+
+	assert.Equal(t, 1, len(events))
+	e := events[0].(FeatureRequestEvent)
+	expectedEvent := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: e.CreationDate,
+			User:         user,
+		},
+		Key:       flag.Key,
+		Version:   &flag.Version,
+		Value:     "b",
+		Variation: intPtr(1),
+		Default:   "x",
+		PrereqOf:  nil,
 	}
+	assert.Equal(t, expectedEvent, e)
+}
+
+func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := NewUser("userKey")
+	_, err := client.StringVariation("flagKey", user, "x")
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+
+	e := events[0].(FeatureRequestEvent)
+	expectedEvent := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: e.CreationDate,
+			User:         user,
+		},
+		Key:       "flagKey",
+		Version:   nil,
+		Value:     "x",
+		Variation: nil,
+		Default:   "x",
+		PrereqOf:  nil,
+	}
+	assert.Equal(t, expectedEvent, e)
+}
+
+func TestEvaluatingFlagWithNilUserKeySendsEvent(t *testing.T) {
+	flag := featureFlagWithVariations("flagKey", []interface{}{"a", "b"})
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	user := User{Name: strPtr("Bob")}
+	_, err := client.StringVariation(flag.Key, user, "x")
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+
+	assert.Equal(t, 1, len(events))
+	e := events[0].(FeatureRequestEvent)
+	expectedEvent := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: e.CreationDate,
+			User:         user,
+		},
+		Key:       flag.Key,
+		Version:   &flag.Version,
+		Value:     "x",
+		Variation: nil,
+		Default:   "x",
+		PrereqOf:  nil,
+	}
+	assert.Equal(t, expectedEvent, e)
+}
+
+func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag0 := featureFlagWithVariations("flag0", []interface{}{"a", "b"})
+	flag0.Prerequisites = []Prerequisite{
+		Prerequisite{Key: "flag1", Variation: 1},
+	}
+	flag1 := featureFlagWithVariations("flag1", []interface{}{"c", "d"})
+	client.store.Upsert(Features, flag0)
+	client.store.Upsert(Features, flag1)
+
+	user := NewUser("userKey")
+	_, err := client.StringVariation(flag0.Key, user, "x")
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 2, len(events))
+
+	e0 := events[0].(FeatureRequestEvent)
+	expected0 := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: e0.CreationDate,
+			User:         user,
+		},
+		Key:       flag1.Key,
+		Version:   &flag1.Version,
+		Value:     "d",
+		Variation: intPtr(1),
+		Default:   nil,
+		PrereqOf:  &flag0.Key,
+	}
+	assert.Equal(t, expected0, e0)
+
+	e1 := events[1].(FeatureRequestEvent)
+	expected1 := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: e1.CreationDate,
+			User:         user,
+		},
+		Key:       flag0.Key,
+		Version:   &flag0.Version,
+		Value:     "b",
+		Variation: intPtr(1),
+		Default:   "x",
+		PrereqOf:  nil,
+	}
+	assert.Equal(t, expected1, e1)
+}
+
+func TestIdentifySendsIdentifyEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := NewUser("userKey")
+	err := client.Identify(user)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(IdentifyEvent)
+	assert.Equal(t, user, e.User)
+}
+
+func TestTrackSendsCustomEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := NewUser("userKey")
+	key := "eventKey"
+	data := map[string]interface{}{"thing": "stuff"}
+	err := client.Track(key, user, data)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(CustomEvent)
+	assert.Equal(t, user, e.User)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, data, e.Data)
 }
 
 // Creates LdClient loaded with one feature flag with key: "validFeatureKey".
 // Variations param should have at least 2 items with variations[1] being the expected
 // fallthrough value when passing in a valid user
-func makeClientWithFeatureFlag(variations []interface{}) *LDClient {
+func makeTestClient() *LDClient {
 	config := Config{
-		BaseUri:       "https://localhost:3000",
-		Capacity:      1000,
-		FlushInterval: 5 * time.Second,
-		Logger:        log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
-		Timeout:       1500 * time.Millisecond,
-		Stream:        true,
-		Offline:       false,
-		SendEvents:    false,
+		Logger:                log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
+		Offline:               false,
+		SendEvents:            true,
+		FeatureStore:          NewInMemoryFeatureStore(nil),
+		UpdateProcessor:       testUpdateProcessor{},
+		EventProcessor:        &testEventProcessor{},
+		UserKeysFlushInterval: 30 * time.Second,
 	}
 
-	client := LDClient{
-		sdkKey:          "sdkKey",
-		config:          config,
-		eventProcessor:  newEventProcessor("sdkKey", config),
-		updateProcessor: TestUpdateProcessor{},
-		store:           NewInMemoryFeatureStore(nil),
-	}
-	featureFlag := featureFlagWithVariations(variations)
-
-	client.store.Upsert(Features, &featureFlag)
-	return &client
+	client, _ := MakeCustomClient("sdkKey", config, 0*time.Second)
+	return client
 }
 
-func featureFlagWithVariations(variations []interface{}) FeatureFlag {
+func featureFlagWithVariations(key string, variations []interface{}) *FeatureFlag {
 	fallThroughVariation := 1
 
-	return FeatureFlag{
-		Key:         "validFeatureKey",
+	return &FeatureFlag{
+		Key:         key,
 		Version:     1,
 		On:          true,
 		Fallthrough: VariationOrRollout{Variation: &fallThroughVariation},

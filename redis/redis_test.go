@@ -7,8 +7,8 @@ import (
 
 	r "github.com/garyburd/redigo/redis"
 	"github.com/stretchr/testify/assert"
-	ld "gopkg.in/launchdarkly/go-client.v3"
-	ldtest "gopkg.in/launchdarkly/go-client.v3/shared_test"
+	ld "gopkg.in/launchdarkly/go-client.v4"
+	ldtest "gopkg.in/launchdarkly/go-client.v4/shared_test"
 )
 
 func makeRedisStore() ld.FeatureStore {
