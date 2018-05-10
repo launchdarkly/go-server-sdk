@@ -7,23 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var BuiltinAttributes = []string{
-	"avatar",
-	"country",
-	"email",
-	"firstName",
-	"ip",
-	"lastName",
-	"name",
-	"secondary",
-}
-
-func init() {
-	sort.Strings(BuiltinAttributes)
-}
-
 func TestScrubUser(t *testing.T) {
 	t.Run("private built-in attributes per user", func(t *testing.T) {
+		filter := newUserFilter(DefaultConfig)
 		user := User{
 			Key:       strPtr("user-key"),
 			FirstName: strPtr("sam"),
@@ -38,7 +24,7 @@ func TestScrubUser(t *testing.T) {
 
 		for _, attr := range BuiltinAttributes {
 			user.PrivateAttributeNames = []string{attr}
-			scrubbedUser := scrubUser(user, false, nil)
+			scrubbedUser := *filter.scrubUser(user)
 			assert.Equal(t, []string{attr}, scrubbedUser.PrivateAttributes)
 			scrubbedUser.PrivateAttributes = nil
 			assert.NotEqual(t, user, scrubbedUser)
@@ -59,7 +45,8 @@ func TestScrubUser(t *testing.T) {
 		}
 
 		for _, attr := range BuiltinAttributes {
-			scrubbedUser := scrubUser(user, false, []string{attr})
+			filter := newUserFilter(Config{PrivateAttributeNames: []string{attr}})
+			scrubbedUser := *filter.scrubUser(user)
 			assert.Equal(t, []string{attr}, scrubbedUser.PrivateAttributes)
 			scrubbedUser.PrivateAttributes = nil
 			assert.NotEqual(t, user, scrubbedUser)
@@ -67,6 +54,7 @@ func TestScrubUser(t *testing.T) {
 	})
 
 	t.Run("private custom attribute", func(t *testing.T) {
+		filter := newUserFilter(DefaultConfig)
 		userKey := "userKey"
 		user := User{
 			Key: &userKey,
@@ -75,13 +63,14 @@ func TestScrubUser(t *testing.T) {
 				"my-secret-attr": "my secret value",
 			}}
 
-		scrubbedUser := scrubUser(user, false, nil)
+		scrubbedUser := *filter.scrubUser(user)
 
 		assert.Equal(t, []string{"my-secret-attr"}, scrubbedUser.PrivateAttributes)
 		assert.NotContains(t, *scrubbedUser.Custom, "my-secret-attr")
 	})
 
 	t.Run("all attributes private", func(t *testing.T) {
+		filter := newUserFilter(Config{AllAttributesPrivate: true})
 		userKey := "userKey"
 		user := User{
 			Key:       &userKey,
@@ -97,7 +86,7 @@ func TestScrubUser(t *testing.T) {
 				"my-secret-attr": "my secret value",
 			}}
 
-		scrubbedUser := scrubUser(user, true, nil)
+		scrubbedUser := *filter.scrubUser(user)
 		sort.Strings(scrubbedUser.PrivateAttributes)
 		expectedAttributes := append(BuiltinAttributes, "my-secret-attr")
 		sort.Strings(expectedAttributes)
@@ -110,13 +99,14 @@ func TestScrubUser(t *testing.T) {
 	})
 
 	t.Run("anonymous attribute can't be private", func(t *testing.T) {
+		filter := newUserFilter(Config{AllAttributesPrivate: true})
 		userKey := "userKey"
 		anon := true
 		user := User{
 			Key:       &userKey,
 			Anonymous: &anon}
 
-		scrubbedUser := scrubUser(user, true, nil)
+		scrubbedUser := *filter.scrubUser(user)
 		assert.Equal(t, scrubbedUser, user)
 	})
 }
