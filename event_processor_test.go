@@ -604,7 +604,8 @@ func createEventProcessor(config Config) (*defaultEventProcessor, *stubTransport
 	client := &http.Client{
 		Transport: transport,
 	}
-	return NewDefaultEventProcessor(sdkKey, config, client), transport
+	ep := NewDefaultEventProcessor(sdkKey, config, client)
+	return ep.(*defaultEventProcessor), transport
 }
 
 func flushAndGetEvents(ep *defaultEventProcessor, st *stubTransport) []map[string]interface{} {
@@ -650,4 +651,11 @@ func (t *stubTransport) getNextRequest() *http.Request {
 	default:
 		return nil
 	}
+}
+
+// used only for testing - ensures that all pending messages and flushes have completed
+func (ep *defaultEventProcessor) waitUntilInactive() {
+	m := syncEventsMessage{replyCh: make(chan struct{})}
+	ep.inputCh <- m
+	<-m.replyCh // Now we know that all events prior to this call have been processed
 }

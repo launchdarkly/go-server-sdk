@@ -45,7 +45,7 @@ func TestUpsertRaceConditionAgainstExternalClientWithLowerVersion(t *testing.T) 
 		Version: 1,
 	}
 	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: map[string]ld.VersionedData{flag.Key: &flag},
+		ld.Features: {flag.Key: &flag},
 	}
 	assert.NoError(t, store.Init(allData))
 
@@ -72,7 +72,7 @@ func TestUpsertRaceConditionAgainstExternalClientWithHigherVersion(t *testing.T)
 		Version: 1,
 	}
 	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: map[string]ld.VersionedData{flag.Key: &flag},
+		ld.Features: {flag.Key: &flag},
 	}
 	assert.NoError(t, store.Init(allData))
 

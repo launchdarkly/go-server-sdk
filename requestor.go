@@ -10,6 +10,7 @@ import (
 	"github.com/gregjones/httpcache"
 )
 
+// SDK endpoints
 const (
 	LatestFlagsPath    = "/sdk/latest-flags"
 	LatestSegmentsPath = "/sdk/latest-segments"
@@ -108,16 +109,14 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 
 	res, resErr := r.httpClient.Do(req)
 
-	defer func() {
-		if res != nil && res.Body != nil {
-			ioutil.ReadAll(res.Body)
-			res.Body.Close()
-		}
-	}()
-
 	if resErr != nil {
 		return nil, false, resErr
 	}
+
+	defer func() {
+		_, _ = ioutil.ReadAll(res.Body)
+		_ = res.Body.Close()
+	}()
 
 	err := checkStatusCode(res.StatusCode, url)
 	if err != nil {
