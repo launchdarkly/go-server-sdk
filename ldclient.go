@@ -107,7 +107,7 @@ var DefaultConfig = Config{
 // Initialization errors
 var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
-	ErrInitializationFailed = errors.New("Cannot initialize LaunchDarkly")
+	ErrInitializationFailed  = errors.New("LaunchDarkly client initialization failed")
 	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed")
 )
 

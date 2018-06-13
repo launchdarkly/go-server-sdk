@@ -6,6 +6,7 @@ linters:
   enable-all: true
   disable:
     - gocyclo
+    - gofmt
   fast: false
 
 linter-settings:

@@ -25,8 +25,9 @@ defaults:
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
       - run: gometalinter.v2 --install
-      - run: gometalinter.v2
       - run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s $GOLANGCI_LINT_VERSION
+      - run: gometalinter.v2
+      - run: ./bin/golangci-lint run ./...
       - run: dep ensure -dry-run
       - run:
           name: Set up Code Climate test-reporter
