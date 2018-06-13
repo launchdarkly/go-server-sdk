@@ -29,6 +29,15 @@ func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor 
 func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.config.Logger.Printf("Starting LaunchDarkly polling processor with interval: %+v", pp.config.PollInterval)
 	go func() {
+		var readyOnce sync.Once
+		notifyReady := func() {
+			readyOnce.Do(func() {
+				close(closeWhenReady)
+			})
+		}
+		// Ensure we stop waiting for initialization if we exit, even if initialization fails
+		defer notifyReady()
+
 		for {
 			select {
 			case <-pp.quit:
@@ -40,13 +49,14 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				if err == nil {
 					pp.setInitializedOnce.Do(func() {
 						pp.isInitialized = true
-						close(closeWhenReady)
+						notifyReady()
 					})
 				} else {
 					pp.config.Logger.Printf("ERROR: Error when requesting feature updates: %+v", err)
-					if hse, ok := err.(HttpStatusError); ok {
+					if hse, ok := err.(*HttpStatusError); ok {
 						if hse.Code == 401 {
 							pp.config.Logger.Printf("ERROR: Received 401 error, no further polling requests will be made since SDK key is invalid")
+							notifyReady()
 							return
 						}
 					}

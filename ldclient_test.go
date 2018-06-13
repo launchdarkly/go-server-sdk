@@ -3,6 +3,7 @@ package ldclient
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"testing"
@@ -11,11 +12,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testUpdateProcessor struct{}
+type mockUpdateProcessor struct {
+	IsInitialized bool
+	CloseFn       func() error
+	StartFn       func(chan<- struct{})
+}
 
-func (u testUpdateProcessor) Initialized() bool     { return true }
-func (u testUpdateProcessor) Close() error          { return nil }
-func (u testUpdateProcessor) Start(chan<- struct{}) {}
+func (u mockUpdateProcessor) Initialized() bool {
+	return u.IsInitialized
+}
+
+func (u mockUpdateProcessor) Close() error {
+	if u.CloseFn == nil {
+		return nil
+	}
+	return u.CloseFn()
+}
+func (u mockUpdateProcessor) Start(closeWhenReady chan<- struct{}) {
+	if u.StartFn == nil {
+		return
+	}
+	u.StartFn(closeWhenReady)
+}
 
 type testEventProcessor struct {
 	events []Event
@@ -320,21 +338,42 @@ func TestTrackSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, data, e.Data)
 }
 
+func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
+	updateProcessor := mockUpdateProcessor{
+		IsInitialized: false,
+		StartFn: func(closeWhenReady chan<- struct{}) {
+			close(closeWhenReady)
+		},
+	}
+
+	client, err := MakeCustomClient("sdkKey", Config{
+		Logger:                log.New(ioutil.Discard, "", 0),
+		UpdateProcessor:       updateProcessor,
+		EventProcessor:        &testEventProcessor{},
+		UserKeysFlushInterval: 30 * time.Second,
+	}, time.Second)
+
+	assert.NotNil(t, client)
+	assert.Equal(t, err, ErrInitializationFailed)
+}
+
 // Creates LdClient loaded with one feature flag with key: "validFeatureKey".
 // Variations param should have at least 2 items with variations[1] being the expected
 // fallthrough value when passing in a valid user
 func makeTestClient() *LDClient {
 	config := Config{
-		Logger:                log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
-		Offline:               false,
-		SendEvents:            true,
-		FeatureStore:          NewInMemoryFeatureStore(nil),
-		UpdateProcessor:       testUpdateProcessor{},
+		Logger:       log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
+		Offline:      false,
+		SendEvents:   true,
+		FeatureStore: NewInMemoryFeatureStore(nil),
+		UpdateProcessor: mockUpdateProcessor{
+			IsInitialized: true,
+		},
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}
 
-	client, _ := MakeCustomClient("sdkKey", config, 0*time.Second)
+	client, _ := MakeCustomClient("sdkKey", config, time.Duration(0))
 	return client
 }
 

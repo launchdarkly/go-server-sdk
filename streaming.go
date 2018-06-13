@@ -79,6 +79,15 @@ func segmentKey(path string) (string, error) {
 }
 
 func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
+	var readyOnce sync.Once
+	notifyReady := func() {
+		readyOnce.Do(func() {
+			close(closeWhenReady)
+		})
+	}
+	// Ensure we stop waiting for initialization if we exit, even if initialization fails
+	defer notifyReady()
+
 	for {
 		select {
 		case event, ok := <-sp.stream.Events:
@@ -100,7 +109,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 					sp.setInitializedOnce.Do(func() {
 						sp.config.Logger.Printf("Started LaunchDarkly streaming client")
 						sp.isInitialized = true
-						close(closeWhenReady)
+						notifyReady()
 					})
 				}
 			case patchEvent:
@@ -212,23 +221,23 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
 			sp.config.Logger.Printf("ERROR: Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
 			if sp.checkUnauthorized(err) {
+				close(closeWhenReady)
 				return
 			}
 
 			// Halt immediately if we've been closed already
 			select {
 			case <-sp.halt:
+				close(closeWhenReady)
 				return
 			default:
 				time.Sleep(2 * time.Second)
 			}
-
 		} else {
 			sp.stream = stream
 			sp.stream.Logger = sp.config.Logger
 
 			go sp.events(closeWhenReady)
-
 			return
 		}
 	}

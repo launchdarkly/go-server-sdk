@@ -107,6 +107,7 @@ var DefaultConfig = Config{
 // Initialization errors
 var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
+	ErrInitializationFailed = errors.New("Cannot initialize LaunchDarkly")
 	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed")
 )
 
@@ -173,6 +174,10 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	for {
 		select {
 		case <-closeWhenReady:
+			if !client.updateProcessor.Initialized() {
+				return &client, ErrInitializationFailed
+			}
+
 			config.Logger.Println("Successfully initialized LaunchDarkly client!")
 			return &client, nil
 		case <-timeout:
