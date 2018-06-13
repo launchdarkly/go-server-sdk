@@ -11,7 +11,7 @@ experimental:
 
 defaults:
   environment: &environment
-    GOLANGCI_LINT_VERSION: v1.5
+    GOLANGCI_LINT_VERSION: v1.6.1
     CIRCLE_TEST_REPORTS: /tmp/circle-reports
     CIRCLE_ARTIFACTS: /tmp/circle-artifacts
     COMMON_GO_PACKAGES: >
