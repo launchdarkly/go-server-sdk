@@ -101,7 +101,11 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 				if err := json.Unmarshal([]byte(event.Data()), &put); err != nil {
 					sp.config.Logger.Printf("ERROR: Unexpected error unmarshalling PUT json: %+v", err)
 				} else {
-					sp.store.Init(MakeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
+					err = sp.store.Init(MakeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
+					if err != nil {
+						sp.config.Logger.Printf("Error initializing store: %s", err)
+						return
+					}
 					sp.setInitializedOnce.Do(func() {
 						sp.config.Logger.Printf("Started LaunchDarkly streaming client")
 						sp.isInitialized = true
@@ -113,19 +117,23 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 				if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
 					sp.config.Logger.Printf("ERROR: Unexpected error unmarshalling PATCH json: %+v", err)
 				} else {
-					if _, err := flagKey(patch.Path); err == nil {
+					if _, err = flagKey(patch.Path); err == nil {
 						var flag FeatureFlag
-						if err := json.Unmarshal(patch.Data, &flag); err != nil {
+						if err = json.Unmarshal(patch.Data, &flag); err != nil {
 							sp.config.Logger.Printf("ERROR: Unexpected error unmarshalling feature flag json: %+v", err)
 						} else {
-							sp.store.Upsert(Features, &flag)
+							if err = sp.store.Upsert(Features, &flag); err != nil {
+								sp.config.Logger.Printf("ERROR: Unexpected error storing feature flag json: %+v", err)
+							}
 						}
-					} else if _, err := segmentKey(patch.Path); err == nil {
+					} else if _, err = segmentKey(patch.Path); err == nil {
 						var segment Segment
-						if err := json.Unmarshal(patch.Data, &segment); err != nil {
+						if err = json.Unmarshal(patch.Data, &segment); err != nil {
 							sp.config.Logger.Printf("ERROR: Unexpected error unmarshalling segment json: %+v", err)
 						} else {
-							sp.store.Upsert(Segments, &segment)
+							if err = sp.store.Upsert(Segments, &segment); err != nil {
+								sp.config.Logger.Printf("ERROR: Unexpected error storing segment json: %+v", err)
+							}
 						}
 					} else {
 						sp.config.Logger.Printf("ERROR: Unknown data path: %s. Ignoring patch.", patch.Path)
@@ -137,25 +145,33 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 					sp.config.Logger.Printf("ERROR: Unexpected error unmarshalling DELETE json: %+v", err)
 				}
 				if key, err := flagKey(data.Path); err == nil {
-					sp.store.Delete(Features, key, data.Version)
-				} else if key, err := segmentKey(data.Path); err == nil {
-					sp.store.Delete(Segments, key, data.Version)
+					if err = sp.store.Delete(Features, key, data.Version); err != nil {
+						sp.config.Logger.Printf(`ERROR: Unexpected error deleting feature flag "%s"`, key, err)
+					}
+				} else if key, err = segmentKey(data.Path); err == nil {
+					if err = sp.store.Delete(Segments, key, data.Version); err != nil {
+						sp.config.Logger.Printf(`ERROR: Unexpected error deleting segment "%s"`, key, err)
+					}
 				} else {
 					sp.config.Logger.Printf("ERROR: Unknown data path: %s. Ignoring delete.", data.Path)
 				}
 			case indirectPatchEvent:
 				path := event.Data()
 				if key, err := flagKey(path); err == nil {
-					if feature, err := sp.requestor.requestFlag(key); err != nil {
-						sp.config.Logger.Printf("ERROR: Unexpected error requesting feature: %+v", err)
+					if feature, requestErr := sp.requestor.requestFlag(key); requestErr != nil {
+						sp.config.Logger.Printf(`ERROR: Unexpected error requesting feature "%s": %+v`, key, requestErr)
 					} else {
-						sp.store.Upsert(Features, feature)
+						if err = sp.store.Upsert(Features, feature); err != nil {
+							sp.config.Logger.Printf(`ERROR: Unexpected error requesting feature "%s": %+v`, key, requestErr)
+						}
 					}
-				} else if key, err := segmentKey(path); err == nil {
-					if segment, err := sp.requestor.requestSegment(key); err != nil {
-						sp.config.Logger.Printf("ERROR: Unexpected error requesting segment: %+v", err)
+				} else if key, err = segmentKey(path); err == nil {
+					if segment, requestErr := sp.requestor.requestSegment(key); requestErr != nil {
+						sp.config.Logger.Printf(`ERROR: Unexpected error requesting segment "%s": %+v`, segment, requestErr)
 					} else {
-						sp.store.Upsert(Segments, segment)
+						if err = sp.store.Upsert(Segments, segment); err != nil {
+							sp.config.Logger.Printf(`ERROR: Unexpected error requesting segment "%s": %+v`, segment, requestErr)
+						}
 					}
 				}
 			default:
@@ -237,11 +253,11 @@ func (sp *streamProcessor) checkUnauthorized(err error) bool {
 	return false
 }
 
+// Close instructs the processor to stop receiving updates
 func (sp *streamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		sp.config.Logger.Printf("Closing event stream.")
-		// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
-		// sp.stream.Close()
+		sp.stream.Close()
 		close(sp.halt)
 	})
 	return nil

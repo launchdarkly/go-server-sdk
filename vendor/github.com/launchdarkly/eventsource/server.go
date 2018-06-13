@@ -3,21 +3,29 @@ package eventsource
 import (
 	"net/http"
 	"strings"
+	"sync"
 )
 
 type subscription struct {
 	channel     string
 	lastEventId string
-	out         chan Event
+	out         chan interface{}
 }
 
+type eventOrComment interface{}
+
 type outbound struct {
-	channels []string
-	event    Event
+	channels       []string
+	eventOrComment eventOrComment
 }
+
 type registration struct {
 	channel    string
 	repository Repository
+}
+
+type comment struct {
+	value string
 }
 
 type Server struct {
@@ -31,6 +39,8 @@ type Server struct {
 	subs          chan *subscription
 	unregister    chan *subscription
 	quit          chan bool
+	isClosed      bool
+	isClosedMutex sync.RWMutex
 }
 
 // Create a new Server ready for handler creation and publishing events
@@ -50,6 +60,7 @@ func NewServer() *Server {
 // Stop handling publishing
 func (srv *Server) Close() {
 	srv.quit <- true
+	srv.markServerClosed()
 }
 
 // Create a new handler for serving a specified channel
@@ -68,10 +79,16 @@ func (srv *Server) Handler(channel string) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusOK)
 
+		// If the Handler is still active even though the server is closed, stop here.
+		// Otherwise the Handler will block while publishing to srv.subs indefinitely.
+		if srv.isServerClosed() {
+			return
+		}
+
 		sub := &subscription{
 			channel:     channel,
 			lastEventId: req.Header.Get("Last-Event-ID"),
-			out:         make(chan Event, srv.BufferSize),
+			out:         make(chan interface{}, srv.BufferSize),
 		}
 		srv.subs <- sub
 		flusher := w.(http.Flusher)
@@ -111,8 +128,16 @@ func (srv *Server) Register(channel string, repo Repository) {
 // Publish an event with the specified id to one or more channels
 func (srv *Server) Publish(channels []string, ev Event) {
 	srv.pub <- &outbound{
-		channels: channels,
-		event:    ev,
+		channels:       channels,
+		eventOrComment: ev,
+	}
+}
+
+// Publish a comment to one or more channels
+func (srv *Server) PublishComment(channels []string, text string) {
+	srv.pub <- &outbound{
+		channels:       channels,
+		eventOrComment: comment{value: text},
 	}
 }
 
@@ -135,7 +160,7 @@ func (srv *Server) run() {
 			for _, c := range pub.channels {
 				for s := range subs[c] {
 					select {
-					case s.out <- pub.event:
+					case s.out <- pub.eventOrComment:
 					default:
 						srv.unregister <- s
 						close(s.out)
@@ -163,4 +188,16 @@ func (srv *Server) run() {
 			return
 		}
 	}
+}
+
+func (srv *Server) isServerClosed() bool {
+	srv.isClosedMutex.RLock()
+	defer srv.isClosedMutex.RUnlock()
+	return srv.isClosed
+}
+
+func (srv *Server) markServerClosed() {
+	srv.isClosedMutex.Lock()
+	defer srv.isClosedMutex.Unlock()
+	srv.isClosed = true
 }

@@ -8,10 +8,12 @@ import (
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
 
+// RunFeatureStoreTests runs a suite of tests on a feature store
 func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 	var reinitStore = func() ld.FeatureStore {
 		store := makeStore()
-		store.Init(map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: make(map[string]ld.VersionedData)})
+		err := store.Init(map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: make(map[string]ld.VersionedData)})
+		assert.NoError(t, err, "store initialization failed")
 		return store
 	}
 

@@ -38,7 +38,7 @@
   branch = "master"
   name = "github.com/launchdarkly/eventsource"
   packages = ["."]
-  revision = "a45c212c667804d2687d2780839b04e288e2160d"
+  revision = "a6b10b12aede81f179d8dffb28679202c5895f23"
 
 [[projects]]
   name = "github.com/patrickmn/go-cache"

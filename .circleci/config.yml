@@ -9,39 +9,101 @@ experimental:
         - v3
         - v4
 
+defaults:
+  environment: &environment
+    GOLANGCI_LINT_VERSION: v1.6.1
+    CIRCLE_TEST_REPORTS: /tmp/circle-reports
+    CIRCLE_ARTIFACTS: /tmp/circle-artifacts
+    COMMON_GO_PACKAGES: >
+      github.com/golang/dep/cmd/dep
+      github.com/jstemmer/go-junit-report
+      github.com/kyoh86/richgo
+      gopkg.in/alecthomas/gometalinter.v2
+
+  build_steps: &build_steps
+    steps:
+      - checkout
+      - run: go get -u $COMMON_GO_PACKAGES
+      - run: gometalinter.v2 --install
+      - run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s $GOLANGCI_LINT_VERSION
+      - run: gometalinter.v2
+      - run: ./bin/golangci-lint run ./...
+      - run: dep ensure -dry-run
+      - run:
+          name: Set up Code Climate test-reporter
+          command: |
+            curl -sS -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+            chmod +x ./cc-test-reporter
+
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p $CIRCLE_TEST_REPORTS
+            mkdir -p $CIRCLE_ARTIFACTS
+            trap "go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
+            if [ -z "$DISABLE_COVERAGE" ]; then
+              go_cover_args="-covermode=atomic -coverpkg=./... -coverprofile /tmp/circle-artifacts/coverage.txt"
+            fi
+            go test -race $go_cover_args -v . ./redis | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
+            if [ -z "$DISABLE_COVERAGE" ]; then
+              ./cc-test-reporter format-coverage $CIRCLE_ARTIFACTS/coverage.txt -t gocov --output $CIRCLE_ARTIFACTS/coverage.json
+              ./cc-test-reporter upload-coverage --input $CIRCLE_ARTIFACTS/coverage.json
+            fi
+
+      - run:
+          name: Generate coverage report
+          command: |
+            if [ -z "$DISABLE_COVERAGE" ]; then
+              go tool cover -html=$CIRCLE_ARTIFACTS/coverage.txt -o $CIRCLE_ARTIFACTS/coverage.html
+            fi
+          when: always
+
+      - store_test_results:
+          path: /tmp/circle-reports
+
+      - store_artifacts:
+          path: /tmp/circle-artifacts
+
 jobs:
   go-test:
     working_directory: /go/src/gopkg.in/launchdarkly/go-client.v4
 
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.10.1
         environment:
-          CIRCLE_TEST_REPORTS: /tmp/circle-reports
-          COMMON_GO_PACKAGES: >
-            gopkg.in/alecthomas/gometalinter.v2
-            github.com/jstemmer/go-junit-report
+          <<: *environment
       - image: redis
 
-    steps:
-      - checkout
-      - run: go get -u $COMMON_GO_PACKAGES
-      - run: gometalinter.v2 --install
-      - run: gometalinter.v2 --disable gocyclo --disable golint --disable goconst --disable errcheck --disable maligned
+    <<: *build_steps
 
-      - run:
-          name: Wait for services to be ready
-          command: dockerize -wait tcp://localhost:6379 -timeout 1m  # redis
+  go-test-1.9:
+    working_directory: /go/src/gopkg.in/launchdarkly/go-client.v4
 
-      - run: |
-          mkdir -p $CIRCLE_TEST_REPORTS
-          trap "go-junit-report < output.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
-          go test -race -v ./... | tee output.txt
+    docker:
+      - image: circleci/golang:1.9
+        environment:
+          <<: *environment
+          DISABLE_COVERAGE: 1
+      - image: redis
 
-      - store_test_results:
-          path: /tmp/circle-reports
+    <<: *build_steps
+
+  go-test-1.8:
+    working_directory: /go/src/gopkg.in/launchdarkly/go-client.v4
+
+    docker:
+      - image: circleci/golang:1.8
+        environment:
+          <<: *environment
+          DISABLE_COVERAGE: 1
+      - image: redis
+
+    <<: *build_steps
 
 workflows:
   version: 2
   test:
     jobs:
       - go-test
+      - go-test-1.9
+      - go-test-1.8
