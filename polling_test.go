@@ -11,10 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var nullHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+
 func TestPollingProcessor_ClosingItShouldNotBlock(t *testing.T) {
-	p := newPollingProcessor(Config{
-		Logger: log.New(ioutil.Discard, "", 0),
-	}, nil)
+	server := httptest.NewServer(nullHandler)
+	defer server.Close()
+	cfg := Config{
+		Logger:       log.New(ioutil.Discard, "", 0),
+		PollInterval: time.Minute,
+	}
+	req := newFakeRequestor(server, cfg)
+	p := newPollingProcessor(cfg, req)
 
 	p.Close()
 
@@ -32,13 +39,15 @@ func TestPollingProcessor_401ShouldNotBlock(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
+
 	defer ts.Close()
 
 	cfg := Config{
-		Logger:  log.New(ioutil.Discard, "", 0),
-		BaseUri: ts.URL,
+		Logger:       log.New(ioutil.Discard, "", 0),
+		PollInterval: time.Minute,
+		BaseUri:      ts.URL,
 	}
-	req := newRequestor("sdkKey", cfg)
+	req := newFakeRequestor(ts, cfg)
 	p := newPollingProcessor(cfg, req)
 
 	closeWhenReady := make(chan struct{})
@@ -49,4 +58,14 @@ func TestPollingProcessor_401ShouldNotBlock(t *testing.T) {
 	case <-time.After(time.Second):
 		assert.Fail(t, "Receiving 401 shouldn't block")
 	}
+}
+
+func newFakeRequestor(server *httptest.Server, config Config) *requestor {
+	httpRequestor := requestor{
+		sdkKey:     "fake",
+		httpClient: http.DefaultClient,
+		config:     config,
+	}
+
+	return &httpRequestor
 }

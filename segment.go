@@ -40,6 +40,11 @@ func (sk SegmentVersionedDataKind) GetNamespace() string {
 	return "segments"
 }
 
+// String returns the namespace
+func (sk SegmentVersionedDataKind) String() string {
+	return sk.GetNamespace()
+}
+
 // GetDefaultItem returns a default segment representation
 func (sk SegmentVersionedDataKind) GetDefaultItem() interface{} {
 	return &Segment{}
