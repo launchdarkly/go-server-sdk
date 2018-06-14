@@ -61,6 +61,11 @@ func (fk FeatureFlagVersionedDataKind) GetNamespace() string {
 	return "features"
 }
 
+// String returns the namespace
+func (fk FeatureFlagVersionedDataKind) String() string {
+	return fk.GetNamespace()
+}
+
 // GetDefaultItem returns a default feature flag representation
 func (fk FeatureFlagVersionedDataKind) GetDefaultItem() interface{} {
 	return &FeatureFlag{}

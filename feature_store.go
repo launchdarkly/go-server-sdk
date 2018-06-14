@@ -51,10 +51,10 @@ func (store *InMemoryFeatureStore) Get(kind VersionedDataKind, key string) (Vers
 	item := store.allData[kind][key]
 
 	if item == nil {
-		store.logger.Printf("WARN: Key: %s not found in \"%s\".", key, kind.GetNamespace())
+		store.logger.Printf("WARN: Key: %s not found in \"%s\".", key, kind)
 		return nil, nil
 	} else if item.IsDeleted() {
-		store.logger.Printf("WARN: Attempted to get deleted item in \"%s\". Key: %s", kind.GetNamespace(), key)
+		store.logger.Printf("WARN: Attempted to get deleted item in \"%s\". Key: %s", kind, key)
 		return nil, nil
 	} else {
 		return item, nil

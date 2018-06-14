@@ -28,6 +28,10 @@ func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor 
 
 func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.config.Logger.Printf("Starting LaunchDarkly polling processor with interval: %+v", pp.config.PollInterval)
+
+	ticker := newTickerWithInitialTick(pp.config.PollInterval)
+	defer ticker.Stop()
+
 	go func() {
 		var readyOnce sync.Once
 		notifyReady := func() {
@@ -43,15 +47,8 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 			case <-pp.quit:
 				pp.config.Logger.Printf("Polling Processor closed.")
 				return
-			default:
-				then := time.Now()
-				err := pp.poll()
-				if err == nil {
-					pp.setInitializedOnce.Do(func() {
-						pp.isInitialized = true
-						notifyReady()
-					})
-				} else {
+			case <-ticker.C:
+				if err := pp.poll(); err != nil {
 					pp.config.Logger.Printf("ERROR: Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(*HttpStatusError); ok {
 						if hse.Code == 401 {
@@ -60,12 +57,12 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 							return
 						}
 					}
+					continue
 				}
-				delta := pp.config.PollInterval - time.Since(then)
-
-				if delta > 0 {
-					time.Sleep(delta)
-				}
+				pp.setInitializedOnce.Do(func() {
+					pp.isInitialized = true
+					notifyReady()
+				})
 			}
 		}
 	}()
@@ -95,4 +92,25 @@ func (pp *pollingProcessor) Close() error {
 
 func (pp *pollingProcessor) Initialized() bool {
 	return pp.isInitialized
+}
+
+type tickerWithInitialTick struct {
+	*time.Ticker
+	C <-chan time.Time
+}
+
+func newTickerWithInitialTick(interval time.Duration) *tickerWithInitialTick {
+	c := make(chan time.Time)
+	ticker := time.NewTicker(interval)
+	t := &tickerWithInitialTick{
+		C:      c,
+		Ticker: ticker,
+	}
+	go func() {
+		c <- time.Now() // Ensure we do an initial poll immediately
+		for tt := range ticker.C {
+			c <- tt
+		}
+	}()
+	return t
 }

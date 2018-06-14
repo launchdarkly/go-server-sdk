@@ -1,7 +1,6 @@
 package eventsource
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,10 +25,11 @@ type Stream struct {
 	// even if that involves reconnecting to the server.
 	Errors chan error
 	// Logger is a logger that, when set, will be used for logging debug messages
-	Logger    Logger // Set with SetLogger if you want your code to be thread-safe
-	closer    chan struct{}
-	closeOnce sync.Once
-	mu        sync.RWMutex
+	Logger      Logger // Set with SetLogger if you want your code to be thread-safe
+	closer      chan struct{}
+	closeOnce   sync.Once
+	mu          sync.RWMutex
+	connections int
 }
 
 type SubscriptionError struct {
@@ -59,7 +59,12 @@ func SubscribeWithRequest(lastEventId string, request *http.Request) (*Stream, e
 
 // SubscribeWith takes a http client and request providing customization over both headers and
 // control over the http client settings (timeouts, tls, etc)
+// If request.Body is set, then request.GetBody should also be set so that we can reissue the request
 func SubscribeWith(lastEventId string, client *http.Client, request *http.Request) (*Stream, error) {
+	// override checkRedirect to include headers before go1.8
+	// we'd prefer to skip this because it is not thread-safe and breaks golang race condition checking
+	setCheckRedirect(client)
+
 	stream := &Stream{
 		c:           client,
 		req:         request,
@@ -69,7 +74,6 @@ func SubscribeWith(lastEventId string, client *http.Client, request *http.Reques
 		Errors:      make(chan error),
 		closer:      make(chan struct{}),
 	}
-	stream.c.CheckRedirect = checkRedirect
 
 	r, err := stream.connect()
 	if err != nil {
@@ -86,20 +90,6 @@ func (stream *Stream) Close() {
 	})
 }
 
-// Go's http package doesn't copy headers across when it encounters
-// redirects so we need to do that manually.
-func checkRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
-	}
-	for k, vv := range via[0].Header {
-		for _, v := range vv {
-			req.Header.Add(k, v)
-		}
-	}
-	return nil
-}
-
 func (stream *Stream) connect() (r io.ReadCloser, err error) {
 	var resp *http.Response
 	stream.req.Header.Set("Cache-Control", "no-cache")
@@ -107,9 +97,19 @@ func (stream *Stream) connect() (r io.ReadCloser, err error) {
 	if len(stream.lastEventId) > 0 {
 		stream.req.Header.Set("Last-Event-ID", stream.lastEventId)
 	}
-	if resp, err = stream.c.Do(stream.req); err != nil {
+	req := *stream.req
+
+	// All but the initial connection will need to regenerate the body
+	if stream.connections > 0 && req.GetBody != nil {
+		if req.Body, err = req.GetBody(); err != nil {
+			return
+		}
+	}
+
+	if resp, err = stream.c.Do(&req); err != nil {
 		return
 	}
+	stream.connections++
 	if resp.StatusCode != 200 {
 		message, _ := ioutil.ReadAll(resp.Body)
 		err = SubscriptionError{

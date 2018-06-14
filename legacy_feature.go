@@ -142,50 +142,47 @@ func compareValues(value interface{}, values []interface{}) bool {
 
 func (target TargetRule) matchTarget(user User) bool {
 	var uValue interface{}
-	if target.Attribute == userKey {
+	switch target.Attribute {
+	case userKey:
 		if user.Key != nil {
 			uValue = *user.Key
 		}
-	} else if target.Attribute == "ip" {
+	case "ip":
 		if user.Ip != nil {
 			uValue = *user.Ip
 		}
-	} else if target.Attribute == "country" {
+	case "country":
 		if user.Country != nil {
 			uValue = *user.Country
 		}
-	} else if target.Attribute == "email" {
+	case "email":
 		if user.Email != nil {
 			uValue = *user.Email
 		}
-	} else if target.Attribute == "firstName" {
+	case "firstName":
 		if user.FirstName != nil {
 			uValue = *user.FirstName
 		}
-	} else if target.Attribute == "lastName" {
+	case "lastName":
 		if user.LastName != nil {
 			uValue = *user.LastName
 		}
-	} else if target.Attribute == "avatar" {
+	case "avatar":
 		if user.Avatar != nil {
 			uValue = *user.Avatar
 		}
-	} else if target.Attribute == "name" {
+	case "name":
 		if user.Name != nil {
 			uValue = *user.Name
 		}
-	} else if target.Attribute == "anonymous" {
+	case "anonymous":
 		if user.Anonymous != nil {
 			uValue = *user.Anonymous
 		}
-	} else {
+	default:
 		return target.matchCustom(user)
 	}
-
-	if compareValues(uValue, target.Values) {
-		return true
-	}
-	return false
+	return compareValues(uValue, target.Values)
 }
 
 func (variation Variation) matchTarget(user User) *TargetRule {
