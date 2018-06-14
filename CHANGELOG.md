@@ -2,6 +2,19 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.1.0] - 2018-06-14
+## Changed
+
+The Go client now depends on the latest release of 1.0.0 of LaunchDarkly fork of eventsource, which supports the Close() method.
+
+## Fixed
+
+Calling Close on the client now immediately closes the streaming connection, if the client is in streaming mode.
+
+During initialization, if the client receives a 401 error from LaunchDarkly (indicating an invalid SDK key), the client constructor will return immediately rather than waiting for a timeout, since there is no way for the client to recover if the SDK key is wrong. The Initialized() method will return false in this case.
+
+More generally, the error response for creating a client will also indicate that initialization has failed if the client has not yet been initialized by the UpdateProcessor.
+
 ## [4.0.0] - 2018-05-10
 
 ### Changed:
