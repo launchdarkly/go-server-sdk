@@ -35,10 +35,10 @@
   revision = "2bcd89a1743fd4b373f7370ce8ddc14dfbd18229"
 
 [[projects]]
-  branch = "master"
   name = "github.com/launchdarkly/eventsource"
   packages = ["."]
-  revision = "a6b10b12aede81f179d8dffb28679202c5895f23"
+  revision = "5e2c13ba9523c8b5f5e33aee7ef3fb1c855f52cd"
+  version = "1.0.0"
 
 [[projects]]
   name = "github.com/patrickmn/go-cache"
@@ -58,18 +58,9 @@
   revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
   version = "v1.2.1"
 
-[[projects]]
-  name = "gopkg.in/launchdarkly/go-client.v4"
-  packages = [
-    ".",
-    "shared_test"
-  ]
-  revision = "0d5b77e148a854e4b69347ca8b21a1baabab8677"
-  version = "4.0.0"
-
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e691ac9210144c1ef891d196cbcda898002dc102cd6c4eb03f4d8f784e116d80"
+  inputs-digest = "fe5787e27adde0e634f9078953e3b9c619e29042b5291e5ddf8f2d69444a5a76"
   solver-name = "gps-cdcl"
   solver-version = 1
