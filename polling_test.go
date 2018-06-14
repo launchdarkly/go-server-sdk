@@ -60,6 +60,46 @@ func TestPollingProcessor_401ShouldNotBlock(t *testing.T) {
 	}
 }
 
+func TestPollingProcessor_Initialization(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/sdk/latest-all", r.URL.Path)
+		w.Write([]byte(`{"flags": {"my-flag": {"key": "my-flag", "version": 2}}, "segments": {"my-segment": {"key": "my-segment", "version": 3}}}`))
+	}))
+
+	defer ts.Close()
+
+	store := NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0))
+
+	cfg := Config{
+		FeatureStore: store,
+		Logger:       log.New(ioutil.Discard, "", 0),
+		PollInterval: time.Minute,
+		BaseUri:      ts.URL,
+	}
+	req := newFakeRequestor(ts, cfg)
+	p := newPollingProcessor(cfg, req)
+
+	closeWhenReady := make(chan struct{})
+	p.Start(closeWhenReady)
+
+	select {
+	case <-closeWhenReady:
+	case <-time.After(time.Second):
+		assert.Fail(t, "Failed to initialize")
+		return
+	}
+
+	flag, err := store.Get(Features, "my-flag")
+	if assert.NoError(t, err) {
+		assert.Equal(t, 2, flag.GetVersion())
+	}
+
+	segment, err := store.Get(Segments, "my-segment")
+	if assert.NoError(t, err) {
+		assert.Equal(t, 3, segment.GetVersion())
+	}
+}
+
 func newFakeRequestor(server *httptest.Server, config Config) *requestor {
 	httpRequestor := requestor{
 		sdkKey:     "fake",

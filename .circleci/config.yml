@@ -42,7 +42,7 @@ defaults:
             mkdir -p $CIRCLE_ARTIFACTS
             trap "go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
             if [ -z "$DISABLE_COVERAGE" ]; then
-              go_cover_args="-covermode=atomic -coverpkg=./... -coverprofile /tmp/circle-artifacts/coverage.txt"
+              go_cover_args="-covermode=atomic -coverprofile /tmp/circle-artifacts/coverage.txt"
             fi
             go test -race $go_cover_args -v . ./redis | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
             if [ -z "$DISABLE_COVERAGE" ]; then
