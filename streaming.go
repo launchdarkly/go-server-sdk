@@ -215,7 +215,6 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
-			sp.config.Logger.Printf("*** error: %+v\n", err)
 			if sp.checkIfPermanentFailure(err) {
 				close(closeWhenReady)
 				return
@@ -230,7 +229,6 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 				time.Sleep(2 * time.Second)
 			}
 		} else {
-			sp.config.Logger.Println("*** success")
 			sp.stream = stream
 			sp.stream.Logger = sp.config.Logger
 
