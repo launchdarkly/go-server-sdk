@@ -502,11 +502,55 @@ func TestUserAgentIsSent(t *testing.T) {
 	assert.Equal(t, config.UserAgent, msg.Header.Get("User-Agent"))
 }
 
+func TestFlushIsPermanentlyDisabledAfter401Error(t *testing.T) {
+	verifyUnrecoverableHTTPError(t, 401)
+}
+
+func TestFlushIsPermanentlyDisabledAfter403Error(t *testing.T) {
+	verifyUnrecoverableHTTPError(t, 401)
+}
+
+func TestFlushIsRetriedOnceAfter408Error(t *testing.T) {
+	verifyRecoverableHTTPError(t, 408)
+}
+
+func TestFlushIsRetriedOnceAfter429Error(t *testing.T) {
+	verifyRecoverableHTTPError(t, 429)
+}
+
 func TestFlushIsRetriedOnceAfter5xxError(t *testing.T) {
+	verifyRecoverableHTTPError(t, 503)
+}
+
+func verifyUnrecoverableHTTPError(t *testing.T, statusCode int) {
 	ep, st := createEventProcessor(epDefaultConfig)
 	defer ep.Close()
 
-	st.statusCode = 503
+	st.statusCode = statusCode
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg := st.getNextRequest()
+	assert.NotNil(t, msg)
+	msg = st.getNextRequest()
+	assert.Nil(t, msg)
+
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg = st.getNextRequest()
+	assert.Nil(t, msg)
+}
+
+func verifyRecoverableHTTPError(t *testing.T, statusCode int) {
+	ep, st := createEventProcessor(epDefaultConfig)
+	defer ep.Close()
+
+	st.statusCode = statusCode
 
 	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)

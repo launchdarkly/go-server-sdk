@@ -51,8 +51,8 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				if err := pp.poll(); err != nil {
 					pp.config.Logger.Printf("ERROR: Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(*HttpStatusError); ok {
-						if hse.Code == 401 {
-							pp.config.Logger.Printf("ERROR: Received 401 error, no further polling requests will be made since SDK key is invalid")
+						pp.config.Logger.Printf("ERROR: %s", httpErrorMessage(hse.Code, "polling request", "will retry"))
+						if !isHTTPErrorRecoverable(hse.Code) {
 							notifyReady()
 							return
 						}

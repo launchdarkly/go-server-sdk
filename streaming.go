@@ -179,7 +179,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 			}
 			if err != io.EOF {
 				sp.config.Logger.Printf("ERROR: Error encountered processing stream: %+v", err)
-				if sp.checkUnauthorized(err) {
+				if sp.checkIfPermanentFailure(err) {
 					sp.closeOnce.Do(func() {
 						sp.config.Logger.Printf("Closing event stream.")
 						// TODO: enable this when we trust stream.Close() never to panic (see https://github.com/donovanhide/eventsource/pull/33)
@@ -215,8 +215,8 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 
 		if stream, err := es.SubscribeWithRequest("", req); err != nil {
-			sp.config.Logger.Printf("ERROR: Error subscribing to stream: %+v using URL: %s", err, req.URL.String())
-			if sp.checkUnauthorized(err) {
+			sp.config.Logger.Printf("*** error: %+v\n", err)
+			if sp.checkIfPermanentFailure(err) {
 				close(closeWhenReady)
 				return
 			}
@@ -230,6 +230,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 				time.Sleep(2 * time.Second)
 			}
 		} else {
+			sp.config.Logger.Println("*** success")
 			sp.stream = stream
 			sp.stream.Logger = sp.config.Logger
 
@@ -239,10 +240,10 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	}
 }
 
-func (sp *streamProcessor) checkUnauthorized(err error) bool {
+func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
 	if se, ok := err.(es.SubscriptionError); ok {
-		if se.Code == 401 {
-			sp.config.Logger.Printf("ERROR: Received 401 error, no further streaming connection will be made since SDK key is invalid")
+		sp.config.Logger.Printf("ERROR: %s", httpErrorMessage(se.Code, "streaming connection", "will retry"))
+		if !isHTTPErrorRecoverable(se.Code) {
 			return true
 		}
 	}
@@ -253,7 +254,9 @@ func (sp *streamProcessor) checkUnauthorized(err error) bool {
 func (sp *streamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		sp.config.Logger.Printf("Closing event stream.")
-		sp.stream.Close()
+		if sp.stream != nil {
+			sp.stream.Close()
+		}
 		close(sp.halt)
 	})
 	return nil
