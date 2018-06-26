@@ -12,30 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStreamProcessor_401ShouldNotBlock(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	defer ts.Close()
-
-	cfg := Config{
-		StreamUri: ts.URL,
-		Logger:    log.New(ioutil.Discard, "", 0),
-	}
-
-	sp := newStreamProcessor("sdkKey", cfg, nil)
-
-	closeWhenReady := make(chan struct{})
-
-	sp.Start(closeWhenReady)
-
-	select {
-	case <-closeWhenReady:
-	case <-time.After(time.Second):
-		assert.Fail(t, "Receiving 401 shouldn't block")
-	}
-}
-
 type testEvent struct {
 	id, event, data string
 }
@@ -88,6 +64,7 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 
 	requestor := newRequestor("sdkKey", cfg)
 	sp := newStreamProcessor("sdkKey", cfg, requestor)
+	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
 
@@ -108,7 +85,7 @@ func TestStreamProcessor(t *testing.T) {
 	initialPutEvent := &testEvent{
 		event: putEvent,
 		data: `{"path": "/", "data": {
-"flags": {"my-flag": {"key": "my-flag", "version": 2}}, 
+"flags": {"my-flag": {"key": "my-flag", "version": 2}},
 "segments": {"my-segment": {"key": "my-segment", "version": 5}}
 }}`,
 	}
@@ -206,4 +183,86 @@ func waitForDelete(t *testing.T, store FeatureStore, kind VersionedDataKind, key
 	}
 	assert.NoError(t, err)
 	assert.Nil(t, item)
+}
+
+func TestStreamProcessorFailsImmediatelyOn401(t *testing.T) {
+	testStreamProcessorUnrecoverableError(t, 401)
+}
+
+func TestStreamProcessorFailsImmediatelyOn403(t *testing.T) {
+	testStreamProcessorUnrecoverableError(t, 403)
+}
+
+func TestStreamProcessorDoesNotFailImmediatelyOn500(t *testing.T) {
+	testStreamProcessorRecoverableError(t, 500)
+}
+
+func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+	}))
+	defer ts.Close()
+
+	cfg := Config{
+		StreamUri:    ts.URL,
+		FeatureStore: NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
+		Logger:       log.New(ioutil.Discard, "", 0),
+	}
+
+	sp := newStreamProcessor("sdkKey", cfg, nil)
+	defer sp.Close()
+
+	closeWhenReady := make(chan struct{})
+
+	sp.Start(closeWhenReady)
+
+	select {
+	case <-closeWhenReady:
+		assert.False(t, sp.Initialized())
+	case <-time.After(time.Second * 3):
+		assert.Fail(t, "Initialization shouldn't block after this error")
+	}
+}
+
+func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
+	initialPutEvent := &testEvent{
+		event: putEvent,
+		data: `{"path": "/", "data": {
+"flags": {"my-flag": {"key": "my-flag", "version": 2}}, 
+"segments": {"my-segment": {"key": "my-segment", "version": 5}}
+}}`,
+	}
+	esserver := eventsource.NewServer()
+	esserver.ReplayAll = true
+	esserver.Register("test", &testRepo{initialEvent: initialPutEvent})
+
+	attempt := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempt == 0 {
+			w.WriteHeader(statusCode)
+		} else {
+			esserver.Handler("test").ServeHTTP(w, r)
+		}
+		attempt++
+	}))
+	defer ts.Close()
+
+	cfg := Config{
+		StreamUri:    ts.URL,
+		FeatureStore: NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
+		Logger:       log.New(ioutil.Discard, "", 0),
+	}
+
+	sp := newStreamProcessor("sdkKey", cfg, nil)
+	defer sp.Close()
+
+	closeWhenReady := make(chan struct{})
+	sp.Start(closeWhenReady)
+
+	select {
+	case <-closeWhenReady:
+		assert.True(t, sp.Initialized())
+	case <-time.After(time.Second * 3):
+		assert.Fail(t, "Should have successfully retried before now")
+	}
 }
