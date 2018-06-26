@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -502,67 +503,52 @@ func TestUserAgentIsSent(t *testing.T) {
 	assert.Equal(t, config.UserAgent, msg.Header.Get("User-Agent"))
 }
 
-func TestFlushIsPermanentlyDisabledAfter401Error(t *testing.T) {
-	verifyUnrecoverableHTTPError(t, 401)
+var httpErrorTests = []struct {
+	status      int
+	recoverable bool
+}{
+	{401, false},
+	{403, false},
+	{408, true},
+	{429, true},
+	{500, true},
+	{503, true},
 }
 
-func TestFlushIsPermanentlyDisabledAfter403Error(t *testing.T) {
-	verifyUnrecoverableHTTPError(t, 401)
-}
+func TestHTTPErrorHandling(t *testing.T) {
+	for _, tt := range httpErrorTests {
+		t.Run(fmt.Sprintf("%d error, recoverable: %v", tt.status, tt.recoverable), func(t *testing.T) {
+			ep, st := createEventProcessor(epDefaultConfig)
+			defer ep.Close()
 
-func TestFlushIsRetriedOnceAfter408Error(t *testing.T) {
-	verifyRecoverableHTTPError(t, 408)
-}
+			st.statusCode = tt.status
 
-func TestFlushIsRetriedOnceAfter429Error(t *testing.T) {
-	verifyRecoverableHTTPError(t, 429)
-}
+			ie := NewIdentifyEvent(epDefaultUser)
+			ep.SendEvent(ie)
+			ep.Flush()
+			ep.waitUntilInactive()
 
-func TestFlushIsRetriedOnceAfter5xxError(t *testing.T) {
-	verifyRecoverableHTTPError(t, 503)
-}
+			msg := st.getNextRequest()
+			assert.NotNil(t, msg)
 
-func verifyUnrecoverableHTTPError(t *testing.T, statusCode int) {
-	ep, st := createEventProcessor(epDefaultConfig)
-	defer ep.Close()
+			if tt.recoverable {
+				msg = st.getNextRequest() // 2nd request is a retry of the 1st
+				assert.NotNil(t, msg)
+				msg = st.getNextRequest()
+				assert.Nil(t, msg)
+			} else {
+				msg = st.getNextRequest()
+				assert.Nil(t, msg)
 
-	st.statusCode = statusCode
+				ep.SendEvent(ie)
+				ep.Flush()
+				ep.waitUntilInactive()
 
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg := st.getNextRequest()
-	assert.NotNil(t, msg)
-	msg = st.getNextRequest()
-	assert.Nil(t, msg)
-
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg = st.getNextRequest()
-	assert.Nil(t, msg)
-}
-
-func verifyRecoverableHTTPError(t *testing.T, statusCode int) {
-	ep, st := createEventProcessor(epDefaultConfig)
-	defer ep.Close()
-
-	st.statusCode = statusCode
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg := st.getNextRequest()
-	assert.NotNil(t, msg)
-	msg = st.getNextRequest()
-	assert.NotNil(t, msg)
-	msg = st.getNextRequest()
-	assert.Nil(t, msg)
+				msg = st.getNextRequest()
+				assert.Nil(t, msg)
+			}
+		})
+	}
 }
 
 func jsonMap(o interface{}) map[string]interface{} {
