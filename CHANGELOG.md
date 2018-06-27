@@ -2,6 +2,16 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.2.1] - 2018-06-27
+### Fixed:
+- Polling processor regressed to polling only once in release 4.1.0.  This has been fixed.
+
+
+
+## [4.2.0] - 2018-06-26
+### Changed:
+- The client now treats most HTTP 4xx errors as unrecoverable: that is, after receiving such an error, it will not make any more HTTP requests for the lifetime of the client instance, in effect taking the client offline. This is because such errors indicate either a configuration problem (invalid SDK key) or a bug, which is not likely to resolve without a restart or an upgrade. This does not apply if the error is 400, 408, 429, or any 5xx error.
+
 ## [4.1.0] - 2018-06-14
 ### Changed
 
