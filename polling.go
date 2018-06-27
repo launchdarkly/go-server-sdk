@@ -30,9 +30,10 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.config.Logger.Printf("Starting LaunchDarkly polling processor with interval: %+v", pp.config.PollInterval)
 
 	ticker := newTickerWithInitialTick(pp.config.PollInterval)
-	defer ticker.Stop()
 
 	go func() {
+		defer ticker.Stop()
+
 		var readyOnce sync.Once
 		notifyReady := func() {
 			readyOnce.Do(func() {
