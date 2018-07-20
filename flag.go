@@ -82,6 +82,7 @@ var Features FeatureFlagVersionedDataKind
 // Rule xpresses a set of AND-ed matching conditions for a user, along with either a fixed
 // variation or a set of rollout percentages
 type Rule struct {
+	Id                 string `json:"id,omitempty" bson:"id,omitempty"`
 	VariationOrRollout `bson:",inline"`
 	Clauses            []Clause `json:"clauses" bson:"clauses"`
 }
