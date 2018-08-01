@@ -96,7 +96,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 		statusCode  int
 		recoverable bool
 	}{
-		{400, false},
+		{400, true},
 		{401, false},
 		{403, false},
 		{405, false},
