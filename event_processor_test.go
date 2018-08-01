@@ -507,6 +507,7 @@ var httpErrorTests = []struct {
 	status      int
 	recoverable bool
 }{
+	{400, true},
 	{401, false},
 	{403, false},
 	{408, true},
