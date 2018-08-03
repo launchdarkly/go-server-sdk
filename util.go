@@ -102,25 +102,25 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 	}
 }
 
-func checkStatusCode(statusCode int, url string) *HttpStatusError {
+func checkForHttpError(statusCode int, url string) (bool, HttpStatusError) {
 	if statusCode == http.StatusUnauthorized {
-		return &HttpStatusError{
+		return true, HttpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
 			Code:    statusCode}
 	}
 
 	if statusCode == http.StatusNotFound {
-		return &HttpStatusError{
+		return true, HttpStatusError{
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
 			Code:    statusCode}
 	}
 
 	if statusCode/100 != 2 {
-		return &HttpStatusError{
+		return true, HttpStatusError{
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
 			Code:    statusCode}
 	}
-	return nil
+	return false, HttpStatusError{}
 }
 
 // MakeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a feature store
