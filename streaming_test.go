@@ -185,6 +185,10 @@ func waitForDelete(t *testing.T, store FeatureStore, kind VersionedDataKind, key
 	assert.Nil(t, item)
 }
 
+func TestStreamProcessorDoesNotFailImmediatelyOn400(t *testing.T) {
+	testStreamProcessorRecoverableError(t, 400)
+}
+
 func TestStreamProcessorFailsImmediatelyOn401(t *testing.T) {
 	testStreamProcessorUnrecoverableError(t, 401)
 }

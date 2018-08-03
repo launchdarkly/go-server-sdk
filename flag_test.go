@@ -126,6 +126,40 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
 }
 
+func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
+	f0 := FeatureFlag{
+		Key:           "feature0",
+		On:            true,
+		OffVariation:  intPtr(1),
+		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
+		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
+		Variations:    []interface{}{"fall", "off", "on"},
+		Version:       1,
+	}
+	f1 := FeatureFlag{
+		Key:          "feature1",
+		On:           true,
+		OffVariation: intPtr(1),
+		Fallthrough:  VariationOrRollout{Variation: intPtr(1)}, // this 1 matches the 1 in the prerequisites array
+		Variations:   []interface{}{[]interface{}{"000"}, []interface{}{"001"}},
+		Version:      2,
+	}
+	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore.Upsert(Features, &f1)
+
+	value, index, events := f0.Evaluate(flagUser, featureStore)
+	assert.Equal(t, "fall", value)
+	assert.Equal(t, intPtr(0), index)
+
+	assert.Equal(t, 1, len(events))
+	e := events[0]
+	assert.Equal(t, f1.Key, e.Key)
+	assert.Equal(t, []interface{}{"001"}, e.Value)
+	assert.Equal(t, intPtr(1), e.Variation)
+	assert.Equal(t, intPtr(f1.Version), e.Version)
+	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
+}
+
 func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 	f0 := FeatureFlag{
 		Key:           "feature0",
