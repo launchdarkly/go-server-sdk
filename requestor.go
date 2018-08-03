@@ -109,7 +109,7 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 		_ = res.Body.Close()
 	}()
 
-	if isHttpError, err := checkForHttpError(res.StatusCode, url); isHttpError {
+	if err := checkForHttpError(res.StatusCode, url); err != nil {
 		return nil, false, err
 	}
 
