@@ -401,7 +401,6 @@ func (r VariationOrRollout) variationIndexForUser(user User, key, salt string) *
 			return &wv.Variation
 		}
 	}
-	// We got here due to a rounding error; select the last variation in the list.
-	last := r.Rollout.Variations[len(r.Rollout.Variations)-1].Variation
-	return &last
+	// If we get here, it's due to either a rounding error or weights that don't add up to 100000
+	return nil
 }
