@@ -22,9 +22,10 @@ func TestFlagReturnsOffVariationIfFlagIsOff(t *testing.T) {
 		Variations:   []interface{}{"fall", "off", "on"},
 	}
 
-	value, index, events := f.Evaluate(flagUser, emptyFeatureStore)
-	assert.Equal(t, "off", value)
-	assert.Equal(t, intPtr(1), index)
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, intPtr(1), result.VariationIndex)
+	assert.Equal(t, EvalReasonOff, result.Reason.Kind)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -36,9 +37,10 @@ func TestFlagReturnsNilIfFlagIsOffAndOffVariationIsUnspecified(t *testing.T) {
 		Variations:  []interface{}{"fall", "off", "on"},
 	}
 
-	value, index, events := f.Evaluate(flagUser, emptyFeatureStore)
-	assert.Nil(t, value)
-	assert.Nil(t, index)
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assert.Nil(t, result.Value)
+	assert.Nil(t, result.VariationIndex)
+	assert.Equal(t, EvalReasonOff, result.Reason.Kind)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -52,9 +54,13 @@ func TestFlagReturnsOffVariationIfPrerequisiteIsNotFound(t *testing.T) {
 		Variations:    []interface{}{"fall", "off", "on"},
 	}
 
-	value, index, events := f0.Evaluate(flagUser, emptyFeatureStore)
-	assert.Equal(t, "off", value)
-	assert.Equal(t, intPtr(1), index)
+	result, events := f0.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, intPtr(1), result.VariationIndex)
+	assert.Equal(t, EvalReasonPrerequisitesFailed, result.Reason.Kind)
+	if assert.NotNil(t, result.Reason.PrerequisiteKeys) {
+		assert.Equal(t, []string{"feature1"}, *result.Reason.PrerequisiteKeys)
+	}
 	assert.Equal(t, 0, len(events))
 }
 
@@ -79,9 +85,13 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
-	value, index, events := f0.Evaluate(flagUser, featureStore)
-	assert.Equal(t, "off", value)
-	assert.Equal(t, intPtr(1), index)
+	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
+	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, intPtr(1), result.VariationIndex)
+	assert.Equal(t, EvalReasonPrerequisitesFailed, result.Reason.Kind)
+	if assert.NotNil(t, result.Reason.PrerequisiteKeys) {
+		assert.Equal(t, []string{"feature1"}, *result.Reason.PrerequisiteKeys)
+	}
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -113,9 +123,10 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
-	value, index, events := f0.Evaluate(flagUser, featureStore)
-	assert.Equal(t, "fall", value)
-	assert.Equal(t, intPtr(0), index)
+	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
+	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, intPtr(0), result.VariationIndex)
+	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -147,9 +158,10 @@ func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
-	value, index, events := f0.Evaluate(flagUser, featureStore)
-	assert.Equal(t, "fall", value)
-	assert.Equal(t, intPtr(0), index)
+	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
+	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, intPtr(0), result.VariationIndex)
+	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -190,9 +202,10 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 	featureStore.Upsert(Features, &f1)
 	featureStore.Upsert(Features, &f2)
 
-	value, index, events := f0.Evaluate(flagUser, featureStore)
-	assert.Equal(t, "fall", value)
-	assert.Equal(t, intPtr(0), index)
+	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
+	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, intPtr(0), result.VariationIndex)
+	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
 
 	assert.Equal(t, 2, len(events))
 	// events are generated recursively, so the deepest level of prerequisite appears first
@@ -223,9 +236,10 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 	}
 	user := NewUser("userkey")
 
-	value, index, events := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, "on", value)
-	assert.Equal(t, intPtr(2), index)
+	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, "on", result.Value)
+	assert.Equal(t, intPtr(2), result.VariationIndex)
+	assert.Equal(t, EvalReasonTargetMatch, result.Reason.Kind)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -241,6 +255,7 @@ func TestFlagMatchesUserFromRules(t *testing.T) {
 		OffVariation: intPtr(1),
 		Rules: []Rule{
 			Rule{
+				ID:                 "rule-id",
 				Clauses:            []Clause{clause},
 				VariationOrRollout: VariationOrRollout{Variation: intPtr(2)},
 			},
@@ -250,9 +265,48 @@ func TestFlagMatchesUserFromRules(t *testing.T) {
 	}
 	user := NewUser("userkey")
 
-	value, index, events := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, "on", value)
-	assert.Equal(t, intPtr(2), index)
+	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, "on", result.Value)
+	assert.Equal(t, intPtr(2), result.VariationIndex)
+	assert.Equal(t, EvalReasonRuleMatch, result.Reason.Kind)
+	if assert.NotNil(t, result.Reason.RuleIndex) {
+		assert.Equal(t, 0, *result.Reason.RuleIndex)
+	}
+	if assert.NotNil(t, result.Reason.RuleID) {
+		assert.Equal(t, "rule-id", *result.Reason.RuleID)
+	}
+	assert.Equal(t, 0, len(events))
+}
+
+func TestRuleWithInvalidVariationIndexReturnsMalformedFlagError(t *testing.T) {
+	clause := Clause{
+		Attribute: "key",
+		Op:        "in",
+		Values:    []interface{}{"userkey"},
+	}
+	f := FeatureFlag{
+		Key:          "feature",
+		On:           true,
+		OffVariation: intPtr(1),
+		Rules: []Rule{
+			Rule{
+				ID:                 "rule-id",
+				Clauses:            []Clause{clause},
+				VariationOrRollout: VariationOrRollout{Variation: intPtr(10)},
+			},
+		},
+		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
+		Variations:  []interface{}{"fall", "off", "on"},
+	}
+	user := NewUser("userkey")
+
+	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Nil(t, result.Value)
+	assert.Nil(t, result.VariationIndex)
+	assert.Equal(t, EvalReasonError, result.Reason.Kind)
+	if assert.NotNil(t, result.Reason.ErrorKind) {
+		assert.Equal(t, EvalErrorMalformedFlag, *result.Reason.ErrorKind)
+	}
 	assert.Equal(t, 0, len(events))
 }
 
@@ -265,8 +319,8 @@ func TestClauseCanMatchBuiltInAttribute(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, true, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, true, result.Value)
 }
 
 func TestClauseCanMatchCustomAttribute(t *testing.T) {
@@ -279,8 +333,8 @@ func TestClauseCanMatchCustomAttribute(t *testing.T) {
 	custom := map[string]interface{}{"legs": 4}
 	user := User{Key: strPtr("key"), Custom: &custom}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, true, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, true, result.Value)
 }
 
 func TestClauseReturnsFalseForMissingAttribute(t *testing.T) {
@@ -292,8 +346,8 @@ func TestClauseReturnsFalseForMissingAttribute(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, false, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, false, result.Value)
 }
 
 func TestClauseCanBeNegated(t *testing.T) {
@@ -306,8 +360,8 @@ func TestClauseCanBeNegated(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, false, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, false, result.Value)
 }
 
 func TestClauseForMissingAttributeIsFalseEvenIfNegated(t *testing.T) {
@@ -320,8 +374,8 @@ func TestClauseForMissingAttributeIsFalseEvenIfNegated(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, false, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, false, result.Value)
 }
 
 func TestClauseWithUnknownOperatorDoesNotMatch(t *testing.T) {
@@ -333,8 +387,8 @@ func TestClauseWithUnknownOperatorDoesNotMatch(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, false, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, false, result.Value)
 }
 
 func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testing.T) {
@@ -343,13 +397,13 @@ func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testi
 		Op:        "doesSomethingUnsupported",
 		Values:    []interface{}{"Bob"},
 	}
-	badRule := Rule{Clauses: []Clause{badClause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}}
+	badRule := Rule{ID: "bad", Clauses: []Clause{badClause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}}
 	goodClause := Clause{
 		Attribute: "name",
 		Op:        "in",
 		Values:    []interface{}{"Bob"},
 	}
-	goodRule := Rule{Clauses: []Clause{goodClause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}}
+	goodRule := Rule{ID: "good", Clauses: []Clause{goodClause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}}
 	f := FeatureFlag{
 		Key:         "feature",
 		On:          true,
@@ -359,8 +413,15 @@ func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testi
 	}
 	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, true, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, true, result.Value)
+	assert.Equal(t, EvalReasonRuleMatch, result.Reason.Kind)
+	if assert.NotNil(t, result.Reason.RuleIndex) {
+		assert.Equal(t, 1, *result.Reason.RuleIndex)
+	}
+	if assert.NotNil(t, result.Reason.RuleID) {
+		assert.Equal(t, "good", *result.Reason.RuleID)
+	}
 }
 
 func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
@@ -374,8 +435,8 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
 
-	value, _, _ := f.Evaluate(user, featureStore)
-	assert.Equal(t, true, value)
+	result, _ := f.EvaluateDetail(user, featureStore, false)
+	assert.Equal(t, true, result.Value)
 }
 
 func TestSegmentMatchClauseFallsThroughIfSegmentNotFound(t *testing.T) {
@@ -383,8 +444,8 @@ func TestSegmentMatchClauseFallsThroughIfSegmentNotFound(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	user := NewUser("foo")
 
-	value, _, _ := f.Evaluate(user, emptyFeatureStore)
-	assert.Equal(t, false, value)
+	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assert.Equal(t, false, result.Value)
 }
 
 func TestCanMatchJustOneSegmentFromList(t *testing.T) {
@@ -398,8 +459,8 @@ func TestCanMatchJustOneSegmentFromList(t *testing.T) {
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
 
-	value, _, _ := f.Evaluate(user, featureStore)
-	assert.Equal(t, true, value)
+	result, _ := f.EvaluateDetail(user, featureStore, false)
+	assert.Equal(t, true, result.Value)
 }
 
 func TestVariationIndexForUser(t *testing.T) {
