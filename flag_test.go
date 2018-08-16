@@ -44,6 +44,78 @@ func TestFlagReturnsNilIfFlagIsOffAndOffVariationIsUnspecified(t *testing.T) {
 	assert.Equal(t, 0, len(events))
 }
 
+func TestFlagReturnsFallthroughIfFlagIsOnAndThereAreNoRules(t *testing.T) {
+	f := FeatureFlag{
+		Key:         "feature",
+		On:          true,
+		Rules:       []Rule{},
+		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
+		Variations:  []interface{}{"fall", "off", "on"},
+	}
+
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, intPtr(0), result.VariationIndex)
+	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestFlagReturnsErrorIfFallthroughHasTooHighVariation(t *testing.T) {
+	f := FeatureFlag{
+		Key:         "feature",
+		On:          true,
+		Rules:       []Rule{},
+		Fallthrough: VariationOrRollout{Variation: intPtr(999)},
+		Variations:  []interface{}{"fall", "off", "on"},
+	}
+
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestFlagReturnsErrorIfFallthroughHasNegativeVariation(t *testing.T) {
+	f := FeatureFlag{
+		Key:         "feature",
+		On:          true,
+		Rules:       []Rule{},
+		Fallthrough: VariationOrRollout{Variation: intPtr(-1)},
+		Variations:  []interface{}{"fall", "off", "on"},
+	}
+
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestFlagReturnsErrorIfFallthroughHasNeitherVariationNorRollout(t *testing.T) {
+	f := FeatureFlag{
+		Key:         "feature",
+		On:          true,
+		Rules:       []Rule{},
+		Fallthrough: VariationOrRollout{},
+		Variations:  []interface{}{"fall", "off", "on"},
+	}
+
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestFlagReturnsErrorIfFallthroughHasEmptyRolloutVariationList(t *testing.T) {
+	f := FeatureFlag{
+		Key:         "feature",
+		On:          true,
+		Rules:       []Rule{},
+		Fallthrough: VariationOrRollout{Rollout: &Rollout{Variations: []WeightedVariation{}}},
+		Variations:  []interface{}{"fall", "off", "on"},
+	}
+
+	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
 func TestFlagReturnsOffVariationIfPrerequisiteIsNotFound(t *testing.T) {
 	f0 := FeatureFlag{
 		Key:           "feature0",
@@ -244,26 +316,8 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 }
 
 func TestFlagMatchesUserFromRules(t *testing.T) {
-	clause := Clause{
-		Attribute: "key",
-		Op:        "in",
-		Values:    []interface{}{"userkey"},
-	}
-	f := FeatureFlag{
-		Key:          "feature",
-		On:           true,
-		OffVariation: intPtr(1),
-		Rules: []Rule{
-			Rule{
-				ID:                 "rule-id",
-				Clauses:            []Clause{clause},
-				VariationOrRollout: VariationOrRollout{Variation: intPtr(2)},
-			},
-		},
-		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{"fall", "off", "on"},
-	}
 	user := NewUser("userkey")
+	f := makeFlagToMatchUser(user, VariationOrRollout{Variation: intPtr(2)})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, "on", result.Value)
@@ -278,35 +332,39 @@ func TestFlagMatchesUserFromRules(t *testing.T) {
 	assert.Equal(t, 0, len(events))
 }
 
-func TestRuleWithInvalidVariationIndexReturnsMalformedFlagError(t *testing.T) {
-	clause := Clause{
-		Attribute: "key",
-		Op:        "in",
-		Values:    []interface{}{"userkey"},
-	}
-	f := FeatureFlag{
-		Key:          "feature",
-		On:           true,
-		OffVariation: intPtr(1),
-		Rules: []Rule{
-			Rule{
-				ID:                 "rule-id",
-				Clauses:            []Clause{clause},
-				VariationOrRollout: VariationOrRollout{Variation: intPtr(10)},
-			},
-		},
-		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{"fall", "off", "on"},
-	}
+func TestRuleWithTooHighVariationIndexReturnsMalformedFlagError(t *testing.T) {
 	user := NewUser("userkey")
+	f := makeFlagToMatchUser(user, VariationOrRollout{Variation: intPtr(999)})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Nil(t, result.Value)
-	assert.Nil(t, result.VariationIndex)
-	assert.Equal(t, EvalReasonError, result.Reason.Kind)
-	if assert.NotNil(t, result.Reason.ErrorKind) {
-		assert.Equal(t, EvalErrorMalformedFlag, *result.Reason.ErrorKind)
-	}
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestRuleWithNegativeVariationIndexReturnsMalformedFlagError(t *testing.T) {
+	user := NewUser("userkey")
+	f := makeFlagToMatchUser(user, VariationOrRollout{Variation: intPtr(-1)})
+
+	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestRuleWithNoVariationOrRolloutReturnsMalformedFlagError(t *testing.T) {
+	user := NewUser("userkey")
+	f := makeFlagToMatchUser(user, VariationOrRollout{})
+
+	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, 0, len(events))
+}
+
+func TestRuleWithRolloutWithEmptyVariationsListReturnsMalformedFlagError(t *testing.T) {
+	user := NewUser("userkey")
+	f := makeFlagToMatchUser(user, VariationOrRollout{Rollout: &Rollout{Variations: []WeightedVariation{}}})
+
+	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
+	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -532,5 +590,36 @@ func booleanFlagWithClause(clause Clause) FeatureFlag {
 		},
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
 		Variations:  []interface{}{false, true},
+	}
+}
+
+func assertEvalErrorResult(t *testing.T, result EvaluationDetail, err EvalErrorKind) {
+	assert.Nil(t, result.Value)
+	assert.Nil(t, result.VariationIndex)
+	assert.Equal(t, EvalReasonError, result.Reason.Kind)
+	if assert.NotNil(t, result.Reason.ErrorKind) {
+		assert.Equal(t, err, *result.Reason.ErrorKind)
+	}
+}
+
+func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) FeatureFlag {
+	clause := Clause{
+		Attribute: "key",
+		Op:        "in",
+		Values:    []interface{}{*user.Key},
+	}
+	return FeatureFlag{
+		Key:          "feature",
+		On:           true,
+		OffVariation: intPtr(1),
+		Rules: []Rule{
+			Rule{
+				ID:                 "rule-id",
+				Clauses:            []Clause{clause},
+				VariationOrRollout: variationOrRollout,
+			},
+		},
+		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
+		Variations:  []interface{}{"fall", "off", "on"},
 	}
 }
