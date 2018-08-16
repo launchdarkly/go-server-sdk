@@ -374,6 +374,9 @@ func (client *LDClient) StringVariationDetail(key string, user User, defaultVal 
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 func (client *LDClient) JsonVariation(key string, user User, defaultVal json.RawMessage) (json.RawMessage, error) {
 	detail, err := client.variation(key, user, defaultVal, false)
+	if err != nil {
+		return defaultVal, err
+	}
 	valueJSONRawMessage, err := ToJsonRawMessage(detail.Value)
 	if err != nil {
 		return defaultVal, err
@@ -385,6 +388,9 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 // the value was calculated. The "reason" data will also be included in analytics events.
 func (client *LDClient) JsonVariationDetail(key string, user User, defaultVal json.RawMessage) (json.RawMessage, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, defaultVal, true)
+	if err != nil {
+		return defaultVal, detail, err
+	}
 	valueJSONRawMessage, err := ToJsonRawMessage(detail.Value)
 	if err != nil {
 		detail.Value = defaultVal
