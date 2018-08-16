@@ -161,6 +161,8 @@ func bucketableStringValue(uValue interface{}) (string, bool) {
 
 // EvalResult describes the value and variation index that are the result of flag evaluation.
 // It also includes a list of any prerequisite flags that were evaluated to generate the evaluation.
+//
+// Deprecated: Use EvaluateDetail instead.
 type EvalResult struct {
 	Value                     interface{}
 	Variation                 *int
