@@ -176,34 +176,9 @@ func (f FeatureFlag) EvaluateDetail(user User, store FeatureStore, sendReasonsIn
 		if prereqErrorReason != nil {
 			return f.getOffValue(*prereqErrorReason), prereqEvents
 		}
-
-		var detail EvaluationDetail
-		index, reason := f.getIndexAndReason(user, store)
-		detail.Reason = reason
-		if index != nil {
-			if *index < 0 || *index >= len(f.Variations) {
-				detail.Reason = errorReason(EvalErrorMalformedFlag)
-			} else {
-				detail.VariationIndex = index
-				detail.Value = f.Variations[*index]
-			}
-		}
-		return detail, prereqEvents
+		return f.evaluateInternal(user, store), prereqEvents
 	}
 	return f.getOffValue(EvaluationReason{Kind: EvalReasonOff}), nil
-}
-
-func (f FeatureFlag) getOffValue(reason EvaluationReason) EvaluationDetail {
-	detail := EvaluationDetail{Reason: reason}
-	if f.OffVariation != nil {
-		if *f.OffVariation >= len(f.Variations) {
-			detail.Reason = errorReason(EvalErrorMalformedFlag)
-		} else {
-			detail.Value = f.Variations[*f.OffVariation]
-			detail.VariationIndex = f.OffVariation
-		}
-	}
-	return detail
 }
 
 // Evaluate returns the variation selected for a user.
@@ -272,12 +247,12 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 	return nil, events
 }
 
-func (f FeatureFlag) getIndexAndReason(user User, store FeatureStore) (*int, EvaluationReason) {
+func (f FeatureFlag) evaluateInternal(user User, store FeatureStore) EvaluationDetail {
 	// Check to see if targets match
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
-				return &target.Variation, EvaluationReason{Kind: EvalReasonTargetMatch}
+				return f.getVariation(target.Variation, EvaluationReason{Kind: EvalReasonTargetMatch})
 			}
 		}
 	}
@@ -285,21 +260,38 @@ func (f FeatureFlag) getIndexAndReason(user User, store FeatureStore) (*int, Eva
 	// Now walk through the rules and see if any match
 	for ruleIndex, rule := range f.Rules {
 		if rule.matchesUser(store, user) {
-			variation := rule.variationIndexForUser(user, f.Key, f.Salt)
-
-			if variation == nil {
-				return nil, errorReason(EvalErrorMalformedFlag)
-			}
-			return variation, EvaluationReason{Kind: EvalReasonRuleMatch, RuleIndex: &ruleIndex, RuleID: &rule.ID}
+			reason := EvaluationReason{Kind: EvalReasonRuleMatch, RuleIndex: &ruleIndex, RuleID: &rule.ID}
+			return f.getValueForVariationOrRollout(rule.VariationOrRollout, user, reason)
 		}
 	}
 
-	variation := f.Fallthrough.variationIndexForUser(user, f.Key, f.Salt)
+	return f.getValueForVariationOrRollout(f.Fallthrough, user, EvaluationReason{Kind: EvalReasonFallthrough})
+}
 
-	if variation == nil {
-		return nil, errorReason(EvalErrorMalformedFlag)
+func (f FeatureFlag) getVariation(index int, reason EvaluationReason) EvaluationDetail {
+	if index < 0 || index >= len(f.Variations) {
+		return EvaluationDetail{Reason: errorReason(EvalErrorMalformedFlag)}
 	}
-	return variation, EvaluationReason{Kind: EvalReasonFallthrough}
+	return EvaluationDetail{
+		Reason:         reason,
+		Value:          f.Variations[index],
+		VariationIndex: &index,
+	}
+}
+
+func (f FeatureFlag) getOffValue(reason EvaluationReason) EvaluationDetail {
+	if f.OffVariation == nil {
+		return EvaluationDetail{Reason: reason}
+	}
+	return f.getVariation(*f.OffVariation, reason)
+}
+
+func (f FeatureFlag) getValueForVariationOrRollout(vr VariationOrRollout, user User, reason EvaluationReason) EvaluationDetail {
+	index := vr.variationIndexForUser(user, f.Key, f.Salt)
+	if index == nil {
+		return EvaluationDetail{Reason: errorReason(EvalErrorMalformedFlag)}
+	}
+	return f.getVariation(*index, reason)
 }
 
 func (r Rule) matchesUser(store FeatureStore, user User) bool {
