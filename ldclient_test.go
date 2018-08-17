@@ -306,6 +306,95 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	assert.Equal(t, expected1, e1)
 }
 
+func TestAllFlagsGetsFlagValues(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := featureFlagWithVariations("key1", []interface{}{"x", "value1"})
+	flag2 := featureFlagWithVariations("key2", []interface{}{"x", "value2"})
+	client.store.Upsert(Features, flag1)
+	client.store.Upsert(Features, flag2)
+
+	result := client.AllFlags(NewUser("userkey"))
+	expected := map[string]interface{}{"key1": "value1", "key2": "value2"}
+	assert.Equal(t, expected, result)
+}
+
+func TestAllFlagsReturnsNilMapForNilUserKey(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := featureFlagWithVariations("key1", []interface{}{"x", "value1"})
+	flag2 := featureFlagWithVariations("key2", []interface{}{"x", "value2"})
+	client.store.Upsert(Features, flag1)
+	client.store.Upsert(Features, flag2)
+
+	result := client.AllFlags(User{})
+	assert.Nil(t, result)
+}
+
+func TestAllFlagsStateGetsState(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := FeatureFlag{
+		Key:          "key1",
+		Version:      100,
+		OffVariation: intPtr(0),
+		Variations:   []interface{}{"value1"},
+	}
+	date := uint64(1000)
+	flag2 := FeatureFlag{
+		Key:                  "key2",
+		Version:              200,
+		OffVariation:         intPtr(1),
+		Variations:           []interface{}{"x", "value2"},
+		TrackEvents:          true,
+		DebugEventsUntilDate: &date,
+	}
+	client.store.Upsert(Features, &flag1)
+	client.store.Upsert(Features, &flag2)
+
+	state := client.AllFlagsState(NewUser("userkey"))
+	assert.True(t, state.IsValid())
+
+	expectedString := `{
+		"key1":"value1",
+		"key2":"value2",
+		"$flagsState":{
+	  		"key1":{
+				"variation":0,"version":100,"trackEvents":false
+			},
+			"key2": {
+				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000
+			}
+		}
+	}`
+	var expectedValue map[string]interface{}
+	err := json.Unmarshal([]byte(expectedString), &expectedValue)
+	assert.NoError(t, err)
+	actualString, err := state.ToJSONString()
+	assert.NoError(t, err)
+	var actualValue map[string]interface{}
+	err = json.Unmarshal([]byte(actualString), &actualValue)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedValue, actualValue)
+}
+
+func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := featureFlagWithVariations("key1", []interface{}{"x", "value1"})
+	flag2 := featureFlagWithVariations("key2", []interface{}{"x", "value2"})
+	client.store.Upsert(Features, flag1)
+	client.store.Upsert(Features, flag2)
+
+	state := client.AllFlagsState(User{})
+	assert.False(t, state.IsValid())
+	assert.Nil(t, state.ToValuesMap())
+}
+
 func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
