@@ -30,6 +30,7 @@ type FeatureFlag struct {
 	OffVariation         *int               `json:"offVariation" bson:"offVariation"`
 	Variations           []interface{}      `json:"variations" bson:"variations"`
 	DebugEventsUntilDate *uint64            `json:"debugEventsUntilDate" bson:"debugEventsUntilDate"`
+	ClientSide           bool               `json:"clientSide" bson:"-"`
 }
 
 // GetKey returns the string key for the feature flag

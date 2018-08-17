@@ -381,6 +381,36 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 	assert.Equal(t, expectedValue, actualValue)
 }
 
+func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := FeatureFlag{Key: "server-side-1"}
+	flag2 := FeatureFlag{Key: "server-side-2"}
+	flag3 := FeatureFlag{
+		Key:          "client-side-1",
+		OffVariation: intPtr(0),
+		Variations:   []interface{}{"value1"},
+		ClientSide:   true,
+	}
+	flag4 := FeatureFlag{
+		Key:          "client-side-2",
+		OffVariation: intPtr(0),
+		Variations:   []interface{}{"value2"},
+		ClientSide:   true,
+	}
+	client.store.Upsert(Features, &flag1)
+	client.store.Upsert(Features, &flag2)
+	client.store.Upsert(Features, &flag3)
+	client.store.Upsert(Features, &flag4)
+
+	state := client.AllFlagsState(NewUser("userkey"), ClientSideOnly)
+	assert.True(t, state.IsValid())
+
+	expectedValues := map[string]interface{}{"client-side-1": "value1", "client-side-2": "value2"}
+	assert.Equal(t, expectedValues, state.ToValuesMap())
+}
+
 func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()

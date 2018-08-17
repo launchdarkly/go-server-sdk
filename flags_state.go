@@ -19,12 +19,29 @@ type flagMetadata struct {
 	DebugEventsUntilDate *uint64 `json:"debugEventsUntilDate,omitempty"`
 }
 
+// FlagsStateOption is the type of optional parameters that can be passed to LDClient.AllFlagsState.
+type FlagsStateOption interface{}
+
+// ClientSideOnly - when passed to LDClient.AllFlagsState() - specifies that only flags marked
+// for use with the client-side SDK should be included in the state object. By default, all
+// flags are included.
+var ClientSideOnly FlagsStateOption = "ClientSideOnly"
+
 func newFeatureFlagsState() FeatureFlagsState {
 	return FeatureFlagsState{
 		flagValues:   make(map[string]interface{}),
 		flagMetadata: make(map[string]flagMetadata),
 		valid:        true,
 	}
+}
+
+func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) bool {
+	for _, o := range options {
+		if o == value {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variation *int) {
