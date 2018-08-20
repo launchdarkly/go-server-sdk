@@ -32,7 +32,7 @@ func TestFlagsStateToValuesMap(t *testing.T) {
 	assert.Equal(t, expected, state.ToValuesMap())
 }
 
-func TestFlagsStateToJSONString(t *testing.T) {
+func TestFlagsStateToJSON(t *testing.T) {
 	date := uint64(1000)
 	flag1 := FeatureFlag{Key: "key1", Version: 100, TrackEvents: false}
 	flag2 := FeatureFlag{Key: "key2", Version: 200, TrackEvents: true, DebugEventsUntilDate: &date}
@@ -55,10 +55,10 @@ func TestFlagsStateToJSONString(t *testing.T) {
 	var expectedValue map[string]interface{}
 	err := json.Unmarshal([]byte(expectedString), &expectedValue)
 	assert.NoError(t, err)
-	actualString, err := state.ToJSONString()
+	actualBytes := state.ToJSON()
 	assert.NoError(t, err)
 	var actualValue map[string]interface{}
-	err = json.Unmarshal([]byte(actualString), &actualValue)
+	err = json.Unmarshal(actualBytes, &actualValue)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedValue, actualValue)
 }

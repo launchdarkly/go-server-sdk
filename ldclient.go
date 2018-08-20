@@ -265,7 +265,7 @@ func (client *LDClient) Flush() {
 // result in the default value, `nil` will be returned. This method
 // does not send analytics events back to LaunchDarkly
 //
-// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK (2.0.0 and later)
+// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK
 // will not generate analytics events correctly if you pass the result of AllFlags.
 func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	state := client.AllFlagsState(user)

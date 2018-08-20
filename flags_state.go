@@ -51,19 +51,27 @@ func (s FeatureFlagsState) GetFlagValue(key string) interface{} {
 
 // ToValuesMap returns a map of flag keys to flag values. If a flag would have evaluated to the default
 // value, its value will be nil.
+//
+// Do not use this method if you are passing data to the front end to "bootstrap" the JavaScript client.
+// Instead, use ToJSON().
 func (s FeatureFlagsState) ToValuesMap() map[string]interface{} {
 	return s.flagValues
 }
 
-// ToJSONString returns a JSON string representation of the entire state map, in the format used by the
-// LaunchDarkly JavaScript SDK. Use this method if you are passing data to the front end that will be
-// used to "bootstrap" the JavaScript client.
-func (s FeatureFlagsState) ToJSONString() (string, error) {
+// ToJSON returns a JSON representation of the entire state map, in the format used by the LaunchDarkly
+// JavaScript SDK. Use this method if you are passing data to the front end that will be used to
+// "bootstrap" the JavaScript client.
+//
+// Do not rely on the exact shape of this data, as it may change in future to support the needs of the
+// JavaScript client.
+func (s FeatureFlagsState) ToJSON() json.RawMessage {
 	var outerMap = make(map[string]interface{})
 	for k, v := range s.flagValues {
 		outerMap[k] = v
 	}
 	outerMap["$flagsState"] = s.flagMetadata
-	json, err := json.Marshal(outerMap)
-	return string(json), err
+	bytes, _ := json.Marshal(outerMap)
+	// We are disregarding the error value because there is no way for json.Marshal to fail with this
+	// input.
+	return json.RawMessage(bytes)
 }

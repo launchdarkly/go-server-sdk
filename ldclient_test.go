@@ -373,10 +373,9 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 	var expectedValue map[string]interface{}
 	err := json.Unmarshal([]byte(expectedString), &expectedValue)
 	assert.NoError(t, err)
-	actualString, err := state.ToJSONString()
-	assert.NoError(t, err)
+	actualBytes := state.ToJSON()
 	var actualValue map[string]interface{}
-	err = json.Unmarshal([]byte(actualString), &actualValue)
+	err = json.Unmarshal(actualBytes, &actualValue)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedValue, actualValue)
 }
