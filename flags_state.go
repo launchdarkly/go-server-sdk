@@ -59,8 +59,8 @@ func (s FeatureFlagsState) ToValuesMap() map[string]interface{} {
 }
 
 // ToJSON returns a JSON representation of the entire state map, in the format used by the LaunchDarkly
-// JavaScript SDK. Use this method if you are passing data to the front end that will be used to
-// "bootstrap" the JavaScript client.
+// JavaScript SDK. Use this method if you are passing data to the front end in order to "bootstrap" the
+// the JavaScript client.
 //
 // Do not rely on the exact shape of this data, as it may change in future to support the needs of the
 // JavaScript client.
