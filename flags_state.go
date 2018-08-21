@@ -63,7 +63,7 @@ func (s FeatureFlagsState) ToValuesMap() map[string]interface{} {
 // MarshalJSON implements a custom JSON serialization for FeatureFlagsState, to produce the correct
 // data structure for "bootstrapping" the LaunchDarkly JavaScript client.
 func (s FeatureFlagsState) MarshalJSON() ([]byte, error) {
-	var outerMap = make(map[string]interface{})
+	var outerMap = make(map[string]interface{}, len(s.flagValues)+2)
 	for k, v := range s.flagValues {
 		outerMap[k] = v
 	}
