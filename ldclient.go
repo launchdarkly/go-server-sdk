@@ -264,42 +264,55 @@ func (client *LDClient) Flush() {
 // a given user. If the result of the flag's evaluation would
 // result in the default value, `nil` will be returned. This method
 // does not send analytics events back to LaunchDarkly
+//
+// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK
+// will not generate analytics events correctly if you pass the result of AllFlags.
 func (client *LDClient) AllFlags(user User) map[string]interface{} {
-	if client.IsOffline() {
-		client.config.Logger.Println("WARN: Called AllFlags in offline mode. Returning nil map")
-		return nil
-	}
+	state := client.AllFlagsState(user)
+	return state.ToValuesMap()
+}
 
-	if !client.Initialized() {
+// AllFlagsState returns an object that encapsulates the state of all feature flags for a
+// given user, including the flag values and also metadata that can be used on the front end.
+//
+// The most common use case for this method is to bootstrap a set of client-side feature flags
+// from a back-end service.
+func (client *LDClient) AllFlagsState(user User) FeatureFlagsState {
+	valid := true
+	if client.IsOffline() {
+		client.config.Logger.Println("WARN: Called AllFlagsState in offline mode. Returning empty state")
+		valid = false
+	} else if user.Key == nil {
+		client.config.Logger.Println("WARN: Called AllFlagsState with nil user key. Returning empty state")
+		valid = false
+	} else if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Logger.Println("WARN: Called AllFlags before client initialization; using last known values from feature store")
+			client.config.Logger.Println("WARN: Called AllFlagsState before client initialization; using last known values from feature store")
 		} else {
-			client.config.Logger.Println("WARN: Called AllFlags before client initialization. Feature store not available; returning nil map")
-			return nil
+			client.config.Logger.Println("WARN: Called AllFlagsState before client initialization. Feature store not available; returning empty state")
+			valid = false
 		}
 	}
 
-	if user.Key == nil {
-		client.config.Logger.Println("WARN: Called AllFlags with nil user key. Returning nil map")
-		return nil
+	if !valid {
+		return FeatureFlagsState{valid: false}
 	}
-
-	results := make(map[string]interface{})
 
 	items, err := client.store.All(Features)
-
 	if err != nil {
-		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning nil map. Error: " + err.Error())
-		return nil
+		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning empty state. Error: " + err.Error())
+		return FeatureFlagsState{valid: false}
 	}
+
+	state := newFeatureFlagsState()
 	for _, item := range items {
 		if flag, ok := item.(*FeatureFlag); ok {
-			result, _, _ := client.evalFlag(*flag, user)
-			results[flag.Key] = result
+			value, variation, _ := client.evalFlag(*flag, user)
+			state.addFlag(flag, value, variation)
 		}
 	}
 
-	return results
+	return state
 }
 
 func (client *LDClient) evalFlag(flag FeatureFlag, user User) (interface{}, *int, []FeatureRequestEvent) {
