@@ -265,7 +265,7 @@ func (client *LDClient) Flush() {
 // result in the default value, `nil` will be returned. This method
 // does not send analytics events back to LaunchDarkly
 //
-// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK (2.0.0 and later)
+// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK
 // will not generate analytics events correctly if you pass the result of AllFlags.
 func (client *LDClient) AllFlags(user User) map[string]interface{} {
 	state := client.AllFlagsState(user)
@@ -279,22 +279,23 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 // The most common use case for this method is to bootstrap a set of client-side feature flags
 // from a back-end service.
 func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) FeatureFlagsState {
+	valid := true
 	if client.IsOffline() {
 		client.config.Logger.Println("WARN: Called AllFlagsState in offline mode. Returning empty state")
-		return FeatureFlagsState{valid: false}
-	}
-
-	if !client.Initialized() {
+		valid = false
+	} else if user.Key == nil {
+		client.config.Logger.Println("WARN: Called AllFlagsState with nil user key. Returning empty state")
+		valid = false
+	} else if !client.Initialized() {
 		if client.store.Initialized() {
 			client.config.Logger.Println("WARN: Called AllFlagsState before client initialization; using last known values from feature store")
 		} else {
 			client.config.Logger.Println("WARN: Called AllFlagsState before client initialization. Feature store not available; returning empty state")
-			return FeatureFlagsState{valid: false}
+			valid = false
 		}
 	}
 
-	if user.Key == nil {
-		client.config.Logger.Println("WARN: Called AllFlagsState with nil user key. Returning empty state")
+	if !valid {
 		return FeatureFlagsState{valid: false}
 	}
 
