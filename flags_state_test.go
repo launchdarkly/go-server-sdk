@@ -53,13 +53,7 @@ func TestFlagsStateToJSON(t *testing.T) {
 		},
 		"$valid":true
 	}`
-	var expectedValue map[string]interface{}
-	err := json.Unmarshal([]byte(expectedString), &expectedValue)
-	assert.NoError(t, err)
 	actualBytes, err := json.Marshal(state)
 	assert.NoError(t, err)
-	var actualValue map[string]interface{}
-	err = json.Unmarshal(actualBytes, &actualValue)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedValue, actualValue)
+	assert.JSONEq(t, expectedString, string(actualBytes))
 }
