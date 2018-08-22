@@ -274,10 +274,11 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a
 // given user, including the flag values and also metadata that can be used on the front end.
+// You may pass ClientSideOnly as an optional parameter to filter the set of flags.
 //
 // The most common use case for this method is to bootstrap a set of client-side feature flags
 // from a back-end service.
-func (client *LDClient) AllFlagsState(user User) FeatureFlagsState {
+func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) FeatureFlagsState {
 	valid := true
 	if client.IsOffline() {
 		client.config.Logger.Println("WARN: Called AllFlagsState in offline mode. Returning empty state")
@@ -305,8 +306,12 @@ func (client *LDClient) AllFlagsState(user User) FeatureFlagsState {
 	}
 
 	state := newFeatureFlagsState()
+	clientSideOnly := hasFlagsStateOption(options, ClientSideOnly)
 	for _, item := range items {
 		if flag, ok := item.(*FeatureFlag); ok {
+			if clientSideOnly && !flag.ClientSide {
+				continue
+			}
 			result, _ := flag.EvaluateDetail(user, client.store, false)
 			state.addFlag(flag, result.Value, result.VariationIndex)
 		}
