@@ -1,5 +1,10 @@
 package ldclient
 
+import (
+	"strconv"
+	"strings"
+)
+
 // EvalReasonKind defines the possible values of the Kind property of EvaluationReason.
 type EvalReasonKind string
 
@@ -92,6 +97,34 @@ type Explanation struct {
 
 func errorReason(kind EvalErrorKind) EvaluationReason {
 	return EvaluationReason{Kind: EvalReasonError, ErrorKind: &kind}
+}
+
+// String returns a string representation of an EvaluationReason. This is for convenience and
+// debugging; you should not rely on the exact format of the string.
+func (r EvaluationReason) String() string {
+	var s = string(r.Kind)
+	if r.Kind == EvalReasonRuleMatch {
+		s = s + "("
+		if r.RuleIndex != nil {
+			s = s + strconv.Itoa(*r.RuleIndex)
+		}
+		if r.RuleID != nil {
+			if r.RuleIndex != nil {
+				s = s + ","
+			}
+			s = s + *r.RuleID
+		}
+		s = s + ")"
+	} else if r.Kind == EvalReasonPrerequisitesFailed {
+		if r.PrerequisiteKeys != nil {
+			s = s + "(" + strings.Join(*r.PrerequisiteKeys, ",") + ")"
+		}
+	} else if r.Kind == EvalReasonError {
+		if r.ErrorKind != nil {
+			s = s + "(" + string(*r.ErrorKind) + ")"
+		}
+	}
+	return s
 }
 
 // Convert the current EvaluationReason struct to the deprecated type used by EvaluateExplain,
