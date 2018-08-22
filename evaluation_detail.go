@@ -13,19 +13,17 @@ const (
 	EvalReasonOff EvalReasonKind = "OFF"
 	// EvalReasonTargetMatch indicates that the user key was specifically targeted for this flag.
 	EvalReasonTargetMatch EvalReasonKind = "TARGET_MATCH"
-	// EvalReasonRuleMatch indicates that the user matched one of the flag's rules. The RuleIndex
-	// and RuleID properties will be set.
+	// EvalReasonRuleMatch indicates that the user matched one of the flag's rules.
 	EvalReasonRuleMatch EvalReasonKind = "RULE_MATCH"
 	// EvalReasonPrerequisitesFailed indicates that the flag was considered off because it had at
 	// least one prerequisite flag that either was off or did not return the desired variation.
-	// The PrerequisiteKeys property will be set.
 	EvalReasonPrerequisitesFailed EvalReasonKind = "PREREQUISITES_FAILED"
 	// EvalReasonFallthrough indicates that the flag was on but the user did not match any targets
 	// or rules.
 	EvalReasonFallthrough EvalReasonKind = "FALLTHROUGH"
 	// EvalReasonError indicates that the flag could not be evaluated, e.g. because it does not
 	// exist or due to an unexpected error. In this case the result value will be the default value
-	// that the caller passed to the client. The ErrorKind property will be set.
+	// that the caller passed to the client.
 	EvalReasonError EvalReasonKind = "ERROR"
 )
 
