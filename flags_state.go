@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // FeatureFlagsState is a snapshot of the state of all feature flags with regard to a
@@ -22,12 +23,20 @@ type flagMetadata struct {
 }
 
 // FlagsStateOption is the type of optional parameters that can be passed to LDClient.AllFlagsState.
-type FlagsStateOption interface{}
+type FlagsStateOption interface {
+	fmt.Stringer
+}
 
 // ClientSideOnly - when passed to LDClient.AllFlagsState() - specifies that only flags marked
 // for use with the client-side SDK should be included in the state object. By default, all
 // flags are included.
-var ClientSideOnly FlagsStateOption = "ClientSideOnly"
+var ClientSideOnly FlagsStateOption = clientSideOnlyFlagsStateOption{}
+
+type clientSideOnlyFlagsStateOption struct{}
+
+func (o clientSideOnlyFlagsStateOption) String() string {
+	return "ClientSideOnly"
+}
 
 func newFeatureFlagsState() FeatureFlagsState {
 	return FeatureFlagsState{
