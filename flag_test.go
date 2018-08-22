@@ -25,7 +25,7 @@ func TestFlagReturnsOffVariationIfFlagIsOff(t *testing.T) {
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Equal(t, "off", result.Value)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
-	assert.Equal(t, EvalReasonOff, result.Reason.Kind)
+	assert.Equal(t, evalReasonOffInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -40,7 +40,7 @@ func TestFlagReturnsNilIfFlagIsOffAndOffVariationIsUnspecified(t *testing.T) {
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Nil(t, result.Value)
 	assert.Nil(t, result.VariationIndex)
-	assert.Equal(t, EvalReasonOff, result.Reason.Kind)
+	assert.Equal(t, evalReasonOffInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -56,7 +56,7 @@ func TestFlagReturnsFallthroughIfFlagIsOnAndThereAreNoRules(t *testing.T) {
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -70,7 +70,7 @@ func TestFlagReturnsErrorIfFallthroughHasTooHighVariation(t *testing.T) {
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -84,7 +84,7 @@ func TestFlagReturnsErrorIfFallthroughHasNegativeVariation(t *testing.T) {
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -98,7 +98,7 @@ func TestFlagReturnsErrorIfFallthroughHasNeitherVariationNorRollout(t *testing.T
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -112,7 +112,7 @@ func TestFlagReturnsErrorIfFallthroughHasEmptyRolloutVariationList(t *testing.T)
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -129,10 +129,7 @@ func TestFlagReturnsOffVariationIfPrerequisiteIsNotFound(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Equal(t, "off", result.Value)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
-	assert.Equal(t, EvalReasonPrerequisitesFailed, result.Reason.Kind)
-	if assert.NotNil(t, result.Reason.PrerequisiteKeys) {
-		assert.Equal(t, []string{"feature1"}, *result.Reason.PrerequisiteKeys)
-	}
+	assert.Equal(t, newEvalReasonPrerequisitesFailed([]string{"feature1"}), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -160,10 +157,7 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "off", result.Value)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
-	assert.Equal(t, EvalReasonPrerequisitesFailed, result.Reason.Kind)
-	if assert.NotNil(t, result.Reason.PrerequisiteKeys) {
-		assert.Equal(t, []string{"feature1"}, *result.Reason.PrerequisiteKeys)
-	}
+	assert.Equal(t, newEvalReasonPrerequisitesFailed([]string{"feature1"}), result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -198,7 +192,7 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -233,7 +227,7 @@ func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -277,7 +271,7 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, result.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 
 	assert.Equal(t, 2, len(events))
 	// events are generated recursively, so the deepest level of prerequisite appears first
@@ -311,7 +305,7 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, "on", result.Value)
 	assert.Equal(t, intPtr(2), result.VariationIndex)
-	assert.Equal(t, EvalReasonTargetMatch, result.Reason.Kind)
+	assert.Equal(t, evalReasonTargetMatchInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -322,13 +316,7 @@ func TestFlagMatchesUserFromRules(t *testing.T) {
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, "on", result.Value)
 	assert.Equal(t, intPtr(2), result.VariationIndex)
-	assert.Equal(t, EvalReasonRuleMatch, result.Reason.Kind)
-	if assert.NotNil(t, result.Reason.RuleIndex) {
-		assert.Equal(t, 0, *result.Reason.RuleIndex)
-	}
-	if assert.NotNil(t, result.Reason.RuleID) {
-		assert.Equal(t, "rule-id", *result.Reason.RuleID)
-	}
+	assert.Equal(t, newEvalReasonRuleMatch(0, "rule-id"), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -337,7 +325,7 @@ func TestRuleWithTooHighVariationIndexReturnsMalformedFlagError(t *testing.T) {
 	f := makeFlagToMatchUser(user, VariationOrRollout{Variation: intPtr(999)})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -346,7 +334,7 @@ func TestRuleWithNegativeVariationIndexReturnsMalformedFlagError(t *testing.T) {
 	f := makeFlagToMatchUser(user, VariationOrRollout{Variation: intPtr(-1)})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -355,7 +343,7 @@ func TestRuleWithNoVariationOrRolloutReturnsMalformedFlagError(t *testing.T) {
 	f := makeFlagToMatchUser(user, VariationOrRollout{})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -364,7 +352,7 @@ func TestRuleWithRolloutWithEmptyVariationsListReturnsMalformedFlagError(t *test
 	f := makeFlagToMatchUser(user, VariationOrRollout{Rollout: &Rollout{Variations: []WeightedVariation{}}})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assertEvalErrorResult(t, result, EvalErrorMalformedFlag)
+	assert.Equal(t, newEvalErrorResult(EvalErrorMalformedFlag), result)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -473,13 +461,7 @@ func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testi
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, true, result.Value)
-	assert.Equal(t, EvalReasonRuleMatch, result.Reason.Kind)
-	if assert.NotNil(t, result.Reason.RuleIndex) {
-		assert.Equal(t, 1, *result.Reason.RuleIndex)
-	}
-	if assert.NotNil(t, result.Reason.RuleID) {
-		assert.Equal(t, "good", *result.Reason.RuleID)
-	}
+	assert.Equal(t, newEvalReasonRuleMatch(1, "good"), result.Reason)
 }
 
 func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
@@ -593,13 +575,8 @@ func booleanFlagWithClause(clause Clause) FeatureFlag {
 	}
 }
 
-func assertEvalErrorResult(t *testing.T, result EvaluationDetail, err EvalErrorKind) {
-	assert.Nil(t, result.Value)
-	assert.Nil(t, result.VariationIndex)
-	assert.Equal(t, EvalReasonError, result.Reason.Kind)
-	if assert.NotNil(t, result.Reason.ErrorKind) {
-		assert.Equal(t, err, *result.Reason.ErrorKind)
-	}
+func newEvalErrorResult(kind EvalErrorKind) EvaluationDetail {
+	return EvaluationDetail{Reason:newEvalReasonError(kind)}
 }
 
 func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) FeatureFlag {

@@ -18,7 +18,7 @@ type FeatureFlagsState struct {
 type flagMetadata struct {
 	Variation            *int              `json:"variation,omitempty"`
 	Version              int               `json:"version"`
-	Reason               *EvaluationReason `json:"reason,omitempty"`
+	Reason               EvaluationReason  `json:"reason,omitempty"`
 	TrackEvents          bool              `json:"trackEvents"`
 	DebugEventsUntilDate *uint64           `json:"debugEventsUntilDate,omitempty"`
 }
@@ -66,7 +66,7 @@ func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) boo
 	return false
 }
 
-func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variation *int, reason *EvaluationReason) {
+func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variation *int, reason EvaluationReason) {
 	s.flagValues[flag.Key] = value
 	s.flagMetadata[flag.Key] = flagMetadata{
 		Variation:            variation,
@@ -91,7 +91,7 @@ func (s FeatureFlagsState) GetFlagValue(key string) interface{} {
 
 // GetFlagReason returns the evaluation reason for an individual feature flag at the time the state was
 // recorded. The return value will be nil if reasons were not recorded, or if there was no such flag.
-func (s FeatureFlagsState) GetFlagReason(key string) *EvaluationReason {
+func (s FeatureFlagsState) GetFlagReason(key string) EvaluationReason {
 	if m, ok := s.flagMetadata[key]; ok {
 		return m.Reason
 	}

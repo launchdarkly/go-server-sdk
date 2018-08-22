@@ -177,11 +177,11 @@ func (f FeatureFlag) EvaluateDetail(user User, store FeatureStore, sendReasonsIn
 	if f.On {
 		prereqErrorReason, prereqEvents := f.checkPrerequisites(user, store, sendReasonsInEvents)
 		if prereqErrorReason != nil {
-			return f.getOffValue(*prereqErrorReason), prereqEvents
+			return f.getOffValue(prereqErrorReason), prereqEvents
 		}
 		return f.evaluateInternal(user, store), prereqEvents
 	}
-	return f.getOffValue(EvaluationReason{Kind: EvalReasonOff}), nil
+	return f.getOffValue(evalReasonOffInstance), nil
 }
 
 // Evaluate returns the variation selected for a user.
@@ -204,7 +204,7 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 	detail, events := f.EvaluateDetail(user, store, false)
 
 	var err error
-	if detail.Reason.Kind == EvalReasonError && detail.Reason.ErrorKind != nil && *detail.Reason.ErrorKind == EvalErrorMalformedFlag {
+	if errReason, ok := detail.Reason.(EvaluationReasonError); ok && errReason.ErrorKind == EvalErrorMalformedFlag {
 		err = errors.New("Invalid variation index") // this was the only type of error that could occur in the old logic
 	}
 	expl := explanationFromEvaluationReason(detail.Reason, f, user)
@@ -217,7 +217,7 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 }
 
 // Returns nil if all prerequisites are OK, otherwise constructs an error reason that describes the failure(s)
-func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReasonsInEvents bool) (*EvaluationReason, []FeatureRequestEvent) {
+func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReasonsInEvents bool) (EvaluationReason, []FeatureRequestEvent) {
 	var events []FeatureRequestEvent
 	var failedKeys []string
 	for _, prereq := range f.Prerequisites {
@@ -244,8 +244,7 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 		}
 	}
 	if len(failedKeys) > 0 {
-		reason := EvaluationReason{Kind: EvalReasonPrerequisitesFailed, PrerequisiteKeys: &failedKeys}
-		return &reason, events
+		return newEvalReasonPrerequisitesFailed(failedKeys), events
 	}
 	return nil, events
 }
@@ -255,7 +254,7 @@ func (f FeatureFlag) evaluateInternal(user User, store FeatureStore) EvaluationD
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
-				return f.getVariation(target.Variation, EvaluationReason{Kind: EvalReasonTargetMatch})
+				return f.getVariation(target.Variation, evalReasonTargetMatchInstance)
 			}
 		}
 	}
@@ -263,17 +262,17 @@ func (f FeatureFlag) evaluateInternal(user User, store FeatureStore) EvaluationD
 	// Now walk through the rules and see if any match
 	for ruleIndex, rule := range f.Rules {
 		if rule.matchesUser(store, user) {
-			reason := EvaluationReason{Kind: EvalReasonRuleMatch, RuleIndex: &ruleIndex, RuleID: &rule.ID}
+			reason := newEvalReasonRuleMatch(ruleIndex, rule.ID)
 			return f.getValueForVariationOrRollout(rule.VariationOrRollout, user, reason)
 		}
 	}
 
-	return f.getValueForVariationOrRollout(f.Fallthrough, user, EvaluationReason{Kind: EvalReasonFallthrough})
+	return f.getValueForVariationOrRollout(f.Fallthrough, user, evalReasonFallthroughInstance)
 }
 
 func (f FeatureFlag) getVariation(index int, reason EvaluationReason) EvaluationDetail {
 	if index < 0 || index >= len(f.Variations) {
-		return EvaluationDetail{Reason: errorReason(EvalErrorMalformedFlag)}
+		return EvaluationDetail{Reason: newEvalReasonError(EvalErrorMalformedFlag)}
 	}
 	return EvaluationDetail{
 		Reason:         reason,
@@ -292,7 +291,7 @@ func (f FeatureFlag) getOffValue(reason EvaluationReason) EvaluationDetail {
 func (f FeatureFlag) getValueForVariationOrRollout(vr VariationOrRollout, user User, reason EvaluationReason) EvaluationDetail {
 	index := vr.variationIndexForUser(user, f.Key, f.Salt)
 	if index == nil {
-		return EvaluationDetail{Reason: errorReason(EvalErrorMalformedFlag)}
+		return EvaluationDetail{Reason: newEvalReasonError(EvalErrorMalformedFlag)}
 	}
 	return f.getVariation(*index, reason)
 }

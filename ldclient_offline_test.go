@@ -38,8 +38,7 @@ func TestBoolVariationReturnsDefaultValueOffline(t *testing.T) {
 	assert.Equal(t, defaultVal, value)
 	assert.Equal(t, defaultVal, detail.Value)
 	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, EvalReasonError, detail.Reason.Kind)
-	assert.Equal(t, EvalErrorClientNotReady, *detail.Reason.ErrorKind)
+	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
 
 func TestIntVariationReturnsDefaultValueOffline(t *testing.T) {
@@ -56,8 +55,7 @@ func TestIntVariationReturnsDefaultValueOffline(t *testing.T) {
 	assert.Equal(t, defaultVal, value)
 	assert.Equal(t, float64(defaultVal), detail.Value)
 	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, EvalReasonError, detail.Reason.Kind)
-	assert.Equal(t, EvalErrorClientNotReady, *detail.Reason.ErrorKind)
+	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
 
 func TestFloat64VariationReturnsDefaultValueOffline(t *testing.T) {
@@ -74,8 +72,7 @@ func TestFloat64VariationReturnsDefaultValueOffline(t *testing.T) {
 	assert.Equal(t, defaultVal, value)
 	assert.Equal(t, defaultVal, detail.Value)
 	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, EvalReasonError, detail.Reason.Kind)
-	assert.Equal(t, EvalErrorClientNotReady, *detail.Reason.ErrorKind)
+	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
 
 func TestStringVariationReturnsDefaultValueOffline(t *testing.T) {
@@ -92,8 +89,7 @@ func TestStringVariationReturnsDefaultValueOffline(t *testing.T) {
 	assert.Equal(t, defaultVal, value)
 	assert.Equal(t, defaultVal, detail.Value)
 	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, EvalReasonError, detail.Reason.Kind)
-	assert.Equal(t, EvalErrorClientNotReady, *detail.Reason.ErrorKind)
+	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
 
 func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
@@ -111,8 +107,7 @@ func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
 	assert.Equal(t, json.RawMessage(defaultJSON), value)
 	assert.Equal(t, json.RawMessage(defaultJSON), detail.Value)
 	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, EvalReasonError, detail.Reason.Kind)
-	assert.Equal(t, EvalErrorClientNotReady, *detail.Reason.ErrorKind)
+	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
 
 func TestAllFlagsReturnsNilOffline(t *testing.T) {

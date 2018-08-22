@@ -23,14 +23,10 @@ func TestFlagsStateUnknownFlagReturnsNilValue(t *testing.T) {
 
 func TestFlagsStateCanGetFlagReason(t *testing.T) {
 	flag := FeatureFlag{Key: "key"}
-	reason := EvaluationReason{Kind: EvalReasonOff}
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), &reason)
+	state.addFlag(&flag, "value", intPtr(1), evalReasonOffInstance)
 
-	result := state.GetFlagReason("key")
-	if assert.NotNil(t, result) {
-		assert.Equal(t, reason, *result)
-	}
+	assert.Equal(t, evalReasonOffInstance, state.GetFlagReason("key"))
 }
 
 func TestFlagsStateUnknownFlagReturnsNilReason(t *testing.T) {
