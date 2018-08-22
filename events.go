@@ -26,6 +26,7 @@ type FeatureRequestEvent struct {
 	Default              interface{}
 	Version              *int
 	PrereqOf             *string
+	Reason               *EvaluationReason
 	TrackEvents          bool
 	Debug                bool
 	DebugEventsUntilDate *uint64
