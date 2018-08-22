@@ -16,11 +16,11 @@ type FeatureFlagsState struct {
 }
 
 type flagMetadata struct {
-	Variation            *int              `json:"variation,omitempty"`
-	Version              int               `json:"version"`
-	Reason               EvaluationReason  `json:"reason,omitempty"`
-	TrackEvents          bool              `json:"trackEvents"`
-	DebugEventsUntilDate *uint64           `json:"debugEventsUntilDate,omitempty"`
+	Variation            *int             `json:"variation,omitempty"`
+	Version              int              `json:"version"`
+	Reason               EvaluationReason `json:"reason,omitempty"`
+	TrackEvents          bool             `json:"trackEvents"`
+	DebugEventsUntilDate *uint64          `json:"debugEventsUntilDate,omitempty"`
 }
 
 // FlagsStateOption is the type of optional parameters that can be passed to LDClient.AllFlagsState.
