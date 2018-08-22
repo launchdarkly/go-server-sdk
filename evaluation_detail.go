@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -102,36 +103,40 @@ func errorReason(kind EvalErrorKind) EvaluationReason {
 // String returns a string representation of an EvaluationReason. This is for convenience and
 // debugging; you should not rely on the exact format of the string.
 func (r EvaluationReason) String() string {
-	var s = string(r.Kind)
-	if r.Kind == EvalReasonRuleMatch {
-		s = s + "("
+	switch r.Kind {
+	case EvalReasonRuleMatch:
+		index := ""
 		if r.RuleIndex != nil {
-			s = s + strconv.Itoa(*r.RuleIndex)
+			index = strconv.Itoa(*r.RuleIndex)
 		}
+		id := ""
 		if r.RuleID != nil {
-			if r.RuleIndex != nil {
-				s = s + ","
-			}
-			s = s + *r.RuleID
+			id = *r.RuleID
 		}
-		s = s + ")"
-	} else if r.Kind == EvalReasonPrerequisitesFailed {
+		return fmt.Sprintf("%s(%s,%s)", r.Kind, index, id)
+	case EvalReasonPrerequisitesFailed:
+		keys := []string{}
 		if r.PrerequisiteKeys != nil {
-			s = s + "(" + strings.Join(*r.PrerequisiteKeys, ",") + ")"
+			keys = *r.PrerequisiteKeys
 		}
-	} else if r.Kind == EvalReasonError {
+		return fmt.Sprintf("%s(%s)", r.Kind, strings.Join(keys, ","))
+	case EvalReasonError:
+		errorKind := ""
 		if r.ErrorKind != nil {
-			s = s + "(" + string(*r.ErrorKind) + ")"
+			errorKind = string(*r.ErrorKind)
 		}
+		return fmt.Sprintf("%s(%s)", r.Kind, errorKind)
+	default:
+		return string(r.Kind)
 	}
-	return s
 }
 
 // Convert the current EvaluationReason struct to the deprecated type used by EvaluateExplain,
 // which includes pointers to objects within the flag data model.
 func explanationFromEvaluationReason(reason EvaluationReason, flag FeatureFlag, user User) Explanation {
 	var ret Explanation
-	if reason.Kind == EvalReasonTargetMatch {
+	switch reason.Kind {
+	case EvalReasonTargetMatch:
 		ret.Kind = "target"
 	FindTarget:
 		for _, target := range flag.Targets {
@@ -142,13 +147,13 @@ func explanationFromEvaluationReason(reason EvaluationReason, flag FeatureFlag, 
 				}
 			}
 		}
-	} else if reason.Kind == EvalReasonRuleMatch {
+	case EvalReasonRuleMatch:
 		ret.Kind = "rule"
 		if reason.RuleIndex != nil && *reason.RuleIndex < len(flag.Rules) {
 			rule := flag.Rules[*reason.RuleIndex]
 			ret.Rule = &rule
 		}
-	} else if reason.Kind == EvalReasonPrerequisitesFailed {
+	case EvalReasonPrerequisitesFailed:
 		ret.Kind = "prerequisite"
 		if reason.PrerequisiteKeys != nil && len(*reason.PrerequisiteKeys) > 0 {
 			prereqKey := (*reason.PrerequisiteKeys)[0]
@@ -159,10 +164,10 @@ func explanationFromEvaluationReason(reason EvaluationReason, flag FeatureFlag, 
 				}
 			}
 		}
-	} else if reason.Kind == EvalReasonFallthrough {
+	case EvalReasonFallthrough:
 		ret.Kind = "fallthrough"
 		ret.VariationOrRollout = &flag.Fallthrough
-	} else if reason.Kind == EvalReasonError {
+	case EvalReasonError:
 		// This isn't actually possible with EvaluateExplain
 		ret.Kind = "error"
 	}
