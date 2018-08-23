@@ -235,7 +235,7 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 			prereqEvent := NewFeatureRequestEvent(prereq.Key, prereqFeatureFlag, user,
 				prereqResult.VariationIndex, prereqResult.Value, nil, &f.Key)
 			if sendReasonsInEvents {
-				prereqEvent.Reason = &prereqResult.Reason
+				prereqEvent.Reason = prereqResult.Reason
 			}
 			events = append(events, prereqEvent)
 			if prereqResult.VariationIndex == nil || *prereqResult.VariationIndex != prereq.Variation {

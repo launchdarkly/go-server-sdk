@@ -195,6 +195,29 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 	}
 }
 
+func TestFeatureEventCanContainReason(t *testing.T) {
+	config := epDefaultConfig
+	config.InlineUsersInEvents = true
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	flag := FeatureFlag{
+		Key:         "flagkey",
+		Version:     11,
+		TrackEvents: true,
+	}
+	value := "value"
+	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe.Reason = evalReasonFallthroughInstance
+	ep.SendEvent(fe)
+
+	output := flushAndGetEvents(ep, st)
+	if assert.Equal(t, 2, len(output)) {
+		assertFeatureEventMatches(t, fe, flag, value, false, &userJson, output[0])
+		assertSummaryEventHasCounter(t, flag, intPtr(2), value, 1, output[1])
+	}
+}
+
 func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *testing.T) {
 	config := epDefaultConfig
 	config.InlineUsersInEvents = true
@@ -594,6 +617,9 @@ func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, fl
 	}
 	if sourceEvent.Variation != nil {
 		expected["variation"] = float64(*sourceEvent.Variation)
+	}
+	if sourceEvent.Reason != nil {
+		expected["reason"] = jsonMap(sourceEvent.Reason)
 	}
 	if inlineUser == nil {
 		expected["userKey"] = *sourceEvent.User.Key

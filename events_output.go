@@ -6,17 +6,17 @@ package ldclient
 // Serializable form of a feature request event. This differs from the event that was
 // passed in to us in that it usually has a user key instead of a user object.
 type featureRequestEventOutput struct {
-	Kind         string            `json:"kind"`
-	CreationDate uint64            `json:"creationDate"`
-	Key          string            `json:"key"`
-	UserKey      *string           `json:"userKey,omitempty"`
-	User         *User             `json:"user,omitempty"`
-	Variation    *int              `json:"variation,omitempty"`
-	Value        interface{}       `json:"value"`
-	Default      interface{}       `json:"default"`
-	Version      *int              `json:"version,omitempty"`
-	PrereqOf     *string           `json:"prereqOf,omitempty"`
-	Reason       *EvaluationReason `json:"reason,omitempty"`
+	Kind         string           `json:"kind"`
+	CreationDate uint64           `json:"creationDate"`
+	Key          string           `json:"key"`
+	UserKey      *string          `json:"userKey,omitempty"`
+	User         *User            `json:"user,omitempty"`
+	Variation    *int             `json:"variation,omitempty"`
+	Value        interface{}      `json:"value"`
+	Default      interface{}      `json:"default"`
+	Version      *int             `json:"version,omitempty"`
+	PrereqOf     *string          `json:"prereqOf,omitempty"`
+	Reason       EvaluationReason `json:"reason,omitempty"`
 }
 
 // Serializable form of an identify event.
