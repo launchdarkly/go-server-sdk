@@ -406,20 +406,6 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 	assert.JSONEq(t, expectedString, string(actualBytes))
 }
 
-func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	flag1 := makeTestFlag("key1", 0, "value1")
-	flag2 := makeTestFlag("key2", 0, "value2")
-	client.store.Upsert(Features, flag1)
-	client.store.Upsert(Features, flag2)
-
-	state := client.AllFlagsState(User{})
-	assert.False(t, state.IsValid())
-	assert.Nil(t, state.ToValuesMap())
-}
-
 func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
@@ -448,4 +434,61 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 
 	expectedValues := map[string]interface{}{"client-side-1": "value1", "client-side-2": "value2"}
 	assert.Equal(t, expectedValues, state.ToValuesMap())
+}
+
+func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := FeatureFlag{
+		Key:          "key1",
+		Version:      100,
+		OffVariation: intPtr(0),
+		Variations:   []interface{}{"value1"},
+	}
+	date := uint64(1000)
+	flag2 := FeatureFlag{
+		Key:                  "key2",
+		Version:              200,
+		OffVariation:         intPtr(1),
+		Variations:           []interface{}{"x", "value2"},
+		TrackEvents:          true,
+		DebugEventsUntilDate: &date,
+	}
+	client.store.Upsert(Features, &flag1)
+	client.store.Upsert(Features, &flag2)
+
+	state := client.AllFlagsState(NewUser("userkey"), WithReasons)
+	assert.True(t, state.IsValid())
+
+	expectedString := `{
+		"key1":"value1",
+		"key2":"value2",
+		"$flagsState":{
+	  		"key1":{
+				"variation":0,"version":100,"reason":{"kind":"OFF"},"trackEvents":false
+			},
+			"key2": {
+				"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true,"debugEventsUntilDate":1000
+			}
+		},
+		"$valid":true
+	}`
+	actualBytes, err := json.Marshal(state)
+	assert.NoError(t, err)
+	assert.JSONEq(t, expectedString, string(actualBytes))
+}
+
+func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	flag1 := makeTestFlag("flag0", 0, "value1")
+	flag2 := makeTestFlag("flag1", 0, "value2")
+	client.store.Upsert(Features, flag1)
+	client.store.Upsert(Features, flag2)
+
+	state := client.AllFlagsState(User{})
+	assert.False(t, state.IsValid())
+	assert.Nil(t, state.ToValuesMap())
 }

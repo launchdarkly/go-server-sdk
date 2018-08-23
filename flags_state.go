@@ -16,10 +16,11 @@ type FeatureFlagsState struct {
 }
 
 type flagMetadata struct {
-	Variation            *int    `json:"variation,omitempty"`
-	Version              int     `json:"version"`
-	TrackEvents          bool    `json:"trackEvents"`
-	DebugEventsUntilDate *uint64 `json:"debugEventsUntilDate,omitempty"`
+	Variation            *int              `json:"variation,omitempty"`
+	Version              int               `json:"version"`
+	Reason               *EvaluationReason `json:"reason,omitempty"`
+	TrackEvents          bool              `json:"trackEvents"`
+	DebugEventsUntilDate *uint64           `json:"debugEventsUntilDate,omitempty"`
 }
 
 // FlagsStateOption is the type of optional parameters that can be passed to LDClient.AllFlagsState.
@@ -36,6 +37,16 @@ type clientSideOnlyFlagsStateOption struct{}
 
 func (o clientSideOnlyFlagsStateOption) String() string {
 	return "ClientSideOnly"
+}
+
+// WithReasons - when passed to LDClient.AllFlagsState() - specifies that evaluation reasons
+// should be included in the state object. By default, they are not.
+var WithReasons FlagsStateOption = withReasonsFlagsStateOption{}
+
+type withReasonsFlagsStateOption struct{}
+
+func (o withReasonsFlagsStateOption) String() string {
+	return "WithReasons"
 }
 
 func newFeatureFlagsState() FeatureFlagsState {
@@ -55,11 +66,12 @@ func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) boo
 	return false
 }
 
-func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variation *int) {
+func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variation *int, reason *EvaluationReason) {
 	s.flagValues[flag.Key] = value
 	s.flagMetadata[flag.Key] = flagMetadata{
 		Variation:            variation,
 		Version:              flag.Version,
+		Reason:               reason,
 		TrackEvents:          flag.TrackEvents,
 		DebugEventsUntilDate: flag.DebugEventsUntilDate,
 	}
@@ -75,6 +87,15 @@ func (s FeatureFlagsState) IsValid() bool {
 // return value will be nil if the flag returned the default value, or if there was no such flag.
 func (s FeatureFlagsState) GetFlagValue(key string) interface{} {
 	return s.flagValues[key]
+}
+
+// GetFlagReason returns the evaluation reason for an individual feature flag at the time the state was
+// recorded. The return value will be nil if reasons were not recorded, or if there was no such flag.
+func (s FeatureFlagsState) GetFlagReason(key string) *EvaluationReason {
+	if m, ok := s.flagMetadata[key]; ok {
+		return m.Reason
+	}
+	return nil
 }
 
 // ToValuesMap returns a map of flag keys to flag values. If a flag would have evaluated to the default

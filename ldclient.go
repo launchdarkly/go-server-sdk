@@ -307,13 +307,18 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 
 	state := newFeatureFlagsState()
 	clientSideOnly := hasFlagsStateOption(options, ClientSideOnly)
+	withReasons := hasFlagsStateOption(options, WithReasons)
 	for _, item := range items {
 		if flag, ok := item.(*FeatureFlag); ok {
 			if clientSideOnly && !flag.ClientSide {
 				continue
 			}
 			result, _ := flag.EvaluateDetail(user, client.store, false)
-			state.addFlag(flag, result.Value, result.VariationIndex)
+			var reason *EvaluationReason
+			if withReasons {
+				reason = &result.Reason
+			}
+			state.addFlag(flag, result.Value, result.VariationIndex, reason)
 		}
 	}
 
