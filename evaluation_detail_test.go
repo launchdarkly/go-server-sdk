@@ -13,6 +13,7 @@ func TestOffReasonSerialization(t *testing.T) {
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
+	assert.Equal(t, "OFF", reason.String())
 }
 
 func TestTargetMatchReasonSerialization(t *testing.T) {
@@ -21,6 +22,7 @@ func TestTargetMatchReasonSerialization(t *testing.T) {
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
+	assert.Equal(t, "TARGET_MATCH", reason.String())
 }
 
 func TestRuleMatchReasonSerialization(t *testing.T) {
@@ -29,6 +31,7 @@ func TestRuleMatchReasonSerialization(t *testing.T) {
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
+	assert.Equal(t, "RULE_MATCH(1,id)", reason.String())
 }
 
 func TestPrerequisitesFailedReasonSerialization(t *testing.T) {
@@ -37,6 +40,7 @@ func TestPrerequisitesFailedReasonSerialization(t *testing.T) {
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
+	assert.Equal(t, "PREREQUISITES_FAILED(key1,key2)", reason.String())
 }
 
 func TestFallthroughReasonSerialization(t *testing.T) {
@@ -45,6 +49,7 @@ func TestFallthroughReasonSerialization(t *testing.T) {
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
+	assert.Equal(t, "FALLTHROUGH", reason.String())
 }
 
 func TestErrorReasonSerialization(t *testing.T) {
@@ -53,4 +58,5 @@ func TestErrorReasonSerialization(t *testing.T) {
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
+	assert.Equal(t, "ERROR(EXCEPTION)", reason.String())
 }
