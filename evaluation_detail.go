@@ -191,45 +191,61 @@ type Explanation struct {
 	*VariationOrRollout `json:"fallthrough,omitempty"`
 }
 
-// Convert the current EvaluationReason struct to the deprecated type used by EvaluateExplain,
-// which includes pointers to objects within the flag data model.
-func explanationFromEvaluationReason(reason EvaluationReason, flag FeatureFlag, user User) Explanation {
-	var ret Explanation
-	switch r := reason.(type) {
-	case EvaluationReasonTargetMatch:
-		ret.Kind = "target"
-	FindTarget:
-		for _, target := range flag.Targets {
-			for _, value := range target.Values {
-				if value == *user.Key {
-					ret.Target = &target
-					break FindTarget
-				}
+// BEGIN DEPRECATED SECTION
+// This code is only used to support the deprecated EvaluateExplain method, which requires us to
+// convert our current EvaluationReason data into the obsolete Explanation type (which includes
+// pointers to objects within the flag data model).
+
+type deprecatedExplanationConversion interface {
+	getOldExplanation(flag FeatureFlag, user User) Explanation
+}
+
+func (r EvaluationReasonOff) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	return Explanation{}
+}
+
+func (r EvaluationReasonFallthrough) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	return Explanation{}
+}
+
+func (r EvaluationReasonTargetMatch) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	var ret = Explanation{Kind: "target"}
+	for _, target := range flag.Targets {
+		for _, value := range target.Values {
+			if value == *user.Key {
+				ret.Target = &target
+				return ret
 			}
 		}
-	case EvaluationReasonRuleMatch:
-		ret.Kind = "rule"
-		if r.RuleIndex < len(flag.Rules) {
-			rule := flag.Rules[r.RuleIndex]
-			ret.Rule = &rule
-		}
-	case EvaluationReasonPrerequisitesFailed:
-		ret.Kind = "prerequisite"
-		if len(r.PrerequisiteKeys) > 0 {
-			prereqKey := r.PrerequisiteKeys[0]
-			for _, prereq := range flag.Prerequisites {
-				if prereq.Key == prereqKey {
-					ret.Prerequisite = &prereq
-					break
-				}
-			}
-		}
-	case EvaluationReasonFallthrough:
-		ret.Kind = "fallthrough"
-		ret.VariationOrRollout = &flag.Fallthrough
-	case EvaluationReasonError:
-		// This isn't actually possible with EvaluateExplain
-		ret.Kind = "error"
 	}
 	return ret
 }
+
+func (r EvaluationReasonRuleMatch) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	var ret = Explanation{Kind: "rule"}
+	if r.RuleIndex < len(flag.Rules) {
+		rule := flag.Rules[r.RuleIndex]
+		ret.Rule = &rule
+	}
+	return ret
+}
+
+func (r EvaluationReasonPrerequisitesFailed) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	var ret = Explanation{Kind: "prerequisite"}
+	if len(r.PrerequisiteKeys) > 0 {
+		prereqKey := r.PrerequisiteKeys[0]
+		for _, prereq := range flag.Prerequisites {
+			if prereq.Key == prereqKey {
+				ret.Prerequisite = &prereq
+				break
+			}
+		}
+	}
+	return ret
+}
+
+func (r EvaluationReasonError) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	return Explanation{Kind: "error"}
+}
+
+// END DEPRECATED SECTION
