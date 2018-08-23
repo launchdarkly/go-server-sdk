@@ -232,6 +232,60 @@ func TestJsonVariationDetail(t *testing.T) {
 	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, &detail.Reason)
 }
 
+func TestEvaluatingUnknownFlagReturnsDefault(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.Error(t, err)
+	assert.Equal(t, "default", value)
+}
+
+func TestEvaluatingUnknownFlagReturnsDefaultWithDetail(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	_, detail, err := client.StringVariationDetail("flagKey", evalTestUser, "default")
+	assert.Error(t, err)
+	assert.Equal(t, "default", detail.Value)
+	assert.Nil(t, detail.VariationIndex)
+	assert.Equal(t, newEvalReasonError(EvalErrorFlagNotFound), detail.Reason)
+}
+
+func TestDefaultIsReturnedIfFlagEvaluatesToNil(t *testing.T) {
+	flag := FeatureFlag{
+		Key:          "flagKey",
+		On:           false,
+		OffVariation: nil,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "default", value)
+}
+
+func TestDefaultIsReturnedIfFlagEvaluatesToNilWithDetail(t *testing.T) {
+	flag := FeatureFlag{
+		Key:          "flagKey",
+		On:           false,
+		OffVariation: nil,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	_, detail, err := client.StringVariationDetail("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "default", detail.Value)
+	assert.Nil(t, detail.VariationIndex)
+	assert.Equal(t, evalReasonOffInstance, detail.Reason)
+}
+
 func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
