@@ -8,7 +8,7 @@ import (
 )
 
 func TestOffReasonSerialization(t *testing.T) {
-	reason := EvaluationReason{Kind: EvalReasonOff}
+	reason := evalReasonOffInstance
 	expected := `{"kind":"OFF"}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
@@ -17,7 +17,7 @@ func TestOffReasonSerialization(t *testing.T) {
 }
 
 func TestTargetMatchReasonSerialization(t *testing.T) {
-	reason := EvaluationReason{Kind: EvalReasonTargetMatch}
+	reason := evalReasonTargetMatchInstance
 	expected := `{"kind":"TARGET_MATCH"}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
@@ -26,7 +26,7 @@ func TestTargetMatchReasonSerialization(t *testing.T) {
 }
 
 func TestRuleMatchReasonSerialization(t *testing.T) {
-	reason := EvaluationReason{Kind: EvalReasonRuleMatch, RuleIndex: intPtr(1), RuleID: strPtr("id")}
+	reason := newEvalReasonRuleMatch(1, "id")
 	expected := `{"kind":"RULE_MATCH","ruleIndex":1,"ruleId":"id"}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
@@ -35,7 +35,7 @@ func TestRuleMatchReasonSerialization(t *testing.T) {
 }
 
 func TestPrerequisitesFailedReasonSerialization(t *testing.T) {
-	reason := EvaluationReason{Kind: EvalReasonPrerequisitesFailed, PrerequisiteKeys: &[]string{"key1", "key2"}}
+	reason := newEvalReasonPrerequisitesFailed([]string{"key1", "key2"})
 	expected := `{"kind":"PREREQUISITES_FAILED","prerequisiteKeys":["key1", "key2"]}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
@@ -44,7 +44,7 @@ func TestPrerequisitesFailedReasonSerialization(t *testing.T) {
 }
 
 func TestFallthroughReasonSerialization(t *testing.T) {
-	reason := EvaluationReason{Kind: EvalReasonFallthrough}
+	reason := evalReasonFallthroughInstance
 	expected := `{"kind":"FALLTHROUGH"}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
@@ -53,7 +53,7 @@ func TestFallthroughReasonSerialization(t *testing.T) {
 }
 
 func TestErrorReasonSerialization(t *testing.T) {
-	reason := errorReason(EvalErrorException)
+	reason := newEvalReasonError(EvalErrorException)
 	expected := `{"kind":"ERROR","errorKind":"EXCEPTION"}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)

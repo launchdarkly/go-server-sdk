@@ -71,7 +71,7 @@ func TestBoolVariationDetail(t *testing.T) {
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, detail.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
 	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, &detail.Reason)
 }
@@ -108,7 +108,7 @@ func TestIntVariationDetail(t *testing.T) {
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, float64(expected), detail.Value)
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, detail.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
 	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), &detail.Reason)
 }
@@ -145,7 +145,7 @@ func TestFloat64VariationDetail(t *testing.T) {
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, detail.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
 	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, &detail.Reason)
 }
@@ -182,7 +182,7 @@ func TestStringVariationDetail(t *testing.T) {
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, detail.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
 	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, &detail.Reason)
 }
@@ -227,7 +227,7 @@ func TestJsonVariationDetail(t *testing.T) {
 	assert.Equal(t, json.RawMessage(expectedJSON), actual)
 	assert.Equal(t, expectedValue, detail.Value)
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, EvalReasonFallthrough, detail.Reason.Kind)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
 	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, &detail.Reason)
 }

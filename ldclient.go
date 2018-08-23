@@ -314,9 +314,9 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 				continue
 			}
 			result, _ := flag.EvaluateDetail(user, client.store, false)
-			var reason *EvaluationReason
+			var reason EvaluationReason
 			if withReasons {
-				reason = &result.Reason
+				reason = result.Reason
 			}
 			state.addFlag(flag, result.Value, result.VariationIndex, reason)
 		}
@@ -431,7 +431,7 @@ func (client *LDClient) variationWithType(key string, user User, defaultVal inte
 		if expectedType != valueType {
 			result.Value = defaultVal
 			result.VariationIndex = nil
-			result.Reason = errorReason(EvalErrorWrongType)
+			result.Reason = newEvalReasonError(EvalErrorWrongType)
 		}
 	}
 	return result, err
@@ -440,7 +440,7 @@ func (client *LDClient) variationWithType(key string, user User, defaultVal inte
 // Generic method for evaluating a feature flag for a given user.
 func (client *LDClient) variation(key string, user User, defaultVal interface{}, sendReasonsInEvents bool) (EvaluationDetail, error) {
 	if client.IsOffline() {
-		return EvaluationDetail{Value: defaultVal, Reason: errorReason(EvalErrorClientNotReady)}, nil
+		return EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorClientNotReady)}, nil
 	}
 	result, flag, err := client.evaluateInternal(key, user, defaultVal, sendReasonsInEvents)
 	if err != nil {
@@ -478,7 +478,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal inter
 		if client.store.Initialized() {
 			client.config.Logger.Printf("WARN: Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
 		} else {
-			detail := EvaluationDetail{Value: defaultVal, Reason: errorReason(EvalErrorClientNotReady)}
+			detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorClientNotReady)}
 			return detail, nil, ErrClientNotInitialized
 		}
 	}
@@ -487,23 +487,23 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal inter
 
 	if storeErr != nil {
 		client.config.Logger.Printf("Encountered error fetching feature from store: %+v", storeErr)
-		detail := EvaluationDetail{Value: defaultVal, Reason: errorReason(EvalErrorException)}
+		detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorException)}
 		return detail, nil, storeErr
 	}
 
 	if data != nil {
 		feature, ok = data.(*FeatureFlag)
 		if !ok {
-			detail := EvaluationDetail{Value: defaultVal, Reason: errorReason(EvalErrorException)}
+			detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorException)}
 			return detail, nil, fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", data, key)
 		}
 	} else {
-		detail := EvaluationDetail{Value: defaultVal, Reason: errorReason(EvalErrorFlagNotFound)}
+		detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorFlagNotFound)}
 		return detail, nil, fmt.Errorf("unknown feature key: %s Verify that this feature key exists. Returning default value", key)
 	}
 
 	if user.Key == nil {
-		detail := EvaluationDetail{Value: defaultVal, Reason: errorReason(EvalErrorUserNotSpecified)}
+		detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorUserNotSpecified)}
 		return detail, feature, fmt.Errorf("user.Key cannot be nil for user: %+v when evaluating flag: %s", user, key)
 	}
 

@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -14,19 +13,17 @@ const (
 	EvalReasonOff EvalReasonKind = "OFF"
 	// EvalReasonTargetMatch indicates that the user key was specifically targeted for this flag.
 	EvalReasonTargetMatch EvalReasonKind = "TARGET_MATCH"
-	// EvalReasonRuleMatch indicates that the user matched one of the flag's rules. The RuleIndex
-	// and RuleID properties will be set.
+	// EvalReasonRuleMatch indicates that the user matched one of the flag's rules.
 	EvalReasonRuleMatch EvalReasonKind = "RULE_MATCH"
 	// EvalReasonPrerequisitesFailed indicates that the flag was considered off because it had at
 	// least one prerequisite flag that either was off or did not return the desired variation.
-	// The PrerequisiteKeys property will be set.
 	EvalReasonPrerequisitesFailed EvalReasonKind = "PREREQUISITES_FAILED"
 	// EvalReasonFallthrough indicates that the flag was on but the user did not match any targets
 	// or rules.
 	EvalReasonFallthrough EvalReasonKind = "FALLTHROUGH"
 	// EvalReasonError indicates that the flag could not be evaluated, e.g. because it does not
 	// exist or due to an unexpected error. In this case the result value will be the default value
-	// that the caller passed to the client. The ErrorKind property will be set.
+	// that the caller passed to the client.
 	EvalReasonError EvalReasonKind = "ERROR"
 )
 
@@ -55,20 +52,118 @@ const (
 )
 
 // EvaluationReason describes the reason that a flag evaluation producted a particular value.
-type EvaluationReason struct {
+// Specific kinds of reasons have their own types that implement this interface.
+type EvaluationReason interface {
+	// GetKind describes the general category of the reason.
+	GetKind() EvalReasonKind
+}
+
+type evaluationReasonBase struct {
 	// Kind describes the general category of the reason.
 	Kind EvalReasonKind `json:"kind"`
-	// ErrorKind describes the type of error, if Kind is equal to EvalReasonError, or nil otherwise.
-	ErrorKind *EvalErrorKind `json:"errorKind,omitempty"`
-	// RuleIndex is the index of the rule that was matched (0 being the first), if Kind is equal to
-	// EvalReasonRuleMatch, or nil otherwise.
-	RuleIndex *int `json:"ruleIndex,omitempty"`
-	// RuleID is the unique identifier of the rule that was matched, if Kind is equal to EvalReasonRuleMatch,
-	// or nil otherwise.
-	RuleID *string `json:"ruleId,omitempty"`
-	// PrerequisiteKeys are the flag keys of prerequisites that failed, if Kind is equal to
-	// EvalReasonPrerequisitesFailed.
-	PrerequisiteKeys *[]string `json:"prerequisiteKeys,omitempty"`
+}
+
+func (r evaluationReasonBase) GetKind() EvalReasonKind {
+	return r.Kind
+}
+
+// EvaluationReasonOff means that the flag was off and therefore returned its configured off value.
+type EvaluationReasonOff struct {
+	evaluationReasonBase
+}
+
+var evalReasonOffInstance = EvaluationReasonOff{
+	evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonOff},
+}
+
+func (r EvaluationReasonOff) String() string {
+	return string(r.GetKind())
+}
+
+// EvaluationReasonTargetMatch means that the user key was specifically targeted for this flag.
+type EvaluationReasonTargetMatch struct {
+	evaluationReasonBase
+}
+
+var evalReasonTargetMatchInstance = EvaluationReasonTargetMatch{
+	evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonTargetMatch},
+}
+
+func (r EvaluationReasonTargetMatch) String() string {
+	return string(r.GetKind())
+}
+
+// EvaluationReasonRuleMatch means that the user matched one of the flag's rules.
+type EvaluationReasonRuleMatch struct {
+	evaluationReasonBase
+	// RuleIndex is the index of the rule that was matched (0 being the first).
+	RuleIndex int `json:"ruleIndex"`
+	// RuleID is the unique identifier of the rule that was matched.
+	RuleID string `json:"ruleId"`
+}
+
+func newEvalReasonRuleMatch(ruleIndex int, ruleID string) EvaluationReasonRuleMatch {
+	return EvaluationReasonRuleMatch{
+		evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonRuleMatch},
+		RuleIndex:            ruleIndex,
+		RuleID:               ruleID,
+	}
+}
+
+func (r EvaluationReasonRuleMatch) String() string {
+	return fmt.Sprintf("%s(%d,%s)", r.GetKind(), r.RuleIndex, r.RuleID)
+}
+
+// EvaluationReasonPrerequisitesFailed means that the flag was considered off because it had at
+// least one prerequisite flag that either was off or did not return the desired variation.
+type EvaluationReasonPrerequisitesFailed struct {
+	evaluationReasonBase
+	// PrerequisiteKeys are the flag keys of the prerequisites that failed.
+	PrerequisiteKeys []string `json:"prerequisiteKeys"`
+}
+
+func newEvalReasonPrerequisitesFailed(prereqKeys []string) EvaluationReasonPrerequisitesFailed {
+	return EvaluationReasonPrerequisitesFailed{
+		evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonPrerequisitesFailed},
+		PrerequisiteKeys:     prereqKeys,
+	}
+}
+
+func (r EvaluationReasonPrerequisitesFailed) String() string {
+	return fmt.Sprintf("%s(%s)", r.GetKind(), strings.Join(r.PrerequisiteKeys, ","))
+}
+
+// EvaluationReasonFallthrough means that the flag was on but the user did not match any targets
+// or rules.
+type EvaluationReasonFallthrough struct {
+	evaluationReasonBase
+}
+
+var evalReasonFallthroughInstance = EvaluationReasonFallthrough{
+	evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonFallthrough},
+}
+
+func (r EvaluationReasonFallthrough) String() string {
+	return string(r.GetKind())
+}
+
+// EvaluationReasonError means that the flag could not be evaluated, e.g. because it does not
+// exist or due to an unexpected error.
+type EvaluationReasonError struct {
+	evaluationReasonBase
+	// ErrorKind describes the type of error.
+	ErrorKind EvalErrorKind `json:"errorKind"`
+}
+
+func newEvalReasonError(kind EvalErrorKind) EvaluationReasonError {
+	return EvaluationReasonError{
+		evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonError},
+		ErrorKind:            kind,
+	}
+}
+
+func (r EvaluationReasonError) String() string {
+	return fmt.Sprintf("%s(%s)", r.GetKind(), r.ErrorKind)
 }
 
 // EvaluationDetail is an object returned by LDClient.VariationDetail, combining the result of a
@@ -96,80 +191,61 @@ type Explanation struct {
 	*VariationOrRollout `json:"fallthrough,omitempty"`
 }
 
-func errorReason(kind EvalErrorKind) EvaluationReason {
-	return EvaluationReason{Kind: EvalReasonError, ErrorKind: &kind}
+// BEGIN DEPRECATED SECTION
+// This code is only used to support the deprecated EvaluateExplain method, which requires us to
+// convert our current EvaluationReason data into the obsolete Explanation type (which includes
+// pointers to objects within the flag data model).
+
+type deprecatedExplanationConversion interface {
+	getOldExplanation(flag FeatureFlag, user User) Explanation
 }
 
-// String returns a string representation of an EvaluationReason. This is for convenience and
-// debugging; you should not rely on the exact format of the string.
-func (r EvaluationReason) String() string {
-	switch r.Kind {
-	case EvalReasonRuleMatch:
-		index := ""
-		if r.RuleIndex != nil {
-			index = strconv.Itoa(*r.RuleIndex)
-		}
-		id := ""
-		if r.RuleID != nil {
-			id = *r.RuleID
-		}
-		return fmt.Sprintf("%s(%s,%s)", r.Kind, index, id)
-	case EvalReasonPrerequisitesFailed:
-		keys := []string{}
-		if r.PrerequisiteKeys != nil {
-			keys = *r.PrerequisiteKeys
-		}
-		return fmt.Sprintf("%s(%s)", r.Kind, strings.Join(keys, ","))
-	case EvalReasonError:
-		errorKind := ""
-		if r.ErrorKind != nil {
-			errorKind = string(*r.ErrorKind)
-		}
-		return fmt.Sprintf("%s(%s)", r.Kind, errorKind)
-	default:
-		return string(r.Kind)
-	}
+func (r EvaluationReasonOff) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	return Explanation{}
 }
 
-// Convert the current EvaluationReason struct to the deprecated type used by EvaluateExplain,
-// which includes pointers to objects within the flag data model.
-func explanationFromEvaluationReason(reason EvaluationReason, flag FeatureFlag, user User) Explanation {
-	var ret Explanation
-	switch reason.Kind {
-	case EvalReasonTargetMatch:
-		ret.Kind = "target"
-	FindTarget:
-		for _, target := range flag.Targets {
-			for _, value := range target.Values {
-				if value == *user.Key {
-					ret.Target = &target
-					break FindTarget
-				}
+func (r EvaluationReasonFallthrough) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	return Explanation{}
+}
+
+func (r EvaluationReasonTargetMatch) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	var ret = Explanation{Kind: "target"}
+	for _, target := range flag.Targets {
+		for _, value := range target.Values {
+			if value == *user.Key {
+				ret.Target = &target
+				return ret
 			}
 		}
-	case EvalReasonRuleMatch:
-		ret.Kind = "rule"
-		if reason.RuleIndex != nil && *reason.RuleIndex < len(flag.Rules) {
-			rule := flag.Rules[*reason.RuleIndex]
-			ret.Rule = &rule
-		}
-	case EvalReasonPrerequisitesFailed:
-		ret.Kind = "prerequisite"
-		if reason.PrerequisiteKeys != nil && len(*reason.PrerequisiteKeys) > 0 {
-			prereqKey := (*reason.PrerequisiteKeys)[0]
-			for _, prereq := range flag.Prerequisites {
-				if prereq.Key == prereqKey {
-					ret.Prerequisite = &prereq
-					break
-				}
-			}
-		}
-	case EvalReasonFallthrough:
-		ret.Kind = "fallthrough"
-		ret.VariationOrRollout = &flag.Fallthrough
-	case EvalReasonError:
-		// This isn't actually possible with EvaluateExplain
-		ret.Kind = "error"
 	}
 	return ret
 }
+
+func (r EvaluationReasonRuleMatch) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	var ret = Explanation{Kind: "rule"}
+	if r.RuleIndex < len(flag.Rules) {
+		rule := flag.Rules[r.RuleIndex]
+		ret.Rule = &rule
+	}
+	return ret
+}
+
+func (r EvaluationReasonPrerequisitesFailed) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	var ret = Explanation{Kind: "prerequisite"}
+	if len(r.PrerequisiteKeys) > 0 {
+		prereqKey := r.PrerequisiteKeys[0]
+		for _, prereq := range flag.Prerequisites {
+			if prereq.Key == prereqKey {
+				ret.Prerequisite = &prereq
+				break
+			}
+		}
+	}
+	return ret
+}
+
+func (r EvaluationReasonError) getOldExplanation(flag FeatureFlag, user User) Explanation {
+	return Explanation{Kind: "error"}
+}
+
+// END DEPRECATED SECTION
