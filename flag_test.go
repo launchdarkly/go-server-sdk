@@ -129,7 +129,7 @@ func TestFlagReturnsOffVariationIfPrerequisiteIsNotFound(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Equal(t, "off", result.Value)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
-	assert.Equal(t, newEvalReasonPrerequisitesFailed([]string{"feature1"}), result.Reason)
+	assert.Equal(t, newEvalReasonPrerequisiteFailed("feature1"), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -157,7 +157,7 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "off", result.Value)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
-	assert.Equal(t, newEvalReasonPrerequisitesFailed([]string{"feature1"}), result.Reason)
+	assert.Equal(t, newEvalReasonPrerequisiteFailed("feature1"), result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -576,7 +576,7 @@ func booleanFlagWithClause(clause Clause) FeatureFlag {
 }
 
 func newEvalErrorResult(kind EvalErrorKind) EvaluationDetail {
-	return EvaluationDetail{Reason:newEvalReasonError(kind)}
+	return EvaluationDetail{Reason: newEvalReasonError(kind)}
 }
 
 func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) FeatureFlag {

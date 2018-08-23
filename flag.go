@@ -219,17 +219,16 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 	}, err
 }
 
-// Returns nil if all prerequisites are OK, otherwise constructs an error reason that describes the failure(s)
+// Returns nil if all prerequisites are OK, otherwise constructs an error reason that describes the failure
 func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReasonsInEvents bool) (EvaluationReason, []FeatureRequestEvent) {
 	var events []FeatureRequestEvent
-	var failedKeys []string
 	for _, prereq := range f.Prerequisites {
 		data, err := store.Get(Features, prereq.Key)
 		if err != nil || data == nil {
-			failedKeys = append(failedKeys, prereq.Key)
-			continue
+			return newEvalReasonPrerequisiteFailed(prereq.Key), events
 		}
 		prereqFeatureFlag, _ := data.(*FeatureFlag)
+		prereqOK := true
 		if prereqFeatureFlag.On {
 			prereqResult, moreEvents := prereqFeatureFlag.EvaluateDetail(user, store, sendReasonsInEvents)
 			events = append(events, moreEvents...)
@@ -240,14 +239,14 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 			}
 			events = append(events, prereqEvent)
 			if prereqResult.VariationIndex == nil || *prereqResult.VariationIndex != prereq.Variation {
-				failedKeys = append(failedKeys, prereq.Key)
+				prereqOK = false
 			}
 		} else {
-			failedKeys = append(failedKeys, prereq.Key)
+			prereqOK = false
 		}
-	}
-	if len(failedKeys) > 0 {
-		return newEvalReasonPrerequisitesFailed(failedKeys), events
+		if !prereqOK {
+			return newEvalReasonPrerequisiteFailed(prereq.Key), events
+		}
 	}
 	return nil, events
 }
