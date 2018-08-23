@@ -20,7 +20,7 @@ func makeTestFlag(key string, fallThroughVariation int, variations ...interface{
 	}
 }
 
-func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value interface{}, variation int, defaultVal interface{}, reason *EvaluationReason) {
+func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value interface{}, variation int, defaultVal interface{}, reason EvaluationReason) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(FeatureRequestEvent)
@@ -73,7 +73,7 @@ func TestBoolVariationDetail(t *testing.T) {
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, &detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
 }
 
 func TestIntVariation(t *testing.T) {
@@ -110,7 +110,7 @@ func TestIntVariationDetail(t *testing.T) {
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), &detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), detail.Reason)
 }
 
 func TestFloat64Variation(t *testing.T) {
@@ -147,7 +147,7 @@ func TestFloat64VariationDetail(t *testing.T) {
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, &detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
 }
 
 func TestStringVariation(t *testing.T) {
@@ -184,7 +184,7 @@ func TestStringVariationDetail(t *testing.T) {
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, &detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
 }
 
 func TestJsonVariation(t *testing.T) {
@@ -229,7 +229,7 @@ func TestJsonVariationDetail(t *testing.T) {
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, &detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, detail.Reason)
 }
 
 func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
