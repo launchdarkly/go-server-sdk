@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"fmt"
-	"strings"
 )
 
 // EvalReasonKind defines the possible values of the Kind property of EvaluationReason.
@@ -15,9 +14,9 @@ const (
 	EvalReasonTargetMatch EvalReasonKind = "TARGET_MATCH"
 	// EvalReasonRuleMatch indicates that the user matched one of the flag's rules.
 	EvalReasonRuleMatch EvalReasonKind = "RULE_MATCH"
-	// EvalReasonPrerequisitesFailed indicates that the flag was considered off because it had at
+	// EvalReasonPrerequisiteFailed indicates that the flag was considered off because it had at
 	// least one prerequisite flag that either was off or did not return the desired variation.
-	EvalReasonPrerequisitesFailed EvalReasonKind = "PREREQUISITES_FAILED"
+	EvalReasonPrerequisiteFailed EvalReasonKind = "PREREQUISITE_FAILED"
 	// EvalReasonFallthrough indicates that the flag was on but the user did not match any targets
 	// or rules.
 	EvalReasonFallthrough EvalReasonKind = "FALLTHROUGH"
@@ -114,23 +113,23 @@ func (r EvaluationReasonRuleMatch) String() string {
 	return fmt.Sprintf("%s(%d,%s)", r.GetKind(), r.RuleIndex, r.RuleID)
 }
 
-// EvaluationReasonPrerequisitesFailed means that the flag was considered off because it had at
+// EvaluationReasonPrerequisiteFailed means that the flag was considered off because it had at
 // least one prerequisite flag that either was off or did not return the desired variation.
-type EvaluationReasonPrerequisitesFailed struct {
+type EvaluationReasonPrerequisiteFailed struct {
 	evaluationReasonBase
-	// PrerequisiteKeys are the flag keys of the prerequisites that failed.
-	PrerequisiteKeys []string `json:"prerequisiteKeys"`
+	// PrerequisiteKey is the flag key of the prerequisite that failed.
+	PrerequisiteKey string `json:"prerequisiteKey"`
 }
 
-func newEvalReasonPrerequisitesFailed(prereqKeys []string) EvaluationReasonPrerequisitesFailed {
-	return EvaluationReasonPrerequisitesFailed{
-		evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonPrerequisitesFailed},
-		PrerequisiteKeys:     prereqKeys,
+func newEvalReasonPrerequisiteFailed(prereqKey string) EvaluationReasonPrerequisiteFailed {
+	return EvaluationReasonPrerequisiteFailed{
+		evaluationReasonBase: evaluationReasonBase{Kind: EvalReasonPrerequisiteFailed},
+		PrerequisiteKey:      prereqKey,
 	}
 }
 
-func (r EvaluationReasonPrerequisitesFailed) String() string {
-	return fmt.Sprintf("%s(%s)", r.GetKind(), strings.Join(r.PrerequisiteKeys, ","))
+func (r EvaluationReasonPrerequisiteFailed) String() string {
+	return fmt.Sprintf("%s(%s)", r.GetKind(), r.PrerequisiteKey)
 }
 
 // EvaluationReasonFallthrough means that the flag was on but the user did not match any targets
@@ -230,15 +229,12 @@ func (r EvaluationReasonRuleMatch) getOldExplanation(flag FeatureFlag, user User
 	return ret
 }
 
-func (r EvaluationReasonPrerequisitesFailed) getOldExplanation(flag FeatureFlag, user User) Explanation {
+func (r EvaluationReasonPrerequisiteFailed) getOldExplanation(flag FeatureFlag, user User) Explanation {
 	var ret = Explanation{Kind: "prerequisite"}
-	if len(r.PrerequisiteKeys) > 0 {
-		prereqKey := r.PrerequisiteKeys[0]
-		for _, prereq := range flag.Prerequisites {
-			if prereq.Key == prereqKey {
-				ret.Prerequisite = &prereq
-				break
-			}
+	for _, prereq := range flag.Prerequisites {
+		if prereq.Key == r.PrerequisiteKey {
+			ret.Prerequisite = &prereq
+			break
 		}
 	}
 	return ret

@@ -34,13 +34,13 @@ func TestRuleMatchReasonSerialization(t *testing.T) {
 	assert.Equal(t, "RULE_MATCH(1,id)", reason.String())
 }
 
-func TestPrerequisitesFailedReasonSerialization(t *testing.T) {
-	reason := newEvalReasonPrerequisitesFailed([]string{"key1", "key2"})
-	expected := `{"kind":"PREREQUISITES_FAILED","prerequisiteKeys":["key1", "key2"]}`
+func TestPrerequisiteFailedReasonSerialization(t *testing.T) {
+	reason := newEvalReasonPrerequisiteFailed("key")
+	expected := `{"kind":"PREREQUISITE_FAILED","prerequisiteKey":"key"}`
 	actual, err := json.Marshal(reason)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expected, string(actual))
-	assert.Equal(t, "PREREQUISITES_FAILED(key1,key2)", reason.String())
+	assert.Equal(t, "PREREQUISITE_FAILED(key)", reason.String())
 }
 
 func TestFallthroughReasonSerialization(t *testing.T) {
