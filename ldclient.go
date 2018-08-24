@@ -508,6 +508,9 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal inter
 	}
 
 	detail, prereqEvents := feature.EvaluateDetail(user, client.store, sendReasonsInEvents)
+	if detail.IsDefaultValue() {
+		detail.Value = defaultVal
+	}
 	for _, event := range prereqEvents {
 		client.eventProcessor.SendEvent(event)
 	}

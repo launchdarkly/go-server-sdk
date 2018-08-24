@@ -179,6 +179,11 @@ type EvaluationDetail struct {
 	Reason EvaluationReason
 }
 
+// IsDefaultValue returns true if the result of the evaluation was the default value.
+func (d EvaluationDetail) IsDefaultValue() bool {
+	return d.VariationIndex == nil
+}
+
 // Explanation is an obsolete type that is used by the deprecated EvaluateExplain method.
 //
 // Deprecated: Use the VariationDetail methods and the EvaluationDetail type instead.
