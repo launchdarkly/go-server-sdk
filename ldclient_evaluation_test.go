@@ -250,6 +250,7 @@ func TestEvaluatingUnknownFlagReturnsDefaultWithDetail(t *testing.T) {
 	assert.Equal(t, "default", detail.Value)
 	assert.Nil(t, detail.VariationIndex)
 	assert.Equal(t, newEvalReasonError(EvalErrorFlagNotFound), detail.Reason)
+	assert.True(t, detail.IsDefaultValue())
 }
 
 func TestDefaultIsReturnedIfFlagEvaluatesToNil(t *testing.T) {
