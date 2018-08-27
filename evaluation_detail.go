@@ -1,6 +1,8 @@
 package ldclient
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 )
 
@@ -182,6 +184,61 @@ type EvaluationDetail struct {
 // IsDefaultValue returns true if the result of the evaluation was the default value.
 func (d EvaluationDetail) IsDefaultValue() bool {
 	return d.VariationIndex == nil
+}
+
+// EvaluationReasonContainer is used internally in cases where LaunchDarkly needs to unnmarshal
+// an EvaluationReason value from JSON. This is necessary because UnmarshalJSON cannot be
+// implemented for interfaces.
+type EvaluationReasonContainer struct {
+	Reason EvaluationReason
+}
+
+// MarshalJSON implements custom JSON serialization for EvaluationReasonContainer.
+func (c EvaluationReasonContainer) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(c.Reason)
+	return data, err
+}
+
+// UnmarshalJSON implements custom JSON deserialization for EvaluationReasonContainer.
+func (c *EvaluationReasonContainer) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+	var kindOnly struct {
+		Kind EvalReasonKind `json:"kind"`
+	}
+	if err := json.Unmarshal(data, &kindOnly); err != nil {
+		return err
+	}
+	switch kindOnly.Kind {
+	case EvalReasonOff:
+		c.Reason = evalReasonOffInstance
+	case EvalReasonFallthrough:
+		c.Reason = evalReasonFallthroughInstance
+	case EvalReasonTargetMatch:
+		c.Reason = evalReasonTargetMatchInstance
+	case EvalReasonRuleMatch:
+		var r EvaluationReasonRuleMatch
+		if err := json.Unmarshal(data, &r); err != nil {
+			return err
+		}
+		c.Reason = r
+	case EvalReasonPrerequisiteFailed:
+		var r EvaluationReasonPrerequisiteFailed
+		if err := json.Unmarshal(data, &r); err != nil {
+			return err
+		}
+		c.Reason = r
+	case EvalReasonError:
+		var r EvaluationReasonError
+		if err := json.Unmarshal(data, &r); err != nil {
+			return err
+		}
+		c.Reason = r
+	default:
+		return fmt.Errorf("Unknown evaluation reason kind: %s", kindOnly.Kind)
+	}
+	return nil
 }
 
 // Explanation is an obsolete type that is used by the deprecated EvaluateExplain method.

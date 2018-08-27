@@ -450,7 +450,7 @@ func (client *LDClient) variation(key string, user User, defaultVal interface{},
 
 	evt := NewFeatureRequestEvent(key, flag, user, result.VariationIndex, result.Value, defaultVal, nil)
 	if sendReasonsInEvents {
-		evt.Reason = result.Reason
+		evt.Reason.Reason = result.Reason
 	}
 	client.eventProcessor.SendEvent(evt)
 

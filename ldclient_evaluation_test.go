@@ -34,7 +34,7 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user Use
 		Value:     value,
 		Variation: intPtr(variation),
 		Default:   defaultVal,
-		Reason:    reason,
+		Reason:    EvaluationReasonContainer{reason},
 	}
 	assert.Equal(t, expectedEvent, e)
 }
