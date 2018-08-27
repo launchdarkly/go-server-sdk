@@ -208,7 +208,7 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 	}
 	value := "value"
 	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
-	fe.Reason = evalReasonFallthroughInstance
+	fe.Reason.Reason = evalReasonFallthroughInstance
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -618,7 +618,7 @@ func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, fl
 	if sourceEvent.Variation != nil {
 		expected["variation"] = float64(*sourceEvent.Variation)
 	}
-	if sourceEvent.Reason != nil {
+	if sourceEvent.Reason.Reason != nil {
 		expected["reason"] = jsonMap(sourceEvent.Reason)
 	}
 	if inlineUser == nil {

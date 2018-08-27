@@ -107,7 +107,7 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 			Default:      evt.Default,
 			Version:      evt.Version,
 			PrereqOf:     evt.PrereqOf,
-			Reason:       evt.Reason,
+			Reason:       evt.Reason.Reason,
 		}
 		if ef.inlineUsers || evt.Debug {
 			fe.User = ef.userFilter.scrubUser(evt.User)
