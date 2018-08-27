@@ -28,7 +28,7 @@ type FeatureRequestEvent struct {
 	PrereqOf  *string
 	Reason    EvaluationReasonContainer
 	// Note, we need to use EvaluationReasonContainer here because FeatureRequestEvent can be
-	// serialized by ld-relay.
+	// deserialized by ld-relay.
 	TrackEvents          bool
 	Debug                bool
 	DebugEventsUntilDate *uint64
