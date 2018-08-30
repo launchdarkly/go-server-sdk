@@ -229,21 +229,22 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 		}
 		prereqFeatureFlag, _ := data.(*FeatureFlag)
 		prereqOK := true
-		if prereqFeatureFlag.On {
-			prereqResult, moreEvents := prereqFeatureFlag.EvaluateDetail(user, store, sendReasonsInEvents)
-			events = append(events, moreEvents...)
-			prereqEvent := NewFeatureRequestEvent(prereq.Key, prereqFeatureFlag, user,
-				prereqResult.VariationIndex, prereqResult.Value, nil, &f.Key)
-			if sendReasonsInEvents {
-				prereqEvent.Reason.Reason = prereqResult.Reason
-			}
-			events = append(events, prereqEvent)
-			if prereqResult.VariationIndex == nil || *prereqResult.VariationIndex != prereq.Variation {
-				prereqOK = false
-			}
-		} else {
+
+		prereqResult, moreEvents := prereqFeatureFlag.EvaluateDetail(user, store, sendReasonsInEvents)
+		if !prereqFeatureFlag.On || prereqResult.VariationIndex == nil || *prereqResult.VariationIndex != prereq.Variation {
+			// Note that if the prerequisite flag is off, we don't consider it a match no matter what its
+			// off variation was. But we still need to evaluate it in order to generate an event.
 			prereqOK = false
 		}
+
+		events = append(events, moreEvents...)
+		prereqEvent := NewFeatureRequestEvent(prereq.Key, prereqFeatureFlag, user,
+			prereqResult.VariationIndex, prereqResult.Value, nil, &f.Key)
+		if sendReasonsInEvents {
+			prereqEvent.Reason.Reason = prereqResult.Reason
+		}
+		events = append(events, prereqEvent)
+
 		if !prereqOK {
 			return newEvalReasonPrerequisiteFailed(prereq.Key), events
 		}

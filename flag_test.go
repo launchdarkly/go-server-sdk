@@ -133,6 +133,42 @@ func TestFlagReturnsOffVariationIfPrerequisiteIsNotFound(t *testing.T) {
 	assert.Equal(t, 0, len(events))
 }
 
+func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsOff(t *testing.T) {
+	f0 := FeatureFlag{
+		Key:           "feature0",
+		On:            true,
+		OffVariation:  intPtr(1),
+		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
+		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
+		Variations:    []interface{}{"fall", "off", "on"},
+		Version:       1,
+	}
+	f1 := FeatureFlag{
+		Key:          "feature1",
+		On:           false,
+		OffVariation: intPtr(1),
+		// note that even though it returns the desired variation, it is still off and therefore not a match
+		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
+		Variations:  []interface{}{"nogo", "go"},
+		Version:     2,
+	}
+	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore.Upsert(Features, &f1)
+
+	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
+	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, intPtr(1), result.VariationIndex)
+	assert.Equal(t, newEvalReasonPrerequisiteFailed("feature1"), result.Reason)
+
+	assert.Equal(t, 1, len(events))
+	e := events[0]
+	assert.Equal(t, f1.Key, e.Key)
+	assert.Equal(t, "go", e.Value)
+	assert.Equal(t, intPtr(f1.Version), e.Version)
+	assert.Equal(t, intPtr(1), e.Variation)
+	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
+}
+
 func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 	f0 := FeatureFlag{
 		Key:           "feature0",
