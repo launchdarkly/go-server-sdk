@@ -13,9 +13,7 @@ import (
 
 	cache "github.com/patrickmn/go-cache"
 
-	// TODO change this back to the gopkg dependency
-	//ld "gopkg.in/launchdarkly/go-client.v4"
-	ld "github.com/launchdarkly/go-client-private"
+	ld "gopkg.in/launchdarkly/go-client.v4"
 )
 
 const (
@@ -33,7 +31,9 @@ type ConsulFeatureStore struct {
 	initCheck sync.Once
 }
 
-// NewConsulFeatureStoreWithConfig creates a new Consul-backed feature store with an optional memory cache based on the specified Consul config
+// NewConsulFeatureStoreWithConfig creates a new Consul-backed feature store with an optional memory cache based on the specified Consul config.
+// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
+// specified prefix is the empty string, it defaults to "launchdarkly"
 func NewConsulFeatureStoreWithConfig(config *consul.Config, prefix string, timeout time.Duration, logger *log.Logger) (*ConsulFeatureStore, error) {
 	var c *cache.Cache
 	if logger == nil {
@@ -61,14 +61,7 @@ func NewConsulFeatureStoreWithConfig(config *consul.Config, prefix string, timeo
 	}, err
 }
 
-func (store *ConsulFeatureStore) featuresKey(kind ld.VersionedDataKind) string {
-	return store.prefix + "/" + kind.GetNamespace()
-}
-
-func (store *ConsulFeatureStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
-	return store.prefix + "/" + kind.GetNamespace() + "/" + k
-}
-
+// Get returns an individual object of a given type from the store
 func (store *ConsulFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	item, _, err := store.getEvenIfDeleted(kind, key, true)
 	if err == nil && item == nil {
@@ -81,6 +74,7 @@ func (store *ConsulFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.
 	return item, err
 }
 
+// All returns all the objects of a given kind from the store
 func (store *ConsulFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 
 	if store.cache != nil {
@@ -118,6 +112,7 @@ func (store *ConsulFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.V
 	return results, nil
 }
 
+// Init populates the store with a complete set of versioned data
 func (store *ConsulFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 
 	if store.cache != nil {
@@ -167,52 +162,18 @@ func (store *ConsulFeatureStore) Init(allData map[ld.VersionedDataKind]map[strin
 	return nil
 }
 
-func (store *ConsulFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string, useCache bool) (ld.VersionedData, uint64, error) {
-	var defaultModifyIndex = uint64(0)
-	if useCache && store.cache != nil {
-		if data, present := store.cache.Get(cacheKey(kind, key)); present {
-			item, ok := data.(ld.VersionedData)
-			if ok {
-				return item, defaultModifyIndex, nil
-			}
-			store.logger.Printf("ERROR: ConsulFeatureStore's in-memory cache returned an unexpected type: %v. Expected ld.VersionedData", reflect.TypeOf(data))
-		}
-	}
-
-	kv := store.client.KV()
-
-	pair, _, err := kv.Get(store.featureKeyFor(kind, key), nil)
-
-	if err != nil {
-		return nil, defaultModifyIndex, err
-	}
-
-	if pair == nil {
-		return nil, defaultModifyIndex, nil
-	}
-
-	item, jsonErr := unmarshalItem(kind, pair.Value)
-
-	if jsonErr != nil {
-		return nil, defaultModifyIndex, jsonErr
-	}
-
-	if store.cache != nil {
-		store.cache.Set(cacheKey(kind, key), item, store.timeout)
-	}
-
-	return item, pair.ModifyIndex, nil
-}
-
+// Delete removes an item of a given kind from the store
 func (store *ConsulFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return store.updateWithVersioning(kind, deletedItem)
 }
 
+// Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
 func (store *ConsulFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.updateWithVersioning(kind, item)
 }
 
+// Initialized returns whether redis contains an entry for this environment
 func (store *ConsulFeatureStore) Initialized() bool {
 	store.initCheck.Do(func() {
 		kv := store.client.KV()
@@ -300,4 +261,49 @@ func (store *ConsulFeatureStore) updateWithVersioning(kind ld.VersionedDataKind,
 
 		return nil
 	}
+}
+
+func (store *ConsulFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string, useCache bool) (ld.VersionedData, uint64, error) {
+	var defaultModifyIndex = uint64(0)
+	if useCache && store.cache != nil {
+		if data, present := store.cache.Get(cacheKey(kind, key)); present {
+			item, ok := data.(ld.VersionedData)
+			if ok {
+				return item, defaultModifyIndex, nil
+			}
+			store.logger.Printf("ERROR: ConsulFeatureStore's in-memory cache returned an unexpected type: %v. Expected ld.VersionedData", reflect.TypeOf(data))
+		}
+	}
+
+	kv := store.client.KV()
+
+	pair, _, err := kv.Get(store.featureKeyFor(kind, key), nil)
+
+	if err != nil {
+		return nil, defaultModifyIndex, err
+	}
+
+	if pair == nil {
+		return nil, defaultModifyIndex, nil
+	}
+
+	item, jsonErr := unmarshalItem(kind, pair.Value)
+
+	if jsonErr != nil {
+		return nil, defaultModifyIndex, jsonErr
+	}
+
+	if store.cache != nil {
+		store.cache.Set(cacheKey(kind, key), item, store.timeout)
+	}
+
+	return item, pair.ModifyIndex, nil
+}
+
+func (store *ConsulFeatureStore) featuresKey(kind ld.VersionedDataKind) string {
+	return store.prefix + "/" + kind.GetNamespace()
+}
+
+func (store *ConsulFeatureStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
+	return store.prefix + "/" + kind.GetNamespace() + "/" + k
 }
