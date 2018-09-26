@@ -175,7 +175,7 @@ func (store *ConsulFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key
 			if ok {
 				return item, defaultModifyIndex, nil
 			}
-			store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %v. Expected ld.VersionedData", reflect.TypeOf(data))
+			store.logger.Printf("ERROR: ConsulFeatureStore's in-memory cache returned an unexpected type: %v. Expected ld.VersionedData", reflect.TypeOf(data))
 		}
 	}
 
