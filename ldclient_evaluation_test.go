@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -538,6 +539,8 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
+	futureTime := now() + 100000
+	futureTimeStr := strconv.FormatInt(int64(futureTime), 10)
 	flag1 := FeatureFlag{
 		Key:          "key1",
 		Version:      100,
@@ -551,14 +554,13 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 		Variations:   []interface{}{"x", "value2"},
 		TrackEvents:  true,
 	}
-	date := uint64(1000)
 	flag3 := FeatureFlag{
 		Key:                  "key3",
 		Version:              300,
 		OffVariation:         intPtr(1),
 		Variations:           []interface{}{"x", "value3"},
 		TrackEvents:          false,
-		DebugEventsUntilDate: &date, // event tracking is turned on temporarily even though TrackEvents is false
+		DebugEventsUntilDate: &futureTime, // event tracking is turned on temporarily even though TrackEvents is false
 	}
 	client.store.Upsert(Features, &flag1)
 	client.store.Upsert(Features, &flag2)
@@ -579,7 +581,7 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 				"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true
 			},
 			"key3": {
-				"variation":1,"version":300,"reason":{"kind":"OFF"},"debugEventsUntilDate":1000
+				"variation":1,"version":300,"reason":{"kind":"OFF"},"debugEventsUntilDate":` + futureTimeStr + `
 			}
 		},
 		"$valid":true

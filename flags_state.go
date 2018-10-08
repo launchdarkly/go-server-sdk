@@ -84,7 +84,11 @@ func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variat
 		Variation:            variation,
 		DebugEventsUntilDate: flag.DebugEventsUntilDate,
 	}
-	if !detailsOnlyIfTracked || flag.TrackEvents || flag.DebugEventsUntilDate != nil {
+	includeDetail := !detailsOnlyIfTracked || flag.TrackEvents
+	if !includeDetail && flag.DebugEventsUntilDate != nil {
+		includeDetail = *flag.DebugEventsUntilDate > now()
+	}
+	if includeDetail {
 		meta.Version = &flag.Version
 		meta.Reason = reason
 	}
