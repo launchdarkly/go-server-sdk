@@ -64,10 +64,10 @@ flags: bad
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles()))
 	require.NoError(t, err)
+	defer dataSource.Close()
+
 	closeWhenReady := make(chan struct{})
-	go func() {
-		dataSource.Start(closeWhenReady)
-	}()
+	dataSource.Start(closeWhenReady)
 
 	// Create the flags file after we start
 	time.Sleep(time.Second)
@@ -114,11 +114,11 @@ func TestNewWatchedFileMissing(t *testing.T) {
 	dataSource, err := ldfiledata.NewFileDataSource(store,
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles()))
+	defer dataSource.Close()
+
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
-	go func() {
-		dataSource.Start(closeWhenReady)
-	}()
+	dataSource.Start(closeWhenReady)
 
 	time.Sleep(time.Second)
 	replaceFileContents(t, filename, `
@@ -152,21 +152,23 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 		ldfiledata.FilePaths(filePath),
 		ldfiledata.UseReloader(WatchFiles()))
 	require.NoError(t, err)
+	defer dataSource.Close()
+
 	closeWhenReady := make(chan struct{})
-	go func() {
-		dataSource.Start(closeWhenReady)
-	}()
+	dataSource.Start(closeWhenReady)
 
 	time.Sleep(time.Second)
 	err = os.Mkdir(dirPath, 0700)
 	require.NoError(t, err)
 
+	time.Sleep(time.Second)
 	replaceFileContents(t, filePath, `
 ---
 flags:
   my-flag:
     "on": true
 `)
+
 	<-closeWhenReady
 
 	requireTrueWithinDuration(t, time.Second*2, func() bool {
