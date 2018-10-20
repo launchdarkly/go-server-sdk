@@ -71,6 +71,7 @@ func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload f
 				}
 			}
 
+			fileChanged := false
 		WaitForUpdates:
 			for {
 				select {
@@ -82,6 +83,7 @@ func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload f
 					return
 				case event := <-watcher.Events:
 					if realPaths[event.Name] {
+						fileChanged = true
 						// Consume extra events
 					ConsumeExtraEvents:
 						for {
@@ -107,9 +109,11 @@ func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload f
 					break WaitForUpdates
 				}
 			}
-			err := reload()
-			if err != nil {
-				logger.Printf("Unable to reload flags from data source: %s", err)
+			if fileChanged {
+				err := reload()
+				if err != nil {
+					logger.Printf("Unable to reload flags from data source: %s", err)
+				}
 			}
 		}
 	}()
