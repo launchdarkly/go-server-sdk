@@ -17,7 +17,7 @@ import (
 )
 
 // FileDataSourceOption is the interface for optional configuration parameters that can be
-// passed to NewFileDataSource. These include FileSourcePaths and FileSourceLogger.
+// passed to NewFileDataSource. These include FilePaths and FileSourceLogger.
 type FileDataSourceOption interface {
 	apply(fp *FileDataSource) error
 	// GetFilePaths is used internally by WatchedFileUpdateProcessor.
@@ -47,9 +47,9 @@ func (o fileDataSourceFilePathsOption) GetLogger() ld.Logger {
 	return nil
 }
 
-// FileSourcePaths creates an option for to NewFileDataSource, to specify the input
+// FilePaths creates an option for to NewFileDataSource, to specify the input
 // data files. The paths may be any number of absolute or relative file paths.
-func FileSourcePaths(paths ...string) FileDataSourceOption {
+func FilePaths(paths ...string) FileDataSourceOption {
 	return fileDataSourceFilePathsOption{paths}
 }
 
@@ -93,7 +93,7 @@ type FileDataSource struct {
 //
 //     featureStore := ld.NewInMemoryFeatureStore(nil)
 //     fileSource, err := ldfiledata.NewFileDataSource(featureStore,
-//         ldfiledata.FileSourcePaths("./test-data/my-flags.json"))
+//         ldfiledata.FilePaths("./test-data/my-flags.json"))
 //     ldConfig := ld.DefaultConfig
 //     ldConfig.FeatureStore = featureStore
 //     ldConfig.UpdateProcessor = fileSource
@@ -102,7 +102,7 @@ type FileDataSource struct {
 // It is important to set the FeatureStore property of your client configuration to the same FeatureStore
 // object that you passed to NewFileDataSource; this is how the component provides flag data to the client.
 //
-// Use FileSourcePaths to specify any number of file paths. The files are not actually loaded until the
+// Use FilePaths to specify any number of file paths. The files are not actually loaded until the
 // client starts up. At that point, if any file does not exist or cannot be parsed, the FileDataSource
 // will log an error and will not load any data.
 //

@@ -40,7 +40,7 @@ type WatchedFileDataSource struct {
 //
 //     featureStore := ld.NewInMemoryFeatureStore(nil)
 //     fileSource, err := ldfilewatch.NewWatchedFileDataSource(featureStore,
-//         ldfiledata.FileSourcePaths("./test-data/my-flags.json"))
+//         ldfiledata.FilePaths("./test-data/my-flags.json"))
 //     ldConfig := ld.DefaultConfig
 //     ldConfig.FeatureStore = featureStore
 //     ldConfig.UpdateProcessor = fileSource

@@ -33,7 +33,7 @@ segments:
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -56,7 +56,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -76,7 +76,7 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename1, filename2))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename1, filename2))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -102,7 +102,7 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename1, filename2))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename1, filename2))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -116,7 +116,7 @@ func TestNewFileDataSourceBadData(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -130,7 +130,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -148,7 +148,7 @@ flagValues:
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewFileDataSource(store, FileSourcePaths(filename))
+	dataSource, err := NewFileDataSource(store, FilePaths(filename))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
