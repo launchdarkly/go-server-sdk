@@ -4,6 +4,7 @@ package ldfiledata
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -20,17 +21,13 @@ import (
 // passed to NewFileDataSource. These include FilePaths and UseLogger.
 type FileDataSourceOption interface {
 	apply(fp *FileDataSource) error
-	// GetFilePaths is used internally by WatchedFileUpdateProcessor.
-	GetFilePaths() []string
-	// GetLogger is used internally by WatchedFileUpdateProcessor.
-	GetLogger() ld.Logger
 }
 
-type fileDataSourceFilePathsOption struct {
+type filePathsOption struct {
 	paths []string
 }
 
-func (o fileDataSourceFilePathsOption) apply(fs *FileDataSource) error {
+func (o filePathsOption) apply(fs *FileDataSource) error {
 	abs, err := absFilePaths(o.paths)
 	if err != nil {
 		return err
@@ -39,41 +36,49 @@ func (o fileDataSourceFilePathsOption) apply(fs *FileDataSource) error {
 	return nil
 }
 
-func (o fileDataSourceFilePathsOption) GetFilePaths() []string {
-	return o.paths
-}
-
-func (o fileDataSourceFilePathsOption) GetLogger() ld.Logger {
-	return nil
-}
-
 // FilePaths creates an option for to NewFileDataSource, to specify the input
 // data files. The paths may be any number of absolute or relative file paths.
 func FilePaths(paths ...string) FileDataSourceOption {
-	return fileDataSourceFilePathsOption{paths}
+	return filePathsOption{paths}
 }
 
-type fileDataSourceLoggerOption struct {
+type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o fileDataSourceLoggerOption) apply(fs *FileDataSource) error {
+func (o loggerOption) apply(fs *FileDataSource) error {
 	fs.logger = o.logger
 	return nil
-}
-
-func (o fileDataSourceLoggerOption) GetFilePaths() []string {
-	return nil
-}
-
-func (o fileDataSourceLoggerOption) GetLogger() ld.Logger {
-	return o.logger
 }
 
 // UseLogger creates an option for NewFileDataSource, to specify where to send
 // log output. If not specified, a log.Logger is used.
 func UseLogger(logger ld.Logger) FileDataSourceOption {
-	return fileDataSourceLoggerOption{logger}
+	return loggerOption{logger}
+}
+
+// Reloader is an interface used with UseReloader, to specify a mechanism for reloading data files.
+type Reloader interface {
+	io.Closer
+	// Start is called by FileDataSource to tell the Reloader to begin watching the designated files.
+	Start(paths []string, logger ld.Logger, reload func() error) error
+}
+
+type reloaderOption struct {
+	reloader Reloader
+}
+
+func (o reloaderOption) apply(fs *FileDataSource) error {
+	fs.reloader = o.reloader
+	return nil
+}
+
+// UseReloader creates an option for NewFileDataSource, to specify a mechanism for reloading
+// data files. It is normally used with the ldfilewatch package, as follows:
+//
+//     ldfiledata.UseReloader(ldfilewatch.WatchFiles())
+func UseReloader(reloader Reloader) FileDataSourceOption {
+	return reloaderOption{reloader}
 }
 
 // FileDataSource allows the LaunchDarkly client to obtain feature flag data from a file or
@@ -82,9 +87,11 @@ func UseLogger(logger ld.Logger) FileDataSourceOption {
 // creating the client.
 type FileDataSource struct {
 	store         ld.FeatureStore
+	reloader      Reloader
 	logger        ld.Logger
 	isInitialized bool
 	absFilePaths  []string
+	readyCh       chan struct{}
 }
 
 // NewFileDataSource creates a new instance of FileDataSource, allowing the LaunchDarkly client
@@ -193,19 +200,30 @@ func (fs *FileDataSource) Initialized() bool {
 
 // Start is used internally by the LaunchDarkly client.
 func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
-	err := fs.loadAll()
+	err := fs.Reload()
 	if err != nil {
 		fs.logger.Printf("ERROR: Unable to load flags: %s\n", err)
-		close(closeWhenReady)
-		return
+	} else {
+		fs.isInitialized = true
 	}
 
-	fs.isInitialized = true
+	if fs.reloader != nil {
+		if !fs.isInitialized {
+
+		}
+		err := fs.reloader.Start(fs.absFilePaths, fs.logger, fs.Reload)
+		if err != nil {
+			fs.logger.Printf("ERROR: Unable to start reloader: %s\n", err)
+		}
+	}
 
 	close(closeWhenReady)
 }
 
-func (fs *FileDataSource) loadAll() error {
+// Reload tells the data source to immediately attempt to reread all of the configured source files
+// and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
+// be modified.
+func (fs *FileDataSource) Reload() error {
 	filesData := make([]fileData, 0)
 	for _, path := range fs.absFilePaths {
 		data, err := readFile(path)
@@ -314,5 +332,8 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 
 // Close is called automatically when the client is closed.
 func (fs *FileDataSource) Close() (err error) {
+	if fs.reloader != nil {
+		return fs.reloader.Close()
+	}
 	return nil
 }

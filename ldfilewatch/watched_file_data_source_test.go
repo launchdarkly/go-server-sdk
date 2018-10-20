@@ -60,7 +60,9 @@ flags: bad
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewWatchedFileDataSource(store, ldfiledata.FilePaths(filename))
+	dataSource, err := ldfiledata.NewFileDataSource(store,
+		ldfiledata.FilePaths(filename),
+		ldfiledata.UseReloader(WatchFiles()))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	go func() {
@@ -109,7 +111,9 @@ func TestNewWatchedFileMissing(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := NewWatchedFileDataSource(store, ldfiledata.FilePaths(filename))
+	dataSource, err := ldfiledata.NewFileDataSource(store,
+		ldfiledata.FilePaths(filename),
+		ldfiledata.UseReloader(WatchFiles()))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	go func() {
@@ -144,7 +148,9 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	dirPath := path.Join(tempDir, "test")
 	filePath := path.Join(dirPath, "flags.yml")
 
-	dataSource, err := NewWatchedFileDataSource(store, ldfiledata.FilePaths(filePath))
+	dataSource, err := ldfiledata.NewFileDataSource(store,
+		ldfiledata.FilePaths(filePath),
+		ldfiledata.UseReloader(WatchFiles()))
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	go func() {
