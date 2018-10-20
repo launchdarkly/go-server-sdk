@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unicode"
 
 	"gopkg.in/ghodss/yaml.v1"
@@ -91,7 +92,8 @@ type FileDataSource struct {
 	logger        ld.Logger
 	isInitialized bool
 	absFilePaths  []string
-	readyCh       chan struct{}
+	readyCh       chan<- struct{}
+	readyOnce     sync.Once
 }
 
 // NewFileDataSource creates a new instance of FileDataSource, allowing the LaunchDarkly client
@@ -200,24 +202,27 @@ func (fs *FileDataSource) Initialized() bool {
 
 // Start is used internally by the LaunchDarkly client.
 func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
+	fs.readyCh = closeWhenReady
 	err := fs.Reload()
 	if err != nil {
 		fs.logger.Printf("ERROR: Unable to load flags: %s\n", err)
 	} else {
-		fs.isInitialized = true
+		fs.signalStartComplete(true)
 	}
 
-	if fs.reloader != nil {
-		if !fs.isInitialized {
-
-		}
-		err := fs.reloader.Start(fs.absFilePaths, fs.logger, fs.Reload)
-		if err != nil {
-			fs.logger.Printf("ERROR: Unable to start reloader: %s\n", err)
-		}
+	// If there is no reloader, then we signal readiness immediately regardless of whether the
+	// data load succeeded or failed.
+	if fs.reloader == nil {
+		fs.signalStartComplete(fs.isInitialized)
+		return
 	}
 
-	close(closeWhenReady)
+	// If there is a reloader, and if we haven't yet successfully loaded data, then the
+	// readiness signal will happen the first time we do get valid data (in Reload).
+	err = fs.reloader.Start(fs.absFilePaths, fs.logger, fs.Reload)
+	if err != nil {
+		fs.logger.Printf("ERROR: Unable to start reloader: %s\n", err)
+	}
 }
 
 // Reload tells the data source to immediately attempt to reread all of the configured source files
@@ -236,8 +241,18 @@ func (fs *FileDataSource) Reload() error {
 	storeData, err := mergeFileData(filesData...)
 	if err == nil {
 		err = fs.store.Init(storeData)
+		fs.signalStartComplete(true)
 	}
 	return err
+}
+
+func (fs *FileDataSource) signalStartComplete(succeeded bool) {
+	fs.readyOnce.Do(func() {
+		fs.isInitialized = succeeded
+		if fs.readyCh != nil {
+			close(fs.readyCh)
+		}
+	})
 }
 
 func absFilePaths(paths []string) ([]string, error) {
