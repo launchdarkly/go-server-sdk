@@ -17,7 +17,7 @@ import (
 )
 
 // FileDataSourceOption is the interface for optional configuration parameters that can be
-// passed to NewFileDataSource. These include FilePaths and FileSourceLogger.
+// passed to NewFileDataSource. These include FilePaths and UseLogger.
 type FileDataSourceOption interface {
 	apply(fp *FileDataSource) error
 	// GetFilePaths is used internally by WatchedFileUpdateProcessor.
@@ -70,9 +70,9 @@ func (o fileDataSourceLoggerOption) GetLogger() ld.Logger {
 	return o.logger
 }
 
-// FileSourceLogger creates an option for NewFileDataSource, to specify where to send
+// UseLogger creates an option for NewFileDataSource, to specify where to send
 // log output. If not specified, a log.Logger is used.
-func FileSourceLogger(logger ld.Logger) FileDataSourceOption {
+func UseLogger(logger ld.Logger) FileDataSourceOption {
 	return fileDataSourceLoggerOption{logger}
 }
 
