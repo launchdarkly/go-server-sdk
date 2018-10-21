@@ -7,15 +7,12 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
 	"gopkg.in/launchdarkly/go-client.v4/ldfiledata"
 )
-
-const retryDuration = time.Second
 
 // WatchFiles sets up a mechanism for FileDataSource to reload its source files whenever one of them has
 // been modified. Use it as follows:
@@ -35,43 +32,29 @@ type fileWatchingReloader struct {
 }
 
 // Start is used internally by FileDataSource.
-func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload func() error) error {
+func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload func()) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("Unable to create file watcher: %s", err)
 	}
 
-	retryChannel := make(chan struct{}, 1)
-	scheduleRetry := func() {
-		time.AfterFunc(retryDuration, func() {
-			select {
-			case retryChannel <- struct{}{}: // don't need multiple retries so no need to block
-			default:
-			}
-		})
+	realPaths := map[string]bool{}
+	for _, p := range paths {
+		absDirPath := path.Dir(p)
+		realDirPath, err := filepath.EvalSymlinks(absDirPath)
+		if err != nil {
+			return fmt.Errorf(`Unable to evaluate symlinks for "%s": %s`, absDirPath, err)
+		}
+
+		realPath := path.Join(realDirPath, path.Base(p))
+		realPaths[realPath] = true
+		if err = watcher.Add(realDirPath); err != nil {
+			return fmt.Errorf(`Unable to watch directory "%s" for file "%s": %s`, realDirPath, p, err)
+		}
 	}
+
 	go func() {
 		for {
-			realPaths := map[string]bool{}
-			for _, p := range paths {
-				absDirPath := path.Dir(p)
-				realDirPath, err := filepath.EvalSymlinks(absDirPath)
-				if err != nil {
-					logger.Printf(`Unable to evaluate symlinks for "%s": %s`, absDirPath, err)
-					scheduleRetry()
-				}
-
-				realPath := path.Join(realDirPath, path.Base(p))
-				realPaths[realPath] = true
-				_ = watcher.Add(realPath) // ok if this doesn't find the file: we're still watching the directory
-
-				if err = watcher.Add(realDirPath); err != nil {
-					logger.Printf(`Unable to watch directory "%s" for file "%s": %s`, realDirPath, p, err)
-					scheduleRetry()
-				}
-			}
-
-		WaitForUpdates:
 			for {
 				select {
 				case <-fw.closeCh:
@@ -91,25 +74,11 @@ func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload f
 								break ConsumeExtraEvents
 							}
 						}
-						break WaitForUpdates
+						reload()
 					}
 				case err := <-watcher.Errors:
 					logger.Println("ERROR: ", err)
-				case <-retryChannel:
-				ConsumeExtraRetries:
-					for {
-						select {
-						case <-retryChannel:
-						default:
-							break ConsumeExtraRetries
-						}
-					}
-					break WaitForUpdates
 				}
-			}
-			err := reload()
-			if err != nil {
-				logger.Printf("Unable to reload flags from data source: %s", err)
 			}
 		}
 	}()

@@ -62,7 +62,7 @@ func UseLogger(logger ld.Logger) FileDataSourceOption {
 type Reloader interface {
 	io.Closer
 	// Start is called by FileDataSource to tell the Reloader to begin watching the designated files.
-	Start(paths []string, logger ld.Logger, reload func() error) error
+	Start(paths []string, logger ld.Logger, reload func()) error
 }
 
 type reloaderOption struct {
@@ -203,12 +203,7 @@ func (fs *FileDataSource) Initialized() bool {
 // Start is used internally by the LaunchDarkly client.
 func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
 	fs.readyCh = closeWhenReady
-	err := fs.Reload()
-	if err != nil {
-		fs.logger.Printf("ERROR: Unable to load flags: %s\n", err)
-	} else {
-		fs.signalStartComplete(true)
-	}
+	fs.reload()
 
 	// If there is no reloader, then we signal readiness immediately regardless of whether the
 	// data load succeeded or failed.
@@ -218,8 +213,8 @@ func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
 	}
 
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
-	// readiness signal will happen the first time we do get valid data (in Reload).
-	err = fs.reloader.Start(fs.absFilePaths, fs.logger, fs.Reload)
+	// readiness signal will happen the first time we do get valid data (in reload).
+	err := fs.reloader.Start(fs.absFilePaths, fs.logger, fs.reload)
 	if err != nil {
 		fs.logger.Printf("ERROR: Unable to start reloader: %s\n", err)
 	}
@@ -228,14 +223,15 @@ func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
 // Reload tells the data source to immediately attempt to reread all of the configured source files
 // and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
 // be modified.
-func (fs *FileDataSource) Reload() error {
+func (fs *FileDataSource) reload() {
 	filesData := make([]fileData, 0)
 	for _, path := range fs.absFilePaths {
 		data, err := readFile(path)
 		if err == nil {
 			filesData = append(filesData, data)
 		} else {
-			return fmt.Errorf("%s [%s]", err, path)
+			fs.logger.Printf("ERROR: Unable to load flags: %s [%s]", err, path)
+			return
 		}
 	}
 	storeData, err := mergeFileData(filesData...)
@@ -243,7 +239,9 @@ func (fs *FileDataSource) Reload() error {
 		err = fs.store.Init(storeData)
 		fs.signalStartComplete(true)
 	}
-	return err
+	if err != nil {
+		fs.logger.Printf("ERROR: %s", err)
+	}
 }
 
 func (fs *FileDataSource) signalStartComplete(succeeded bool) {

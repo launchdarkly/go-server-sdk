@@ -3,7 +3,6 @@ package ldfilewatch
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -131,47 +130,6 @@ flags:
 	<-closeWhenReady
 
 	requireTrueWithinDuration(t, time.Second, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ld.FeatureFlag) bool {
-			return f.On
-		})
-	})
-	assert.True(t, dataSource.Initialized())
-}
-
-// Directory needn't exist when the dataSource is started
-func TestNewWatchedDirectoryMissing(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "file-source-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-	store := ld.NewInMemoryFeatureStore(nil)
-
-	dirPath := path.Join(tempDir, "test")
-	filePath := path.Join(dirPath, "flags.yml")
-
-	dataSource, err := ldfiledata.NewFileDataSource(store,
-		ldfiledata.FilePaths(filePath),
-		ldfiledata.UseReloader(WatchFiles()))
-	require.NoError(t, err)
-	defer dataSource.Close()
-
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-
-	time.Sleep(time.Second)
-	err = os.Mkdir(dirPath, 0700)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second)
-	replaceFileContents(t, filePath, `
----
-flags:
-  my-flag:
-    "on": true
-`)
-
-	<-closeWhenReady
-
-	requireTrueWithinDuration(t, time.Second*2, func() bool {
 		return hasFlag(t, store, "my-flag", func(f ld.FeatureFlag) bool {
 			return f.On
 		})
