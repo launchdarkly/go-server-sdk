@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
-	"gopkg.in/launchdarkly/go-client.v4/ldfiledata"
 )
 
 const retryDuration = time.Second
@@ -22,20 +20,8 @@ const retryDuration = time.Second
 //
 //     fileSource, err := ldfiledata.NewFileDataSource(featureStore,
 //         ldfiledata.FilePaths("./test-data/my-flags.json"),
-//         ldfiledata.UseReloader(ldfilewatch.WatchFiles()))
-func WatchFiles() ldfiledata.Reloader {
-	return &fileWatchingReloader{
-		closeCh: make(chan struct{}),
-	}
-}
-
-type fileWatchingReloader struct {
-	closeOnce sync.Once
-	closeCh   chan struct{}
-}
-
-// Start is used internally by FileDataSource.
-func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload func()) error {
+//         ldfiledata.UseReloader(ldfilewatch.WatchFiles))
+func WatchFiles(paths []string, logger ld.Logger, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("Unable to create file watcher: %s", err)
@@ -74,7 +60,7 @@ func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload f
 		WaitForUpdates:
 			for {
 				select {
-				case <-fw.closeCh:
+				case <-closeCh:
 					err := watcher.Close()
 					if err != nil {
 						logger.Printf("Error closing Watcher: %s", err)
@@ -111,13 +97,5 @@ func (fw *fileWatchingReloader) Start(paths []string, logger ld.Logger, reload f
 		}
 	}()
 
-	return nil
-}
-
-// Close is used internally by FileDataSource.
-func (fw *fileWatchingReloader) Close() error {
-	fw.closeOnce.Do(func() {
-		close(fw.closeCh)
-	})
 	return nil
 }

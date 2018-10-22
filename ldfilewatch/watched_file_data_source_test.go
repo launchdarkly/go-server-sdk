@@ -62,7 +62,7 @@ flags: bad
 
 	dataSource, err := ldfiledata.NewFileDataSource(store,
 		ldfiledata.FilePaths(filename),
-		ldfiledata.UseReloader(WatchFiles()))
+		ldfiledata.UseReloader(WatchFiles))
 	require.NoError(t, err)
 	defer dataSource.Close()
 
@@ -113,7 +113,7 @@ func TestNewWatchedFileMissing(t *testing.T) {
 
 	dataSource, err := ldfiledata.NewFileDataSource(store,
 		ldfiledata.FilePaths(filename),
-		ldfiledata.UseReloader(WatchFiles()))
+		ldfiledata.UseReloader(WatchFiles))
 	defer dataSource.Close()
 
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 
 	dataSource, err := ldfiledata.NewFileDataSource(store,
 		ldfiledata.FilePaths(filePath),
-		ldfiledata.UseReloader(WatchFiles()))
+		ldfiledata.UseReloader(WatchFiles))
 	require.NoError(t, err)
 	defer dataSource.Close()
 

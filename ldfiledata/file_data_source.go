@@ -4,7 +4,6 @@ package ldfiledata
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -58,28 +57,25 @@ func UseLogger(logger ld.Logger) FileDataSourceOption {
 	return loggerOption{logger}
 }
 
-// Reloader is an interface used with UseReloader, to specify a mechanism for reloading data files.
-type Reloader interface {
-	io.Closer
-	// Start is called by FileDataSource to tell the Reloader to begin watching the designated files.
-	Start(paths []string, logger ld.Logger, reload func()) error
-}
+// ReloaderFactory is a function type used with UseReloader, to specify a mechanism for detecting when
+// data files should be reloaded. Its standard implementation is in the ldfilewatch package.
+type ReloaderFactory func(paths []string, logger ld.Logger, reload func(), closeCh <-chan struct{}) error
 
 type reloaderOption struct {
-	reloader Reloader
+	reloaderFactory ReloaderFactory
 }
 
 func (o reloaderOption) apply(fs *FileDataSource) error {
-	fs.reloader = o.reloader
+	fs.reloaderFactory = o.reloaderFactory
 	return nil
 }
 
 // UseReloader creates an option for NewFileDataSource, to specify a mechanism for reloading
 // data files. It is normally used with the ldfilewatch package, as follows:
 //
-//     ldfiledata.UseReloader(ldfilewatch.WatchFiles())
-func UseReloader(reloader Reloader) FileDataSourceOption {
-	return reloaderOption{reloader}
+//     ldfiledata.UseReloader(ldfilewatch.WatchFiles)
+func UseReloader(reloaderFactory ReloaderFactory) FileDataSourceOption {
+	return reloaderOption{reloaderFactory}
 }
 
 // FileDataSource allows the LaunchDarkly client to obtain feature flag data from a file or
@@ -87,13 +83,15 @@ func UseReloader(reloader Reloader) FileDataSourceOption {
 // and store it in the UpdateProcessor property of the LaunchDarkly client configuration before
 // creating the client.
 type FileDataSource struct {
-	store         ld.FeatureStore
-	reloader      Reloader
-	logger        ld.Logger
-	isInitialized bool
-	absFilePaths  []string
-	readyCh       chan<- struct{}
-	readyOnce     sync.Once
+	store           ld.FeatureStore
+	reloaderFactory ReloaderFactory
+	logger          ld.Logger
+	isInitialized   bool
+	absFilePaths    []string
+	readyCh         chan<- struct{}
+	readyOnce       sync.Once
+	closeOnce       sync.Once
+	closeReloaderCh chan struct{}
 }
 
 // NewFileDataSource creates a new instance of FileDataSource, allowing the LaunchDarkly client
@@ -207,14 +205,15 @@ func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
 
 	// If there is no reloader, then we signal readiness immediately regardless of whether the
 	// data load succeeded or failed.
-	if fs.reloader == nil {
+	if fs.reloaderFactory == nil {
 		fs.signalStartComplete(fs.isInitialized)
 		return
 	}
 
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
 	// readiness signal will happen the first time we do get valid data (in reload).
-	err := fs.reloader.Start(fs.absFilePaths, fs.logger, fs.reload)
+	fs.closeReloaderCh = make(chan struct{})
+	err := fs.reloaderFactory(fs.absFilePaths, fs.logger, fs.reload, fs.closeReloaderCh)
 	if err != nil {
 		fs.logger.Printf("ERROR: Unable to start reloader: %s\n", err)
 	}
@@ -345,8 +344,10 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 
 // Close is called automatically when the client is closed.
 func (fs *FileDataSource) Close() (err error) {
-	if fs.reloader != nil {
-		return fs.reloader.Close()
-	}
+	fs.closeOnce.Do(func() {
+		if fs.closeReloaderCh != nil {
+			close(fs.closeReloaderCh)
+		}
+	})
 	return nil
 }
