@@ -57,6 +57,11 @@ func WatchFiles(paths []string, logger ld.Logger, reload func(), closeCh <-chan 
 				}
 			}
 
+			// We do the reload here rather than after WaitForUpdates, even though that means there will be a
+			// redundant load when we first start up, because otherwise there's a potential race condition where
+			// file changes could happen before we had set up our file watcher.
+			reload()
+
 		WaitForUpdates:
 			for {
 				select {
@@ -93,7 +98,6 @@ func WatchFiles(paths []string, logger ld.Logger, reload func(), closeCh <-chan 
 					break WaitForUpdates
 				}
 			}
-			reload()
 		}
 	}()
 
