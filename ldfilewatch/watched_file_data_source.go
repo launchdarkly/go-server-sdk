@@ -101,28 +101,33 @@ func (fw *fileWatcher) waitForEvents() bool {
 			if !fw.absPaths[event.Name] {
 				break
 			}
-			// Consume extra events
-		ConsumeExtraEvents:
-			for {
-				select {
-				case <-fw.watcher.Events:
-				default:
-					break ConsumeExtraEvents
-				}
-			}
+			fw.consumeExtraEvents()
 			return false
 		case err := <-fw.watcher.Errors:
 			fw.logger.Println("ERROR: ", err)
 		case <-fw.retryCh:
-		ConsumeExtraRetries:
-			for {
-				select {
-				case <-fw.retryCh:
-				default:
-					break ConsumeExtraRetries
-				}
-			}
+			fw.consumeExtraRetries()
 			return false
+		}
+	}
+}
+
+func (fw *fileWatcher) consumeExtraEvents() {
+	for {
+		select {
+		case <-fw.watcher.Events:
+		default:
+			return
+		}
+	}
+}
+
+func (fw *fileWatcher) consumeExtraRetries() {
+	for {
+		select {
+		case <-fw.retryCh:
+		default:
+			return
 		}
 	}
 }
