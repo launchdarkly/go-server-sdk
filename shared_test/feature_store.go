@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
@@ -187,59 +188,56 @@ func makeAllVersionedDataMap(
 func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureStore,
 	setConcurrentModifier func(flagGenerator func() *ld.FeatureFlag)) {
 
-	concurrentModFlagGenerator := func(flag ld.FeatureFlag, startVersion int, endVersion int) func() *ld.FeatureFlag {
+	flagKey := "foo"
+
+	makeFlagWithVersion := func(version int) *ld.FeatureFlag {
+		return &ld.FeatureFlag{Key: flagKey, Version: version}
+	}
+
+	setupStore := func(initialVersion int) {
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagKey: makeFlagWithVersion(initialVersion)},
+		}
+		require.NoError(t, store.Init(allData))
+	}
+
+	concurrentModFlagGenerator := func(startVersion int, endVersion int) func() *ld.FeatureFlag {
 		versionCounter := startVersion
 		return func() *ld.FeatureFlag {
 			if versionCounter > endVersion {
 				return nil
 			}
-			flag.Version = versionCounter
+			v := versionCounter
 			versionCounter++
-			return &flag
+			return makeFlagWithVersion(v)
 		}
 	}
 
 	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
-		flag := ld.FeatureFlag{
-			Key:     "foo",
-			Version: 1,
-		}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag.Key: &flag},
-		}
-		assert.NoError(t, store.Init(allData))
+		setupStore(1)
 
-		setConcurrentModifier(concurrentModFlagGenerator(flag, 2, 4))
+		setConcurrentModifier(concurrentModFlagGenerator(2, 4))
 		defer setConcurrentModifier(nil)
 
-		flag.Version = 10
-		assert.NoError(t, store.Upsert(ld.Features, &flag))
+		assert.NoError(t, store.Upsert(ld.Features, makeFlagWithVersion(10)))
 
 		var result ld.VersionedData
-		result, err := store.Get(ld.Features, flag.Key)
+		result, err := store.Get(ld.Features, flagKey)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
 	})
 
 	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
-		flag := ld.FeatureFlag{
-			Key:     "foo",
-			Version: 1,
-		}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag.Key: &flag},
-		}
-		assert.NoError(t, store.Init(allData))
+		setupStore(1)
 
-		setConcurrentModifier(concurrentModFlagGenerator(flag, 3, 3))
+		setConcurrentModifier(concurrentModFlagGenerator(3, 3))
 		defer setConcurrentModifier(nil)
 
-		flag.Version = 2
-		assert.NoError(t, store.Upsert(ld.Features, &flag))
+		assert.NoError(t, store.Upsert(ld.Features, makeFlagWithVersion(2)))
 
 		var result ld.VersionedData
-		result, err := store.Get(ld.Features, flag.Key)
+		result, err := store.Get(ld.Features, flagKey)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
