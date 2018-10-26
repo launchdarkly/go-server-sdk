@@ -21,8 +21,6 @@ type fileWatcher struct {
 	reload   func()
 	paths    []string
 	absPaths map[string]bool
-	retryCh  chan struct{}
-	closeCh  <-chan struct{}
 }
 
 // WatchFiles sets up a mechanism for FileDataSource to reload its source files whenever one of them has
@@ -42,18 +40,25 @@ func WatchFiles(paths []string, logger ld.Logger, reload func(), closeCh <-chan 
 		reload:   reload,
 		paths:    paths,
 		absPaths: make(map[string]bool),
-		retryCh:  make(chan struct{}, 1),
-		closeCh:  closeCh,
 	}
-	go fw.run()
+	go fw.run(closeCh)
 	return nil
 }
 
-func (fw *fileWatcher) run() {
+func (fw *fileWatcher) run(closeCh <-chan struct{}) {
+	retryCh := make(chan struct{}, 1)
+	scheduleRetry := func() {
+		time.AfterFunc(retryDuration, func() {
+			select {
+			case retryCh <- struct{}{}: // don't need multiple retries so no need to block
+			default:
+			}
+		})
+	}
 	for {
 		if err := fw.setupWatches(); err != nil {
 			fw.logger.Printf(err.Error())
-			fw.scheduleRetry()
+			scheduleRetry()
 		}
 
 		// We do the reload here rather than after waitForEvents, even though that means there will be a
@@ -61,7 +66,7 @@ func (fw *fileWatcher) run() {
 		// file changes could happen before we had set up our file watcher.
 		fw.reload()
 
-		quit := fw.waitForEvents()
+		quit := fw.waitForEvents(closeCh, retryCh)
 		if quit {
 			return
 		}
@@ -88,10 +93,10 @@ func (fw *fileWatcher) setupWatches() error {
 	return nil
 }
 
-func (fw *fileWatcher) waitForEvents() bool {
+func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan struct{}) bool {
 	for {
 		select {
-		case <-fw.closeCh:
+		case <-closeCh:
 			err := fw.watcher.Close()
 			if err != nil {
 				fw.logger.Printf("Error closing Watcher: %s", err)
@@ -105,8 +110,8 @@ func (fw *fileWatcher) waitForEvents() bool {
 			return false
 		case err := <-fw.watcher.Errors:
 			fw.logger.Println("ERROR: ", err)
-		case <-fw.retryCh:
-			fw.consumeExtraRetries()
+		case <-retryCh:
+			consumeExtraRetries(retryCh)
 			return false
 		}
 	}
@@ -122,21 +127,12 @@ func (fw *fileWatcher) consumeExtraEvents() {
 	}
 }
 
-func (fw *fileWatcher) consumeExtraRetries() {
+func consumeExtraRetries(retryCh <-chan struct{}) {
 	for {
 		select {
-		case <-fw.retryCh:
+		case <-retryCh:
 		default:
 			return
 		}
 	}
-}
-
-func (fw *fileWatcher) scheduleRetry() {
-	time.AfterFunc(retryDuration, func() {
-		select {
-		case fw.retryCh <- struct{}{}: // don't need multiple retries so no need to block
-		default:
-		}
-	})
 }
