@@ -356,7 +356,8 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 	return nil
 }
 
-func (store *FeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string, useCache bool) (ld.VersionedData, uint64, error) {
+func (store *FeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string,
+	useCache bool) (retrievedItem ld.VersionedData, modifyIndex uint64, err error) {
 	var defaultModifyIndex = uint64(0)
 	if useCache && store.cache != nil {
 		if data, present := store.cache.Get(cacheKey(kind, key)); present {
