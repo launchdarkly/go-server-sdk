@@ -83,6 +83,7 @@ jobs:
           <<: *environment
           DISABLE_COVERAGE: 1
       - image: redis
+      - image: consul
 
     <<: *build_steps
 
@@ -95,6 +96,7 @@ jobs:
           <<: *environment
           DISABLE_COVERAGE: 1
       - image: redis
+      - image: consul
 
     <<: *build_steps
 
