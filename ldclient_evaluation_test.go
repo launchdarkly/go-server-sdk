@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -448,7 +449,7 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 		"key2":"value2",
 		"$flagsState":{
 	  		"key1":{
-				"variation":0,"version":100,"trackEvents":false
+				"variation":0,"version":100
 			},
 			"key2": {
 				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000
@@ -521,10 +522,66 @@ func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
 		"key2":"value2",
 		"$flagsState":{
 	  		"key1":{
-				"variation":0,"version":100,"reason":{"kind":"OFF"},"trackEvents":false
+				"variation":0,"version":100,"reason":{"kind":"OFF"}
 			},
 			"key2": {
 				"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true,"debugEventsUntilDate":1000
+			}
+		},
+		"$valid":true
+	}`
+	actualBytes, err := json.Marshal(state)
+	assert.NoError(t, err)
+	assert.JSONEq(t, expectedString, string(actualBytes))
+}
+
+func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	futureTime := now() + 100000
+	futureTimeStr := strconv.FormatInt(int64(futureTime), 10)
+	flag1 := FeatureFlag{
+		Key:          "key1",
+		Version:      100,
+		OffVariation: intPtr(0),
+		Variations:   []interface{}{"value1"},
+	}
+	flag2 := FeatureFlag{
+		Key:          "key2",
+		Version:      200,
+		OffVariation: intPtr(1),
+		Variations:   []interface{}{"x", "value2"},
+		TrackEvents:  true,
+	}
+	flag3 := FeatureFlag{
+		Key:                  "key3",
+		Version:              300,
+		OffVariation:         intPtr(1),
+		Variations:           []interface{}{"x", "value3"},
+		TrackEvents:          false,
+		DebugEventsUntilDate: &futureTime, // event tracking is turned on temporarily even though TrackEvents is false
+	}
+	client.store.Upsert(Features, &flag1)
+	client.store.Upsert(Features, &flag2)
+	client.store.Upsert(Features, &flag3)
+
+	state := client.AllFlagsState(NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
+	assert.True(t, state.IsValid())
+
+	expectedString := `{
+		"key1":"value1",
+		"key2":"value2",
+		"key3":"value3",
+		"$flagsState":{
+	  		"key1":{
+				"variation":0
+			},
+			"key2": {
+				"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true
+			},
+			"key3": {
+				"variation":1,"version":300,"reason":{"kind":"OFF"},"debugEventsUntilDate":` + futureTimeStr + `
 			}
 		},
 		"$valid":true

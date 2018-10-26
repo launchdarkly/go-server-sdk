@@ -78,15 +78,6 @@ if showFeature {
 }
 ```
 
-Building without Redis
-----------------------
-
-The SDK includes an adapter for caching feature flag data in [Redis](https://redis.io), using [Redigo](https://github.com/garyburd/redigo). If you don't intend to use Redis and would like to avoid installing Redigo, add the following build tag to your `go build` command:
-
-```
--tags launchdarkly_no_redis
-```
-
 Learn more
 -----------
 

@@ -20,6 +20,12 @@
   revision = "ccde4420e1fee9af5da365cb76075b95683f39a6"
 
 [[projects]]
+  name = "github.com/fsnotify/fsnotify"
+  packages = ["."]
+  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
+  version = "v1.4.7"
+
+[[projects]]
   name = "github.com/garyburd/redigo"
   packages = [
     "internal",
@@ -54,13 +60,34 @@
 
 [[projects]]
   name = "github.com/stretchr/testify"
-  packages = ["assert"]
+  packages = [
+    "assert",
+    "require"
+  ]
   revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
   version = "v1.2.1"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  revision = "8e24a49d80f82323e1c4db1b5da3e0f31171a151"
+
+[[projects]]
+  name = "gopkg.in/ghodss/yaml.v1"
+  packages = ["."]
+  revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fe5787e27adde0e634f9078953e3b9c619e29042b5291e5ddf8f2d69444a5a76"
+  inputs-digest = "8c97c9933515805154179289c2895219464efd407ff88658308444cd8ac81dc8"
   solver-name = "gps-cdcl"
   solver-version = 1
