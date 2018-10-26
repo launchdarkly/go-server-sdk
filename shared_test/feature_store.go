@@ -185,6 +185,14 @@ func makeAllVersionedDataMap(
 
 // RunFeatureStoreConcurrentModificationTests runs tests of concurrent modification behavior
 // for store implementations that support testing this.
+//
+// The setConcurrentModifier function should behave as follows:
+// - If flagGenerator is non-nil, cause a test hook to be executed inside of each update
+//   in the feature store. It should be run after the store has read the previous value,
+//   but before it writes the new value.
+// - The test hook should call flagGenerator and, if it returns a non-nil value, write the
+//   returned flag directly into the database.
+// - If flagGenerator is non-nil, remove the test hook.
 func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureStore,
 	setConcurrentModifier func(flagGenerator func() *ld.FeatureFlag)) {
 
