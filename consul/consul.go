@@ -50,7 +50,9 @@ func NewConsulFeatureStoreWithConfig(config *consul.Config, prefix string, timeo
 	}
 
 	client, err := consul.NewClient(config)
-
+	if err != nil {
+		return nil, err
+	}
 	return &FeatureStore{
 		prefix:  prefix,
 		inited:  false,
@@ -58,7 +60,7 @@ func NewConsulFeatureStoreWithConfig(config *consul.Config, prefix string, timeo
 		timeout: timeout,
 		cache:   c,
 		client:  client,
-	}, err
+	}, nil
 }
 
 // Get returns an individual object of a given type from the store
