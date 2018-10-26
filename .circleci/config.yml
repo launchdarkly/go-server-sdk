@@ -70,6 +70,7 @@ jobs:
         environment:
           <<: *environment
       - image: redis
+      - image: consul
 
     <<: *build_steps
 
