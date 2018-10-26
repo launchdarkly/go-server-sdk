@@ -1,5 +1,7 @@
-// Package ldfilewatch allows the LaunchDarkly client to read feature flag data from
-// a file, with automatic reloading.
+// Package ldfilewatch allows the LaunchDarkly client to read feature flag data from a
+// file, with automatic reloading. It should be used in conjunction with the ldfiledata package.
+// The two packages are separate so as to avoid bringing additional dependencies for users who
+// do not need automatic reloading.
 package ldfilewatch
 
 import (
@@ -23,10 +25,10 @@ type fileWatcher struct {
 	absPaths map[string]bool
 }
 
-// WatchFiles sets up a mechanism for FileDataSource to reload its source files whenever one of them has
+// WatchFiles sets up a mechanism for the file data source to reload its source files whenever one of them has
 // been modified. Use it as follows:
 //
-//     fileSource, err := ldfiledata.NewFileDataSource(featureStore,
+//     factory := ldfiledata.NewFileDataSourceFactory(
 //         ldfiledata.FilePaths("./test-data/my-flags.json"),
 //         ldfiledata.UseReloader(ldfilewatch.WatchFiles))
 func WatchFiles(paths []string, logger ld.Logger, reload func(), closeCh <-chan struct{}) error {

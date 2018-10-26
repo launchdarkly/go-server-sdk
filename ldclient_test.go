@@ -26,11 +26,18 @@ func (u mockUpdateProcessor) Close() error {
 	}
 	return u.CloseFn()
 }
+
 func (u mockUpdateProcessor) Start(closeWhenReady chan<- struct{}) {
 	if u.StartFn == nil {
 		return
 	}
 	u.StartFn(closeWhenReady)
+}
+
+func updateProcessorFactory(u UpdateProcessor) func(string, Config) (UpdateProcessor, error) {
+	return func(key string, c Config) (UpdateProcessor, error) {
+		return u, nil
+	}
 }
 
 type testEventProcessor struct {
@@ -101,10 +108,10 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient("sdkKey", Config{
-		Logger:                log.New(ioutil.Discard, "", 0),
-		UpdateProcessor:       updateProcessor,
-		EventProcessor:        &testEventProcessor{},
-		UserKeysFlushInterval: 30 * time.Second,
+		Logger:                 log.New(ioutil.Discard, "", 0),
+		UpdateProcessorFactory: updateProcessorFactory(updateProcessor),
+		EventProcessor:         &testEventProcessor{},
+		UserKeysFlushInterval:  30 * time.Second,
 	}, time.Second)
 
 	assert.NotNil(t, client)
@@ -117,9 +124,9 @@ func makeTestClient() *LDClient {
 		Offline:      false,
 		SendEvents:   true,
 		FeatureStore: NewInMemoryFeatureStore(nil),
-		UpdateProcessor: mockUpdateProcessor{
+		UpdateProcessorFactory: updateProcessorFactory(mockUpdateProcessor{
 			IsInitialized: true,
-		},
+		}),
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}
