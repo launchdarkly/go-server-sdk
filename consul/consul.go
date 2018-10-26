@@ -214,11 +214,14 @@ func unmarshalItem(kind ld.VersionedDataKind, raw []byte) (ld.VersionedData, err
 }
 
 func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newItem ld.VersionedData) error {
+	data, jsonErr := json.Marshal(newItem)
+	if jsonErr != nil {
+		return jsonErr
+	}
 	key := newItem.GetKey()
 
 	// We will potentially keep retrying to store indefinitely until someone's write succeeds
 	for {
-
 		// Get the item
 		oldItem, modifyIndex, err := store.getEvenIfDeleted(kind, key, false)
 
@@ -228,7 +231,7 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 
 		// Check whether the item is stale. If so, just return
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
-			return nil
+			break
 		}
 
 		if store.testTxHook != nil { // instrumentation for unit tests
@@ -236,11 +239,6 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 		}
 
 		// Otherwise, try to write.
-		data, jsonErr := json.Marshal(newItem)
-		if jsonErr != nil {
-			return jsonErr
-		}
-
 		// Compare and swap the item.
 		kv := store.client.KV()
 
@@ -256,20 +254,19 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 			return err
 		}
 
-		// If we failed, retry the whole shebang
-		if !written {
+		if written {
+			// Success - clear the cache and exit
+			if store.cache != nil {
+				store.cache.Delete(allFlagsCacheKey(kind))
+				store.cache.Set(cacheKey(kind, key), newItem, store.timeout)
+			}
+			break
+		} else {
+			// If we failed, retry the whole shebang
 			store.logger.Printf("ConsulFeatureStore: DEBUG: Concurrent modification detected, retrying")
-			continue
 		}
-
-		// Otherwise, clear the cache and exit
-		if store.cache != nil {
-			store.cache.Delete(allFlagsCacheKey(kind))
-			store.cache.Set(cacheKey(kind, key), newItem, store.timeout)
-		}
-
-		return nil
 	}
+	return nil
 }
 
 func (store *FeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string, useCache bool) (ld.VersionedData, uint64, error) {
