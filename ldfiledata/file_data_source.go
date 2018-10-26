@@ -18,16 +18,16 @@ import (
 )
 
 // FileDataSourceOption is the interface for optional configuration parameters that can be
-// passed to NewFileDataSource. These include FilePaths and UseLogger.
+// passed to NewFileDataSourceFactory. These include FilePaths and UseLogger.
 type FileDataSourceOption interface {
-	apply(fp *FileDataSource) error
+	apply(fp *fileDataSource) error
 }
 
 type filePathsOption struct {
 	paths []string
 }
 
-func (o filePathsOption) apply(fs *FileDataSource) error {
+func (o filePathsOption) apply(fs *fileDataSource) error {
 	abs, err := absFilePaths(o.paths)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (o filePathsOption) apply(fs *FileDataSource) error {
 	return nil
 }
 
-// FilePaths creates an option for to NewFileDataSource, to specify the input
+// FilePaths creates an option for to NewFileDataSourceFactory, to specify the input
 // data files. The paths may be any number of absolute or relative file paths.
 func FilePaths(paths ...string) FileDataSourceOption {
 	return filePathsOption{paths}
@@ -46,12 +46,12 @@ type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o loggerOption) apply(fs *FileDataSource) error {
+func (o loggerOption) apply(fs *fileDataSource) error {
 	fs.logger = o.logger
 	return nil
 }
 
-// UseLogger creates an option for NewFileDataSource, to specify where to send
+// UseLogger creates an option for NewFileDataSourceFactory, to specify where to send
 // log output. If not specified, a log.Logger is used.
 func UseLogger(logger ld.Logger) FileDataSourceOption {
 	return loggerOption{logger}
@@ -65,12 +65,12 @@ type reloaderOption struct {
 	reloaderFactory ReloaderFactory
 }
 
-func (o reloaderOption) apply(fs *FileDataSource) error {
+func (o reloaderOption) apply(fs *fileDataSource) error {
 	fs.reloaderFactory = o.reloaderFactory
 	return nil
 }
 
-// UseReloader creates an option for NewFileDataSource, to specify a mechanism for reloading
+// UseReloader creates an option for NewFileDataSourceFactory, to specify a mechanism for reloading
 // data files. It is normally used with the ldfilewatch package, as follows:
 //
 //     ldfiledata.UseReloader(ldfilewatch.WatchFiles)
@@ -78,11 +78,7 @@ func UseReloader(reloaderFactory ReloaderFactory) FileDataSourceOption {
 	return reloaderOption{reloaderFactory}
 }
 
-// FileDataSource allows the LaunchDarkly client to obtain feature flag data from a file or
-// files, rather than from LaunchDarkly. To use it, create an instance with NewFileDataSource()
-// and store it in the UpdateProcessor property of the LaunchDarkly client configuration before
-// creating the client.
-type FileDataSource struct {
+type fileDataSource struct {
 	store           ld.FeatureStore
 	reloaderFactory ReloaderFactory
 	logger          ld.Logger
@@ -94,20 +90,15 @@ type FileDataSource struct {
 	closeReloaderCh chan struct{}
 }
 
-// NewFileDataSource creates a new instance of FileDataSource, allowing the LaunchDarkly client
-// to read feature flag data from a file or files. You should store this instance in the UpdateProcessor
+// NewFileDataSourceFactory returns a function that allows the LaunchDarkly client to read feature
+// flag data from a file or files. You must store this function in the UpdateProcessorFactory
 // property of your client configuration before creating the client:
 //
-//     featureStore := ld.NewInMemoryFeatureStore(nil)
-//     fileSource, err := ldfiledata.NewFileDataSource(featureStore,
+//     fileSource, err := ldfiledata.NewFileDataSourceFactory(
 //         ldfiledata.FilePaths("./test-data/my-flags.json"))
 //     ldConfig := ld.DefaultConfig
-//     ldConfig.FeatureStore = featureStore
-//     ldConfig.UpdateProcessor = fileSource
+//     ldConfig.UpdateProcessorFactory = fileSource
 //     ldClient := ld.MakeCustomClient(mySdkKey, ldConfig, 5*time.Second)
-//
-// It is important to set the FeatureStore property of your client configuration to the same FeatureStore
-// object that you passed to NewFileDataSource; this is how the component provides flag data to the client.
 //
 // Use FilePaths to specify any number of file paths. The files are not actually loaded until the
 // client starts up. At that point, if any file does not exist or cannot be parsed, the FileDataSource
@@ -173,12 +164,17 @@ type FileDataSource struct {
 //
 // If the data source encounters any error in any file-- malformed content, a missing file, or a
 // duplicate key-- it will not load flags from any of the files.
-func NewFileDataSource(featureStore ld.FeatureStore,
-	options ...FileDataSourceOption) (*FileDataSource, error) {
+func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.UpdateProcessorFactory {
+	return func(sdkKey string, config ld.Config) (ld.UpdateProcessor, error) {
+		return newFileDataSource(config.FeatureStore, options...)
+	}
+}
+
+func newFileDataSource(featureStore ld.FeatureStore, options ...FileDataSourceOption) (*fileDataSource, error) {
 	if featureStore == nil {
 		return nil, fmt.Errorf("featureStore must not be nil")
 	}
-	fs := &FileDataSource{
+	fs := &fileDataSource{
 		store: featureStore,
 	}
 	for _, o := range options {
@@ -194,12 +190,12 @@ func NewFileDataSource(featureStore ld.FeatureStore,
 }
 
 // Initialized is used internally by the LaunchDarkly client.
-func (fs *FileDataSource) Initialized() bool {
+func (fs *fileDataSource) Initialized() bool {
 	return fs.isInitialized
 }
 
 // Start is used internally by the LaunchDarkly client.
-func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
+func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 	fs.readyCh = closeWhenReady
 	fs.reload()
 
@@ -222,7 +218,7 @@ func (fs *FileDataSource) Start(closeWhenReady chan<- struct{}) {
 // Reload tells the data source to immediately attempt to reread all of the configured source files
 // and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
 // be modified.
-func (fs *FileDataSource) reload() {
+func (fs *fileDataSource) reload() {
 	filesData := make([]fileData, 0)
 	for _, path := range fs.absFilePaths {
 		data, err := readFile(path)
@@ -243,7 +239,7 @@ func (fs *FileDataSource) reload() {
 	}
 }
 
-func (fs *FileDataSource) signalStartComplete(succeeded bool) {
+func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 	fs.readyOnce.Do(func() {
 		fs.isInitialized = succeeded
 		if fs.readyCh != nil {
@@ -343,7 +339,7 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 }
 
 // Close is called automatically when the client is closed.
-func (fs *FileDataSource) Close() (err error) {
+func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
 		if fs.closeReloaderCh != nil {
 			close(fs.closeReloaderCh)

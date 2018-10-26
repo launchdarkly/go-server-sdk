@@ -60,9 +60,10 @@ flags: bad
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := ldfiledata.NewFileDataSource(store,
+	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
+	dataSource, err := factory("", ld.Config{FeatureStore: store})
 	require.NoError(t, err)
 	defer dataSource.Close()
 
@@ -111,9 +112,10 @@ func TestNewWatchedFileMissing(t *testing.T) {
 
 	store := ld.NewInMemoryFeatureStore(nil)
 
-	dataSource, err := ldfiledata.NewFileDataSource(store,
+	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
+	dataSource, err := factory("", ld.Config{FeatureStore: store})
 	defer dataSource.Close()
 
 	require.NoError(t, err)
@@ -148,9 +150,10 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	dirPath := path.Join(tempDir, "test")
 	filePath := path.Join(dirPath, "flags.yml")
 
-	dataSource, err := ldfiledata.NewFileDataSource(store,
+	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filePath),
 		ldfiledata.UseReloader(WatchFiles))
+	dataSource, err := factory("", ld.Config{FeatureStore: store})
 	require.NoError(t, err)
 	defer dataSource.Close()
 
