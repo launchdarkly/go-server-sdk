@@ -181,3 +181,67 @@ func makeAllVersionedDataMap(
 	}
 	return allData
 }
+
+// RunFeatureStoreConcurrentModificationTests runs tests of concurrent modification behavior
+// for store implementations that support testing this.
+func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureStore,
+	setConcurrentModifier func(flagGenerator func() *ld.FeatureFlag)) {
+
+	concurrentModFlagGenerator := func(flag ld.FeatureFlag, startVersion int, endVersion int) func() *ld.FeatureFlag {
+		versionCounter := startVersion
+		return func() *ld.FeatureFlag {
+			if versionCounter > endVersion {
+				return nil
+			}
+			flag.Version = versionCounter
+			versionCounter++
+			return &flag
+		}
+	}
+
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		flag := ld.FeatureFlag{
+			Key:     "foo",
+			Version: 1,
+		}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag.Key: &flag},
+		}
+		assert.NoError(t, store.Init(allData))
+
+		setConcurrentModifier(concurrentModFlagGenerator(flag, 2, 4))
+		defer setConcurrentModifier(nil)
+
+		flag.Version = 10
+		assert.NoError(t, store.Upsert(ld.Features, &flag))
+
+		var result ld.VersionedData
+		result, err := store.Get(ld.Features, flag.Key)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
+	})
+
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		flag := ld.FeatureFlag{
+			Key:     "foo",
+			Version: 1,
+		}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag.Key: &flag},
+		}
+		assert.NoError(t, store.Init(allData))
+
+		setConcurrentModifier(concurrentModFlagGenerator(flag, 3, 3))
+		defer setConcurrentModifier(nil)
+
+		flag.Version = 2
+		assert.NoError(t, store.Upsert(ld.Features, &flag))
+
+		var result ld.VersionedData
+		result, err := store.Get(ld.Features, flag.Key)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
+	})
+}
