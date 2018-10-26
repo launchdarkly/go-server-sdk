@@ -215,10 +215,9 @@ func createDefaultUpdateProcessor(sdkKey string, config Config) (UpdateProcessor
 	requestor := newRequestor(sdkKey, config)
 	if config.Stream {
 		return newStreamProcessor(sdkKey, config, requestor), nil
-	} else {
-		config.Logger.Println("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
-		return newPollingProcessor(config, requestor), nil
 	}
+	config.Logger.Println("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
+	return newPollingProcessor(config, requestor), nil
 }
 
 // Identify reports details about a a user.
