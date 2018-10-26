@@ -22,13 +22,14 @@ const (
 
 // FeatureStore represents a Consul-backed feature store
 type FeatureStore struct {
-	prefix    string
-	client    *consul.Client
-	cache     *cache.Cache
-	timeout   time.Duration
-	logger    *log.Logger
-	inited    bool
-	initCheck sync.Once
+	prefix     string
+	client     *consul.Client
+	cache      *cache.Cache
+	timeout    time.Duration
+	logger     *log.Logger
+	inited     bool
+	initCheck  sync.Once
+	testTxHook func() // for unit testing of concurrent modifications
 }
 
 // NewConsulFeatureStoreWithConfig creates a new Consul-backed feature store with an optional memory cache based on the specified Consul config.
@@ -228,6 +229,10 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 		// Check whether the item is stale. If so, just return
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
 			return nil
+		}
+
+		if store.testTxHook != nil { // instrumentation for unit tests
+			store.testTxHook()
 		}
 
 		// Otherwise, try to write.
