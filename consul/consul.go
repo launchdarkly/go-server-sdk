@@ -285,12 +285,8 @@ func (store *FeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key strin
 
 	pair, _, err := kv.Get(store.featureKeyFor(kind, key), nil)
 
-	if err != nil {
+	if err != nil || pair == nil {
 		return nil, defaultModifyIndex, err
-	}
-
-	if pair == nil {
-		return nil, defaultModifyIndex, nil
 	}
 
 	item, jsonErr := unmarshalItem(kind, pair.Value)
