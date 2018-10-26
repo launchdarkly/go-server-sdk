@@ -27,6 +27,24 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.True(t, store.Initialized())
 	})
 
+	t.Run("init replaces all previous data", func(t *testing.T) {
+		store := reinitStore()
+		feature1 := ld.FeatureFlag{Key: "feature1"}
+		feature2 := ld.FeatureFlag{Key: "feature2"}
+
+		allData1 := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{feature1.Key: &feature1, feature2.Key: &feature2},
+			make(map[string]*ld.Segment))
+		assert.NoError(t, store.Init(allData1))
+		result, _ := store.Get(ld.Features, feature2.Key)
+		assert.NotNil(t, result)
+
+		allData2 := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{feature1.Key: &feature1},
+			make(map[string]*ld.Segment))
+		assert.NoError(t, store.Init(allData2))
+		result, _ = store.Get(ld.Features, feature2.Key)
+		assert.Nil(t, result)
+	})
+
 	t.Run("get existing feature", func(t *testing.T) {
 		store := reinitStore()
 		feature1 := ld.FeatureFlag{Key: "feature"}
