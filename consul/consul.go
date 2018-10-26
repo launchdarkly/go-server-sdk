@@ -22,46 +22,135 @@ const (
 
 // FeatureStore represents a Consul-backed feature store
 type FeatureStore struct {
+	config     consul.Config
 	prefix     string
 	client     *consul.Client
 	cache      *cache.Cache
 	timeout    time.Duration
-	logger     *log.Logger
+	logger     ld.Logger
 	inited     bool
 	initCheck  sync.Once
 	testTxHook func() // for unit testing of concurrent modifications
 }
 
-// NewConsulFeatureStoreWithConfig creates a new Consul-backed feature store with an optional memory cache based on the specified Consul config.
-// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
-// specified prefix is the empty string, it defaults to "launchdarkly"
-func NewConsulFeatureStoreWithConfig(config *consul.Config, prefix string, timeout time.Duration, logger *log.Logger) (*FeatureStore, error) {
-	var c *cache.Cache
-	if logger == nil {
-		logger = defaultLogger()
-	}
-	if prefix == "" {
-		prefix = defaultPrefix
-	}
-	logger.Printf("ConsulFeatureStore: Using config: %+v", config)
+// DefaultPrefix is a string that is prepended (along with a slash) to all Consul keys used
+// by the feature store. You can change this value with the Prefix() option.
+const DefaultPrefix = "launchdarkly"
 
-	if timeout > 0 {
-		logger.Printf("ConsulFeatureStore: Using local cache with timeout: %v", timeout)
-		c = cache.New(timeout, 5*time.Minute)
+// FeatureStoreOption is the interface for optional configuration parameters that can be
+// passed to NewConsulFeatureStore. These include UseConfig, Prefix, CacheTTL, and UseLogger.
+type FeatureStoreOption interface {
+	apply(store *FeatureStore) error
+}
+
+type configOption struct {
+	config consul.Config
+}
+
+func (o configOption) apply(store *FeatureStore) error {
+	store.config = o.config
+	return nil
+}
+
+// UseConfig creates an option for NewConsulFeatureStore, to specify an entire configuration
+// for the Consul driver. This overwrites any previous Consul settings that may have been
+// specified.
+func UseConfig(config consul.Config) FeatureStoreOption {
+	return configOption{config}
+}
+
+type addressOption struct {
+	address string
+}
+
+func (o addressOption) apply(store *FeatureStore) error {
+	store.config.Address = o.address
+	return nil
+}
+
+// Address creates an option for NewConsulFeatureStore, to set the address of the Consul server.
+// If placed after ConsulConfig(), this modifies the previously specified configuration.
+func Address(address string) FeatureStoreOption {
+	return addressOption{address}
+}
+
+type prefixOption struct {
+	prefix string
+}
+
+func (o prefixOption) apply(store *FeatureStore) error {
+	store.prefix = o.prefix
+	return nil
+}
+
+// Prefix creates an option for NewConsulFeatureStore, to specify a prefix for namespacing
+// the feature store's keys. The default value is DefaultPrefix.
+func Prefix(prefix string) FeatureStoreOption {
+	return prefixOption{prefix}
+}
+
+type cacheTTLOption struct {
+	ttl time.Duration
+}
+
+func (o cacheTTLOption) apply(store *FeatureStore) error {
+	store.timeout = o.ttl
+	return nil
+}
+
+// CacheTTL creates an option for NewConsulFeatureStore, to specify how long flag data should be
+// cached in memory to avoid rereading it from Consul. If this is zero or unspecified, the feature
+// store will not use an in-memory cache.
+func CacheTTL(ttl time.Duration) FeatureStoreOption {
+	return cacheTTLOption{ttl}
+}
+
+type loggerOption struct {
+	logger ld.Logger
+}
+
+func (o loggerOption) apply(store *FeatureStore) error {
+	store.logger = o.logger
+	return nil
+}
+
+// UseLogger creates an option for NewConsulFeatureStore, to specify where to send log output.
+// If not specified, a log.Logger is used.
+func UseLogger(logger ld.Logger) FeatureStoreOption {
+	return loggerOption{logger}
+}
+
+// NewConsulFeatureStore creates a new Consul-backed feature store with an optional memory cache. You
+// may customize its behavior with any number of FeatureStoreOption values.
+func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error) {
+	store := &FeatureStore{config: *consul.DefaultConfig()}
+	for _, o := range options {
+		err := o.apply(store)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	client, err := consul.NewClient(config)
+	if store.logger == nil {
+		store.logger = defaultLogger()
+	}
+	if store.prefix == "" {
+		store.prefix = defaultPrefix
+	}
+
+	store.logger.Printf("ConsulFeatureStore: Using config: %+v", store.config)
+
+	if store.timeout > 0 {
+		store.logger.Printf("ConsulFeatureStore: Using local cache with timeout: %v", store.timeout)
+		store.cache = cache.New(store.timeout, 5*time.Minute)
+	}
+
+	client, err := consul.NewClient(&store.config)
 	if err != nil {
 		return nil, err
 	}
-	return &FeatureStore{
-		prefix:  prefix,
-		inited:  false,
-		logger:  logger,
-		timeout: timeout,
-		cache:   c,
-		client:  client,
-	}, nil
+	store.client = client
+	return store, nil
 }
 
 // Get returns an individual object of a given type from the store

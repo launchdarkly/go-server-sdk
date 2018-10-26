@@ -12,7 +12,7 @@ import (
 
 func TestConsulFeatureStore(t *testing.T) {
 	makeConsulStore := func() ld.FeatureStore {
-		store, err := NewConsulFeatureStoreWithConfig(&consul.Config{}, "", 0, nil)
+		store, err := NewConsulFeatureStore()
 		require.NoError(t, err)
 		return store
 	}
@@ -20,7 +20,7 @@ func TestConsulFeatureStore(t *testing.T) {
 }
 
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
-	store, err := NewConsulFeatureStoreWithConfig(&consul.Config{}, "", 0, nil)
+	store, err := NewConsulFeatureStore()
 	require.NoError(t, err)
 	otherClient, err := consul.NewClient(&consul.Config{})
 	require.NoError(t, err)
