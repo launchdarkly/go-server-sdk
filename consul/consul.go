@@ -89,7 +89,8 @@ func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Version
 	results := make(map[string]ld.VersionedData)
 
 	kv := store.client.KV()
-	pairs, _, err := kv.List(store.featuresKey(kind), nil)
+	keyPrefix := store.featuresKey(kind)
+	pairs, _, err := kv.List(keyPrefix, nil)
 
 	if err != nil {
 		return results, err
@@ -102,8 +103,9 @@ func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Version
 			return nil, err
 		}
 
-		if !item.IsDeleted() {
-			results[pair.Key] = item
+		if !item.IsDeleted() && pair.Key[:len(keyPrefix)] == keyPrefix {
+			key := pair.Key[len(keyPrefix)+1:]
+			results[key] = item
 		}
 	}
 	if store.cache != nil {
