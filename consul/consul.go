@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	consul "github.com/hashicorp/consul/api"
+	c "github.com/hashicorp/consul/api"
 
 	cache "github.com/patrickmn/go-cache"
 
@@ -22,9 +22,9 @@ const (
 
 // FeatureStore represents a Consul-backed feature store
 type FeatureStore struct {
-	config     consul.Config
+	config     c.Config
 	prefix     string
-	client     *consul.Client
+	client     *c.Client
 	cache      *cache.Cache
 	timeout    time.Duration
 	logger     ld.Logger
@@ -44,7 +44,7 @@ type FeatureStoreOption interface {
 }
 
 type configOption struct {
-	config consul.Config
+	config c.Config
 }
 
 func (o configOption) apply(store *FeatureStore) error {
@@ -55,7 +55,7 @@ func (o configOption) apply(store *FeatureStore) error {
 // UseConfig creates an option for NewConsulFeatureStore, to specify an entire configuration
 // for the Consul driver. This overwrites any previous Consul settings that may have been
 // specified.
-func UseConfig(config consul.Config) FeatureStoreOption {
+func UseConfig(config c.Config) FeatureStoreOption {
 	return configOption{config}
 }
 
@@ -123,7 +123,7 @@ func UseLogger(logger ld.Logger) FeatureStoreOption {
 // NewConsulFeatureStore creates a new Consul-backed feature store with an optional memory cache. You
 // may customize its behavior with any number of FeatureStoreOption values.
 func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error) {
-	store := &FeatureStore{config: *consul.DefaultConfig()}
+	store := &FeatureStore{config: *c.DefaultConfig()}
 	for _, o := range options {
 		err := o.apply(store)
 		if err != nil {
@@ -145,7 +145,7 @@ func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error)
 		store.cache = cache.New(store.timeout, 5*time.Minute)
 	}
 
-	client, err := consul.NewClient(&store.config)
+	client, err := c.NewClient(&store.config)
 	if err != nil {
 		return nil, err
 	}
@@ -215,9 +215,9 @@ func (store *FeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.V
 
 	kv := store.client.KV()
 
-	ops := consul.KVTxnOps{
-		&consul.KVTxnOp{
-			Verb: consul.KVDeleteTree,
+	ops := c.KVTxnOps{
+		&c.KVTxnOp{
+			Verb: c.KVDeleteTree,
 			Key:  store.prefix,
 		},
 	}
@@ -231,8 +231,8 @@ func (store *FeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.V
 				return jsonErr
 			}
 
-			op := &consul.KVTxnOp{
-				Verb:  consul.KVSet,
+			op := &c.KVTxnOp{
+				Verb:  c.KVSet,
 				Key:   store.featureKeyFor(kind, k),
 				Value: data,
 			}
@@ -331,7 +331,7 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 		// Compare and swap the item.
 		kv := store.client.KV()
 
-		p := &consul.KVPair{
+		p := &c.KVPair{
 			Key:         store.featureKeyFor(kind, key),
 			ModifyIndex: modifyIndex,
 			Value:       data,
