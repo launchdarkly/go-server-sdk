@@ -6,19 +6,18 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
 	c "github.com/hashicorp/consul/api"
-
 	cache "github.com/patrickmn/go-cache"
-
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
 
-const (
-	defaultPrefix = "launchDarkly"
-)
+// DefaultPrefix is a string that is prepended (along with a slash) to all Consul keys used
+// by the feature store. You can change this value with the Prefix() option.
+const DefaultPrefix = "launchdarkly"
 
 // FeatureStore represents a Consul-backed feature store
 type FeatureStore struct {
@@ -32,10 +31,6 @@ type FeatureStore struct {
 	initCheck  sync.Once
 	testTxHook func() // for unit testing of concurrent modifications
 }
-
-// DefaultPrefix is a string that is prepended (along with a slash) to all Consul keys used
-// by the feature store. You can change this value with the Prefix() option.
-const DefaultPrefix = "launchdarkly"
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
 // passed to NewConsulFeatureStore. These include UseConfig, Prefix, CacheTTL, and UseLogger.
@@ -135,7 +130,7 @@ func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error)
 		store.logger = defaultLogger()
 	}
 	if store.prefix == "" {
-		store.prefix = defaultPrefix
+		store.prefix = DefaultPrefix
 	}
 
 	store.logger.Printf("ConsulFeatureStore: Using config: %+v", store.config)
@@ -153,7 +148,7 @@ func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error)
 	return store, nil
 }
 
-// Get returns an individual object of a given type from the store
+// Get returns an individual object of a given type from the store.
 func (store *FeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	item, _, err := store.getEvenIfDeleted(kind, key, true)
 	if err == nil && item == nil {
@@ -166,7 +161,7 @@ func (store *FeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.Versio
 	return item, err
 }
 
-// All returns all the objects of a given kind from the store
+// All returns all the objects of a given kind from the store.
 func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 
 	if store.cache != nil {
@@ -181,8 +176,7 @@ func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Version
 	results := make(map[string]ld.VersionedData)
 
 	kv := store.client.KV()
-	keyPrefix := store.featuresKey(kind)
-	pairs, _, err := kv.List(keyPrefix, nil)
+	pairs, _, err := kv.List(store.featuresKey(kind), nil)
 
 	if err != nil {
 		return results, err
@@ -195,9 +189,8 @@ func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Version
 			return nil, err
 		}
 
-		if !item.IsDeleted() && pair.Key[:len(keyPrefix)] == keyPrefix {
-			key := pair.Key[len(keyPrefix)+1:]
-			results[key] = item
+		if !item.IsDeleted() {
+			results[item.GetKey()] = item
 		}
 	}
 	if store.cache != nil {
@@ -206,7 +199,7 @@ func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Version
 	return results, nil
 }
 
-// Init populates the store with a complete set of versioned data
+// Init populates the store with a complete set of versioned data.
 func (store *FeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 
 	if store.cache != nil {
@@ -245,29 +238,34 @@ func (store *FeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.V
 		}
 	}
 
-	// TODO check the response
-	_, _, _, err := kv.Txn(ops, nil)
+	ok, resp, _, err := kv.Txn(ops, nil)
 
 	if err != nil {
 		return err
 	}
-
+	if !ok {
+		errs := make([]string, 0)
+		for _, te := range resp.Errors {
+			errs = append(errs, te.What)
+		}
+		return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", "))
+	}
 	store.initCheck.Do(func() { store.inited = true })
 	return nil
 }
 
-// Delete removes an item of a given kind from the store
+// Delete removes an item of a given kind from the store.
 func (store *FeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return store.updateWithVersioning(kind, deletedItem)
 }
 
-// Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
+// Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version.
 func (store *FeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.updateWithVersioning(kind, item)
 }
 
-// Initialized returns whether redis contains an entry for this environment
+// Initialized returns true if we have already populated Consul with feature flag data.
 func (store *FeatureStore) Initialized() bool {
 	store.initCheck.Do(func() {
 		kv := store.client.KV()
@@ -327,16 +325,16 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 			store.testTxHook()
 		}
 
-		// Otherwise, try to write.
-		// Compare and swap the item.
+		// Otherwise, try to write. We will do a compare-and-set operation, so the write will only succeed if
+		// the key's ModifyIndex is still equal to the previous value returned by getEvenIfDeleted. If the
+		// previous ModifyIndex was zero, it means the key did not previously exist and the write will only
+		// succeed if it still doesn't exist.
 		kv := store.client.KV()
-
 		p := &c.KVPair{
 			Key:         store.featureKeyFor(kind, key),
 			ModifyIndex: modifyIndex,
 			Value:       data,
 		}
-
 		written, _, err := kv.CAS(p, nil)
 
 		if err != nil {
