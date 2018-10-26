@@ -205,14 +205,13 @@ func makeAllVersionedDataMap(
 // for store implementations that support testing this.
 //
 // The setConcurrentModifier function should behave as follows:
-// - If flagGenerator is non-nil, cause a test hook to be executed inside of each update
-//   in the feature store. It should be run after the store has read the previous value,
-//   but before it writes the new value.
-// - The test hook should call flagGenerator and, if it returns a non-nil value, write the
-//   returned flag directly into the database.
-// - If flagGenerator is non-nil, remove the test hook.
+// - Install a hook in the feature store's Upsert logic that will be executed after the store has
+//   read the previous value, but before it writes the new value.
+// - When the hook is executed, try to read a flag from the provided channel. If this succeeds,
+//   write the returned flag directly into the database. If the channel is closed, don't write
+//   anything, and uninstall the hook.
 func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureStore,
-	setConcurrentModifier func(flagGenerator func() *ld.FeatureFlag)) {
+	setConcurrentModifier func(<-chan ld.FeatureFlag)) {
 
 	flagKey := "foo"
 
@@ -227,23 +226,20 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureSt
 		require.NoError(t, store.Init(allData))
 	}
 
-	concurrentModFlagGenerator := func(startVersion int, endVersion int) func() *ld.FeatureFlag {
-		versionCounter := startVersion
-		return func() *ld.FeatureFlag {
-			if versionCounter > endVersion {
-				return nil
-			}
-			v := versionCounter
-			versionCounter++
-			return makeFlagWithVersion(v)
+	makeChannelWithFlagVersions := func(versions ...int) chan ld.FeatureFlag {
+		ch := make(chan ld.FeatureFlag, len(versions))
+		for _, v := range versions {
+			ch <- *makeFlagWithVersion(v)
 		}
+		close(ch)
+		return ch
 	}
 
 	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
 		setupStore(1)
 
-		setConcurrentModifier(concurrentModFlagGenerator(2, 4))
-		defer setConcurrentModifier(nil)
+		flagCh := makeChannelWithFlagVersions(2, 3, 4)
+		setConcurrentModifier(flagCh)
 
 		assert.NoError(t, store.Upsert(ld.Features, makeFlagWithVersion(10)))
 
@@ -257,8 +253,8 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureSt
 	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
 		setupStore(1)
 
-		setConcurrentModifier(concurrentModFlagGenerator(3, 3))
-		defer setConcurrentModifier(nil)
+		flagCh := makeChannelWithFlagVersions(3)
+		setConcurrentModifier(flagCh)
 
 		assert.NoError(t, store.Upsert(ld.Features, makeFlagWithVersion(2)))
 

@@ -26,22 +26,19 @@ func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store,
-		func(flagGenerator func() *ld.FeatureFlag) {
-			if flagGenerator == nil {
-				store.testTxHook = nil
-			} else {
-				store.testTxHook = func() {
-					f := flagGenerator()
-					if f != nil {
-						data, jsonErr := json.Marshal(f)
-						require.NoError(t, jsonErr)
-						pair := &consul.KVPair{
-							Key:   store.featureKeyFor(ld.Features, f.Key),
-							Value: data,
-						}
-						_, err := otherClient.KV().Put(pair, nil)
-						require.NoError(t, err)
+		func(flagCh <-chan ld.FeatureFlag) {
+			store.testTxHook = func() {
+				if f, ok := <-flagCh; ok {
+					data, jsonErr := json.Marshal(f)
+					require.NoError(t, jsonErr)
+					pair := &consul.KVPair{
+						Key:   store.featureKeyFor(ld.Features, f.Key),
+						Value: data,
 					}
+					_, err := otherClient.KV().Put(pair, nil)
+					require.NoError(t, err)
+				} else {
+					store.testTxHook = nil
 				}
 			}
 		})

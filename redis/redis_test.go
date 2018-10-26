@@ -26,18 +26,15 @@ func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
 	defer otherClient.Close()
 
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store,
-		func(flagGenerator func() *ld.FeatureFlag) {
-			if flagGenerator == nil {
-				store.testTxHook = nil
-			} else {
-				store.testTxHook = func() {
-					f := flagGenerator()
-					if f != nil {
-						data, jsonErr := json.Marshal(f)
-						require.NoError(t, jsonErr)
-						_, err := otherClient.Do("HSET", "launchdarkly:features", f.Key, data)
-						require.NoError(t, err)
-					}
+		func(flagCh <-chan ld.FeatureFlag) {
+			store.testTxHook = func() {
+				if f, ok := <-flagCh; ok {
+					data, jsonErr := json.Marshal(f)
+					require.NoError(t, jsonErr)
+					_, err := otherClient.Do("HSET", "launchdarkly:features", f.Key, data)
+					require.NoError(t, err)
+				} else {
+					store.testTxHook = nil
 				}
 			}
 		})
