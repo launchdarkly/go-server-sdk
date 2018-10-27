@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
@@ -24,6 +25,24 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.NoError(t, store.Init(allData))
 
 		assert.True(t, store.Initialized())
+	})
+
+	t.Run("init replaces all previous data", func(t *testing.T) {
+		store := reinitStore()
+		feature1 := ld.FeatureFlag{Key: "feature1"}
+		feature2 := ld.FeatureFlag{Key: "feature2"}
+
+		allData1 := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{feature1.Key: &feature1, feature2.Key: &feature2},
+			make(map[string]*ld.Segment))
+		assert.NoError(t, store.Init(allData1))
+		result, _ := store.Get(ld.Features, feature2.Key)
+		assert.NotNil(t, result)
+
+		allData2 := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{feature1.Key: &feature1},
+			make(map[string]*ld.Segment))
+		assert.NoError(t, store.Init(allData2))
+		result, _ = store.Get(ld.Features, feature2.Key)
+		assert.Nil(t, result)
 	})
 
 	t.Run("get existing feature", func(t *testing.T) {
@@ -180,4 +199,69 @@ func makeAllVersionedDataMap(
 		allData[ld.Segments][k] = v
 	}
 	return allData
+}
+
+// RunFeatureStoreConcurrentModificationTests runs tests of concurrent modification behavior
+// for store implementations that support testing this.
+//
+// The setConcurrentModifier function should behave as follows:
+// - Install a hook in the feature store's Upsert logic that will be executed after the store has
+//   read the previous value, but before it writes the new value.
+// - When the hook is executed, try to read a flag from the provided channel. If this succeeds,
+//   write the returned flag directly into the database. If the channel is closed, don't write
+//   anything, and uninstall the hook.
+func RunFeatureStoreConcurrentModificationTests(t *testing.T, store ld.FeatureStore,
+	setConcurrentModifier func(<-chan ld.FeatureFlag)) {
+
+	flagKey := "foo"
+
+	makeFlagWithVersion := func(version int) *ld.FeatureFlag {
+		return &ld.FeatureFlag{Key: flagKey, Version: version}
+	}
+
+	setupStore := func(initialVersion int) {
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagKey: makeFlagWithVersion(initialVersion)},
+		}
+		require.NoError(t, store.Init(allData))
+	}
+
+	makeChannelWithFlagVersions := func(versions ...int) chan ld.FeatureFlag {
+		ch := make(chan ld.FeatureFlag, len(versions))
+		for _, v := range versions {
+			ch <- *makeFlagWithVersion(v)
+		}
+		close(ch)
+		return ch
+	}
+
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		setupStore(1)
+
+		flagCh := makeChannelWithFlagVersions(2, 3, 4)
+		setConcurrentModifier(flagCh)
+
+		assert.NoError(t, store.Upsert(ld.Features, makeFlagWithVersion(10)))
+
+		var result ld.VersionedData
+		result, err := store.Get(ld.Features, flagKey)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
+	})
+
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		setupStore(1)
+
+		flagCh := makeChannelWithFlagVersions(3)
+		setConcurrentModifier(flagCh)
+
+		assert.NoError(t, store.Upsert(ld.Features, makeFlagWithVersion(2)))
+
+		var result ld.VersionedData
+		result, err := store.Get(ld.Features, flagKey)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
+	})
 }
