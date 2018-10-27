@@ -20,7 +20,7 @@ func TestConsulFeatureStore(t *testing.T) {
 }
 
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
-	store, err := NewConsulFeatureStore()
+	store, err := newConsulFeatureStoreInternal() // we need the underlying implementation object so we can set testTxHook
 	require.NoError(t, err)
 	otherClient, err := consul.NewClient(&consul.Config{})
 	require.NoError(t, err)

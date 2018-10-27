@@ -19,8 +19,9 @@ import (
 // by the feature store. You can change this value with the Prefix() option.
 const DefaultPrefix = "launchdarkly"
 
-// FeatureStore represents a Consul-backed feature store
-type FeatureStore struct {
+// Internal implementation of the Consul-backed feature store. We don't export this - we just
+// return an ld.FeatureStore.
+type featureStore struct {
 	config     c.Config
 	prefix     string
 	client     *c.Client
@@ -35,14 +36,14 @@ type FeatureStore struct {
 // FeatureStoreOption is the interface for optional configuration parameters that can be
 // passed to NewConsulFeatureStore. These include UseConfig, Prefix, CacheTTL, and UseLogger.
 type FeatureStoreOption interface {
-	apply(store *FeatureStore) error
+	apply(store *featureStore) error
 }
 
 type configOption struct {
 	config c.Config
 }
 
-func (o configOption) apply(store *FeatureStore) error {
+func (o configOption) apply(store *featureStore) error {
 	store.config = o.config
 	return nil
 }
@@ -58,7 +59,7 @@ type addressOption struct {
 	address string
 }
 
-func (o addressOption) apply(store *FeatureStore) error {
+func (o addressOption) apply(store *featureStore) error {
 	store.config.Address = o.address
 	return nil
 }
@@ -73,7 +74,7 @@ type prefixOption struct {
 	prefix string
 }
 
-func (o prefixOption) apply(store *FeatureStore) error {
+func (o prefixOption) apply(store *featureStore) error {
 	store.prefix = o.prefix
 	return nil
 }
@@ -88,7 +89,7 @@ type cacheTTLOption struct {
 	ttl time.Duration
 }
 
-func (o cacheTTLOption) apply(store *FeatureStore) error {
+func (o cacheTTLOption) apply(store *featureStore) error {
 	store.timeout = o.ttl
 	return nil
 }
@@ -104,7 +105,7 @@ type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o loggerOption) apply(store *FeatureStore) error {
+func (o loggerOption) apply(store *featureStore) error {
 	store.logger = o.logger
 	return nil
 }
@@ -117,8 +118,13 @@ func UseLogger(logger ld.Logger) FeatureStoreOption {
 
 // NewConsulFeatureStore creates a new Consul-backed feature store with an optional memory cache. You
 // may customize its behavior with any number of FeatureStoreOption values.
-func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error) {
-	store := &FeatureStore{config: *c.DefaultConfig()}
+func NewConsulFeatureStore(options ...FeatureStoreOption) (ld.FeatureStore, error) {
+	store, err := newConsulFeatureStoreInternal(options...)
+	return store, err
+}
+
+func newConsulFeatureStoreInternal(options ...FeatureStoreOption) (*featureStore, error) {
+	store := &featureStore{config: *c.DefaultConfig()}
 	for _, o := range options {
 		err := o.apply(store)
 		if err != nil {
@@ -148,8 +154,7 @@ func NewConsulFeatureStore(options ...FeatureStoreOption) (*FeatureStore, error)
 	return store, nil
 }
 
-// Get returns an individual object of a given type from the store.
-func (store *FeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *featureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	item, _, err := store.getEvenIfDeleted(kind, key, true)
 	if err == nil && item == nil {
 		store.logger.Printf("ConsulFeatureStore: WARN: Item not found in store. Key: %s", key)
@@ -161,8 +166,7 @@ func (store *FeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.Versio
 	return item, err
 }
 
-// All returns all the objects of a given kind from the store.
-func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *featureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 
 	if store.cache != nil {
 		if data, present := store.cache.Get(allFlagsCacheKey(kind)); present {
@@ -199,8 +203,7 @@ func (store *FeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Version
 	return results, nil
 }
 
-// Init populates the store with a complete set of versioned data.
-func (store *FeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *featureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 
 	if store.cache != nil {
 		store.cache.Flush()
@@ -254,19 +257,16 @@ func (store *FeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.V
 	return nil
 }
 
-// Delete removes an item of a given kind from the store.
-func (store *FeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
+func (store *featureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return store.updateWithVersioning(kind, deletedItem)
 }
 
-// Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version.
-func (store *FeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *featureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.updateWithVersioning(kind, item)
 }
 
-// Initialized returns true if we have already populated Consul with feature flag data.
-func (store *FeatureStore) Initialized() bool {
+func (store *featureStore) Initialized() bool {
 	store.initCheck.Do(func() {
 		kv := store.client.KV()
 		pair, _, err := kv.Get(store.prefix, nil)
@@ -300,7 +300,7 @@ func unmarshalItem(kind ld.VersionedDataKind, raw []byte) (ld.VersionedData, err
 	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
 }
 
-func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newItem ld.VersionedData) error {
+func (store *featureStore) updateWithVersioning(kind ld.VersionedDataKind, newItem ld.VersionedData) error {
 	data, jsonErr := json.Marshal(newItem)
 	if jsonErr != nil {
 		return jsonErr
@@ -356,7 +356,7 @@ func (store *FeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newIt
 	return nil
 }
 
-func (store *FeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string,
+func (store *featureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string,
 	useCache bool) (retrievedItem ld.VersionedData, modifyIndex uint64, err error) {
 	var defaultModifyIndex = uint64(0)
 	if useCache && store.cache != nil {
@@ -390,10 +390,10 @@ func (store *FeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key strin
 	return item, pair.ModifyIndex, nil
 }
 
-func (store *FeatureStore) featuresKey(kind ld.VersionedDataKind) string {
+func (store *featureStore) featuresKey(kind ld.VersionedDataKind) string {
 	return store.prefix + "/" + kind.GetNamespace()
 }
 
-func (store *FeatureStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
+func (store *featureStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
 	return store.prefix + "/" + kind.GetNamespace() + "/" + k
 }
