@@ -22,7 +22,7 @@ type RedisFeatureStore struct { // nolint:golint // package name in type name
 	cache      *cache.Cache
 	timeout    time.Duration
 	logger     ld.Logger
-	testTxHook func() // for unit testing of concurrent modifications
+	testTxHook func()
 	inited     bool
 	initCheck  sync.Once
 }
@@ -283,14 +283,14 @@ func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, 
 
 		defer c.Send("UNWATCH") // nolint:errcheck // this should always succeed
 
+		if store.testTxHook != nil { // instrumentation for unit tests
+			store.testTxHook()
+		}
+
 		oldItem, err := store.getEvenIfDeleted(kind, key, false)
 
 		if err != nil {
 			return err
-		}
-
-		if store.testTxHook != nil { // instrumentation for unit tests
-			store.testTxHook()
 		}
 
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {

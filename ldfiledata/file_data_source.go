@@ -36,7 +36,7 @@ func (o filePathsOption) apply(fs *fileDataSource) error {
 	return nil
 }
 
-// FilePaths creates an option for NewFileDataSourceFactory, to specify the input
+// FilePaths creates an option for to NewFileDataSourceFactory, to specify the input
 // data files. The paths may be any number of absolute or relative file paths.
 func FilePaths(paths ...string) FileDataSourceOption {
 	return filePathsOption{paths}

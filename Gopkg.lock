@@ -41,46 +41,10 @@
   revision = "2bcd89a1743fd4b373f7370ce8ddc14dfbd18229"
 
 [[projects]]
-  name = "github.com/hashicorp/consul"
-  packages = ["api"]
-  revision = "e8757838a49feeb682c7e6ad6b78694a78b2096b"
-  version = "v1.3.0"
-
-[[projects]]
-  name = "github.com/hashicorp/go-cleanhttp"
-  packages = ["."]
-  revision = "e8ab9daed8d1ddd2d3c4efba338fe2eeae2e4f18"
-  version = "v0.5.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/hashicorp/go-rootcerts"
-  packages = ["."]
-  revision = "6bb64b370b90e7ef1fa532be9e591a81c3493e00"
-
-[[projects]]
-  name = "github.com/hashicorp/serf"
-  packages = ["coordinate"]
-  revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
-  version = "v0.8.1"
-
-[[projects]]
   name = "github.com/launchdarkly/eventsource"
   packages = ["."]
   revision = "5e2c13ba9523c8b5f5e33aee7ef3fb1c855f52cd"
   version = "1.0.0"
-
-[[projects]]
-  name = "github.com/mitchellh/go-homedir"
-  packages = ["."]
-  revision = "ae18d6b8b3205b561c79e8e5f69bff09736185f4"
-  version = "v1.0.0"
-
-[[projects]]
-  name = "github.com/mitchellh/mapstructure"
-  packages = ["."]
-  revision = "3536a929edddb9a5b34bd6861dc4a9647cb459fe"
-  version = "v1.1.2"
 
 [[projects]]
   name = "github.com/patrickmn/go-cache"
@@ -124,6 +88,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6aed352de46e63043d09a3723db388930b39c0fa13b60a85baebdeacd5e5764f"
+  inputs-digest = "8c97c9933515805154179289c2895219464efd407ff88658308444cd8ac81dc8"
   solver-name = "gps-cdcl"
   solver-version = 1

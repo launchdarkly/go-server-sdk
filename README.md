@@ -61,6 +61,7 @@ or
 set HTTPS_PROXY=http://user:pass@web-proxy.domain.com:8080
 ```
 
+
 Your first feature flag
 -----------------------
 
@@ -76,11 +77,6 @@ if showFeature {
     // the code to run if the feature is off
 }
 ```
-
-Redis and Consul integrations
------------------------------
-
-Feature flag data can be kept in a persistent store using Redis or Consul. These adapters are implemented in the subpackages `redis` and `consul`; to use them, call the function `NewRedisFeatureStore` or `NewConsulFeatureStore` and put the returned object in the `FeatureStore` field of your client configuration.
 
 Learn more
 -----------
