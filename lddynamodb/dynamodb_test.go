@@ -30,6 +30,16 @@ func TestDynamoDBFeatureStore(t *testing.T) {
 	})
 }
 
+func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
+	store1, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	require.NoError(t, err)
+	store2, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	require.NoError(t, err)
+	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
+		store1.testUpdateHook = hook
+	})
+}
+
 func makeTestOptions() session.Options {
 	return session.Options{
 		Config: aws.Config{
