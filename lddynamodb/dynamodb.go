@@ -54,11 +54,8 @@ type namespaceAndKey struct {
 	key       string
 }
 
-// Verify that the store satisfies the FeatureStore interface
-var _ ld.FeatureStore = (*DBFeatureStore)(nil)
-
-// DBFeatureStore provides a DynamoDB-backed feature store for LaunchDarkly.
-type DBFeatureStore struct {
+// Internal type for our DynamoDB implementation of the ld.FeatureStore interface.
+type dynamoDBFeatureStore struct {
 	// Client to access DynamoDB
 	Client dynamodbiface.DynamoDBAPI
 
@@ -79,7 +76,12 @@ type DBFeatureStore struct {
 // AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION work as expected.
 //
 // For more control, compose your own DynamoDBFeatureStore with a custom DynamoDB client.
-func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger) (*DBFeatureStore, error) {
+func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger) (ld.FeatureStore, error) {
+	store, err := newDynamoDBFeatureStoreInternal(table, config, logger)
+	return store, err
+}
+
+func newDynamoDBFeatureStoreInternal(table string, config *aws.Config, logger ld.Logger) (*dynamoDBFeatureStore, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[LaunchDarkly DynamoDBFeatureStore]", log.LstdFlags)
 	}
@@ -90,7 +92,7 @@ func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger)
 	}
 	client := dynamodb.New(sess)
 
-	return &DBFeatureStore{
+	return &dynamoDBFeatureStore{
 		Client:      client,
 		Table:       table,
 		Logger:      logger,
@@ -98,37 +100,23 @@ func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger)
 	}, nil
 }
 
-// Init initializes the store by writing the given data to DynamoDB. It will
-// delete all existing data from the table.
-func (store *DBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 	// Note that because DynamoDB doesn't have transactions, there can be race conditions if one process
-	// is calling Init and another is calling Upsert. The goal is eventual consistency: if the Init
-	// deletes data that was added by the Upsert, we are relying on the fact that the process that
-	// called Init should be receiving the same data soon and calling Upsert as well.
+	// is calling Init and another is calling Upsert. To minimize this, we don't delete all the data at
+	// the start; instead, we update the items we've received, and then delete all other items. That
+	// could potentially result in deleting some new data that was added by another process via Upsert,
+	// but that would be the case anyway if the Init happened to execute later than the Upsert; we are
+	// relying on the fact that normally the process that did the Init will also receive the new data
+	// and do its own Upsert.
 
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
-	unusedOldKeys := make(map[namespaceAndKey]bool)
-	err := store.Client.ScanPages(&dynamodb.ScanInput{
-		TableName:            aws.String(store.Table),
-		ConsistentRead:       aws.Bool(true),
-		ProjectionExpression: aws.String("#namespace, #key"),
-		ExpressionAttributeNames: map[string]*string{
-			"#namespace": aws.String(tablePartitionKey),
-			"#key":       aws.String(tableSortKey),
-		},
-	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
-		for _, i := range out.Items {
-			nk := namespaceAndKey{namespace: *(*i[tablePartitionKey]).S, key: *(*i[tableSortKey]).S}
-			unusedOldKeys[nk] = true
-		}
-		return !lastPage
-	})
+	unusedOldKeys, err := store.readExistingKeys()
 	if err != nil {
 		store.Logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
 		return err
 	}
 
-	requests := make([]*dynamodb.WriteRequest, 0, 0)
+	requests := make([]*dynamodb.WriteRequest, 0)
 	numItems := 0
 
 	for kind, items := range allData {
@@ -172,13 +160,13 @@ func (store *DBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld
 }
 
 // Initialized returns true if the store has been initialized.
-func (store *DBFeatureStore) Initialized() bool {
+func (store *dynamoDBFeatureStore) Initialized() bool {
 	return store.initialized
 }
 
 // All returns all items currently stored in DynamoDB that are of the given
 // data kind. (It won't return items marked as deleted.)
-func (store *DBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	var items []map[string]*dynamodb.AttributeValue
 
 	err := store.Client.QueryPages(&dynamodb.QueryInput{
@@ -219,7 +207,7 @@ func (store *DBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.Versi
 
 // Get returns a specific item with the given key. It returns nil if the item
 // does not exist or if it's marked as deleted.
-func (store *DBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *dynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	result, err := store.Client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.Table),
 		ConsistentRead: aws.Bool(true),
@@ -255,18 +243,18 @@ func (store *DBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.Vers
 // Upsert either creates a new item of the given data kind if it doesn't
 // already exist, or updates an existing item if the given item has a higher
 // version.
-func (store *DBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *dynamoDBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.updateWithVersioning(kind, item)
 }
 
 // Delete marks an item as deleted. (It won't actually remove the item from
 // DynamoDB.)
-func (store *DBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
+func (store *dynamoDBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return store.updateWithVersioning(kind, deletedItem)
 }
 
-func (store *DBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	av, err := marshalItem(kind, item)
 	if err != nil {
 		store.Logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
@@ -303,9 +291,29 @@ func (store *DBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, ite
 	return nil
 }
 
+func (store *dynamoDBFeatureStore) readExistingKeys() (map[namespaceAndKey]bool, error) {
+	keys := make(map[namespaceAndKey]bool)
+	err := store.Client.ScanPages(&dynamodb.ScanInput{
+		TableName:            aws.String(store.Table),
+		ConsistentRead:       aws.Bool(true),
+		ProjectionExpression: aws.String("#namespace, #key"),
+		ExpressionAttributeNames: map[string]*string{
+			"#namespace": aws.String(tablePartitionKey),
+			"#key":       aws.String(tableSortKey),
+		},
+	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
+		for _, i := range out.Items {
+			nk := namespaceAndKey{namespace: *(*i[tablePartitionKey]).S, key: *(*i[tableSortKey]).S}
+			keys[nk] = true
+		}
+		return !lastPage
+	})
+	return keys, err
+}
+
 // batchWriteRequests executes a list of write requests (PutItem or DeleteItem)
 // in batches of 25, which is the maximum BatchWriteItem can handle.
-func (store *DBFeatureStore) batchWriteRequests(requests []*dynamodb.WriteRequest) error {
+func (store *dynamoDBFeatureStore) batchWriteRequests(requests []*dynamodb.WriteRequest) error {
 	for len(requests) > 0 {
 		batchSize := int(math.Min(float64(len(requests)), 25))
 		batch := requests[:batchSize]
