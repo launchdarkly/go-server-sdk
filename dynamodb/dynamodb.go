@@ -50,10 +50,10 @@ const (
 )
 
 // Verify that the store satisfies the FeatureStore interface
-var _ ld.FeatureStore = (*DynamoDBFeatureStore)(nil)
+var _ ld.FeatureStore = (*DBFeatureStore)(nil)
 
-// DynamoDBFeatureStore provides a DynamoDB-backed feature store for LaunchDarkly.
-type DynamoDBFeatureStore struct {
+// DBFeatureStore provides a DynamoDB-backed feature store for LaunchDarkly.
+type DBFeatureStore struct {
 	// Client to access DynamoDB
 	Client dynamodbiface.DynamoDBAPI
 
@@ -74,7 +74,7 @@ type DynamoDBFeatureStore struct {
 // AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION work as expected.
 //
 // For more control, compose your own DynamoDBFeatureStore with a custom DynamoDB client.
-func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger) (*DynamoDBFeatureStore, error) {
+func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger) (*DBFeatureStore, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[LaunchDarkly DynamoDBFeatureStore]", log.LstdFlags)
 	}
@@ -85,7 +85,7 @@ func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger)
 	}
 	client := dynamodb.New(sess)
 
-	return &DynamoDBFeatureStore{
+	return &DBFeatureStore{
 		Client:      client,
 		Table:       table,
 		Logger:      logger,
@@ -95,7 +95,7 @@ func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger)
 
 // Init initializes the store by writing the given data to DynamoDB. It will
 // delete all existing data from the table.
-func (store *DynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *DBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 	// FIXME: deleting all items before storing new ones is racy, or isn't it?
 	if err := store.truncateTable(); err != nil {
 		store.Logger.Printf("ERROR: Failed to truncate table: %s", err)
@@ -130,13 +130,13 @@ func (store *DynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 }
 
 // Initialized returns true if the store has been initialized.
-func (store *DynamoDBFeatureStore) Initialized() bool {
+func (store *DBFeatureStore) Initialized() bool {
 	return store.initialized
 }
 
 // All returns all items currently stored in DynamoDB that are of the given
 // data kind. (It won't return items marked as deleted.)
-func (store *DynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *DBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	var items []map[string]*dynamodb.AttributeValue
 
 	err := store.Client.QueryPages(&dynamodb.QueryInput{
@@ -177,7 +177,7 @@ func (store *DynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld
 
 // Get returns a specific item with the given key. It returns nil if the item
 // does not exist or if it's marked as deleted.
-func (store *DynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *DBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	result, err := store.Client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.Table),
 		ConsistentRead: aws.Bool(true),
@@ -213,18 +213,18 @@ func (store *DynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (l
 // Upsert either creates a new item of the given data kind if it doesn't
 // already exist, or updates an existing item if the given item has a higher
 // version.
-func (store *DynamoDBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *DBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.updateWithVersioning(kind, item)
 }
 
 // Delete marks an item as deleted. (It won't actually remove the item from
 // DynamoDB.)
-func (store *DynamoDBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
+func (store *DBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return store.updateWithVersioning(kind, deletedItem)
 }
 
-func (store *DynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *DBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	av, err := marshalItem(kind, item)
 	if err != nil {
 		store.Logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
@@ -262,7 +262,7 @@ func (store *DynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 }
 
 // truncateTable deletes all items from the table.
-func (store *DynamoDBFeatureStore) truncateTable() error {
+func (store *DBFeatureStore) truncateTable() error {
 	var items []map[string]*dynamodb.AttributeValue
 
 	err := store.Client.ScanPages(&dynamodb.ScanInput{
@@ -300,7 +300,7 @@ func (store *DynamoDBFeatureStore) truncateTable() error {
 
 // batchWriteRequests executes a list of write requests (PutItem or DeleteItem)
 // in batches of 25, which is the maximum BatchWriteItem can handle.
-func (store *DynamoDBFeatureStore) batchWriteRequests(requests []*dynamodb.WriteRequest) error {
+func (store *DBFeatureStore) batchWriteRequests(requests []*dynamodb.WriteRequest) error {
 	for len(requests) > 0 {
 		batchSize := int(math.Min(float64(len(requests)), 25))
 		batch := requests[:batchSize]
