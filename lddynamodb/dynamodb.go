@@ -29,6 +29,22 @@ package lddynamodb
 // Changes include a different method of configuration, less potential for race conditions,
 // and unit tests that run against a local Dynamo instance.
 
+// Implementation notes:
+//
+// - Feature flags, segments, and any other kind of entity the LaunchDarkly client may wish
+// to store, are all put in the same table. The only two required attributes are "key" (which
+// is present in all storeable entities) and "namespace" (a parameter from the client that is
+// used to disambiguate between flags and segments; this is stored in the marshaled entity
+// but is ignored during unmarshaling).
+//
+// - Since DynamoDB doesn't have transactions, the Init method - which replaces the entire data
+// store - is not atomic, so there can be a race condition if another process is adding new data
+// via Upsert. To minimize this, we don't delete all the data at the start; instead, we update
+// the items we've received, and then delete all other items. That could potentially result in
+// deleting new data from another process, but that would be the case anyway if the Init
+// happened to execute later than the Upsert; we are relying on the fact that normally the
+// process that did the Init will also receive the new data shortly and do its own Upsert.
+
 import (
 	"fmt"
 	"log"
@@ -168,14 +184,6 @@ func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption
 }
 
 func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	// Note that because DynamoDB doesn't have transactions, there can be race conditions if one process
-	// is calling Init and another is calling Upsert. To minimize this, we don't delete all the data at
-	// the start; instead, we update the items we've received, and then delete all other items. That
-	// could potentially result in deleting some new data that was added by another process via Upsert,
-	// but that would be the case anyway if the Init happened to execute later than the Upsert; we are
-	// relying on the fact that normally the process that did the Init will also receive the new data
-	// and do its own Upsert.
-
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys()
 	if err != nil {
@@ -186,6 +194,7 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 	requests := make([]*dynamodb.WriteRequest, 0)
 	numItems := 0
 
+	// Insert or update every provided item
 	for kind, items := range allData {
 		for k, v := range items {
 			av, err := marshalItem(kind, v)
