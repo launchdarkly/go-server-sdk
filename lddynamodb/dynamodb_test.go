@@ -24,7 +24,7 @@ func TestDynamoDBFeatureStore(t *testing.T) {
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
-		store, err := NewDynamoDBFeatureStore(testTableName, makeTestConfig(), nil)
+		store, err := NewDynamoDBFeatureStore(testTableName, AWSConfig(makeTestConfig()))
 		require.NoError(t, err)
 		return store
 	})

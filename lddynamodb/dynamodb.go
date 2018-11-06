@@ -13,7 +13,7 @@ for more background information.
 
 Here's how to use the feature store with the LaunchDarkly client:
 
-	store, err := dynamodb.NewDynamoDBFeatureStore("some-table", nil)
+	store, err := lddynamodb.NewDynamoDBFeatureStore("some-table")
 	if err != nil { ... }
 
 	config := ld.DefaultConfig
@@ -25,7 +25,9 @@ Here's how to use the feature store with the LaunchDarkly client:
 */
 package lddynamodb
 
-// This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store
+// This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store.
+// Changes include a different method of configuration, less potential for race conditions,
+// and unit tests that run against a local Dynamo instance.
 
 import (
 	"fmt"
@@ -57,47 +59,112 @@ type namespaceAndKey struct {
 // Internal type for our DynamoDB implementation of the ld.FeatureStore interface.
 type dynamoDBFeatureStore struct {
 	// Client to access DynamoDB
-	Client dynamodbiface.DynamoDBAPI
+	client dynamodbiface.DynamoDBAPI
 
 	// Name of the DynamoDB table
-	Table string
+	table string
+
+	// Custom configuration(s) specified via options parameters
+	configs []*aws.Config
 
 	// Logger to write all log messages to
-	Logger ld.Logger
+	logger ld.Logger
 
 	initialized bool
 }
 
-// NewDynamoDBFeatureStore creates a new DynamoDB feature store ready to be used
-// by the LaunchDarkly client.
+// FeatureStoreOption is the interface for optional configuration parameters that can be
+// passed to NewDynamoDBFeatureStore. These include AWSConfig and Logger.
+type FeatureStoreOption interface {
+	apply(store *dynamoDBFeatureStore) error
+}
+
+type dynamoClientOption struct {
+	client dynamodbiface.DynamoDBAPI
+}
+
+func (o dynamoClientOption) apply(store *dynamoDBFeatureStore) error {
+	store.client = o.client
+	return nil
+}
+
+// DynamoClient creates an option for NewDynamoDBFeatureStore, to specify an existing
+// DynamoDB client instance. Use this if you want to customize the client used by the
+// feature store in ways that are not supported by other NewDynamoDBFeatureStore options.
+// If you specify this option, then any configuration objects specified with AWSConfig
+// will be ignored.
+func DynamoClient(client dynamodbiface.DynamoDBAPI) FeatureStoreOption {
+	return dynamoClientOption{client}
+}
+
+type awsConfigOption struct {
+	config *aws.Config
+}
+
+func (o awsConfigOption) apply(store *dynamoDBFeatureStore) error {
+	store.configs = append(store.configs, o.config)
+	return nil
+}
+
+// AWSConfig creates an option for NewDynamoDBFeatureStore, to specify an aws.Config object
+// to use when creating the DynamoDB session. This can be used to set properties such as
+// the region programmatically, rather than relying on the defaults from the environment.
+func AWSConfig(config *aws.Config) FeatureStoreOption {
+	return awsConfigOption{config}
+}
+
+type loggerOption struct {
+	logger ld.Logger
+}
+
+func (o loggerOption) apply(store *dynamoDBFeatureStore) error {
+	store.logger = o.logger
+	return nil
+}
+
+// Logger creates an option for NewDynamoDBFeatureStore, to specify where to send log output.
+// If not specified, a log.Logger is used.
+func Logger(logger ld.Logger) FeatureStoreOption {
+	return loggerOption{logger}
+}
+
+// NewDynamoDBFeatureStore creates a new DynamoDB feature store to be used by the LaunchDarkly client.
 //
-// This function uses https://docs.aws.amazon.com/sdk-for-go/api/aws/session/#NewSession
-// to configure access to DynamoDB, which means that environment variables like
-// AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION work as expected.
-//
-// For more control, compose your own DynamoDBFeatureStore with a custom DynamoDB client.
-func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger) (ld.FeatureStore, error) {
-	store, err := newDynamoDBFeatureStoreInternal(table, config, logger)
+// By default, this function uses https://docs.aws.amazon.com/sdk-for-go/api/aws/session/#NewSession
+// to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
+// as AWS environment variables. You can also override the default configuration wit the AWSConfig
+// option, or use an already-configured DynamoDB client instance with the DynamoClient option.
+func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
+	store, err := newDynamoDBFeatureStoreInternal(table, options...)
 	return store, err
 }
 
-func newDynamoDBFeatureStoreInternal(table string, config *aws.Config, logger ld.Logger) (*dynamoDBFeatureStore, error) {
-	if logger == nil {
-		logger = log.New(os.Stderr, "[LaunchDarkly DynamoDBFeatureStore]", log.LstdFlags)
-	}
-
-	sess, err := session.NewSession(config)
-	if err != nil {
-		return nil, err
-	}
-	client := dynamodb.New(sess)
-
-	return &dynamoDBFeatureStore{
-		Client:      client,
-		Table:       table,
-		Logger:      logger,
+func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption) (*dynamoDBFeatureStore, error) {
+	store := dynamoDBFeatureStore{
+		table:       table,
 		initialized: false,
-	}, nil
+	}
+
+	for _, o := range options {
+		err := o.apply(&store)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if store.logger == nil {
+		store.logger = log.New(os.Stderr, "[LaunchDarkly DynamoDBFeatureStore]", log.LstdFlags)
+	}
+
+	if store.client == nil {
+		sess, err := session.NewSession(store.configs...)
+		if err != nil {
+			return nil, err
+		}
+		store.client = dynamodb.New(sess)
+	}
+
+	return &store, nil
 }
 
 func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
@@ -112,7 +179,7 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys()
 	if err != nil {
-		store.Logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
+		store.logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
 		return err
 	}
 
@@ -123,7 +190,7 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 		for k, v := range items {
 			av, err := marshalItem(kind, v)
 			if err != nil {
-				store.Logger.Printf("ERROR: Failed to marshal item (key=%s): %s", k, err)
+				store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", k, err)
 				return err
 			}
 			requests = append(requests, &dynamodb.WriteRequest{
@@ -148,29 +215,26 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 	}
 
 	if err := store.batchWriteRequests(requests); err != nil {
-		store.Logger.Printf("ERROR: Failed to write %d item(s) in batches: %s", len(requests), err)
+		store.logger.Printf("ERROR: Failed to write %d item(s) in batches: %s", len(requests), err)
 		return err
 	}
 
-	store.Logger.Printf("INFO: Initialized table %q with %d item(s)", store.Table, numItems)
+	store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
 
 	store.initialized = true
 
 	return nil
 }
 
-// Initialized returns true if the store has been initialized.
 func (store *dynamoDBFeatureStore) Initialized() bool {
 	return store.initialized
 }
 
-// All returns all items currently stored in DynamoDB that are of the given
-// data kind. (It won't return items marked as deleted.)
 func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	var items []map[string]*dynamodb.AttributeValue
 
-	err := store.Client.QueryPages(&dynamodb.QueryInput{
-		TableName:      aws.String(store.Table),
+	err := store.client.QueryPages(&dynamodb.QueryInput{
+		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		KeyConditions: map[string]*dynamodb.Condition{
 			tablePartitionKey: {
@@ -185,7 +249,7 @@ func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld
 		return !lastPage
 	})
 	if err != nil {
-		store.Logger.Printf("ERROR: Failed to get all %q items: %s", kind.GetNamespace(), err)
+		store.logger.Printf("ERROR: Failed to get all %q items: %s", kind.GetNamespace(), err)
 		return nil, err
 	}
 
@@ -194,7 +258,7 @@ func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld
 	for _, i := range items {
 		item, err := unmarshalItem(kind, i)
 		if err != nil {
-			store.Logger.Printf("ERROR: Failed to unmarshal item: %s", err)
+			store.logger.Printf("ERROR: Failed to unmarshal item: %s", err)
 			return nil, err
 		}
 		if !item.IsDeleted() {
@@ -205,11 +269,9 @@ func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld
 	return results, nil
 }
 
-// Get returns a specific item with the given key. It returns nil if the item
-// does not exist or if it's marked as deleted.
 func (store *dynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
-	result, err := store.Client.GetItem(&dynamodb.GetItemInput{
-		TableName:      aws.String(store.Table),
+	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(kind.GetNamespace())},
@@ -217,38 +279,33 @@ func (store *dynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (l
 		},
 	})
 	if err != nil {
-		store.Logger.Printf("ERROR: Failed to get item (key=%s): %s", key, err)
+		store.logger.Printf("ERROR: Failed to get item (key=%s): %s", key, err)
 		return nil, err
 	}
 
 	if len(result.Item) == 0 {
-		store.Logger.Printf("DEBUG: Item not found (key=%s)", key)
+		store.logger.Printf("DEBUG: Item not found (key=%s)", key)
 		return nil, nil
 	}
 
 	item, err := unmarshalItem(kind, result.Item)
 	if err != nil {
-		store.Logger.Printf("ERROR: Failed to unmarshal item (key=%s): %s", key, err)
+		store.logger.Printf("ERROR: Failed to unmarshal item (key=%s): %s", key, err)
 		return nil, err
 	}
 
 	if item.IsDeleted() {
-		store.Logger.Printf("DEBUG: Attempted to get deleted item (key=%s)", key)
+		store.logger.Printf("DEBUG: Attempted to get deleted item (key=%s)", key)
 		return nil, nil
 	}
 
 	return item, nil
 }
 
-// Upsert either creates a new item of the given data kind if it doesn't
-// already exist, or updates an existing item if the given item has a higher
-// version.
 func (store *dynamoDBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.updateWithVersioning(kind, item)
 }
 
-// Delete marks an item as deleted. (It won't actually remove the item from
-// DynamoDB.)
 func (store *dynamoDBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return store.updateWithVersioning(kind, deletedItem)
@@ -257,12 +314,12 @@ func (store *dynamoDBFeatureStore) Delete(kind ld.VersionedDataKind, key string,
 func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	av, err := marshalItem(kind, item)
 	if err != nil {
-		store.Logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
+		store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
 		return err
 	}
 
-	_, err = store.Client.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(store.Table),
+	_, err = store.client.PutItem(&dynamodb.PutItemInput{
+		TableName: aws.String(store.table),
 		Item:      av,
 		ConditionExpression: aws.String(
 			"attribute_not_exists(#namespace) or " +
@@ -280,11 +337,11 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.Logger.Printf("DEBUG: Not updating item due to condition (key=%s version=%d)",
+			store.logger.Printf("DEBUG: Not updating item due to condition (key=%s version=%d)",
 				item.GetKey(), item.GetVersion())
 			return nil
 		}
-		store.Logger.Printf("ERROR: Failed to put item (key=%s): %s", item.GetKey(), err)
+		store.logger.Printf("ERROR: Failed to put item (key=%s): %s", item.GetKey(), err)
 		return err
 	}
 
@@ -293,8 +350,8 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 
 func (store *dynamoDBFeatureStore) readExistingKeys() (map[namespaceAndKey]bool, error) {
 	keys := make(map[namespaceAndKey]bool)
-	err := store.Client.ScanPages(&dynamodb.ScanInput{
-		TableName:            aws.String(store.Table),
+	err := store.client.ScanPages(&dynamodb.ScanInput{
+		TableName:            aws.String(store.table),
 		ConsistentRead:       aws.Bool(true),
 		ProjectionExpression: aws.String("#namespace, #key"),
 		ExpressionAttributeNames: map[string]*string{
@@ -319,8 +376,8 @@ func (store *dynamoDBFeatureStore) batchWriteRequests(requests []*dynamodb.Write
 		batch := requests[:batchSize]
 		requests = requests[batchSize:]
 
-		_, err := store.Client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
-			RequestItems: map[string][]*dynamodb.WriteRequest{store.Table: batch},
+		_, err := store.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]*dynamodb.WriteRequest{store.table: batch},
 		})
 		if err != nil {
 			return err
