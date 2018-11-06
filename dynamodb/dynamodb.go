@@ -282,7 +282,7 @@ func (store *DynamoDBFeatureStore) truncateTable() error {
 		return err
 	}
 
-	var requests []*dynamodb.WriteRequest
+	requests := make([]*dynamodb.WriteRequest, 0, len(items))
 
 	for _, item := range items {
 		requests = append(requests, &dynamodb.WriteRequest{
