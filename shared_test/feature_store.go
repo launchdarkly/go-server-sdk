@@ -26,6 +26,38 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		assert.True(t, store.Initialized())
 	})
 
+	t.Run("init completely replaces previous data", func(t *testing.T) {
+		store := reinitStore()
+		feature1 := ld.FeatureFlag{Key: "first", Version: 1}
+		feature2 := ld.FeatureFlag{Key: "second", Version: 1}
+		segment1 := ld.Segment{Key: "first", Version: 1}
+		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1, "second": &feature2},
+			map[string]*ld.Segment{"first": &segment1})
+		assert.NoError(t, store.Init(allData))
+
+		flags, err := store.All(ld.Features)
+		assert.NoError(t, err)
+		segs, err := store.All(ld.Segments)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, flags["first"].GetVersion())
+		assert.Equal(t, 1, flags["second"].GetVersion())
+		assert.Equal(t, 1, segs["first"].GetVersion())
+
+		feature1.Version = 2
+		segment1.Version = 2
+		allData = makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1},
+			map[string]*ld.Segment{"first": &segment1})
+		assert.NoError(t, store.Init(allData))
+
+		flags, err = store.All(ld.Features)
+		assert.NoError(t, err)
+		segs, err = store.All(ld.Segments)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, flags["first"].GetVersion())
+		assert.Nil(t, flags["second"])
+		assert.Equal(t, 2, segs["first"].GetVersion())
+	})
+
 	t.Run("get existing feature", func(t *testing.T) {
 		store := reinitStore()
 		feature1 := ld.FeatureFlag{Key: "feature"}
