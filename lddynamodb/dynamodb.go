@@ -149,7 +149,7 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 //
 // By default, this function uses https://docs.aws.amazon.com/sdk-for-go/api/aws/session/#NewSession
 // to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
-// as AWS environment variables. You can also override the default configuration with the AWSConfig
+// as AWS environment variables. You can also override the default configuration with the SessionOptions
 // option, or use an already-configured DynamoDB client instance with the DynamoClient option.
 func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
 	store, err := newDynamoDBFeatureStoreInternal(table, options...)

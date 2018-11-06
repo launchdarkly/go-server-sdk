@@ -34,7 +34,7 @@ func makeTestOptions() session.Options {
 	return session.Options{
 		Config: aws.Config{
 			Endpoint: aws.String(localDynamoEndpoint),
-			Region:   aws.String("us-east-1"),
+			Region:   aws.String("us-east-1"), // this is ignored for a local instance, but is still required
 		},
 	}
 }
