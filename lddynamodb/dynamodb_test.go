@@ -24,21 +24,23 @@ func TestDynamoDBFeatureStore(t *testing.T) {
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
-		store, err := NewDynamoDBFeatureStore(testTableName, AWSConfig(makeTestConfig()))
+		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()))
 		require.NoError(t, err)
 		return store
 	})
 }
 
-func makeTestConfig() *aws.Config {
-	return &aws.Config{
-		Endpoint: aws.String(localDynamoEndpoint),
-		Region:   aws.String("us-east-1"),
+func makeTestOptions() session.Options {
+	return session.Options{
+		Config: aws.Config{
+			Endpoint: aws.String(localDynamoEndpoint),
+			Region:   aws.String("us-east-1"),
+		},
 	}
 }
 
 func createTableIfNecessary(table string) error {
-	sess, err := session.NewSession(makeTestConfig())
+	sess, err := session.NewSessionWithOptions(makeTestOptions())
 	if err != nil {
 		return err
 	}

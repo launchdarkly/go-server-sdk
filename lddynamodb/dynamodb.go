@@ -80,8 +80,8 @@ type dynamoDBFeatureStore struct {
 	// Name of the DynamoDB table
 	table string
 
-	// Custom configuration(s) specified via options parameters
-	configs []*aws.Config
+	// Session configuration which can be overridden
+	sessionOptions session.Options
 
 	// Logger to write all log messages to
 	logger ld.Logger
@@ -90,7 +90,7 @@ type dynamoDBFeatureStore struct {
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewDynamoDBFeatureStore. These include AWSConfig and Logger.
+// passed to NewDynamoDBFeatureStore. These include SessionOptions, DynamoClient, and Logger.
 type FeatureStoreOption interface {
 	apply(store *dynamoDBFeatureStore) error
 }
@@ -107,26 +107,27 @@ func (o dynamoClientOption) apply(store *dynamoDBFeatureStore) error {
 // DynamoClient creates an option for NewDynamoDBFeatureStore, to specify an existing
 // DynamoDB client instance. Use this if you want to customize the client used by the
 // feature store in ways that are not supported by other NewDynamoDBFeatureStore options.
-// If you specify this option, then any configuration objects specified with AWSConfig
-// will be ignored.
+// If you specify this option, then any configuration specified with SessionOptions will
+// be ignored.
 func DynamoClient(client dynamodbiface.DynamoDBAPI) FeatureStoreOption {
 	return dynamoClientOption{client}
 }
 
-type awsConfigOption struct {
-	config *aws.Config
+type sessionOptionsOption struct {
+	options session.Options
 }
 
-func (o awsConfigOption) apply(store *dynamoDBFeatureStore) error {
-	store.configs = append(store.configs, o.config)
+func (o sessionOptionsOption) apply(store *dynamoDBFeatureStore) error {
+	store.sessionOptions = o.options
 	return nil
 }
 
-// AWSConfig creates an option for NewDynamoDBFeatureStore, to specify an aws.Config object
-// to use when creating the DynamoDB session. This can be used to set properties such as
-// the region programmatically, rather than relying on the defaults from the environment.
-func AWSConfig(config *aws.Config) FeatureStoreOption {
-	return awsConfigOption{config}
+// SessionOptions creates an option for NewDynamoDBFeatureStore, to specify an AWS
+// Session.Options object to use when creating the DynamoDB session. This can be used to
+// set properties such as the region programmatically, rather than relying on the
+// defaults from the environment.
+func SessionOptions(options session.Options) FeatureStoreOption {
+	return sessionOptionsOption{options}
 }
 
 type loggerOption struct {
@@ -173,7 +174,7 @@ func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption
 	}
 
 	if store.client == nil {
-		sess, err := session.NewSession(store.configs...)
+		sess, err := session.NewSessionWithOptions(store.sessionOptions)
 		if err != nil {
 			return nil, err
 		}
