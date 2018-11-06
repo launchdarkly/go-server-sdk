@@ -1,4 +1,4 @@
-package dynamodb_test
+package lddynamodb
 
 import (
 	"fmt"
@@ -11,17 +11,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-client.v4"
-	lddynamo "gopkg.in/launchdarkly/go-client.v4/dynamodb"
 	ldtest "gopkg.in/launchdarkly/go-client.v4/shared_test"
 )
 
 const (
 	localDynamoEndpoint = "http://localhost:8000"
 	testTableName       = "LD_DYNAMODB_TEST_TABLE"
-
-	// Schema of the DynamoDB table
-	tablePartitionKey = "namespace"
-	tableSortKey      = "key"
 )
 
 func TestDynamoDBFeatureStore(t *testing.T) {
@@ -29,7 +24,7 @@ func TestDynamoDBFeatureStore(t *testing.T) {
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
-		store, err := lddynamo.NewDynamoDBFeatureStore(testTableName, makeTestConfig(), nil)
+		store, err := NewDynamoDBFeatureStore(testTableName, makeTestConfig(), nil)
 		require.NoError(t, err)
 		return store
 	})

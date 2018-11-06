@@ -1,5 +1,5 @@
 /*
-Package dynamodb provides a DynamoDB-backed feature store for the LaunchDarkly
+Package lddynamodb provides a DynamoDB-backed feature store for the LaunchDarkly
 Go SDK.
 
 By caching feature flag data in DynamoDB, LaunchDarkly clients don't need to
@@ -23,7 +23,7 @@ Here's how to use the feature store with the LaunchDarkly client:
 	ldClient, err := ld.MakeCustomClient("some-sdk-key", config, 5*time.Second)
 	if err != nil { ... }
 */
-package dynamodb
+package lddynamodb
 
 // This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store
 
@@ -48,6 +48,11 @@ const (
 	tablePartitionKey = "namespace"
 	tableSortKey      = "key"
 )
+
+type namespaceAndKey struct {
+	namespace string
+	key       string
+}
 
 // Verify that the store satisfies the FeatureStore interface
 var _ ld.FeatureStore = (*DBFeatureStore)(nil)
@@ -96,13 +101,35 @@ func NewDynamoDBFeatureStore(table string, config *aws.Config, logger ld.Logger)
 // Init initializes the store by writing the given data to DynamoDB. It will
 // delete all existing data from the table.
 func (store *DBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	// FIXME: deleting all items before storing new ones is racy, or isn't it?
-	if err := store.truncateTable(); err != nil {
-		store.Logger.Printf("ERROR: Failed to truncate table: %s", err)
+	// Note that because DynamoDB doesn't have transactions, there can be race conditions if one process
+	// is calling Init and another is calling Upsert. The goal is eventual consistency: if the Init
+	// deletes data that was added by the Upsert, we are relying on the fact that the process that
+	// called Init should be receiving the same data soon and calling Upsert as well.
+
+	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
+	unusedOldKeys := make(map[namespaceAndKey]bool)
+	err := store.Client.ScanPages(&dynamodb.ScanInput{
+		TableName:            aws.String(store.Table),
+		ConsistentRead:       aws.Bool(true),
+		ProjectionExpression: aws.String("#namespace, #key"),
+		ExpressionAttributeNames: map[string]*string{
+			"#namespace": aws.String(tablePartitionKey),
+			"#key":       aws.String(tableSortKey),
+		},
+	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
+		for _, i := range out.Items {
+			nk := namespaceAndKey{namespace: *(*i[tablePartitionKey]).S, key: *(*i[tableSortKey]).S}
+			unusedOldKeys[nk] = true
+		}
+		return !lastPage
+	})
+	if err != nil {
+		store.Logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
 		return err
 	}
 
-	var requests []*dynamodb.WriteRequest
+	requests := make([]*dynamodb.WriteRequest, 0, 0)
+	numItems := 0
 
 	for kind, items := range allData {
 		for k, v := range items {
@@ -114,6 +141,21 @@ func (store *DBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld
 			requests = append(requests, &dynamodb.WriteRequest{
 				PutRequest: &dynamodb.PutRequest{Item: av},
 			})
+			nk := namespaceAndKey{namespace: kind.GetNamespace(), key: v.GetKey()}
+			unusedOldKeys[nk] = false
+			numItems++
+		}
+	}
+
+	// Now delete any previously existing items whose keys were not in the current data
+	for k, v := range unusedOldKeys {
+		if v {
+			delKey := make(map[string]*dynamodb.AttributeValue)
+			delKey[tablePartitionKey] = &dynamodb.AttributeValue{S: aws.String(k.namespace)}
+			delKey[tableSortKey] = &dynamodb.AttributeValue{S: aws.String(k.key)}
+			requests = append(requests, &dynamodb.WriteRequest{
+				DeleteRequest: &dynamodb.DeleteRequest{Key: delKey},
+			})
 		}
 	}
 
@@ -122,7 +164,7 @@ func (store *DBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld
 		return err
 	}
 
-	store.Logger.Printf("INFO: Initialized table %q with %d item(s)", store.Table, len(requests))
+	store.Logger.Printf("INFO: Initialized table %q with %d item(s)", store.Table, numItems)
 
 	store.initialized = true
 
@@ -255,43 +297,6 @@ func (store *DBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, ite
 			return nil
 		}
 		store.Logger.Printf("ERROR: Failed to put item (key=%s): %s", item.GetKey(), err)
-		return err
-	}
-
-	return nil
-}
-
-// truncateTable deletes all items from the table.
-func (store *DBFeatureStore) truncateTable() error {
-	var items []map[string]*dynamodb.AttributeValue
-
-	err := store.Client.ScanPages(&dynamodb.ScanInput{
-		TableName:            aws.String(store.Table),
-		ConsistentRead:       aws.Bool(true),
-		ProjectionExpression: aws.String("#namespace, #key"),
-		ExpressionAttributeNames: map[string]*string{
-			"#namespace": aws.String(tablePartitionKey),
-			"#key":       aws.String(tableSortKey),
-		},
-	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
-		items = append(items, out.Items...)
-		return !lastPage
-	})
-	if err != nil {
-		store.Logger.Printf("ERROR: Failed to get all items: %s", err)
-		return err
-	}
-
-	requests := make([]*dynamodb.WriteRequest, 0, len(items))
-
-	for _, item := range items {
-		requests = append(requests, &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{Key: item},
-		})
-	}
-
-	if err := store.batchWriteRequests(requests); err != nil {
-		store.Logger.Printf("ERROR: Failed to delete %d item(s) in batches: %s", len(items), err)
 		return err
 	}
 
