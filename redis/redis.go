@@ -5,22 +5,19 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
 	r "github.com/garyburd/redigo/redis"
-	"github.com/patrickmn/go-cache"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
 
 // RedisFeatureStore is a Redis-backed feature store implementation.
 type RedisFeatureStore struct { // nolint:golint // package name in type name
+	helper     *ld.FeatureStoreHelper
 	prefix     string
 	pool       *r.Pool
-	cache      *cache.Cache
-	timeout    time.Duration
 	logger     ld.Logger
 	testTxHook func()
 	inited     bool
@@ -61,15 +58,12 @@ func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration, logg
 	}
 	logger.Printf("RedisFeatureStore: Using url: %s", url)
 	return NewRedisFeatureStoreWithPool(newPool(url), prefix, timeout, logger)
-
 }
 
 // NewRedisFeatureStoreWithPool constructs a new Redis-backed feature store with the specified redigo pool configuration.
 // Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
 // specified prefix is the empty string, it defaults to "launchdarkly".
 func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	var c *cache.Cache
-
 	if logger == nil {
 		logger = defaultLogger()
 	}
@@ -81,16 +75,14 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 
 	if timeout > 0 {
 		logger.Printf("RedisFeatureStore: Using local cache with timeout: %v", timeout)
-		c = cache.New(timeout, 5*time.Minute)
 	}
 
 	store := RedisFeatureStore{
-		prefix:  prefix,
-		pool:    pool,
-		cache:   c,
-		timeout: timeout,
-		logger:  logger,
-		inited:  false,
+		helper: ld.NewFeatureStoreHelper(timeout),
+		prefix: prefix,
+		pool:   pool,
+		logger: logger,
+		inited: false,
 	}
 	return &store
 }
@@ -109,110 +101,78 @@ func (store *RedisFeatureStore) featuresKey(kind ld.VersionedDataKind) string {
 
 // Get returns an individual object of a given type from the store
 func (store *RedisFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
-	item, err := store.getEvenIfDeleted(kind, key, true)
-	if err == nil && item == nil {
-		store.logger.Printf("RedisFeatureStore: WARN: Item not found in store. Key: %s", key)
-	}
-	if err == nil && item != nil && item.IsDeleted() {
-		store.logger.Printf("RedisFeatureStore: WARN: Attempted to get deleted item in \"%s\". Key: %s",
-			kind.GetNamespace(), key)
-		return nil, nil
-	}
-	return item, err
+	return store.helper.Get(kind, key, store.getEvenIfDeleted)
 }
 
 // All returns all the objects of a given kind from the store
 func (store *RedisFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+	return store.helper.All(kind, func(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+		results := make(map[string]ld.VersionedData)
 
-	if store.cache != nil {
-		if data, present := store.cache.Get(allFlagsCacheKey(kind)); present {
-			items, ok := data.(map[string]ld.VersionedData)
-			if ok {
-				return items, nil
-			}
-			store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %T. Expected map[string]ld.VersionedData", data)
-		}
-	}
+		c := store.getConn()
+		defer c.Close() // nolint:errcheck
 
-	results := make(map[string]ld.VersionedData)
+		values, err := r.StringMap(c.Do("HGETALL", store.featuresKey(kind)))
 
-	c := store.getConn()
-	defer c.Close() // nolint:errcheck
-
-	values, err := r.StringMap(c.Do("HGETALL", store.featuresKey(kind)))
-
-	if err != nil && err != r.ErrNil {
-		return nil, err
-	}
-
-	for k, v := range values {
-		item, jsonErr := store.unmarshalItem(kind, v)
-
-		if jsonErr != nil {
+		if err != nil && err != r.ErrNil {
 			return nil, err
 		}
 
-		if !item.IsDeleted() {
-			results[k] = item
+		for k, v := range values {
+			item, jsonErr := store.unmarshalItem(kind, v)
+
+			if jsonErr != nil {
+				return nil, err
+			}
+
+			if !item.IsDeleted() {
+				results[k] = item
+			}
 		}
-	}
-	if store.cache != nil {
-		store.cache.Set(allFlagsCacheKey(kind), results, store.timeout)
-	}
-	return results, nil
+		return results, nil
+	})
 }
 
 // Init populates the store with a complete set of versioned data
 func (store *RedisFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	c := store.getConn()
-	defer c.Close() // nolint:errcheck
+	return store.helper.Init(allData, func(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+		c := store.getConn()
+		defer c.Close() // nolint:errcheck
 
-	_ = c.Send("MULTI")
+		_ = c.Send("MULTI")
 
-	if store.cache != nil {
-		store.cache.Flush()
-	}
+		for kind, items := range allData {
+			baseKey := store.featuresKey(kind)
 
-	for kind, items := range allData {
-		baseKey := store.featuresKey(kind)
+			_ = c.Send("DEL", baseKey)
 
-		_ = c.Send("DEL", baseKey)
+			for k, v := range items {
+				data, jsonErr := json.Marshal(v)
 
-		for k, v := range items {
-			data, jsonErr := json.Marshal(v)
+				if jsonErr != nil {
+					return jsonErr
+				}
 
-			if jsonErr != nil {
-				return jsonErr
-			}
-
-			_ = c.Send("HSET", baseKey, k, data)
-
-			if store.cache != nil {
-				store.cache.Set(cacheKey(kind, k), v, store.timeout)
+				_ = c.Send("HSET", baseKey, k, data)
 			}
 		}
 
-		if store.cache != nil {
-			store.cache.Set(allFlagsCacheKey(kind), items, store.timeout)
-		}
-	}
+		_, err := c.Do("EXEC")
 
-	_, err := c.Do("EXEC")
+		store.initCheck.Do(func() { store.inited = true })
 
-	store.initCheck.Do(func() { store.inited = true })
-
-	return err
+		return err
+	})
 }
 
 // Delete removes an item of a given kind from the store
 func (store *RedisFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
-	deletedItem := kind.MakeDeletedItem(key, version)
-	return store.updateWithVersioning(kind, deletedItem)
+	return store.helper.Delete(kind, key, version, store.updateWithVersioning)
 }
 
 // Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
 func (store *RedisFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
-	return store.updateWithVersioning(kind, item)
+	return store.helper.Upsert(kind, item, store.updateWithVersioning)
 }
 
 func cacheKey(kind ld.VersionedDataKind, key string) string {
@@ -223,17 +183,7 @@ func allFlagsCacheKey(kind ld.VersionedDataKind) string {
 	return "all:" + kind.GetNamespace()
 }
 
-func (store *RedisFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string, useCache bool) (ld.VersionedData, error) {
-	if useCache && store.cache != nil {
-		if data, present := store.cache.Get(cacheKey(kind, key)); present {
-			item, ok := data.(ld.VersionedData)
-			if ok {
-				return item, nil
-			}
-			store.logger.Printf("ERROR: RedisFeatureStore's in-memory cache returned an unexpected type: %v. Expected ld.VersionedData", reflect.TypeOf(data))
-		}
-	}
-
+func (store *RedisFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -250,9 +200,6 @@ func (store *RedisFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key 
 	item, jsonErr := store.unmarshalItem(kind, jsonStr)
 	if jsonErr != nil {
 		return nil, jsonErr
-	}
-	if store.cache != nil {
-		store.cache.Set(cacheKey(kind, key), item, store.timeout)
 	}
 	return item, nil
 }
@@ -287,7 +234,7 @@ func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, 
 			store.testTxHook()
 		}
 
-		oldItem, err := store.getEvenIfDeleted(kind, key, false)
+		oldItem, err := store.getEvenIfDeleted(kind, key)
 
 		if err != nil {
 			return err
@@ -312,9 +259,6 @@ func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, 
 					// if exec returned nothing, it means the watch was triggered and we should retry
 					store.logger.Printf("RedisFeatureStore: DEBUG: Concurrent modification detected, retrying")
 					continue
-				} else if store.cache != nil {
-					store.cache.Delete(allFlagsCacheKey(kind))
-					store.cache.Set(cacheKey(kind, key), newItem, store.timeout)
 				}
 			}
 		}

@@ -51,6 +51,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -76,6 +77,8 @@ type namespaceAndKey struct {
 type dynamoDBFeatureStore struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
+	helper         *ld.FeatureStoreHelper
+	cacheTTL       time.Duration
 	sessionOptions session.Options
 	logger         ld.Logger
 	initialized    bool
