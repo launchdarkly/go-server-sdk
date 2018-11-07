@@ -175,14 +175,6 @@ func (store *RedisFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.Versio
 	return store.helper.Upsert(kind, item, store.updateWithVersioning)
 }
 
-func cacheKey(kind ld.VersionedDataKind, key string) string {
-	return kind.GetNamespace() + ":" + key
-}
-
-func allFlagsCacheKey(kind ld.VersionedDataKind) string {
-	return "all:" + kind.GetNamespace()
-}
-
 func (store *RedisFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
