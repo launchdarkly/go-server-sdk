@@ -230,7 +230,8 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureS
 		setStore1UpdateHook(func() {
 			if i < len(flagVersionsToWrite) {
 				newFlag := makeFlagWithVersion(flagVersionsToWrite[i])
-				store2.Upsert(ld.Features, newFlag)
+				err := store2.Upsert(ld.Features, newFlag)
+				require.NoError(t, err)
 				i++
 			}
 		})
