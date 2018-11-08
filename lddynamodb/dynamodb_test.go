@@ -24,14 +24,14 @@ func TestDynamoDBFeatureStoreUncached(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(t, 0), clearExistingData, false)
+	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(0), clearExistingData, false)
 }
 
 func TestDynamoDBFeatureStoreCached(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(t, 30*time.Second), clearExistingData, true)
+	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(30*time.Second), clearExistingData, true)
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
@@ -46,11 +46,9 @@ func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-func makeStoreWithCacheTTL(t *testing.T, ttl time.Duration) func() ld.FeatureStore {
-	return func() ld.FeatureStore {
-		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
-		require.NoError(t, err)
-		return store
+func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
+	return func() (ld.FeatureStore, error) {
+		return NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
 	}
 }
 
