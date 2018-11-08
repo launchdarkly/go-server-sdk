@@ -52,9 +52,8 @@ type FeatureStoreCore interface {
 // FeatureStoreWrapper is a partial implementation of ldclient.FeatureStore that delegates
 // basic functionality to an instance of FeatureStoreCore. It provides optional caching
 type FeatureStoreWrapper struct {
-	core   FeatureStoreCore
-	inited bool
-	cache  *cache.Cache
+	core  FeatureStoreCore
+	cache *cache.Cache
 }
 
 // NewFeatureStoreWrapper creates an instance of FeatureStoreWrapper that wraps an instance
