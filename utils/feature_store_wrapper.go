@@ -33,10 +33,14 @@ type FeatureStoreCore interface {
 	InitInternal(map[ld.VersionedDataKind]map[string]ld.VersionedData) error
 	// UpsertInternal adds or updates a single item. If an item with the same key already
 	// exists, it should update it only if the new item's GetVersion() value is greater
-	// than the old one. It returns true if the item was updated, or false if it was not
-	// updated due to the version comparison. Note that deletes are implemented by using
-	// UpsertInternal to store an item whose Deleted property is true.
-	UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (bool, error)
+	// than the old one. It should return the final state of the item, i.e. if the update
+	// succeeded then it returns the item that was passed in, and if the update failed due
+	// to the version check then it returns the item that is currently in the data store
+	// (this ensures that caching works correctly).
+	//
+	// Note that deletes are implemented by using UpsertInternal to store an item whose
+	// Deleted property is true.
+	UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error)
 	// InitializedInternal returns true if the data store contains a complete data set,
 	// meaning that InitInternal has been called at least once. In a shared data store, it
 	// should be able to detect this even if InitInternal was called in a different process,
@@ -168,10 +172,12 @@ func (w *FeatureStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.Vers
 
 // Upsert updates or adds an item, with optional caching.
 func (w *FeatureStoreWrapper) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
-	updated, err := w.core.UpsertInternal(kind, item)
-	if err == nil && updated {
+	finalItem, err := w.core.UpsertInternal(kind, item)
+	// Note that what we put into the cache is finalItem, which may not be the same as item (i.e. if
+	// another process has already updated the item to a higher version).
+	if err == nil && finalItem != nil {
 		if w.cache != nil {
-			w.cache.Set(featureStoreCacheKey(kind, item.GetKey()), item, cache.DefaultExpiration)
+			w.cache.Set(featureStoreCacheKey(kind, item.GetKey()), finalItem, cache.DefaultExpiration)
 			w.cache.Delete(featureStoreAllItemsCacheKey(kind))
 		}
 	}
