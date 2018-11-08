@@ -43,10 +43,10 @@ func TestDynamoDBFeatureStoreCached(t *testing.T) {
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
+	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)
 	store1 := utils.NewFeatureStoreWrapper(store1Internal)
-	store2Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
+	store2Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)
 	store2 := utils.NewFeatureStoreWrapper(store2Internal)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {

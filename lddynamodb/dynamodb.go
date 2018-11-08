@@ -342,11 +342,11 @@ func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key st
 	return item, nil
 }
 
-func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (bool, error) {
+func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
 	av, err := marshalItem(kind, item)
 	if err != nil {
 		store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
-		return false, err
+		return nil, err
 	}
 
 	if store.testUpdateHook != nil {
@@ -374,13 +374,15 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
 			store.logger.Printf("DEBUG: Not updating item due to condition (namespace=%s key=%s version=%d)",
 				kind.GetNamespace(), item.GetKey(), item.GetVersion())
-			return false, nil
+			// We must now read the item that's in the database and return it, so FeatureStoreWrapper can cache it
+			oldItem, err := store.GetInternal(kind, item.GetKey())
+			return oldItem, err
 		}
 		store.logger.Printf("ERROR: Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
-		return false, err
+		return nil, err
 	}
 
-	return true, nil
+	return item, nil
 }
 
 func (store *dynamoDBFeatureStore) readExistingKeys() (map[namespaceAndKey]bool, error) {

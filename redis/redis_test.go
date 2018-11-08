@@ -21,8 +21,8 @@ func TestRedisFeatureStoreCached(t *testing.T) {
 }
 
 func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
-	store1 := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 0, nil)
-	store2 := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 0, nil)
+	store1 := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
+	store2 := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
 		store1.core.testTxHook = hook
 	})
