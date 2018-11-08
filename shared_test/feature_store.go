@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
@@ -195,6 +196,71 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore) {
 		result, err := store.Get(ld.Features, feature1.Key)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
+	})
+}
+
+// RunFeatureStoreConcurrentModificationTests runs tests of concurrent modification behavior
+// for store implementations that support testing this.
+//
+// store1: A FeatureStore instance.
+//
+// store2: A second FeatureStore instance which will be used to perform concurrent updates.
+//
+// setStore1UpdateHook: A function which, when called with another function as a parameter,
+// will modify store1 so that it will call the latter function synchronously during each Upsert
+// operation - after the old value has been read, but before the new one has been written.
+func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore,
+	setStore1UpdateHook func(func())) {
+
+	flagKey := "foo"
+
+	makeFlagWithVersion := func(version int) *ld.FeatureFlag {
+		return &ld.FeatureFlag{Key: flagKey, Version: version}
+	}
+
+	setupStore1 := func(initialVersion int) {
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagKey: makeFlagWithVersion(initialVersion)},
+		}
+		require.NoError(t, store1.Init(allData))
+	}
+
+	setupConcurrentModifierToWriteVersions := func(flagVersionsToWrite ...int) {
+		i := 0
+		setStore1UpdateHook(func() {
+			if i < len(flagVersionsToWrite) {
+				newFlag := makeFlagWithVersion(flagVersionsToWrite[i])
+				err := store2.Upsert(ld.Features, newFlag)
+				require.NoError(t, err)
+				i++
+			}
+		})
+	}
+
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		setupStore1(1)
+		setupConcurrentModifierToWriteVersions(2, 3, 4)
+
+		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(10)))
+
+		var result ld.VersionedData
+		result, err := store1.Get(ld.Features, flagKey)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
+	})
+
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		setupStore1(1)
+		setupConcurrentModifierToWriteVersions(3)
+
+		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(2)))
+
+		var result ld.VersionedData
+		result, err := store1.Get(ld.Features, flagKey)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
 	})
 }
 

@@ -75,20 +75,13 @@ type namespaceAndKey struct {
 
 // Internal type for our DynamoDB implementation of the ld.FeatureStore interface.
 type dynamoDBFeatureStore struct {
-	// Client to access DynamoDB
-	client dynamodbiface.DynamoDBAPI
-
-	// Name of the DynamoDB table
-	table string
-
-	// Session configuration which can be overridden
+	client         dynamodbiface.DynamoDBAPI
+	table          string
 	sessionOptions session.Options
-
-	// Logger to write all log messages to
-	logger ld.Logger
-
-	initialized bool
-	initLock    sync.RWMutex
+	logger         ld.Logger
+	initialized    bool
+	initLock       sync.RWMutex
+	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
@@ -332,6 +325,10 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 	if err != nil {
 		store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
 		return err
+	}
+
+	if store.testUpdateHook != nil {
+		store.testUpdateHook()
 	}
 
 	_, err = store.client.PutItem(&dynamodb.PutItemInput{
