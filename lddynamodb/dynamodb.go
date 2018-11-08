@@ -51,6 +51,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -87,6 +88,7 @@ type dynamoDBFeatureStore struct {
 	logger ld.Logger
 
 	initialized bool
+	initLock    sync.RWMutex
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
@@ -231,12 +233,16 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 
 	store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
 
+	store.initLock.Lock()
+	defer store.initLock.Unlock()
 	store.initialized = true
 
 	return nil
 }
 
 func (store *dynamoDBFeatureStore) Initialized() bool {
+	store.initLock.RLock()
+	defer store.initLock.RUnlock()
 	return store.initialized
 }
 
