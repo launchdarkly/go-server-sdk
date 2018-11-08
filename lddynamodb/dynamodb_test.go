@@ -24,22 +24,14 @@ func TestDynamoDBFeatureStoreUncached(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
-		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
-		require.NoError(t, err)
-		return store
-	}, clearExistingData, false)
+	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(t, 0), clearExistingData, false)
 }
 
 func TestDynamoDBFeatureStoreCached(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
-		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(30*time.Second))
-		require.NoError(t, err)
-		return store
-	}, clearExistingData, true)
+	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(t, 30*time.Second), clearExistingData, true)
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
@@ -52,6 +44,14 @@ func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
 		store1Internal.testUpdateHook = hook
 	})
+}
+
+func makeStoreWithCacheTTL(t *testing.T, ttl time.Duration) func() ld.FeatureStore {
+	return func() ld.FeatureStore {
+		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
+		require.NoError(t, err)
+		return store
+	}
 }
 
 func makeTestOptions() session.Options {
