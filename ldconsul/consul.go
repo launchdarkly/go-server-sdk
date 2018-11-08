@@ -293,8 +293,8 @@ func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.
 			return nil, err
 		}
 
-		// Check whether the item is stale. If so, don't do the update - although we do need to read the
-		// new item
+		// Check whether the item is stale. If so, don't do the update (and return the existing item to
+		// FeatureStoreWrapper so it can be cached)
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
 			return oldItem, nil
 		}
@@ -321,10 +321,9 @@ func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.
 
 		if written {
 			return newItem, nil // success
-		} else {
-			// If we failed, retry the whole shebang
-			store.logger.Printf("ConsulFeatureStore: DEBUG: Concurrent modification detected, retrying")
 		}
+		// If we failed, retry the whole shebang
+		store.logger.Printf("ConsulFeatureStore: DEBUG: Concurrent modification detected, retrying")
 	}
 }
 
@@ -336,14 +335,6 @@ func (store *featureStore) InitializedInternal() bool {
 
 func defaultLogger() *log.Logger {
 	return log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags)
-}
-
-func cacheKey(kind ld.VersionedDataKind, key string) string {
-	return kind.GetNamespace() + "/" + key
-}
-
-func allFlagsCacheKey(kind ld.VersionedDataKind) string {
-	return "all/" + kind.GetNamespace()
 }
 
 func (store *featureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (retrievedItem ld.VersionedData,
