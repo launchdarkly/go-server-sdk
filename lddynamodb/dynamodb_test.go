@@ -21,25 +21,25 @@ const (
 )
 
 func TestDynamoDBFeatureStoreUncached(t *testing.T) {
-	err := createTableIfNecessary(testTableName)
+	err := createTableIfNecessary()
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
 		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
 		require.NoError(t, err)
 		return store
-	})
+	}, clearExistingData, false)
 }
 
 func TestDynamoDBFeatureStoreCached(t *testing.T) {
-	err := createTableIfNecessary(testTableName)
+	err := createTableIfNecessary()
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
 		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(30*time.Second))
 		require.NoError(t, err)
 		return store
-	})
+	}, clearExistingData, true)
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
@@ -63,13 +63,20 @@ func makeTestOptions() session.Options {
 	}
 }
 
-func createTableIfNecessary(table string) error {
+func createTestClient() (*dynamodb.DynamoDB, error) {
 	sess, err := session.NewSessionWithOptions(makeTestOptions())
+	if err != nil {
+		return nil, err
+	}
+	return dynamodb.New(sess), nil
+}
+
+func createTableIfNecessary() error {
+	client, err := createTestClient()
 	if err != nil {
 		return err
 	}
-	client := dynamodb.New(sess)
-	_, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(table)})
+	_, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(testTableName)})
 	if err == nil {
 		return nil
 	}
@@ -101,7 +108,7 @@ func createTableIfNecessary(table string) error {
 			ReadCapacityUnits:  aws.Int64(1),
 			WriteCapacityUnits: aws.Int64(1),
 		},
-		TableName: aws.String(table),
+		TableName: aws.String(testTableName),
 	}
 	_, err = client.CreateTable(&createParams)
 	if err != nil {
@@ -115,10 +122,42 @@ func createTableIfNecessary(table string) error {
 		case <-deadline:
 			return fmt.Errorf("Timed out waiting for new table to be ready")
 		case <-retry:
-			tableInfo, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(table)})
+			tableInfo, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(testTableName)})
 			if err == nil && *tableInfo.Table.TableStatus == dynamodb.TableStatusActive {
 				return nil
 			}
 		}
 	}
+}
+
+func clearExistingData() error {
+	client, err := createTestClient()
+	if err != nil {
+		return err
+	}
+	var items []map[string]*dynamodb.AttributeValue
+
+	err = client.ScanPages(&dynamodb.ScanInput{
+		TableName:            aws.String(testTableName),
+		ConsistentRead:       aws.Bool(true),
+		ProjectionExpression: aws.String("#namespace, #key"),
+		ExpressionAttributeNames: map[string]*string{
+			"#namespace": aws.String(tablePartitionKey),
+			"#key":       aws.String(tableSortKey),
+		},
+	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
+		items = append(items, out.Items...)
+		return !lastPage
+	})
+	if err != nil {
+		return err
+	}
+
+	var requests []*dynamodb.WriteRequest
+	for _, item := range items {
+		requests = append(requests, &dynamodb.WriteRequest{
+			DeleteRequest: &dynamodb.DeleteRequest{Key: item},
+		})
+	}
+	return batchWriteRequests(client, testTableName, requests)
 }

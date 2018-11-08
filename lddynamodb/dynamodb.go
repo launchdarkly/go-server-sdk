@@ -51,7 +51,6 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -74,6 +73,7 @@ const (
 	// Schema of the DynamoDB table
 	tablePartitionKey = "namespace"
 	tableSortKey      = "key"
+	initedKey         = "$inited"
 )
 
 type namespaceAndKey struct {
@@ -88,8 +88,6 @@ type dynamoDBFeatureStore struct {
 	cacheTTL       time.Duration
 	sessionOptions session.Options
 	logger         ld.Logger
-	initialized    bool
-	initLock       sync.RWMutex
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
 
@@ -184,9 +182,8 @@ func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.Fe
 
 func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption) (*dynamoDBFeatureStore, error) {
 	store := dynamoDBFeatureStore{
-		table:       table,
-		initialized: false,
-		cacheTTL:    DefaultCacheTTL,
+		table:    table,
+		cacheTTL: DefaultCacheTTL,
 	}
 
 	for _, o := range options {
@@ -245,34 +242,46 @@ func (store *dynamoDBFeatureStore) InitInternal(allData map[ld.VersionedDataKind
 
 	// Now delete any previously existing items whose keys were not in the current data
 	for k, v := range unusedOldKeys {
-		if v {
-			delKey := make(map[string]*dynamodb.AttributeValue)
-			delKey[tablePartitionKey] = &dynamodb.AttributeValue{S: aws.String(k.namespace)}
-			delKey[tableSortKey] = &dynamodb.AttributeValue{S: aws.String(k.key)}
+		if v && k.namespace != initedKey {
+			delKey := map[string]*dynamodb.AttributeValue{
+				tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(k.namespace)},
+				tableSortKey:      &dynamodb.AttributeValue{S: aws.String(k.key)},
+			}
 			requests = append(requests, &dynamodb.WriteRequest{
 				DeleteRequest: &dynamodb.DeleteRequest{Key: delKey},
 			})
 		}
 	}
 
-	if err := store.batchWriteRequests(requests); err != nil {
+	// Now set the special key that we check in InitializedInternal()
+	initedItem := map[string]*dynamodb.AttributeValue{
+		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(initedKey)},
+		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(initedKey)},
+	}
+	requests = append(requests, &dynamodb.WriteRequest{
+		PutRequest: &dynamodb.PutRequest{Item: initedItem},
+	})
+
+	if err := batchWriteRequests(store.client, store.table, requests); err != nil {
 		store.logger.Printf("ERROR: Failed to write %d item(s) in batches: %s", len(requests), err)
 		return err
 	}
 
 	store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
 
-	store.initLock.Lock()
-	defer store.initLock.Unlock()
-	store.initialized = true
-
 	return nil
 }
 
 func (store *dynamoDBFeatureStore) InitializedInternal() bool {
-	store.initLock.RLock()
-	defer store.initLock.RUnlock()
-	return store.initialized
+	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+		TableName:      aws.String(store.table),
+		ConsistentRead: aws.Bool(true),
+		Key: map[string]*dynamodb.AttributeValue{
+			tablePartitionKey: {S: aws.String(initedKey)},
+			tableSortKey:      {S: aws.String(initedKey)},
+		},
+	})
+	return err == nil && len(result.Item) != 0
 }
 
 func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
@@ -405,14 +414,14 @@ func (store *dynamoDBFeatureStore) readExistingKeys() (map[namespaceAndKey]bool,
 
 // batchWriteRequests executes a list of write requests (PutItem or DeleteItem)
 // in batches of 25, which is the maximum BatchWriteItem can handle.
-func (store *dynamoDBFeatureStore) batchWriteRequests(requests []*dynamodb.WriteRequest) error {
+func batchWriteRequests(client dynamodbiface.DynamoDBAPI, table string, requests []*dynamodb.WriteRequest) error {
 	for len(requests) > 0 {
 		batchSize := int(math.Min(float64(len(requests)), 25))
 		batch := requests[:batchSize]
 		requests = requests[batchSize:]
 
-		_, err := store.client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
-			RequestItems: map[string][]*dynamodb.WriteRequest{store.table: batch},
+		_, err := client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]*dynamodb.WriteRequest{table: batch},
 		})
 		if err != nil {
 			return err
