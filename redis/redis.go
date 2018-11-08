@@ -217,7 +217,7 @@ func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKin
 	return err
 }
 
-func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (bool, error) {
+func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
 	baseKey := store.featuresKey(kind)
 	key := newItem.GetKey()
 	for {
@@ -227,7 +227,7 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 
 		_, err := c.Do("WATCH", baseKey)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 
 		defer c.Send("UNWATCH") // nolint:errcheck // this should always succeed
@@ -239,16 +239,16 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 		oldItem, err := store.GetInternal(kind, key)
 
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
-			return false, nil
+			return oldItem, nil
 		}
 
 		data, jsonErr := json.Marshal(newItem)
 		if jsonErr != nil {
-			return false, jsonErr
+			return nil, jsonErr
 		}
 
 		_ = c.Send("MULTI")
@@ -263,9 +263,9 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 					continue
 				}
 			}
-			return true, nil
+			return newItem, nil
 		}
-		return false, err
+		return nil, err
 	}
 }
 
