@@ -82,12 +82,9 @@ func featureStoreAllItemsCacheKey(kind ld.VersionedDataKind) string {
 
 // Init performs an update of the entire data store, with optional caching.
 func (w *FeatureStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	var err error
-	if w.cache == nil {
-		err = w.core.InitInternal(allData)
-	} else {
+	err := w.core.InitInternal(allData)
+	if w.cache != nil {
 		w.cache.Flush()
-		err := w.core.InitInternal(allData)
 		if err == nil {
 			for kind, items := range allData {
 				w.putAllItemsInCache(kind, items)
