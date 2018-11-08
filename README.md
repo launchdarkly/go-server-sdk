@@ -78,6 +78,11 @@ if showFeature {
 }
 ```
 
+Database integrations
+---------------------
+
+Feature flag data can be kept in a persistent store using Redis or DynamoDB. These adapters are implemented in the subpackages `redis` and `lddynamodb`; to use them, call the function `NewRedisFeatureStore` or `NewDynamoDBFeatureStore` and put the returned object in the `FeatureStore` field of your client configuration.
+
 Learn more
 -----------
 
