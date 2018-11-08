@@ -50,12 +50,13 @@ func (c *mockCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.Vers
 	return c.data[kind], nil
 }
 
-func (c *mockCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (bool, error) {
-	if c.data[kind][item.GetKey()] != nil && c.data[kind][item.GetKey()].GetVersion() >= item.GetVersion() {
-		return false, nil
+func (c *mockCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+	oldItem := c.data[kind][item.GetKey()]
+	if oldItem != nil && oldItem.GetVersion() >= item.GetVersion() {
+		return oldItem, nil
 	}
 	c.data[kind][item.GetKey()] = item
-	return true, nil
+	return item, nil
 }
 
 func (c *mockCore) InitializedInternal() bool {
@@ -74,6 +75,12 @@ func TestFeatureStoreWrapper(t *testing.T) {
 			t.Run("cached", func(t *testing.T) {
 				test(t, true, newCore(cacheTime))
 			})
+		})
+	}
+
+	runCachedTestOnly := func(t *testing.T, name string, test func(t *testing.T, core *mockCore)) {
+		t.Run(name, func(t *testing.T) {
+			test(t, newCore(cacheTime))
 		})
 	}
 
@@ -135,8 +142,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		}
 	})
 
-	t.Run("cached Get uses values from Init", func(t *testing.T) {
-		core := newCore(cacheTime)
+	runCachedTestOnly(t, "cached Get uses values from Init", func(t *testing.T, core *mockCore) {
 		w := NewFeatureStoreWrapper(core)
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -176,8 +182,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		}
 	})
 
-	t.Run("cached All uses values from Init", func(t *testing.T) {
-		core := newCore(cacheTime)
+	runCachedTestOnly(t, "cached All uses values from Init", func(t *testing.T, core *mockCore) {
 		w := NewFeatureStoreWrapper(core)
 
 		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -196,8 +201,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		require.Equal(t, 2, len(items))
 	})
 
-	t.Run("cached All uses fresh values if there has been an update", func(t *testing.T) {
-		core := newCore(cacheTime)
+	runCachedTestOnly(t, "cached All uses fresh values if there has been an update", func(t *testing.T, core *mockCore) {
 		w := NewFeatureStoreWrapper(core)
 
 		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -225,26 +229,56 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		require.Equal(t, 2, items[flag2.Key].GetVersion())
 	})
 
-	runCachedAndUncachedTests(t, "Upsert", func(t *testing.T, isCached bool, core *mockCore) {
+	runCachedAndUncachedTests(t, "Upsert - successful", func(t *testing.T, isCached bool, core *mockCore) {
 		w := NewFeatureStoreWrapper(core)
 
-		flagv1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag1", Version: 2}
+		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
 
 		err := w.Upsert(ld.Features, &flagv1)
 		require.NoError(t, err)
 		require.Equal(t, &flagv1, core.data[ld.Features][flagv1.Key])
 
-		// make a change to the flag that bypasses the cache
-		core.forceSet(ld.Features, &flagv2)
+		err = w.Upsert(ld.Features, &flagv2)
+		require.NoError(t, err)
+		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key])
+
+		// if we have a cache, verify that the new item is now cached by writing a different value
+		// to the underlying data - Get should still return the cached item
+		if isCached {
+			flagv3 := ld.FeatureFlag{Key: "flag", Version: 3}
+			core.forceSet(ld.Features, &flagv3)
+		}
 
 		item, err := w.Get(ld.Features, flagv1.Key)
 		require.NoError(t, err)
-		if isCached {
-			require.Equal(t, &flagv1, item)
-		} else {
-			require.Equal(t, &flagv2, item)
-		}
+		require.Equal(t, &flagv2, item)
+	})
+
+	runCachedTestOnly(t, "cached Upsert - unsuccessful", func(t *testing.T, core *mockCore) {
+		// This is for an upsert where the data in the store has a higher version. In an uncached
+		// store, this is just a no-op as far as the wrapper is concerned so there's nothing to
+		// test here. In a cached store, we need to verify that the cache has been refreshed
+		// using the data that was found in the store.
+		w := NewFeatureStoreWrapper(core)
+
+		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+
+		err := w.Upsert(ld.Features, &flagv2)
+		require.NoError(t, err)
+		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key])
+
+		err = w.Upsert(ld.Features, &flagv1)
+		require.NoError(t, err)
+		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key]) // value in store remains the same
+
+		flagv3 := ld.FeatureFlag{Key: "flag", Version: 3}
+		core.forceSet(ld.Features, &flagv3) // bypasses cache so we can verify that flagv2 is in the cache
+
+		item, err := w.Get(ld.Features, flagv1.Key)
+		require.NoError(t, err)
+		require.Equal(t, &flagv2, item)
 	})
 
 	runCachedAndUncachedTests(t, "Delete", func(t *testing.T, isCached bool, core *mockCore) {
