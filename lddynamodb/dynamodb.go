@@ -8,7 +8,7 @@ environments like AWS Lambda where workloads can be sensitive to cold starts.
 
 In contrast to the Redis-backed feature store, the DynamoDB store can be used
 without requiring access to any VPC resources, i.e. ElastiCache Redis. See
-https://blog.launchdarkly.com/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
+https://launchdarkly.com/blog/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
 for more background information.
 
 Here's how to use the feature store with the LaunchDarkly client:
