@@ -60,6 +60,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	ld "gopkg.in/launchdarkly/go-client.v4"
+	"gopkg.in/launchdarkly/go-client.v4/utils"
+)
+
+const (
+	// DefaultCacheTTL is the amount of time that recently read or updated items will be cached
+	// in memory, unless you specify otherwise with the CacheTTL option.
+	DefaultCacheTTL = 15 * time.Second
 )
 
 const (
@@ -77,7 +84,6 @@ type namespaceAndKey struct {
 type dynamoDBFeatureStore struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
-	helper         *ld.FeatureStoreHelper
 	cacheTTL       time.Duration
 	sessionOptions session.Options
 	logger         ld.Logger
@@ -89,6 +95,23 @@ type dynamoDBFeatureStore struct {
 // passed to NewDynamoDBFeatureStore. These include SessionOptions, DynamoClient, and Logger.
 type FeatureStoreOption interface {
 	apply(store *dynamoDBFeatureStore) error
+}
+
+type cacheTTLOption struct {
+	cacheTTL time.Duration
+}
+
+func (o cacheTTLOption) apply(store *dynamoDBFeatureStore) error {
+	store.cacheTTL = o.cacheTTL
+	return nil
+}
+
+// CacheTTL sets the amount of time that recently read or updated items should remain in an
+// in-memory cache. This reduces the amount of database access if the same feature flags
+// are being evaluated repeatedly. If it is zero, there will be no in-memory caching. The
+// default value is DefaultCacheTTL.
+func CacheTTL(ttl time.Duration) FeatureStoreOption {
+	return cacheTTLOption{ttl}
 }
 
 type dynamoClientOption struct {
@@ -147,15 +170,21 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 // to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
 // as AWS environment variables. You can also override the default configuration with the SessionOptions
 // option, or use an already-configured DynamoDB client instance with the DynamoClient option.
+//
+// For other options that can be customized, see CacheTTL and Logger.
 func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
 	store, err := newDynamoDBFeatureStoreInternal(table, options...)
-	return store, err
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewFeatureStoreWrapper(store), nil
 }
 
 func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption) (*dynamoDBFeatureStore, error) {
 	store := dynamoDBFeatureStore{
 		table:       table,
 		initialized: false,
+		cacheTTL:    DefaultCacheTTL,
 	}
 
 	for _, o := range options {
@@ -177,153 +206,141 @@ func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption
 		store.client = dynamodb.New(sess)
 	}
 
-	store.helper = ld.NewFeatureStoreHelper(store.cacheTTL)
-
 	return &store, nil
 }
 
-func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	return store.helper.Init(allData, func(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-		// Start by reading the existing keys; we will later delete any of these that weren't in allData.
-		unusedOldKeys, err := store.readExistingKeys()
-		if err != nil {
-			store.logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
-			return err
-		}
-
-		requests := make([]*dynamodb.WriteRequest, 0)
-		numItems := 0
-
-		// Insert or update every provided item
-		for kind, items := range allData {
-			for k, v := range items {
-				av, err := marshalItem(kind, v)
-				if err != nil {
-					store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", k, err)
-					return err
-				}
-				requests = append(requests, &dynamodb.WriteRequest{
-					PutRequest: &dynamodb.PutRequest{Item: av},
-				})
-				nk := namespaceAndKey{namespace: kind.GetNamespace(), key: v.GetKey()}
-				unusedOldKeys[nk] = false
-				numItems++
-			}
-		}
-
-		// Now delete any previously existing items whose keys were not in the current data
-		for k, v := range unusedOldKeys {
-			if v {
-				delKey := make(map[string]*dynamodb.AttributeValue)
-				delKey[tablePartitionKey] = &dynamodb.AttributeValue{S: aws.String(k.namespace)}
-				delKey[tableSortKey] = &dynamodb.AttributeValue{S: aws.String(k.key)}
-				requests = append(requests, &dynamodb.WriteRequest{
-					DeleteRequest: &dynamodb.DeleteRequest{Key: delKey},
-				})
-			}
-		}
-
-		if err := store.batchWriteRequests(requests); err != nil {
-			store.logger.Printf("ERROR: Failed to write %d item(s) in batches: %s", len(requests), err)
-			return err
-		}
-
-		store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
-
-		store.initialized = true
-
-		return nil
-	})
+func (store *dynamoDBFeatureStore) GetCacheTTL() time.Duration {
+	return store.cacheTTL
 }
 
-func (store *dynamoDBFeatureStore) Initialized() bool {
+func (store *dynamoDBFeatureStore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
+	unusedOldKeys, err := store.readExistingKeys()
+	if err != nil {
+		store.logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
+		return err
+	}
+
+	requests := make([]*dynamodb.WriteRequest, 0)
+	numItems := 0
+
+	// Insert or update every provided item
+	for kind, items := range allData {
+		for k, v := range items {
+			av, err := marshalItem(kind, v)
+			if err != nil {
+				store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", k, err)
+				return err
+			}
+			requests = append(requests, &dynamodb.WriteRequest{
+				PutRequest: &dynamodb.PutRequest{Item: av},
+			})
+			nk := namespaceAndKey{namespace: kind.GetNamespace(), key: v.GetKey()}
+			unusedOldKeys[nk] = false
+			numItems++
+		}
+	}
+
+	// Now delete any previously existing items whose keys were not in the current data
+	for k, v := range unusedOldKeys {
+		if v {
+			delKey := make(map[string]*dynamodb.AttributeValue)
+			delKey[tablePartitionKey] = &dynamodb.AttributeValue{S: aws.String(k.namespace)}
+			delKey[tableSortKey] = &dynamodb.AttributeValue{S: aws.String(k.key)}
+			requests = append(requests, &dynamodb.WriteRequest{
+				DeleteRequest: &dynamodb.DeleteRequest{Key: delKey},
+			})
+		}
+	}
+
+	if err := store.batchWriteRequests(requests); err != nil {
+		store.logger.Printf("ERROR: Failed to write %d item(s) in batches: %s", len(requests), err)
+		return err
+	}
+
+	store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
+
+	store.initialized = true
+
+	return nil
+}
+
+func (store *dynamoDBFeatureStore) InitializedInternal() bool {
 	return store.initialized
 }
 
-func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
-	return store.helper.All(kind, func(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
-		var items []map[string]*dynamodb.AttributeValue
+func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+	var items []map[string]*dynamodb.AttributeValue
 
-		err := store.client.QueryPages(&dynamodb.QueryInput{
-			TableName:      aws.String(store.table),
-			ConsistentRead: aws.Bool(true),
-			KeyConditions: map[string]*dynamodb.Condition{
-				tablePartitionKey: {
-					ComparisonOperator: aws.String("EQ"),
-					AttributeValueList: []*dynamodb.AttributeValue{
-						{S: aws.String(kind.GetNamespace())},
-					},
+	err := store.client.QueryPages(&dynamodb.QueryInput{
+		TableName:      aws.String(store.table),
+		ConsistentRead: aws.Bool(true),
+		KeyConditions: map[string]*dynamodb.Condition{
+			tablePartitionKey: {
+				ComparisonOperator: aws.String("EQ"),
+				AttributeValueList: []*dynamodb.AttributeValue{
+					{S: aws.String(kind.GetNamespace())},
 				},
 			},
-		}, func(out *dynamodb.QueryOutput, lastPage bool) bool {
-			items = append(items, out.Items...)
-			return !lastPage
-		})
-		if err != nil {
-			store.logger.Printf("ERROR: Failed to get all %q items: %s", kind.GetNamespace(), err)
-			return nil, err
-		}
-
-		results := make(map[string]ld.VersionedData)
-
-		for _, i := range items {
-			item, err := unmarshalItem(kind, i)
-			if err != nil {
-				store.logger.Printf("ERROR: Failed to unmarshal item: %s", err)
-				return nil, err
-			}
-			if !item.IsDeleted() {
-				results[item.GetKey()] = item
-			}
-		}
-
-		return results, nil
+		},
+	}, func(out *dynamodb.QueryOutput, lastPage bool) bool {
+		items = append(items, out.Items...)
+		return !lastPage
 	})
+	if err != nil {
+		store.logger.Printf("ERROR: Failed to get all %q items: %s", kind.GetNamespace(), err)
+		return nil, err
+	}
+
+	results := make(map[string]ld.VersionedData)
+
+	for _, i := range items {
+		item, err := unmarshalItem(kind, i)
+		if err != nil {
+			store.logger.Printf("ERROR: Failed to unmarshal item: %s", err)
+			return nil, err
+		}
+		if !item.IsDeleted() {
+			results[item.GetKey()] = item
+		}
+	}
+
+	return results, nil
 }
 
-func (store *dynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
-	return store.helper.Get(kind, key, func(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
-		result, err := store.client.GetItem(&dynamodb.GetItemInput{
-			TableName:      aws.String(store.table),
-			ConsistentRead: aws.Bool(true),
-			Key: map[string]*dynamodb.AttributeValue{
-				tablePartitionKey: {S: aws.String(kind.GetNamespace())},
-				tableSortKey:      {S: aws.String(key)},
-			},
-		})
-		if err != nil {
-			store.logger.Printf("ERROR: Failed to get item (key=%s): %s", key, err)
-			return nil, err
-		}
-
-		if len(result.Item) == 0 {
-			store.logger.Printf("DEBUG: Item not found (key=%s)", key)
-			return nil, nil
-		}
-
-		item, err := unmarshalItem(kind, result.Item)
-		if err != nil {
-			store.logger.Printf("ERROR: Failed to unmarshal item (key=%s): %s", key, err)
-			return nil, err
-		}
-
-		return item, nil
+func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+		TableName:      aws.String(store.table),
+		ConsistentRead: aws.Bool(true),
+		Key: map[string]*dynamodb.AttributeValue{
+			tablePartitionKey: {S: aws.String(kind.GetNamespace())},
+			tableSortKey:      {S: aws.String(key)},
+		},
 	})
+	if err != nil {
+		store.logger.Printf("ERROR: Failed to get item (key=%s): %s", key, err)
+		return nil, err
+	}
+
+	if len(result.Item) == 0 {
+		store.logger.Printf("DEBUG: Item not found (key=%s)", key)
+		return nil, nil
+	}
+
+	item, err := unmarshalItem(kind, result.Item)
+	if err != nil {
+		store.logger.Printf("ERROR: Failed to unmarshal item (key=%s): %s", key, err)
+		return nil, err
+	}
+
+	return item, nil
 }
 
-func (store *dynamoDBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
-	return store.helper.Upsert(kind, item, store.updateWithVersioning)
-}
-
-func (store *dynamoDBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
-	return store.helper.Delete(kind, key, version, store.updateWithVersioning)
-}
-
-func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (bool, error) {
 	av, err := marshalItem(kind, item)
 	if err != nil {
 		store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
-		return err
+		return false, err
 	}
 
 	if store.testUpdateHook != nil {
@@ -351,13 +368,13 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
 			store.logger.Printf("DEBUG: Not updating item due to condition (key=%s version=%d)",
 				item.GetKey(), item.GetVersion())
-			return nil
+			return false, nil
 		}
 		store.logger.Printf("ERROR: Failed to put item (key=%s): %s", item.GetKey(), err)
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 func (store *dynamoDBFeatureStore) readExistingKeys() (map[namespaceAndKey]bool, error) {

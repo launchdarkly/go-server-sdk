@@ -11,13 +11,24 @@ import (
 	r "github.com/garyburd/redigo/redis"
 
 	ld "gopkg.in/launchdarkly/go-client.v4"
+	"gopkg.in/launchdarkly/go-client.v4/utils"
 )
 
 // RedisFeatureStore is a Redis-backed feature store implementation.
 type RedisFeatureStore struct { // nolint:golint // package name in type name
-	helper     *ld.FeatureStoreHelper
+	wrapper *utils.FeatureStoreWrapper
+	core    *redisFeatureStoreCore
+}
+
+// redisFeatureStoreCore is the internal implementation, using the simpler interface defined in
+// utils.FeatureStoreCore. The FeatureStoreWrapper wraps this to add caching. The only reason that
+// there is a separate RedisFeatureStore type, instead of just using the FeatureStoreWrapper itself
+// as the outermost object, is a historical one: the NewRedisFeatureStore constructors had already
+// been defined as returning *RedisFeatureStore rather than the interface type.
+type redisFeatureStoreCore struct {
 	prefix     string
 	pool       *r.Pool
+	cacheTTL   time.Duration
 	logger     ld.Logger
 	testTxHook func()
 	inited     bool
@@ -42,10 +53,6 @@ func newPool(url string) *r.Pool {
 		},
 	}
 	return pool
-}
-
-func (store *RedisFeatureStore) getConn() r.Conn {
-	return store.pool.Get()
 }
 
 // NewRedisFeatureStoreFromUrl constructs a new Redis-backed feature store connecting to the specified URL with a default
@@ -77,14 +84,17 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 		logger.Printf("RedisFeatureStore: Using local cache with timeout: %v", timeout)
 	}
 
-	store := RedisFeatureStore{
-		helper: ld.NewFeatureStoreHelper(timeout),
-		prefix: prefix,
-		pool:   pool,
-		logger: logger,
-		inited: false,
+	core := &redisFeatureStoreCore{
+		prefix:   prefix,
+		pool:     pool,
+		cacheTTL: timeout,
+		logger:   logger,
+		inited:   false,
 	}
-	return &store
+	return &RedisFeatureStore{
+		wrapper: utils.NewFeatureStoreWrapper(core),
+		core:    core,
+	}
 }
 
 // NewRedisFeatureStore constructs a new Redis-backed feature store connecting to the specified host and port with a default
@@ -95,87 +105,44 @@ func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Dur
 	return NewRedisFeatureStoreFromUrl(fmt.Sprintf("redis://%s:%d", host, port), prefix, timeout, logger)
 }
 
-func (store *RedisFeatureStore) featuresKey(kind ld.VersionedDataKind) string {
-	return store.prefix + ":" + kind.GetNamespace()
-}
-
 // Get returns an individual object of a given type from the store
 func (store *RedisFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
-	return store.helper.Get(kind, key, store.getEvenIfDeleted)
+	return store.wrapper.Get(kind, key)
 }
 
 // All returns all the objects of a given kind from the store
 func (store *RedisFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
-	return store.helper.All(kind, func(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
-		results := make(map[string]ld.VersionedData)
-
-		c := store.getConn()
-		defer c.Close() // nolint:errcheck
-
-		values, err := r.StringMap(c.Do("HGETALL", store.featuresKey(kind)))
-
-		if err != nil && err != r.ErrNil {
-			return nil, err
-		}
-
-		for k, v := range values {
-			item, jsonErr := store.unmarshalItem(kind, v)
-
-			if jsonErr != nil {
-				return nil, err
-			}
-
-			if !item.IsDeleted() {
-				results[k] = item
-			}
-		}
-		return results, nil
-	})
+	return store.wrapper.All(kind)
 }
 
 // Init populates the store with a complete set of versioned data
 func (store *RedisFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	return store.helper.Init(allData, func(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-		c := store.getConn()
-		defer c.Close() // nolint:errcheck
-
-		_ = c.Send("MULTI")
-
-		for kind, items := range allData {
-			baseKey := store.featuresKey(kind)
-
-			_ = c.Send("DEL", baseKey)
-
-			for k, v := range items {
-				data, jsonErr := json.Marshal(v)
-
-				if jsonErr != nil {
-					return jsonErr
-				}
-
-				_ = c.Send("HSET", baseKey, k, data)
-			}
-		}
-
-		_, err := c.Do("EXEC")
-
-		store.initCheck.Do(func() { store.inited = true })
-
-		return err
-	})
-}
-
-// Delete removes an item of a given kind from the store
-func (store *RedisFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
-	return store.helper.Delete(kind, key, version, store.updateWithVersioning)
+	return store.wrapper.Init(allData)
 }
 
 // Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
 func (store *RedisFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
-	return store.helper.Upsert(kind, item, store.updateWithVersioning)
+	return store.wrapper.Upsert(kind, item)
 }
 
-func (store *RedisFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+// Delete removes an item of a given kind from the store
+func (store *RedisFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
+	return store.wrapper.Delete(kind, key, version)
+}
+
+// Initialized returns whether redis contains an entry for this environment
+func (store *RedisFeatureStore) Initialized() bool {
+	return store.wrapper.Initialized()
+}
+
+// Actual implementation methods are below - these are called by FeatureStoreWrapper, which adds
+// caching behavior if necessary.
+
+func (store *redisFeatureStoreCore) GetCacheTTL() time.Duration {
+	return store.cacheTTL
+}
+
+func (store *redisFeatureStoreCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -196,18 +163,63 @@ func (store *RedisFeatureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key 
 	return item, nil
 }
 
-func (store *RedisFeatureStore) unmarshalItem(kind ld.VersionedDataKind, jsonStr string) (ld.VersionedData, error) {
-	data := kind.GetDefaultItem()
-	if jsonErr := json.Unmarshal([]byte(jsonStr), &data); jsonErr != nil {
-		return nil, jsonErr
+func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+	results := make(map[string]ld.VersionedData)
+
+	c := store.getConn()
+	defer c.Close() // nolint:errcheck
+
+	values, err := r.StringMap(c.Do("HGETALL", store.featuresKey(kind)))
+
+	if err != nil && err != r.ErrNil {
+		return nil, err
 	}
-	if item, ok := data.(ld.VersionedData); ok {
-		return item, nil
+
+	for k, v := range values {
+		item, jsonErr := store.unmarshalItem(kind, v)
+
+		if jsonErr != nil {
+			return nil, err
+		}
+
+		if !item.IsDeleted() {
+			results[k] = item
+		}
 	}
-	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
+	return results, nil
 }
 
-func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, newItem ld.VersionedData) error {
+// Init populates the store with a complete set of versioned data
+func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+	c := store.getConn()
+	defer c.Close() // nolint:errcheck
+
+	_ = c.Send("MULTI")
+
+	for kind, items := range allData {
+		baseKey := store.featuresKey(kind)
+
+		_ = c.Send("DEL", baseKey)
+
+		for k, v := range items {
+			data, jsonErr := json.Marshal(v)
+
+			if jsonErr != nil {
+				return jsonErr
+			}
+
+			_ = c.Send("HSET", baseKey, k, data)
+		}
+	}
+
+	_, err := c.Do("EXEC")
+
+	store.initCheck.Do(func() { store.inited = true })
+
+	return err
+}
+
+func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (bool, error) {
 	baseKey := store.featuresKey(kind)
 	key := newItem.GetKey()
 	for {
@@ -217,7 +229,7 @@ func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, 
 
 		_, err := c.Do("WATCH", baseKey)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		defer c.Send("UNWATCH") // nolint:errcheck // this should always succeed
@@ -226,19 +238,19 @@ func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, 
 			store.testTxHook()
 		}
 
-		oldItem, err := store.getEvenIfDeleted(kind, key)
+		oldItem, err := store.GetInternal(kind, key)
 
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
-			return nil
+			return false, nil
 		}
 
 		data, jsonErr := json.Marshal(newItem)
 		if jsonErr != nil {
-			return jsonErr
+			return false, jsonErr
 		}
 
 		_ = c.Send("MULTI")
@@ -253,19 +265,38 @@ func (store *RedisFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, 
 					continue
 				}
 			}
+			return true, nil
 		}
-		return err
+		return false, err
 	}
 }
 
-// Initialized returns whether redis contains an entry for this environment
-func (store *RedisFeatureStore) Initialized() bool {
+func (store *redisFeatureStoreCore) InitializedInternal() bool {
 	store.initCheck.Do(func() {
 		c := store.getConn()
 		defer c.Close() // nolint:errcheck
 		store.inited, _ = r.Bool(c.Do("EXISTS", store.featuresKey(ld.Features)))
 	})
 	return store.inited
+}
+
+func (store *redisFeatureStoreCore) featuresKey(kind ld.VersionedDataKind) string {
+	return store.prefix + ":" + kind.GetNamespace()
+}
+
+func (store *redisFeatureStoreCore) getConn() r.Conn {
+	return store.pool.Get()
+}
+
+func (store *redisFeatureStoreCore) unmarshalItem(kind ld.VersionedDataKind, jsonStr string) (ld.VersionedData, error) {
+	data := kind.GetDefaultItem()
+	if jsonErr := json.Unmarshal([]byte(jsonStr), &data); jsonErr != nil {
+		return nil, jsonErr
+	}
+	if item, ok := data.(ld.VersionedData); ok {
+		return item, nil
+	}
+	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
 }
 
 func defaultLogger() *log.Logger {

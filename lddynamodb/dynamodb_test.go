@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-client.v4"
 	ldtest "gopkg.in/launchdarkly/go-client.v4/shared_test"
+	"gopkg.in/launchdarkly/go-client.v4/utils"
 )
 
 const (
@@ -19,24 +20,37 @@ const (
 	testTableName       = "LD_DYNAMODB_TEST_TABLE"
 )
 
-func TestDynamoDBFeatureStore(t *testing.T) {
+func TestDynamoDBFeatureStoreUncached(t *testing.T) {
 	err := createTableIfNecessary(testTableName)
 	require.NoError(t, err)
 
 	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
-		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()))
+		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
+		require.NoError(t, err)
+		return store
+	})
+}
+
+func TestDynamoDBFeatureStoreCached(t *testing.T) {
+	err := createTableIfNecessary(testTableName)
+	require.NoError(t, err)
+
+	ldtest.RunFeatureStoreTests(t, func() ld.FeatureStore {
+		store, err := NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(30*time.Second))
 		require.NoError(t, err)
 		return store
 	})
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	store1, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
 	require.NoError(t, err)
-	store2, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	store1 := utils.NewFeatureStoreWrapper(store1Internal)
+	store2Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()), CacheTTL(0))
 	require.NoError(t, err)
+	store2 := utils.NewFeatureStoreWrapper(store2Internal)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
-		store1.testUpdateHook = hook
+		store1Internal.testUpdateHook = hook
 	})
 }
 
