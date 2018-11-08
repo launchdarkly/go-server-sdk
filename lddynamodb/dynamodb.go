@@ -353,11 +353,11 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.logger.Printf("DEBUG: Not updating item due to condition (key=%s version=%d)",
-				item.GetKey(), item.GetVersion())
+			store.logger.Printf("DEBUG: Not updating item due to condition (namespace=%s key=%s version=%d)",
+				kind.GetNamespace(), item.GetKey(), item.GetVersion())
 			return nil
 		}
-		store.logger.Printf("ERROR: Failed to put item (key=%s): %s", item.GetKey(), err)
+		store.logger.Printf("ERROR: Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
 		return err
 	}
 
