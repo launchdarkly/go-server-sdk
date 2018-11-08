@@ -8,7 +8,7 @@ environments like AWS Lambda where workloads can be sensitive to cold starts.
 
 In contrast to the Redis-backed feature store, the DynamoDB store can be used
 without requiring access to any VPC resources, i.e. ElastiCache Redis. See
-https://blog.launchdarkly.com/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
+https://launchdarkly.com/blog/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
 for more background information.
 
 Here's how to use the feature store with the LaunchDarkly client:
@@ -51,6 +51,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -79,6 +80,7 @@ type dynamoDBFeatureStore struct {
 	sessionOptions session.Options
 	logger         ld.Logger
 	initialized    bool
+	initLock       sync.RWMutex
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
 
@@ -224,12 +226,16 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 
 	store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
 
+	store.initLock.Lock()
+	defer store.initLock.Unlock()
 	store.initialized = true
 
 	return nil
 }
 
 func (store *dynamoDBFeatureStore) Initialized() bool {
+	store.initLock.RLock()
+	defer store.initLock.RUnlock()
 	return store.initialized
 }
 
@@ -344,11 +350,11 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.logger.Printf("DEBUG: Not updating item due to condition (key=%s version=%d)",
-				item.GetKey(), item.GetVersion())
+			store.logger.Printf("DEBUG: Not updating item due to condition (namespace=%s key=%s version=%d)",
+				kind.GetNamespace(), item.GetKey(), item.GetVersion())
 			return nil
 		}
-		store.logger.Printf("ERROR: Failed to put item (key=%s): %s", item.GetKey(), err)
+		store.logger.Printf("ERROR: Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
 		return err
 	}
 
