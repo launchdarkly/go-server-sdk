@@ -154,7 +154,7 @@ func (store *redisFeatureStoreCore) GetInternal(kind ld.VersionedDataKind, key s
 		return nil, err
 	}
 
-	item, jsonErr := store.unmarshalItem(kind, jsonStr)
+	item, jsonErr := utils.UnmarshalItem(kind, []byte(jsonStr))
 	if jsonErr != nil {
 		return nil, jsonErr
 	}
@@ -174,7 +174,7 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 	}
 
 	for k, v := range values {
-		item, jsonErr := store.unmarshalItem(kind, v)
+		item, jsonErr := utils.UnmarshalItem(kind, []byte(v))
 
 		if jsonErr != nil {
 			return nil, err
@@ -286,17 +286,6 @@ func (store *redisFeatureStoreCore) initedKey() string {
 
 func (store *redisFeatureStoreCore) getConn() r.Conn {
 	return store.pool.Get()
-}
-
-func (store *redisFeatureStoreCore) unmarshalItem(kind ld.VersionedDataKind, jsonStr string) (ld.VersionedData, error) {
-	data := kind.GetDefaultItem()
-	if jsonErr := json.Unmarshal([]byte(jsonStr), &data); jsonErr != nil {
-		return nil, jsonErr
-	}
-	if item, ok := data.(ld.VersionedData); ok {
-		return item, nil
-	}
-	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
 }
 
 func defaultLogger() *log.Logger {
