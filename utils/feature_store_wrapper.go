@@ -106,7 +106,7 @@ func (w *FeatureStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]l
 		w.cache.Flush()
 		if err == nil {
 			for kind, items := range allData {
-				w.putAllItemsInCache(kind, items)
+				w.filterAndCacheItems(kind, items)
 			}
 		}
 	}
@@ -118,21 +118,23 @@ func (w *FeatureStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]l
 	return err
 }
 
-func (w *FeatureStoreWrapper) putAllItemsInCache(kind ld.VersionedDataKind, items map[string]ld.VersionedData) {
-	if w.cache == nil {
-		return
-	}
+func (w *FeatureStoreWrapper) filterAndCacheItems(kind ld.VersionedDataKind, items map[string]ld.VersionedData) map[string]ld.VersionedData {
 	// We do some filtering here so that deleted items are not included in the full cached data set
 	// that's used by All. This is so that All doesn't have to do that filtering itself. However,
 	// since Get does know to filter out deleted items, we will still cache those individually,
 	filteredItems := make(map[string]ld.VersionedData, len(items))
 	for key, item := range items {
-		w.cache.Set(featureStoreCacheKey(kind, key), item, cache.DefaultExpiration)
 		if !item.IsDeleted() {
 			filteredItems[key] = item
 		}
+		if w.cache != nil {
+			w.cache.Set(featureStoreCacheKey(kind, key), item, cache.DefaultExpiration)
+		}
 	}
-	w.cache.Set(featureStoreAllItemsCacheKey(kind), filteredItems, cache.DefaultExpiration)
+	if w.cache != nil {
+		w.cache.Set(featureStoreAllItemsCacheKey(kind), filteredItems, cache.DefaultExpiration)
+	}
+	return filteredItems
 }
 
 // Get retrieves a single item by key, with optional caching.
@@ -179,10 +181,10 @@ func (w *FeatureStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.Vers
 	}
 	// Data set was not cached or cached value was not valid
 	items, err := w.core.GetAllInternal(kind)
-	if err == nil {
-		w.putAllItemsInCache(kind, items)
+	if err != nil {
+		return nil, err
 	}
-	return items, err
+	return w.filterAndCacheItems(kind, items), nil
 }
 
 // Upsert updates or adds an item, with optional caching.

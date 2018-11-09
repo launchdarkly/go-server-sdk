@@ -1,28 +1,40 @@
-/*
-Package lddynamodb provides a DynamoDB-backed feature store for the LaunchDarkly
-Go SDK.
-
-By caching feature flag data in DynamoDB, LaunchDarkly clients don't need to
-call out to the LaunchDarkly API every time they're created. This is useful for
-environments like AWS Lambda where workloads can be sensitive to cold starts.
-
-In contrast to the Redis-backed feature store, the DynamoDB store can be used
-without requiring access to any VPC resources, i.e. ElastiCache Redis. See
-https://launchdarkly.com/blog/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
-for more background information.
-
-Here's how to use the feature store with the LaunchDarkly client:
-
-	store, err := lddynamodb.NewDynamoDBFeatureStore("some-table")
-	if err != nil { ... }
-
-	config := ld.DefaultConfig
-	config.FeatureStore = store
-	config.UseLdd = true // Enable daemon mode to only read flags from DynamoDB
-
-	ldClient, err := ld.MakeCustomClient("some-sdk-key", config, 5*time.Second)
-	if err != nil { ... }
-*/
+// Package lddynamodb provides a DynamoDB-backed feature store for the LaunchDarkly Go SDK.
+//
+// A persistent feature store serves two purposes. First, when the SDK client receives
+// feature flag data from LaunchDarkly, it will be written to the store. If, later, an
+// application starts up and for some reason is not able to contact LaunchDarkly, the
+// client can continue to use the last known data from the store.
+//
+// Second, the client can be configured to read feature flag data only from the
+// feature store instead of connecting to LaunchDarkly. In this scenario you are
+// relying on another process to populate the database. To use this mode, set
+// config.UseLdd to true in the client configuration.
+//
+// There are also other database integrations that can serve the same purpose; see the
+// the ldconsul and redis subpackages. However, DynamoDB may be particularly useful if
+// your application runs in an environment such as AWS Lambda, since it does not
+// require access to any VPC resource. For more information, see
+// https://launchdarkly.com/blog/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
+//
+// To use the DynamoDB feature store with the LaunchDarkly client:
+//
+//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name")
+//     if err != nil { ... }
+//
+//     config := ld.DefaultConfig
+//     config.FeatureStore = store
+//     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
+//
+// Note that the specified table must already exist in DynamoDB. It must have a
+// partition key of "namespace", and a sort key of "key".
+//
+// By default, the feature store uses a basic DynamoDB client configuration that is
+// equivalent to doing this:
+//
+//     dynamoClient := dynamodb.New(session.NewSession())
+//
+// This configuration can be modified via the SessionOptions function, or you can
+// use an already-configured client via the DynamoClient function.
 package lddynamodb
 
 // This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store.
@@ -92,7 +104,8 @@ type dynamoDBFeatureStore struct {
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewDynamoDBFeatureStore. These include SessionOptions, DynamoClient, and Logger.
+// passed to NewDynamoDBFeatureStore. These include SessionOptions, CacheTTL, DynamoClient,
+// and Logger.
 type FeatureStoreOption interface {
 	apply(store *dynamoDBFeatureStore) error
 }
@@ -106,10 +119,12 @@ func (o cacheTTLOption) apply(store *dynamoDBFeatureStore) error {
 	return nil
 }
 
-// CacheTTL sets the amount of time that recently read or updated items should remain in an
-// in-memory cache. This reduces the amount of database access if the same feature flags
-// are being evaluated repeatedly. If it is zero, there will be no in-memory caching. The
-// default value is DefaultCacheTTL.
+// CacheTTL creates an option for NewDynamoDBFeatureStore to set the amount of time
+// that recently read or updated items should remain in an in-memory cache. This reduces the
+// amount of database access if the same feature flags are being evaluated repeatedly. If it
+// is zero, there will be no in-memory caching. The default value is DefaultCacheTTL.
+//
+//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.CacheTTL(30*time.Second))
 func CacheTTL(ttl time.Duration) FeatureStoreOption {
 	return cacheTTLOption{ttl}
 }
@@ -123,11 +138,13 @@ func (o dynamoClientOption) apply(store *dynamoDBFeatureStore) error {
 	return nil
 }
 
-// DynamoClient creates an option for NewDynamoDBFeatureStore, to specify an existing
+// DynamoClient creates an option for NewDynamoDBFeatureStore to specify an existing
 // DynamoDB client instance. Use this if you want to customize the client used by the
 // feature store in ways that are not supported by other NewDynamoDBFeatureStore options.
 // If you specify this option, then any configuration specified with SessionOptions will
 // be ignored.
+//
+//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.DynamoClient(myDBClient))
 func DynamoClient(client dynamodbiface.DynamoDBAPI) FeatureStoreOption {
 	return dynamoClientOption{client}
 }
@@ -145,6 +162,8 @@ func (o sessionOptionsOption) apply(store *dynamoDBFeatureStore) error {
 // Session.Options object to use when creating the DynamoDB session. This can be used to
 // set properties such as the region programmatically, rather than relying on the
 // defaults from the environment.
+//
+//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.SessionOptions(myOptions))
 func SessionOptions(options session.Options) FeatureStoreOption {
 	return sessionOptionsOption{options}
 }
@@ -160,6 +179,8 @@ func (o loggerOption) apply(store *dynamoDBFeatureStore) error {
 
 // Logger creates an option for NewDynamoDBFeatureStore, to specify where to send log output.
 // If not specified, a log.Logger is used.
+//
+//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
 }

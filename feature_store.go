@@ -12,8 +12,8 @@ import (
 // to be evaluated. Therefore, implementations must be thread-safe.
 //
 // The SDK provides a default in-memory implementation (NewInMemoryFeatureStore), as well as database
-// integrations in the "redis" and "lddynamodb" packages. To use an implementation other than the
-// default, put an instance of it in the FeatureStore property of your client configuration.
+// integrations in the "redis", "ldconsul", and "lddynamodb" packages. To use an implementation other
+// than the default, put an instance of it in the FeatureStore property of your client configuration.
 //
 // If you want to create a custom implementation, it may be helpful to use the FeatureStoreWrapper
 // type in the utils package; this provides commonly desired behaviors such as caching. Custom

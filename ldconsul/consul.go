@@ -1,5 +1,18 @@
 // Package ldconsul provides a Consul-backed feature store for the LaunchDarkly Go SDK.
 //
+// A persistent feature store serves two purposes. First, when the SDK client receives
+// feature flag data from LaunchDarkly, it will be written to the store. If, later, an
+// application starts up and for some reason is not able to contact LaunchDarkly, the
+// client can continue to use the last known data from the store.
+//
+// Second, the client can be configured to read feature flag data only from the
+// feature store instead of connecting to LaunchDarkly. In this scenario you are
+// relying on another process to populate the database; the LaunchDarkly relay proxy
+// can do this. To use this mode, set config.UseLdd to true in the client configuration.
+//
+// There are also other database integrations that can serve the same purpose; see the
+// lddynamodb and redis subpackages.
+//
 // To use the Consul feature store with the LaunchDarkly client:
 //
 //     store, err := ldconsul.NewConsulFeatureStore()
@@ -9,15 +22,10 @@
 //     config.FeatureStore = store
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
-// In the example above, the client will still connect to LaunchDarkly as usual, but will
-// use Consul as a persistent store for the feature flag data it receives from LaunchDarkly.
-// If instead you want the current process to read feature flag data only from the Consul
-// store (relying on another process to populate it), set config.UseLdd to true.
-//
 // If you are also using Consul for other purposes, the feature store can coexist with
 // other data as long as you are not using the same keys. By default, the keys used by the
-// feature store will always start with "launchdarkly/"; you can change "launchdarkly" to
-// another prefix if desired using the Prefix() option.
+// feature store will always start with "launchdarkly/"; you can change this to another
+// prefix if desired.
 package ldconsul
 
 import (
@@ -87,10 +95,12 @@ func (o configOption) apply(store *featureStore) error {
 	return nil
 }
 
-// UseConfig creates an option for NewConsulFeatureStore, to specify an entire configuration
+// Config creates an option for NewConsulFeatureStore, to specify an entire configuration
 // for the Consul driver. This overwrites any previous Consul settings that may have been
 // specified.
-func UseConfig(config c.Config) FeatureStoreOption {
+//
+//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Config(myConsulConfig))
+func Config(config c.Config) FeatureStoreOption {
 	return configOption{config}
 }
 
@@ -104,7 +114,9 @@ func (o addressOption) apply(store *featureStore) error {
 }
 
 // Address creates an option for NewConsulFeatureStore, to set the address of the Consul server.
-// If placed after ConsulConfig(), this modifies the previously specified configuration.
+// If placed after Config(), this modifies the previously specified configuration.
+//
+//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Address("http://consulhost:8100"))
 func Address(address string) FeatureStoreOption {
 	return addressOption{address}
 }
@@ -119,8 +131,9 @@ func (o prefixOption) apply(store *featureStore) error {
 }
 
 // Prefix creates an option for NewConsulFeatureStore, to specify a prefix for namespacing
-// the feature store's keys. The default value is DefaultPrefix. Do not include a slash;
-// that will be added by the feature store.
+// the feature store's keys. The default value is DefaultPrefix.
+//
+//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Prefix("ld-data"))
 func Prefix(prefix string) FeatureStoreOption {
 	return prefixOption{prefix}
 }
@@ -137,6 +150,8 @@ func (o cacheTTLOption) apply(store *featureStore) error {
 // CacheTTL creates an option for NewConsulFeatureStore, to specify how long flag data should be
 // cached in memory to avoid rereading it from Consul. If this is zero, the feature store will
 // not use an in-memory cache. The default value is DefaultCacheTTL.
+//
+//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.CacheTTL(30*time.Second))
 func CacheTTL(ttl time.Duration) FeatureStoreOption {
 	return cacheTTLOption{ttl}
 }
@@ -152,13 +167,15 @@ func (o loggerOption) apply(store *featureStore) error {
 
 // Logger creates an option for NewConsulFeatureStore, to specify where to send log output.
 // If not specified, a log.Logger is used.
+//
+//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
 }
 
 // NewConsulFeatureStore creates a new Consul-backed feature store with an optional memory cache. You
-// may customize its behavior with any number of FeatureStoreOption values, such as UseConfig,
-// Address, Prefix, CacheTTL, and Logger.
+// may customize its behavior with any number of FeatureStoreOption values, such as Config, Address,
+// Prefix, CacheTTL, and Logger.
 func NewConsulFeatureStore(options ...FeatureStoreOption) (ld.FeatureStore, error) {
 	store, err := newConsulFeatureStoreInternal(options...)
 	if err != nil {
