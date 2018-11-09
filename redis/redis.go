@@ -368,9 +368,7 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 			return nil, err
 		}
 
-		if !item.IsDeleted() {
-			results[k] = item
-		}
+		results[k] = item
 	}
 	return results, nil
 }

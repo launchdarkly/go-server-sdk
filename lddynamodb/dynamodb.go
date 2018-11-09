@@ -336,9 +336,7 @@ func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (ma
 			store.logger.Printf("ERROR: Failed to unmarshal item: %s", err)
 			return nil, err
 		}
-		if !item.IsDeleted() {
-			results[item.GetKey()] = item
-		}
+		results[item.GetKey()] = item
 	}
 
 	return results, nil

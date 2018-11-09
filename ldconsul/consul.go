@@ -239,9 +239,7 @@ func (store *featureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string
 			return nil, err
 		}
 
-		if !item.IsDeleted() {
-			results[item.GetKey()] = item
-		}
+		results[item.GetKey()] = item
 	}
 	return results, nil
 }
