@@ -33,8 +33,11 @@
 //
 //     dynamoClient := dynamodb.New(session.NewSession())
 //
-// This configuration can be modified via the SessionOptions function, or you can
-// use an already-configured client via the DynamoClient function.
+// This default configuration will only work if your AWS credentials and region are
+// available from AWS environment variables and/or configuration files. If you want to
+// set those programmatically or modify any other configuration settings, you can use
+// the SessionOptions function, or use an already-configured client via the DynamoClient
+// function.
 package lddynamodb
 
 // This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store.
