@@ -101,6 +101,7 @@ type dynamoDBFeatureStore struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
 	cacheTTL       time.Duration
+	configs        []*aws.Config
 	sessionOptions session.Options
 	logger         ld.Logger
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
@@ -132,6 +133,22 @@ func CacheTTL(ttl time.Duration) FeatureStoreOption {
 	return cacheTTLOption{ttl}
 }
 
+type clientConfigOption struct {
+	config *aws.Config
+}
+
+func (o clientConfigOption) apply(store *dynamoDBFeatureStore) error {
+	store.configs = append(store.configs, o.config)
+	return nil
+}
+
+// ClientConfig creates an option for NewDynamoDBFeatureStore to add an AWS configuration
+// object for the DynamoDB client. This allows you to customize settings such as the
+// retry behavior.
+func ClientConfig(config *aws.Config) FeatureStoreOption {
+	return clientConfigOption{config}
+}
+
 type dynamoClientOption struct {
 	client dynamodbiface.DynamoDBAPI
 }
@@ -144,8 +161,8 @@ func (o dynamoClientOption) apply(store *dynamoDBFeatureStore) error {
 // DynamoClient creates an option for NewDynamoDBFeatureStore to specify an existing
 // DynamoDB client instance. Use this if you want to customize the client used by the
 // feature store in ways that are not supported by other NewDynamoDBFeatureStore options.
-// If you specify this option, then any configuration specified with SessionOptions will
-// be ignored.
+// If you specify this option, then any configurations specified with SessionOptions or
+// ClientConfig will be ignored.
 //
 //     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.DynamoClient(myDBClient))
 func DynamoClient(client dynamodbiface.DynamoDBAPI) FeatureStoreOption {
@@ -226,7 +243,7 @@ func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption
 		if err != nil {
 			return nil, err
 		}
-		store.client = dynamodb.New(sess)
+		store.client = dynamodb.New(sess, store.configs...)
 	}
 
 	return &store, nil
