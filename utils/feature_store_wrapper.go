@@ -3,12 +3,27 @@
 package utils
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
+
+// UnmarshalItem attempts to unmarshal an entity that has been stored as JSON in a
+// FeatureStore. The kind parameter indicates what type of entity is expected.
+func UnmarshalItem(kind ld.VersionedDataKind, raw []byte) (ld.VersionedData, error) {
+	data := kind.GetDefaultItem()
+	if jsonErr := json.Unmarshal(raw, &data); jsonErr != nil {
+		return nil, jsonErr
+	}
+	if item, ok := data.(ld.VersionedData); ok {
+		return item, nil
+	}
+	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
+}
 
 // FeatureStoreCore is an interface for a simplified subset of the functionality of
 // ldclient.FeatureStore, to be used in conjunction with FeatureStoreWrapper. This allows

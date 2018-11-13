@@ -1,0 +1,45 @@
+@import '../layouts/index';
+
+html.template-with-vertical-menu,
+html.template-with-vertical-menu body {
+  overflow: hidden;
+}
+#wrapper {
+  @extend %viewport-container;
+}
+#wrapper {
+  @extend %with-sticky-footer;
+}
+main {
+  @extend %with-sticky-footer-content;
+}
+main,
+#wrapper > footer {
+  @extend %content-container;
+}
+html.template-edit main {
+  @extend %content-container-restricted;
+}
+
+@media #{$--lt-spacious-page-header} {
+  html.template-list:not(.template-kv) main {
+    margin-top: 10px;
+  }
+}
+@media #{$--lt-spacious-page-header} {
+  .actions button.copy-btn {
+    margin-top: -56px;
+    padding: 0;
+  }
+}
+/* TODO: keep margin below forms, move elsewhere */
+main form,
+main form + div .with-confirmation {
+  margin-bottom: 2em;
+}
+@media #{$--lt-wide-form} {
+  main form [type='reset'] {
+    float: right;
+    margin-right: 0 !important;
+  }
+}

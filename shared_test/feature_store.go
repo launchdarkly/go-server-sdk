@@ -38,7 +38,7 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		store := makeStore(t)
 		feature1 := ld.FeatureFlag{Key: "feature"}
 		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"feature": &feature1}, make(map[string]*ld.Segment))
-		assert.NoError(t, store.Init(allData))
+		require.NoError(t, store.Init(allData))
 
 		assert.True(t, store.Initialized())
 	})
@@ -51,12 +51,12 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		segment1 := ld.Segment{Key: "first", Version: 1}
 		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1, "second": &feature2},
 			map[string]*ld.Segment{"first": &segment1})
-		assert.NoError(t, store.Init(allData))
+		require.NoError(t, store.Init(allData))
 
 		flags, err := store.All(ld.Features)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		segs, err := store.All(ld.Segments)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, flags["first"].GetVersion())
 		assert.Equal(t, 1, flags["second"].GetVersion())
 		assert.Equal(t, 1, segs["first"].GetVersion())
@@ -65,12 +65,12 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		segment1.Version = 2
 		allData = makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1},
 			map[string]*ld.Segment{"first": &segment1})
-		assert.NoError(t, store.Init(allData))
+		require.NoError(t, store.Init(allData))
 
 		flags, err = store.All(ld.Features)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		segs, err = store.All(ld.Segments)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 2, flags["first"].GetVersion())
 		assert.Nil(t, flags["second"])
 		assert.Equal(t, 2, segs["first"].GetVersion())

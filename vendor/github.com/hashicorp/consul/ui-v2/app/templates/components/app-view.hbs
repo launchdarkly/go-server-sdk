@@ -1,0 +1,34 @@
+{{yield}}
+{{#if (not loading)}}
+<header>
+{{#each flashMessages.queue as |flash|}}
+    {{#flash-message flash=flash as |component flash|}}
+        {{! flashes automatically ucfirst the type }}
+
+        <p data-notification class="{{if (eq component.flashType 'Success') 'success' 'error'}} notification-{{lowercase flash.action}}"><strong>{{if (eq component.flashType 'Success') 'Success!' 'Error!'}}</strong> {{#yield-slot 'notification' (block-params (lowercase component.flashType) (lowercase flash.action) )}}{{yield}}{{/yield-slot}}</p>
+    {{/flash-message}}
+{{/each}}
+    <div>
+        <div class="actions">
+            {{#yield-slot 'actions'}}{{yield}}{{/yield-slot}}
+        </div>
+        <div>
+            <nav aria-label="Breadcrumb">
+                {{#yield-slot 'breadcrumbs'}}{{yield}}{{/yield-slot}}
+            </nav>
+            {{#yield-slot 'header'}}{{yield}}{{/yield-slot}}
+        </div>
+    </div>
+    {{#yield-slot 'toolbar'}}
+      <input type="checkbox" id="toolbar-toggle" />
+      {{yield}}
+    {{/yield-slot}}
+</header>
+{{/if}}
+<div>
+    {{#if loading}}
+        {{partial 'consul-loading'}}
+    {{else}}
+        {{#yield-slot 'content'}}{{yield}}{{/yield-slot}}
+    {{/if}}
+</div>
