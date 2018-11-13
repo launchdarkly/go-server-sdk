@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	r "github.com/garyburd/redigo/redis"
@@ -31,8 +30,6 @@ type redisFeatureStoreCore struct {
 	cacheTTL   time.Duration
 	logger     ld.Logger
 	testTxHook func()
-	inited     bool
-	initCheck  sync.Once
 }
 
 var pool *r.Pool
@@ -54,6 +51,8 @@ func newPool(url string) *r.Pool {
 	}
 	return pool
 }
+
+const initedKey = "$inited"
 
 // NewRedisFeatureStoreFromUrl constructs a new Redis-backed feature store connecting to the specified URL with a default
 // connection pool configuration (16 concurrent connections, connection requests block).
@@ -89,7 +88,6 @@ func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Dura
 		pool:     pool,
 		cacheTTL: timeout,
 		logger:   logger,
-		inited:   false,
 	}
 	return &RedisFeatureStore{
 		wrapper: utils.NewFeatureStoreWrapper(core),
@@ -212,9 +210,9 @@ func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKin
 		}
 	}
 
-	_, err := c.Do("EXEC")
+	_ = c.Send("SET", store.initedKey(), "")
 
-	store.initCheck.Do(func() { store.inited = true })
+	_, err := c.Do("EXEC")
 
 	return err
 }
@@ -272,16 +270,18 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 }
 
 func (store *redisFeatureStoreCore) InitializedInternal() bool {
-	store.initCheck.Do(func() {
-		c := store.getConn()
-		defer c.Close() // nolint:errcheck
-		store.inited, _ = r.Bool(c.Do("EXISTS", store.featuresKey(ld.Features)))
-	})
-	return store.inited
+	c := store.getConn()
+	defer c.Close() // nolint:errcheck
+	inited, _ := r.Bool(c.Do("EXISTS", store.initedKey()))
+	return inited
 }
 
 func (store *redisFeatureStoreCore) featuresKey(kind ld.VersionedDataKind) string {
 	return store.prefix + ":" + kind.GetNamespace()
+}
+
+func (store *redisFeatureStoreCore) initedKey() string {
+	return store.prefix + ":" + initedKey
 }
 
 func (store *redisFeatureStoreCore) getConn() r.Conn {

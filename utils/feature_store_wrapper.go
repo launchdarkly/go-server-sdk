@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"sync"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -56,9 +57,13 @@ type FeatureStoreCore interface {
 // FeatureStoreWrapper is a partial implementation of ldclient.FeatureStore that delegates
 // basic functionality to an instance of FeatureStoreCore. It provides optional caching
 type FeatureStoreWrapper struct {
-	core  FeatureStoreCore
-	cache *cache.Cache
+	core     FeatureStoreCore
+	cache    *cache.Cache
+	inited   bool
+	initLock sync.RWMutex
 }
+
+const initCheckedKey = "$initChecked"
 
 // NewFeatureStoreWrapper creates an instance of FeatureStoreWrapper that wraps an instance
 // of FeatureStoreCore.
@@ -81,18 +86,21 @@ func featureStoreAllItemsCacheKey(kind ld.VersionedDataKind) string {
 
 // Init performs an update of the entire data store, with optional caching.
 func (w *FeatureStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
-	if w.cache == nil {
-		return w.core.InitInternal(allData)
-	}
-	w.cache.Flush()
 	err := w.core.InitInternal(allData)
-	if err != nil {
-		return err
+	if w.cache != nil {
+		w.cache.Flush()
+		if err == nil {
+			for kind, items := range allData {
+				w.putAllItemsInCache(kind, items)
+			}
+		}
 	}
-	for kind, items := range allData {
-		w.putAllItemsInCache(kind, items)
+	if err == nil {
+		w.initLock.Lock()
+		defer w.initLock.Unlock()
+		w.inited = true
 	}
-	return nil
+	return err
 }
 
 func (w *FeatureStoreWrapper) putAllItemsInCache(kind ld.VersionedDataKind, items map[string]ld.VersionedData) {
@@ -182,7 +190,38 @@ func (w *FeatureStoreWrapper) Delete(kind ld.VersionedDataKind, key string, vers
 	return w.Upsert(kind, deletedItem)
 }
 
-// Initialized returns true if the feature store contains a data set.
+// Initialized returns true if the feature store contains a data set. To avoid calling the
+// underlying implementation any more often than necessary (since Initialized is called often),
+// FeatureStoreWrapper uses the following heuristic: 1. Once we have received a true result
+// from InitializedInternal, we always return true. 2. If InitializedInternal returns false,
+// and we have a cache, we will cache that result so we won't call it any more frequently
+// than the cache TTL.
 func (w *FeatureStoreWrapper) Initialized() bool {
-	return w.core.InitializedInternal()
+	w.initLock.RLock()
+	previousValue := w.inited
+	w.initLock.RUnlock()
+	if previousValue {
+		return true
+	}
+
+	if w.cache != nil {
+		if _, found := w.cache.Get(initCheckedKey); found {
+			return false
+		}
+	}
+
+	newValue := w.core.InitializedInternal()
+	if newValue {
+		w.initLock.Lock()
+		defer w.initLock.Unlock()
+		w.inited = true
+		if w.cache != nil {
+			w.cache.Delete(initCheckedKey)
+		}
+	} else {
+		if w.cache != nil {
+			w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
+		}
+	}
+	return newValue
 }

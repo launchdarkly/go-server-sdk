@@ -12,5 +12,5 @@ func makeInMemoryStore() ld.FeatureStore {
 }
 
 func TestInMemoryFeatureStore(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeInMemoryStore)
+	ldtest.RunFeatureStoreTests(t, makeInMemoryStore, nil, false)
 }

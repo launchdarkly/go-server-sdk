@@ -11,9 +11,10 @@ import (
 
 // Test implementation of FeatureStoreCore
 type mockCore struct {
-	cacheTTL time.Duration
-	data     map[ld.VersionedDataKind]map[string]ld.VersionedData
-	inited   bool
+	cacheTTL         time.Duration
+	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
+	inited           bool
+	initQueriedCount int
 }
 
 func newCore(ttl time.Duration) *mockCore {
@@ -59,6 +60,7 @@ func (c *mockCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedDa
 }
 
 func (c *mockCore) InitializedInternal() bool {
+	c.initQueriedCount++
 	return c.inited
 }
 
@@ -307,13 +309,50 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		}
 	})
 
-	t.Run("Initialized calls core's InitializedInternal", func(t *testing.T) {
-		core := newCore(cacheTime)
+	t.Run("Initialized calls InitializedInternal only if not already inited", func(t *testing.T) {
+		core := newCore(0)
 		w := NewFeatureStoreWrapper(core)
 
 		assert.False(t, w.Initialized())
+		assert.Equal(t, 1, core.initQueriedCount)
 
 		core.inited = true
 		assert.True(t, w.Initialized())
+		assert.Equal(t, 2, core.initQueriedCount)
+
+		core.inited = false
+		assert.True(t, w.Initialized())
+		assert.Equal(t, 2, core.initQueriedCount)
+	})
+
+	t.Run("Initialized won't call InitializedInternal if Init has been called", func(t *testing.T) {
+		core := newCore(0)
+		w := NewFeatureStoreWrapper(core)
+
+		assert.False(t, w.Initialized())
+		assert.Equal(t, 1, core.initQueriedCount)
+
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}}
+		err := w.Init(allData)
+		require.NoError(t, err)
+
+		assert.True(t, w.Initialized())
+		assert.Equal(t, 1, core.initQueriedCount)
+	})
+
+	t.Run("Initialized can cache false result", func(t *testing.T) {
+		core := newCore(500 * time.Millisecond)
+		w := NewFeatureStoreWrapper(core)
+
+		assert.False(t, w.Initialized())
+		assert.Equal(t, 1, core.initQueriedCount)
+
+		core.inited = true
+		assert.False(t, w.Initialized())
+		assert.Equal(t, 1, core.initQueriedCount)
+
+		time.Sleep(600 * time.Millisecond)
+		assert.True(t, w.Initialized())
+		assert.Equal(t, 2, core.initQueriedCount)
 	})
 }
