@@ -4,26 +4,48 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	r "github.com/garyburd/redigo/redis"
 	ld "gopkg.in/launchdarkly/go-client.v4"
 	ldtest "gopkg.in/launchdarkly/go-client.v4/shared_test"
+	"gopkg.in/launchdarkly/go-client.v4/utils"
 )
 
 const redisURL = "redis://localhost:6379"
 
 func TestRedisFeatureStoreUncached(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(0), clearExistingData, false)
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreWithDefaults(CacheTTL(0))
+	}, clearExistingData, false)
+}
+
+func TestRedisFeatureStoreUncachedWithDeprecatedConstructor(t *testing.T) {
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 0, nil), nil
+	}, clearExistingData, false)
 }
 
 func TestRedisFeatureStoreCached(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(30*time.Second), clearExistingData, true)
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreWithDefaults(CacheTTL(30 * time.Second))
+	}, clearExistingData, true)
+}
+
+func TestRedisFeatureStoreCachedWithDeprecatedConstructor(t *testing.T) {
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 30*time.Second, nil), nil
+	}, clearExistingData, true)
 }
 
 func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
-	store1 := NewRedisFeatureStoreFromUrl(redisURL, "", 30*time.Second, nil)
-	store2 := NewRedisFeatureStoreFromUrl(redisURL, "", 30*time.Second, nil)
+	core1, err := newRedisFeatureStoreInternal() // use the internal object so we can set testTxHook
+	require.NoError(t, err)
+	store1 := utils.NewFeatureStoreWrapper(core1)
+	store2, err := NewRedisFeatureStoreWithDefaults()
+	require.NoError(t, err)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
-		store1.core.testTxHook = hook
+		core1.testTxHook = hook
 	})
 }
 

@@ -1,3 +1,40 @@
+// Package redis provides a Redis-backed feature store for the LaunchDarkly Go SDK.
+//
+// A persistent feature store serves two purposes. First, when the SDK client receives
+// feature flag data from LaunchDarkly, it will be written to the store. If, later, an
+// application starts up and for some reason is not able to contact LaunchDarkly, the
+// client can continue to use the last known data from the store.
+//
+// Second, the client can be configured to read feature flag data only from the
+// feature store instead of connecting to LaunchDarkly. In this scenario you are
+// relying on another process to populate the database; the LaunchDarkly relay proxy
+// can do this. To use this mode, set config.UseLdd to true in the client configuration.
+//
+// There are also other database integrations that can serve the same purpose; see the
+// ldconsul and lddynamodb subpackages.
+//
+// To use the Redis feature store with the LaunchDarkly client:
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults()
+//     if err != nil { ... }
+//
+//     config := ld.DefaultConfig
+//     config.FeatureStore = store
+//     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
+//
+// The default Redis pool configuration has a maximum of 16 concurrent connections,
+// and uses blocking connection requests. To customize any properties of the connection
+// pool, use the Pool option or the NewRedisFeatureStoreWithPool constructor. You
+// may also customize other properties of the feature store by providing options to
+// NewRedisFeatureStoreWithDefaults, for example:
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.URL(myRedisURL),
+//         redis.CacheTTL(30*time.Second))
+//
+// If you are also using Redis for other purposes, the feature store can coexist with
+// other data as long as you are not using the same keys. By default, the keys used by the
+// feature store will always start with "launchdarkly:"; you can change this to another
+// prefix if desired.
 package redis
 
 import (
@@ -13,10 +50,133 @@ import (
 	"gopkg.in/launchdarkly/go-client.v4/utils"
 )
 
+const (
+	// DefaultURL is the default URL for connecting to Redis, if you use
+	// NewRedisFeatureStoreWithDefaults. You can specify otherwise with the RedisURL option.
+	// If you are using the other constructors, you must specify the URL explicitly.
+	DefaultURL = "redis://localhost:6379"
+	// DefaultPrefix is a string that is prepended (along with a colon) to all Redis keys used
+	// by the feature store. You can change this value with the Prefix() option for
+	// NewRedisFeatureStoreWithDefaults, or with the "prefix" parameter to the other constructors.
+	DefaultPrefix = "launchdarkly"
+	// DefaultCacheTTL is the default amount of time that recently read or updated items will
+	// be cached in memory, if you use NewRedisFeatureStoreWithDefaults. You can specify otherwise
+	// with the CacheTTL option. If you are using the other constructors, their "timeout"
+	// parameter serves the same purpose and there is no default.
+	DefaultCacheTTL = 15 * time.Second
+)
+
+// FeatureStoreOption is the interface for optional configuration parameters that can be
+// passed to NewRedisFeatureStoreWithDefaults. These include UseConfig, Prefix, CacheTTL, and UseLogger.
+type FeatureStoreOption interface {
+	apply(store *redisFeatureStoreCore) error
+}
+
+type redisURLOption struct {
+	url string
+}
+
+func (o redisURLOption) apply(store *redisFeatureStoreCore) error {
+	store.redisURL = o.url
+	return nil
+}
+
+// URL creates an option for NewRedisFeatureStoreWithDefaults to specify the Redis host URL.
+// If not specified, the default value is DefaultURL.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.URL("redis://my-redis-host:6379"))
+func URL(url string) FeatureStoreOption {
+	return redisURLOption{url}
+}
+
+// HostAndPort creates an option for NewRedisFeatureStoreWithDefaults to specify the Redis host
+// address as a hostname and port.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.HostAndPort("my-redis-host", 6379))
+func HostAndPort(host string, port int) FeatureStoreOption {
+	return redisURLOption{fmt.Sprintf("redis://%s:%d", host, port)}
+}
+
+type redisPoolOption struct {
+	pool *r.Pool
+}
+
+func (o redisPoolOption) apply(store *redisFeatureStoreCore) error {
+	store.pool = o.pool
+	return nil
+}
+
+// Pool creates an option for NewRedisFeatureStoreWithDefaults to make the feature store
+// use a specific connection pool configuration. If not specified, it will create a default
+// configuration (see package description). Specifying this option will cause any address
+// specified with RedisURL or RedisHostAndPort to be ignored.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.Pool(myPool))
+func Pool(pool *r.Pool) FeatureStoreOption {
+	return redisPoolOption{pool}
+}
+
+type prefixOption struct {
+	prefix string
+}
+
+func (o prefixOption) apply(store *redisFeatureStoreCore) error {
+	if o.prefix == "" {
+		store.prefix = DefaultPrefix
+	} else {
+		store.prefix = o.prefix
+	}
+	return nil
+}
+
+// Prefix creates an option for NewRedisFeatureStoreWithDefaults to specify a string
+// that should be prepended to all Redis keys used by the feature store. A colon will be
+// added to this automatically. If this is unspecified or empty, DefaultPrefix will be used.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.Prefix("ld-data"))
+func Prefix(prefix string) FeatureStoreOption {
+	return prefixOption{prefix}
+}
+
+type cacheTTLOption struct {
+	cacheTTL time.Duration
+}
+
+func (o cacheTTLOption) apply(store *redisFeatureStoreCore) error {
+	store.cacheTTL = o.cacheTTL
+	return nil
+}
+
+// CacheTTL creates an option for NewRedisFeatureStoreWithDefaults to set the amount of time
+// that recently read or updated items should remain in an in-memory cache. This reduces the
+// amount of database access if the same feature flags are being evaluated repeatedly. If it
+// is zero, there will be no in-memory caching. The default value is DefaultCacheTTL.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.CacheTTL(30*time.Second))
+func CacheTTL(ttl time.Duration) FeatureStoreOption {
+	return cacheTTLOption{ttl}
+}
+
+type loggerOption struct {
+	logger ld.Logger
+}
+
+func (o loggerOption) apply(store *redisFeatureStoreCore) error {
+	store.logger = o.logger
+	return nil
+}
+
+// Logger creates an option for NewDynamoDBFeatureStore, to specify where to send log output.
+// If not specified, a log.Logger is used.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.Logger(myLogger))
+func Logger(logger ld.Logger) FeatureStoreOption {
+	return loggerOption{logger}
+}
+
 // RedisFeatureStore is a Redis-backed feature store implementation.
 type RedisFeatureStore struct { // nolint:golint // package name in type name
 	wrapper *utils.FeatureStoreWrapper
-	core    *redisFeatureStoreCore
 }
 
 // redisFeatureStoreCore is the internal implementation, using the simpler interface defined in
@@ -27,15 +187,14 @@ type RedisFeatureStore struct { // nolint:golint // package name in type name
 type redisFeatureStoreCore struct {
 	prefix     string
 	pool       *r.Pool
+	redisURL   string
 	cacheTTL   time.Duration
 	logger     ld.Logger
 	testTxHook func()
 }
 
-var pool *r.Pool
-
 func newPool(url string) *r.Pool {
-	pool = &r.Pool{
+	pool := &r.Pool{
 		MaxIdle:     20,
 		MaxActive:   16,
 		Wait:        true,
@@ -54,53 +213,82 @@ func newPool(url string) *r.Pool {
 
 const initedKey = "$inited"
 
-// NewRedisFeatureStoreFromUrl constructs a new Redis-backed feature store connecting to the specified URL with a default
-// connection pool configuration (16 concurrent connections, connection requests block).
-// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
-// specified prefix is the empty string, it defaults to "launchdarkly".
+// NewRedisFeatureStoreFromUrl constructs a new Redis-backed feature store connecting to the
+// specified URL. It uses a default connection pool configuration (see package description for details).
+// The "prefix", "timeout", and "logger" parameters are equivalent to the Prefix, CacheTTL, and
+// Logger options for NewRedisFeatureStoreWithDefaults.
+//
+// Deprecated: It is simpler to use NewRedisFeatureStoreWithDefaults(redis.URL(url)) and override
+// any other defaults as needed.
 func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	if logger == nil {
-		logger = defaultLogger()
-	}
-	logger.Printf("RedisFeatureStore: Using url: %s", url)
-	return NewRedisFeatureStoreWithPool(newPool(url), prefix, timeout, logger)
+	return newStoreForDeprecatedConstructors(URL(url), Prefix(prefix), CacheTTL(timeout), Logger(logger))
 }
 
-// NewRedisFeatureStoreWithPool constructs a new Redis-backed feature store with the specified redigo pool configuration.
-// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
-// specified prefix is the empty string, it defaults to "launchdarkly".
+// NewRedisFeatureStoreWithPool constructs a new Redis-backed feature store with the specified
+// redigo pool configuration. The "prefix", "timeout", and "logger" parameters are equivalent to
+// the Prefix, CacheTTL, and Logger options for NewRedisFeatureStoreWithDefaults.
+//
+// Deprecated: It is simpler to use NewRedisFeatureStoreWithDefaults(redis.Pool(pool)) and override
+// any other defaults as needed.
 func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	if logger == nil {
-		logger = defaultLogger()
-	}
-
-	if prefix == "" {
-		prefix = "launchdarkly"
-	}
-	logger.Printf("RedisFeatureStore: Using prefix: %s ", prefix)
-
-	if timeout > 0 {
-		logger.Printf("RedisFeatureStore: Using local cache with timeout: %v", timeout)
-	}
-
-	core := &redisFeatureStoreCore{
-		prefix:   prefix,
-		pool:     pool,
-		cacheTTL: timeout,
-		logger:   logger,
-	}
-	return &RedisFeatureStore{
-		wrapper: utils.NewFeatureStoreWrapper(core),
-		core:    core,
-	}
+	return newStoreForDeprecatedConstructors(Pool(pool), Prefix(prefix), CacheTTL(timeout), Logger(logger))
 }
 
-// NewRedisFeatureStore constructs a new Redis-backed feature store connecting to the specified host and port with a default
-// connection pool configuration (16 concurrent connections, connection requests block).
-// Attaches a prefix string to all keys to namespace LaunchDarkly-specific keys. If the
-// specified prefix is the empty string, it defaults to "launchdarkly"
+// NewRedisFeatureStore constructs a new Redis-backed feature store connecting to the specified
+// host and port. It uses a default connection pool configuration (see package description for details).
+// The "prefix", "timeout", and "logger" parameters are equivalent to the Prefix, CacheTTL, and
+// Logger options for NewRedisFeatureStoreWithDefaults.
+//
+// Deprecated: It is simpler to use NewRedisFeatureStoreWithDefaults(redis.HostAndPort(host, port))
+// and override any other defaults as needed.
 func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	return NewRedisFeatureStoreFromUrl(fmt.Sprintf("redis://%s:%d", host, port), prefix, timeout, logger)
+	return newStoreForDeprecatedConstructors(HostAndPort(host, port), Prefix(prefix), CacheTTL(timeout), Logger(logger))
+}
+
+// NewRedisFeatureStoreWithDefaults constructs a new Redis-backed feature store
+//
+// By default, it uses DefaultURL as the Redis address, DefaultPrefix as the prefix for all keys,
+// DefaultCacheTTL as the duration for in-memory caching, and a default connection pool configuration
+// (see package description for details). You may override any of these with FeatureStoreOption values
+// created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL, or Logger.
+func NewRedisFeatureStoreWithDefaults(options ...FeatureStoreOption) (ld.FeatureStore, error) {
+	core, err := newRedisFeatureStoreInternal(options...)
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewFeatureStoreWrapper(core), nil
+}
+
+func newStoreForDeprecatedConstructors(options ...FeatureStoreOption) *RedisFeatureStore {
+	core, err := newRedisFeatureStoreInternal(options...)
+	if err != nil {
+		return nil
+	}
+	return &RedisFeatureStore{wrapper: utils.NewFeatureStoreWrapper(core)}
+}
+
+func newRedisFeatureStoreInternal(options ...FeatureStoreOption) (*redisFeatureStoreCore, error) {
+	core := redisFeatureStoreCore{
+		prefix:   DefaultPrefix,
+		redisURL: DefaultURL,
+		cacheTTL: DefaultCacheTTL,
+	}
+	for _, o := range options {
+		err := o.apply(&core)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if core.logger == nil {
+		core.logger = defaultLogger()
+	}
+	if core.pool == nil {
+		core.logger.Printf("RedisFeatureStore: Using url: %s", core.redisURL)
+		core.pool = newPool(core.redisURL)
+	}
+
+	return &core, nil
 }
 
 // Get returns an individual object of a given type from the store
@@ -180,9 +368,7 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 			return nil, err
 		}
 
-		if !item.IsDeleted() {
-			results[k] = item
-		}
+		results[k] = item
 	}
 	return results, nil
 }
