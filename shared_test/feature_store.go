@@ -15,22 +15,27 @@ import (
 //   that the store instances may be sharing. If this is nil, it means store instances do not share any
 //   common storage.
 // - isCached: True if the instances returned by makeStore have caching enabled.
-func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearExistingData func() error, isCached bool) {
-	clearAllAndMakeStore := func() ld.FeatureStore {
-		if clearExistingData != nil {
-			err := clearExistingData()
-			require.NoError(t, err)
-		}
-		return makeStore()
+func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, error), clearExistingData func() error, isCached bool) {
+	makeStore := func(t *testing.T) ld.FeatureStore {
+		store, err := storeFactory()
+		require.NoError(t, err)
+		return store
 	}
 
-	initWithEmptyData := func(store ld.FeatureStore) {
+	clearAll := func(t *testing.T) {
+		if clearExistingData != nil {
+			require.NoError(t, clearExistingData())
+		}
+	}
+
+	initWithEmptyData := func(t *testing.T, store ld.FeatureStore) {
 		err := store.Init(map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: make(map[string]ld.VersionedData)})
 		require.NoError(t, err)
 	}
 
 	t.Run("store initialized after init", func(t *testing.T) {
-		store := clearAllAndMakeStore()
+		clearAll(t)
+		store := makeStore(t)
 		feature1 := ld.FeatureFlag{Key: "feature"}
 		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"feature": &feature1}, make(map[string]*ld.Segment))
 		assert.NoError(t, store.Init(allData))
@@ -39,7 +44,8 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("init completely replaces previous data", func(t *testing.T) {
-		store := clearAllAndMakeStore()
+		clearAll(t)
+		store := makeStore(t)
 		feature1 := ld.FeatureFlag{Key: "first", Version: 1}
 		feature2 := ld.FeatureFlag{Key: "second", Version: 1}
 		segment1 := ld.Segment{Key: "first", Version: 1}
@@ -74,20 +80,22 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 		// Cannot run the following test in cached mode because the first false result will be cached.
 		// Also, if clearExistingData is nil then this is the in-memory store and the test is meaningless.
 		t.Run("one instance can detect if another instance has initialized the store", func(t *testing.T) {
-			store1 := clearAllAndMakeStore()
-			store2 := makeStore()
+			clearAll(t)
+			store1 := makeStore(t)
+			store2 := makeStore(t)
 
 			assert.False(t, store1.Initialized())
 
-			initWithEmptyData(store2)
+			initWithEmptyData(t, store2)
 
 			assert.True(t, store1.Initialized())
 		})
 	}
 
 	t.Run("get existing feature", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 		feature1 := ld.FeatureFlag{Key: "feature"}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))
 
@@ -102,8 +110,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("get nonexisting feature", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		result, err := store.Get(ld.Features, "no")
 		assert.Nil(t, result)
@@ -111,8 +120,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("get all ld.Features", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		result, err := store.All(ld.Features)
 		assert.NotNil(t, result)
@@ -141,8 +151,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("upsert with newer version", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))
@@ -160,8 +171,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("upsert with older version", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))
@@ -179,8 +191,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("delete with newer version", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))
@@ -193,8 +206,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("delete with older version", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))
@@ -207,8 +221,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("delete unknown feature", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		assert.NoError(t, store.Delete(ld.Features, "no", 1))
 
@@ -218,8 +233,9 @@ func RunFeatureStoreTests(t *testing.T, makeStore func() ld.FeatureStore, clearE
 	})
 
 	t.Run("upsert older version after delete", func(t *testing.T) {
-		store := clearAllAndMakeStore()
-		initWithEmptyData(store)
+		clearAll(t)
+		store := makeStore(t)
+		initWithEmptyData(t, store)
 
 		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
 		assert.NoError(t, store.Upsert(ld.Features, &feature1))

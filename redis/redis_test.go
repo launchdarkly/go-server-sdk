@@ -27,9 +27,9 @@ func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-func makeStoreWithCacheTTL(ttl time.Duration) func() ld.FeatureStore {
-	return func() ld.FeatureStore {
-		return NewRedisFeatureStoreFromUrl(redisURL, "", ttl, nil)
+func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
+	return func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreFromUrl(redisURL, "", ttl, nil), nil
 	}
 }
 
