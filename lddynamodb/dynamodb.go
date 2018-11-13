@@ -52,6 +52,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -60,6 +61,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	ld "gopkg.in/launchdarkly/go-client.v4"
+	"gopkg.in/launchdarkly/go-client.v4/utils"
+)
+
+const (
+	// DefaultCacheTTL is the amount of time that recently read or updated items will be cached
+	// in memory, unless you specify otherwise with the CacheTTL option.
+	DefaultCacheTTL = 15 * time.Second
 )
 
 const (
@@ -77,6 +85,7 @@ type namespaceAndKey struct {
 type dynamoDBFeatureStore struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
+	cacheTTL       time.Duration
 	sessionOptions session.Options
 	logger         ld.Logger
 	initialized    bool
@@ -88,6 +97,23 @@ type dynamoDBFeatureStore struct {
 // passed to NewDynamoDBFeatureStore. These include SessionOptions, DynamoClient, and Logger.
 type FeatureStoreOption interface {
 	apply(store *dynamoDBFeatureStore) error
+}
+
+type cacheTTLOption struct {
+	cacheTTL time.Duration
+}
+
+func (o cacheTTLOption) apply(store *dynamoDBFeatureStore) error {
+	store.cacheTTL = o.cacheTTL
+	return nil
+}
+
+// CacheTTL sets the amount of time that recently read or updated items should remain in an
+// in-memory cache. This reduces the amount of database access if the same feature flags
+// are being evaluated repeatedly. If it is zero, there will be no in-memory caching. The
+// default value is DefaultCacheTTL.
+func CacheTTL(ttl time.Duration) FeatureStoreOption {
+	return cacheTTLOption{ttl}
 }
 
 type dynamoClientOption struct {
@@ -146,15 +172,21 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 // to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
 // as AWS environment variables. You can also override the default configuration with the SessionOptions
 // option, or use an already-configured DynamoDB client instance with the DynamoClient option.
+//
+// For other options that can be customized, see CacheTTL and Logger.
 func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
 	store, err := newDynamoDBFeatureStoreInternal(table, options...)
-	return store, err
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewFeatureStoreWrapper(store), nil
 }
 
 func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption) (*dynamoDBFeatureStore, error) {
 	store := dynamoDBFeatureStore{
 		table:       table,
 		initialized: false,
+		cacheTTL:    DefaultCacheTTL,
 	}
 
 	for _, o := range options {
@@ -179,7 +211,11 @@ func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption
 	return &store, nil
 }
 
-func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *dynamoDBFeatureStore) GetCacheTTL() time.Duration {
+	return store.cacheTTL
+}
+
+func (store *dynamoDBFeatureStore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys()
 	if err != nil {
@@ -233,13 +269,13 @@ func (store *dynamoDBFeatureStore) Init(allData map[ld.VersionedDataKind]map[str
 	return nil
 }
 
-func (store *dynamoDBFeatureStore) Initialized() bool {
+func (store *dynamoDBFeatureStore) InitializedInternal() bool {
 	store.initLock.RLock()
 	defer store.initLock.RUnlock()
 	return store.initialized
 }
 
-func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	var items []map[string]*dynamodb.AttributeValue
 
 	err := store.client.QueryPages(&dynamodb.QueryInput{
@@ -278,7 +314,7 @@ func (store *dynamoDBFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld
 	return results, nil
 }
 
-func (store *dynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
@@ -303,28 +339,14 @@ func (store *dynamoDBFeatureStore) Get(kind ld.VersionedDataKind, key string) (l
 		return nil, err
 	}
 
-	if item.IsDeleted() {
-		store.logger.Printf("DEBUG: Attempted to get deleted item (key=%s)", key)
-		return nil, nil
-	}
-
 	return item, nil
 }
 
-func (store *dynamoDBFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
-	return store.updateWithVersioning(kind, item)
-}
-
-func (store *dynamoDBFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
-	deletedItem := kind.MakeDeletedItem(key, version)
-	return store.updateWithVersioning(kind, deletedItem)
-}
-
-func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
 	av, err := marshalItem(kind, item)
 	if err != nil {
 		store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
-		return err
+		return nil, err
 	}
 
 	if store.testUpdateHook != nil {
@@ -352,13 +374,15 @@ func (store *dynamoDBFeatureStore) updateWithVersioning(kind ld.VersionedDataKin
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
 			store.logger.Printf("DEBUG: Not updating item due to condition (namespace=%s key=%s version=%d)",
 				kind.GetNamespace(), item.GetKey(), item.GetVersion())
-			return nil
+			// We must now read the item that's in the database and return it, so FeatureStoreWrapper can cache it
+			oldItem, err := store.GetInternal(kind, item.GetKey())
+			return oldItem, err
 		}
 		store.logger.Printf("ERROR: Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
-		return err
+		return nil, err
 	}
 
-	return nil
+	return item, nil
 }
 
 func (store *dynamoDBFeatureStore) readExistingKeys() (map[namespaceAndKey]bool, error) {
