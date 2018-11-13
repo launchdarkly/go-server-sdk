@@ -1,17 +1,7 @@
 // Package ldconsul provides a Consul-backed feature store for the LaunchDarkly Go SDK.
 //
-// A persistent feature store serves two purposes. First, when the SDK client receives
-// feature flag data from LaunchDarkly, it will be written to the store. If, later, an
-// application starts up and for some reason is not able to contact LaunchDarkly, the
-// client can continue to use the last known data from the store.
-//
-// Second, the client can be configured to read feature flag data only from the
-// feature store instead of connecting to LaunchDarkly. In this scenario you are
-// relying on another process to populate the database; the LaunchDarkly relay proxy
-// can do this. To use this mode, set config.UseLdd to true in the client configuration.
-//
-// There are also other database integrations that can serve the same purpose; see the
-// lddynamodb and redis subpackages.
+// For more details about how and why you can use a persistent feature store, see:
+// https://dash.readme.io/project/launchdarkly/v2.0/docs/using-a-persistent-feature-store
 //
 // To use the Consul feature store with the LaunchDarkly client:
 //
@@ -21,6 +11,9 @@
 //     config := ld.DefaultConfig
 //     config.FeatureStore = store
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
+//
+// The default Consul configuration uses an address of localhost:8500. To customize any
+// properties of Consul, you can use the Address() or Config() functions.
 //
 // If you are also using Consul for other purposes, the feature store can coexist with
 // other data as long as you are not using the same keys. By default, the keys used by the

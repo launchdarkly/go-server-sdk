@@ -1,17 +1,7 @@
-// Package redis provides a Redis-backed feature store for the LaunchDarkly Go SDK.
+// Package redis provides a Redis-backed persistent feature store for the LaunchDarkly Go SDK.
 //
-// A persistent feature store serves two purposes. First, when the SDK client receives
-// feature flag data from LaunchDarkly, it will be written to the store. If, later, an
-// application starts up and for some reason is not able to contact LaunchDarkly, the
-// client can continue to use the last known data from the store.
-//
-// Second, the client can be configured to read feature flag data only from the
-// feature store instead of connecting to LaunchDarkly. In this scenario you are
-// relying on another process to populate the database; the LaunchDarkly relay proxy
-// can do this. To use this mode, set config.UseLdd to true in the client configuration.
-//
-// There are also other database integrations that can serve the same purpose; see the
-// ldconsul and lddynamodb subpackages.
+// For more details about how and why you can use a persistent feature store, see:
+// https://dash.readme.io/project/launchdarkly/v2.0/docs/using-a-persistent-feature-store
 //
 // To use the Redis feature store with the LaunchDarkly client:
 //
@@ -22,10 +12,10 @@
 //     config.FeatureStore = store
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
-// The default Redis pool configuration has a maximum of 16 concurrent connections,
-// and uses blocking connection requests. To customize any properties of the connection
-// pool, use the Pool option or the NewRedisFeatureStoreWithPool constructor. You
-// may also customize other properties of the feature store by providing options to
+// The default Redis pool configuration uses an address of localhost:6379, a maximum of 16
+// concurrent connections, and blocking connection requests. To customize any properties of
+// the connection pool, use the Pool option or the NewRedisFeatureStoreWithPool constructor.
+// You may also customize other properties of the feature store by providing options to
 // NewRedisFeatureStoreWithDefaults, for example:
 //
 //     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.URL(myRedisURL),
