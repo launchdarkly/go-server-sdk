@@ -85,6 +85,8 @@ const (
 	// Schema of the DynamoDB table
 	tablePartitionKey = "namespace"
 	tableSortKey      = "key"
+	versionAttribute  = "version"
+	itemJsonAttribute = "item"
 	initedKey         = "$inited"
 )
 
@@ -409,7 +411,7 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 		ExpressionAttributeNames: map[string]*string{
 			"#namespace": aws.String(tablePartitionKey),
 			"#key":       aws.String(tableSortKey),
-			"#version":   aws.String("version"),
+			"#version":   aws.String(versionAttribute),
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":version": &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
@@ -476,13 +478,13 @@ func marshalItem(kind ld.VersionedDataKind, item ld.VersionedData) (map[string]*
 	return map[string]*dynamodb.AttributeValue{
 		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(kind.GetNamespace())},
 		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(item.GetKey())},
-		"version":         &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
-		"item":            &dynamodb.AttributeValue{S: aws.String(string(jsonItem))},
+		versionAttribute:  &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
+		itemJsonAttribute: &dynamodb.AttributeValue{S: aws.String(string(jsonItem))},
 	}, nil
 }
 
 func unmarshalItem(kind ld.VersionedDataKind, item map[string]*dynamodb.AttributeValue) (ld.VersionedData, error) {
-	if itemAttr := item["item"]; itemAttr != nil && itemAttr.S != nil {
+	if itemAttr := item[itemJsonAttribute]; itemAttr != nil && itemAttr.S != nil {
 		data, err := utils.UnmarshalItem(kind, []byte(*itemAttr.S))
 		return data, err
 	}
