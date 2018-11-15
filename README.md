@@ -78,6 +78,11 @@ if showFeature {
 }
 ```
 
+Database integrations
+---------------------
+
+Feature flag data can be kept in a persistent store using Redis, Consul, or DynamoDB. These adapters are implemented in the subpackages `redis`, `ldconsul`, and `lddynamodb`; to use them, call the `New...FeatureStore` function provided by the subpackage, and put the returned object in the `FeatureStore` field of your client configuration. See the subpackages and the [SDK reference guide](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store) for more information.
+
 Learn more
 -----------
 

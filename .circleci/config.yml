@@ -41,7 +41,8 @@ defaults:
             if [ -z "$DISABLE_COVERAGE" ]; then
               go_cover_args="-covermode=atomic -coverprofile /tmp/circle-artifacts/coverage.txt"
             fi
-            go test -race $go_cover_args -v . ./redis | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
+            # Note, we need to specify all these packages individually for go test in order to remain 1.8-compatible
+            go test -race $go_cover_args -v . ./redis ./ldconsul ./lddynamodb ./ldfiledata ./ldfilewatch ./utils | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
             if [ -z "$DISABLE_COVERAGE" ]; then
               ./cc-test-reporter format-coverage $CIRCLE_ARTIFACTS/coverage.txt -t gocov --output $CIRCLE_ARTIFACTS/coverage.json
               ./cc-test-reporter upload-coverage --input $CIRCLE_ARTIFACTS/coverage.json
@@ -70,6 +71,8 @@ jobs:
         environment:
           <<: *environment
       - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
 
     <<: *build_steps
 
@@ -82,6 +85,8 @@ jobs:
           <<: *environment
           DISABLE_COVERAGE: 1
       - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
 
     <<: *build_steps
 
@@ -94,6 +99,8 @@ jobs:
           <<: *environment
           DISABLE_COVERAGE: 1
       - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
 
     <<: *build_steps
 

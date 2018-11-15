@@ -1,89 +1,66 @@
 package redis
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	r "github.com/garyburd/redigo/redis"
-	"github.com/stretchr/testify/assert"
 	ld "gopkg.in/launchdarkly/go-client.v4"
 	ldtest "gopkg.in/launchdarkly/go-client.v4/shared_test"
+	"gopkg.in/launchdarkly/go-client.v4/utils"
 )
 
-func makeRedisStore() ld.FeatureStore {
-	return NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
+const redisURL = "redis://localhost:6379"
+
+func TestRedisFeatureStoreUncached(t *testing.T) {
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreWithDefaults(CacheTTL(0))
+	}, clearExistingData, false)
 }
 
-func TestRedisFeatureStore(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeRedisStore)
+func TestRedisFeatureStoreUncachedWithDeprecatedConstructor(t *testing.T) {
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 0, nil), nil
+	}, clearExistingData, false)
 }
 
-func concurrentModificationFunction(t *testing.T, otherClient r.Conn, flag ld.FeatureFlag,
-	startVersion int, endVersion int) func() {
-	versionCounter := startVersion
-	return func() {
-		if versionCounter <= endVersion {
-			flag.Version = versionCounter
-			data, jsonErr := json.Marshal(flag)
-			assert.NoError(t, jsonErr)
-			_, err := otherClient.Do("HSET", "launchdarkly:features", flag.Key, data)
-			assert.NoError(t, err)
-			versionCounter++
-		}
+func TestRedisFeatureStoreCached(t *testing.T) {
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreWithDefaults(CacheTTL(30 * time.Second))
+	}, clearExistingData, true)
+}
+
+func TestRedisFeatureStoreCachedWithDeprecatedConstructor(t *testing.T) {
+	ldtest.RunFeatureStoreTests(t, func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 30*time.Second, nil), nil
+	}, clearExistingData, true)
+}
+
+func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
+	core1, err := newRedisFeatureStoreInternal() // use the internal object so we can set testTxHook
+	require.NoError(t, err)
+	store1 := utils.NewFeatureStoreWrapper(core1)
+	store2, err := NewRedisFeatureStoreWithDefaults()
+	require.NoError(t, err)
+	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
+		core1.testTxHook = hook
+	})
+}
+
+func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
+	return func() (ld.FeatureStore, error) {
+		return NewRedisFeatureStoreFromUrl(redisURL, "", ttl, nil), nil
 	}
 }
 
-func TestUpsertRaceConditionAgainstExternalClientWithLowerVersion(t *testing.T) {
-	store := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
-	otherClient, err := r.DialURL("redis://localhost:6379")
-	assert.NoError(t, err)
-	defer otherClient.Close()
-
-	flag := ld.FeatureFlag{
-		Key:     "foo",
-		Version: 1,
+func clearExistingData() error {
+	client, err := r.DialURL(redisURL)
+	if err != nil {
+		return err
 	}
-	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: {flag.Key: &flag},
-	}
-	assert.NoError(t, store.Init(allData))
-
-	store.testTxHook = concurrentModificationFunction(t, otherClient, flag, 2, 4)
-
-	flag.Version = 10
-	assert.NoError(t, store.Upsert(ld.Features, &flag))
-
-	var result ld.VersionedData
-	result, err = store.Get(ld.Features, flag.Key)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
-}
-
-func TestUpsertRaceConditionAgainstExternalClientWithHigherVersion(t *testing.T) {
-	store := NewRedisFeatureStoreFromUrl("redis://localhost:6379", "", 30*time.Second, nil)
-	otherClient, err := r.DialURL("redis://localhost:6379")
-	assert.NoError(t, err)
-	defer otherClient.Close()
-
-	flag := ld.FeatureFlag{
-		Key:     "foo",
-		Version: 1,
-	}
-	allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: {flag.Key: &flag},
-	}
-	assert.NoError(t, store.Init(allData))
-
-	store.testTxHook = concurrentModificationFunction(t, otherClient, flag, 3, 3)
-
-	flag.Version = 2
-	assert.NoError(t, store.Upsert(ld.Features, &flag))
-
-	var result ld.VersionedData
-	result, err = store.Get(ld.Features, flag.Key)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
+	defer client.Close()
+	_, err = client.Do("FLUSHDB")
+	return err
 }

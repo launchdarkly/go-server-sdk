@@ -1,0 +1,18 @@
+@import './form-elements/index';
+@import './toggle/index';
+.type-toggle {
+  @extend %toggle;
+}
+label span {
+  @extend %user-select-none;
+}
+.has-error {
+  @extend %form-element-error;
+}
+%app-content .type-text,
+%app-content .type-toggle {
+  @extend %form-element;
+}
+%app-content [role='radiogroup'] {
+  @extend %radio-group;
+}
