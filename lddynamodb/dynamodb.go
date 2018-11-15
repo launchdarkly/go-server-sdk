@@ -1,20 +1,7 @@
 // Package lddynamodb provides a DynamoDB-backed feature store for the LaunchDarkly Go SDK.
 //
-// A persistent feature store serves two purposes. First, when the SDK client receives
-// feature flag data from LaunchDarkly, it will be written to the store. If, later, an
-// application starts up and for some reason is not able to contact LaunchDarkly, the
-// client can continue to use the last known data from the store.
-//
-// Second, the client can be configured to read feature flag data only from the
-// feature store instead of connecting to LaunchDarkly. In this scenario you are
-// relying on another process to populate the database. To use this mode, set
-// config.UseLdd to true in the client configuration.
-//
-// There are also other database integrations that can serve the same purpose; see the
-// the ldconsul and redis subpackages. However, DynamoDB may be particularly useful if
-// your application runs in an environment such as AWS Lambda, since it does not
-// require access to any VPC resource. For more information, see
-// https://launchdarkly.com/blog/go-serveless-not-flagless-implementing-feature-flags-in-serverless-environments/
+// For more details about how and why you can use a persistent feature store, see:
+// https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store
 //
 // To use the DynamoDB feature store with the LaunchDarkly client:
 //
