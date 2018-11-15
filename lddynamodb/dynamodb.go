@@ -482,7 +482,7 @@ func marshalItem(kind ld.VersionedDataKind, item ld.VersionedData) (map[string]*
 }
 
 func unmarshalItem(kind ld.VersionedDataKind, item map[string]*dynamodb.AttributeValue) (ld.VersionedData, error) {
-	if itemAttr, ok := item["item"]; ok && itemAttr != nil && itemAttr.S != nil {
+	if itemAttr := item["item"]; itemAttr != nil && itemAttr.S != nil {
 		data, err := utils.UnmarshalItem(kind, []byte(*itemAttr.S))
 		return data, err
 	}
