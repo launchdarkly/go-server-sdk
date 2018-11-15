@@ -28,16 +28,22 @@
 package lddynamodb
 
 // This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store.
-// Changes include a different method of configuration, less potential for race conditions,
-// and unit tests that run against a local Dynamo instance.
+// Changes include a different method of configuration, a different method of marshaling
+// objects, less potential for race conditions, and unit tests that run against a local
+// Dynamo instance.
 
 // Implementation notes:
 //
 // - Feature flags, segments, and any other kind of entity the LaunchDarkly client may wish
 // to store, are all put in the same table. The only two required attributes are "key" (which
 // is present in all storeable entities) and "namespace" (a parameter from the client that is
-// used to disambiguate between flags and segments; this is stored in the marshaled entity
-// but is ignored during unmarshaling).
+// used to disambiguate between flags and segments).
+//
+// - Because of DynamoDB's restrictions on attribute values (e.g. empty strings are not
+// allowed), the standard DynamoDB marshaling mechanism with one attribute per object property
+// is not used. Instead, the entire object is serialized to JSON and stored in a single
+// attribute, "item". The "version" property is also stored as a separate attribute since it
+// is used for updates.
 //
 // - Since DynamoDB doesn't have transactions, the Init method - which replaces the entire data
 // store - is not atomic, so there can be a race condition if another process is adding new data
@@ -46,9 +52,13 @@ package lddynamodb
 // deleting new data from another process, but that would be the case anyway if the Init
 // happened to execute later than the Upsert; we are relying on the fact that normally the
 // process that did the Init will also receive the new data shortly and do its own Upsert.
+//
+// - DynamoDB has a maximum item size of 400KB. Since each feature flag or user segment is
+// stored as a single item, this mechanism will not work for extremely large flags or segments.
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
 	"log"
 	"math"
 	"os"
@@ -59,7 +69,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	ld "gopkg.in/launchdarkly/go-client.v4"
 	"gopkg.in/launchdarkly/go-client.v4/utils"
@@ -75,6 +84,8 @@ const (
 	// Schema of the DynamoDB table
 	tablePartitionKey = "namespace"
 	tableSortKey      = "key"
+	versionAttribute  = "version"
+	itemJSONAttribute = "item"
 	initedKey         = "$inited"
 )
 
@@ -399,7 +410,7 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 		ExpressionAttributeNames: map[string]*string{
 			"#namespace": aws.String(tablePartitionKey),
 			"#key":       aws.String(tableSortKey),
-			"#version":   aws.String("version"),
+			"#version":   aws.String(versionAttribute),
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":version": &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
@@ -459,26 +470,22 @@ func batchWriteRequests(client dynamodbiface.DynamoDBAPI, table string, requests
 }
 
 func marshalItem(kind ld.VersionedDataKind, item ld.VersionedData) (map[string]*dynamodb.AttributeValue, error) {
-	av, err := dynamodbattribute.MarshalMap(item)
+	jsonItem, err := json.Marshal(item)
 	if err != nil {
 		return nil, err
 	}
-
-	// Adding the namespace as a partition key allows us to store everything
-	// (feature flags, segments, etc.) in a single DynamoDB table. The
-	// namespace attribute will be ignored when unmarshalling.
-	av[tablePartitionKey] = &dynamodb.AttributeValue{S: aws.String(kind.GetNamespace())}
-
-	return av, nil
+	return map[string]*dynamodb.AttributeValue{
+		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(kind.GetNamespace())},
+		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(item.GetKey())},
+		versionAttribute:  &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
+		itemJSONAttribute: &dynamodb.AttributeValue{S: aws.String(string(jsonItem))},
+	}, nil
 }
 
 func unmarshalItem(kind ld.VersionedDataKind, item map[string]*dynamodb.AttributeValue) (ld.VersionedData, error) {
-	data := kind.GetDefaultItem()
-	if err := dynamodbattribute.UnmarshalMap(item, &data); err != nil {
-		return nil, err
+	if itemAttr := item[itemJSONAttribute]; itemAttr != nil && itemAttr.S != nil {
+		data, err := utils.UnmarshalItem(kind, []byte(*itemAttr.S))
+		return data, err
 	}
-	if item, ok := data.(ld.VersionedData); ok {
-		return item, nil
-	}
-	return nil, fmt.Errorf("Unexpected data type from unmarshal: %T", data)
+	return nil, errors.New("DynamoDB map did not contain expected item string")
 }
