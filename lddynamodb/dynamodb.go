@@ -53,9 +53,8 @@ package lddynamodb
 // happened to execute later than the Upsert; we are relying on the fact that normally the
 // process that did the Init will also receive the new data shortly and do its own Upsert.
 //
-// - DynamoDB has a maximum attribute value size of 400KB. Therefore, since we are storing the
-// entire object as JSON in one attribute, we cannot store a feature flag or user segment whose
-// JSON representation is larger than that size.
+// - DynamoDB has a maximum item size of 400KB. Since each feature flag or user segment is
+// stored as a single item, this mechanism will not work for extremely large flags or segments.
 
 import (
 	"encoding/json"
