@@ -29,7 +29,6 @@
 // If you are using the same DynamoDB table as a feature store for multiple LaunchDarkly
 // environments, use the Prefix option and choose a different prefix string for each, so
 // they will not interfere with each other's data.
-
 package lddynamodb
 
 // This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store.
