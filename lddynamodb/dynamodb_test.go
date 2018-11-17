@@ -34,6 +34,14 @@ func TestDynamoDBFeatureStoreCached(t *testing.T) {
 	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(30*time.Second), clearExistingData, true)
 }
 
+func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
+	ldtest.RunFeatureStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.FeatureStore, error) {
+			return NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()),
+				Prefix(prefix), CacheTTL(0))
+		}, clearExistingData)
+}
+
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)

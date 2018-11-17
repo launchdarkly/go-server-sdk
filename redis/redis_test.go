@@ -38,6 +38,13 @@ func TestRedisFeatureStoreCachedWithDeprecatedConstructor(t *testing.T) {
 	}, clearExistingData, true)
 }
 
+func TestRedisFeatureStorePrefixes(t *testing.T) {
+	ldtest.RunFeatureStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.FeatureStore, error) {
+			return NewRedisFeatureStoreWithDefaults(Prefix(prefix), CacheTTL(0))
+		}, clearExistingData)
+}
+
 func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
 	core1, err := newRedisFeatureStoreInternal() // use the internal object so we can set testTxHook
 	require.NoError(t, err)

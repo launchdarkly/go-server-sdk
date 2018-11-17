@@ -19,6 +19,13 @@ func TestConsulFeatureStoreCached(t *testing.T) {
 	ldtest.RunFeatureStoreTests(t, makeConsulStoreWithCacheTTL(30*time.Second), clearExistingData, true)
 }
 
+func TestConsulFeatureStorePrefixes(t *testing.T) {
+	ldtest.RunFeatureStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.FeatureStore, error) {
+			return NewConsulFeatureStore(Prefix(prefix), CacheTTL(0))
+		}, clearExistingData)
+}
+
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	store1Core, err := newConsulFeatureStoreInternal() // we need the underlying implementation object so we can set testTxHook
 	require.NoError(t, err)
