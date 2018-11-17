@@ -250,6 +250,70 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 	})
 }
 
+// RunFeatureStorePrefixIndependenceTests is for feature store implementations that support
+// storing independent data sets in the same database by assigning a different prefix/namespace
+// to each one. It verifies that two store instances with different prefixes do not interfere
+// with each other's data.
+//
+// makeStoreWithPrefix: Creates a FeatureStore instance with the specified prefix/namespace,
+// which can be empty. All instances should use the same underlying database. The store
+// should not have caching enabled.
+//
+// clearExistingData: Removes all data from the underlying store.
+func RunFeatureStorePrefixIndependenceTests(t *testing.T,
+	makeStoreWithPrefix func(string) (ld.FeatureStore, error),
+	clearExistingData func() error) {
+
+	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, ld.FeatureStore, ld.FeatureStore)) {
+		err := clearExistingData()
+		require.NoError(t, err)
+		store1, err := makeStoreWithPrefix("aaa")
+		require.NoError(t, err)
+		store2, err := makeStoreWithPrefix("bbb")
+		require.NoError(t, err)
+		t.Run(name, func(t *testing.T) {
+			test(t, store1, store2)
+		})
+	}
+
+	runWithPrefixes(t, "Init", func(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore) {
+		assert.False(t, store1.Initialized())
+		assert.False(t, store2.Initialized())
+
+		flag1a := ld.FeatureFlag{Key: "flag-a", Version: 1}
+		flag1b := ld.FeatureFlag{Key: "flag-b", Version: 1}
+		flag2a := ld.FeatureFlag{Key: "flag-a", Version: 2}
+		flag2c := ld.FeatureFlag{Key: "flag-c", Version: 2}
+
+		data1 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag1a.Key: &flag1a, flag1b.Key: &flag1b},
+		}
+		data2 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag2a.Key: &flag1a, flag2c.Key: &flag2c},
+		}
+
+		err := store1.Init(data1)
+		require.NoError(t, err)
+
+		assert.True(t, store1.Initialized())
+		assert.False(t, store2.Initialized())
+
+		err = store2.Init(data2)
+		require.NoError(t, err)
+
+		assert.True(t, store1.Initialized())
+		assert.True(t, store2.Initialized())
+
+		newFlags1, err := store1.All(ld.Features)
+		require.NoError(t, err)
+		assert.Equal(t, data1[ld.Features], newFlags1)
+
+		newFlags2, err := store2.All(ld.Features)
+		require.NoError(t, err)
+		assert.Equal(t, data2[ld.Features], newFlags2)
+	})
+}
+
 // RunFeatureStoreConcurrentModificationTests runs tests of concurrent modification behavior
 // for store implementations that support testing this.
 //
