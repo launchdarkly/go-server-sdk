@@ -289,7 +289,7 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 			ld.Features: {flag1a.Key: &flag1a, flag1b.Key: &flag1b},
 		}
 		data2 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag2a.Key: &flag1a, flag2c.Key: &flag2c},
+			ld.Features: {flag2a.Key: &flag2a, flag2c.Key: &flag2c},
 		}
 
 		err := store1.Init(data1)
@@ -308,9 +308,25 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		require.NoError(t, err)
 		assert.Equal(t, data1[ld.Features], newFlags1)
 
+		newFlag1a, err := store1.Get(ld.Features, flag1a.Key)
+		require.NoError(t, err)
+		assert.Equal(t, &flag1a, newFlag1a)
+
+		newFlag1b, err := store1.Get(ld.Features, flag1b.Key)
+		require.NoError(t, err)
+		assert.Equal(t, &flag1b, newFlag1b)
+
 		newFlags2, err := store2.All(ld.Features)
 		require.NoError(t, err)
 		assert.Equal(t, data2[ld.Features], newFlags2)
+
+		newFlag2a, err := store2.Get(ld.Features, flag2a.Key)
+		require.NoError(t, err)
+		assert.Equal(t, &flag2a, newFlag2a)
+
+		newFlag2c, err := store2.Get(ld.Features, flag2c.Key)
+		require.NoError(t, err)
+		assert.Equal(t, &flag2c, newFlag2c)
 	})
 }
 
