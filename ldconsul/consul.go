@@ -338,7 +338,6 @@ func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.
 func (store *featureStore) InitializedInternal() bool {
 	kv := store.client.KV()
 	pair, _, err := kv.Get(store.initedKey(), nil)
-	fmt.Printf("**** for prefix %s, key = %s, inited = %t\n", store.prefix, store.initedKey(), (pair != nil && err == nil))
 	return pair != nil && err == nil
 }
 
