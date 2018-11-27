@@ -50,6 +50,6 @@ func clearExistingData() error {
 		return err
 	}
 	kv := client.KV()
-	_, err = kv.DeleteTree(DefaultPrefix, nil)
+	_, err = kv.DeleteTree("", nil)
 	return err
 }
