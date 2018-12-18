@@ -526,6 +526,51 @@ func TestUserAgentIsSent(t *testing.T) {
 	assert.Equal(t, config.UserAgent, msg.Header.Get("User-Agent"))
 }
 
+func TestDefaultPathIsAddedToEventsUri(t *testing.T) {
+	config := epDefaultConfig
+	config.EventsUri = "http://fake/"
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg := st.getNextRequest()
+	assert.Equal(t, "http://fake/bulk", msg.URL.String())
+}
+
+func TestTrailingSlashIsOptionalForEventsUri(t *testing.T) {
+	config := epDefaultConfig
+	config.EventsUri = "http://fake"
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg := st.getNextRequest()
+	assert.Equal(t, "http://fake/bulk", msg.URL.String())
+}
+
+func TestDefaultPathIsNotAddedToCustomEndpoint(t *testing.T) {
+	config := epDefaultConfig
+	config.EventsEndpointURI = "http://fake/"
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg := st.getNextRequest()
+	assert.Equal(t, "http://fake/", msg.URL.String())
+}
+
 var httpErrorTests = []struct {
 	status      int
 	recoverable bool
