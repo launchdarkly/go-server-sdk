@@ -357,7 +357,7 @@ func startFlushTask(sdkKey string, config Config, client *http.Client, flushCh <
 		userFilter:  newUserFilter(config),
 		inlineUsers: config.InlineUsersInEvents,
 	}
-	uri := config.EventsEndpointURI
+	uri := config.EventsEndpointUri
 	if uri == "" {
 		uri = strings.TrimRight(config.EventsUri, "/") + defaultURIPath
 	}

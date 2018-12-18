@@ -36,17 +36,17 @@ type Logger interface {
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
 type Config struct {
-	// The base URL of the main LaunchDarkly service. This should not normally be changed except for testing.
+	// The base URI of the main LaunchDarkly service. This should not normally be changed except for testing.
 	BaseUri string
-	// The base URL of the LaunchDarkly streaming service. This should not normally be changed except for testing.
+	// The base URI of the LaunchDarkly streaming service. This should not normally be changed except for testing.
 	StreamUri string
-	// The base URL of the LaunchDarkly service that accepts analytics events. This should not normally be
+	// The base URI of the LaunchDarkly service that accepts analytics events. This should not normally be
 	// changed except for testing.
 	EventsUri string
-	// The full URL for posting analytics events. This is different from EventsUri in that the client will not
-	// add the default URL path to it. It should not normally be changed except for testing, and if set, it
+	// The full URI for posting analytics events. This is different from EventsUri in that the client will not
+	// add the default URI path to it. It should not normally be changed except for testing, and if set, it
 	// causes EventsUri to be ignored.
-	EventsEndpointURI string
+	EventsEndpointUri string
 	// The capacity of the events buffer. The client buffers up to this many events in memory before flushing.
 	// If the capacity is exceeded before the buffer is flushed, events will be discarded.
 	Capacity int

@@ -558,7 +558,7 @@ func TestTrailingSlashIsOptionalForEventsUri(t *testing.T) {
 
 func TestDefaultPathIsNotAddedToCustomEndpoint(t *testing.T) {
 	config := epDefaultConfig
-	config.EventsEndpointURI = "http://fake/"
+	config.EventsEndpointUri = "http://fake/"
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
 
