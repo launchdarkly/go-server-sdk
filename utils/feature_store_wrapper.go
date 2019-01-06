@@ -87,11 +87,11 @@ type FeatureStoreCore interface {
 // then use FeatureStoreCore instead. FeatureStoreCoreBase defines the common methods.
 type NonAtomicFeatureStoreCore interface {
 	FeatureStoreCoreBase
-	// InitCollectionsInternal replaces the entire contents of the data store. If you implement
-	// this interface, the SDK will call it instead of InitInternal, and will pass a data set
-	// with a defined ordering. The collections (kinds) should be processed in the specified
-	// order, and the items within each collection should be written in the specified order.
-	// The store should delete any obsolete items only after writing all of the items provided.
+	// InitCollectionsInternal replaces the entire contents of the data store. The SDK will
+	// pass a data set with a defined ordering; the collections (kinds) should be processed in
+	// the specified order, and the items within each collection should be written in the
+	// specified order. The store should delete any obsolete items only after writing all of
+	// the items provided.
 	InitCollectionsInternal(allData []StoreCollection) error
 }
 
