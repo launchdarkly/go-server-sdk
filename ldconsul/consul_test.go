@@ -29,7 +29,7 @@ func TestConsulFeatureStorePrefixes(t *testing.T) {
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	store1Core, err := newConsulFeatureStoreInternal() // we need the underlying implementation object so we can set testTxHook
 	require.NoError(t, err)
-	store1 := utils.NewFeatureStoreWrapper(store1Core)
+	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Core)
 	store2, err := NewConsulFeatureStore()
 	require.NoError(t, err)
 

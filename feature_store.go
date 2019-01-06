@@ -30,7 +30,7 @@ type FeatureStore interface {
 	// returns an empty map.
 	All(kind VersionedDataKind) (map[string]VersionedData, error)
 	// Init performs an update of the entire data store, replacing any existing data.
-	Init(map[VersionedDataKind]map[string]VersionedData) error
+	Init(data map[VersionedDataKind]map[string]VersionedData) error
 	// Delete removes the specified item from the data store, unless its Version property is greater
 	// than or equal to the specified version, in which case nothing happens. Removal should be done
 	// by storing an item whose Deleted property is true (use VersionedDataKind.MakeDeleteItem()).
@@ -45,6 +45,29 @@ type FeatureStore interface {
 	// without having to check the store again; this method should be as fast as possible since it
 	// may be called during feature flag evaluations.
 	Initialized() bool
+}
+
+// FeatureStoreInitialization provides more flexible initialization behavior for FeatureStore
+// implementations. If a store implements this interface, the SDK may call InitCollections instead
+// of Init. In addition, the SDK will sort the data set into the desired order of operations if the
+// store returns false for IsInitAtomic().
+type FeatureStoreInitialization interface {
+	// IsInitAtomic returns true if the store is capable of performing an update of the entire
+	// data set atomically.
+	IsInitAtomic() bool
+
+	// InitCollections performs an update of the entire data store, replacing any existing data.
+	// If the store can perform the initialization atomically, it should do so; otherwise, it
+	// should process the collections (kinds) in the specified order, and the items within each
+	// collection in the specified order, and then delete any obsolete items only after writing
+	// all of the new data.
+	InitCollections(data []StoreCollection) error
+}
+
+// StoreCollection is used by the NonAtomicFeatureStore interface.
+type StoreCollection struct {
+	Kind  VersionedDataKind
+	Items []VersionedData
 }
 
 // InMemoryFeatureStore is a memory based FeatureStore implementation, backed by a lock-striped map.
