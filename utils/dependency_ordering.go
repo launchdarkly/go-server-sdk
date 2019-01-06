@@ -6,8 +6,8 @@ import (
 	ld "gopkg.in/launchdarkly/go-client.v4"
 )
 
-func transformUnorderedDataToOrderedData(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) []ld.StoreCollection {
-	colls := make([]ld.StoreCollection, 0, len(allData))
+func transformUnorderedDataToOrderedData(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) []StoreCollection {
+	colls := make([]StoreCollection, 0, len(allData))
 	for kind, itemsMap := range allData {
 		items := make([]ld.VersionedData, 0, len(itemsMap))
 		if doesDataKindSupportDependencies(kind) {
@@ -17,7 +17,7 @@ func transformUnorderedDataToOrderedData(allData map[ld.VersionedDataKind]map[st
 				items = append(items, item)
 			}
 		}
-		colls = append(colls, ld.StoreCollection{Kind: kind, Items: items})
+		colls = append(colls, StoreCollection{Kind: kind, Items: items})
 	}
 	sort.Slice(colls, func(i, j int) bool {
 		return dataKindPriority(colls[i].Kind) < dataKindPriority(colls[j].Kind)

@@ -20,7 +20,7 @@ type mockCore struct {
 
 // Test implementation of NonAtomicFeatureStoreCore - we test this in somewhat less deteail
 type mockNonAtomicCore struct {
-	data []ld.StoreCollection
+	data []StoreCollection
 }
 
 func newCore(ttl time.Duration) *mockCore {
@@ -74,7 +74,7 @@ func (c *mockNonAtomicCore) GetCacheTTL() time.Duration {
 	return 0
 }
 
-func (c *mockNonAtomicCore) InitCollectionsInternal(allData []ld.StoreCollection) error {
+func (c *mockNonAtomicCore) InitCollectionsInternal(allData []StoreCollection) error {
 	c.data = allData
 	return nil
 }

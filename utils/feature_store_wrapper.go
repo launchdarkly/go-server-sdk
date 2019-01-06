@@ -92,7 +92,13 @@ type NonAtomicFeatureStoreCore interface {
 	// with a defined ordering. The collections (kinds) should be processed in the specified
 	// order, and the items within each collection should be written in the specified order.
 	// The store should delete any obsolete items only after writing all of the items provided.
-	InitCollectionsInternal(allData []ld.StoreCollection) error
+	InitCollectionsInternal(allData []StoreCollection) error
+}
+
+// StoreCollection is used by the NonAtomicFeatureStoreCore interface.
+type StoreCollection struct {
+	Kind  ld.VersionedDataKind
+	Items []ld.VersionedData
 }
 
 // FeatureStoreWrapper is a partial implementation of ldclient.FeatureStore that delegates basic

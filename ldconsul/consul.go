@@ -237,7 +237,7 @@ func (store *featureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string
 	return results, nil
 }
 
-func (store *featureStore) InitCollectionsInternal(allData []ld.StoreCollection) error {
+func (store *featureStore) InitCollectionsInternal(allData []utils.StoreCollection) error {
 	kv := store.client.KV()
 
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
