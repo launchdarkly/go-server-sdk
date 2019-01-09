@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,11 @@ type mockCore struct {
 	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
 	inited           bool
 	initQueriedCount int
+}
+
+// Test implementation of NonAtomicFeatureStoreCore - we test this in somewhat less deteail
+type mockNonAtomicCore struct {
+	data []StoreCollection
 }
 
 func newCore(ttl time.Duration) *mockCore {
@@ -62,6 +68,31 @@ func (c *mockCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedDa
 func (c *mockCore) InitializedInternal() bool {
 	c.initQueriedCount++
 	return c.inited
+}
+
+func (c *mockNonAtomicCore) GetCacheTTL() time.Duration {
+	return 0
+}
+
+func (c *mockNonAtomicCore) InitCollectionsInternal(allData []StoreCollection) error {
+	c.data = allData
+	return nil
+}
+
+func (c *mockNonAtomicCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+	return nil, nil // not used in tests
+}
+
+func (c *mockNonAtomicCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+	return nil, nil // not used in tests
+}
+
+func (c *mockNonAtomicCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+	return nil, nil // not used in tests
+}
+
+func (c *mockNonAtomicCore) InitializedInternal() bool {
+	return false // not used in tests
 }
 
 func TestFeatureStoreWrapper(t *testing.T) {
@@ -355,4 +386,71 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		assert.True(t, w.Initialized())
 		assert.Equal(t, 2, core.initQueriedCount)
 	})
+
+	t.Run("Non-atomic init passes ordered data to core", func(t *testing.T) {
+		core := &mockNonAtomicCore{}
+		w := NewNonAtomicFeatureStoreWrapper(core)
+
+		assert.NoError(t, w.Init(dependencyOrderingTestData))
+
+		receivedData := core.data
+		assert.Equal(t, 2, len(receivedData))
+		assert.Equal(t, ld.Segments, receivedData[0].Kind) // Segments should always be first
+		assert.Equal(t, len(dependencyOrderingTestData[ld.Segments]), len(receivedData[0].Items))
+		assert.Equal(t, ld.Features, receivedData[1].Kind)
+		assert.Equal(t, len(dependencyOrderingTestData[ld.Features]), len(receivedData[1].Items))
+
+		flags := receivedData[1].Items
+		findFlagIndex := func(key string) int {
+			for i, item := range flags {
+				if item.GetKey() == key {
+					return i
+				}
+			}
+			return -1
+		}
+
+		for _, item := range dependencyOrderingTestData[ld.Features] {
+			if flag, ok := item.(*ld.FeatureFlag); ok {
+				flagIndex := findFlagIndex(flag.Key)
+				for _, prereq := range flag.Prerequisites {
+					prereqIndex := findFlagIndex(prereq.Key)
+					if prereqIndex > flagIndex {
+						keys := make([]string, 0, len(flags))
+						for _, item := range flags {
+							keys = append(keys, item.GetKey())
+						}
+						assert.True(t, false, "%s depends on %s, but %s was listed first; keys in order are [%s]",
+							flag.Key, prereq.Key, strings.Join(keys, ", "))
+					}
+				}
+			}
+		}
+	})
+}
+
+var dependencyOrderingTestData = map[ld.VersionedDataKind]map[string]ld.VersionedData{
+	ld.Features: {
+		"a": &ld.FeatureFlag{
+			Key: "a",
+			Prerequisites: []ld.Prerequisite{
+				ld.Prerequisite{Key: "b"},
+				ld.Prerequisite{Key: "c"},
+			},
+		},
+		"b": &ld.FeatureFlag{
+			Key: "b",
+			Prerequisites: []ld.Prerequisite{
+				ld.Prerequisite{Key: "c"},
+				ld.Prerequisite{Key: "e"},
+			},
+		},
+		"c": &ld.FeatureFlag{Key: "c"},
+		"d": &ld.FeatureFlag{Key: "d"},
+		"e": &ld.FeatureFlag{Key: "e"},
+		"f": &ld.FeatureFlag{Key: "f"},
+	},
+	ld.Segments: {
+		"1": &ld.Segment{Key: "1"},
+	},
 }

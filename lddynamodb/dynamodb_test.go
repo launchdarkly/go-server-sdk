@@ -45,10 +45,10 @@ func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)
-	store1 := utils.NewFeatureStoreWrapper(store1Internal)
+	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Internal)
 	store2Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)
-	store2 := utils.NewFeatureStoreWrapper(store2Internal)
+	store2 := utils.NewNonAtomicFeatureStoreWrapper(store2Internal)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
 		store1Internal.testUpdateHook = hook
 	})
