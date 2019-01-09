@@ -85,6 +85,12 @@ type FeatureStoreCore interface {
 // This interface assumes that the feature store cannot update the data set atomically and
 // will require the SDK to specify the order of operations. If atomic updates are possible,
 // then use FeatureStoreCore instead. FeatureStoreCoreBase defines the common methods.
+//
+// Note that this is somewhat different from the way the LaunchDarkly SDK addresses the
+// atomicity issue on most other platforms. There, the feature stores just have one
+// interface, which always receives the data as a map, but the SDK can control the
+// iteration order of the map. That isn't possible in Go where maps never have a defined
+// iteration order.
 type NonAtomicFeatureStoreCore interface {
 	FeatureStoreCoreBase
 	// InitCollectionsInternal replaces the entire contents of the data store. The SDK will
