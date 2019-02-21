@@ -615,12 +615,23 @@ func newEvalErrorResult(kind EvalErrorKind) EvaluationDetail {
 	return EvaluationDetail{Reason: newEvalReasonError(kind)}
 }
 
-func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) FeatureFlag {
-	clause := Clause{
+func makeClauseToMatchUser(user User) Clause {
+	return Clause{
 		Attribute: "key",
 		Op:        "in",
 		Values:    []interface{}{*user.Key},
 	}
+}
+
+func makeClauseToNotMatchUser(user User) Clause {
+	return Clause{
+		Attribute: "key",
+		Op:        "in",
+		Values:    []interface{}{"not-" + *user.Key},
+	}
+}
+
+func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) FeatureFlag {
 	return FeatureFlag{
 		Key:          "feature",
 		On:           true,
@@ -628,7 +639,7 @@ func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) Featu
 		Rules: []Rule{
 			Rule{
 				ID:                 "rule-id",
-				Clauses:            []Clause{clause},
+				Clauses:            []Clause{makeClauseToMatchUser(user)},
 				VariationOrRollout: variationOrRollout,
 			},
 		},

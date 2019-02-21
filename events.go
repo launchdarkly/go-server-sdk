@@ -73,6 +73,61 @@ func NewFeatureRequestEvent(key string, flag *FeatureFlag, user User, variation 
 	return fre
 }
 
+func newUnknownFlagEvent(key string, user User, defaultVal interface{}, reason EvaluationReason,
+	includeReason bool) FeatureRequestEvent {
+	fre := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: now(),
+			User:         user,
+		},
+		Key:     key,
+		Value:   defaultVal,
+		Default: defaultVal,
+	}
+	if includeReason {
+		fre.Reason.Reason = reason
+	}
+	return fre
+}
+
+func newSuccessfulEvalEvent(flag *FeatureFlag, user User, variation *int, value, defaultVal interface{},
+	reason EvaluationReason, includeReason bool, prereqOf *string) FeatureRequestEvent {
+	requireExperimentData := isExperiment(flag, reason)
+	fre := FeatureRequestEvent{
+		BaseEvent: BaseEvent{
+			CreationDate: now(),
+			User:         user,
+		},
+		Key:                  flag.Key,
+		Version:              &flag.Version,
+		Variation:            variation,
+		Value:                value,
+		Default:              defaultVal,
+		PrereqOf:             prereqOf,
+		TrackEvents:          requireExperimentData || flag.TrackEvents,
+		DebugEventsUntilDate: flag.DebugEventsUntilDate,
+	}
+	if includeReason || requireExperimentData {
+		fre.Reason.Reason = reason
+	}
+	return fre
+}
+
+func isExperiment(flag *FeatureFlag, reason EvaluationReason) bool {
+	if reason == nil {
+		return false
+	}
+	switch r := reason.(type) {
+	case EvaluationReasonFallthrough:
+		return flag.TrackEventsFallthrough
+	case EvaluationReasonRuleMatch:
+		if r.RuleIndex >= 0 && r.RuleIndex < len(flag.Rules) {
+			return flag.Rules[r.RuleIndex].TrackEvents
+		}
+	}
+	return false
+}
+
 // GetBase returns the BaseEvent
 func (evt FeatureRequestEvent) GetBase() BaseEvent {
 	return evt.BaseEvent

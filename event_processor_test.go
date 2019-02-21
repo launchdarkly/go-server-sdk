@@ -96,7 +96,7 @@ func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
 		Version: 11,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -116,7 +116,7 @@ func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -139,7 +139,7 @@ func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -162,7 +162,7 @@ func TestFeatureEventCanContainInlineUser(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -185,7 +185,7 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -207,7 +207,7 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	fe.Reason.Reason = evalReasonFallthroughInstance
 	ep.SendEvent(fe)
 
@@ -230,7 +230,7 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 		TrackEvents: false,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -252,7 +252,7 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 		DebugEventsUntilDate: &futureTime,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -275,7 +275,7 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 		DebugEventsUntilDate: &futureTime,
 	}
 	value := "value"
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, intPtr(2), value, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -311,7 +311,7 @@ func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &debugUntil,
 	}
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, nil, nil, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, nil, nil, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -346,7 +346,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &debugUntil,
 	}
-	fe := NewFeatureRequestEvent(flag.Key, &flag, epDefaultUser, nil, nil, nil, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, nil, nil, nil, nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -372,8 +372,8 @@ func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := "value"
-	fe1 := NewFeatureRequestEvent(flag1.Key, &flag1, epDefaultUser, intPtr(2), value, nil, nil)
-	fe2 := NewFeatureRequestEvent(flag2.Key, &flag2, epDefaultUser, intPtr(2), value, nil, nil)
+	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 
@@ -402,9 +402,9 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 		TrackEvents: false,
 	}
 	value := "value"
-	fe1 := NewFeatureRequestEvent(flag1.Key, &flag1, epDefaultUser, intPtr(2), value, nil, nil)
-	fe2 := NewFeatureRequestEvent(flag2.Key, &flag2, epDefaultUser, intPtr(3), value, nil, nil)
-	fe3 := NewFeatureRequestEvent(flag2.Key, &flag2, epDefaultUser, intPtr(3), value, nil, nil)
+	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(3), value, nil, nil, false, nil)
+	fe3 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(3), value, nil, nil, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 	ep.SendEvent(fe3)
