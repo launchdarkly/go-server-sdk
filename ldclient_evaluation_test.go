@@ -412,6 +412,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 	flag := FeatureFlag{
 		Key:                    "flagKey",
 		On:                     false,
+		OffVariation:           intPtr(0),
 		Fallthrough:            VariationOrRollout{Variation: intPtr(1)},
 		Variations:             []interface{}{"off", "on"},
 		TrackEventsFallthrough: true,
@@ -424,7 +425,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 
 	value, err := client.StringVariation("flagKey", evalTestUser, "default")
 	assert.NoError(t, err)
-	assert.Equal(t, "on", value)
+	assert.Equal(t, "off", value)
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
