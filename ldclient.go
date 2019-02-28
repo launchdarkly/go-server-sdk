@@ -143,7 +143,7 @@ var DefaultConfig = Config{
 	BaseUri:               "https://app.launchdarkly.com",
 	StreamUri:             "https://stream.launchdarkly.com",
 	EventsUri:             "https://events.launchdarkly.com",
-	Capacity:              1000,
+	Capacity:              10000,
 	FlushInterval:         5 * time.Second,
 	PollInterval:          MinimumPollInterval,
 	Logger:                log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
