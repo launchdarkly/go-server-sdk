@@ -33,9 +33,9 @@ func TestSummarizeEventSetsStartAndEndDates(t *testing.T) {
 	flag := FeatureFlag{
 		Key: "key",
 	}
-	event1 := NewFeatureRequestEvent(flag.Key, &flag, user, nil, nil, nil, nil)
-	event2 := NewFeatureRequestEvent(flag.Key, &flag, user, nil, nil, nil, nil)
-	event3 := NewFeatureRequestEvent(flag.Key, &flag, user, nil, nil, nil, nil)
+	event1 := newSuccessfulEvalEvent(&flag, user, nil, nil, nil, nil, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag, user, nil, nil, nil, nil, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag, user, nil, nil, nil, nil, false, nil)
 	event1.BaseEvent.CreationDate = 2000
 	event2.BaseEvent.CreationDate = 1000
 	event3.BaseEvent.CreationDate = 1500
@@ -60,11 +60,11 @@ func TestSummarizeEventIncrementsCounters(t *testing.T) {
 	unknownFlagKey := "badkey"
 	variation1 := 1
 	variation2 := 2
-	event1 := NewFeatureRequestEvent(flag1.Key, &flag1, user, &variation1, "value1", "default1", nil)
-	event2 := NewFeatureRequestEvent(flag1.Key, &flag1, user, &variation2, "value2", "default1", nil)
-	event3 := NewFeatureRequestEvent(flag2.Key, &flag2, user, &variation1, "value99", "default2", nil)
-	event4 := NewFeatureRequestEvent(flag1.Key, &flag1, user, &variation1, "value1", "default1", nil)
-	event5 := NewFeatureRequestEvent(unknownFlagKey, nil, user, nil, "default3", "default3", nil)
+	event1 := newSuccessfulEvalEvent(&flag1, user, &variation1, "value1", "default1", nil, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag1, user, &variation2, "value2", "default1", nil, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag2, user, &variation1, "value99", "default2", nil, false, nil)
+	event4 := newSuccessfulEvalEvent(&flag1, user, &variation1, "value1", "default1", nil, false, nil)
+	event5 := newUnknownFlagEvent(unknownFlagKey, user, "default3", nil, false)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)
@@ -89,9 +89,9 @@ func TestCounterForNilVariationIsDistinctFromOthers(t *testing.T) {
 	}
 	variation1 := 1
 	variation2 := 2
-	event1 := NewFeatureRequestEvent(flag.Key, &flag, user, &variation1, "value1", "default1", nil)
-	event2 := NewFeatureRequestEvent(flag.Key, &flag, user, &variation2, "value2", "default1", nil)
-	event3 := NewFeatureRequestEvent(flag.Key, &flag, user, nil, "default1", "default1", nil)
+	event1 := newSuccessfulEvalEvent(&flag, user, &variation1, "value1", "default1", nil, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag, user, &variation2, "value2", "default1", nil, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag, user, nil, "default1", "default1", nil, false, nil)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)

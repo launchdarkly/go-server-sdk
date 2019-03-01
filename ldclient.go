@@ -513,9 +513,12 @@ func (client *LDClient) variation(key string, user User, defaultVal interface{},
 		result.VariationIndex = nil
 	}
 
-	evt := NewFeatureRequestEvent(key, flag, user, result.VariationIndex, result.Value, defaultVal, nil)
-	if sendReasonsInEvents {
-		evt.Reason.Reason = result.Reason
+	var evt FeatureRequestEvent
+	if flag == nil {
+		evt = newUnknownFlagEvent(key, user, defaultVal, result.Reason, sendReasonsInEvents)
+	} else {
+		evt = newSuccessfulEvalEvent(flag, user, result.VariationIndex, result.Value, defaultVal,
+			result.Reason, sendReasonsInEvents, nil)
 	}
 	client.eventProcessor.SendEvent(evt)
 
