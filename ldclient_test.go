@@ -81,7 +81,46 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	assert.Equal(t, user, e.User)
 }
 
+func TestIdentifyWithNilUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	err := client.Identify(User{})
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 0, len(events))
+}
+
+func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	err := client.Identify(NewUser(""))
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 0, len(events))
+}
+
 func TestTrackSendsCustomEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := NewUser("userKey")
+	key := "eventKey"
+	err := client.Track(key, user, nil)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(CustomEvent)
+	assert.Equal(t, user, e.User)
+	assert.Equal(t, key, e.Key)
+	assert.Nil(t, e.Data)
+}
+
+func TestTrackSendsCustomEventWithData(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
@@ -97,6 +136,28 @@ func TestTrackSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
+}
+
+func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	err := client.Track("eventkey", User{}, nil)
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 0, len(events))
+}
+
+func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	err := client.Track("eventkey", NewUser(""), nil)
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 0, len(events))
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
