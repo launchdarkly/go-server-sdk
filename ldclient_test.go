@@ -118,6 +118,7 @@ func TestTrackSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Nil(t, e.Data)
+	assert.Nil(t, e.MetricValue)
 }
 
 func TestTrackSendsCustomEventWithData(t *testing.T) {
@@ -136,6 +137,27 @@ func TestTrackSendsCustomEventWithData(t *testing.T) {
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
+	assert.Nil(t, e.MetricValue)
+}
+
+func TestTrackWithMetricSendsCustomEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := NewUser("userKey")
+	key := "eventKey"
+	value := 2.5
+	data := map[string]interface{}{"thing": "stuff"}
+	err := client.TrackWithMetric(key, user, data, value)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(CustomEvent)
+	assert.Equal(t, user, e.User)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, data, e.Data)
+	assert.Equal(t, value, *e.MetricValue)
 }
 
 func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
@@ -154,6 +176,30 @@ func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	err := client.Track("eventkey", NewUser(""), nil)
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 0, len(events))
+}
+
+func TestTrackWithMetricWithNilUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	data := map[string]interface{}{"thing": "stuff"}
+	err := client.TrackWithMetric("eventKey", User{}, data, 2.5)
+	assert.Error(t, err)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 0, len(events))
+}
+
+func TestTrackWithMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	data := map[string]interface{}{"thing": "stuff"}
+	err := client.TrackWithMetric("eventKey", NewUser(""), data, 2.5)
 	assert.Error(t, err)
 
 	events := client.eventProcessor.(*testEventProcessor).events
