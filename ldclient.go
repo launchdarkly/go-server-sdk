@@ -257,9 +257,6 @@ func createDefaultUpdateProcessor(sdkKey string, config Config) (UpdateProcessor
 
 // Identify reports details about a a user.
 func (client *LDClient) Identify(user User) error {
-	if client.IsOffline() {
-		return nil
-	}
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: Identify called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
@@ -272,15 +269,26 @@ func (client *LDClient) Identify(user User) error {
 // Track reports that a user has performed an event. Custom data can be attached to the
 // event, and is serialized to JSON using the encoding/json package (http://golang.org/pkg/encoding/json/).
 func (client *LDClient) Track(key string, user User, data interface{}) error {
-	if client.IsOffline() {
-		return nil
-	}
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewCustomEvent(key, user, data)
 	client.eventProcessor.SendEvent(evt)
+	return nil
+}
+
+// TrackWithMetric reports that a user has performed an event, and associates it with a numeric value.
+// This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
+// be returned as part of the custom event for Data Export.
+//
+// Custom data can also be attached to the event, and is serialized to JSON using the encoding/json package (http://golang.org/pkg/encoding/json/).
+func (client *LDClient) TrackWithMetric(key string, user User, data interface{}, metricValue float64) error {
+	if user.Key == nil || *user.Key == "" {
+		client.config.Logger.Printf("WARN: TrackWithMetric called with empty/nil user key!")
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
+	}
+	client.eventProcessor.SendEvent(newCustomEvent(key, user, data, &metricValue))
 	return nil
 }
 
