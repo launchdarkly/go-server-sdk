@@ -262,7 +262,7 @@ func (client *LDClient) Identify(user User) error {
 	}
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: Identify called with empty/nil user key!")
-		return errors.New("Identify called with empty/nil user key")
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewIdentifyEvent(user)
 	client.eventProcessor.SendEvent(evt)
@@ -277,7 +277,7 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 	}
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: Track called with empty/nil user key!")
-		return errors.New("Track called with empty/nil user key")
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewCustomEvent(key, user, data)
 	client.eventProcessor.SendEvent(evt)
