@@ -86,7 +86,7 @@ func TestIdentifyWithNilUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	err := client.Identify(User{})
-	assert.Error(t, err)
+	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
@@ -97,7 +97,7 @@ func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	err := client.Identify(NewUser(""))
-	assert.Error(t, err)
+	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
@@ -143,7 +143,7 @@ func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	err := client.Track("eventkey", User{}, nil)
-	assert.Error(t, err)
+	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
@@ -154,7 +154,7 @@ func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	err := client.Track("eventkey", NewUser(""), nil)
-	assert.Error(t, err)
+	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
