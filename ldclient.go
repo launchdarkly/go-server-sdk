@@ -259,7 +259,7 @@ func createDefaultUpdateProcessor(sdkKey string, config Config) (UpdateProcessor
 func (client *LDClient) Identify(user User) error {
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: Identify called with empty/nil user key!")
-		return errors.New("Identify called with empty/nil user key")
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewIdentifyEvent(user)
 	client.eventProcessor.SendEvent(evt)
@@ -271,7 +271,7 @@ func (client *LDClient) Identify(user User) error {
 func (client *LDClient) Track(key string, user User, data interface{}) error {
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: Track called with empty/nil user key!")
-		return errors.New("Track called with empty/nil user key")
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewCustomEvent(key, user, data)
 	client.eventProcessor.SendEvent(evt)
@@ -285,7 +285,7 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 func (client *LDClient) TrackWithMetric(key string, user User, data interface{}, metricValue float64) error {
 	if user.Key == nil || *user.Key == "" {
 		client.config.Logger.Printf("WARN: TrackWithMetric called with empty/nil user key!")
-		return errors.New("TrackWithMetric called with empty/nil user key")
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.SendEvent(newCustomEvent(key, user, data, &metricValue))
 	return nil
