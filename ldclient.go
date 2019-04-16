@@ -279,7 +279,8 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 }
 
 // TrackWithMetric reports that a user has performed an event, and associates it with a numeric value.
-// This value can be used for analytics purposes on the LaunchDarkly dashboard.
+// This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
+// be returned as part of the custom event for Data Export.
 //
 // Custom data can also be attached to the event, and is serialized to JSON using the encoding/json package (http://golang.org/pkg/encoding/json/).
 func (client *LDClient) TrackWithMetric(key string, user User, data interface{}, metricValue float64) error {
