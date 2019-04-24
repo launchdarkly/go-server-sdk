@@ -21,6 +21,7 @@ const (
 
 type streamProcessor struct {
 	store              FeatureStore
+	client             *http.Client
 	requestor          *requestor
 	stream             *es.Stream
 	config             Config
@@ -197,6 +198,7 @@ func newStreamProcessor(sdkKey string, config Config, requestor *requestor) *str
 	sp := &streamProcessor{
 		store:     config.FeatureStore,
 		config:    config,
+		client:    config.newHTTPClient(),
 		sdkKey:    sdkKey,
 		requestor: requestor,
 		halt:      make(chan struct{}),
@@ -212,7 +214,8 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		req.Header.Add("User-Agent", sp.config.UserAgent)
 		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 
-		if stream, err := es.SubscribeWithRequest("", req); err != nil {
+		if stream, err := es.SubscribeWithRequestAndOptions(req,
+			es.StreamOptionHTTPClient(sp.client)); err != nil {
 			if sp.checkIfPermanentFailure(err) {
 				close(closeWhenReady)
 				return

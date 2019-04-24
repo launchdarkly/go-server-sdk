@@ -270,3 +270,32 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 		assert.Fail(t, "Should have successfully retried before now")
 	}
 }
+
+func TestStreamProcessorUsesHTTPAdapter(t *testing.T) {
+	polledURLs := make(chan string, 1)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		polledURLs <- r.URL.Path
+		// Don't return a response because we don't want the stream to close and reconnect
+	}))
+	defer ts.Close()
+	defer ts.CloseClientConnections()
+
+	store := NewInMemoryFeatureStore(nil)
+
+	cfg := Config{
+		FeatureStore: store,
+		Logger:       log.New(ioutil.Discard, "", 0),
+		StreamUri:    ts.URL,
+		HTTPAdapter:  urlAppendingHTTPAdapter("/transformed"),
+	}
+
+	sp := newStreamProcessor("sdkKey", cfg, nil)
+	defer sp.Close()
+	closeWhenReady := make(chan struct{})
+	sp.Start(closeWhenReady)
+
+	polledURL := <-polledURLs
+
+	assert.Equal(t, "/all/transformed", polledURL)
+}

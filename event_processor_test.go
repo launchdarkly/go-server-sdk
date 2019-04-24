@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"sort"
 	"testing"
@@ -618,6 +619,35 @@ func TestHTTPErrorHandling(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEventPostingUsesHTTPAdapter(t *testing.T) {
+	postedURLs := make(chan string, 1)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		postedURLs <- r.URL.Path
+		w.WriteHeader(200)
+	}))
+	defer ts.Close()
+	defer ts.CloseClientConnections()
+
+	cfg := Config{
+		Logger:      log.New(ioutil.Discard, "", 0),
+		EventsUri:   ts.URL,
+		Capacity:    1000,
+		HTTPAdapter: urlAppendingHTTPAdapter("/transformed"),
+	}
+
+	ep := NewDefaultEventProcessor(sdkKey, cfg, nil)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+
+	postedURL := <-postedURLs
+
+	assert.Equal(t, "/bulk/transformed", postedURL)
 }
 
 func jsonMap(o interface{}) map[string]interface{} {
