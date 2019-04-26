@@ -2,6 +2,21 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.7.2] - 2019-04-25
+### Changed:
+- The default value for the `Config` property `Capacity` (maximum number of events that can be stored at once) is now 10000, consistent with the other SDKs, rather than 1000.
+
+### Fixed:
+- If `Track` or `Identify` is called without a user, the SDK now will not send an analytics event to LaunchDarkly (since it would not be processed without a user).
+- The size of the SDK codebase has been reduced considerably by eliminating unnecessary files from `vendor`.
+
+## Note on future releases
+The LaunchDarkly SDK repositories are being renamed for consistency. All future releases of the Go SDK will use the name `go-server-sdk` rather than `go-client`. The import path will change to:
+
+    "gopkg.in/launchdarkly/go-server-sdk.v4"
+
+Since Go uses the repository name as part of the import path, to avoid breaking existing code, we will retain the existing `go-client` repository as well. However, it will not be updated after this release.
+
 ## [4.7.1] - 2019-01-09
 ### Fixed:
 - Fixed a potential race condition in the DynamoDB and Consul feature store integrations where it might be possible to see a feature flag that depended on a prerequisite flag (or on a user segment) before the latter had been written to the store.
