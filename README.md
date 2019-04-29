@@ -1,4 +1,4 @@
-LaunchDarkly SDK for Go
+LaunchDarkly Server-side SDK for Go
 ===========================
 
 Please note that the LaunchDarkly SDK repositories have been renamed for consistency. All future releases of the Go SDK will use the name `go-server-sdk` rather than `go-client`. The import path will change to:
