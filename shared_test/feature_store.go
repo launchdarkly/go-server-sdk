@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ld "gopkg.in/launchdarkly/go-client.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 )
 
 // RunFeatureStoreTests runs a suite of tests on a feature store.

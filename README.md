@@ -1,11 +1,7 @@
 LaunchDarkly Server-side SDK for Go
 ===========================
 
-Please note that the LaunchDarkly SDK repositories have been renamed for consistency. All future releases of the Go SDK will use the name `go-server-sdk` rather than `go-client`. The import path will change to:
-
-    "gopkg.in/launchdarkly/go-server-sdk.v4"
-
-Since Go uses the repository name as part of the import path, to avoid breaking existing code, we will retain the existing `go-client` repository as well. However, it will not be updated after this release. Refer to [launchdarkly/go-server-sdk](https://github.com/launchdarkly/go-server-sdk) for the latest version.
+[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=svg)](https://circleci.com/gh/launchdarkly/go-server-sdk)
 
 LaunchDarkly overview
 -------------------------

@@ -2,7 +2,7 @@
 # This script updates the version for the ldclient.go
 
 set -uxe
-echo "Starting go-client release."
+echo "Starting go-server-sdk release."
 
 VERSION=$1
 
@@ -11,5 +11,5 @@ LDCLIENT_GO_TEMP=./ldclient.go.tmp
 sed "s/const Version =.*/const Version = \"${VERSION}\"/g"  ldclient.go > ${LDCLIENT_GO_TEMP}
 mv ${LDCLIENT_GO_TEMP} ldclient.go
 
-echo "Done with go-client release"
+echo "Done with go-server-sdk release"
 
