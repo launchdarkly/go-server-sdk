@@ -9,7 +9,7 @@ import (
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
-	ld "gopkg.in/launchdarkly/go-client.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 )
 
 // UnmarshalItem attempts to unmarshal an entity that has been stored as JSON in a

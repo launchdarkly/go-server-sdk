@@ -14,7 +14,7 @@ import (
 
 	"gopkg.in/ghodss/yaml.v1"
 
-	ld "gopkg.in/launchdarkly/go-client.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 )
 
 // FileDataSourceOption is the interface for optional configuration parameters that can be
