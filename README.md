@@ -1,40 +1,25 @@
 LaunchDarkly SDK for Go
 ===========================
 
-[![Circle CI](https://circleci.com/gh/launchdarkly/go-client.svg?style=svg)](https://circleci.com/gh/launchdarkly/go-client)
+Please note that the LaunchDarkly SDK repositories have been renamed for consistency. All future releases of the Go SDK will use the name `go-server-sdk` rather than `go-client`. The import path will change to:
 
-Go runtime compatibility
+    "gopkg.in/launchdarkly/go-server-sdk.v4"
+
+Since Go uses the repository name as part of the import path, to avoid breaking existing code, we will retain the existing `go-client` repository as well. However, it will not be updated after this release. Refer to [launchdarkly/go-server-sdk](https://github.com/launchdarkly/go-server-sdk) for the latest version.
+
+LaunchDarkly overview
+-------------------------
+[LaunchDarkly](https://www.launchdarkly.com) is a feature management platform that serves over 100 billion feature flags daily to help teams build better software, faster. [Get started](https://docs.launchdarkly.com/docs/getting-started) using LaunchDarkly today!
+ 
+Supported Go versions
 -------------------------
 
 This version of the LaunchDarkly SDK has been tested with Go 1.8 through 1.10.
 
-Quick setup
+Getting started
 -----------
 
-1. Install the SDK with the `go` tool:
-
-```bash
-go get gopkg.in/launchdarkly/go-client.v4
-```
-
-2. Import the LaunchDarkly client:
-
-```go
-import ld "gopkg.in/launchdarkly/go-client.v4"
-```
-
-3. Create a new LDClient with your SDK key:
-
-```go
-ldClient, err := ld.MakeClient("YOUR_SDK_KEY", 5*time.Second)
-if err != nil {
-    log.Fatalf("Error creating launch darkly client: %s", err)
-}
-defer ldClient.Close()
-```
-
-If you are reusing a global instance you probably want to not  `defer ldClient.Close()` but instead close it when the application exits.
-
+Refer to the [SDK documentation](https://docs.launchdarkly.com/docs/go-sdk-reference#section-getting-started) for instructions on getting started with using the SDK.
 
 HTTPS proxy
 ------------
@@ -62,36 +47,15 @@ set HTTPS_PROXY=http://user:pass@web-proxy.domain.com:8080
 ```
 
 
-Your first feature flag
------------------------
-
-1. Create a new feature flag on your [dashboard](https://app.launchdarkly.com)
-2. In your application code, use the feature's key to check whether the flag is on for each user:
-
-```go
-key := "user@test.com"
-showFeature, _ := ldClient.BoolVariation("your.flag.key", ld.User{Key: &key}, false)
-if showFeature {
-    // application code to show the feature
-} else {
-    // the code to run if the feature is off
-}
-```
-
 Database integrations
 ---------------------
 
-Feature flag data can be kept in a persistent store using Redis, Consul, or DynamoDB. These adapters are implemented in the subpackages `redis`, `ldconsul`, and `lddynamodb`; to use them, call the `New...FeatureStore` function provided by the subpackage, and put the returned object in the `FeatureStore` field of your client configuration. See the subpackages and the [SDK reference guide](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store) for more information.
-
-Using flag data from a file
----------------------------
-
-For testing purposes, the SDK can be made to read feature flag state from a file or files instead of connecting to LaunchDarkly. See [`ldfiledata`](https://godoc.org/github.com/launchdarkly/go-client/ldfiledata) and [`ldfilewatch`](https://godoc.org/github.com/launchdarkly/go-client/ldfilewatch) for more details.
+Feature flag data can be kept in a persistent store using Redis, Consul, or DynamoDB. These adapters are implemented in the subpackages `redis`, `ldconsul`, and `lddynamodb`; to use them, call the `New...FeatureStore` function provided by the subpackage, and put the returned object in the `FeatureStore` field of your client configuration. See the subpackages and the [SDK reference guide](https://docs.launchdarkly.com/docs/using-a-persistent-feature-store) for more information.
 
 Learn more
 -----------
 
-Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference) and the [API reference](https://godoc.org/github.com/launchdarkly/go-client).
+Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference).
 
 Testing
 -------
@@ -101,7 +65,7 @@ We run integration tests for all our SDKs using a centralized test harness. This
 Contributing
 ------------
 
-We encourage pull-requests and other contributions from the community. We've also published an [SDK contributor's guide](http://docs.launchdarkly.com/docs/sdk-contributors-guide) that provides a detailed explanation of how our SDKs work.
+We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this SDK.
 
 About LaunchDarkly
 -----------
