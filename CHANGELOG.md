@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.7.3] - 2019-04-29
+### Changed:
+- Import paths in subpackages and tests have been changed from `gopkg.in/launchdarkly/go-client.v4` to `gopkg.in/launchdarkly/go-server-sdk.v4`. Users of this SDK should update their import paths accordingly.
+- This is the first release from the new `launchdarkly/go-server-sdk` repository.
+
 ## [4.7.2] - 2019-04-25
 ### Changed:
 - The default value for the `Config` property `Capacity` (maximum number of events that can be stored at once) is now 10000, consistent with the other SDKs, rather than 1000.
