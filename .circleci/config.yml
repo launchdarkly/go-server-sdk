@@ -26,11 +26,6 @@ defaults:
       - run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s $GOLANGCI_LINT_VERSION
       - run: ./bin/golangci-lint run ./...
       - run: dep ensure -dry-run
-      - run:
-          name: Set up Code Climate test-reporter
-          command: |
-            curl -sS -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-            chmod +x ./cc-test-reporter
 
       - run:
           name: Run tests
@@ -38,23 +33,8 @@ defaults:
             mkdir -p $CIRCLE_TEST_REPORTS
             mkdir -p $CIRCLE_ARTIFACTS
             trap "go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
-            if [ -z "$DISABLE_COVERAGE" ]; then
-              go_cover_args="-covermode=atomic -coverprofile /tmp/circle-artifacts/coverage.txt"
-            fi
             # Note, we need to specify all these packages individually for go test in order to remain 1.8-compatible
-            go test -race $go_cover_args -v . ./redis ./ldconsul ./lddynamodb ./ldfiledata ./ldfilewatch ./utils | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
-            if [ -z "$DISABLE_COVERAGE" ]; then
-              ./cc-test-reporter format-coverage $CIRCLE_ARTIFACTS/coverage.txt -t gocov --output $CIRCLE_ARTIFACTS/coverage.json
-              ./cc-test-reporter upload-coverage --input $CIRCLE_ARTIFACTS/coverage.json
-            fi
-
-      - run:
-          name: Generate coverage report
-          command: |
-            if [ -z "$DISABLE_COVERAGE" ]; then
-              go tool cover -html=$CIRCLE_ARTIFACTS/coverage.txt -o $CIRCLE_ARTIFACTS/coverage.html
-            fi
-          when: always
+            go test -race -v . ./redis ./ldconsul ./lddynamodb ./ldfiledata ./ldfilewatch ./utils | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
 
       - store_test_results:
           path: /tmp/circle-reports
@@ -83,7 +63,6 @@ jobs:
       - image: circleci/golang:1.9
         environment:
           <<: *environment
-          DISABLE_COVERAGE: 1
       - image: redis
       - image: consul
       - image: amazon/dynamodb-local
@@ -97,7 +76,6 @@ jobs:
       - image: circleci/golang:1.8
         environment:
           <<: *environment
-          DISABLE_COVERAGE: 1
       - image: redis
       - image: consul
       - image: amazon/dynamodb-local
