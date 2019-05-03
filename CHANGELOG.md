@@ -15,7 +15,7 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 - If `Track` or `Identify` is called without a user, the SDK now will not send an analytics event to LaunchDarkly (since it would not be processed without a user).
 - The size of the SDK codebase has been reduced considerably by eliminating unnecessary files from `vendor`.
 
-## Note on future releases
+### Note on future releases:
 The LaunchDarkly SDK repositories are being renamed for consistency. All future releases of the Go SDK will use the name `go-server-sdk` rather than `go-client`. The import path will change to:
 
     "gopkg.in/launchdarkly/go-server-sdk.v4"
