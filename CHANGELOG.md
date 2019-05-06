@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.7.4] - 2019-05-06
+## Fixed
+- `Version` in `ldclient.go` is now correctly reported as `4.7.4`.
+
+
 ## [4.7.3] - 2019-04-29
 ### Changed:
 - Import paths in subpackages and tests have been changed from `gopkg.in/launchdarkly/go-client.v4` to `gopkg.in/launchdarkly/go-server-sdk.v4`. Users of this SDK should update their import paths accordingly.
