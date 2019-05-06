@@ -3,7 +3,7 @@
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
 ## [4.7.4] - 2019-05-06
-## Fixed
+### Fixed:
 - `Version` in `ldclient.go` is now correctly reported as `4.7.4`.
 
 
