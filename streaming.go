@@ -189,6 +189,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 				}
 			}
 		case <-sp.halt:
+			sp.stream.Close()
 			return
 		}
 	}
@@ -215,7 +216,8 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		sp.config.Logger.Printf("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
 
 		if stream, err := es.SubscribeWithRequestAndOptions(req,
-			es.StreamOptionHTTPClient(sp.client)); err != nil {
+			es.StreamOptionHTTPClient(sp.client),
+			es.StreamOptionLogger(sp.config.Logger)); err != nil {
 			if sp.checkIfPermanentFailure(err) {
 				close(closeWhenReady)
 				return
@@ -231,7 +233,6 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			}
 		} else {
 			sp.stream = stream
-			sp.stream.Logger = sp.config.Logger
 
 			go sp.events(closeWhenReady)
 			return
@@ -253,9 +254,6 @@ func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
 func (sp *streamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		sp.config.Logger.Printf("Closing event stream.")
-		if sp.stream != nil {
-			sp.stream.Close()
-		}
 		close(sp.halt)
 	})
 	return nil
