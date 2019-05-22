@@ -62,7 +62,7 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 		Logger:       log.New(ioutil.Discard, "", 0),
 	}
 
-	requestor := newRequestor("sdkKey", cfg)
+	requestor := newRequestor("sdkKey", cfg, nil)
 	sp := newStreamProcessor("sdkKey", cfg, requestor)
 	defer sp.Close()
 
@@ -271,7 +271,7 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	}
 }
 
-func TestStreamProcessorUsesHTTPAdapter(t *testing.T) {
+func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	polledURLs := make(chan string, 1)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -284,10 +284,10 @@ func TestStreamProcessorUsesHTTPAdapter(t *testing.T) {
 	store := NewInMemoryFeatureStore(nil)
 
 	cfg := Config{
-		FeatureStore:          store,
-		Logger:                log.New(ioutil.Discard, "", 0),
-		StreamUri:             ts.URL,
-		HTTPClientTransformer: urlAppendingHTTPAdapter("/transformed").TransformClient,
+		FeatureStore:      store,
+		Logger:            log.New(ioutil.Discard, "", 0),
+		StreamUri:         ts.URL,
+		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)

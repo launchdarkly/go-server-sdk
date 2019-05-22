@@ -621,7 +621,7 @@ func TestHTTPErrorHandling(t *testing.T) {
 	}
 }
 
-func TestEventPostingUsesHTTPAdapter(t *testing.T) {
+func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
 	postedURLs := make(chan string, 1)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -632,10 +632,10 @@ func TestEventPostingUsesHTTPAdapter(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:                log.New(ioutil.Discard, "", 0),
-		EventsUri:             ts.URL,
-		Capacity:              1000,
-		HTTPClientTransformer: urlAppendingHTTPAdapter("/transformed").TransformClient,
+		Logger:            log.New(ioutil.Discard, "", 0),
+		EventsUri:         ts.URL,
+		Capacity:          1000,
+		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
 
 	ep := NewDefaultEventProcessor(sdkKey, cfg, nil)

@@ -22,7 +22,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 		PollInterval: time.Minute,
 		BaseUri:      server.URL,
 	}
-	req := newRequestor("fake", cfg)
+	req := newRequestor("fake", cfg, nil)
 	p := newPollingProcessor(cfg, req)
 
 	p.Close()
@@ -59,7 +59,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		PollInterval: time.Millisecond,
 		BaseUri:      ts.URL,
 	}
-	req := newRequestor("fake", cfg)
+	req := newRequestor("fake", cfg, nil)
 	p := newPollingProcessor(cfg, req)
 
 	closeWhenReady := make(chan struct{})
@@ -125,7 +125,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 				PollInterval: time.Millisecond * 10,
 				BaseUri:      ts.URL,
 			}
-			req := newRequestor("fake", cfg)
+			req := newRequestor("fake", cfg, nil)
 			p := newPollingProcessor(cfg, req)
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)
@@ -157,7 +157,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 	}
 }
 
-func TestPollingProcessorUsesHTTPAdapter(t *testing.T) {
+func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	polledURLs := make(chan string, 1)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -170,13 +170,13 @@ func TestPollingProcessorUsesHTTPAdapter(t *testing.T) {
 	store := NewInMemoryFeatureStore(nil)
 
 	cfg := Config{
-		FeatureStore:          store,
-		Logger:                log.New(ioutil.Discard, "", 0),
-		PollInterval:          time.Minute * 30,
-		BaseUri:               ts.URL,
-		HTTPClientTransformer: urlAppendingHTTPAdapter("/transformed").TransformClient,
+		FeatureStore:      store,
+		Logger:            log.New(ioutil.Discard, "", 0),
+		PollInterval:      time.Minute * 30,
+		BaseUri:           ts.URL,
+		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
-	req := newRequestor("fake", cfg)
+	req := newRequestor("fake", cfg, nil)
 
 	p := newPollingProcessor(cfg, req)
 	defer p.Close()
