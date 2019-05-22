@@ -284,10 +284,10 @@ func TestStreamProcessorUsesHTTPAdapter(t *testing.T) {
 	store := NewInMemoryFeatureStore(nil)
 
 	cfg := Config{
-		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
-		StreamUri:    ts.URL,
-		HTTPAdapter:  urlAppendingHTTPAdapter("/transformed"),
+		FeatureStore:          store,
+		Logger:                log.New(ioutil.Discard, "", 0),
+		StreamUri:             ts.URL,
+		HTTPClientTransformer: urlAppendingHTTPAdapter("/transformed").TransformClient,
 	}
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)

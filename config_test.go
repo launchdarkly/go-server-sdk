@@ -6,10 +6,10 @@ import (
 
 type urlAppendingHTTPAdapter string
 
-func (a urlAppendingHTTPAdapter) TransformHTTPClient(client *http.Client) *http.Client {
-	ret := *client
+func (a urlAppendingHTTPAdapter) TransformClient(client http.Client) http.Client {
+	ret := client
 	ret.Transport = a
-	return &ret
+	return ret
 }
 
 func (a urlAppendingHTTPAdapter) RoundTrip(r *http.Request) (*http.Response, error) {

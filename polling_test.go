@@ -170,11 +170,11 @@ func TestPollingProcessorUsesHTTPAdapter(t *testing.T) {
 	store := NewInMemoryFeatureStore(nil)
 
 	cfg := Config{
-		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
-		PollInterval: time.Minute * 30,
-		BaseUri:      ts.URL,
-		HTTPAdapter:  urlAppendingHTTPAdapter("/transformed"),
+		FeatureStore:          store,
+		Logger:                log.New(ioutil.Discard, "", 0),
+		PollInterval:          time.Minute * 30,
+		BaseUri:               ts.URL,
+		HTTPClientTransformer: urlAppendingHTTPAdapter("/transformed").TransformClient,
 	}
 	req := newRequestor("fake", cfg)
 

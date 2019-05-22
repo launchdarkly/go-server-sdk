@@ -632,10 +632,10 @@ func TestEventPostingUsesHTTPAdapter(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:      log.New(ioutil.Discard, "", 0),
-		EventsUri:   ts.URL,
-		Capacity:    1000,
-		HTTPAdapter: urlAppendingHTTPAdapter("/transformed"),
+		Logger:                log.New(ioutil.Discard, "", 0),
+		EventsUri:             ts.URL,
+		Capacity:              1000,
+		HTTPClientTransformer: urlAppendingHTTPAdapter("/transformed").TransformClient,
 	}
 
 	ep := NewDefaultEventProcessor(sdkKey, cfg, nil)
