@@ -592,11 +592,21 @@ func TestBucketUserByIntAttr(t *testing.T) {
 func TestBucketUserByFloatAttrNotAllowed(t *testing.T) {
 	userKey := "userKeyE"
 	custom := map[string]interface{}{
-		"floatAttr": 999.999,
+		"floatAttr": float64(999.999),
 	}
 	user := User{Key: &userKey, Custom: &custom}
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InDelta(t, 0.0, bucket, 0.0000001)
+}
+
+func TestBucketUserByFloatAttrThatIsReallyAnIntIsAllowed(t *testing.T) {
+	userKey := "userKeyE"
+	custom := map[string]interface{}{
+		"floatAttr": float64(33333),
+	}
+	user := User{Key: &userKey, Custom: &custom}
+	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
+	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 }
 
 func booleanFlagWithClause(clause Clause) FeatureFlag {
