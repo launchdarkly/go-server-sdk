@@ -249,7 +249,6 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 }
 
 func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
-	sp.config.Logger.Printf("*** YO: %+v", err)
 	if se, ok := err.(es.SubscriptionError); ok {
 		sp.config.Logger.Printf("ERROR: %s", httpErrorMessage(se.Code, "streaming connection", "will retry"))
 		if !isHTTPErrorRecoverable(se.Code) {
