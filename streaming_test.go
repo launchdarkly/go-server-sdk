@@ -281,10 +281,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	store := NewInMemoryFeatureStore(nil)
-
 	cfg := Config{
-		FeatureStore:      store,
 		Logger:            log.New(ioutil.Discard, "", 0),
 		StreamUri:         ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
@@ -298,4 +295,29 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	polledURL := <-polledURLs
 
 	assert.Equal(t, "/all/transformed", polledURL)
+}
+
+func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
+	polls := make(chan struct{}, 10)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		polls <- struct{}{}
+		// Don't return a response because we don't want the stream to close and reconnect
+	}))
+	defer ts.Close()
+	defer ts.CloseClientConnections()
+
+	cfg := Config{
+		Logger:    log.New(ioutil.Discard, "", 0),
+		StreamUri: ts.URL,
+		Timeout:   200 * time.Millisecond,
+	}
+
+	sp := newStreamProcessor("sdkKey", cfg, nil)
+	defer sp.Close()
+	closeWhenReady := make(chan struct{})
+	sp.Start(closeWhenReady)
+
+	<-time.After(500 * time.Millisecond)
+	assert.Equal(t, 1, len(polls))
 }
