@@ -6,11 +6,6 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 ### Fixed:
 - A bug introduced in the 4.8.0 release was causing stream connections to restart frequently. ([#3](https://github.com/launchdarkly/go-server-sdk/issues/3))
 
-## [4.8.1] - 2019-06-12
-### Fixed:
-- A bug introduced in the 4.8.0 release was causing stream connections to restart frequently. ([#3](https://github.com/launchdarkly/go-server-sdk/issues/3))
-
-
 ## [4.8.0] - 2019-06-11
 ### Added:
 - The `HTTPClientFactory` property in `Config` allows you to customize the HTTP client instances used by the SDK. This could be used, for instance, to support a type of proxy behavior that is not built into the Go standard library, or for compatibility with frameworks such as Google App Engine that require special networking configuration.
