@@ -226,6 +226,9 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			es.StreamOptionHTTPClient(sp.client),
 			es.StreamOptionReadTimeout(streamReadTimeout),
 			es.StreamOptionLogger(sp.config.Logger)); err != nil {
+
+			sp.config.Logger.Printf("Unable to establish streaming connection: %+v", err)
+
 			if sp.checkIfPermanentFailure(err) {
 				close(closeWhenReady)
 				return
