@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.8.2] - 2019-07-02
+### Added:
+- Logging a message when failing to establish a streaming connection.
+
 ## [4.8.1] - 2019-06-12
 ### Fixed:
 - A bug introduced in the 4.8.0 release was causing stream connections to restart frequently. ([#3](https://github.com/launchdarkly/go-server-sdk/issues/3))
