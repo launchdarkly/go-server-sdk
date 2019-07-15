@@ -27,7 +27,7 @@ type EventProcessor interface {
 type nullEventProcessor struct{}
 
 type defaultEventProcessor struct {
-	inputCh   chan eventDispatcherMessage
+	inboxCh   chan eventDispatcherMessage
 	closeOnce sync.Once
 }
 
@@ -61,7 +61,7 @@ type sendEventsTask struct {
 	formatter eventOutputFormatter
 }
 
-// Payload of the inputCh channel.
+// Payload of the inboxCh channel.
 type eventDispatcherMessage interface{}
 
 type sendEventMessage struct {
@@ -104,33 +104,33 @@ func NewDefaultEventProcessor(sdkKey string, config Config, client *http.Client)
 	if client == nil {
 		client = config.newHTTPClient()
 	}
-	inputCh := make(chan eventDispatcherMessage, config.Capacity)
-	startEventDispatcher(sdkKey, config, client, inputCh)
+	inboxCh := make(chan eventDispatcherMessage, config.Capacity)
+	startEventDispatcher(sdkKey, config, client, inboxCh)
 	return &defaultEventProcessor{
-		inputCh: inputCh,
+		inboxCh: inboxCh,
 	}
 }
 
 func (ep *defaultEventProcessor) SendEvent(e Event) {
-	ep.inputCh <- sendEventMessage{event: e}
+	ep.inboxCh <- sendEventMessage{event: e}
 }
 
 func (ep *defaultEventProcessor) Flush() {
-	ep.inputCh <- flushEventsMessage{}
+	ep.inboxCh <- flushEventsMessage{}
 }
 
 func (ep *defaultEventProcessor) Close() error {
 	ep.closeOnce.Do(func() {
-		ep.inputCh <- flushEventsMessage{}
+		ep.inboxCh <- flushEventsMessage{}
 		m := shutdownEventsMessage{replyCh: make(chan struct{})}
-		ep.inputCh <- m
+		ep.inboxCh <- m
 		<-m.replyCh
 	})
 	return nil
 }
 
 func startEventDispatcher(sdkKey string, config Config, client *http.Client,
-	inputCh <-chan eventDispatcherMessage) {
+	inboxCh <-chan eventDispatcherMessage) {
 	ed := &eventDispatcher{
 		sdkKey: sdkKey,
 		config: config,
@@ -144,16 +144,16 @@ func startEventDispatcher(sdkKey string, config Config, client *http.Client,
 		startFlushTask(sdkKey, config, client, flushCh, &workersGroup,
 			func(r *http.Response) { ed.handleResponse(r) })
 	}
-	go ed.runMainLoop(inputCh, flushCh, &workersGroup)
+	go ed.runMainLoop(inboxCh, flushCh, &workersGroup)
 }
 
-func (ed *eventDispatcher) runMainLoop(inputCh <-chan eventDispatcherMessage,
+func (ed *eventDispatcher) runMainLoop(inboxCh <-chan eventDispatcherMessage,
 	flushCh chan<- *flushPayload, workersGroup *sync.WaitGroup) {
 	if err := recover(); err != nil {
 		ed.config.Logger.Printf("Unexpected panic in event processing thread: %+v", err)
 	}
 
-	buffer := eventBuffer{
+	outbox := eventBuffer{
 		events:     make([]Event, 0, ed.config.Capacity),
 		summarizer: newEventSummarizer(),
 		capacity:   ed.config.Capacity,
@@ -176,12 +176,12 @@ func (ed *eventDispatcher) runMainLoop(inputCh <-chan eventDispatcherMessage,
 		// Drain the response channel with a higher priority than anything else
 		// to ensure that the flush workers don't get blocked.
 		select {
-		case message := <-inputCh:
+		case message := <-inboxCh:
 			switch m := message.(type) {
 			case sendEventMessage:
-				ed.processEvent(m.event, &buffer, &userKeys)
+				ed.processEvent(m.event, &outbox, &userKeys)
 			case flushEventsMessage:
-				ed.triggerFlush(&buffer, flushCh, workersGroup)
+				ed.triggerFlush(&outbox, flushCh, workersGroup)
 			case syncEventsMessage:
 				workersGroup.Wait()
 				m.replyCh <- struct{}{}
@@ -194,17 +194,17 @@ func (ed *eventDispatcher) runMainLoop(inputCh <-chan eventDispatcherMessage,
 				return
 			}
 		case <-flushTicker.C:
-			ed.triggerFlush(&buffer, flushCh, workersGroup)
+			ed.triggerFlush(&outbox, flushCh, workersGroup)
 		case <-usersResetTicker.C:
 			userKeys.clear()
 		}
 	}
 }
 
-func (ed *eventDispatcher) processEvent(evt Event, buffer *eventBuffer, userKeys *lruCache) {
+func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys *lruCache) {
 
 	// Always record the event in the summarizer.
-	buffer.addToSummary(evt)
+	outbox.addToSummary(evt)
 
 	// Decide whether to add the event to the payload. Feature events may be added twice, once for
 	// the event (if tracked) and once for debugging.
@@ -234,15 +234,15 @@ func (ed *eventDispatcher) processEvent(evt Event, buffer *eventBuffer, userKeys
 				indexEvent := IndexEvent{
 					BaseEvent{CreationDate: evt.GetBase().CreationDate, User: user},
 				}
-				buffer.addEvent(indexEvent)
+				outbox.addEvent(indexEvent)
 			}
 		}
 	}
 	if willAddFullEvent {
-		buffer.addEvent(evt)
+		outbox.addEvent(evt)
 	}
 	if debugEvent != nil {
-		buffer.addEvent(debugEvent)
+		outbox.addEvent(debugEvent)
 	}
 }
 
@@ -273,14 +273,14 @@ func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
 }
 
 // Signal that we would like to do a flush as soon as possible.
-func (ed *eventDispatcher) triggerFlush(buffer *eventBuffer, flushCh chan<- *flushPayload,
+func (ed *eventDispatcher) triggerFlush(outbox *eventBuffer, flushCh chan<- *flushPayload,
 	workersGroup *sync.WaitGroup) {
 	if ed.isDisabled() {
-		buffer.clear()
+		outbox.clear()
 		return
 	}
 	// Is there anything to flush?
-	payload := buffer.getPayload()
+	payload := outbox.getPayload()
 	if len(payload.events) == 0 && len(payload.summary.counters) == 0 {
 		return
 	}
@@ -288,12 +288,12 @@ func (ed *eventDispatcher) triggerFlush(buffer *eventBuffer, flushCh chan<- *flu
 	select {
 	case flushCh <- &payload:
 		// If the channel wasn't full, then there is a worker available who will pick up
-		// this flush payload and send it. The event buffer and summary state can now be
+		// this flush payload and send it. The event outbox and summary state can now be
 		// cleared from the main goroutine.
-		buffer.clear()
+		outbox.clear()
 	default:
 		// We can't start a flush right now because we're waiting for one of the workers
-		// to pick up the last one.  Do not reset the event buffer or summary state.
+		// to pick up the last one.  Do not reset the event outbox or summary state.
 		workersGroup.Done()
 	}
 }
