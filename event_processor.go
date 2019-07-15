@@ -27,8 +27,10 @@ type EventProcessor interface {
 type nullEventProcessor struct{}
 
 type defaultEventProcessor struct {
-	inboxCh   chan eventDispatcherMessage
-	closeOnce sync.Once
+	inboxCh       chan eventDispatcherMessage
+	inboxFullOnce sync.Once
+	closeOnce     sync.Once
+	logger        Logger
 }
 
 type eventDispatcher struct {
@@ -108,19 +110,39 @@ func NewDefaultEventProcessor(sdkKey string, config Config, client *http.Client)
 	startEventDispatcher(sdkKey, config, client, inboxCh)
 	return &defaultEventProcessor{
 		inboxCh: inboxCh,
+		logger:  config.Logger,
 	}
 }
 
 func (ep *defaultEventProcessor) SendEvent(e Event) {
-	ep.inboxCh <- sendEventMessage{event: e}
+	ep.postNonBlockingMessageToInbox(sendEventMessage{event: e})
 }
 
 func (ep *defaultEventProcessor) Flush() {
-	ep.inboxCh <- flushEventsMessage{}
+	ep.postNonBlockingMessageToInbox(flushEventsMessage{})
+}
+
+func (ep *defaultEventProcessor) postNonBlockingMessageToInbox(e eventDispatcherMessage) bool {
+	select {
+	case ep.inboxCh <- e:
+		return true
+	default:
+	}
+	// If the inbox is full, it means the eventDispatcher is seriously backed up with not-yet-processed events.
+	// This is unlikely, but if it happens, it means the application is probably doing a ton of flag evaluations
+	// across many goroutines-- so if we wait for a space in the inbox, we risk a very serious slowdown of the
+	// app. To avoid that, we'll just drop the event. The log warning about this will only be shown once.
+	ep.inboxFullOnce.Do(func() {
+		ep.logger.Printf("Events are being produced faster than they can be processed; some events will be dropped")
+	})
+	return false
 }
 
 func (ep *defaultEventProcessor) Close() error {
 	ep.closeOnce.Do(func() {
+		// We put the flush and shutdown messages directly into the channel instead of calling
+		// postNonBlockingMessageToInbox, because we *do* want to block to make sure there is room in the channel;
+		// these aren't analytics events, they are messages that are necessary for an orderly shutdown.
 		ep.inboxCh <- flushEventsMessage{}
 		m := shutdownEventsMessage{replyCh: make(chan struct{})}
 		ep.inboxCh <- m
