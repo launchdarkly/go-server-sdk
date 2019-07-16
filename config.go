@@ -2,10 +2,11 @@ package ldclient
 
 import (
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
 )
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
@@ -96,15 +97,11 @@ func (c Config) newHTTPClient() *http.Client {
 		client := c.HTTPClientFactory(c)
 		return &client
 	}
-	dialer := net.Dialer{
-		KeepAlive: 1 * time.Minute,
-		Timeout:   c.Timeout, // see newStreamProcessor for why we are setting this
-	}
 	client := http.Client{
 		Timeout: c.Timeout,
-		Transport: &http.Transport{
-			DialContext: dialer.DialContext,
-		},
+	}
+	if transport, _, err := ldhttp.NewHTTPTransport(ldhttp.ConnectTimeoutOption(c.Timeout)); err != nil {
+		client.Transport = transport
 	}
 	return &client
 }

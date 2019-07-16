@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	ldtest "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
 )
 
