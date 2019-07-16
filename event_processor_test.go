@@ -788,6 +788,6 @@ func (t *stubTransport) getNextRequest() *http.Request {
 // used only for testing - ensures that all pending messages and flushes have completed
 func (ep *defaultEventProcessor) waitUntilInactive() {
 	m := syncEventsMessage{replyCh: make(chan struct{})}
-	ep.inputCh <- m
+	ep.inboxCh <- m
 	<-m.replyCh // Now we know that all events prior to this call have been processed
 }
