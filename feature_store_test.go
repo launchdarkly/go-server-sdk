@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	ldtest "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
 )
 
 func makeInMemoryStore() (ld.FeatureStore, error) {
