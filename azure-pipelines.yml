@@ -54,6 +54,4 @@ jobs:
           targetType: inline
           workingDirectory: C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-client.v4
           script: |
-            tree
-            go get -t
             go test -race
