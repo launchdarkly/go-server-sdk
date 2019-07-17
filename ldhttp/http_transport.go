@@ -86,15 +86,8 @@ func CACertFileOption(filePath string) TransportOption {
 // NewHTTPTransport creates a customized http.Transport struct using the specified options. It returns both
 // the Transport and an associated net.Dialer.
 //
-// An example of using this to specify an additional CA certificate to be used with the SDK:
-//
-//     transport, _, _ := ldhttp.NewHTTPTransport(ldhttp.CACertFileOption("my-cert.pem"))
-//     config := ld.DefaultConfig
-//     config.HTTPClientFactory := func(c ld.Config) http.Client {
-//         client := *http.DefaultClient
-//         client.Transport = transport
-//         return client
-//     }
+// To configure the LaunchDarkly SDK, rather than calling this function directly, it is simpler to use
+// ld.NewHTTPClientFactory().
 func NewHTTPTransport(options ...TransportOption) (*http.Transport, *net.Dialer, error) {
 	extraOptions := transportExtraOptions{
 		connectTimeout: defaultConnectTimeout,
