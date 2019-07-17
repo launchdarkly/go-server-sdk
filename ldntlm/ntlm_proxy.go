@@ -37,7 +37,7 @@ import (
 // If you are connecting to the proxy securely and need to specify any custom TLS options, these
 // can be specified using the TransportOption values defined in the ldhttp package.
 func NewNTLMProxyHTTPClientFactory(proxyURL, username, password, domain string,
-	options ...ldhttp.TransportOption) (func(ld.Config) http.Client, error) {
+	options ...ldhttp.TransportOption) (ld.HTTPClientFactory, error) {
 	if proxyURL == "" || username == "" || password == "" {
 		return nil, errors.New("ProxyURL, username, and password are required")
 	}

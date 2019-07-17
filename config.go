@@ -82,8 +82,11 @@ type Config struct {
 	// If not nil, this function will be called to create an HTTP client instead of using the default
 	// client. The SDK may modify the client properties after that point (for instance, to add caching),
 	// but will not replace the underlying Transport, and will not modify any timeout properties you set.
-	HTTPClientFactory func(Config) http.Client
+	HTTPClientFactory HTTPClientFactory
 }
+
+// HTTPClientFactory is a function that creates a custom HTTP client.
+type HTTPClientFactory func(Config) http.Client
 
 // UpdateProcessorFactory is a function that creates an UpdateProcessor.
 type UpdateProcessorFactory func(sdkKey string, config Config) (UpdateProcessor, error)
