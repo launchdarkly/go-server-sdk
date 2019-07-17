@@ -3,6 +3,7 @@ jobs:
     pool:
       vmImage: 'vs2017-win2016'
     variables:
+      GOPATH: C:\Users\VssAdministrator\go
       PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v4
     steps:
       - task: PowerShell@2
