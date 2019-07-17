@@ -11,8 +11,8 @@ jobs:
           script: |
             go version
             go env GOPATH
-            mkdir C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-client.v4
-            mv * C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-client.v4\
+            mkdir C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-server-sdk.v4
+            mv * C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-server-sdk.v4\
       - task: PowerShell@2
         displayName: 'Setup Dynamo'
         inputs:
