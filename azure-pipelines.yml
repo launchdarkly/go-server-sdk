@@ -52,6 +52,6 @@ jobs:
         displayName: 'Setup SDK and Test'
         inputs:
           targetType: inline
-          workingDirectory: C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-client.v4
+          workingDirectory: C:\Users\VssAdministrator\go\src\gopkg.in\launchdarkly\go-server-sdk.v4
           script: |
             go test -race ./...
