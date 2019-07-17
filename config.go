@@ -101,7 +101,7 @@ func (c Config) newHTTPClient() *http.Client {
 	if factory == nil {
 		factory = NewHTTPClientFactory()
 	}
-	client := c.HTTPClientFactory(c)
+	client := factory(c)
 	return &client
 }
 
