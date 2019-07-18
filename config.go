@@ -103,6 +103,7 @@ func (c Config) newHTTPClient() *http.Client {
 	client := http.Client{
 		Timeout: c.Timeout,
 		Transport: &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
 			DialContext: dialer.DialContext,
 		},
 	}
