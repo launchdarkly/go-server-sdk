@@ -8,7 +8,7 @@ import (
 
 	r "github.com/garyburd/redigo/redis"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	ldtest "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	ldtest "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
 )
 

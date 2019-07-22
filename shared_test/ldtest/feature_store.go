@@ -1,4 +1,4 @@
-package shared_test
+package ldtest
 
 import (
 	"testing"
