@@ -1,9 +1,10 @@
 package ldclient
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -180,8 +181,12 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 }
 
 func makeTestClient() *LDClient {
+	return makeTestClientWithConfig(nil)
+}
+
+func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Logger:       log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
+		Logger:       newMockLogger(""),
 		Offline:      false,
 		SendEvents:   true,
 		FeatureStore: NewInMemoryFeatureStore(nil),
@@ -191,7 +196,32 @@ func makeTestClient() *LDClient {
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}
-
+	if modConfig != nil {
+		modConfig(&config)
+	}
 	client, _ := MakeCustomClient("sdkKey", config, time.Duration(0))
 	return client
+}
+
+func newMockLogger(prefix string) *mockLogger {
+	return &mockLogger{output: make([]string, 0), prefix: prefix}
+}
+
+type mockLogger struct {
+	output []string
+	prefix string
+}
+
+func (l *mockLogger) append(s string) {
+	if l.prefix == "" || strings.HasPrefix(s, l.prefix) {
+		l.output = append(l.output, s)
+	}
+}
+
+func (l *mockLogger) Println(args ...interface{}) {
+	l.append(fmt.Sprint(args...))
+}
+
+func (l *mockLogger) Printf(format string, args ...interface{}) {
+	l.append(fmt.Sprintf(format, args...))
 }

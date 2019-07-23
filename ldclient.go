@@ -207,7 +207,8 @@ func (client *LDClient) Initialized() bool {
 }
 
 // Close shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
-// should no longer be used.
+// should no longer be used. The method will block until all pending analytics events (if any)
+// been sent.
 func (client *LDClient) Close() error {
 	client.config.Logger.Println("Closing LaunchDarkly Client")
 	if client.IsOffline() {
@@ -220,7 +221,9 @@ func (client *LDClient) Close() error {
 	return nil
 }
 
-// Flush immediately flushes queued events.
+// Flush tells the client that all pending analytics events (if any) should be delivered as soon
+// as possible. Flushing is asynchronous, so this method will return before it is complete.
+// However, if you call Close(), events are guaranteed to be sent before that method returns.
 func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
 }
@@ -441,12 +444,19 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal inter
 	var storeErr error
 	var ok bool
 
+	evalErrorResult := func(errKind EvalErrorKind, flag *FeatureFlag, err error) (EvaluationDetail, *FeatureFlag, error) {
+		detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(errKind)}
+		if client.config.LogEvaluationErrors {
+			client.config.Logger.Printf("WARN: %s", err.Error())
+		}
+		return detail, flag, err
+	}
+
 	if !client.Initialized() {
 		if client.store.Initialized() {
 			client.config.Logger.Printf("WARN: Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
 		} else {
-			detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorClientNotReady)}
-			return detail, nil, ErrClientNotInitialized
+			return evalErrorResult(EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
 	}
 
@@ -461,20 +471,26 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal inter
 	if data != nil {
 		feature, ok = data.(*FeatureFlag)
 		if !ok {
-			detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorException)}
-			return detail, nil, fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", data, key)
+			return evalErrorResult(EvalErrorException, nil,
+				fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", data, key))
 		}
 	} else {
-		detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorFlagNotFound)}
-		return detail, nil, fmt.Errorf("unknown feature key: %s Verify that this feature key exists. Returning default value", key)
+		return evalErrorResult(EvalErrorFlagNotFound, nil,
+			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 
 	if user.Key == nil {
-		detail := EvaluationDetail{Value: defaultVal, Reason: newEvalReasonError(EvalErrorUserNotSpecified)}
-		return detail, feature, fmt.Errorf("user.Key cannot be nil for user: %+v when evaluating flag: %s", user, key)
+		return evalErrorResult(EvalErrorUserNotSpecified, feature,
+			fmt.Errorf("user.Key cannot be nil when evaluating flag: %s. Returning default value", key))
 	}
 
 	detail, prereqEvents := feature.EvaluateDetail(user, client.store, sendReasonsInEvents)
+	if detail.Reason != nil && detail.Reason.GetKind() == EvalReasonError && client.config.LogEvaluationErrors {
+		if re, ok := detail.Reason.(EvaluationReasonError); ok {
+			client.config.Logger.Printf("WARN: flag evaluation for %s failed with error %s, default value was returned",
+				key, re.ErrorKind)
+		}
+	}
 	if detail.IsDefaultValue() {
 		detail.Value = defaultVal
 	}
