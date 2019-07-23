@@ -12,6 +12,8 @@ import (
 	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
+// See also: proxytest/http_transport_proxy_test.go
+
 func TestDefaultTransportDoesNotAcceptSelfSignedCert(t *testing.T) {
 	shared.WithTempFile(func(certFile string) {
 		shared.WithTempFile(func(keyFile string) {

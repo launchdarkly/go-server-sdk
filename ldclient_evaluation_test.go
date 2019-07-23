@@ -628,7 +628,7 @@ func testEvalErrorLogging(t *testing.T, flag *FeatureFlag, key string, user User
 	runTest := func(withLogging bool) {
 		logger := newMockLogger("WARN:")
 		client := makeTestClientWithConfig(func(c *Config) {
-			c.Logger = &logger
+			c.Logger = logger
 			c.LogEvaluationErrors = withLogging
 		})
 		defer client.Close()

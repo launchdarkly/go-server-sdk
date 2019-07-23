@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -187,7 +186,7 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Logger:       log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
+		Logger:       newMockLogger(""),
 		Offline:      false,
 		SendEvents:   true,
 		FeatureStore: NewInMemoryFeatureStore(nil),
@@ -204,8 +203,8 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	return client
 }
 
-func newMockLogger(prefix string) mockLogger {
-	return mockLogger{output: make([]string, 0), prefix: prefix}
+func newMockLogger(prefix string) *mockLogger {
+	return &mockLogger{output: make([]string, 0), prefix: prefix}
 }
 
 type mockLogger struct {
