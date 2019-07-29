@@ -164,6 +164,23 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
 }
 
+type redisAuthOption struct {
+	auth string
+}
+
+func (o redisAuthOption) apply(store *redisFeatureStoreCore) error {
+	store.auth = o.auth
+	return nil
+}
+
+// Auth creates an option for NewRedisFeatureStoreWithDefaults to specify the Redis auth password.
+// If not specified, no authentication will be used.
+//
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.Auth("verysecure123"))
+func Auth(auth string) FeatureStoreOption {
+	return redisAuthOption{auth}
+}
+
 // RedisFeatureStore is a Redis-backed feature store implementation.
 type RedisFeatureStore struct { // nolint:golint // package name in type name
 	wrapper *utils.FeatureStoreWrapper
@@ -178,19 +195,20 @@ type redisFeatureStoreCore struct {
 	prefix     string
 	pool       *r.Pool
 	redisURL   string
+	auth       string
 	cacheTTL   time.Duration
 	logger     ld.Logger
 	testTxHook func()
 }
 
-func newPool(url string) *r.Pool {
+func newPool(url string, auth string) *r.Pool {
 	pool := &r.Pool{
 		MaxIdle:     20,
 		MaxActive:   16,
 		Wait:        true,
 		IdleTimeout: 300 * time.Second,
 		Dial: func() (c r.Conn, err error) {
-			c, err = r.DialURL(url)
+			c, err = r.DialURL(url, r.DialPassword(auth))
 			return
 		},
 		TestOnBorrow: func(c r.Conn, t time.Time) error {
@@ -238,9 +256,10 @@ func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Dur
 // NewRedisFeatureStoreWithDefaults constructs a new Redis-backed feature store
 //
 // By default, it uses DefaultURL as the Redis address, DefaultPrefix as the prefix for all keys,
-// DefaultCacheTTL as the duration for in-memory caching, and a default connection pool configuration
-// (see package description for details). You may override any of these with FeatureStoreOption values
-// created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL, or Logger.
+// DefaultCacheTTL as the duration for in-memory caching, no authentication and a default connection
+// pool configuration (see package description for details). You may override any of these with
+// FeatureStoreOption values created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL,
+// Logger, or Auth.
 func NewRedisFeatureStoreWithDefaults(options ...FeatureStoreOption) (ld.FeatureStore, error) {
 	core, err := newRedisFeatureStoreInternal(options...)
 	if err != nil {
@@ -275,7 +294,7 @@ func newRedisFeatureStoreInternal(options ...FeatureStoreOption) (*redisFeatureS
 	}
 	if core.pool == nil {
 		core.logger.Printf("RedisFeatureStore: Using url: %s", core.redisURL)
-		core.pool = newPool(core.redisURL)
+		core.pool = newPool(core.redisURL, core.auth)
 	}
 
 	return &core, nil
