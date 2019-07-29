@@ -13,13 +13,15 @@
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // The default Redis pool configuration uses an address of localhost:6379, a maximum of 16
-// concurrent connections, and blocking connection requests. To customize any properties of
-// the connection pool, use the Pool option or the NewRedisFeatureStoreWithPool constructor.
-// You may also customize other properties of the feature store by providing options to
-// NewRedisFeatureStoreWithDefaults, for example:
+// concurrent connections, and blocking connection requests. You may also customize other
+// properties of the feature store by providing options to NewRedisFeatureStoreWithDefaults,
+// for example:
 //
 //     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.URL(myRedisURL),
 //         redis.CacheTTL(30*time.Second))
+//
+// For advanced customization of the underlying Redigo client, use the DialOptions or Pool
+// options with NewRedisFeatureStoreWithDefaults.
 //
 // If you are also using Redis for other purposes, the feature store can coexist with
 // other data as long as you are not using the same keys. By default, the keys used by the
@@ -102,6 +104,9 @@ func (o redisPoolOption) apply(store *redisFeatureStoreCore) error {
 // specified with RedisURL or RedisHostAndPort to be ignored.
 //
 //     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.Pool(myPool))
+//
+// If you only need to change basic connection options such as providing a password, it is
+// simpler to use DialOptions.
 func Pool(pool *r.Pool) FeatureStoreOption {
 	return redisPoolOption{pool}
 }
@@ -164,21 +169,25 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
 }
 
-type redisAuthOption struct {
-	auth string
+type redisDialOptionsOption struct {
+	options []r.DialOption
 }
 
-func (o redisAuthOption) apply(store *redisFeatureStoreCore) error {
-	store.auth = o.auth
+func (o redisDialOptionsOption) apply(store *redisFeatureStoreCore) error {
+	store.dialOptions = append(store.dialOptions, o.options...)
 	return nil
 }
 
-// Auth creates an option for NewRedisFeatureStoreWithDefaults to specify the Redis auth password.
-// If not specified, no authentication will be used.
+// DialOptions creates an option for NewRedisFeatureStoreWithDefaults to specify any of the
+// advanced Redis connection options supported by Redigo, such as DialPassword.
 //
-//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.Auth("verysecure123"))
-func Auth(auth string) FeatureStoreOption {
-	return redisAuthOption{auth}
+//     import (
+//         redigo "github.com/garyburd/redigo/redis"
+//         "gopkg.in/launchdarkly/go-server-sdk.v4/redis"
+//     )
+//     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.DialOption(redigo.DialPassword("verysecure123")))
+func DialOptions(options ...r.DialOption) FeatureStoreOption {
+	return redisDialOptionsOption{options: options}
 }
 
 // RedisFeatureStore is a Redis-backed feature store implementation.
@@ -192,23 +201,23 @@ type RedisFeatureStore struct { // nolint:golint // package name in type name
 // as the outermost object, is a historical one: the NewRedisFeatureStore constructors had already
 // been defined as returning *RedisFeatureStore rather than the interface type.
 type redisFeatureStoreCore struct {
-	prefix     string
-	pool       *r.Pool
-	redisURL   string
-	auth       string
-	cacheTTL   time.Duration
-	logger     ld.Logger
-	testTxHook func()
+	prefix      string
+	pool        *r.Pool
+	redisURL    string
+	dialOptions []r.DialOption
+	cacheTTL    time.Duration
+	logger      ld.Logger
+	testTxHook  func()
 }
 
-func newPool(url string, auth string) *r.Pool {
+func newPool(url string, dialOptions []r.DialOption) *r.Pool {
 	pool := &r.Pool{
 		MaxIdle:     20,
 		MaxActive:   16,
 		Wait:        true,
 		IdleTimeout: 300 * time.Second,
 		Dial: func() (c r.Conn, err error) {
-			c, err = r.DialURL(url, r.DialPassword(auth))
+			c, err = r.DialURL(url, dialOptions...)
 			return
 		},
 		TestOnBorrow: func(c r.Conn, t time.Time) error {
@@ -294,7 +303,7 @@ func newRedisFeatureStoreInternal(options ...FeatureStoreOption) (*redisFeatureS
 	}
 	if core.pool == nil {
 		core.logger.Printf("RedisFeatureStore: Using url: %s", core.redisURL)
-		core.pool = newPool(core.redisURL, core.auth)
+		core.pool = newPool(core.redisURL, core.dialOptions)
 	}
 
 	return &core, nil
