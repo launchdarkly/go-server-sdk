@@ -21,7 +21,11 @@
 //         redis.CacheTTL(30*time.Second))
 //
 // For advanced customization of the underlying Redigo client, use the DialOptions or Pool
-// options with NewRedisFeatureStoreWithDefaults.
+// options with NewRedisFeatureStoreWithDefaults. Note that some Redis client features can
+// also be specified as part of the URL: Redigo supports the redis:// syntax
+// (https://www.iana.org/assignments/uri-schemes/prov/redis), which can include a password
+// and a database number, as well as rediss:// (https://www.iana.org/assignments/uri-schemes/prov/rediss),
+// which enables TLS.
 //
 // If you are also using Redis for other purposes, the feature store can coexist with
 // other data as long as you are not using the same keys. By default, the keys used by the
@@ -77,6 +81,11 @@ func (o redisURLOption) apply(store *redisFeatureStoreCore) error {
 // If not specified, the default value is DefaultURL.
 //
 //     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.URL("redis://my-redis-host:6379"))
+//
+// Note that some Redis client features can also be specified as part of the URL: Redigo supports
+// the redis:// syntax (https://www.iana.org/assignments/uri-schemes/prov/redis), which can include a
+// password and a database number, as well as rediss://
+// (https://www.iana.org/assignments/uri-schemes/prov/rediss), which enables TLS.
 func URL(url string) FeatureStoreOption {
 	return redisURLOption{url}
 }
@@ -186,6 +195,9 @@ func (o redisDialOptionsOption) apply(store *redisFeatureStoreCore) error {
 //         "gopkg.in/launchdarkly/go-server-sdk.v4/redis"
 //     )
 //     store, err := redis.NewRedisFeatureStoreWithDefaults(redis.DialOption(redigo.DialPassword("verysecure123")))
+//
+// Note that some Redis client features can also be specified as part of the URL: see comments
+// on the URL() option.
 func DialOptions(options ...r.DialOption) FeatureStoreOption {
 	return redisDialOptionsOption{options: options}
 }
