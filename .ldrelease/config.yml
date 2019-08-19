@@ -3,7 +3,7 @@ repo:
   private: go-server-sdk-private
 
 releasableBranches:
-  - v4
+  - name: v4
 
 publications:
   - url: https://godoc.org/github.com/launchdarkly/go-server-sdk
