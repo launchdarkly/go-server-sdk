@@ -1,0 +1,13 @@
+repo:
+  public: go-server-sdk
+  private: go-server-sdk-private
+
+releasableBranches:
+  - name: v4
+
+publications:
+  - url: https://godoc.org/github.com/launchdarkly/go-server-sdk
+    description: documentation
+
+sdk:
+  displayName: "Go"
