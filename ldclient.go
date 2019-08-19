@@ -182,6 +182,10 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 // This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
 // be returned as part of the custom event for Data Export.
 //
+// As of this version’s release date, the LaunchDarkly service does not support the metricValue attribute.
+// As a result, calling TrackWithMetric will not yet produce any different behavior than Track. Refer to
+// the SDK reference guide for the latest status: https://docs.launchdarkly.com/docs/go-sdk-reference#section-track
+//
 // Custom data can also be attached to the event, and is serialized to JSON using the encoding/json package (http://golang.org/pkg/encoding/json/).
 func (client *LDClient) TrackWithMetric(key string, user User, data interface{}, metricValue float64) error {
 	if user.Key == nil || *user.Key == "" {
