@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"sort"
 	"testing"
@@ -620,6 +621,84 @@ func TestHTTPErrorHandling(t *testing.T) {
 	}
 }
 
+func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
+	postedURLs := make(chan string, 1)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		postedURLs <- r.URL.Path
+		w.WriteHeader(200)
+	}))
+	defer ts.Close()
+	defer ts.CloseClientConnections()
+
+	cfg := Config{
+		Logger:            log.New(ioutil.Discard, "", 0),
+		EventsUri:         ts.URL,
+		Capacity:          1000,
+		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
+	}
+
+	ep := NewDefaultEventProcessor(sdkKey, cfg, nil)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+
+	postedURL := <-postedURLs
+
+	assert.Equal(t, "/bulk/transformed", postedURL)
+}
+
+func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
+	user1 := User{
+		Key:  strPtr("user1"),
+		Name: strPtr("Bandit"),
+	}
+	user2 := User{
+		Key:  strPtr("user2"),
+		Name: strPtr("Tinker"),
+	}
+	errorMessage := "boom"
+	user3Custom := map[string]interface{}{
+		"uh-oh": valueThatPanicsWhenMarshalledToJSON(errorMessage), // see user_filter_test.go
+	}
+	user3 := User{
+		Key:    strPtr("user3"),
+		Name:   strPtr("Pirate"),
+		Custom: &user3Custom,
+	}
+
+	config := epDefaultConfig
+	logger := newMockLogger("")
+	config.Logger = logger
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	ep.SendEvent(NewIdentifyEvent(user1))
+	ep.SendEvent(NewIdentifyEvent(user2))
+	ep.SendEvent(NewIdentifyEvent(user3))
+
+	output := flushAndGetEvents(ep, st)
+	if assert.Equal(t, 3, len(output)) {
+		assert.Equal(t, "identify", output[0]["kind"])
+		assert.Equal(t, jsonMap(user1), output[0]["user"])
+
+		assert.Equal(t, "identify", output[1]["kind"])
+		assert.Equal(t, jsonMap(user2), output[1]["user"])
+
+		partialUser := map[string]interface{}{
+			"key":  *user3.Key,
+			"name": *user3.Name,
+		}
+		assert.Equal(t, "identify", output[2]["kind"])
+		assert.Equal(t, partialUser, output[2]["user"])
+	}
+
+	expectedMessage := fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user3, false), errorMessage)
+	assert.Equal(t, []string{expectedMessage}, logger.output)
+}
+
 func jsonMap(o interface{}) map[string]interface{} {
 	bytes, _ := json.Marshal(o)
 	var result map[string]interface{}
@@ -758,6 +837,6 @@ func (t *stubTransport) getNextRequest() *http.Request {
 // used only for testing - ensures that all pending messages and flushes have completed
 func (ep *defaultEventProcessor) waitUntilInactive() {
 	m := syncEventsMessage{replyCh: make(chan struct{})}
-	ep.inputCh <- m
+	ep.inboxCh <- m
 	<-m.replyCh // Now we know that all events prior to this call have been processed
 }

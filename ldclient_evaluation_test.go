@@ -21,6 +21,10 @@ func makeTestFlag(key string, fallThroughVariation int, variations ...interface{
 	}
 }
 
+func makeMalformedFlag(key string) *FeatureFlag {
+	return &FeatureFlag{Key: key, On: false, OffVariation: intPtr(-1)}
+}
+
 func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value interface{}, variation int, defaultVal interface{}, reason EvaluationReason) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
@@ -750,4 +754,45 @@ func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
 	state := client.AllFlagsState(User{})
 	assert.False(t, state.IsValid())
 	assert.Nil(t, state.ToValuesMap())
+}
+
+func TestUnknownFlagErrorLogging(t *testing.T) {
+	testEvalErrorLogging(t, nil, "unknown-flag", evalTestUser,
+		"WARN: unknown feature key: unknown-flag\\. Verify that this feature key exists\\. Returning default value")
+}
+
+func TestInvalidUserErrorLogging(t *testing.T) {
+	testEvalErrorLogging(t, makeTestFlag("valid-flag", 1, false, true), "", User{},
+		"WARN: user\\.Key cannot be nil when evaluating flag: valid-flag\\. Returning default value")
+}
+
+func TestMalformedFlagErrorLogging(t *testing.T) {
+	testEvalErrorLogging(t, makeMalformedFlag("bad-flag"), "", evalTestUser,
+		"WARN: flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
+}
+
+func testEvalErrorLogging(t *testing.T, flag *FeatureFlag, key string, user User, expectedMessageRegex string) {
+	runTest := func(withLogging bool) {
+		logger := newMockLogger("WARN:")
+		client := makeTestClientWithConfig(func(c *Config) {
+			c.Logger = logger
+			c.LogEvaluationErrors = withLogging
+		})
+		defer client.Close()
+		if flag != nil {
+			client.store.Upsert(Features, flag)
+			key = flag.Key
+		}
+
+		value, _ := client.StringVariation(key, user, "default")
+		assert.Equal(t, "default", value)
+		if withLogging {
+			assert.Equal(t, 1, len(logger.output))
+			assert.Regexp(t, expectedMessageRegex, logger.output[0])
+		} else {
+			assert.Equal(t, 0, len(logger.output))
+		}
+	}
+	runTest(false)
+	runTest(true)
 }

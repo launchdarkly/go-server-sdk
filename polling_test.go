@@ -14,14 +14,15 @@ import (
 
 var nullHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 
-func TestPollingProcessor_ClosingItShouldNotBlock(t *testing.T) {
+func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	server := httptest.NewServer(nullHandler)
 	defer server.Close()
 	cfg := Config{
 		Logger:       log.New(ioutil.Discard, "", 0),
 		PollInterval: time.Minute,
+		BaseUri:      server.URL,
 	}
-	req := newFakeRequestor(server, cfg)
+	req := newRequestor("fake", cfg, nil)
 	p := newPollingProcessor(cfg, req)
 
 	p.Close()
@@ -36,7 +37,7 @@ func TestPollingProcessor_ClosingItShouldNotBlock(t *testing.T) {
 	}
 }
 
-func TestPollingProcessor_Initialization(t *testing.T) {
+func TestPollingProcessorInitialization(t *testing.T) {
 	polls := make(chan struct{}, 2)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +59,7 @@ func TestPollingProcessor_Initialization(t *testing.T) {
 		PollInterval: time.Millisecond,
 		BaseUri:      ts.URL,
 	}
-	req := newFakeRequestor(ts, cfg)
+	req := newRequestor("fake", cfg, nil)
 	p := newPollingProcessor(cfg, req)
 
 	closeWhenReady := make(chan struct{})
@@ -124,7 +125,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 				PollInterval: time.Millisecond * 10,
 				BaseUri:      ts.URL,
 			}
-			req := newFakeRequestor(ts, cfg)
+			req := newRequestor("fake", cfg, nil)
 			p := newPollingProcessor(cfg, req)
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)
@@ -156,12 +157,33 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 	}
 }
 
-func newFakeRequestor(server *httptest.Server, config Config) *requestor {
-	httpRequestor := requestor{
-		sdkKey:     "fake",
-		httpClient: http.DefaultClient,
-		config:     config,
-	}
+func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
+	polledURLs := make(chan string, 1)
 
-	return &httpRequestor
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		polledURLs <- r.URL.Path
+		w.Write([]byte(`{"flags": {"my-flag": {"key": "my-flag", "version": 2}}, "segments": {}}`))
+	}))
+	defer ts.Close()
+	defer ts.CloseClientConnections()
+
+	store := NewInMemoryFeatureStore(nil)
+
+	cfg := Config{
+		FeatureStore:      store,
+		Logger:            log.New(ioutil.Discard, "", 0),
+		PollInterval:      time.Minute * 30,
+		BaseUri:           ts.URL,
+		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
+	}
+	req := newRequestor("fake", cfg, nil)
+
+	p := newPollingProcessor(cfg, req)
+	defer p.Close()
+	closeWhenReady := make(chan struct{})
+	p.Start(closeWhenReady)
+
+	polledURL := <-polledURLs
+
+	assert.Equal(t, "/sdk/latest-all/transformed", polledURL)
 }

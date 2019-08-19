@@ -7,12 +7,13 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-client.v4"
-	ldtest "gopkg.in/launchdarkly/go-client.v4/shared_test"
-	"gopkg.in/launchdarkly/go-client.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
 )
 
 const (
@@ -63,8 +64,9 @@ func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
 func makeTestOptions() session.Options {
 	return session.Options{
 		Config: aws.Config{
-			Endpoint: aws.String(localDynamoEndpoint),
-			Region:   aws.String("us-east-1"), // this is ignored for a local instance, but is still required
+			Credentials: credentials.NewStaticCredentials("dummy", "not", "used"),
+			Endpoint:    aws.String(localDynamoEndpoint),
+			Region:      aws.String("us-east-1"), // this is ignored for a local instance, but is still required
 		},
 	}
 }
