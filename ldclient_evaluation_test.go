@@ -292,6 +292,153 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNilWithDetail(t *testing.T) {
 	assert.Equal(t, evalReasonOffInstance, detail.Reason)
 }
 
+func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
+	flag := FeatureFlag{
+		Key: "flagKey",
+		On:  true,
+		Rules: []Rule{
+			Rule{
+				ID:                 "rule-id",
+				Clauses:            []Clause{makeClauseToMatchUser(evalTestUser)},
+				VariationOrRollout: VariationOrRollout{Variation: intPtr(1)},
+				TrackEvents:        true,
+			},
+		},
+		Variations: []interface{}{"off", "on"},
+		Version:    1,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "on", value)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+
+	e := events[0].(FeatureRequestEvent)
+	assert.True(t, e.TrackEvents)
+	assert.Equal(t, newEvalReasonRuleMatch(0, "rule-id"), e.Reason.Reason)
+}
+
+func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *testing.T) {
+	flag := FeatureFlag{
+		Key: "flagKey",
+		On:  true,
+		Rules: []Rule{
+			Rule{
+				ID:                 "id0",
+				Clauses:            []Clause{makeClauseToNotMatchUser(evalTestUser)},
+				VariationOrRollout: VariationOrRollout{Variation: intPtr(0)},
+				TrackEvents:        true,
+			},
+			Rule{
+				ID:                 "id1",
+				Clauses:            []Clause{makeClauseToMatchUser(evalTestUser)},
+				VariationOrRollout: VariationOrRollout{Variation: intPtr(1)},
+			},
+		},
+		Variations: []interface{}{"off", "on"},
+		Version:    1,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "on", value)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+
+	e := events[0].(FeatureRequestEvent)
+	assert.False(t, e.TrackEvents)
+	assert.Nil(t, e.Reason.Reason)
+}
+
+func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
+	flag := FeatureFlag{
+		Key:                    "flagKey",
+		On:                     true,
+		Fallthrough:            VariationOrRollout{Variation: intPtr(1)},
+		Variations:             []interface{}{"off", "on"},
+		TrackEventsFallthrough: true,
+		Version:                1,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "on", value)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+
+	e := events[0].(FeatureRequestEvent)
+	assert.True(t, e.TrackEvents)
+	assert.Equal(t, evalReasonFallthroughInstance, e.Reason.Reason)
+}
+
+func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testing.T) {
+	flag := FeatureFlag{
+		Key:         "flagKey",
+		On:          true,
+		Fallthrough: VariationOrRollout{Variation: intPtr(1)},
+		Variations:  []interface{}{"off", "on"},
+		Version:     1,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "on", value)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+
+	e := events[0].(FeatureRequestEvent)
+	assert.False(t, e.TrackEvents)
+	assert.Nil(t, e.Reason.Reason)
+}
+
+func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthrough(t *testing.T) {
+	flag := FeatureFlag{
+		Key:                    "flagKey",
+		On:                     false,
+		OffVariation:           intPtr(0),
+		Fallthrough:            VariationOrRollout{Variation: intPtr(1)},
+		Variations:             []interface{}{"off", "on"},
+		TrackEventsFallthrough: true,
+		Version:                1,
+	}
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, &flag)
+
+	value, err := client.StringVariation("flagKey", evalTestUser, "default")
+	assert.NoError(t, err)
+	assert.Equal(t, "off", value)
+
+	events := client.eventProcessor.(*testEventProcessor).events
+	assert.Equal(t, 1, len(events))
+
+	e := events[0].(FeatureRequestEvent)
+	assert.False(t, e.TrackEvents)
+	assert.Nil(t, e.Reason.Reason)
+}
+
 func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
