@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.11.0] - 2019-08-19
+### Added:
+- Added support for upcoming LaunchDarkly experimentation features. See `LDClient.TrackWithMetric`.
+
 ## [4.10.0] - 2019-07-30
 ### Added:
 - In the `redis` subpackage, the new option `DialOptions` allows configuration of any [connection option supported by Redigo](https://godoc.org/github.com/garyburd/redigo/redis#DialOption), such as setting a password or enabling TLS. (Thanks, [D-Raiser](https://github.com/launchdarkly/go-server-sdk/pull/8)!) Note that it was already possible to specify a password or TLS as part of the Redis URL.
