@@ -108,6 +108,9 @@ func NewDefaultEventProcessor(sdkKey string, config Config, client *http.Client)
 	}
 	inboxCh := make(chan eventDispatcherMessage, config.Capacity)
 	startEventDispatcher(sdkKey, config, client, inboxCh)
+	if config.SamplingInterval > 0 {
+		config.Logger.Println("WARN: Config.SamplingInterval is deprecated")
+	}
 	return &defaultEventProcessor{
 		inboxCh: inboxCh,
 		logger:  config.Logger,
