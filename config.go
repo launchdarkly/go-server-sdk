@@ -31,6 +31,8 @@ type Config struct {
 	// Enables event sampling if non-zero. When set to the default of zero, all events are sent to Launchdarkly.
 	// If greater than zero, there is a 1 in SamplingInterval chance that events will be sent (for example, a
 	// value of 20 means on average 5% of events will be sent).
+	//
+	// Deprecated: This feature will be removed in a future version of the SDK.
 	SamplingInterval int32
 	// The polling interval (when streaming is disabled). Values less than the default of MinimumPollInterval
 	// will be set to the default.
