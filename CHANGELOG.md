@@ -2,7 +2,7 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
-[4.10.0] - 2019-07-30
+## [4.10.0] - 2019-07-30
 ### Added:
 - In the `redis` subpackage, the new option `DialOptions` allows configuration of any [connection option supported by Redigo](https://godoc.org/github.com/garyburd/redigo/redis#DialOption), such as setting a password or enabling TLS. (Thanks, [D-Raiser](https://github.com/launchdarkly/go-server-sdk/pull/8)!) Note that it was already possible to specify a password or TLS as part of the Redis URL.
 - The new `Config` property `LogUserKeyInErrors`, if set to true, causes error log messages that are related to a specific user to include that user's key. This is false by default since user keys could be considered privileged information.
