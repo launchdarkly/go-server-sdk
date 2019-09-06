@@ -21,7 +21,11 @@ defaults:
     steps:
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
-      - run: make lint
+      # The reason the lint step is conditional here is: 1. we had to pin golangci-lint to v1.10.2; 2. the
+      # linter does not handle build tags correctly, because it always uses the build tags that *the linter*
+      # was built with; 3. there's some code in built-in packages in Go 1.12 that uses build tags and the
+      # linter will end up looking at the wrong subset of that code, and fail on it.
+      - run: if [ "$CIRCLE_JOB" != "go-test-1.12" ]; then make lint; fi
       - run: dep ensure -dry-run
 
       - run:
