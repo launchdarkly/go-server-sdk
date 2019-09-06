@@ -39,11 +39,37 @@ defaults:
           path: /tmp/circle-artifacts
 
 jobs:
-  go-test:
+  go-test-1.12:
     working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
 
     docker:
-      - image: circleci/golang:1.10.1
+      - image: circleci/golang:1.12
+        environment:
+          <<: *environment
+      - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
+
+    <<: *build_steps
+
+  go-test-1.11:
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+
+    docker:
+      - image: circleci/golang:1.11
+        environment:
+          <<: *environment
+      - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
+
+    <<: *build_steps
+
+  go-test-1.10:
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+
+    docker:
+      - image: circleci/golang:1.10
         environment:
           <<: *environment
       - image: redis
