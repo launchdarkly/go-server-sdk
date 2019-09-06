@@ -98,6 +98,36 @@ func TestIntVariation(t *testing.T) {
 	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), nil)
 }
 
+func TestIntVariationRoundsFloatTowardZero(t *testing.T) {
+	flag1 := makeTestFlag("flag1", 1, float64(-1), 2.25)
+	flag2 := makeTestFlag("flag2", 1, float64(-1), 2.75)
+	flag3 := makeTestFlag("flag3", 1, float64(-1), -2.25)
+	flag4 := makeTestFlag("flag4", 1, float64(-1), -2.75)
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag1)
+	client.store.Upsert(Features, flag2)
+	client.store.Upsert(Features, flag3)
+	client.store.Upsert(Features, flag4)
+
+	actual, err := client.IntVariation(flag1.Key, evalTestUser, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, actual)
+
+	actual, err = client.IntVariation(flag2.Key, evalTestUser, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, actual)
+
+	actual, err = client.IntVariation(flag3.Key, evalTestUser, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, -2, actual)
+
+	actual, err = client.IntVariation(flag4.Key, evalTestUser, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, -2, actual)
+}
+
 func TestIntVariationDetail(t *testing.T) {
 	expected := 100
 	defaultVal := 10000
