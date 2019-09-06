@@ -327,6 +327,8 @@ func (client *LDClient) BoolVariationDetail(key string, user User, defaultVal bo
 // IntVariation returns the value of a feature flag (whose variations are integers) for the given user.
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
+//
+// If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int, error) {
 	detail, err := client.variationWithType(key, user, float64(defaultVal), reflect.TypeOf(float64(0)), false)
 	result, _ := detail.Value.(float64)
@@ -335,6 +337,8 @@ func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int
 
 // IntVariationDetail is the same as IntVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
+//
+// If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 func (client *LDClient) IntVariationDetail(key string, user User, defaultVal int) (int, EvaluationDetail, error) {
 	detail, err := client.variationWithType(key, user, float64(defaultVal), reflect.TypeOf(float64(0)), true)
 	result, _ := detail.Value.(float64)
