@@ -347,9 +347,6 @@ func validateOptions(options ...FeatureStoreOption) (redisFeatureStoreOptions, e
 }
 
 func newRedisFeatureStoreInternal(configuredOptions redisFeatureStoreOptions, ldConfig ld.Config) *redisFeatureStoreCore {
-	if configuredOptions.logger != nil {
-		ldConfig.Logger = configuredOptions.logger
-	}
 	core := &redisFeatureStoreCore{
 		options: configuredOptions,
 		pool:    configuredOptions.pool,
