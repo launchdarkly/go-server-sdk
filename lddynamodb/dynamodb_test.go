@@ -44,10 +44,11 @@ func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
+	store1Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
 	require.NoError(t, err)
 	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Internal)
-	store2Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	store2Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
 	require.NoError(t, err)
 	store2 := utils.NewNonAtomicFeatureStoreWrapper(store2Internal)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
@@ -55,10 +56,9 @@ func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
-	}
+func makeStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
+	f, _ := NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
+	return f
 }
 
 func makeTestOptions() session.Options {
