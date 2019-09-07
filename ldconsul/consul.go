@@ -64,7 +64,6 @@ const (
 type featureStoreOptions struct {
 	consulConfig c.Config
 	prefix       string
-	client       *c.Client
 	cacheTTL     time.Duration
 	logger       ld.Logger
 }
