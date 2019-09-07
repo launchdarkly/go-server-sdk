@@ -178,15 +178,11 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 //
 // Deprecated: Please use NewConsulFeatureStoreFactory instead.
 func NewConsulFeatureStore(options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	configuredOptions, err := validateOptions(options...)
+	factory, err := NewConsulFeatureStoreFactory(options...)
 	if err != nil {
 		return nil, err
 	}
-	store, err := newConsulFeatureStoreInternal(configuredOptions, ld.Config{})
-	if err != nil {
-		return nil, err
-	}
-	return utils.NewNonAtomicFeatureStoreWrapper(store), nil
+	return factory(ld.Config{})
 }
 
 // NewConsulFeatureStoreFactory returns a factory function for a Consul-backed feature store with an

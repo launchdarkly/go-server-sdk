@@ -242,15 +242,11 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 //
 // Deprecated: Please use NewDynamoDBFeatureStoreFactory.
 func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	configuredOptions, err := validateOptions(table, options...)
+	factory, err := NewDynamoDBFeatureStoreFactory(table, options...)
 	if err != nil {
 		return nil, err
 	}
-	store, err := newDynamoDBFeatureStoreInternal(configuredOptions, ld.Config{})
-	if err != nil {
-		return nil, err
-	}
-	return utils.NewNonAtomicFeatureStoreWrapper(store), nil
+	return factory(ld.Config{})
 }
 
 // NewDynamoDBFeatureStoreFactory returns a factory function for a DynamoDB-backed feature store with an

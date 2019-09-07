@@ -291,12 +291,11 @@ func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Dur
 //
 // Deprecated: Use NewRedisFeatureStoreFactory instead
 func NewRedisFeatureStoreWithDefaults(options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	configuredOptions, err := validateOptions(options...)
+	factory, err := NewRedisFeatureStoreFactory(options...)
 	if err != nil {
 		return nil, err
 	}
-	core := newRedisFeatureStoreInternal(configuredOptions, ld.Config{})
-	return utils.NewFeatureStoreWrapper(core), nil
+	return factory(ld.Config{})
 }
 
 // NewRedisFeatureStoreFactory returns a factory function for a Redis-backed feature store.
