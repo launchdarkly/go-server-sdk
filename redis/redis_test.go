@@ -15,7 +15,7 @@ import (
 const redisURL = "redis://localhost:6379"
 
 func TestRedisFeatureStoreUncached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(30 * time.Second))
+	f, err := NewRedisFeatureStoreFactory(CacheTTL(0))
 	require.NoError(t, err)
 	ldtest.RunFeatureStoreTests(t, f, clearExistingData, false)
 }
