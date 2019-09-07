@@ -47,7 +47,12 @@ type Config struct {
 	Loggers ldlog.Loggers
 	// The connection timeout to use when making polling requests to LaunchDarkly.
 	Timeout time.Duration
-	// Deprecated: Please use FeatureStoreFactory.
+	// Sets the implementation of FeatureStore for holding feature flags and related data received from
+	// LaunchDarkly.
+	//
+	// Except for testing purposes, you should not set this property directly but instead use
+	// FeatureStoreFactory, which ensures that the FeatureStore component will use the same logging
+	// configuration as the rest of the SDK.
 	FeatureStore FeatureStore
 	// Sets the implementation of FeatureStore for holding feature flags and related data received from
 	// LaunchDarkly. See NewInMemoryFeatureStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
