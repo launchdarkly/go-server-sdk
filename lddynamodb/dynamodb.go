@@ -111,8 +111,6 @@ type featureStoreOptions struct {
 type dynamoDBFeatureStore struct {
 	options        featureStoreOptions
 	client         dynamodbiface.DynamoDBAPI
-	table          string
-	prefix         string
 	loggers        ldlog.Loggers
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
@@ -303,7 +301,6 @@ func newDynamoDBFeatureStoreInternal(configuredOptions featureStoreOptions, ldCo
 	store := dynamoDBFeatureStore{
 		options: configuredOptions,
 		client:  configuredOptions.client,
-		table:   configuredOptions.table,
 		loggers: ldConfig.Loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
@@ -376,19 +373,19 @@ func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.Store
 		PutRequest: &dynamodb.PutRequest{Item: initedItem},
 	})
 
-	if err := batchWriteRequests(store.client, store.table, requests); err != nil {
+	if err := batchWriteRequests(store.client, store.options.table, requests); err != nil {
 		store.loggers.Errorf("Failed to write %d item(s) in batches: %s", len(requests), err)
 		return err
 	}
 
-	store.loggers.Infof("Initialized table %q with %d item(s)", store.table, numItems)
+	store.loggers.Infof("Initialized table %q with %d item(s)", store.options.table, numItems)
 
 	return nil
 }
 
 func (store *dynamoDBFeatureStore) InitializedInternal() bool {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
-		TableName:      aws.String(store.table),
+		TableName:      aws.String(store.options.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(store.initedKey())},
@@ -427,7 +424,7 @@ func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (ma
 
 func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
-		TableName:      aws.String(store.table),
+		TableName:      aws.String(store.options.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(store.namespaceForKind(kind))},
@@ -465,7 +462,7 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 	}
 
 	_, err = store.client.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(store.table),
+		TableName: aws.String(store.options.table),
 		Item:      av,
 		ConditionExpression: aws.String(
 			"attribute_not_exists(#namespace) or " +
@@ -497,10 +494,10 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 }
 
 func (store *dynamoDBFeatureStore) prefixedNamespace(baseNamespace string) string {
-	if store.prefix == "" {
+	if store.options.prefix == "" {
 		return baseNamespace
 	}
-	return store.prefix + ":" + baseNamespace
+	return store.options.prefix + ":" + baseNamespace
 }
 
 func (store *dynamoDBFeatureStore) namespaceForKind(kind ld.VersionedDataKind) string {
@@ -513,7 +510,7 @@ func (store *dynamoDBFeatureStore) initedKey() string {
 
 func (store *dynamoDBFeatureStore) makeQueryForKind(kind ld.VersionedDataKind) *dynamodb.QueryInput {
 	return &dynamodb.QueryInput{
-		TableName:      aws.String(store.table),
+		TableName:      aws.String(store.options.table),
 		ConsistentRead: aws.Bool(true),
 		KeyConditions: map[string]*dynamodb.Condition{
 			tablePartitionKey: {
