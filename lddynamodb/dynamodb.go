@@ -118,7 +118,7 @@ type dynamoDBFeatureStore struct {
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewDynamoDBFeatureStore. These include SessionOptions, CacheTTL, DynamoClient,
+// passed to NewDynamoDBFeatureStoreFactory. These include SessionOptions, CacheTTL, DynamoClient,
 // and Logger.
 type FeatureStoreOption interface {
 	apply(opts *featureStoreOptions) error
@@ -133,11 +133,11 @@ func (o prefixOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// Prefix creates an option for NewDynamoDBFeatureStore to specify a string
+// Prefix creates an option for NewDynamoDBFeatureStoreFactory to specify a string
 // that should be prepended to all partition keys used by the feature store. A colon will be
 // added to this automatically. If this is unspecified, no prefix will be used.
 //
-//     store, err := lddynamodb.NewDynamoDBFeatureStore(lddynamodb.Prefix("ld-data"))
+//     factory, err := lddynamodb.NewDynamoDBFeatureStoreFactory(lddynamodb.Prefix("ld-data"))
 func Prefix(prefix string) FeatureStoreOption {
 	return prefixOption{prefix}
 }
@@ -151,12 +151,13 @@ func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// CacheTTL creates an option for NewDynamoDBFeatureStore to set the amount of time
+// CacheTTL creates an option for NewDynamoDBFeatureStoreFactory to set the amount of time
 // that recently read or updated items should remain in an in-memory cache. This reduces the
 // amount of database access if the same feature flags are being evaluated repeatedly. If it
 // is zero, there will be no in-memory caching. The default value is DefaultCacheTTL.
 //
-//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.CacheTTL(30*time.Second))
+//     factory, err := lddynamodb.NewDynamoDBFeatureStoreFactory("my-table-name",
+//         lddynamodb.CacheTTL(30*time.Second))
 func CacheTTL(ttl time.Duration) FeatureStoreOption {
 	return cacheTTLOption{ttl}
 }
@@ -170,7 +171,7 @@ func (o clientConfigOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// ClientConfig creates an option for NewDynamoDBFeatureStore to add an AWS configuration
+// ClientConfig creates an option for NewDynamoDBFeatureStoreFactory to add an AWS configuration
 // object for the DynamoDB client. This allows you to customize settings such as the
 // retry behavior.
 func ClientConfig(config *aws.Config) FeatureStoreOption {
@@ -186,13 +187,14 @@ func (o dynamoClientOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// DynamoClient creates an option for NewDynamoDBFeatureStore to specify an existing
+// DynamoClient creates an option for NewDynamoDBFeatureStoreFactory to specify an existing
 // DynamoDB client instance. Use this if you want to customize the client used by the
-// feature store in ways that are not supported by other NewDynamoDBFeatureStore options.
+// feature store in ways that are not supported by other NewDynamoDBFeatureStoreFactory options.
 // If you specify this option, then any configurations specified with SessionOptions or
 // ClientConfig will be ignored.
 //
-//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.DynamoClient(myDBClient))
+//     factory, err := lddynamodb.NewDynamoDBFeatureStoreFactory("my-table-name",
+//         lddynamodb.DynamoClient(myDBClient))
 func DynamoClient(client dynamodbiface.DynamoDBAPI) FeatureStoreOption {
 	return dynamoClientOption{client}
 }
@@ -206,12 +208,13 @@ func (o sessionOptionsOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// SessionOptions creates an option for NewDynamoDBFeatureStore, to specify an AWS
+// SessionOptions creates an option for NewDynamoDBFeatureStoreFactory, to specify an AWS
 // Session.Options object to use when creating the DynamoDB session. This can be used to
 // set properties such as the region programmatically, rather than relying on the
 // defaults from the environment.
 //
-//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.SessionOptions(myOptions))
+//     factory, err := lddynamodb.NewDynamoDBFeatureStoreFactory("my-table-name",
+//         lddynamodb.SessionOptions(myOptions))
 func SessionOptions(options session.Options) FeatureStoreOption {
 	return sessionOptionsOption{options}
 }
@@ -227,6 +230,9 @@ func (o loggerOption) apply(opts *featureStoreOptions) error {
 
 // Logger creates an option for NewDynamoDBFeatureStore, to specify where to send log output.
 // If not specified, a log.Logger is used.
+//
+// If you use NewDynamoDBFeatureStoreFactory rather than the deprecated constructor, you normally do
+// not need to specify a logger because it will use the same logging configuration as the SDK client.
 //
 //     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {

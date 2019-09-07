@@ -71,7 +71,7 @@ type redisFeatureStoreOptions struct {
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewRedisFeatureStoreWithDefaults. These include UseConfig, Prefix, CacheTTL, and UseLogger.
+// passed to NewRedisFeatureStoreFactory. These include UseConfig, Prefix, CacheTTL, and UseLogger.
 type FeatureStoreOption interface {
 	apply(opts *redisFeatureStoreOptions) error
 }
@@ -178,12 +178,12 @@ func (o loggerOption) apply(opts *redisFeatureStoreOptions) error {
 	return nil
 }
 
-// Logger creates an option for NewRedisFeatureStoreFactory, to specify where to send log output.
+// Logger creates an option for NewRedisFeatureStore, to specify where to send log output.
 //
 // If you use NewConsulFeatureStoreFactory rather than the deprecated constructors, you do not
 // need to specify a logger because it will use the same logging configuration as the SDK client.
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.Logger(myLogger))
+//     store, err := redis.NewRedisFeatureStore(redis.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
 }

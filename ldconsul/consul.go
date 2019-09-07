@@ -78,7 +78,7 @@ type featureStore struct {
 }
 
 // FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewConsulFeatureStore. These include UseConfig, Prefix, CacheTTL, and UseLogger.
+// passed to NewConsulFeatureStoreFactory. These include UseConfig, Prefix, CacheTTL, and UseLogger.
 type FeatureStoreOption interface {
 	apply(opts *featureStoreOptions) error
 }
@@ -92,11 +92,11 @@ func (o configOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// Config creates an option for NewConsulFeatureStore, to specify an entire configuration
+// Config creates an option for NewConsulFeatureStoreFactory, to specify an entire configuration
 // for the Consul driver. This overwrites any previous Consul settings that may have been
 // specified.
 //
-//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Config(myConsulConfig))
+//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Config(myConsulConfig))
 func Config(config c.Config) FeatureStoreOption {
 	return configOption{config}
 }
@@ -110,10 +110,10 @@ func (o addressOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// Address creates an option for NewConsulFeatureStore, to set the address of the Consul server.
+// Address creates an option for NewConsulFeatureStoreFactory, to set the address of the Consul server.
 // If placed after Config(), this modifies the previously specified configuration.
 //
-//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Address("http://consulhost:8100"))
+//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Address("http://consulhost:8100"))
 func Address(address string) FeatureStoreOption {
 	return addressOption{address}
 }
@@ -127,10 +127,10 @@ func (o prefixOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// Prefix creates an option for NewConsulFeatureStore, to specify a prefix for namespacing
+// Prefix creates an option for NewConsulFeatureStoreFactory, to specify a prefix for namespacing
 // the feature store's keys. The default value is DefaultPrefix.
 //
-//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Prefix("ld-data"))
+//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Prefix("ld-data"))
 func Prefix(prefix string) FeatureStoreOption {
 	return prefixOption{prefix}
 }
@@ -144,11 +144,11 @@ func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
 	return nil
 }
 
-// CacheTTL creates an option for NewConsulFeatureStore, to specify how long flag data should be
+// CacheTTL creates an option for NewConsulFeatureStoreFactory, to specify how long flag data should be
 // cached in memory to avoid rereading it from Consul. If this is zero, the feature store will
 // not use an in-memory cache. The default value is DefaultCacheTTL.
 //
-//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.CacheTTL(30*time.Second))
+//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.CacheTTL(30*time.Second))
 func CacheTTL(ttl time.Duration) FeatureStoreOption {
 	return cacheTTLOption{ttl}
 }
@@ -164,10 +164,10 @@ func (o loggerOption) apply(opts *featureStoreOptions) error {
 
 // Logger creates an option for NewConsulFeatureStore, to specify where to send log output.
 //
-// If you use NewConsulFeatureStoreFactory rather than the deprecated constructors, you normally do
+// If you use NewConsulFeatureStoreFactory rather than the deprecated constructor, you normally do
 // not need to specify a logger because it will use the same logging configuration as the SDK client.
 //
-//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Logger(myLogger))
+//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
 }
