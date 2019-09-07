@@ -301,6 +301,7 @@ func newDynamoDBFeatureStoreInternal(configuredOptions featureStoreOptions, ldCo
 	store := dynamoDBFeatureStore{
 		options: configuredOptions,
 		client:  configuredOptions.client,
+		table:   configuredOptions.table,
 		loggers: ldConfig.Loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
