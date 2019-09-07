@@ -5,11 +5,11 @@
 //
 // To use the DynamoDB feature store with the LaunchDarkly client:
 //
-//     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name")
+//     factory, err := lddynamodb.NewDynamoDBFeatureStoreFactory("my-table-name")
 //     if err != nil { ... }
 //
 //     config := ld.DefaultConfig
-//     config.FeatureStore = store
+//     config.FeatureStoreFactory = factory
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // Note that the specified table must already exist in DynamoDB. It must have a
@@ -63,9 +63,8 @@ package lddynamodb
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"time"
 
@@ -75,6 +74,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
 )
 
@@ -97,8 +97,7 @@ type namespaceAndKey struct {
 	key       string
 }
 
-// Internal type for our DynamoDB implementation of the ld.FeatureStore interface.
-type dynamoDBFeatureStore struct {
+type featureStoreOptions struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
 	prefix         string
@@ -106,6 +105,15 @@ type dynamoDBFeatureStore struct {
 	configs        []*aws.Config
 	sessionOptions session.Options
 	logger         ld.Logger
+}
+
+// Internal type for our DynamoDB implementation of the ld.FeatureStore interface.
+type dynamoDBFeatureStore struct {
+	options        featureStoreOptions
+	client         dynamodbiface.DynamoDBAPI
+	table          string
+	prefix         string
+	loggers        ldlog.Loggers
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
 
@@ -113,15 +121,15 @@ type dynamoDBFeatureStore struct {
 // passed to NewDynamoDBFeatureStore. These include SessionOptions, CacheTTL, DynamoClient,
 // and Logger.
 type FeatureStoreOption interface {
-	apply(store *dynamoDBFeatureStore) error
+	apply(opts *featureStoreOptions) error
 }
 
 type prefixOption struct {
 	prefix string
 }
 
-func (o prefixOption) apply(store *dynamoDBFeatureStore) error {
-	store.prefix = o.prefix
+func (o prefixOption) apply(opts *featureStoreOptions) error {
+	opts.prefix = o.prefix
 	return nil
 }
 
@@ -138,8 +146,8 @@ type cacheTTLOption struct {
 	cacheTTL time.Duration
 }
 
-func (o cacheTTLOption) apply(store *dynamoDBFeatureStore) error {
-	store.cacheTTL = o.cacheTTL
+func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
+	opts.cacheTTL = o.cacheTTL
 	return nil
 }
 
@@ -157,8 +165,8 @@ type clientConfigOption struct {
 	config *aws.Config
 }
 
-func (o clientConfigOption) apply(store *dynamoDBFeatureStore) error {
-	store.configs = append(store.configs, o.config)
+func (o clientConfigOption) apply(opts *featureStoreOptions) error {
+	opts.configs = append(opts.configs, o.config)
 	return nil
 }
 
@@ -173,8 +181,8 @@ type dynamoClientOption struct {
 	client dynamodbiface.DynamoDBAPI
 }
 
-func (o dynamoClientOption) apply(store *dynamoDBFeatureStore) error {
-	store.client = o.client
+func (o dynamoClientOption) apply(opts *featureStoreOptions) error {
+	opts.client = o.client
 	return nil
 }
 
@@ -193,8 +201,8 @@ type sessionOptionsOption struct {
 	options session.Options
 }
 
-func (o sessionOptionsOption) apply(store *dynamoDBFeatureStore) error {
-	store.sessionOptions = o.options
+func (o sessionOptionsOption) apply(opts *featureStoreOptions) error {
+	opts.sessionOptions = o.options
 	return nil
 }
 
@@ -212,8 +220,8 @@ type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o loggerOption) apply(store *dynamoDBFeatureStore) error {
-	store.logger = o.logger
+func (o loggerOption) apply(opts *featureStoreOptions) error {
+	opts.logger = o.logger
 	return nil
 }
 
@@ -232,52 +240,92 @@ func Logger(logger ld.Logger) FeatureStoreOption {
 // as AWS environment variables. You can also override the default configuration with the SessionOptions
 // option, or use an already-configured DynamoDB client instance with the DynamoClient option.
 //
-// For other options that can be customized, see CacheTTL and Logger.
+// Deprecated: Please use NewDynamoDBFeatureStoreFactory.
 func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	store, err := newDynamoDBFeatureStoreInternal(table, options...)
+	configuredOptions, err := validateOptions(table, options...)
+	if err != nil {
+		return nil, err
+	}
+	store, err := newDynamoDBFeatureStoreInternal(configuredOptions, ld.Config{})
 	if err != nil {
 		return nil, err
 	}
 	return utils.NewNonAtomicFeatureStoreWrapper(store), nil
 }
 
-func newDynamoDBFeatureStoreInternal(table string, options ...FeatureStoreOption) (*dynamoDBFeatureStore, error) {
-	store := dynamoDBFeatureStore{
+// NewDynamoDBFeatureStoreFactory returns a factory function for a DynamoDB-backed feature store with an
+// optional memory cache. You may customize its behavior with FeatureStoreOption values, such as
+// CacheTTL and SessionOptions.
+//
+// By default, this function uses https://docs.aws.amazon.com/sdk-for-go/api/aws/session/#NewSession
+// to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
+// as AWS environment variables. You can also override the default configuration with the SessionOptions
+// option, or use an already-configured DynamoDB client instance with the DynamoClient option.
+//
+// Set the FeatureStoreFactory field in your Config to the returned value. Because this is specified
+// as a factory function, the Consul client is not actually created until you create the SDK client.
+// This also allows it to use the same logging configuration as the SDK, so you do not have to
+// specify the Logger option separately.
+func NewDynamoDBFeatureStoreFactory(table string, options ...FeatureStoreOption) (ld.FeatureStoreFactory, error) {
+	configuredOptions, err := validateOptions(table, options...)
+	if err != nil {
+		return nil, err
+	}
+	return func(ldConfig ld.Config) (ld.FeatureStore, error) {
+		store, err := newDynamoDBFeatureStoreInternal(configuredOptions, ldConfig)
+		if err != nil {
+			return nil, err
+		}
+		return utils.NewNonAtomicFeatureStoreWrapper(store), nil
+	}, nil
+}
+
+func validateOptions(table string, options ...FeatureStoreOption) (featureStoreOptions, error) {
+	ret := featureStoreOptions{
 		table:    table,
 		cacheTTL: DefaultCacheTTL,
 	}
-
+	if table == "" {
+		return ret, errors.New("table name is required")
+	}
 	for _, o := range options {
-		err := o.apply(&store)
+		err := o.apply(&ret)
 		if err != nil {
-			return nil, err
+			return ret, err
 		}
 	}
+	return ret, nil
+}
 
-	if store.logger == nil {
-		store.logger = log.New(os.Stderr, "[LaunchDarkly DynamoDBFeatureStore]", log.LstdFlags)
+func newDynamoDBFeatureStoreInternal(configuredOptions featureStoreOptions, ldConfig ld.Config) (*dynamoDBFeatureStore, error) {
+	store := dynamoDBFeatureStore{
+		options: configuredOptions,
+		client:  configuredOptions.client,
+		loggers: ldConfig.Loggers, // copied by value so we can modify it
 	}
+	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
+	store.loggers.SetPrefix("DynamoDBFeatureStore:")
 
 	if store.client == nil {
-		sess, err := session.NewSessionWithOptions(store.sessionOptions)
+		sess, err := session.NewSessionWithOptions(configuredOptions.sessionOptions)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to configure DynamoDB client: %s", err)
 		}
-		store.client = dynamodb.New(sess, store.configs...)
+		store.client = dynamodb.New(sess, configuredOptions.configs...)
 	}
 
 	return &store, nil
 }
 
 func (store *dynamoDBFeatureStore) GetCacheTTL() time.Duration {
-	return store.cacheTTL
+	return store.options.cacheTTL
 }
 
 func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.StoreCollection) error {
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys(allData)
 	if err != nil {
-		store.logger.Printf("ERROR: Failed to get existing items prior to Init: %s", err)
+		store.loggers.Errorf("Failed to get existing items prior to Init: %s", err)
 		return err
 	}
 
@@ -290,7 +338,7 @@ func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.Store
 			key := item.GetKey()
 			av, err := store.marshalItem(coll.Kind, item)
 			if err != nil {
-				store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", key, err)
+				store.loggers.Errorf("Failed to marshal item (key=%s): %s", key, err)
 				return err
 			}
 			requests = append(requests, &dynamodb.WriteRequest{
@@ -326,11 +374,11 @@ func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.Store
 	})
 
 	if err := batchWriteRequests(store.client, store.table, requests); err != nil {
-		store.logger.Printf("ERROR: Failed to write %d item(s) in batches: %s", len(requests), err)
+		store.loggers.Errorf("Failed to write %d item(s) in batches: %s", len(requests), err)
 		return err
 	}
 
-	store.logger.Printf("INFO: Initialized table %q with %d item(s)", store.table, numItems)
+	store.loggers.Infof("Initialized table %q with %d item(s)", store.table, numItems)
 
 	return nil
 }
@@ -356,7 +404,7 @@ func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (ma
 			return !lastPage
 		})
 	if err != nil {
-		store.logger.Printf("ERROR: Failed to get all %q items: %s", kind.GetNamespace(), err)
+		store.loggers.Errorf("Failed to get all %q items: %s", kind.GetNamespace(), err)
 		return nil, err
 	}
 
@@ -365,7 +413,7 @@ func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (ma
 	for _, i := range items {
 		item, err := unmarshalItem(kind, i)
 		if err != nil {
-			store.logger.Printf("ERROR: Failed to unmarshal item: %s", err)
+			store.loggers.Errorf("Failed to unmarshal item: %s", err)
 			return nil, err
 		}
 		results[item.GetKey()] = item
@@ -384,18 +432,18 @@ func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key st
 		},
 	})
 	if err != nil {
-		store.logger.Printf("ERROR: Failed to get item (key=%s): %s", key, err)
+		store.loggers.Errorf("Failed to get item (key=%s): %s", key, err)
 		return nil, err
 	}
 
 	if len(result.Item) == 0 {
-		store.logger.Printf("DEBUG: Item not found (key=%s)", key)
+		store.loggers.Debugf("Item not found (key=%s)", key)
 		return nil, nil
 	}
 
 	item, err := unmarshalItem(kind, result.Item)
 	if err != nil {
-		store.logger.Printf("ERROR: Failed to unmarshal item (key=%s): %s", key, err)
+		store.loggers.Errorf("Failed to unmarshal item (key=%s): %s", key, err)
 		return nil, err
 	}
 
@@ -405,7 +453,7 @@ func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key st
 func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
 	av, err := store.marshalItem(kind, item)
 	if err != nil {
-		store.logger.Printf("ERROR: Failed to marshal item (key=%s): %s", item.GetKey(), err)
+		store.loggers.Errorf("Failed to marshal item (key=%s): %s", item.GetKey(), err)
 		return nil, err
 	}
 
@@ -432,13 +480,13 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.logger.Printf("DEBUG: Not updating item due to condition (namespace=%s key=%s version=%d)",
+			store.loggers.Errorf("Not updating item due to condition (namespace=%s key=%s version=%d)",
 				kind.GetNamespace(), item.GetKey(), item.GetVersion())
 			// We must now read the item that's in the database and return it, so FeatureStoreWrapper can cache it
 			oldItem, err := store.GetInternal(kind, item.GetKey())
 			return oldItem, err
 		}
-		store.logger.Printf("ERROR: Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
+		store.loggers.Errorf("Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
 		return nil, err
 	}
 

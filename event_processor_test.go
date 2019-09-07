@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -30,7 +29,6 @@ var epDefaultConfig = Config{
 	SendEvents:            true,
 	Capacity:              1000,
 	FlushInterval:         1 * time.Hour,
-	Logger:                log.New(os.Stderr, "[LaunchDarkly]", log.LstdFlags),
 	UserKeysCapacity:      1000,
 	UserKeysFlushInterval: 1 * time.Hour,
 }
@@ -671,7 +669,7 @@ func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
 
 	config := epDefaultConfig
 	logger := newMockLogger("")
-	config.Logger = logger
+	config.Loggers.SetBaseLogger(logger)
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
 
@@ -695,7 +693,7 @@ func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
 		assert.Equal(t, partialUser, output[2]["user"])
 	}
 
-	expectedMessage := fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user3, false), errorMessage)
+	expectedMessage := "ERROR: " + fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user3, false), errorMessage)
 	assert.Equal(t, []string{expectedMessage}, logger.output)
 }
 
