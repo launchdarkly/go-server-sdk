@@ -261,9 +261,9 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ld.FeatureFlag //nolint:megacheck
+	Flags      *map[string]ld.FeatureFlag
 	FlagValues *map[string]interface{}
-	Segments   *map[string]ld.Segment //nolint:megacheck
+	Segments   *map[string]ld.Segment
 }
 
 func insertData(all map[ld.VersionedDataKind]map[string]ld.VersionedData, kind ld.VersionedDataKind, key string,
@@ -315,11 +315,11 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 		if d.FlagValues != nil {
 			for key, f := range *d.FlagValues {
 				zeroVariation := 0
-				data := ld.FeatureFlag{ //nolint:megacheck
+				data := ld.FeatureFlag{
 					Key:         key,
 					Variations:  []interface{}{f},
 					On:          true,
-					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation}, //nolint:megacheck
+					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation},
 				}
 				if err := insertData(all, ld.Features, key, &data); err != nil {
 					return nil, err
