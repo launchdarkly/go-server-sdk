@@ -435,7 +435,6 @@ func (client *LDClient) variation(key string, user User, defaultVal ldvalue.Valu
 		result.VariationIndex = nil
 	} else {
 		if checkType && result.JSONValue.Type() != defaultVal.Type() {
-			fmt.Printf("*** defaultVal.Type = %s, result.Type = %s\n", defaultVal.Type(), result.JSONValue.Type())
 			result = NewEvaluationError(defaultVal, EvalErrorWrongType)
 		}
 	}
