@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldvalue"
 )
 
 var evalTestUser = NewUser("userkey")
@@ -25,7 +26,8 @@ func makeMalformedFlag(key string) *FeatureFlag {
 	return &FeatureFlag{Key: key, On: false, OffVariation: intPtr(-1)}
 }
 
-func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value interface{}, variation int, defaultVal interface{}, reason EvaluationReason) {
+func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value ldvalue.Value,
+	variation int, defaultVal ldvalue.Value, reason EvaluationReason) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(FeatureRequestEvent)
@@ -36,9 +38,9 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user Use
 		},
 		Key:       flag.Key,
 		Version:   &flag.Version,
-		Value:     value,
+		Value:     value.UnsafeInnerValue(),
 		Variation: intPtr(variation),
-		Default:   defaultVal,
+		Default:   defaultVal.UnsafeInnerValue(),
 		Reason:    EvaluationReasonContainer{reason},
 	}
 	assert.Equal(t, expectedEvent, e)
@@ -58,7 +60,7 @@ func TestBoolVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Bool(expected), 1, ldvalue.Bool(defaultVal), nil)
 }
 
 func TestBoolVariationDetail(t *testing.T) {
@@ -75,10 +77,11 @@ func TestBoolVariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.Bool())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Bool(expected), 1, ldvalue.Bool(defaultVal), detail.Reason)
 }
 
 func TestIntVariation(t *testing.T) {
@@ -95,7 +98,7 @@ func TestIntVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int(expected), actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Int(expected), 1, ldvalue.Int(defaultVal), nil)
 }
 
 func TestIntVariationRoundsFloatTowardZero(t *testing.T) {
@@ -142,10 +145,11 @@ func TestIntVariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, float64(expected), detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.Int())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Int(expected), 1, ldvalue.Int(defaultVal), detail.Reason)
 }
 
 func TestFloat64Variation(t *testing.T) {
@@ -162,7 +166,7 @@ func TestFloat64Variation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Float64(expected), 1, ldvalue.Float64(defaultVal), nil)
 }
 
 func TestFloat64VariationDetail(t *testing.T) {
@@ -179,10 +183,11 @@ func TestFloat64VariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.Float64())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Float64(expected), 1, ldvalue.Float64(defaultVal), detail.Reason)
 }
 
 func TestStringVariation(t *testing.T) {
@@ -199,7 +204,7 @@ func TestStringVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.String(expected), 1, ldvalue.String(defaultVal), nil)
 }
 
 func TestStringVariationDetail(t *testing.T) {
@@ -216,10 +221,11 @@ func TestStringVariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.String())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.String(expected), 1, ldvalue.String(defaultVal), detail.Reason)
 }
 
 func TestJsonVariation(t *testing.T) {
@@ -240,13 +246,14 @@ func TestJsonVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, json.RawMessage(expectedJSON), actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.ValueCopy(expectedValue), 1, ldvalue.ValueCopy(defaultVal), nil)
 }
 
 func TestJsonVariationDetail(t *testing.T) {
 	expectedValue := map[string]interface{}{"field2": "value2"}
 	otherValue := map[string]interface{}{"field1": "value1"}
 	expectedJSON, _ := json.Marshal(expectedValue)
+	expectedRaw := json.RawMessage(expectedJSON)
 
 	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
 
@@ -259,12 +266,102 @@ func TestJsonVariationDetail(t *testing.T) {
 	actual, detail, err := client.JsonVariationDetail("validFeatureKey", evalTestUser, defaultVal)
 
 	assert.NoError(t, err)
-	assert.Equal(t, json.RawMessage(expectedJSON), actual)
+	assert.Equal(t, expectedRaw, actual)
 	assert.Equal(t, expectedValue, detail.Value)
+	assert.Equal(t, expectedRaw, detail.JSONValue.Raw())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.ValueCopy(expectedValue), 1, ldvalue.ValueCopy(defaultVal), detail.Reason)
+}
+
+func TestJSONRawVariation(t *testing.T) {
+	expectedValue := map[string]interface{}{"field2": "value2"}
+	otherValue := map[string]interface{}{"field1": "value1"}
+	expectedJSON, _ := json.Marshal(expectedValue)
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	var actual json.RawMessage
+	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
+	actual, err := client.JSONRawVariation("validFeatureKey", evalTestUser, defaultVal)
+
+	assert.NoError(t, err)
+	assert.Equal(t, json.RawMessage(expectedJSON), actual)
+
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.ValueCopy(expectedValue), 1, ldvalue.ValueCopy(defaultVal), nil)
+}
+
+func TestJSONRawVariationDetail(t *testing.T) {
+	expectedValue := map[string]interface{}{"field2": "value2"}
+	otherValue := map[string]interface{}{"field1": "value1"}
+	expectedJSON, _ := json.Marshal(expectedValue)
+	expectedRaw := json.RawMessage(expectedJSON)
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	var actual json.RawMessage
+	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
+	actual, detail, err := client.JSONRawVariationDetail("validFeatureKey", evalTestUser, defaultVal)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedRaw, actual)
+	assert.Equal(t, expectedValue, detail.Value)
+	assert.Equal(t, expectedRaw, detail.JSONValue.Raw())
+	assert.Equal(t, intPtr(1), detail.VariationIndex)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
+
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.ValueCopy(expectedValue), 1, ldvalue.ValueCopy(defaultVal), detail.Reason)
+}
+
+func TestJSONValueVariation(t *testing.T) {
+	expected := ldvalue.ObjectCopy(map[string]interface{}{"field2": "value2"})
+	otherValue := ldvalue.ObjectCopy(map[string]interface{}{"field1": "value1"})
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue.UnsafeInnerValue(), expected.UnsafeInnerValue())
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	defaultVal := ldvalue.String("no")
+	actual, err := client.JSONValueVariation("validFeatureKey", evalTestUser, defaultVal)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, actual)
+
+	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+}
+
+func TestJSONValueVariationDetail(t *testing.T) {
+	expected := ldvalue.ObjectCopy(map[string]interface{}{"field2": "value2"})
+	otherValue := ldvalue.ObjectCopy(map[string]interface{}{"field1": "value1"})
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue.UnsafeInnerValue(), expected.UnsafeInnerValue())
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	defaultVal := ldvalue.String("no")
+	actual, detail, err := client.JSONValueVariationDetail("validFeatureKey", evalTestUser, defaultVal)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected.InnerValue(), detail.Value)
+	assert.Equal(t, expected, detail.JSONValue)
+	assert.Equal(t, intPtr(1), detail.VariationIndex)
+	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
+
+	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
 }
 
 func TestEvaluatingUnknownFlagReturnsDefault(t *testing.T) {

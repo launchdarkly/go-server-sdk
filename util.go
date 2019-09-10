@@ -81,6 +81,8 @@ func unixMillisToUtcTime(unixMillis float64) time.Time {
 }
 
 // ToJsonRawMessage converts input to a *json.RawMessage if possible.
+//
+// Deprecated: No longer used in the SDK, will be removed in a future version.
 func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 	if input == nil {
 		return nil, nil

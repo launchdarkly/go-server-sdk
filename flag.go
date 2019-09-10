@@ -8,6 +8,8 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldvalue"
 )
 
 const (
@@ -251,7 +253,7 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 
 		events = append(events, moreEvents...)
 		prereqEvent := newSuccessfulEvalEvent(prereqFeatureFlag, user, prereqResult.VariationIndex,
-			prereqResult.Value, nil, prereqResult.Reason, sendReasonsInEvents, &f.Key)
+			prereqResult.JSONValue, ldvalue.Null(), prereqResult.Reason, sendReasonsInEvents, &f.Key)
 		if sendReasonsInEvents {
 			prereqEvent.Reason.Reason = prereqResult.Reason
 		}
@@ -289,9 +291,11 @@ func (f FeatureFlag) getVariation(index int, reason EvaluationReason) Evaluation
 	if index < 0 || index >= len(f.Variations) {
 		return EvaluationDetail{Reason: newEvalReasonError(EvalErrorMalformedFlag)}
 	}
+	value := f.Variations[index]
 	return EvaluationDetail{
 		Reason:         reason,
-		Value:          f.Variations[index],
+		Value:          value,
+		JSONValue:      ldvalue.UnsafeValueCopy(value), //nolint
 		VariationIndex: &index,
 	}
 }
