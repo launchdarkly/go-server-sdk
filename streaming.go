@@ -10,6 +10,7 @@ import (
 	"time"
 
 	es "github.com/launchdarkly/eventsource"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
 const (
@@ -220,11 +221,12 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/all", nil)
 		req.Header.Add("Authorization", sp.sdkKey)
 		req.Header.Add("User-Agent", sp.config.UserAgent)
+		sp.config.Loggers.Info("Connecting to LaunchDarkly stream")
 
 		if stream, err := es.SubscribeWithRequestAndOptions(req,
 			es.StreamOptionHTTPClient(sp.client),
 			es.StreamOptionReadTimeout(streamReadTimeout),
-			es.StreamOptionLogger(sp.config.Logger)); err != nil {
+			es.StreamOptionLogger(sp.config.Loggers.ForLevel(ldlog.Info))); err != nil {
 
 			sp.config.Loggers.Warnf("Unable to establish streaming connection: %+v", err)
 
