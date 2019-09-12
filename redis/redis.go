@@ -414,7 +414,7 @@ func (store *redisFeatureStoreCore) GetInternal(kind ld.VersionedDataKind, key s
 
 	item, jsonErr := utils.UnmarshalItem(kind, []byte(jsonStr))
 	if jsonErr != nil {
-		return nil, jsonErr
+		return nil, fmt.Errorf("failed to unmarshal %s key %s: %s", kind, key, jsonErr)
 	}
 	return item, nil
 }
@@ -435,7 +435,7 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 		item, jsonErr := utils.UnmarshalItem(kind, []byte(v))
 
 		if jsonErr != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal %s: %s", kind, err)
 		}
 
 		results[k] = item
@@ -459,7 +459,7 @@ func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKin
 			data, jsonErr := json.Marshal(v)
 
 			if jsonErr != nil {
-				return jsonErr
+				return fmt.Errorf("failed to marshal %s key %s: %s", kind, k, jsonErr)
 			}
 
 			_ = c.Send("HSET", baseKey, k, data)
@@ -499,12 +499,18 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 		}
 
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
+			updateOrDelete := "update"
+			if newItem.IsDeleted() {
+				updateOrDelete = "delete"
+			}
+			store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
+				updateOrDelete, key, oldItem.GetVersion(), kind.GetNamespace(), newItem.GetVersion())
 			return oldItem, nil
 		}
 
 		data, jsonErr := json.Marshal(newItem)
 		if jsonErr != nil {
-			return nil, jsonErr
+			return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, key, jsonErr)
 		}
 
 		_ = c.Send("MULTI")

@@ -27,7 +27,7 @@ func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor 
 }
 
 func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
-	pp.config.Loggers.Infof("Starting LaunchDarkly polling processor with interval: %+v", pp.config.PollInterval)
+	pp.config.Loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.config.PollInterval)
 
 	ticker := newTickerWithInitialTick(pp.config.PollInterval)
 
@@ -46,7 +46,7 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 		for {
 			select {
 			case <-pp.quit:
-				pp.config.Loggers.Info("Polling processor closed")
+				pp.config.Loggers.Info("Polling has been shut down")
 				return
 			case <-ticker.C:
 				if err := pp.poll(); err != nil {
@@ -62,6 +62,7 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				}
 				pp.setInitializedOnce.Do(func() {
 					pp.isInitialized = true
+					pp.config.Loggers.Info("First polling request successful")
 					notifyReady()
 				})
 			}
@@ -85,7 +86,6 @@ func (pp *pollingProcessor) poll() error {
 
 func (pp *pollingProcessor) Close() error {
 	pp.closeOnce.Do(func() {
-		pp.config.Loggers.Info("Closing polling processor")
 		close(pp.quit)
 	})
 	return nil

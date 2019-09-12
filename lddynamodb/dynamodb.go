@@ -305,6 +305,7 @@ func newDynamoDBFeatureStoreInternal(configuredOptions featureStoreOptions, ldCo
 	}
 	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	store.loggers.SetPrefix("DynamoDBFeatureStore:")
+	store.loggers.Infof(`Using DynamoDB table %s`, configuredOptions.table)
 
 	if store.client == nil {
 		sess, err := session.NewSessionWithOptions(configuredOptions.sessionOptions)
@@ -325,8 +326,7 @@ func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.Store
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys(allData)
 	if err != nil {
-		store.loggers.Errorf("Failed to get existing items prior to Init: %s", err)
-		return err
+		return fmt.Errorf("failed to get existing items prior to Init: %s", err)
 	}
 
 	requests := make([]*dynamodb.WriteRequest, 0)
@@ -338,8 +338,7 @@ func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.Store
 			key := item.GetKey()
 			av, err := store.marshalItem(coll.Kind, item)
 			if err != nil {
-				store.loggers.Errorf("Failed to marshal item (key=%s): %s", key, err)
-				return err
+				return fmt.Errorf("failed to marshal %s key %s: %s", coll.Kind, key, err)
 			}
 			requests = append(requests, &dynamodb.WriteRequest{
 				PutRequest: &dynamodb.PutRequest{Item: av},
@@ -374,8 +373,7 @@ func (store *dynamoDBFeatureStore) InitCollectionsInternal(allData []utils.Store
 	})
 
 	if err := batchWriteRequests(store.client, store.options.table, requests); err != nil {
-		store.loggers.Errorf("Failed to write %d item(s) in batches: %s", len(requests), err)
-		return err
+		return fmt.Errorf("failed to write %d items(s) in batches: %s", len(requests), err)
 	}
 
 	store.loggers.Infof("Initialized table %q with %d item(s)", store.options.table, numItems)
@@ -404,7 +402,6 @@ func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (ma
 			return !lastPage
 		})
 	if err != nil {
-		store.loggers.Errorf("Failed to get all %q items: %s", kind.GetNamespace(), err)
 		return nil, err
 	}
 
@@ -413,8 +410,7 @@ func (store *dynamoDBFeatureStore) GetAllInternal(kind ld.VersionedDataKind) (ma
 	for _, i := range items {
 		item, err := unmarshalItem(kind, i)
 		if err != nil {
-			store.loggers.Errorf("Failed to unmarshal item: %s", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal %s: %s", kind, err)
 		}
 		results[item.GetKey()] = item
 	}
@@ -432,8 +428,7 @@ func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key st
 		},
 	})
 	if err != nil {
-		store.loggers.Errorf("Failed to get item (key=%s): %s", key, err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get %s key %s: %s", kind, key, err)
 	}
 
 	if len(result.Item) == 0 {
@@ -443,8 +438,7 @@ func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key st
 
 	item, err := unmarshalItem(kind, result.Item)
 	if err != nil {
-		store.loggers.Errorf("Failed to unmarshal item (key=%s): %s", key, err)
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal %s key %s: %s", kind, key, err)
 	}
 
 	return item, nil
@@ -453,8 +447,7 @@ func (store *dynamoDBFeatureStore) GetInternal(kind ld.VersionedDataKind, key st
 func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
 	av, err := store.marshalItem(kind, item)
 	if err != nil {
-		store.loggers.Errorf("Failed to marshal item (key=%s): %s", item.GetKey(), err)
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, item.GetKey(), err)
 	}
 
 	if store.testUpdateHook != nil {
@@ -480,14 +473,13 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.loggers.Errorf("Not updating item due to condition (namespace=%s key=%s version=%d)",
+			store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
 				kind.GetNamespace(), item.GetKey(), item.GetVersion())
 			// We must now read the item that's in the database and return it, so FeatureStoreWrapper can cache it
 			oldItem, err := store.GetInternal(kind, item.GetKey())
 			return oldItem, err
 		}
-		store.loggers.Errorf("Failed to put item (namespace=%s key=%s): %s", kind.GetNamespace(), item.GetKey(), err)
-		return nil, err
+		return nil, fmt.Errorf("failed to put %s key %s: %s", kind, item.GetKey(), err)
 	}
 
 	return item, nil

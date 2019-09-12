@@ -128,11 +128,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 	}
 	client.updateProcessor.Start(closeWhenReady)
+	if waitFor > 0 && !config.Offline && !config.UseLdd {
+		config.Loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
+			waitFor/time.Millisecond)
+	}
 	timeout := time.After(waitFor)
 	for {
 		select {
 		case <-closeWhenReady:
 			if !client.updateProcessor.Initialized() {
+				config.Loggers.Warn("LaunchDarkly client initialization failed")
 				return &client, ErrInitializationFailed
 			}
 
@@ -140,7 +145,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			return &client, nil
 		case <-timeout:
 			if waitFor > 0 {
-				config.Loggers.Warn("Timeout exceeded when initializing LaunchDarkly client.")
+				config.Loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
 				return &client, ErrInitializationTimeout
 			}
 
@@ -236,7 +241,7 @@ func (client *LDClient) Initialized() bool {
 // should no longer be used. The method will block until all pending analytics events (if any)
 // been sent.
 func (client *LDClient) Close() error {
-	client.config.Loggers.Info("Closing LaunchDarkly Client")
+	client.config.Loggers.Info("Closing LaunchDarkly client")
 	if client.IsOffline() {
 		return nil
 	}
