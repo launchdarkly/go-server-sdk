@@ -80,7 +80,13 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
-	config.Loggers.SetBaseLogger(config.Logger) // config.Logger is allowed to be nil at this point
+	// Our logger configuration logic is a little funny for backward compatibility reasons. We had
+	// to continue providing a non-nil logger in DefaultConfig.Logger, but we still want ldlog to
+	// use its own default behavior if the app did not specifically override the logger. So if we
+	// see that same exact logger instance, we'll ignore it.
+	if config.Logger != nil && config.Logger != defaultLogger {
+		config.Loggers.SetBaseLogger(config.Logger)
+	}
 	if config.Logger == nil {
 		config.Logger = DefaultConfig.Logger // always set this, in case someone accidentally uses it instead of Loggers
 	}
