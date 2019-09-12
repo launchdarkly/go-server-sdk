@@ -32,8 +32,15 @@ func (level LogLevel) Name() string {
 		return "Warn"
 	case Error:
 		return "Error"
+	case None:
+		return "None"
 	}
 	return "?"
+}
+
+// String is the default string representation of LogLevel, which is the same as Name().
+func (level LogLevel) String() string {
+	return level.Name()
 }
 
 const (
