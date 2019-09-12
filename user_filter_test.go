@@ -119,7 +119,7 @@ func TestUserSerialization(t *testing.T) {
 	doUserSerializationErrorTest := func(errorValue interface{}, withUserKey bool) {
 		logger := newMockLogger("")
 		config := DefaultConfig
-		config.Logger = logger
+		config.Loggers.SetBaseLogger(logger)
 		config.LogUserKeyInErrors = withUserKey
 		filter := newUserFilter(config)
 		user := User{
@@ -134,7 +134,7 @@ func TestUserSerialization(t *testing.T) {
 		bytes, err := json.Marshal(scrubbedUser)
 		assert.NoError(t, err)
 
-		expectedMessage := fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user, withUserKey), errorMessage)
+		expectedMessage := "ERROR: " + fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user, withUserKey), errorMessage)
 		assert.Equal(t, []string{expectedMessage}, logger.output)
 
 		// Verify that we did marshal all of the user attributes except the custom ones
