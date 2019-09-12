@@ -426,6 +426,8 @@ func (t *sendEventsTask) postEvents(outputEvents []interface{}) *http.Response {
 		return nil
 	}
 
+	t.loggers.Debugf("Sending %d events: %s", len(outputEvents), jsonPayload)
+
 	var resp *http.Response
 	var respErr error
 	for attempt := 0; attempt < 2; attempt++ {

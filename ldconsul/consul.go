@@ -237,8 +237,7 @@ func newConsulFeatureStoreInternal(configuredOptions featureStoreOptions, ldConf
 
 	client, err := c.NewClient(&store.options.consulConfig)
 	if err != nil {
-		store.loggers.Errorf("Unable to configure Consul client: %s")
-		return nil, err
+		return nil, fmt.Errorf("unable to configure Consul client: %s", err)
 	}
 	store.client = client
 	return store, nil
@@ -260,14 +259,14 @@ func (store *featureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string
 	pairs, _, err := kv.List(store.featuresKey(kind), nil)
 
 	if err != nil {
-		return results, err
+		return results, fmt.Errorf("List failed for %s: %s", kind, err)
 	}
 
 	for _, pair := range pairs {
 		item, jsonErr := utils.UnmarshalItem(kind, pair.Value)
 
 		if jsonErr != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to unmarshal %s: %s", kind, err)
 		}
 
 		results[item.GetKey()] = item
@@ -281,7 +280,7 @@ func (store *featureStore) InitCollectionsInternal(allData []utils.StoreCollecti
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	pairs, _, err := kv.List(store.options.prefix, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get existing items prior to Init: %s", err)
 	}
 	oldKeys := make(map[string]bool)
 	for _, p := range pairs {
@@ -294,7 +293,7 @@ func (store *featureStore) InitCollectionsInternal(allData []utils.StoreCollecti
 		for _, item := range coll.Items {
 			data, jsonErr := json.Marshal(item)
 			if jsonErr != nil {
-				return jsonErr
+				return fmt.Errorf("failed to marshal %s key %s: %s", coll.Kind, item.GetKey(), jsonErr)
 			}
 
 			key := store.featureKeyFor(coll.Kind, item.GetKey())
@@ -326,7 +325,7 @@ func (store *featureStore) InitCollectionsInternal(allData []utils.StoreCollecti
 func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
 	data, jsonErr := json.Marshal(newItem)
 	if jsonErr != nil {
-		return nil, jsonErr
+		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, newItem.GetKey(), jsonErr)
 	}
 	key := newItem.GetKey()
 
@@ -394,7 +393,7 @@ func (store *featureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key strin
 	item, jsonErr := utils.UnmarshalItem(kind, pair.Value)
 
 	if jsonErr != nil {
-		return nil, defaultModifyIndex, jsonErr
+		return nil, defaultModifyIndex, fmt.Errorf("failed to unmarshal %s key %s: %s", kind, key, jsonErr)
 	}
 
 	return item, pair.ModifyIndex, nil

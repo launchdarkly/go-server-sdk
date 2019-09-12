@@ -99,10 +99,10 @@ func (store *InMemoryFeatureStore) Get(kind VersionedDataKind, key string) (Vers
 	item := store.allData[kind][key]
 
 	if item == nil {
-		store.loggers.Warnf("Key: %s not found in \"%s\".", key, kind)
+		store.loggers.Debugf(`Key %s not found in "%s"`, key, kind)
 		return nil, nil
 	} else if item.IsDeleted() {
-		store.loggers.Warnf("Attempted to get deleted item in \"%s\". Key: %s", kind, key)
+		store.loggers.Debugf(`Attempted to get deleted item with key %s in "%s"`, kind, key)
 		return nil, nil
 	} else {
 		return item, nil

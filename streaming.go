@@ -10,6 +10,7 @@ import (
 	"time"
 
 	es "github.com/launchdarkly/eventsource"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
 const (
@@ -104,7 +105,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 		select {
 		case event, ok := <-sp.stream.Events:
 			if !ok {
-				sp.config.Loggers.Info("Event stream closed.")
+				sp.config.Loggers.Info("Event stream closed")
 				return
 			}
 			switch event.Event() {
@@ -120,7 +121,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 					return
 				}
 				sp.setInitializedOnce.Do(func() {
-					sp.config.Loggers.Info("Started LaunchDarkly streaming client")
+					sp.config.Loggers.Info("LaunchDarkly streaming is active")
 					sp.isInitialized = true
 					notifyReady()
 				})
@@ -137,11 +138,11 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 				}
 				item := path.kind.GetDefaultItem().(VersionedData)
 				if err = json.Unmarshal(patch.Data, item); err != nil {
-					sp.config.Loggers.Errorf("Unexpected error unmarshalling json for %s item: %+v", path.kind, err)
+					sp.config.Loggers.Errorf("Unexpected error unmarshalling JSON for %s item: %+v", path.kind, err)
 					break
 				}
 				if err = sp.store.Upsert(path.kind, item); err != nil {
-					sp.config.Loggers.Errorf("Unexpected error storing segment json: %+v", err)
+					sp.config.Loggers.Errorf("Unexpected error storing %s item: %+v", path.kind, err)
 				}
 			case deleteEvent:
 				var data deleteData
@@ -155,7 +156,7 @@ func (sp *streamProcessor) events(closeWhenReady chan<- struct{}) {
 					break
 				}
 				if err = sp.store.Delete(path.kind, path.key, data.Version); err != nil {
-					sp.config.Loggers.Errorf(`Unexpected error deleting %s object "%s": %s`, path.kind, path.key, err)
+					sp.config.Loggers.Errorf(`Unexpected error deleting %s item "%s": %s`, path.kind, path.key, err)
 				}
 			case indirectPatchEvent:
 				path, err := parsePath(event.Data())
@@ -220,12 +221,12 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/all", nil)
 		req.Header.Add("Authorization", sp.sdkKey)
 		req.Header.Add("User-Agent", sp.config.UserAgent)
-		sp.config.Loggers.Infof("Connecting to LaunchDarkly stream using URL: %s", req.URL.String())
+		sp.config.Loggers.Info("Connecting to LaunchDarkly stream")
 
 		if stream, err := es.SubscribeWithRequestAndOptions(req,
 			es.StreamOptionHTTPClient(sp.client),
 			es.StreamOptionReadTimeout(streamReadTimeout),
-			es.StreamOptionLogger(sp.config.Logger)); err != nil {
+			es.StreamOptionLogger(sp.config.Loggers.ForLevel(ldlog.Info))); err != nil {
 
 			sp.config.Loggers.Warnf("Unable to establish streaming connection: %+v", err)
 
