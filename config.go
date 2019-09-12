@@ -1,7 +1,9 @@
 package ldclient
 
 import (
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
@@ -148,6 +150,12 @@ func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
 	}
 }
 
+// The ldlog package already has its own logic for using a default logger if none was set.
+// However, in the past we've always guaranteed that DefaultConfig.Logger is non-nil, so
+// we need to continue doing so for now. If the client initialization logic sees that
+// config.Logger is set to this exact instance, it'll ignore it.
+var defaultLogger = log.New(os.Stderr, "[LaunchDarkly] ", log.LstdFlags)
+
 // DefaultConfig provides the default configuration options for the LaunchDarkly client.
 // The easiest way to create a custom configuration is to start with the
 // default config, and set the custom options from there. For example:
@@ -169,4 +177,5 @@ var DefaultConfig = Config{
 	UserKeysCapacity:      1000,
 	UserKeysFlushInterval: 5 * time.Minute,
 	UserAgent:             "",
+	Logger:                defaultLogger,
 }
