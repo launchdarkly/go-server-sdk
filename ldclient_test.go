@@ -265,7 +265,7 @@ func (l *mockLogger) append(s string) {
 }
 
 func (l *mockLogger) Println(args ...interface{}) {
-	l.append(fmt.Sprint(args...))
+	l.append(strings.TrimSpace(fmt.Sprintln(args...)))
 }
 
 func (l *mockLogger) Printf(format string, args ...interface{}) {

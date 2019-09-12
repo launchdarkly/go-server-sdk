@@ -16,22 +16,26 @@ defaults:
     COMMON_GO_PACKAGES: >
       github.com/golang/dep/cmd/dep
       github.com/jstemmer/go-junit-report
-      github.com/kyoh86/richgo
 
   build_steps: &build_steps
     steps:
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
-      - run: make lint
+      # The reason the lint step is conditional here is: 1. we had to pin golangci-lint to v1.10.2; 2. the
+      # linter does not handle build tags correctly, because it always uses the build tags that *the linter*
+      # was built with; 3. there's some code in built-in packages in Go 1.12 that uses build tags and the
+      # linter will end up looking at the wrong subset of that code, and fail on it.
+      - run: if [ "$CIRCLE_JOB" != "go-test-1.12" ]; then make lint; fi
       - run: dep ensure -dry-run
-
+      - run: go build ./...
+      
       - run:
           name: Run tests
           command: |
             mkdir -p $CIRCLE_TEST_REPORTS
             mkdir -p $CIRCLE_ARTIFACTS
             trap "go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
-            make test | tee >(richgo testfilter) > $CIRCLE_ARTIFACTS/report.txt
+            make test | tee $CIRCLE_ARTIFACTS/report.txt
 
       - store_test_results:
           path: /tmp/circle-reports
@@ -40,11 +44,37 @@ defaults:
           path: /tmp/circle-artifacts
 
 jobs:
-  go-test:
+  go-test-1.12:
     working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
 
     docker:
-      - image: circleci/golang:1.10.1
+      - image: circleci/golang:1.12
+        environment:
+          <<: *environment
+      - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
+
+    <<: *build_steps
+
+  go-test-1.11:
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+
+    docker:
+      - image: circleci/golang:1.11
+        environment:
+          <<: *environment
+      - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
+
+    <<: *build_steps
+
+  go-test-1.10:
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+
+    docker:
+      - image: circleci/golang:1.10
         environment:
           <<: *environment
       - image: redis
@@ -83,6 +113,8 @@ workflows:
   version: 2
   test:
     jobs:
-      - go-test
+      - go-test-1.12
+      - go-test-1.11
+      - go-test-1.10
       - go-test-1.9
       - go-test-1.8
