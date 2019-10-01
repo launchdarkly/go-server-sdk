@@ -141,6 +141,8 @@ func initCache(core FeatureStoreCoreBase) *cache.Cache {
 	cacheTTL := core.GetCacheTTL()
 	if cacheTTL != 0 {
 		return cache.New(cacheTTL, 5*time.Minute)
+		// Note that the documented behavior of go-cache is that if cacheTTL is negative, the
+		// cache never expires. That is consistent with we've defined the parameter.
 	}
 	return nil
 }
