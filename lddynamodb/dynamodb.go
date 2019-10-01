@@ -151,8 +151,14 @@ func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
 
 // CacheTTL creates an option for NewDynamoDBFeatureStoreFactory to set the amount of time
 // that recently read or updated items should remain in an in-memory cache. This reduces the
-// amount of database access if the same feature flags are being evaluated repeatedly. If it
-// is zero, there will be no in-memory caching. The default value is DefaultCacheTTL.
+// amount of database access if the same feature flags are being evaluated repeatedly.
+//
+// The default value is DefaultCacheTTL. A value of zero disables in-memory caching completely.
+// A negative value means data is cached forever (i.e. it will only be read again from the
+// database if the SDK is restarted). Use the "cached forever" mode with caution: it means
+// that in a scenario where multiple processes are sharing the database, and the current
+// process loses connectivity to LaunchDarkly while other processes are still receiving
+// updates and writing them to the database, the current process will have stale data.
 //
 //     factory, err := lddynamodb.NewDynamoDBFeatureStoreFactory("my-table-name",
 //         lddynamodb.CacheTTL(30*time.Second))

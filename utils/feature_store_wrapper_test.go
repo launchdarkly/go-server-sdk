@@ -106,6 +106,9 @@ func TestFeatureStoreWrapper(t *testing.T) {
 			t.Run("cached", func(t *testing.T) {
 				test(t, true, newCore(cacheTime))
 			})
+			t.Run("cached indefinitely", func(t *testing.T) {
+				test(t, true, newCore(-1))
+			})
 		})
 	}
 
