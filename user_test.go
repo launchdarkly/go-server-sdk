@@ -21,3 +21,13 @@ func TestNewAnonymousUser(t *testing.T) {
 	anonymous, _ := user.valueOf("anonymous")
 	assert.Equal(t, true, anonymous)
 }
+
+var benchUser User
+
+func BenchmarkNewAnonymousUser(b *testing.B) {
+	var user User
+	for i := 0; i < b.N; i++ {
+		user = NewAnonymousUser("some-key")
+	}
+	benchUser = user
+}
