@@ -145,8 +145,14 @@ func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
 }
 
 // CacheTTL creates an option for NewConsulFeatureStoreFactory, to specify how long flag data should be
-// cached in memory to avoid rereading it from Consul. If this is zero, the feature store will
-// not use an in-memory cache. The default value is DefaultCacheTTL.
+// cached in memory to avoid rereading it from Consul.
+//
+// The default value is DefaultCacheTTL. A value of zero disables in-memory caching completely.
+// A negative value means data is cached forever (i.e. it will only be read again from the
+// database if the SDK is restarted). Use the "cached forever" mode with caution: it means
+// that in a scenario where multiple processes are sharing the database, and the current
+// process loses connectivity to LaunchDarkly while other processes are still receiving
+// updates and writing them to the database, the current process will have stale data.
 //
 //     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.CacheTTL(30*time.Second))
 func CacheTTL(ttl time.Duration) FeatureStoreOption {

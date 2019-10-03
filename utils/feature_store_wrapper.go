@@ -57,7 +57,7 @@ type FeatureStoreCoreBase interface {
 	InitializedInternal() bool
 	// GetCacheTTL returns the length of time that data should be retained in an in-memory
 	// cache. This cache is maintained by FeatureStoreWrapper. If GetCacheTTL returns zero,
-	// there will be no cache.
+	// there will be no cache. If it returns a negative number, the cache never expires.
 	GetCacheTTL() time.Duration
 }
 
@@ -139,8 +139,10 @@ func NewNonAtomicFeatureStoreWrapper(core NonAtomicFeatureStoreCore) *FeatureSto
 
 func initCache(core FeatureStoreCoreBase) *cache.Cache {
 	cacheTTL := core.GetCacheTTL()
-	if cacheTTL > 0 {
+	if cacheTTL != 0 {
 		return cache.New(cacheTTL, 5*time.Minute)
+		// Note that the documented behavior of go-cache is that if cacheTTL is negative, the
+		// cache never expires. That is consistent with we've defined the parameter.
 	}
 	return nil
 }
