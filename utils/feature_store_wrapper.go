@@ -168,13 +168,20 @@ func (w *FeatureStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]l
 	}
 	if w.cache != nil {
 		w.cache.Flush()
-		if err == nil {
-			for kind, items := range allData {
-				w.filterAndCacheItems(kind, items)
-			}
+	}
+	if err != nil && !w.hasCacheWithInfiniteTTL() {
+		// Normally, if the underlying store failed to do the update, we do not want to update the cache -
+		// the idea being that it's better to stay in a consistent state of having old data than to act
+		// like we have new data but then suddenly fall back to old data when the cache expires. However,
+		// if the cache TTL is infinite, then it makes sense to update the cache always.
+		return err
+	}
+	if w.cache != nil {
+		for kind, items := range allData {
+			w.filterAndCacheItems(kind, items)
 		}
 	}
-	if err == nil {
+	if err == nil || w.hasCacheWithInfiniteTTL() {
 		w.initLock.Lock()
 		defer w.initLock.Unlock()
 		w.inited = true
@@ -254,12 +261,33 @@ func (w *FeatureStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.Vers
 // Upsert updates or adds an item, with optional caching.
 func (w *FeatureStoreWrapper) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	finalItem, err := w.core.UpsertInternal(kind, item)
+	// Normally, if the underlying store failed to do the update, we do not want to update the cache -
+	// the idea being that it's better to stay in a consistent state of having old data than to act
+	// like we have new data but then suddenly fall back to old data when the cache expires. However,
+	// if the cache TTL is infinite, then it makes sense to update the cache always.
+	if err != nil {
+		if !w.hasCacheWithInfiniteTTL() {
+			return err
+		}
+		finalItem = item
+	}
 	// Note that what we put into the cache is finalItem, which may not be the same as item (i.e. if
 	// another process has already updated the item to a higher version).
-	if err == nil && finalItem != nil {
-		if w.cache != nil {
-			w.cache.Set(featureStoreCacheKey(kind, item.GetKey()), finalItem, cache.DefaultExpiration)
-			w.cache.Delete(featureStoreAllItemsCacheKey(kind))
+	if finalItem != nil && w.cache != nil {
+		w.cache.Set(featureStoreCacheKey(kind, item.GetKey()), finalItem, cache.DefaultExpiration)
+		// If the cache has a finite TTL, then we should remove the "all items" cache entry to force
+		// a reread the next time All is called. However, if it's an infinite TTL, we need to just
+		// update the item within the existing "all items" entry (since we want things to still work
+		// even if the underlying store is unavailable).
+		allCacheKey := featureStoreAllItemsCacheKey(kind)
+		if w.hasCacheWithInfiniteTTL() {
+			if data, present := w.cache.Get(allCacheKey); present {
+				if items, ok := data.(map[string]ld.VersionedData); ok {
+					items[item.GetKey()] = item // updates the existing map since maps are passed by reference
+				}
+			}
+		} else {
+			w.cache.Delete(allCacheKey)
 		}
 	}
 	return err
@@ -305,4 +333,8 @@ func (w *FeatureStoreWrapper) Initialized() bool {
 		}
 	}
 	return newValue
+}
+
+func (w *FeatureStoreWrapper) hasCacheWithInfiniteTTL() bool {
+	return w.cache != nil && w.core.GetCacheTTL() < 0
 }

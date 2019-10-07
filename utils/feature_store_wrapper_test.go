@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 type mockCore struct {
 	cacheTTL         time.Duration
 	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
+	fakeError        error
 	inited           bool
 	initQueriedCount int
 }
@@ -43,20 +45,32 @@ func (c *mockCore) GetCacheTTL() time.Duration {
 }
 
 func (c *mockCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+	if c.fakeError != nil {
+		return c.fakeError
+	}
 	c.data = allData
 	c.inited = true
 	return nil
 }
 
 func (c *mockCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+	if c.fakeError != nil {
+		return nil, c.fakeError
+	}
 	return c.data[kind][key], nil
 }
 
 func (c *mockCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+	if c.fakeError != nil {
+		return nil, c.fakeError
+	}
 	return c.data[kind], nil
 }
 
 func (c *mockCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+	if c.fakeError != nil {
+		return nil, c.fakeError
+	}
 	oldItem := c.data[kind][item.GetKey()]
 	if oldItem != nil && oldItem.GetVersion() >= item.GetVersion() {
 		return oldItem, nil
@@ -388,6 +402,152 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		time.Sleep(600 * time.Millisecond)
 		assert.True(t, w.Initialized())
 		assert.Equal(t, 2, core.initQueriedCount)
+	})
+
+	t.Run("Cached store with finite TTL won't update cache if core update fails", func(t *testing.T) {
+		core := newCore(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+
+		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagv1.Key: &flagv1},
+		}
+		err := w.Init(allData)
+		require.NoError(t, err)
+		require.Equal(t, core.data, allData)
+
+		core.fakeError = errors.New("sorry")
+		err = w.Upsert(ld.Features, &flagv2)
+		require.Equal(t, core.fakeError, err)
+
+		core.fakeError = nil
+		item, err := w.Get(ld.Features, flagv2.Key)
+		require.NoError(t, err)
+		require.Equal(t, &flagv1, item) // cache still has old item, same as underlying store
+	})
+
+	t.Run("Cached store with infinite TTL will update cache even if core update fails", func(t *testing.T) {
+		core := newCore(-1)
+		w := NewFeatureStoreWrapper(core)
+
+		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagv1.Key: &flagv1},
+		}
+		err := w.Init(allData)
+		require.NoError(t, err)
+		require.Equal(t, core.data, allData)
+
+		core.fakeError = errors.New("sorry")
+		err = w.Upsert(ld.Features, &flagv2)
+		require.Equal(t, core.fakeError, err)
+
+		core.fakeError = nil
+		item, err := w.Get(ld.Features, flagv2.Key)
+		require.NoError(t, err)
+		require.Equal(t, &flagv2, item) // underlying store has old item but cache has new item
+	})
+
+	t.Run("Cached store with finite TTL won't update cache if core init fails", func(t *testing.T) {
+		core := newCore(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+
+		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagv1.Key: &flagv1},
+		}
+		core.fakeError = errors.New("sorry")
+		err := w.Init(allData)
+		require.Equal(t, core.fakeError, err)
+
+		core.fakeError = nil
+		data, err := w.All(ld.Features)
+		require.NoError(t, err)
+		require.Equal(t, map[string]ld.VersionedData{}, data)
+	})
+
+	t.Run("Cached store with infinite TTL will update cache even if core init fails", func(t *testing.T) {
+		core := newCore(-1)
+		w := NewFeatureStoreWrapper(core)
+
+		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flagv1.Key: &flagv1},
+		}
+		core.fakeError = errors.New("sorry")
+		err := w.Init(allData)
+		require.Equal(t, core.fakeError, err)
+
+		core.fakeError = nil
+		data, err := w.All(ld.Features)
+		require.NoError(t, err)
+		require.Equal(t, allData[ld.Features], data)
+	})
+
+	t.Run("Cached store with finite TTL removes cached All data if a single item is updated", func(t *testing.T) {
+		core := newCore(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+
+		flag1v1 := ld.FeatureFlag{Key: "flag1", Version: 1}
+		flag1v2 := ld.FeatureFlag{Key: "flag1", Version: 2}
+		flag2v1 := ld.FeatureFlag{Key: "flag2", Version: 1}
+		flag2v2 := ld.FeatureFlag{Key: "flag2", Version: 2}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
+		}
+		err := w.Init(allData)
+		require.NoError(t, err)
+
+		data, err := w.All(ld.Features)
+		require.NoError(t, err)
+		require.Equal(t, allData[ld.Features], data)
+		// now the All data is cached
+
+		// do an Upsert for flag1 - this should drop the previous All data from the cache
+		err = w.Upsert(ld.Features, &flag1v2)
+
+		// modify flag2 directly in the underlying data
+		core.forceSet(ld.Features, &flag2v2)
+
+		// now, All should reread the underlying data so we see both changes
+		data, err = w.All(ld.Features)
+		require.NoError(t, err)
+		assert.Equal(t, &flag1v2, allData[ld.Features][flag1v1.Key])
+		assert.Equal(t, &flag2v2, allData[ld.Features][flag2v1.Key])
+	})
+
+	t.Run("Cached store with infinite TTL updates cached All data if a single item is updated", func(t *testing.T) {
+		core := newCore(-1)
+		w := NewFeatureStoreWrapper(core)
+
+		flag1v1 := ld.FeatureFlag{Key: "flag1", Version: 1}
+		flag1v2 := ld.FeatureFlag{Key: "flag1", Version: 2}
+		flag2v1 := ld.FeatureFlag{Key: "flag2", Version: 1}
+		flag2v2 := ld.FeatureFlag{Key: "flag2", Version: 2}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
+		}
+		err := w.Init(allData)
+		require.NoError(t, err)
+
+		data, err := w.All(ld.Features)
+		require.NoError(t, err)
+		require.Equal(t, allData[ld.Features], data)
+		// now the All data is cached
+
+		// do an Upsert for flag1 - this should update the underlying data *and* the cached All data
+		err = w.Upsert(ld.Features, &flag1v2)
+
+		// modify flag2 directly in the underlying data
+		core.forceSet(ld.Features, &flag2v2)
+
+		// now, All should *not* reread the underlying data - we should only see the change to flag1
+		data, err = w.All(ld.Features)
+		require.NoError(t, err)
+		assert.Equal(t, &flag1v2, data[flag1v1.Key])
+		assert.Equal(t, &flag2v1, data[flag2v1.Key])
 	})
 
 	t.Run("Non-atomic init passes ordered data to core", func(t *testing.T) {
