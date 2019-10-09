@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -252,8 +253,9 @@ func (client *LDClient) Close() error {
 		return nil
 	}
 	_ = client.eventProcessor.Close()
-	if !client.config.UseLdd {
-		_ = client.updateProcessor.Close()
+	_ = client.updateProcessor.Close()
+	if c, ok := client.store.(io.Closer); ok { // not all FeatureStores implement Closer
+		_ = c.Close()
 	}
 	return nil
 }

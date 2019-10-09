@@ -209,7 +209,7 @@ func NewConsulFeatureStoreFactory(options ...FeatureStoreOption) (ld.FeatureStor
 		if err != nil {
 			return nil, err
 		}
-		return utils.NewNonAtomicFeatureStoreWrapper(store), nil
+		return utils.NewNonAtomicFeatureStoreWrapperWithConfig(store, ldConfig), nil
 	}, nil
 }
 
@@ -382,6 +382,15 @@ func (store *featureStore) InitializedInternal() bool {
 	kv := store.client.KV()
 	pair, _, err := kv.Get(store.initedKey(), nil)
 	return pair != nil && err == nil
+}
+
+func (store *featureStore) IsStoreAvailable() bool {
+	// Using a simple Get query here rather than the Consul Health API, because the latter seems to be
+	// oriented toward monitoring of specific nodes or services; what we really want to know is just
+	// whether a basic operation can succeed.
+	kv := store.client.KV()
+	_, _, err := kv.Get(store.initedKey(), nil)
+	return err == nil
 }
 
 func (store *featureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (retrievedItem ld.VersionedData,

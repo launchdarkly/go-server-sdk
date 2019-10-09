@@ -323,7 +323,7 @@ func NewRedisFeatureStoreFactory(options ...FeatureStoreOption) (ld.FeatureStore
 	}
 	return func(ldConfig ld.Config) (ld.FeatureStore, error) {
 		core := newRedisFeatureStoreInternal(configuredOptions, ldConfig)
-		return utils.NewFeatureStoreWrapper(core), nil
+		return utils.NewFeatureStoreWrapperWithConfig(core, ldConfig), nil
 	}, nil
 }
 
@@ -333,7 +333,7 @@ func newStoreForDeprecatedConstructors(options ...FeatureStoreOption) *RedisFeat
 		return nil
 	}
 	core := newRedisFeatureStoreInternal(configuredOptions, ld.Config{})
-	return &RedisFeatureStore{wrapper: utils.NewFeatureStoreWrapper(core)}
+	return &RedisFeatureStore{wrapper: utils.NewFeatureStoreWrapperWithConfig(core, ld.Config{})}
 }
 
 func validateOptions(options ...FeatureStoreOption) (redisFeatureStoreOptions, error) {
@@ -542,6 +542,13 @@ func (store *redisFeatureStoreCore) InitializedInternal() bool {
 	defer c.Close() // nolint:errcheck
 	inited, _ := r.Bool(c.Do("EXISTS", store.initedKey()))
 	return inited
+}
+
+func (store *redisFeatureStoreCore) IsStoreAvailable() bool {
+	c := store.getConn()
+	defer c.Close() // nolint:errcheck
+	_, err := r.Bool(c.Do("EXISTS", store.initedKey()))
+	return err == nil
 }
 
 func (store *redisFeatureStoreCore) featuresKey(kind ld.VersionedDataKind) string {
