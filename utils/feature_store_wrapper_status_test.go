@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ type mockCoreWithStatus struct {
 	fakeAvailability bool
 	inited           bool
 	initQueriedCount int
+	lock             sync.Mutex
 }
 
 func newCoreWithStatus(ttl time.Duration) *mockCoreWithStatus {
@@ -82,7 +84,15 @@ func (c *mockCoreWithStatus) InitializedInternal() bool {
 }
 
 func (c *mockCoreWithStatus) IsStoreAvailable() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	return c.fakeAvailability
+}
+
+func (c *mockCoreWithStatus) setAvailable(available bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.fakeAvailability = available
 }
 
 func consumeStatusWithTimeout(t *testing.T, subCh <-chan internal.FeatureStoreStatus, timeout time.Duration) internal.FeatureStoreStatus {
@@ -136,7 +146,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		defer sub.Close()
 
 		core.fakeError = errors.New("sorry")
-		core.fakeAvailability = false
+		core.setAvailable(false)
 		_, err := w.All(ld.Features)
 		require.Equal(t, core.fakeError, err)
 
@@ -149,7 +159,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		require.Equal(t, core.fakeError, err)
 
 		// Now simulate the data store becoming OK again; the poller detects this and publishes a new status
-		core.fakeAvailability = true
+		core.setAvailable(true)
 		updatedStatus = consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
 		expectedStatus := internal.FeatureStoreStatus{
 			Available:    true,
@@ -167,7 +177,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		defer sub.Close()
 
 		core.fakeError = errors.New("sorry")
-		core.fakeAvailability = false
+		core.setAvailable(false)
 		_, err := w.All(ld.Features)
 		require.Equal(t, core.fakeError, err)
 
@@ -187,7 +197,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 
 		// Now simulate the store coming back up
 		core.fakeError = nil
-		core.fakeAvailability = true
+		core.setAvailable(true)
 
 		// Wait for the poller to notice this and publish a new status
 		updatedStatus = consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
