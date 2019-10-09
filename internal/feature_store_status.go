@@ -146,16 +146,15 @@ func (m *FeatureStoreStatusManager) startStatusPoller() chan struct{} {
 	closer := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(statusPollInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				if m.pollFn() {
-					ticker.Stop()
 					m.UpdateAvailability(true)
 					return
 				}
 			case <-closer:
-				ticker.Stop()
 				return
 			}
 		}
