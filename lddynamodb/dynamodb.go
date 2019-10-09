@@ -282,7 +282,7 @@ func NewDynamoDBFeatureStoreFactory(table string, options ...FeatureStoreOption)
 		if err != nil {
 			return nil, err
 		}
-		return utils.NewNonAtomicFeatureStoreWrapper(store), nil
+		return utils.NewNonAtomicFeatureStoreWrapperWithConfig(store, ldConfig), nil
 	}, nil
 }
 
@@ -489,6 +489,21 @@ func (store *dynamoDBFeatureStore) UpsertInternal(kind ld.VersionedDataKind, ite
 	}
 
 	return item, nil
+}
+
+func (store *dynamoDBFeatureStore) IsStoreAvailable() bool {
+	// There doesn't seem to be a specific DynamoDB API for just testing the connection. We will just
+	// do a simple query for the "inited" key, and test whether we get an error ("not found" does not
+	// count as an error).
+	_, err := store.client.GetItem(&dynamodb.GetItemInput{
+		TableName:      aws.String(store.options.table),
+		ConsistentRead: aws.Bool(true),
+		Key: map[string]*dynamodb.AttributeValue{
+			tablePartitionKey: {S: aws.String(store.initedKey())},
+			tableSortKey:      {S: aws.String(store.initedKey())},
+		},
+	})
+	return err == nil
 }
 
 func (store *dynamoDBFeatureStore) prefixedNamespace(baseNamespace string) string {
