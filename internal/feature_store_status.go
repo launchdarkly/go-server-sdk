@@ -39,6 +39,7 @@ type featureStoreStatusSubcription struct {
 	owner *FeatureStoreStatusManager
 }
 
+// FeatureStoreStatusManager manages status subscriptions and can poll for recovery.
 type FeatureStoreStatusManager struct {
 	subs              []chan FeatureStoreStatus
 	lock              sync.Mutex
@@ -52,6 +53,8 @@ type FeatureStoreStatusManager struct {
 
 var statusPollInterval = time.Millisecond * 500
 
+// NewFeatureStoreStatusManager creates a new FeatureStoreStatusManager. The pollFn should return
+// true if the store is available, false if not.
 func NewFeatureStoreStatusManager(availableNow bool, pollFn func() bool, refreshOnRecovery bool,
 	loggers ldlog.Loggers) *FeatureStoreStatusManager {
 	return &FeatureStoreStatusManager{
@@ -62,6 +65,7 @@ func NewFeatureStoreStatusManager(availableNow bool, pollFn func() bool, refresh
 	}
 }
 
+// Subscribe opens a channel for status updates.
 func (m *FeatureStoreStatusManager) Subscribe() FeatureStoreStatusSubscription {
 	ch := make(chan FeatureStoreStatus, 10)
 	sub := &featureStoreStatusSubcription{ch: ch, owner: m}
@@ -83,6 +87,8 @@ func (m *FeatureStoreStatusManager) unsubscribe(subCh chan FeatureStoreStatus) {
 	close(subCh)
 }
 
+// UpdateAvailability signals that the store is now available or unavailable. If that is a change,
+// an update will be sent (and, if the new status is unavailable, it will start polling for recovery).
 func (m *FeatureStoreStatusManager) UpdateAvailability(available bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -116,12 +122,14 @@ func (m *FeatureStoreStatusManager) UpdateAvailability(available bool) {
 	}
 }
 
+// IsAvailable tests whether the last known status was available.
 func (m *FeatureStoreStatusManager) IsAvailable() bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	return m.lastAvailable
 }
 
+// Close shuts down all channels and goroutines used by the manager.
 func (m *FeatureStoreStatusManager) Close() {
 	m.closeOnce.Do(func() {
 		if m.pollCloser != nil {
