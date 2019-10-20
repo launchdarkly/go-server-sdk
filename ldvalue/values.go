@@ -70,7 +70,7 @@ const (
 // Intern the following primitive values as interface{} so we don't reallocate them
 var (
 	zeroAsInterface        interface{} = float64(0)
-	emptyStringAsInterface interface{} = ""
+	emptyStringAsInterface interface{} = "" //nolint (linter incorrectly flags "" as an unnecessary zero value)
 )
 
 // ArrayBuilder is a builder created by ArrayBuild(), for creating immutable arrays.
