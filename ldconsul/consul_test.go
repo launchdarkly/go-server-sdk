@@ -27,7 +27,8 @@ func TestConsulFeatureStorePrefixes(t *testing.T) {
 }
 
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
-	store1Core, err := newConsulFeatureStoreInternal() // we need the underlying implementation object so we can set testTxHook
+	options, _ := validateOptions()
+	store1Core, err := newConsulFeatureStoreInternal(options, ld.Config{}) // we need the underlying implementation object so we can set testTxHook
 	require.NoError(t, err)
 	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Core)
 	store2, err := NewConsulFeatureStore()
@@ -38,10 +39,9 @@ func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-func makeConsulStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewConsulFeatureStore(CacheTTL(ttl))
-	}
+func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
+	f, _ := NewConsulFeatureStoreFactory(CacheTTL(ttl))
+	return f
 }
 
 func clearExistingData() error {

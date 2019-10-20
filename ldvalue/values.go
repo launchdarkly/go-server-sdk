@@ -15,7 +15,6 @@ package ldvalue
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -31,7 +30,18 @@ import (
 // Value represents any of the data types supported by JSON, all of which can be used for a LaunchDarkly
 // feature flag variation or a custom user attribute.
 type Value struct {
-	valueType     ValueType
+	// Note that the zero value of ValueType is NullType, so the zero of Value is a null value.
+	valueType ValueType
+	// Used when the value is a boolean.
+	boolValue bool
+	// Used when the value is a number.
+	numberValue float64
+	// Used when the value is a string.
+	stringValue string
+	// Representation of the value as an interface{}. If the value was originally produced from an
+	// interface{}, then we use this; otherwise we try to avoid setting it because that requires a
+	// heap allocation. For numeric types, we always store this as a float64 so struct equality will
+	// work as expected.
 	valueInstance interface{}
 }
 
@@ -55,6 +65,12 @@ const (
 	// RawType describes a json.RawMessage value. This value will not be parsed or interpreted as
 	// any other data type, and can be accessed only by calling Raw().
 	RawType ValueType = iota
+)
+
+// Intern the following primitive values as interface{} so we don't reallocate them
+var (
+	zeroAsInterface        interface{} = float64(0)
+	emptyStringAsInterface interface{} = ""
 )
 
 // ArrayBuilder is a builder created by ArrayBuild(), for creating immutable arrays.
@@ -134,51 +150,51 @@ func deepCopyMap(m map[string]interface{}) map[string]interface{} {
 	return ret
 }
 
-func fromValue(value interface{}, deepCopy bool) Value {
-	if value == nil {
+func fromValue(valueAsInterface interface{}, deepCopy bool) Value {
+	if valueAsInterface == nil {
 		return Null()
 	}
-	switch o := value.(type) {
+	switch o := valueAsInterface.(type) {
 	case Value:
 		return o
 	case bool:
-		return Value{valueType: BoolType, valueInstance: o}
+		return Bool(o)
 	// Coerce all numbers to float64, so numerically identical values will always be equal in
 	// a struct comparison
 	case int8:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case uint8:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case int16:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case uint16:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case int:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case uint:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case int32:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case uint32:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case float32:
-		return Value{valueType: NumberType, valueInstance: float64(o)}
+		return Float64(float64(o))
 	case float64:
-		return Value{valueType: NumberType, valueInstance: value}
+		return Value{valueType: NumberType, numberValue: o, valueInstance: valueAsInterface}
 	case string:
-		return Value{valueType: StringType, valueInstance: value}
+		return Value{valueType: StringType, stringValue: o, valueInstance: valueAsInterface}
 	case []interface{}:
 		if deepCopy {
 			return ArrayCopy(o)
 		}
-		return Value{valueType: ArrayType, valueInstance: value}
+		return Value{valueType: ArrayType, valueInstance: valueAsInterface}
 	case map[string]interface{}:
 		if deepCopy {
 			return ObjectCopy(o)
 		}
-		return Value{valueType: ObjectType, valueInstance: value}
+		return Value{valueType: ObjectType, valueInstance: valueAsInterface}
 	case json.RawMessage:
-		return Value{valueType: RawType, valueInstance: value}
+		return Value{valueType: RawType, valueInstance: valueAsInterface}
 	default:
 		// We should never see an unsupported type here, because this method is only called
 		// with a value that was parsed as a generic interface{} by the JSON parser.
@@ -217,22 +233,28 @@ func Null() Value {
 
 // Bool creates a boolean Value.
 func Bool(value bool) Value {
-	return Value{valueType: BoolType, valueInstance: value}
+	return Value{valueType: BoolType, boolValue: true, valueInstance: value}
 }
 
 // Int creates a numeric Value from an integer.
 func Int(value int) Value {
-	return Value{valueType: NumberType, valueInstance: float64(value)} // coerce type so struct equality works
+	return Float64(float64(value))
 }
 
 // Float64 creates a numeric Value from a float64.
 func Float64(value float64) Value {
-	return Value{valueType: NumberType, valueInstance: value}
+	if value == 0 {
+		return Value{valueType: NumberType, numberValue: 0, valueInstance: zeroAsInterface}
+	}
+	return Value{valueType: NumberType, numberValue: value, valueInstance: value}
 }
 
 // String creates a string Value.
 func String(value string) Value {
-	return Value{valueType: StringType, valueInstance: value}
+	if value == "" {
+		return Value{valueType: StringType, stringValue: "", valueInstance: emptyStringAsInterface}
+	}
+	return Value{valueType: StringType, stringValue: value, valueInstance: value}
 }
 
 // Raw creates an unparsed JSON Value.
@@ -351,34 +373,21 @@ func (v Value) IsNumber() bool {
 // are both true.
 func (v Value) IsInt() bool {
 	if v.valueType == NumberType {
-		switch o := v.valueInstance.(type) {
-		case int:
-			return true
-		case float64:
-			return o == float64(int(o))
-		}
+		return v.numberValue == float64(int(v.numberValue))
 	}
 	return false
 }
 
 // Bool returns the Value as a boolean. If the Value is not a boolean, it returns false.
 func (v Value) Bool() bool {
-	if v.valueType == BoolType {
-		return v.valueInstance.(bool)
-	}
-	return false
+	return v.valueType == BoolType && v.boolValue
 }
 
 // Int returns the value as an int. If the Value is not numeric, it returns zero. If the value is a
 // number but not an integer, it is rounded toward zero (truncated).
 func (v Value) Int() int {
 	if v.valueType == NumberType {
-		switch o := v.valueInstance.(type) {
-		case int:
-			return o
-		case float64:
-			return int(o)
-		}
+		return int(v.numberValue)
 	}
 	return 0
 }
@@ -386,38 +395,45 @@ func (v Value) Int() int {
 // Float64 returns the value as a float64. If the Value is not numeric, it returns zero.
 func (v Value) Float64() float64 {
 	if v.valueType == NumberType {
-		switch o := v.valueInstance.(type) {
-		case int:
-			return float64(o)
-		case float64:
-			return o
-		}
+		return v.numberValue
 	}
 	return 0
 }
 
-// String returns the value as a string. If the value is not a string, it returns the JSON
-// representation of the value.
+// String returns the value as a string. If the value is not a string, it returns an empty string.
 func (v Value) String() string {
 	if v.valueType == StringType {
-		switch o := v.valueInstance.(type) {
-		case bool:
-			if o {
-				return "true"
-			}
-			return "false"
-		case int:
-			return strconv.Itoa(o)
-		case float64:
-			return fmt.Sprintf("%f", o)
-		case string:
-			return o
-		default:
-			b, _ := json.Marshal(o)
-			return string(b)
-		}
+		return v.stringValue
 	}
 	return ""
+}
+
+// JSONString returns the JSON representation of the value.
+func (v Value) JSONString() string {
+	switch v.valueType {
+	case NullType:
+		return "null"
+	case BoolType:
+		if v.boolValue {
+			return "true"
+		}
+		return "false"
+	case NumberType:
+		if v.IsInt() {
+			return strconv.Itoa(int(v.numberValue))
+		}
+		return strconv.FormatFloat(v.numberValue, 'f', -1, 64)
+	default:
+		bytes, err := json.Marshal(v.valueInstance)
+		if err != nil {
+			// It shouldn't be possible for marshalling to fail, because Value should only contain
+			// JSON-compatible types. However, UnsafeValueCopy and UnsafeInnerValue do allow a
+			// badly behaved application to put an incompatible type into an array or map. In this
+			// case we simply discard the value.
+			return ""
+		}
+		return string(bytes)
+	}
 }
 
 // Raw returns the value as a json.RawMessage. If the value was originally created from a

@@ -15,9 +15,9 @@ import (
 //   that the store instances may be sharing. If this is nil, it means store instances do not share any
 //   common storage.
 // - isCached: True if the instances returned by makeStore have caching enabled.
-func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, error), clearExistingData func() error, isCached bool) {
+func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, clearExistingData func() error, isCached bool) {
 	makeStore := func(t *testing.T) ld.FeatureStore {
-		store, err := storeFactory()
+		store, err := storeFactory(ld.Config{})
 		require.NoError(t, err)
 		return store
 	}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -15,7 +16,7 @@ import (
 )
 
 // Version is the client version.
-const Version = "4.11.0"
+const Version = "4.13.0"
 
 // LDClient is the LaunchDarkly client. Client instances are thread-safe.
 // Applications should instantiate a single instance for the lifetime
@@ -81,8 +82,28 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
+	// Our logger configuration logic is a little funny for backward compatibility reasons. We had
+	// to continue providing a non-nil logger in DefaultConfig.Logger, but we still want ldlog to
+	// use its own default behavior if the app did not specifically override the logger. So if we
+	// see that same exact logger instance, we'll ignore it.
+	if config.Logger != nil && config.Logger != defaultLogger {
+		config.Loggers.SetBaseLogger(config.Logger)
+	}
+	if config.Logger == nil {
+		config.Logger = DefaultConfig.Logger // always set this, in case someone accidentally uses it instead of Loggers
+	}
+	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
+
 	if config.FeatureStore == nil {
-		config.FeatureStore = NewInMemoryFeatureStore(config.Logger)
+		factory := config.FeatureStoreFactory
+		if factory == nil {
+			factory = NewInMemoryFeatureStoreFactory()
+		}
+		store, err := factory(config)
+		if err != nil {
+			return nil, err
+		}
+		config.FeatureStore = store
 	}
 
 	defaultHTTPClient := config.newHTTPClient()
@@ -115,19 +136,24 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 	}
 	client.updateProcessor.Start(closeWhenReady)
+	if waitFor > 0 && !config.Offline && !config.UseLdd {
+		config.Loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
+			waitFor/time.Millisecond)
+	}
 	timeout := time.After(waitFor)
 	for {
 		select {
 		case <-closeWhenReady:
 			if !client.updateProcessor.Initialized() {
+				config.Loggers.Warn("LaunchDarkly client initialization failed")
 				return &client, ErrInitializationFailed
 			}
 
-			config.Logger.Println("Successfully initialized LaunchDarkly client!")
+			config.Loggers.Info("Successfully initialized LaunchDarkly client!")
 			return &client, nil
 		case <-timeout:
 			if waitFor > 0 {
-				config.Logger.Println("Timeout exceeded when initializing LaunchDarkly client.")
+				config.Loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
 				return &client, ErrInitializationTimeout
 			}
 
@@ -140,18 +166,18 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 func createDefaultUpdateProcessor(httpClient *http.Client) func(string, Config) (UpdateProcessor, error) {
 	return func(sdkKey string, config Config) (UpdateProcessor, error) {
 		if config.Offline {
-			config.Logger.Println("Started LaunchDarkly in offline mode")
+			config.Loggers.Info("Started LaunchDarkly client in offline mode")
 			return nullUpdateProcessor{}, nil
 		}
 		if config.UseLdd {
-			config.Logger.Println("Started LaunchDarkly in LDD mode")
+			config.Loggers.Info("Started LaunchDarkly client in LDD mode")
 			return nullUpdateProcessor{}, nil
 		}
 		requestor := newRequestor(sdkKey, config, httpClient)
 		if config.Stream {
 			return newStreamProcessor(sdkKey, config, requestor), nil
 		}
-		config.Logger.Println("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
+		config.Loggers.Warn("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 		return newPollingProcessor(config, requestor), nil
 	}
 }
@@ -159,7 +185,7 @@ func createDefaultUpdateProcessor(httpClient *http.Client) func(string, Config) 
 // Identify reports details about a a user.
 func (client *LDClient) Identify(user User) error {
 	if user.Key == nil || *user.Key == "" {
-		client.config.Logger.Printf("WARN: Identify called with empty/nil user key!")
+		client.config.Loggers.Warn("Identify called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewIdentifyEvent(user)
@@ -171,7 +197,7 @@ func (client *LDClient) Identify(user User) error {
 // event, and is serialized to JSON using the encoding/json package (http://golang.org/pkg/encoding/json/).
 func (client *LDClient) Track(key string, user User, data interface{}) error {
 	if user.Key == nil || *user.Key == "" {
-		client.config.Logger.Printf("WARN: Track called with empty/nil user key!")
+		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := NewCustomEvent(key, user, data)
@@ -190,7 +216,7 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 // Custom data can also be attached to the event, and is serialized to JSON using the encoding/json package (http://golang.org/pkg/encoding/json/).
 func (client *LDClient) TrackWithMetric(key string, user User, data interface{}, metricValue float64) error {
 	if user.Key == nil || *user.Key == "" {
-		client.config.Logger.Printf("WARN: TrackWithMetric called with empty/nil user key!")
+		client.config.Loggers.Warnf("TrackWithMetric called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.SendEvent(newCustomEvent(key, user, data, &metricValue))
@@ -223,13 +249,14 @@ func (client *LDClient) Initialized() bool {
 // should no longer be used. The method will block until all pending analytics events (if any)
 // been sent.
 func (client *LDClient) Close() error {
-	client.config.Logger.Println("Closing LaunchDarkly Client")
+	client.config.Loggers.Info("Closing LaunchDarkly client")
 	if client.IsOffline() {
 		return nil
 	}
 	_ = client.eventProcessor.Close()
-	if !client.config.UseLdd {
-		_ = client.updateProcessor.Close()
+	_ = client.updateProcessor.Close()
+	if c, ok := client.store.(io.Closer); ok { // not all FeatureStores implement Closer
+		_ = c.Close()
 	}
 	return nil
 }
@@ -263,16 +290,16 @@ func (client *LDClient) AllFlags(user User) map[string]interface{} {
 func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) FeatureFlagsState {
 	valid := true
 	if client.IsOffline() {
-		client.config.Logger.Println("WARN: Called AllFlagsState in offline mode. Returning empty state")
+		client.config.Loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
 	} else if user.Key == nil {
-		client.config.Logger.Println("WARN: Called AllFlagsState with nil user key. Returning empty state")
+		client.config.Loggers.Warn("Called AllFlagsState with nil user key. Returning empty state")
 		valid = false
 	} else if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Logger.Println("WARN: Called AllFlagsState before client initialization; using last known values from feature store")
+			client.config.Loggers.Warn("Called AllFlagsState before client initialization; using last known values from feature store")
 		} else {
-			client.config.Logger.Println("WARN: Called AllFlagsState before client initialization. Feature store not available; returning empty state")
+			client.config.Loggers.Warn("Called AllFlagsState before client initialization. Feature store not available; returning empty state")
 			valid = false
 		}
 	}
@@ -283,7 +310,7 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 
 	items, err := client.store.All(Features)
 	if err != nil {
-		client.config.Logger.Println("WARN: Unable to fetch flags from feature store. Returning empty state. Error: " + err.Error())
+		client.config.Loggers.Warn("Unable to fetch flags from feature store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
 	}
 
@@ -463,7 +490,7 @@ func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) 
 // events for prerequisites will be sent).
 func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldvalue.Value, sendReasonsInEvents bool) (EvaluationDetail, *FeatureFlag, error) {
 	if user.Key != nil && *user.Key == "" {
-		client.config.Logger.Printf("WARN: User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
+		client.config.Loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
 	}
 
 	var feature *FeatureFlag
@@ -473,14 +500,14 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 	evalErrorResult := func(errKind EvalErrorKind, flag *FeatureFlag, err error) (EvaluationDetail, *FeatureFlag, error) {
 		detail := NewEvaluationError(defaultVal, errKind)
 		if client.config.LogEvaluationErrors {
-			client.config.Logger.Printf("WARN: %s", err.Error())
+			client.config.Loggers.Warn(err)
 		}
 		return detail, flag, err
 	}
 
 	if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Logger.Printf("WARN: Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
+			client.config.Loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
 		} else {
 			return evalErrorResult(EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
@@ -489,7 +516,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 	data, storeErr := client.store.Get(Features, key)
 
 	if storeErr != nil {
-		client.config.Logger.Printf("Encountered error fetching feature from store: %+v", storeErr)
+		client.config.Loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)
 		detail := NewEvaluationError(defaultVal, EvalErrorException)
 		return detail, nil, storeErr
 	}
@@ -513,7 +540,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 	detail, prereqEvents := feature.EvaluateDetail(user, client.store, sendReasonsInEvents)
 	if detail.Reason != nil && detail.Reason.GetKind() == EvalReasonError && client.config.LogEvaluationErrors {
 		if re, ok := detail.Reason.(EvaluationReasonError); ok {
-			client.config.Logger.Printf("WARN: flag evaluation for %s failed with error %s, default value was returned",
+			client.config.Loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
 				key, re.ErrorKind)
 		}
 	}

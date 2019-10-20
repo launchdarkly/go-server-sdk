@@ -16,6 +16,8 @@ func TestNullValue(t *testing.T) {
 	assert.True(t, v.IsNull())
 	assert.False(t, v.IsNumber())
 	assert.False(t, v.IsInt())
+	assert.Equal(t, v, Null())
+	assert.Equal(t, v, Value{})
 }
 
 func TestBoolValue(t *testing.T) {
@@ -26,6 +28,7 @@ func TestBoolValue(t *testing.T) {
 	assert.False(t, tv.IsNull())
 	assert.False(t, tv.IsNumber())
 	assert.False(t, tv.IsInt())
+	assert.Equal(t, tv, Bool(true))
 
 	fv := Bool(false)
 	assert.Equal(t, BoolType, fv.Type())
@@ -34,6 +37,7 @@ func TestBoolValue(t *testing.T) {
 	assert.False(t, fv.IsNull())
 	assert.False(t, fv.IsNumber())
 	assert.False(t, fv.IsInt())
+	assert.Equal(t, fv, Bool(false))
 }
 
 func TestBoolIsFalseForNonBooleans(t *testing.T) {
@@ -81,6 +85,36 @@ func TestFloat64IsZeroForNonNumbers(t *testing.T) {
 	assert.Equal(t, float64(0), Null().Float64())
 	assert.Equal(t, float64(0), Bool(true).Float64())
 	assert.Equal(t, float64(0), String("1").Float64())
+}
+
+func TestStringValue(t *testing.T) {
+	v := String("abc")
+	assert.Equal(t, StringType, v.Type())
+	assert.Equal(t, "abc", v.String())
+	assert.False(t, v.IsNull())
+	assert.False(t, v.IsNumber())
+	assert.False(t, v.IsInt())
+	assert.Equal(t, v, String("abc"))
+}
+
+func TestStringIsEmptyForNonStrings(t *testing.T) {
+	assert.Equal(t, "", Null().String())
+	assert.Equal(t, "", Bool(true).String())
+	assert.Equal(t, "", Float64(0).String())
+	assert.Equal(t, "", ArrayCopy([]interface{}{1, 2}).String())
+	assert.Equal(t, "", ObjectCopy(map[string]interface{}{"a": 1}).String())
+}
+
+func TestJSONString(t *testing.T) {
+	assert.Equal(t, "null", Null().JSONString())
+	assert.Equal(t, "false", Bool(false).JSONString())
+	assert.Equal(t, "true", Bool(true).JSONString())
+	assert.Equal(t, "1", Int(1).JSONString())
+	assert.Equal(t, "1", Float64(1.0).JSONString())
+	assert.Equal(t, "1.5", Float64(1.5).JSONString())
+	assert.Equal(t, `"\"hi\"\r"`, String("\"hi\"\r").JSONString())
+	assert.Equal(t, "[1,2]", ArrayCopy([]interface{}{1, 2}).JSONString())
+	assert.Equal(t, `{"a":1}`, ObjectCopy(map[string]interface{}{"a": 1}).JSONString())
 }
 
 func TestArrayCopy(t *testing.T) {
@@ -245,7 +279,8 @@ func TestJsonMarshalUnmarshal(t *testing.T) {
 		json  string
 	}{
 		{Null(), "null"},
-		{Float64(1), "1"}, // we're encoding it as a float64 here because it'll always be parsed that way
+		{Int(1), "1"},
+		{Float64(1), "1"},
 		{Float64(2.5), "2.5"},
 		{String("x"), `"x"`},
 		{ArrayCopy([]interface{}{true, "x"}), `[true,"x"]`},

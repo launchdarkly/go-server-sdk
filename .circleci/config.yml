@@ -27,7 +27,8 @@ defaults:
       # linter will end up looking at the wrong subset of that code, and fail on it.
       - run: if [ "$CIRCLE_JOB" != "go-test-1.12" ]; then make lint; fi
       - run: dep ensure -dry-run
-
+      - run: go build ./...
+      
       - run:
           name: Run tests
           command: |

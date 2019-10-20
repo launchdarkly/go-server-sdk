@@ -10,6 +10,7 @@ import (
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/internal"
 )
 
 type testEvent struct {
@@ -320,4 +321,122 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 
 	<-time.After(500 * time.Millisecond)
 	assert.Equal(t, 1, len(polls))
+}
+
+func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
+	testRepo := &testRepo{
+		initialEvent: &testEvent{
+			event: putEvent,
+			data: `{"path": "/", "data": {
+				"flags": {"my-flag": {"key": "my-flag", "version": 1}},
+				"segments": {}
+				}}`,
+		},
+	}
+	channel := "test"
+	esserver := eventsource.NewServer()
+	esserver.ReplayAll = true
+	esserver.Register(channel, testRepo)
+
+	polls := make(chan struct{}, 10)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		esserver.Handler(channel).ServeHTTP(w, r)
+		polls <- struct{}{}
+	}))
+	defer ts.Close()
+
+	store := &testFeatureStoreWithStatus{
+		inits: make(chan map[VersionedDataKind]map[string]VersionedData),
+	}
+	cfg := Config{
+		StreamUri:    ts.URL,
+		FeatureStore: store,
+		Logger:       log.New(ioutil.Discard, "", 0),
+	}
+
+	sp := newStreamProcessor("sdkKey", cfg, nil)
+	defer sp.Close()
+
+	closeWhenReady := make(chan struct{})
+	sp.Start(closeWhenReady)
+
+	// Wait until the stream has received data and put it in the store
+	receivedInitialData := <-store.inits
+	assert.Equal(t, 1, receivedInitialData[Features]["my-flag"].GetVersion())
+
+	// Change the stream's initialEvent so we'll get different data the next time it restarts
+	testRepo.initialEvent = &testEvent{
+		event: putEvent,
+		data: `{"path": "/", "data": {
+			"flags": {"my-flag": {"key": "my-flag", "version": 2}},
+			"segments": {}
+			}}`,
+	}
+
+	// Make the feature store simulate an outage and recovery with NeedsRefresh: true
+	store.publishStatus(internal.FeatureStoreStatus{Available: false})
+	store.publishStatus(internal.FeatureStoreStatus{Available: true, NeedsRefresh: true})
+
+	// When the stream restarts, it'll call Init with the refreshed data
+	receivedNewData := <-store.inits
+	assert.Equal(t, 2, receivedNewData[Features]["my-flag"].GetVersion())
+}
+
+type testFeatureStoreWithStatus struct {
+	inits     chan map[VersionedDataKind]map[string]VersionedData
+	statusSub *testStatusSubscription
+}
+
+func (t *testFeatureStoreWithStatus) Get(kind VersionedDataKind, key string) (VersionedData, error) {
+	return nil, nil
+}
+
+func (t *testFeatureStoreWithStatus) All(kind VersionedDataKind) (map[string]VersionedData, error) {
+	return nil, nil
+}
+
+func (t *testFeatureStoreWithStatus) Init(data map[VersionedDataKind]map[string]VersionedData) error {
+	t.inits <- data
+	return nil
+}
+
+func (t *testFeatureStoreWithStatus) Delete(kind VersionedDataKind, key string, version int) error {
+	return nil
+}
+
+func (t *testFeatureStoreWithStatus) Upsert(kind VersionedDataKind, item VersionedData) error {
+	return nil
+}
+
+func (t *testFeatureStoreWithStatus) Initialized() bool {
+	return true
+}
+
+func (t *testFeatureStoreWithStatus) GetStoreStatus() internal.FeatureStoreStatus {
+	return internal.FeatureStoreStatus{Available: true}
+}
+
+func (t *testFeatureStoreWithStatus) StatusSubscribe() internal.FeatureStoreStatusSubscription {
+	t.statusSub = &testStatusSubscription{
+		ch: make(chan internal.FeatureStoreStatus),
+	}
+	return t.statusSub
+}
+
+func (t *testFeatureStoreWithStatus) publishStatus(status internal.FeatureStoreStatus) {
+	if t.statusSub != nil {
+		t.statusSub.ch <- status
+	}
+}
+
+type testStatusSubscription struct {
+	ch chan internal.FeatureStoreStatus
+}
+
+func (s *testStatusSubscription) Channel() <-chan internal.FeatureStoreStatus {
+	return s.ch
+}
+
+func (s *testStatusSubscription) Close() {
+	close(s.ch)
 }
