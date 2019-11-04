@@ -65,6 +65,15 @@ func newCore(ttl time.Duration) *mockCore {
 	}
 }
 
+func newCoreWithInstrumentedQueries(ttl time.Duration) *mockCoreWithInstrumentedQueries {
+	return &mockCoreWithInstrumentedQueries{
+		cacheTTL:       ttl,
+		data:           map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
+		queryDelay:     200 * time.Millisecond,
+		queryStartedCh: make(chan struct{}, 2),
+	}
+}
+
 func (c *mockCore) forceSet(kind ld.VersionedDataKind, item ld.VersionedData) {
 	c.data[kind][item.GetKey()] = item
 }
@@ -483,13 +492,8 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		assert.Equal(t, 2, core.initQueriedCount)
 	})
 
-	t.Run("Cached Get coalesces requests", func(t *testing.T) {
-		core := &mockCoreWithInstrumentedQueries{
-			cacheTTL:       cacheTime,
-			data:           map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
-			queryDelay:     200 * time.Millisecond,
-			queryStartedCh: make(chan struct{}, 2),
-		}
+	t.Run("Cached Get coalesces requests for same key", func(t *testing.T) {
+		core := newCoreWithInstrumentedQueries(cacheTime)
 		w := NewFeatureStoreWrapper(core)
 		defer w.Close()
 
@@ -501,6 +505,9 @@ func TestFeatureStoreWrapper(t *testing.T) {
 			result, _ := w.Get(ld.Features, flag.Key)
 			resultCh <- result.GetVersion()
 		}()
+		// We can't actually *guarantee* that our second query will start while the first one is still
+		// in progress, but the combination of waiting on queryStartedCh and the built-in delay in
+		// mockCoreWithInstrumentedQueries should make it extremely likely.
 		<-core.queryStartedCh
 		go func() {
 			result, _ := w.Get(ld.Features, flag.Key)
@@ -515,13 +522,37 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		assert.Equal(t, 0, len(core.queryStartedCh)) // core only received 1 query
 	})
 
+	t.Run("Cached Get doesn't coalesce requests for same key", func(t *testing.T) {
+		core := newCoreWithInstrumentedQueries(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+		defer w.Close()
+
+		flag1 := ld.FeatureFlag{Key: "flag1", Version: 8}
+		flag2 := ld.FeatureFlag{Key: "flag2", Version: 9}
+		core.forceSet(ld.Features, &flag1)
+		core.forceSet(ld.Features, &flag2)
+
+		resultCh := make(chan int, 2)
+		go func() {
+			result, _ := w.Get(ld.Features, flag1.Key)
+			resultCh <- result.GetVersion()
+		}()
+		<-core.queryStartedCh
+		go func() {
+			result, _ := w.Get(ld.Features, flag2.Key)
+			resultCh <- result.GetVersion()
+		}()
+
+		results := map[int]bool{}
+		results[<-resultCh] = true
+		results[<-resultCh] = true
+		assert.Equal(t, map[int]bool{flag1.Version: true, flag2.Version: true}, results)
+
+		assert.Equal(t, 1, len(core.queryStartedCh)) // core received a total of 2 queries
+	})
+
 	t.Run("Cached All coalesces requests", func(t *testing.T) {
-		core := &mockCoreWithInstrumentedQueries{
-			cacheTTL:       cacheTime,
-			data:           map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
-			queryDelay:     200 * time.Millisecond,
-			queryStartedCh: make(chan struct{}, 2),
-		}
+		core := newCoreWithInstrumentedQueries(cacheTime)
 		w := NewFeatureStoreWrapper(core)
 		defer w.Close()
 
