@@ -43,15 +43,34 @@ type mockCore struct {
 	initQueriedCount int
 }
 
-// Test implementation of NonAtomicFeatureStoreCore - we test this in somewhat less deteail
+// Test implementation of NonAtomicFeatureStoreCore - we test this in somewhat less detail
 type mockNonAtomicCore struct {
 	data []StoreCollection
+}
+
+// Test implementation of FeatureStoreCore for request-coalescing tests
+type mockCoreWithInstrumentedQueries struct {
+	cacheTTL       time.Duration
+	data           map[ld.VersionedDataKind]map[string]ld.VersionedData
+	inited         bool
+	queryCount     int
+	queryDelay     time.Duration
+	queryStartedCh chan struct{}
 }
 
 func newCore(ttl time.Duration) *mockCore {
 	return &mockCore{
 		cacheTTL: ttl,
 		data:     map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
+	}
+}
+
+func newCoreWithInstrumentedQueries(ttl time.Duration) *mockCoreWithInstrumentedQueries {
+	return &mockCoreWithInstrumentedQueries{
+		cacheTTL:       ttl,
+		data:           map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
+		queryDelay:     200 * time.Millisecond,
+		queryStartedCh: make(chan struct{}, 2),
 	}
 }
 
@@ -130,6 +149,45 @@ func (c *mockNonAtomicCore) UpsertInternal(kind ld.VersionedDataKind, item ld.Ve
 
 func (c *mockNonAtomicCore) InitializedInternal() bool {
 	return false // not used in tests
+}
+
+func (c *mockCoreWithInstrumentedQueries) forceSet(kind ld.VersionedDataKind, item ld.VersionedData) {
+	c.data[kind][item.GetKey()] = item
+}
+
+func (c *mockCoreWithInstrumentedQueries) GetCacheTTL() time.Duration {
+	return c.cacheTTL
+}
+
+func (c *mockCoreWithInstrumentedQueries) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+	c.data = allData
+	c.inited = true
+	return nil
+}
+
+func (c *mockCoreWithInstrumentedQueries) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+	c.queryStartedCh <- struct{}{}
+	<-time.After(c.queryDelay)
+	return c.data[kind][key], nil
+}
+
+func (c *mockCoreWithInstrumentedQueries) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+	c.queryStartedCh <- struct{}{}
+	<-time.After(c.queryDelay)
+	return c.data[kind], nil
+}
+
+func (c *mockCoreWithInstrumentedQueries) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+	oldItem := c.data[kind][item.GetKey()]
+	if oldItem != nil && oldItem.GetVersion() >= item.GetVersion() {
+		return oldItem, nil
+	}
+	c.data[kind][item.GetKey()] = item
+	return item, nil
+}
+
+func (c *mockCoreWithInstrumentedQueries) InitializedInternal() bool {
+	return c.inited
 }
 
 func TestFeatureStoreWrapper(t *testing.T) {
@@ -432,6 +490,92 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		time.Sleep(600 * time.Millisecond)
 		assert.True(t, w.Initialized())
 		assert.Equal(t, 2, core.initQueriedCount)
+	})
+
+	t.Run("Cached Get coalesces requests for same key", func(t *testing.T) {
+		core := newCoreWithInstrumentedQueries(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+		defer w.Close()
+
+		flag := ld.FeatureFlag{Key: "flag", Version: 9}
+		core.forceSet(ld.Features, &flag)
+
+		resultCh := make(chan int, 2)
+		go func() {
+			result, _ := w.Get(ld.Features, flag.Key)
+			resultCh <- result.GetVersion()
+		}()
+		// We can't actually *guarantee* that our second query will start while the first one is still
+		// in progress, but the combination of waiting on queryStartedCh and the built-in delay in
+		// mockCoreWithInstrumentedQueries should make it extremely likely.
+		<-core.queryStartedCh
+		go func() {
+			result, _ := w.Get(ld.Features, flag.Key)
+			resultCh <- result.GetVersion()
+		}()
+
+		result1 := <-resultCh
+		result2 := <-resultCh
+		assert.Equal(t, flag.Version, result1)
+		assert.Equal(t, flag.Version, result2)
+
+		assert.Equal(t, 0, len(core.queryStartedCh)) // core only received 1 query
+	})
+
+	t.Run("Cached Get doesn't coalesce requests for same key", func(t *testing.T) {
+		core := newCoreWithInstrumentedQueries(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+		defer w.Close()
+
+		flag1 := ld.FeatureFlag{Key: "flag1", Version: 8}
+		flag2 := ld.FeatureFlag{Key: "flag2", Version: 9}
+		core.forceSet(ld.Features, &flag1)
+		core.forceSet(ld.Features, &flag2)
+
+		resultCh := make(chan int, 2)
+		go func() {
+			result, _ := w.Get(ld.Features, flag1.Key)
+			resultCh <- result.GetVersion()
+		}()
+		<-core.queryStartedCh
+		go func() {
+			result, _ := w.Get(ld.Features, flag2.Key)
+			resultCh <- result.GetVersion()
+		}()
+
+		results := map[int]bool{}
+		results[<-resultCh] = true
+		results[<-resultCh] = true
+		assert.Equal(t, map[int]bool{flag1.Version: true, flag2.Version: true}, results)
+
+		assert.Equal(t, 1, len(core.queryStartedCh)) // core received a total of 2 queries
+	})
+
+	t.Run("Cached All coalesces requests", func(t *testing.T) {
+		core := newCoreWithInstrumentedQueries(cacheTime)
+		w := NewFeatureStoreWrapper(core)
+		defer w.Close()
+
+		flag := ld.FeatureFlag{Key: "flag", Version: 9}
+		core.forceSet(ld.Features, &flag)
+
+		resultCh := make(chan int, 2)
+		go func() {
+			result, _ := w.All(ld.Features)
+			resultCh <- len(result)
+		}()
+		<-core.queryStartedCh
+		go func() {
+			result, _ := w.All(ld.Features)
+			resultCh <- len(result)
+		}()
+
+		result1 := <-resultCh
+		result2 := <-resultCh
+		assert.Equal(t, 1, result1)
+		assert.Equal(t, 1, result2)
+
+		assert.Equal(t, 0, len(core.queryStartedCh)) // core only received 1 query
 	})
 
 	t.Run("Cached store with finite TTL won't update cache if core update fails", func(t *testing.T) {
