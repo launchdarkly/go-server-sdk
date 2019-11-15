@@ -95,8 +95,8 @@ jobs:
           name: move source
           command: |
             go env GOPATH
-            mkdir $(GOPATH)\src\$(PACKAGE_PATH)
-            mv * $(GOPATH)\src\$(PACKAGE_PATH)\
+            mkdir ${env:GOPATH}\src\${env:PACKAGE_PATH}
+            mv * ${env:GOPATH}\src\${env:PACKAGE_PATH}\
       - run:
           name: setup DynamoDB
           command: |
@@ -126,5 +126,5 @@ jobs:
       - run:
           name: build and test
           command: |
-            cd $(GOPATH)\src\$(PACKAGE_PATH)
+            cd ${env:GOPATH}\src\${env:PACKAGE_PATH}
             go test -race ./...
