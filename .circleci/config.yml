@@ -1,31 +1,62 @@
-version: 2
+version: 2.1
 
-experimental:
-  notify:
-    branches:
-      only:
-        - master
-        - v2
-        - v3
-        - v4
+workflows:
+  workflow:
+    jobs:
+      - go-test:
+          name: Go 1.13
+          docker-image: circleci/golang:1.13
+          # We can't run the linter in Go 1.12 or 13 because of a known issue with build tags not working
+          # correctly in golangci-lint: the linter uses the build tags that *the linter* was built with,
+          # rather than the current environment, and there's some Go library code that relies on build tags.
+          run-lint: false
+      - go-test:
+          name: Go 1.12
+          docker-image: circleci/golang:1.12
+          run-lint: false
+      - go-test:
+          name: Go 1.11
+          docker-image: circleci/golang:1.11
+      - go-test:
+          name: Go 1.10
+          docker-image: circleci/golang:1.10
+      - go-test:
+          name: Go 1.9
+          docker-image: circleci/golang:1.9
+      - go-test:
+          name: Go 1.8
+          docker-image: circleci/golang:1.8
 
-defaults:
-  environment: &environment
-    CIRCLE_TEST_REPORTS: /tmp/circle-reports
-    CIRCLE_ARTIFACTS: /tmp/circle-artifacts
-    COMMON_GO_PACKAGES: >
-      github.com/golang/dep/cmd/dep
-      github.com/jstemmer/go-junit-report
+jobs:
+  go-test:
+    parameters:
+      run-lint:
+        type: boolean
+        default: true
+      docker-image:
+        type: string
 
-  build_steps: &build_steps
+    docker:
+      - image: <<parameters.docker-image>>
+        environment:
+          CIRCLE_TEST_REPORTS: /tmp/circle-reports
+          CIRCLE_ARTIFACTS: /tmp/circle-artifacts
+          COMMON_GO_PACKAGES: >
+            github.com/golang/dep/cmd/dep
+            github.com/jstemmer/go-junit-report
+      - image: redis
+      - image: consul
+      - image: amazon/dynamodb-local
+
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+
     steps:
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
-      # The reason the lint step is conditional here is: 1. we had to pin golangci-lint to v1.10.2; 2. the
-      # linter does not handle build tags correctly, because it always uses the build tags that *the linter*
-      # was built with; 3. there's some code in built-in packages in Go 1.12 that uses build tags and the
-      # linter will end up looking at the wrong subset of that code, and fail on it.
-      - run: if [ "$CIRCLE_JOB" != "go-test-1.12" ]; then make lint; fi
+      - when:
+          condition: <<parameters.run-lint>>
+          steps:
+            - run: make lint
       - run: dep ensure -dry-run
       - run: go build ./...
       
@@ -42,79 +73,3 @@ defaults:
 
       - store_artifacts:
           path: /tmp/circle-artifacts
-
-jobs:
-  go-test-1.12:
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
-
-    docker:
-      - image: circleci/golang:1.12
-        environment:
-          <<: *environment
-      - image: redis
-      - image: consul
-      - image: amazon/dynamodb-local
-
-    <<: *build_steps
-
-  go-test-1.11:
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
-
-    docker:
-      - image: circleci/golang:1.11
-        environment:
-          <<: *environment
-      - image: redis
-      - image: consul
-      - image: amazon/dynamodb-local
-
-    <<: *build_steps
-
-  go-test-1.10:
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
-
-    docker:
-      - image: circleci/golang:1.10
-        environment:
-          <<: *environment
-      - image: redis
-      - image: consul
-      - image: amazon/dynamodb-local
-
-    <<: *build_steps
-
-  go-test-1.9:
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
-
-    docker:
-      - image: circleci/golang:1.9
-        environment:
-          <<: *environment
-      - image: redis
-      - image: consul
-      - image: amazon/dynamodb-local
-
-    <<: *build_steps
-
-  go-test-1.8:
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
-
-    docker:
-      - image: circleci/golang:1.8
-        environment:
-          <<: *environment
-      - image: redis
-      - image: consul
-      - image: amazon/dynamodb-local
-
-    <<: *build_steps
-
-workflows:
-  version: 2
-  test:
-    jobs:
-      - go-test-1.12
-      - go-test-1.11
-      - go-test-1.10
-      - go-test-1.9
-      - go-test-1.8
