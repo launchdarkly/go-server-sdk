@@ -106,6 +106,7 @@ jobs:
             Expand-Archive -Path dynamo.zip -DestinationPath dynamo
             cd dynamo
             javaw -D"java.library.path=./DynamoDBLocal_lib" -jar DynamoDBLocal.jar
+          background: true
       - run:
           name: setup Consul
           command: |
