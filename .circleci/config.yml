@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  win: circleci/windows@1.0.0
+
 workflows:
   workflow:
     jobs:
@@ -26,6 +29,8 @@ workflows:
       - go-test:
           name: Go 1.8
           docker-image: circleci/golang:1.8
+      - go-test-windows:
+          name: Windows
 
 jobs:
   go-test:
@@ -73,3 +78,53 @@ jobs:
 
       - store_artifacts:
           path: /tmp/circle-artifacts
+
+  go-test-windows:
+    executor:
+      name: win/vs2019
+      shell: powershell.exe
+
+    environment:
+      GOPATH: C:\Users\VssAdministrator\go
+      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v4
+
+    steps:
+      - checkout
+      - run: go version
+      - run:
+          name: move source
+          command: |
+            go env GOPATH
+            mkdir $(GOPATH)\src\$(PACKAGE_PATH)
+            mv * $(GOPATH)\src\$(PACKAGE_PATH)\
+      - run:
+          name: setup DynamoDB
+          command: |
+            iwr -outf dynamo.zip https://s3-us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.zip
+            mkdir dynamo
+            Expand-Archive -Path dynamo.zip -DestinationPath dynamo
+            cd dynamo
+            javaw -D"java.library.path=./DynamoDBLocal_lib" -jar DynamoDBLocal.jar
+      - run:
+          name: setup Consul
+          command: |
+            iwr -outf consul.zip https://releases.hashicorp.com/consul/1.4.2/consul_1.4.2_windows_amd64.zip
+            mkdir consul
+            Expand-Archive -Path consul.zip -DestinationPath consul
+            cd consul
+            sc.exe create "Consul" binPath="$(Get-Location)/consul.exe agent -dev"
+            sc.exe start "Consul"
+      - run:
+          name: setup Redis
+          command: |
+            iwr -outf redis.zip https://github.com/MicrosoftArchive/redis/releases/download/win-3.0.504/Redis-x64-3.0.504.zip
+            mkdir redis
+            Expand-Archive -Path redis.zip -DestinationPath redis
+            cd redis
+            ./redis-server --service-install
+            ./redis-server --service-start
+      - run:
+          name: build and test
+          command: |
+            cd $(GOPATH)\src\$(PACKAGE_PATH)
+            go test -race ./...
