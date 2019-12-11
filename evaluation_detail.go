@@ -107,18 +107,22 @@ func (r EvaluationReasonOff) String() string {
 	return string(r.GetKind())
 }
 
+// GetRuleIndex for this type always returns -1.
 func (r EvaluationReasonOff) GetRuleIndex() int {
 	return -1
 }
 
+// GetRuleID for this type always returns an empty string.
 func (r EvaluationReasonOff) GetRuleID() string {
 	return ""
 }
 
+// GetPrerequisiteKey for this type always returns an empty string.
 func (r EvaluationReasonOff) GetPrerequisiteKey() string {
 	return ""
 }
 
+// GetErrorKind for this type always returns an empty string.
 func (r EvaluationReasonOff) GetErrorKind() EvalErrorKind {
 	return ""
 }
@@ -139,18 +143,22 @@ func (r EvaluationReasonTargetMatch) String() string {
 	return string(r.GetKind())
 }
 
+// GetRuleIndex for this type always returns -1.
 func (r EvaluationReasonTargetMatch) GetRuleIndex() int {
 	return -1
 }
 
+// GetRuleID for this type always returns an empty string.
 func (r EvaluationReasonTargetMatch) GetRuleID() string {
 	return ""
 }
 
+// GetPrerequisiteKey for this type always returns an empty string.
 func (r EvaluationReasonTargetMatch) GetPrerequisiteKey() string {
 	return ""
 }
 
+// GetErrorKind for this type always returns an empty string.
 func (r EvaluationReasonTargetMatch) GetErrorKind() EvalErrorKind {
 	return ""
 }
@@ -180,18 +188,22 @@ func (r EvaluationReasonRuleMatch) String() string {
 	return fmt.Sprintf("%s(%d,%s)", r.GetKind(), r.RuleIndex, r.RuleID)
 }
 
+// GetRuleIndex provides the index of the rule that was matched (0 being the first).
 func (r EvaluationReasonRuleMatch) GetRuleIndex() int {
 	return r.RuleIndex
 }
 
+// GetRuleID provides the unique identifier of the rule that was matched.
 func (r EvaluationReasonRuleMatch) GetRuleID() string {
 	return r.RuleID
 }
 
+// GetPrerequisiteKey for this type always returns an empty string.
 func (r EvaluationReasonRuleMatch) GetPrerequisiteKey() string {
 	return ""
 }
 
+// GetErrorKind for this type always returns an empty string.
 func (r EvaluationReasonRuleMatch) GetErrorKind() EvalErrorKind {
 	return ""
 }
@@ -219,18 +231,22 @@ func (r EvaluationReasonPrerequisiteFailed) String() string {
 	return fmt.Sprintf("%s(%s)", r.GetKind(), r.PrerequisiteKey)
 }
 
+// GetRuleIndex for this type always returns -1.
 func (r EvaluationReasonPrerequisiteFailed) GetRuleIndex() int {
 	return -1
 }
 
+// GetRuleID for this type always returns an empty string.
 func (r EvaluationReasonPrerequisiteFailed) GetRuleID() string {
 	return ""
 }
 
+// GetPrerequisiteKey provides the flag key of the prerequisite that failed.
 func (r EvaluationReasonPrerequisiteFailed) GetPrerequisiteKey() string {
 	return r.PrerequisiteKey
 }
 
+// GetErrorKind for this type always returns an empty string.
 func (r EvaluationReasonPrerequisiteFailed) GetErrorKind() EvalErrorKind {
 	return ""
 }
@@ -252,18 +268,22 @@ func (r EvaluationReasonFallthrough) String() string {
 	return string(r.GetKind())
 }
 
+// GetRuleIndex for this type always returns -1.
 func (r EvaluationReasonFallthrough) GetRuleIndex() int {
 	return -1
 }
 
+// GetRuleID for this type always returns an empty string.
 func (r EvaluationReasonFallthrough) GetRuleID() string {
 	return ""
 }
 
+// GetPrerequisiteKey for this type always returns an empty string.
 func (r EvaluationReasonFallthrough) GetPrerequisiteKey() string {
 	return ""
 }
 
+// GetErrorKind for this type always returns an empty string.
 func (r EvaluationReasonFallthrough) GetErrorKind() EvalErrorKind {
 	return ""
 }
@@ -287,18 +307,22 @@ func newEvalReasonError(kind EvalErrorKind) EvaluationReasonError {
 	}
 }
 
+// GetRuleIndex for this type always returns -1.
 func (r EvaluationReasonError) GetRuleIndex() int {
 	return -1
 }
 
+// GetRuleID for this type always returns an empty string.
 func (r EvaluationReasonError) GetRuleID() string {
 	return ""
 }
 
+// GetPrerequisiteKey for this type always returns an empty string.
 func (r EvaluationReasonError) GetPrerequisiteKey() string {
 	return ""
 }
 
+// GetErrorKind describes the general category of the error.
 func (r EvaluationReasonError) GetErrorKind() EvalErrorKind {
 	return r.ErrorKind
 }
