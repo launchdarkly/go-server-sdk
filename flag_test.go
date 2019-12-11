@@ -25,7 +25,7 @@ func TestFlagReturnsOffVariationIfFlagIsOff(t *testing.T) {
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Equal(t, "off", result.Value)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
-	assert.Equal(t, evalReasonOffInstance, result.Reason)
+	assert.Equal(t, newEvalReasonOff(), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -40,7 +40,7 @@ func TestFlagReturnsNilIfFlagIsOffAndOffVariationIsUnspecified(t *testing.T) {
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Nil(t, result.Value)
 	assert.Nil(t, result.VariationIndex)
-	assert.Equal(t, evalReasonOffInstance, result.Reason)
+	assert.Equal(t, newEvalReasonOff(), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -56,7 +56,7 @@ func TestFlagReturnsFallthroughIfFlagIsOnAndThereAreNoRules(t *testing.T) {
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
@@ -228,7 +228,7 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -263,7 +263,7 @@ func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
@@ -307,7 +307,7 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
 	assert.Equal(t, "fall", result.Value)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), result.Reason)
 
 	assert.Equal(t, 2, len(events))
 	// events are generated recursively, so the deepest level of prerequisite appears first
@@ -341,7 +341,7 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, "on", result.Value)
 	assert.Equal(t, intPtr(2), result.VariationIndex)
-	assert.Equal(t, evalReasonTargetMatchInstance, result.Reason)
+	assert.Equal(t, newEvalReasonTargetMatch(), result.Reason)
 	assert.Equal(t, 0, len(events))
 }
 
