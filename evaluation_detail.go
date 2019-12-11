@@ -52,11 +52,6 @@ const (
 )
 
 // EvaluationReason describes the reason that a flag evaluation producted a particular value.
-// Specific kinds of reasons have their own types that implement this interface.
-//
-// Note: In a future version, EvaluationReason will be a struct, and the currently existing
-// structs implementing this interface (EvaluationReasonOff, etc.) will be removed. For
-// compatibility, avoid referencing those types and use only the EvaluationReason methods.
 type EvaluationReason struct {
 	kind            EvalReasonKind
 	ruleIndex       int
