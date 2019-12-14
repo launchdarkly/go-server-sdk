@@ -2,12 +2,12 @@ package ldclient
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +18,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	server := httptest.NewServer(nullHandler)
 	defer server.Close()
 	cfg := Config{
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      ldlog.NewDisabledLoggers(),
 		PollInterval: time.Minute,
 		BaseUri:      server.URL,
 	}
@@ -51,14 +51,13 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	store := NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0))
-
 	cfg := Config{
-		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      ldlog.NewDisabledLoggers(),
 		PollInterval: time.Millisecond,
 		BaseUri:      ts.URL,
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 	req := newRequestor("fake", cfg, nil)
 	p := newPollingProcessor(cfg, req)
 
@@ -121,7 +120,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 			defer ts.CloseClientConnections()
 
 			cfg := Config{
-				Logger:       log.New(ioutil.Discard, "", 0),
+				Loggers:      ldlog.NewDisabledLoggers(),
 				PollInterval: time.Millisecond * 10,
 				BaseUri:      ts.URL,
 			}
@@ -167,15 +166,14 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	store := NewInMemoryFeatureStore(nil)
-
 	cfg := Config{
-		FeatureStore:      store,
-		Logger:            log.New(ioutil.Discard, "", 0),
+		Loggers:           ldlog.NewDisabledLoggers(),
 		PollInterval:      time.Minute * 30,
 		BaseUri:           ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 	req := newRequestor("fake", cfg, nil)
 
 	p := newPollingProcessor(cfg, req)

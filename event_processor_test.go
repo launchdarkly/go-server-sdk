@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
 var BuiltinAttributes = []string{
@@ -630,7 +630,7 @@ func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:            log.New(ioutil.Discard, "", 0),
+		Loggers:           ldlog.NewDisabledLoggers(),
 		EventsUri:         ts.URL,
 		Capacity:          1000,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),

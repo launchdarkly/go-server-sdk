@@ -52,30 +52,6 @@ type IndexEvent struct {
 	BaseEvent
 }
 
-// NewFeatureRequestEvent creates a feature request event. Normally, you don't need to call this;
-// the event is created and queued automatically during feature flag evaluation.
-//
-// Deprecated: This function will be removed in a later release.
-func NewFeatureRequestEvent(key string, flag *FeatureFlag, user User, variation *int, value, defaultVal interface{}, prereqOf *string) FeatureRequestEvent {
-	fre := FeatureRequestEvent{
-		BaseEvent: BaseEvent{
-			CreationDate: now(),
-			User:         user,
-		},
-		Key:       key,
-		Variation: variation,
-		Value:     value,
-		Default:   defaultVal,
-		PrereqOf:  prereqOf,
-	}
-	if flag != nil {
-		fre.Version = &flag.Version
-		fre.TrackEvents = flag.TrackEvents
-		fre.DebugEventsUntilDate = flag.DebugEventsUntilDate
-	}
-	return fre
-}
-
 func newUnknownFlagEvent(key string, user User, defaultVal interface{}, reason EvaluationReason,
 	includeReason bool) FeatureRequestEvent {
 	fre := FeatureRequestEvent{

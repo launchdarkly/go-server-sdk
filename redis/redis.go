@@ -186,8 +186,8 @@ func (o loggerOption) apply(opts *redisFeatureStoreOptions) error {
 
 // Logger creates an option for NewRedisFeatureStore, to specify where to send log output.
 //
-// If you use NewConsulFeatureStoreFactory rather than the deprecated constructors, you do not
-// need to specify a logger because it will use the same logging configuration as the SDK client.
+// You do not normally need to specify a logger because it will use the same logging configuration as
+// the SDK client.
 //
 //     store, err := redis.NewRedisFeatureStore(redis.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
@@ -255,55 +255,6 @@ func newPool(url string, dialOptions []r.DialOption) *r.Pool {
 
 const initedKey = "$inited"
 
-// NewRedisFeatureStoreFromUrl constructs a new Redis-backed feature store connecting to the
-// specified URL. It uses a default connection pool configuration (see package description for details).
-// The "prefix", "timeout", and "logger" parameters are equivalent to the Prefix, CacheTTL, and
-// Logger options for NewRedisFeatureStoreWithDefaults.
-//
-// Deprecated: It is simpler to use NewRedisFeatureStoreFactory(redis.URL(url)) and override
-// any other defaults as needed.
-func NewRedisFeatureStoreFromUrl(url, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	return newStoreForDeprecatedConstructors(URL(url), Prefix(prefix), CacheTTL(timeout), Logger(logger))
-}
-
-// NewRedisFeatureStoreWithPool constructs a new Redis-backed feature store with the specified
-// redigo pool configuration. The "prefix", "timeout", and "logger" parameters are equivalent to
-// the Prefix, CacheTTL, and Logger options for NewRedisFeatureStoreWithDefaults.
-//
-// Deprecated: It is simpler to use NewRedisFeatureStoreFactory(redis.Pool(pool)) and override
-// any other defaults as needed.
-func NewRedisFeatureStoreWithPool(pool *r.Pool, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	return newStoreForDeprecatedConstructors(Pool(pool), Prefix(prefix), CacheTTL(timeout), Logger(logger))
-}
-
-// NewRedisFeatureStore constructs a new Redis-backed feature store connecting to the specified
-// host and port. It uses a default connection pool configuration (see package description for details).
-// The "prefix", "timeout", and "logger" parameters are equivalent to the Prefix, CacheTTL, and
-// Logger options for NewRedisFeatureStoreWithDefaults.
-//
-// Deprecated: It is simpler to use NewRedisFeatureStoreFactory(redis.HostAndPort(host, port))
-// and override any other defaults as needed.
-func NewRedisFeatureStore(host string, port int, prefix string, timeout time.Duration, logger ld.Logger) *RedisFeatureStore {
-	return newStoreForDeprecatedConstructors(HostAndPort(host, port), Prefix(prefix), CacheTTL(timeout), Logger(logger))
-}
-
-// NewRedisFeatureStoreWithDefaults constructs a new Redis-backed feature store.
-//
-// By default, it uses DefaultURL as the Redis address, DefaultPrefix as the prefix for all keys,
-// DefaultCacheTTL as the duration for in-memory caching, no authentication and a default connection
-// pool configuration (see package description for details). You may override any of these with
-// FeatureStoreOption values created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL,
-// Logger, or Auth.
-//
-// Deprecated: Use NewRedisFeatureStoreFactory instead
-func NewRedisFeatureStoreWithDefaults(options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	factory, err := NewRedisFeatureStoreFactory(options...)
-	if err != nil {
-		return nil, err
-	}
-	return factory(ld.Config{})
-}
-
 // NewRedisFeatureStoreFactory returns a factory function for a Redis-backed feature store.
 //
 // By default, it uses DefaultURL as the Redis address, DefaultPrefix as the prefix for all keys,
@@ -325,15 +276,6 @@ func NewRedisFeatureStoreFactory(options ...FeatureStoreOption) (ld.FeatureStore
 		core := newRedisFeatureStoreInternal(configuredOptions, ldConfig)
 		return utils.NewFeatureStoreWrapperWithConfig(core, ldConfig), nil
 	}, nil
-}
-
-func newStoreForDeprecatedConstructors(options ...FeatureStoreOption) *RedisFeatureStore {
-	configuredOptions, err := validateOptions(options...)
-	if err != nil {
-		return nil
-	}
-	core := newRedisFeatureStoreInternal(configuredOptions, ld.Config{})
-	return &RedisFeatureStore{wrapper: utils.NewFeatureStoreWrapperWithConfig(core, ld.Config{})}
 }
 
 func validateOptions(options ...FeatureStoreOption) (redisFeatureStoreOptions, error) {

@@ -170,25 +170,12 @@ func (o loggerOption) apply(opts *featureStoreOptions) error {
 
 // Logger creates an option for NewConsulFeatureStore, to specify where to send log output.
 //
-// If you use NewConsulFeatureStoreFactory rather than the deprecated constructor, you normally do
-// not need to specify a logger because it will use the same logging configuration as the SDK client.
+// You normally do not need to specify a logger because it will use the same logging configuration as
+// the SDK client.
 //
 //     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
-}
-
-// NewConsulFeatureStore creates a new Consul-backed feature store with an optional memory cache. You
-// may customize its behavior with any number of FeatureStoreOption values, such as Config, Address,
-// Prefix, CacheTTL, and Logger.
-//
-// Deprecated: Please use NewConsulFeatureStoreFactory instead.
-func NewConsulFeatureStore(options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	factory, err := NewConsulFeatureStoreFactory(options...)
-	if err != nil {
-		return nil, err
-	}
-	return factory(ld.Config{})
 }
 
 // NewConsulFeatureStoreFactory returns a factory function for a Consul-backed feature store with an

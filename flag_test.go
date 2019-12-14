@@ -7,7 +7,7 @@ import (
 )
 
 var flagUser = NewUser("x")
-var emptyFeatureStore = NewInMemoryFeatureStore(nil)
+var emptyFeatureStore = newInMemoryFeatureStoreInternal(Config{})
 
 func intPtr(n int) *int {
 	return &n
@@ -152,7 +152,7 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsOff(t *testing.T) {
 		Variations:  []interface{}{"nogo", "go"},
 		Version:     2,
 	}
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
@@ -187,7 +187,7 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 		Variations:   []interface{}{"nogo", "go"},
 		Version:      2,
 	}
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
@@ -222,7 +222,7 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 		Variations:   []interface{}{"nogo", "go"},
 		Version:      2,
 	}
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
@@ -257,7 +257,7 @@ func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
 		Variations:   []interface{}{[]interface{}{"000"}, []interface{}{"001"}},
 		Version:      2,
 	}
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
@@ -300,7 +300,7 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 		Variations:  []interface{}{"nogo", "go"},
 		Version:     3,
 	}
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Features, &f1)
 	featureStore.Upsert(Features, &f2)
 
@@ -507,7 +507,7 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 	}
 	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}}
 	f := booleanFlagWithClause(clause)
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
 
@@ -531,7 +531,7 @@ func TestCanMatchJustOneSegmentFromList(t *testing.T) {
 	}
 	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"unknownsegkey", "segkey"}}
 	f := booleanFlagWithClause(clause)
-	featureStore := NewInMemoryFeatureStore(nil)
+	featureStore := newInMemoryFeatureStoreInternal(Config{})
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
 

@@ -20,34 +20,10 @@ func TestRedisFeatureStoreUncached(t *testing.T) {
 	ldtest.RunFeatureStoreTests(t, f, clearExistingData, false)
 }
 
-func TestRedisFeatureStoreUncachedWithDeprecatedOptionsConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreWithDefaults(CacheTTL(0))
-	}, clearExistingData, false)
-}
-
-func TestRedisFeatureStoreUncachedWithDeprecatedConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 0, nil), nil
-	}, clearExistingData, false)
-}
-
 func TestRedisFeatureStoreCached(t *testing.T) {
 	f, err := NewRedisFeatureStoreFactory(CacheTTL(30 * time.Second))
 	require.NoError(t, err)
 	ldtest.RunFeatureStoreTests(t, f, clearExistingData, true)
-}
-
-func TestRedisFeatureStoreCachedWithDeprecatedOptionsConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreWithDefaults(CacheTTL(30 * time.Second))
-	}, clearExistingData, true)
-}
-
-func TestRedisFeatureStoreCachedWithDeprecatedConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 30*time.Second, nil), nil
-	}, clearExistingData, true)
 }
 
 func TestRedisFeatureStorePrefixes(t *testing.T) {

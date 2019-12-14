@@ -235,28 +235,12 @@ func (o loggerOption) apply(opts *featureStoreOptions) error {
 // Logger creates an option for NewDynamoDBFeatureStore, to specify where to send log output.
 // If not specified, a log.Logger is used.
 //
-// If you use NewDynamoDBFeatureStoreFactory rather than the deprecated constructor, you normally do
-// not need to specify a logger because it will use the same logging configuration as the SDK client.
+// You normally do not need to specify a logger because it will use the same logging configuration as
+// the SDK client.
 //
 //     store, err := lddynamodb.NewDynamoDBFeatureStore("my-table-name", lddynamodb.Logger(myLogger))
 func Logger(logger ld.Logger) FeatureStoreOption {
 	return loggerOption{logger}
-}
-
-// NewDynamoDBFeatureStore creates a new DynamoDB feature store to be used by the LaunchDarkly client.
-//
-// By default, this function uses https://docs.aws.amazon.com/sdk-for-go/api/aws/session/#NewSession
-// to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
-// as AWS environment variables. You can also override the default configuration with the SessionOptions
-// option, or use an already-configured DynamoDB client instance with the DynamoClient option.
-//
-// Deprecated: Please use NewDynamoDBFeatureStoreFactory.
-func NewDynamoDBFeatureStore(table string, options ...FeatureStoreOption) (ld.FeatureStore, error) {
-	factory, err := NewDynamoDBFeatureStoreFactory(table, options...)
-	if err != nil {
-		return nil, err
-	}
-	return factory(ld.Config{})
 }
 
 // NewDynamoDBFeatureStoreFactory returns a factory function for a DynamoDB-backed feature store with an

@@ -154,13 +154,6 @@ func NewFeatureStoreWrapperWithConfig(core FeatureStoreCore, config ld.Config) *
 	return w
 }
 
-// NewFeatureStoreWrapper creates an instance of FeatureStoreWrapper that wraps an instance
-// of FeatureStoreCore.
-// Deprecated: Use NewFeatureStoreWrapperWithConfig.
-func NewFeatureStoreWrapper(core FeatureStoreCore) *FeatureStoreWrapper {
-	return NewFeatureStoreWrapperWithConfig(core, ld.Config{})
-}
-
 // NewNonAtomicFeatureStoreWrapperWithConfig creates an instance of FeatureStoreWrapper that wraps an
 // instance of NonAtomicFeatureStoreCore. It takes a Config parameter so that it can use the same logging configuration
 // as the SDK.

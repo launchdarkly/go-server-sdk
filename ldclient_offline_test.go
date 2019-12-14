@@ -107,10 +107,10 @@ func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
 	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
 
-func TestAllFlagsReturnsNilOffline(t *testing.T) {
+func TestAllFlagsStateReturnsEmptyStateOffline(t *testing.T) {
 	client := makeOfflineClient()
 	defer client.Close()
 
-	result := client.AllFlags(evalTestUser)
-	assert.Nil(t, result)
+	result := client.AllFlagsState(evalTestUser)
+	assert.False(t, result.IsValid())
 }

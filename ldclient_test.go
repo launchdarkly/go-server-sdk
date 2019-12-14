@@ -2,11 +2,11 @@ package ldclient
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -216,7 +216,7 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient("sdkKey", Config{
-		Logger:                 log.New(ioutil.Discard, "", 0),
+		Loggers:                ldlog.NewDisabledLoggers(),
 		UpdateProcessorFactory: updateProcessorFactory(updateProcessor),
 		EventProcessor:         &testEventProcessor{},
 		UserKeysFlushInterval:  30 * time.Second,
@@ -232,16 +232,16 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Logger:       newMockLogger(""),
-		Offline:      false,
-		SendEvents:   true,
-		FeatureStore: NewInMemoryFeatureStore(nil),
+		Offline:             false,
+		SendEvents:          true,
+		FeatureStoreFactory: NewInMemoryFeatureStoreFactory(),
 		UpdateProcessorFactory: updateProcessorFactory(mockUpdateProcessor{
 			IsInitialized: true,
 		}),
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}
+	config.Loggers.SetBaseLogger(newMockLogger(""))
 	if modConfig != nil {
 		modConfig(&config)
 	}

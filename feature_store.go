@@ -60,16 +60,6 @@ type InMemoryFeatureStore struct {
 	loggers ldlog.Loggers
 }
 
-// NewInMemoryFeatureStore creates a new in-memory FeatureStore instance.
-//
-// Deprecated: Specific implementation types such as InMemoryFeatureStore should not be used and
-// may be removed in the future. Instead, use NewInMemoryFeatureStoreFactory.
-func NewInMemoryFeatureStore(logger Logger) *InMemoryFeatureStore {
-	config := Config{}
-	config.Loggers.SetBaseLogger(logger)
-	return newInMemoryFeatureStoreInternal(config)
-}
-
 // NewInMemoryFeatureStoreFactory returns a factory function to create an in-memory FeatureStore.
 // Setting the FeatureStoreFactory option in Config to this function ensures that it will use the
 // same logging configuration as the other SDK components.

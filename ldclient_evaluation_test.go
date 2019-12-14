@@ -573,33 +573,6 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	assert.Equal(t, expected1, e1)
 }
 
-func TestAllFlags(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	flag0 := makeTestFlag("flag0", 1, "a", "b")
-	flag1 := makeTestFlag("flag1", 1, "c", "d")
-	client.store.Upsert(Features, flag0)
-	client.store.Upsert(Features, flag1)
-
-	result := client.AllFlags(evalTestUser)
-	expected := map[string]interface{}{"flag0": "b", "flag1": "d"}
-	assert.Equal(t, expected, result)
-}
-
-func TestAllFlagsReturnsNilIfUserKeyIsNil(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	flag0 := makeTestFlag("flag0", 1, "a", "b")
-	flag1 := makeTestFlag("flag1", 1, "c", "d")
-	client.store.Upsert(Features, flag0)
-	client.store.Upsert(Features, flag1)
-
-	result := client.AllFlags(evalTestUserWithNilKey)
-	assert.Nil(t, result)
-}
-
 func TestAllFlagsStateGetsState(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
@@ -805,7 +778,7 @@ func testEvalErrorLogging(t *testing.T, flag *FeatureFlag, key string, user User
 	runTest := func(withLogging bool) {
 		logger := newMockLogger("WARN:")
 		client := makeTestClientWithConfig(func(c *Config) {
-			c.Logger = logger
+			c.Loggers.SetBaseLogger(logger)
 			c.LogEvaluationErrors = withLogging
 		})
 		defer client.Close()

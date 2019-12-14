@@ -81,16 +81,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
-	// Our logger configuration logic is a little funny for backward compatibility reasons. We had
-	// to continue providing a non-nil logger in DefaultConfig.Logger, but we still want ldlog to
-	// use its own default behavior if the app did not specifically override the logger. So if we
-	// see that same exact logger instance, we'll ignore it.
-	if config.Logger != nil && config.Logger != defaultLogger {
-		config.Loggers.SetBaseLogger(config.Logger)
-	}
-	if config.Logger == nil {
-		config.Logger = DefaultConfig.Logger // always set this, in case someone accidentally uses it instead of Loggers
-	}
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
 	if config.FeatureStore == nil {
@@ -121,18 +111,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventProcessor = newNullEventProcessor()
 	}
 
-	if config.UpdateProcessor != nil {
-		client.updateProcessor = config.UpdateProcessor
-	} else {
-		factory := config.UpdateProcessorFactory
-		if factory == nil {
-			factory = createDefaultUpdateProcessor(defaultHTTPClient)
-		}
-		var err error
-		client.updateProcessor, err = factory(sdkKey, config)
-		if err != nil {
-			return nil, err
-		}
+	factory := config.UpdateProcessorFactory
+	if factory == nil {
+		factory = createDefaultUpdateProcessor(defaultHTTPClient)
+	}
+	var err error
+	client.updateProcessor, err = factory(sdkKey, config)
+	if err != nil {
+		return nil, err
 	}
 	client.updateProcessor.Start(closeWhenReady)
 	if waitFor > 0 && !config.Offline && !config.UseLdd {
@@ -265,18 +251,6 @@ func (client *LDClient) Close() error {
 // However, if you call Close(), events are guaranteed to be sent before that method returns.
 func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
-}
-
-// AllFlags returns a map from feature flag keys to values for
-// a given user. If the result of the flag's evaluation would
-// result in the default value, `nil` will be returned. This method
-// does not send analytics events back to LaunchDarkly
-//
-// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK
-// will not generate analytics events correctly if you pass the result of AllFlags.
-func (client *LDClient) AllFlags(user User) map[string]interface{} {
-	state := client.AllFlagsState(user)
-	return state.ToValuesMap()
 }
 
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a
