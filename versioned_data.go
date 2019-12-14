@@ -1,6 +1,8 @@
 package ldclient
 
 // VersionedData is a common interface for string-keyed, versioned objects such as feature flags.
+//
+// Deprecated: this type is for internal use and will be removed in a future version.
 type VersionedData interface {
 	// GetKey returns the string key for this object.
 	GetKey() string
@@ -11,6 +13,8 @@ type VersionedData interface {
 }
 
 // VersionedDataKind describes a kind of VersionedData objects that may exist in a store.
+//
+// Deprecated: this type is for internal use and will be removed in a future version.
 type VersionedDataKind interface {
 	// GetNamespace returns a short string that serves as the unique name for the collection of these objects, e.g. "features".
 	GetNamespace() string
@@ -22,6 +26,8 @@ type VersionedDataKind interface {
 
 // VersionedDataKinds is a list of supported VersionedDataKind's. Among other things, this list might
 // be used by feature stores to know what data (namespaces) to expect.
+//
+// Deprecated: this variable is for internal use and will be removed in a future version.
 var VersionedDataKinds = [...]VersionedDataKind{
 	Features,
 	Segments,
