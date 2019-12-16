@@ -6,79 +6,89 @@ import (
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 )
 
+// MockDataItem is a test implementation of ld.VersionedData.
 type MockDataItem struct {
 	Key     string
 	Version int
 	Deleted bool
 }
 
+// GetKey returns the item key.
 func (i *MockDataItem) GetKey() string {
 	return i.Key
 }
 
+// GetVersion returns the item version.
 func (i *MockDataItem) GetVersion() int {
 	return i.Version
 }
 
+// IsDeleted returns true if this is a deleted item placeholder.
 func (i *MockDataItem) IsDeleted() bool {
 	return i.Deleted
 }
 
-type MockDataKind struct{}
+type mockDataKind struct{}
 
-var MockData = MockDataKind{}
+// MockData is an instance of ld.VersionedDataKind corresponding to MockDataItem.
+var MockData = mockDataKind{}
 
-func (sk MockDataKind) GetNamespace() string {
+func (sk mockDataKind) GetNamespace() string {
 	return "mock"
 }
 
-func (sk MockDataKind) String() string {
+func (sk mockDataKind) String() string {
 	return sk.GetNamespace()
 }
 
-func (sk MockDataKind) GetDefaultItem() interface{} {
+func (sk mockDataKind) GetDefaultItem() interface{} {
 	return &MockDataItem{}
 }
 
-func (sk MockDataKind) MakeDeletedItem(key string, version int) ld.VersionedData {
+func (sk mockDataKind) MakeDeletedItem(key string, version int) ld.VersionedData {
 	return &MockDataItem{Key: key, Version: version, Deleted: true}
 }
 
+// MockDataItem is a test implementation of ld.VersionedData.
 type MockOtherDataItem struct {
 	Key     string
 	Version int
 	Deleted bool
 }
 
+// GetKey returns the item key.
 func (i *MockOtherDataItem) GetKey() string {
 	return i.Key
 }
 
+// GetVersion returns the item version.
 func (i *MockOtherDataItem) GetVersion() int {
 	return i.Version
 }
 
+// IsDeleted returns true if this is a deleted item placeholder.
 func (i *MockOtherDataItem) IsDeleted() bool {
 	return i.Deleted
 }
 
-type MockOtherDataKind struct{}
+type mockOtherDataKind struct{}
 
-var MockOtherData = MockOtherDataKind{}
+// MockOtherData is an instance of ld.VersionedDataKind corresponding to MockOtherDataItem.
+var MockOtherData = mockOtherDataKind{}
 
-func (sk MockOtherDataKind) GetNamespace() string {
+func (sk mockOtherDataKind) GetNamespace() string {
 	return "mock-other"
 }
 
-func (sk MockOtherDataKind) String() string {
+func (sk mockOtherDataKind) String() string {
 	return sk.GetNamespace()
 }
 
-func (sk MockOtherDataKind) GetDefaultItem() interface{} {
+func (sk mockOtherDataKind) GetDefaultItem() interface{} {
 	return &MockOtherDataItem{}
 }
 
-func (sk MockOtherDataKind) MakeDeletedItem(key string, version int) ld.VersionedData {
+func (sk mockOtherDataKind) MakeDeletedItem(key string, version int) ld.VersionedData {
 	return &MockOtherDataItem{Key: key, Version: version, Deleted: true}
 }
 
