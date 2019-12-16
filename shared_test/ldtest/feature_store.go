@@ -29,15 +29,15 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 	}
 
 	initWithEmptyData := func(t *testing.T, store ld.FeatureStore) {
-		err := store.Init(map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: make(map[string]ld.VersionedData)})
+		err := store.Init(map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: make(map[string]ld.VersionedData)}) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 	}
 
 	t.Run("store initialized after init", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
-		feature1 := ld.FeatureFlag{Key: "feature"}
-		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"feature": &feature1}, make(map[string]*ld.Segment))
+		feature1 := ld.FeatureFlag{Key: "feature"}                                                                         //nolint:megacheck // allow deprecated usage
+		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"feature": &feature1}, make(map[string]*ld.Segment)) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, store.Init(allData))
 
 		assert.True(t, store.Initialized())
@@ -46,16 +46,16 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 	t.Run("init completely replaces previous data", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
-		feature1 := ld.FeatureFlag{Key: "first", Version: 1}
-		feature2 := ld.FeatureFlag{Key: "second", Version: 1}
-		segment1 := ld.Segment{Key: "first", Version: 1}
-		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1, "second": &feature2},
-			map[string]*ld.Segment{"first": &segment1})
+		feature1 := ld.FeatureFlag{Key: "first", Version: 1}                                                    //nolint:megacheck // allow deprecated usage
+		feature2 := ld.FeatureFlag{Key: "second", Version: 1}                                                   //nolint:megacheck // allow deprecated usage
+		segment1 := ld.Segment{Key: "first", Version: 1}                                                        //nolint:megacheck // allow deprecated usage
+		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1, "second": &feature2}, //nolint:megacheck // allow deprecated usage
+			map[string]*ld.Segment{"first": &segment1}) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, store.Init(allData))
 
-		flags, err := store.All(ld.Features)
+		flags, err := store.All(ld.Features) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
-		segs, err := store.All(ld.Segments)
+		segs, err := store.All(ld.Segments) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, 1, flags["first"].GetVersion())
 		assert.Equal(t, 1, flags["second"].GetVersion())
@@ -63,13 +63,13 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 
 		feature1.Version = 2
 		segment1.Version = 2
-		allData = makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1},
-			map[string]*ld.Segment{"first": &segment1})
+		allData = makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1}, //nolint:megacheck // allow deprecated usage
+			map[string]*ld.Segment{"first": &segment1}) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, store.Init(allData))
 
-		flags, err = store.All(ld.Features)
+		flags, err = store.All(ld.Features) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
-		segs, err = store.All(ld.Segments)
+		segs, err = store.All(ld.Segments) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, 2, flags["first"].GetVersion())
 		assert.Nil(t, flags["second"])
@@ -96,15 +96,15 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		clearAll(t)
 		store := makeStore(t)
 		initWithEmptyData(t, store)
-		feature1 := ld.FeatureFlag{Key: "feature"}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		feature1 := ld.FeatureFlag{Key: "feature"}              //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(ld.Features, feature1.Key) //nolint:megacheck // allow deprecated usage
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 
-		if assert.IsType(t, &ld.FeatureFlag{}, result) {
-			r := result.(*ld.FeatureFlag)
+		if assert.IsType(t, &ld.FeatureFlag{}, result) { //nolint:megacheck // allow deprecated usage
+			r := result.(*ld.FeatureFlag) //nolint:megacheck // allow deprecated usage
 			assert.Equal(t, feature1.Key, r.Key)
 		}
 	})
@@ -114,7 +114,7 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		result, err := store.Get(ld.Features, "no")
+		result, err := store.Get(ld.Features, "no") //nolint:megacheck // allow deprecated usage
 		assert.Nil(t, result)
 		assert.NoError(t, err)
 	})
@@ -124,28 +124,28 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		result, err := store.All(ld.Features)
+		result, err := store.All(ld.Features) //nolint:megacheck // allow deprecated usage
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 		assert.Len(t, result, 0)
 
-		feature1 := ld.FeatureFlag{Key: "feature1"}
-		feature2 := ld.FeatureFlag{Key: "feature2"}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
-		assert.NoError(t, store.Upsert(ld.Features, &feature2))
+		feature1 := ld.FeatureFlag{Key: "feature1"}             //nolint:megacheck // allow deprecated usage
+		feature2 := ld.FeatureFlag{Key: "feature2"}             //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature2)) //nolint:megacheck // allow deprecated usage
 
-		result, err = store.All(ld.Features)
+		result, err = store.All(ld.Features) //nolint:megacheck // allow deprecated usage
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
 
-		if assert.IsType(t, &ld.FeatureFlag{}, result["feature1"]) {
-			r := result["feature1"].(*ld.FeatureFlag)
+		if assert.IsType(t, &ld.FeatureFlag{}, result["feature1"]) { //nolint:megacheck // allow deprecated usage
+			r := result["feature1"].(*ld.FeatureFlag) //nolint:megacheck // allow deprecated usage
 			assert.Equal(t, "feature1", r.Key)
 		}
 
-		if assert.IsType(t, &ld.FeatureFlag{}, result["feature2"]) {
-			r := result["feature2"].(*ld.FeatureFlag)
+		if assert.IsType(t, &ld.FeatureFlag{}, result["feature2"]) { //nolint:megacheck // allow deprecated usage
+			r := result["feature2"].(*ld.FeatureFlag) //nolint:megacheck // allow deprecated usage
 			assert.Equal(t, "feature2", r.Key)
 		}
 	})
@@ -155,17 +155,17 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		feature1 := ld.FeatureFlag{Key: "feature", Version: 10} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version + 1}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1a))
+		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version + 1} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1a))                   //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(ld.Features, feature1.Key) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 
-		if assert.IsType(t, &ld.FeatureFlag{}, result) {
-			r := result.(*ld.FeatureFlag)
+		if assert.IsType(t, &ld.FeatureFlag{}, result) { //nolint:megacheck // allow deprecated usage
+			r := result.(*ld.FeatureFlag) //nolint:megacheck // allow deprecated usage
 			assert.Equal(t, feature1a.Version, r.Version)
 		}
 	})
@@ -175,17 +175,17 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		feature1 := ld.FeatureFlag{Key: "feature", Version: 10} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version - 1}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1a))
+		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version - 1} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1a))                   //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(ld.Features, feature1.Key) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 
-		if assert.IsType(t, &ld.FeatureFlag{}, result) {
-			r := result.(*ld.FeatureFlag)
+		if assert.IsType(t, &ld.FeatureFlag{}, result) { //nolint:megacheck // allow deprecated usage
+			r := result.(*ld.FeatureFlag) //nolint:megacheck // allow deprecated usage
 			assert.Equal(t, feature1.Version, r.Version)
 		}
 	})
@@ -195,12 +195,12 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		feature1 := ld.FeatureFlag{Key: "feature", Version: 10} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1))
+		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1)) //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(ld.Features, feature1.Key) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -210,12 +210,12 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		feature1 := ld.FeatureFlag{Key: "feature", Version: 10} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version-1))
+		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version-1)) //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(ld.Features, feature1.Key) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
@@ -225,9 +225,9 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		assert.NoError(t, store.Delete(ld.Features, "no", 1))
+		assert.NoError(t, store.Delete(ld.Features, "no", 1)) //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, "no")
+		result, err := store.Get(ld.Features, "no") //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -237,14 +237,14 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		feature1 := ld.FeatureFlag{Key: "feature", Version: 10} //nolint:megacheck // allow deprecated usage
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1))
+		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1)) //nolint:megacheck // allow deprecated usage
 
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		assert.NoError(t, store.Upsert(ld.Features, &feature1)) //nolint:megacheck // allow deprecated usage
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(ld.Features, feature1.Key) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -280,16 +280,16 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
-		flag1a := ld.FeatureFlag{Key: "flag-a", Version: 1}
-		flag1b := ld.FeatureFlag{Key: "flag-b", Version: 1}
-		flag2a := ld.FeatureFlag{Key: "flag-a", Version: 2}
-		flag2c := ld.FeatureFlag{Key: "flag-c", Version: 2}
+		flag1a := ld.FeatureFlag{Key: "flag-a", Version: 1} //nolint:megacheck // allow deprecated usage
+		flag1b := ld.FeatureFlag{Key: "flag-b", Version: 1} //nolint:megacheck // allow deprecated usage
+		flag2a := ld.FeatureFlag{Key: "flag-a", Version: 2} //nolint:megacheck // allow deprecated usage
+		flag2c := ld.FeatureFlag{Key: "flag-c", Version: 2} //nolint:megacheck // allow deprecated usage
 
 		data1 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag1a.Key: &flag1a, flag1b.Key: &flag1b},
+			ld.Features: {flag1a.Key: &flag1a, flag1b.Key: &flag1b}, //nolint:megacheck // allow deprecated usage
 		}
 		data2 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag2a.Key: &flag2a, flag2c.Key: &flag2c},
+			ld.Features: {flag2a.Key: &flag2a, flag2c.Key: &flag2c}, //nolint:megacheck // allow deprecated usage
 		}
 
 		err := store1.Init(data1)
@@ -304,27 +304,27 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		assert.True(t, store1.Initialized())
 		assert.True(t, store2.Initialized())
 
-		newFlags1, err := store1.All(ld.Features)
+		newFlags1, err := store1.All(ld.Features) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
-		assert.Equal(t, data1[ld.Features], newFlags1)
+		assert.Equal(t, data1[ld.Features], newFlags1) //nolint:megacheck // allow deprecated usage
 
-		newFlag1a, err := store1.Get(ld.Features, flag1a.Key)
+		newFlag1a, err := store1.Get(ld.Features, flag1a.Key) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, &flag1a, newFlag1a)
 
-		newFlag1b, err := store1.Get(ld.Features, flag1b.Key)
+		newFlag1b, err := store1.Get(ld.Features, flag1b.Key) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, &flag1b, newFlag1b)
 
-		newFlags2, err := store2.All(ld.Features)
+		newFlags2, err := store2.All(ld.Features) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
-		assert.Equal(t, data2[ld.Features], newFlags2)
+		assert.Equal(t, data2[ld.Features], newFlags2) //nolint:megacheck // allow deprecated usage
 
-		newFlag2a, err := store2.Get(ld.Features, flag2a.Key)
+		newFlag2a, err := store2.Get(ld.Features, flag2a.Key) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, &flag2a, newFlag2a)
 
-		newFlag2c, err := store2.Get(ld.Features, flag2c.Key)
+		newFlag2c, err := store2.Get(ld.Features, flag2c.Key) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, &flag2c, newFlag2c)
 	})
@@ -334,28 +334,28 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		assert.False(t, store2.Initialized())
 
 		flagKey := "flag"
-		flag1 := ld.FeatureFlag{Key: flagKey, Version: 1}
-		flag2 := ld.FeatureFlag{Key: flagKey, Version: 2}
+		flag1 := ld.FeatureFlag{Key: flagKey, Version: 1} //nolint:megacheck // allow deprecated usage
+		flag2 := ld.FeatureFlag{Key: flagKey, Version: 2} //nolint:megacheck // allow deprecated usage
 
 		// Insert the one with the higher version first, so we can verify that the version-checking logic
 		// is definitely looking in the right namespace
-		err := store2.Upsert(ld.Features, &flag2)
+		err := store2.Upsert(ld.Features, &flag2) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
-		err = store1.Upsert(ld.Features, &flag1)
+		err = store1.Upsert(ld.Features, &flag1) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 
-		newFlag1, err := store1.Get(ld.Features, flagKey)
+		newFlag1, err := store1.Get(ld.Features, flagKey) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, &flag1, newFlag1)
 
-		newFlag2, err := store2.Get(ld.Features, flagKey)
+		newFlag2, err := store2.Get(ld.Features, flagKey) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, &flag2, newFlag2)
 
-		err = store1.Delete(ld.Features, flagKey, 2)
+		err = store1.Delete(ld.Features, flagKey, 2) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 
-		newFlag1a, err := store1.Get(ld.Features, flagKey)
+		newFlag1a, err := store1.Get(ld.Features, flagKey) //nolint:megacheck // allow deprecated usage
 		require.NoError(t, err)
 		assert.Equal(t, nil, newFlag1a)
 	})
@@ -376,13 +376,13 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureS
 
 	flagKey := "foo"
 
-	makeFlagWithVersion := func(version int) *ld.FeatureFlag {
-		return &ld.FeatureFlag{Key: flagKey, Version: version}
+	makeFlagWithVersion := func(version int) *ld.FeatureFlag { //nolint:megacheck // allow deprecated usage
+		return &ld.FeatureFlag{Key: flagKey, Version: version} //nolint:megacheck // allow deprecated usage
 	}
 
 	setupStore1 := func(initialVersion int) {
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flagKey: makeFlagWithVersion(initialVersion)},
+			ld.Features: {flagKey: makeFlagWithVersion(initialVersion)}, //nolint:megacheck // allow deprecated usage
 		}
 		require.NoError(t, store1.Init(allData))
 	}
@@ -392,7 +392,7 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureS
 		setStore1UpdateHook(func() {
 			if i < len(flagVersionsToWrite) {
 				newFlag := makeFlagWithVersion(flagVersionsToWrite[i])
-				err := store2.Upsert(ld.Features, newFlag)
+				err := store2.Upsert(ld.Features, newFlag) //nolint:megacheck // allow deprecated usage
 				require.NoError(t, err)
 				i++
 			}
@@ -403,41 +403,41 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureS
 		setupStore1(1)
 		setupConcurrentModifierToWriteVersions(2, 3, 4)
 
-		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(10)))
+		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(10))) //nolint:megacheck // allow deprecated usage
 
 		var result ld.VersionedData
-		result, err := store1.Get(ld.Features, flagKey)
+		result, err := store1.Get(ld.Features, flagKey) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
+		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version) //nolint:megacheck // allow deprecated usage
 	})
 
 	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
 		setupStore1(1)
 		setupConcurrentModifierToWriteVersions(3)
 
-		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(2)))
+		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(2))) //nolint:megacheck // allow deprecated usage
 
 		var result ld.VersionedData
-		result, err := store1.Get(ld.Features, flagKey)
+		result, err := store1.Get(ld.Features, flagKey) //nolint:megacheck // allow deprecated usage
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
+		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version) //nolint:megacheck // allow deprecated usage
 	})
 }
 
 func makeAllVersionedDataMap(
-	features map[string]*ld.FeatureFlag,
-	segments map[string]*ld.Segment) map[ld.VersionedDataKind]map[string]ld.VersionedData {
+	features map[string]*ld.FeatureFlag, //nolint:megacheck // allow deprecated usage
+	segments map[string]*ld.Segment) map[ld.VersionedDataKind]map[string]ld.VersionedData { //nolint:megacheck // allow deprecated usage
 
 	allData := make(map[ld.VersionedDataKind]map[string]ld.VersionedData)
-	allData[ld.Features] = make(map[string]ld.VersionedData)
-	allData[ld.Segments] = make(map[string]ld.VersionedData)
+	allData[ld.Features] = make(map[string]ld.VersionedData) //nolint:megacheck // allow deprecated usage
+	allData[ld.Segments] = make(map[string]ld.VersionedData) //nolint:megacheck // allow deprecated usage
 	for k, v := range features {
-		allData[ld.Features][k] = v
+		allData[ld.Features][k] = v //nolint:megacheck // allow deprecated usage
 	}
 	for k, v := range segments {
-		allData[ld.Segments][k] = v
+		allData[ld.Segments][k] = v //nolint:megacheck // allow deprecated usage
 	}
 	return allData
 }
