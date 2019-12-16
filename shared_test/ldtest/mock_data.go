@@ -34,7 +34,7 @@ type mockDataKind struct{}
 var MockData = mockDataKind{}
 
 func (sk mockDataKind) GetNamespace() string {
-	return "mock"
+	return "mock1"
 }
 
 func (sk mockDataKind) String() string {
@@ -77,7 +77,7 @@ type mockOtherDataKind struct{}
 var MockOtherData = mockOtherDataKind{}
 
 func (sk mockOtherDataKind) GetNamespace() string {
-	return "mock-other"
+	return "mock2"
 }
 
 func (sk mockOtherDataKind) String() string {
