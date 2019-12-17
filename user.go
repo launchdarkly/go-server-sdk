@@ -251,7 +251,8 @@ func (u User) String() string {
 	return string(bytes)
 }
 
-// Used internally in evaluations.
+// Used internally in evaluations. The second return value is true if the attribute exists for this user,
+// false if not.
 func (u User) valueOf(attr string) (interface{}, bool) {
 	if attr == "key" {
 		if u.Key != nil {
