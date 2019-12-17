@@ -432,6 +432,11 @@ func (r VariationOrRollout) variationIndexForUser(user User, key, salt string) *
 			return &wv.Variation
 		}
 	}
-	// If we get here, it's due to either a rounding error or weights that don't add up to 100000
-	return nil
+	// The user's bucket value was greater than or equal to the end of the last bucket. This could happen due
+	// to a rounding error, or due to the fact that we are scaling to 100000 rather than 99999, or the flag
+	// data could contain buckets that don't actually add up to 100000. Rather than returning an error in
+	// this case (or changing the scaling, which would potentially change the results for *all* users), we
+	// will simply put the user in the last bucket.
+	v := r.Rollout.Variations[len(r.Rollout.Variations)-1].Variation
+	return &v
 }
