@@ -399,7 +399,7 @@ func TestClauseCanMatchBuiltInAttribute(t *testing.T) {
 		Values:    []interface{}{"Bob"},
 	}
 	f := booleanFlagWithClause(clause)
-	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
+	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, true, result.Value)
@@ -412,8 +412,7 @@ func TestClauseCanMatchCustomAttribute(t *testing.T) {
 		Values:    []interface{}{4},
 	}
 	f := booleanFlagWithClause(clause)
-	custom := map[string]interface{}{"legs": 4}
-	user := User{Key: strPtr("key"), Custom: &custom}
+	user := NewUserBuilder("key").Custom("legs", 4).Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, true, result.Value)
@@ -426,7 +425,7 @@ func TestClauseReturnsFalseForMissingAttribute(t *testing.T) {
 		Values:    []interface{}{4},
 	}
 	f := booleanFlagWithClause(clause)
-	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
+	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, false, result.Value)
@@ -440,7 +439,7 @@ func TestClauseCanBeNegated(t *testing.T) {
 		Negate:    true,
 	}
 	f := booleanFlagWithClause(clause)
-	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
+	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, false, result.Value)
@@ -454,7 +453,7 @@ func TestClauseForMissingAttributeIsFalseEvenIfNegated(t *testing.T) {
 		Negate:    true,
 	}
 	f := booleanFlagWithClause(clause)
-	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
+	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, false, result.Value)
@@ -467,7 +466,7 @@ func TestClauseWithUnknownOperatorDoesNotMatch(t *testing.T) {
 		Values:    []interface{}{"Bob"},
 	}
 	f := booleanFlagWithClause(clause)
-	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
+	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, false, result.Value)
@@ -493,7 +492,7 @@ func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testi
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
 		Variations:  []interface{}{false, true},
 	}
-	user := User{Key: strPtr("key"), Name: strPtr("Bob")}
+	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, true, result.Value)
@@ -573,38 +572,23 @@ func TestBucketUserByKey(t *testing.T) {
 }
 
 func TestBucketUserByIntAttr(t *testing.T) {
-	userKey := "userKeyD"
-	custom := map[string]interface{}{
-		"intAttr": 33333,
-	}
-	user := User{Key: &userKey, Custom: &custom}
+	user := NewUserBuilder("userKeyD").Custom("intAttr", 33333).Build()
 	bucket := bucketUser(user, "hashKey", "intAttr", "saltyA")
 	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 
-	custom = map[string]interface{}{
-		"stringAttr": "33333",
-	}
-	user = User{Key: &userKey, Custom: &custom}
+	user = NewUserBuilder("userKeyD").Custom("stringAttr", "33333").Build()
 	bucket2 := bucketUser(user, "hashKey", "stringAttr", "saltyA")
 	assert.InEpsilon(t, bucket, bucket2, 0.0000001)
 }
 
 func TestBucketUserByFloatAttrNotAllowed(t *testing.T) {
-	userKey := "userKeyE"
-	custom := map[string]interface{}{
-		"floatAttr": float64(999.999),
-	}
-	user := User{Key: &userKey, Custom: &custom}
+	user := NewUserBuilder("userKeyE").Custom("floatAttr", float64(999.999)).Build()
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InDelta(t, 0.0, bucket, 0.0000001)
 }
 
 func TestBucketUserByFloatAttrThatIsReallyAnIntIsAllowed(t *testing.T) {
-	userKey := "userKeyE"
-	custom := map[string]interface{}{
-		"floatAttr": float64(33333),
-	}
-	user := User{Key: &userKey, Custom: &custom}
+	user := NewUserBuilder("userKeyE").Custom("floatAttr", float64(33333)).Build()
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 }
