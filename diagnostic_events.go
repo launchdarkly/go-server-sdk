@@ -86,7 +86,7 @@ type diagnosticStreamInitInfo struct {
 type diagnosticsManager struct {
 	id            diagnosticId
 	config        Config
-	startWaitTime time.Duration
+	startWaitTime time.Duration // this is passed in separately because in Go, it's not part of the Config
 	startTime     uint64
 	dataSinceTime uint64
 	streamInits   []diagnosticStreamInitInfo
@@ -178,7 +178,7 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 		GoVersion: runtime.Version(),
 		OSName:    normalizeOSName(runtime.GOOS),
 		OSArch:    runtime.GOARCH,
-		//OSVersion: // not sure if this is available in Go
+		//OSVersion: // not available, see above
 	}
 	return diagnosticInitEvent{
 		diagnosticBaseEvent: diagnosticBaseEvent{
