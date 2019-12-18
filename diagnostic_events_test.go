@@ -23,7 +23,7 @@ func TestDiagnosticIDUsesLast6CharsOfSDKKey(t *testing.T) {
 func TestDiagnosticInitEventBaseProperties(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	startTime := time.Now()
-	m := newDiagnosticsManager(id, Config{}, time.Second, startTime)
+	m := newDiagnosticsManager(id, Config{}, time.Second, startTime, nil)
 	event := m.CreateInitEvent()
 	assert.Equal(t, "diagnostic-init", event.Kind)
 	assert.Equal(t, id, event.ID)
@@ -32,7 +32,7 @@ func TestDiagnosticInitEventBaseProperties(t *testing.T) {
 
 func TestDiagnosticInitEventSDKData(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
-	m := newDiagnosticsManager(id, Config{}, time.Second, time.Now())
+	m := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	event := m.CreateInitEvent()
 	assert.Equal(t, "Go", event.SDK.Name)
 	assert.Equal(t, Version, event.SDK.Version)
@@ -40,14 +40,14 @@ func TestDiagnosticInitEventSDKData(t *testing.T) {
 
 func TestDiagnosticInitEventPlatformData(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
-	m := newDiagnosticsManager(id, Config{}, time.Second, time.Now())
+	m := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	event := m.CreateInitEvent()
 	assert.Equal(t, "Go", event.Platform.Name)
 }
 
 func TestDiagnosticInitEventDefaultConfig(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
-	m := newDiagnosticsManager(id, DefaultConfig, 5*time.Second, time.Now())
+	m := newDiagnosticsManager(id, DefaultConfig, 5*time.Second, time.Now(), nil)
 	event := m.CreateInitEvent()
 	assert.Equal(t, expectedDiagnosticConfigForDefaultConfig(), event.Configuration)
 }
@@ -107,7 +107,7 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		test.setExpected(&expected)
 
-		m := newDiagnosticsManager(id, config, 5*time.Second, time.Now())
+		m := newDiagnosticsManager(id, config, 5*time.Second, time.Now(), nil)
 		event := m.CreateInitEvent()
 		assert.Equal(t, expected, event.Configuration)
 	}

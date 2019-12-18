@@ -216,7 +216,8 @@ func (ed *eventDispatcher) runMainLoop(
 
 	var diagnosticsTicker *time.Ticker
 	var diagnosticsTickerCh <-chan time.Time
-	if ed.config.diagnosticsManager != nil {
+	diagnosticsManager := ed.config.diagnosticsManager
+	if diagnosticsManager != nil {
 		interval := ed.config.DiagnosticRecordingInterval
 		if interval <= 0 {
 			interval = DefaultConfig.DiagnosticRecordingInterval
@@ -254,7 +255,10 @@ func (ed *eventDispatcher) runMainLoop(
 		case <-usersResetTicker.C:
 			userKeys.clear()
 		case <-diagnosticsTickerCh:
-			event := ed.config.diagnosticsManager.CreateStatsEventAndReset(
+			if diagnosticsManager == nil || !diagnosticsManager.CanSendStatsEvent() {
+				break
+			}
+			event := diagnosticsManager.CreateStatsEventAndReset(
 				outbox.droppedEvents,
 				ed.deduplicatedUsers,
 				ed.eventsInLastBatch,

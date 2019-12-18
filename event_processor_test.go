@@ -700,7 +700,7 @@ func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
 func TestDiagnosticInitEventIsSent(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	startTime := time.Now()
-	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime)
+	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
 	config := epDefaultConfig
 	config.diagnosticsManager = diagnosticsManager
 
@@ -718,7 +718,7 @@ func TestDiagnosticInitEventIsSent(t *testing.T) {
 func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	startTime := time.Now()
-	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime)
+	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
 	config := epDefaultConfig
 	config.diagnosticsManager = diagnosticsManager
 	config.DiagnosticRecordingInterval = 50 * time.Millisecond
@@ -754,14 +754,10 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	config := DefaultConfig
 	config.Capacity = 3
-	config.DiagnosticRecordingInterval = 400 * time.Millisecond
-	// Unfortunately this test will run a bit slowly because we need to use a long enough interval that it
-	// won't be likely to fire off the first periodic event before we've finished flushing, etc. The test
-	// logic is still not great because it's impossible to *guarantee* that these goroutines won't just
-	// happen to run slowly anyway, but without adding extra instrumentation to DefaultEventProcessor to
-	// gate the periodic events, it's hard to see what else we could do.
+	config.DiagnosticRecordingInterval = 100 * time.Millisecond
+	periodicEventGate := make(chan struct{})
 
-	diagnosticsManager := newDiagnosticsManager(id, config, time.Second, time.Now())
+	diagnosticsManager := newDiagnosticsManager(id, config, time.Second, time.Now(), periodicEventGate)
 	config.diagnosticsManager = diagnosticsManager
 
 	ep, st := createEventProcessor(config)
@@ -773,6 +769,8 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
 	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
 	ep.Flush()
+
+	periodicEventGate <- struct{}{} // periodic event won't be sent until we do this
 
 	req1, bytes1 := st.awaitRequest()
 	req2, bytes2 := st.awaitRequest()
@@ -791,6 +789,8 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	assert.Equal(t, float64(3), event["eventsInLastBatch"]) // 1 index, 2 custom
 	assert.Equal(t, float64(1), event["droppedEvents"])     // 3rd custom
 	assert.Equal(t, float64(2), event["deduplicatedUsers"])
+
+	periodicEventGate <- struct{}{}
 
 	_, bytes3 := st.awaitRequest() // next periodic event - all counters should have been reset
 	json.Unmarshal(bytes3, &event)

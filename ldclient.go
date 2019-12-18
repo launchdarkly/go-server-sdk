@@ -115,7 +115,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
 		id := newDiagnosticId(sdkKey)
-		config.diagnosticsManager = newDiagnosticsManager(id, config, waitFor, time.Now())
+		config.diagnosticsManager = newDiagnosticsManager(id, config, waitFor, time.Now(), nil)
 	}
 
 	if config.EventProcessor != nil {

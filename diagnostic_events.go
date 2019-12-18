@@ -84,13 +84,14 @@ type diagnosticStreamInitInfo struct {
 }
 
 type diagnosticsManager struct {
-	id            diagnosticId
-	config        Config
-	startWaitTime time.Duration // this is passed in separately because in Go, it's not part of the Config
-	startTime     uint64
-	dataSinceTime uint64
-	streamInits   []diagnosticStreamInitInfo
-	lock          sync.Mutex
+	id                diagnosticId
+	config            Config
+	startWaitTime     time.Duration // this is passed in separately because in Go, it's not part of the Config
+	startTime         uint64
+	dataSinceTime     uint64
+	streamInits       []diagnosticStreamInitInfo
+	periodicEventGate <-chan struct{}
+	lock              sync.Mutex
 }
 
 func durationToMillis(d time.Duration) milliseconds {
@@ -115,14 +116,16 @@ func newDiagnosticsManager(
 	config Config,
 	startWaitTime time.Duration,
 	startTime time.Time,
+	periodicEventGate <-chan struct{}, // periodicEventGate is test instrumentation - see CanSendStatsEvent
 ) *diagnosticsManager {
 	timestamp := toUnixMillis(startTime)
 	m := &diagnosticsManager{
-		id:            id,
-		config:        config,
-		startWaitTime: startWaitTime,
-		startTime:     timestamp,
-		dataSinceTime: timestamp,
+		id:                id,
+		config:            config,
+		startWaitTime:     startWaitTime,
+		startTime:         timestamp,
+		dataSinceTime:     timestamp,
+		periodicEventGate: periodicEventGate,
 	}
 	return m
 }
@@ -192,6 +195,21 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 		Configuration: configData,
 		Platform:      platformData,
 	}
+}
+
+// This is strictly for test instrumentation. In unit tests, we need to be able to stop DefaultEventProcessor
+// from constructing the periodic event until the test has finished setting up its preconditions. This is done
+// by passing in a periodicEventGate channel which the test will push to when it's ready.
+func (m *diagnosticsManager) CanSendStatsEvent() bool {
+	if m.periodicEventGate != nil {
+		select {
+		case <-m.periodicEventGate: // non-blocking receive
+			return true
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // Called by DefaultEventProcessor to create the periodic event containing usage statistics. Some of the

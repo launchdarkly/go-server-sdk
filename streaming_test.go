@@ -209,7 +209,7 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	defer ts.Close()
 
 	id := newDiagnosticId("sdkKey")
-	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now())
+	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
 		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
@@ -260,7 +260,7 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	defer ts.Close()
 
 	id := newDiagnosticId("sdkKey")
-	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now())
+	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
 		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
