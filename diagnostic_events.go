@@ -127,6 +127,7 @@ func newDiagnosticsManager(
 	return m
 }
 
+// Called by the stream processor when a stream connection has either succeeded or failed.
 func (m *diagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, durationMillis milliseconds) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -137,6 +138,7 @@ func (m *diagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, dur
 	})
 }
 
+// Called by DefaultEventProcessor to create the initial diagnostics event that includes the configuration.
 func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 	sdkData := diagnosticSDKData{
 		Name:    "Go",
@@ -192,6 +194,9 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 	}
 }
 
+// Called by DefaultEventProcessor to create the periodic event containing usage statistics. Some of the
+// statistics are passed in as parameters because DefaultEventProcessor owns them and can more easily keep
+// track of them internally - pushing them into diagnosticsManager would require frequent lock usage.
 func (m *diagnosticsManager) CreateStatsEventAndReset(
 	droppedEvents int,
 	deduplicatedUsers int,
