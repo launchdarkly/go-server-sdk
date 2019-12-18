@@ -763,27 +763,22 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
 
-	_, _ = st.awaitRequest() // diagnostic init event
+	req1, _ := st.awaitRequest() // diagnostic init event
+	assert.Equal(t, "/diagnostic", req1.URL.Path)
 
 	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
 	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
 	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
 	ep.Flush()
 
+	req2, _ := st.awaitRequest() // flushed events
+	assert.Equal(t, "/bulk", req2.URL.Path)
+
 	periodicEventGate <- struct{}{} // periodic event won't be sent until we do this
 
-	req1, bytes1 := st.awaitRequest()
-	req2, bytes2 := st.awaitRequest()
-	// We can't be sure which was sent first, the events batch or the diagnostic event
-
+	_, bytes := st.awaitRequest()
 	var event map[string]interface{}
-	if req1.URL.Path == "/diagnostic" {
-		json.Unmarshal(bytes1, &event)
-	} else if req2.URL.Path == "/diagnostic" {
-		json.Unmarshal(bytes2, &event)
-	} else {
-		assert.Fail(t, "could not find diagnostic event")
-	}
+	json.Unmarshal(bytes, &event)
 
 	assert.Equal(t, "diagnostic", event["kind"])
 	assert.Equal(t, float64(3), event["eventsInLastBatch"]) // 1 index, 2 custom
