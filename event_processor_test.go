@@ -754,7 +754,13 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	config := DefaultConfig
 	config.Capacity = 3
-	config.DiagnosticRecordingInterval = 100 * time.Millisecond
+	config.DiagnosticRecordingInterval = 400 * time.Millisecond
+	// Unfortunately this test will run a bit slowly because we need to use a long enough interval that it
+	// won't be likely to fire off the first periodic event before we've finished flushing, etc. The test
+	// logic is still not great because it's impossible to *guarantee* that these goroutines won't just
+	// happen to run slowly anyway, but without adding extra instrumentation to DefaultEventProcessor to
+	// gate the periodic events, it's hard to see what else we could do.
+
 	diagnosticsManager := newDiagnosticsManager(id, config, time.Second, time.Now())
 	config.diagnosticsManager = diagnosticsManager
 
