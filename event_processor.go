@@ -3,6 +3,7 @@ package ldclient
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -55,16 +56,18 @@ type eventBuffer struct {
 }
 
 type flushPayload struct {
-	events  []Event
-	summary eventSummary
+	diagnosticEvent interface{}
+	events          []Event
+	summary         eventSummary
 }
 
 type sendEventsTask struct {
-	client    *http.Client
-	eventsURI string
-	sdkKey    string
-	config    Config
-	formatter eventOutputFormatter
+	client        *http.Client
+	eventsURI     string
+	diagnosticURI string
+	sdkKey        string
+	config        Config
+	formatter     eventOutputFormatter
 }
 
 // Payload of the inboxCh channel.
@@ -180,7 +183,7 @@ func startEventDispatcher(
 	}
 	if config.diagnosticsManager != nil {
 		event := config.diagnosticsManager.CreateInitEvent()
-		ed.sendDiagnosticsEvent(event, client)
+		ed.sendDiagnosticsEvent(event, client, flushCh, &workersGroup)
 	}
 	go ed.runMainLoop(inboxCh, flushCh, &workersGroup, client)
 }
@@ -266,7 +269,7 @@ func (ed *eventDispatcher) runMainLoop(
 			outbox.droppedEvents = 0
 			ed.deduplicatedUsers = 0
 			ed.eventsInLastBatch = 0
-			ed.sendDiagnosticsEvent(event, client)
+			ed.sendDiagnosticsEvent(event, client, flushCh, workersGroup)
 		}
 	}
 }
@@ -401,48 +404,25 @@ func (ed *eventDispatcher) handleResponse(resp *http.Response) {
 	}
 }
 
-func (ed *eventDispatcher) sendDiagnosticsEvent(event interface{}, client *http.Client) {
-	diagnosticURI := strings.TrimRight(ed.config.EventsUri, "/") + diagnosticsURIPath
-	jsonPayload, marshalErr := json.Marshal(event)
-	if marshalErr != nil {
-		ed.config.Loggers.Errorf("Unexpected error marshalling event json: %+v", marshalErr)
-		return
+func (ed *eventDispatcher) sendDiagnosticsEvent(
+	event interface{},
+	client *http.Client,
+	flushCh chan<- *flushPayload,
+	workersGroup *sync.WaitGroup,
+) {
+	payload := flushPayload{diagnosticEvent: event}
+	workersGroup.Add(1) // Increment the count of active flushes
+	select {
+	case flushCh <- &payload:
+		// If the channel wasn't full, then there is a worker available who will pick up
+		// this flush payload and send it.
+	default:
+		// We can't start a flush right now because we're waiting for one of the workers
+		// to pick up the last one. We'll just discard this diagnostic event - presumably
+		// we'll send another one later anyway, and we don't want this kind of nonessential
+		// data to cause any kind of back-pressure.
+		workersGroup.Done()
 	}
-
-	go func() {
-		ed.config.Loggers.Debugf("Sending diagnostic event")
-		for attempt := 0; attempt < 2; attempt++ {
-			if attempt > 0 {
-				ed.config.Loggers.Warn("Will retry posting event after 1 second")
-				time.Sleep(1 * time.Second)
-			}
-			req, reqErr := http.NewRequest("POST", diagnosticURI, bytes.NewReader(jsonPayload))
-			if reqErr != nil {
-				ed.config.Loggers.Errorf("Unexpected error while creating event request: %+v", reqErr)
-				return
-			}
-
-			addBaseHeaders(req, ed.sdkKey, ed.config)
-			req.Header.Add("Content-Type", "application/json")
-
-			resp, respErr := client.Do(req)
-
-			if resp != nil && resp.Body != nil {
-				_, _ = ioutil.ReadAll(resp.Body)
-				_ = resp.Body.Close()
-			}
-
-			if respErr != nil {
-				ed.config.Loggers.Warnf("Unexpected error while sending events: %+v", respErr)
-				continue
-			} else if resp.StatusCode >= 400 && isHTTPErrorRecoverable(resp.StatusCode) {
-				ed.config.Loggers.Warnf("Received error status %d when sending events", resp.StatusCode)
-				continue
-			} else {
-				break
-			}
-		}
-	}()
 }
 
 func (b *eventBuffer) addEvent(event Event) {
@@ -486,11 +466,12 @@ func startFlushTask(sdkKey string, config Config, client *http.Client, flushCh <
 		uri = strings.TrimRight(config.EventsUri, "/") + defaultURIPath
 	}
 	t := sendEventsTask{
-		client:    client,
-		eventsURI: uri,
-		sdkKey:    sdkKey,
-		config:    config,
-		formatter: ef,
+		client:        client,
+		eventsURI:     uri,
+		diagnosticURI: strings.TrimRight(config.EventsUri, "/") + diagnosticsURIPath,
+		sdkKey:        sdkKey,
+		config:        config,
+		formatter:     ef,
 	}
 	go t.run(flushCh, responseFn, workersGroup)
 }
@@ -503,25 +484,29 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			// Channel has been closed - we're shutting down
 			break
 		}
-		outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
-		if len(outputEvents) > 0 {
-			resp := t.postEvents(outputEvents)
-			if resp != nil {
-				responseFn(resp)
+		if payload.diagnosticEvent != nil {
+			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event")
+		} else {
+			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
+			if len(outputEvents) > 0 {
+				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents)))
+				if resp != nil {
+					responseFn(resp)
+				}
 			}
 		}
 		workersGroup.Done() // Decrement the count of in-progress flushes
 	}
 }
 
-func (t *sendEventsTask) postEvents(outputEvents []interface{}) *http.Response {
-	jsonPayload, marshalErr := json.Marshal(outputEvents)
+func (t *sendEventsTask) postEvents(uri string, outputData interface{}, description string) *http.Response {
+	jsonPayload, marshalErr := json.Marshal(outputData)
 	if marshalErr != nil {
 		t.config.Loggers.Errorf("Unexpected error marshalling event json: %+v", marshalErr)
 		return nil
 	}
 
-	t.config.Loggers.Debugf("Sending %d events: %s", len(outputEvents), jsonPayload)
+	t.config.Loggers.Debugf("Sending %s: %s", description, jsonPayload)
 
 	var resp *http.Response
 	var respErr error
@@ -530,7 +515,7 @@ func (t *sendEventsTask) postEvents(outputEvents []interface{}) *http.Response {
 			t.config.Loggers.Warn("Will retry posting events after 1 second")
 			time.Sleep(1 * time.Second)
 		}
-		req, reqErr := http.NewRequest("POST", t.eventsURI, bytes.NewReader(jsonPayload))
+		req, reqErr := http.NewRequest("POST", uri, bytes.NewReader(jsonPayload))
 		if reqErr != nil {
 			t.config.Loggers.Errorf("Unexpected error while creating event request: %+v", reqErr)
 			return nil
