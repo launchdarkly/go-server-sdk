@@ -74,47 +74,38 @@ type SegmentRule struct {
 	BucketBy *string  `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
 
-// SegmentExplanation describes a rule that determines whether a user was included in or excluded from a segment.
-//
-// Deprecated: this type is for internal use and will be removed in a future version.
-type SegmentExplanation struct {
-	Kind        string
-	MatchedRule *SegmentRule
-}
-
-// ContainsUser returns whether a user belongs to the segment
-func (s Segment) ContainsUser(user User) (bool, *SegmentExplanation) {
+// containsUser returns whether a user belongs to the segment
+func (s Segment) containsUser(user User) bool {
 	if user.Key == nil {
-		return false, nil
+		return false
 	}
 
 	// Check if the user is included in the segment by key
 	for _, key := range s.Included {
 		if *user.Key == key {
-			return true, &SegmentExplanation{Kind: "included"}
+			return true
 		}
 	}
 
 	// Check if the user is excluded from the segment by key
 	for _, key := range s.Excluded {
 		if *user.Key == key {
-			return false, &SegmentExplanation{Kind: "excluded"}
+			return false
 		}
 	}
 
 	// Check if any of the segment rules match
 	for _, rule := range s.Rules {
-		if rule.MatchesUser(user, s.Key, s.Salt) {
-			reason := rule
-			return true, &SegmentExplanation{Kind: "rule", MatchedRule: &reason}
+		if rule.matchesUser(user, s.Key, s.Salt) {
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // MatchesUser returns whether a rule applies to a user
-func (r SegmentRule) MatchesUser(user User, key, salt string) bool {
+func (r SegmentRule) matchesUser(user User, key, salt string) bool {
 	for _, clause := range r.Clauses {
 		if !clause.matchesUserNoSegments(user) {
 			return false

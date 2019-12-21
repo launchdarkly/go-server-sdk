@@ -392,7 +392,7 @@ func (client *LDClient) JsonVariation(key string, user User, defaultVal json.Raw
 	if err != nil {
 		return defaultVal, err
 	}
-	valueJSONRawMessage, err := ToJsonRawMessage(detail.Value)
+	valueJSONRawMessage, err := toJsonRawMessage(detail.Value)
 	if err != nil {
 		return defaultVal, err
 	}
@@ -406,7 +406,7 @@ func (client *LDClient) JsonVariationDetail(key string, user User, defaultVal js
 	if err != nil {
 		return defaultVal, detail, err
 	}
-	valueJSONRawMessage, err := ToJsonRawMessage(detail.Value)
+	valueJSONRawMessage, err := toJsonRawMessage(detail.Value)
 	if err != nil {
 		detail.Value = defaultVal
 		return defaultVal, detail, err

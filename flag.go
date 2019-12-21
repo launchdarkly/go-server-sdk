@@ -120,7 +120,7 @@ type Rollout struct {
 // Deprecated: this type is for internal use and will be moved to another package in a future version.
 type Clause struct {
 	Attribute string        `json:"attribute" bson:"attribute"`
-	Op        Operator      `json:"op" bson:"op"`
+	Op        operator      `json:"op" bson:"op"`
 	Values    []interface{} `json:"values" bson:"values"` // An array, interpreted as an OR of values
 	Negate    bool          `json:"negate" bson:"negate"`
 }
@@ -323,14 +323,14 @@ func (c Clause) matchesUserNoSegments(user User) bool {
 func (c Clause) matchesUser(store FeatureStore, user User) bool {
 	// In the case of a segment match operator, we check if the user is in any of the segments,
 	// and possibly negate
-	if c.Op == OperatorSegmentMatch {
+	if c.Op == operatorSegmentMatch {
 		for _, value := range c.Values {
 			if vStr, ok := value.(string); ok {
 				data, _ := store.Get(Segments, vStr)
 				// If segment is not found or the store got an error, data will be nil and we'll just fall through
 				// the next block. Unfortunately we have no access to a logger here so this failure is silent.
 				if segment, segmentOk := data.(*Segment); segmentOk {
-					if matches, _ := segment.ContainsUser(user); matches {
+					if segment.containsUser(user) {
 						return c.maybeNegate(true)
 					}
 				}

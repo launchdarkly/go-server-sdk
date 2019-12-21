@@ -52,7 +52,7 @@ func TestParseTimestampBeforeEpoch(t *testing.T) {
 }
 
 func testParseTime(t *testing.T, input interface{}, expected time.Time) {
-	actual := ParseTime(input)
+	actual := parseTime(input)
 	if actual == nil {
 		t.Errorf("Got unexpected nil result when parsing: %+v", input)
 		return
@@ -75,7 +75,7 @@ func TestParseFloat64(t *testing.T) {
 }
 
 func testParseFloat64(t *testing.T, input interface{}, expected float64) {
-	actual := ParseFloat64(input)
+	actual := parseFloat64(input)
 	if actual == nil {
 		t.Errorf("Got unexpected nil result. Expected: %+v when parsing: %+v", expected, input)
 		return
@@ -97,7 +97,7 @@ func TestParseBadNumber(t *testing.T) {
 }
 
 func testParseBadNumber(t *testing.T, input interface{}) {
-	actual := ParseFloat64(input)
+	actual := parseFloat64(input)
 	if actual != nil {
 		t.Errorf("Expected nil result, but instead got: %+v when parsing: %+v", actual, input)
 	}
@@ -119,7 +119,7 @@ func TestToJsonRawMessage(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		actual, err := ToJsonRawMessage(input)
+		actual, err := toJsonRawMessage(input)
 		if err != nil {
 			t.Errorf("Got unexpected error: %+v", err.Error())
 		}
