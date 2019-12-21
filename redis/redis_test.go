@@ -28,27 +28,24 @@ func TestRedisFeatureStoreCached(t *testing.T) {
 
 func TestRedisFeatureStorePrefixes(t *testing.T) {
 	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewRedisFeatureStoreWithDefaults(Prefix(prefix), CacheTTL(0))
+		func(prefix string) (ld.FeatureStoreFactory, error) {
+			return NewRedisFeatureStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
 func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
 	opts, err := validateOptions()
 	require.NoError(t, err)
-	core1 := newRedisFeatureStoreInternal(opts, ld.Config{}) // use the internal object so we can set testTxHook
-	store1 := utils.NewFeatureStoreWrapper(core1)
-	store2, err := NewRedisFeatureStoreWithDefaults()
+	var core1 *redisFeatureStoreCore
+	factory1 := func(config ld.Config) (ld.FeatureStore, error) {
+		core1 = newRedisFeatureStoreInternal(opts, config) // use the internal object so we can set testTxHook
+		return utils.NewFeatureStoreWrapperWithConfig(core1, config), nil
+	}
+	factory2, err := NewRedisFeatureStoreFactory()
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
+	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		core1.testTxHook = hook
 	})
-}
-
-func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(redisURL, "", ttl, nil), nil
-	}
 }
 
 func clearExistingData() error {

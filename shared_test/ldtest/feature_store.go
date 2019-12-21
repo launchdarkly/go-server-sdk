@@ -3,6 +3,8 @@ package ldtest
 import (
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -236,15 +238,19 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 //
 // clearExistingData: Removes all data from the underlying store.
 func RunFeatureStorePrefixIndependenceTests(t *testing.T,
-	makeStoreWithPrefix func(string) (ld.FeatureStore, error),
+	makeStoreWithPrefix func(string) (ld.FeatureStoreFactory, error),
 	clearExistingData func() error) {
 
 	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, ld.FeatureStore, ld.FeatureStore)) {
 		err := clearExistingData()
 		require.NoError(t, err)
-		store1, err := makeStoreWithPrefix("aaa")
+		factory1, err := makeStoreWithPrefix("aaa")
 		require.NoError(t, err)
-		store2, err := makeStoreWithPrefix("bbb")
+		store1, err := factory1(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+		require.NoError(t, err)
+		factory2, err := makeStoreWithPrefix("bbb")
+		require.NoError(t, err)
+		store2, err := factory2(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
 		require.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
 			test(t, store1, store2)
@@ -342,8 +348,14 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 // setStore1UpdateHook: A function which, when called with another function as a parameter,
 // will modify store1 so that it will call the latter function synchronously during each Upsert
 // operation - after the old value has been read, but before the new one has been written.
-func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore,
+func RunFeatureStoreConcurrentModificationTests(t *testing.T, factory1 ld.FeatureStoreFactory, factory2 ld.FeatureStoreFactory,
 	setStore1UpdateHook func(func())) {
+
+	config := ld.Config{Loggers: ldlog.NewDisabledLoggers()}
+	store1, err := factory1(config)
+	require.NoError(t, err)
+	store2, err := factory2(config)
+	require.NoError(t, err)
 
 	key := "foo"
 

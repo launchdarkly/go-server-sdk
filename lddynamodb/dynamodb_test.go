@@ -37,21 +37,22 @@ func TestDynamoDBFeatureStoreCached(t *testing.T) {
 
 func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
 	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()),
+		func(prefix string) (ld.FeatureStoreFactory, error) {
+			return NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()),
 				Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
-	store1Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
+	var store1Internal *dynamoDBFeatureStore
+	factory1 := func(config ld.Config) (ld.FeatureStore, error) {
+		opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
+		store1Internal, _ = newDynamoDBFeatureStoreInternal(opts, config)
+		return utils.NewNonAtomicFeatureStoreWrapper(store1Internal), nil
+	}
+	factory2, err := NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)
-	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Internal)
-	store2Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
-	require.NoError(t, err)
-	store2 := utils.NewNonAtomicFeatureStoreWrapper(store2Internal)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
+	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Internal.testUpdateHook = hook
 	})
 }

@@ -12,6 +12,7 @@ import (
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldfiledata"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
 func makeTempFile(t *testing.T, initialText string) string {
@@ -20,6 +21,11 @@ func makeTempFile(t *testing.T, initialText string) string {
 	f.WriteString(initialText)
 	require.NoError(t, f.Close())
 	return f.Name()
+}
+
+func makeFeatureStore() ld.FeatureStore {
+	store, _ := ld.NewInMemoryFeatureStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+	return store
 }
 
 func replaceFileContents(t *testing.T, filename string, text string) {
@@ -58,7 +64,7 @@ flags: bad
 `)
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
@@ -110,7 +116,7 @@ func TestNewWatchedFileMissing(t *testing.T) {
 	require.NoError(t, os.Remove(filename))
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
@@ -145,7 +151,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "file-source-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	dirPath := path.Join(tempDir, "test")
 	filePath := path.Join(dirPath, "flags.yml")
