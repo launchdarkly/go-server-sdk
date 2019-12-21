@@ -271,13 +271,12 @@ func (ed *eventDispatcher) runMainLoop(
 }
 
 func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys *lruCache) {
-
 	// Always record the event in the summarizer.
 	outbox.addToSummary(evt)
 
 	// Decide whether to add the event to the payload. Feature events may be added twice, once for
 	// the event (if tracked) and once for debugging.
-	willAddFullEvent := false
+	var willAddFullEvent bool
 	var debugEvent Event
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
