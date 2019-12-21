@@ -1,23 +1,23 @@
-// Package ldconsul provides a Consul-backed feature store for the LaunchDarkly Go SDK.
+// Package ldconsul provides a Consul-backed data store for the LaunchDarkly Go SDK.
 //
-// For more details about how and why you can use a persistent feature store, see:
+// For more details about how and why you can use a persistent data store, see:
 // https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store
 //
-// To use the Consul feature store with the LaunchDarkly client:
+// To use the Consul data store with the LaunchDarkly client:
 //
-//     factory, err := ldconsul.NewConsulFeatureStoreFactory()
+//     factory, err := ldconsul.NewConsulDataStoreFactory()
 //     if err != nil { ... }
 //
 //     config := ld.DefaultConfig
-//     config.FeatureStoreFactory = factory
+//     config.DataStoreFactory = factory
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // The default Consul configuration uses an address of localhost:8500. To customize any
 // properties of Consul, you can use the Address() or Config() functions.
 //
-// If you are also using Consul for other purposes, the feature store can coexist with
+// If you are also using Consul for other purposes, the data store can coexist with
 // other data as long as you are not using the same keys. By default, the keys used by the
-// feature store will always start with "launchdarkly/"; you can change this to another
+// data store will always start with "launchdarkly/"; you can change this to another
 // prefix if desired.
 package ldconsul
 
@@ -53,7 +53,7 @@ const (
 	// in memory, unless you specify otherwise with the CacheTTL option.
 	DefaultCacheTTL = 15 * time.Second
 	// DefaultPrefix is a string that is prepended (along with a slash) to all Consul keys used
-	// by the feature store. You can change this value with the Prefix() option.
+	// by the data store. You can change this value with the Prefix() option.
 	DefaultPrefix = "launchdarkly"
 )
 
@@ -61,43 +61,43 @@ const (
 	initedKey = "$inited"
 )
 
-type featureStoreOptions struct {
+type dataStoreOptions struct {
 	consulConfig c.Config
 	prefix       string
 	cacheTTL     time.Duration
 	logger       ld.Logger
 }
 
-// Internal implementation of the Consul-backed feature store. We don't export this - we just
-// return an ld.FeatureStore.
-type featureStore struct {
-	options    featureStoreOptions
+// Internal implementation of the Consul-backed data store. We don't export this - we just
+// return an ld.DataStore.
+type dataStore struct {
+	options    dataStoreOptions
 	client     *c.Client
 	loggers    ldlog.Loggers
 	testTxHook func() // for unit testing of concurrent modifications
 }
 
-// FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewConsulFeatureStoreFactory. These include UseConfig, Prefix, CacheTTL, and UseLogger.
-type FeatureStoreOption interface {
-	apply(opts *featureStoreOptions) error
+// DataStoreOption is the interface for optional configuration parameters that can be
+// passed to NewConsulDataStoreFactory. These include UseConfig, Prefix, CacheTTL, and UseLogger.
+type DataStoreOption interface {
+	apply(opts *dataStoreOptions) error
 }
 
 type configOption struct {
 	config c.Config
 }
 
-func (o configOption) apply(opts *featureStoreOptions) error {
+func (o configOption) apply(opts *dataStoreOptions) error {
 	opts.consulConfig = o.config
 	return nil
 }
 
-// Config creates an option for NewConsulFeatureStoreFactory, to specify an entire configuration
+// Config creates an option for NewConsulDataStoreFactory, to specify an entire configuration
 // for the Consul driver. This overwrites any previous Consul settings that may have been
 // specified.
 //
-//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Config(myConsulConfig))
-func Config(config c.Config) FeatureStoreOption {
+//     factory, err := ldconsul.NewConsulDataStoreFactory(ldconsul.Config(myConsulConfig))
+func Config(config c.Config) DataStoreOption {
 	return configOption{config}
 }
 
@@ -105,16 +105,16 @@ type addressOption struct {
 	address string
 }
 
-func (o addressOption) apply(opts *featureStoreOptions) error {
+func (o addressOption) apply(opts *dataStoreOptions) error {
 	opts.consulConfig.Address = o.address
 	return nil
 }
 
-// Address creates an option for NewConsulFeatureStoreFactory, to set the address of the Consul server.
+// Address creates an option for NewConsulDataStoreFactory, to set the address of the Consul server.
 // If placed after Config(), this modifies the previously specified configuration.
 //
-//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Address("http://consulhost:8100"))
-func Address(address string) FeatureStoreOption {
+//     factory, err := ldconsul.NewConsulDataStoreFactory(ldconsul.Address("http://consulhost:8100"))
+func Address(address string) DataStoreOption {
 	return addressOption{address}
 }
 
@@ -122,16 +122,16 @@ type prefixOption struct {
 	prefix string
 }
 
-func (o prefixOption) apply(opts *featureStoreOptions) error {
+func (o prefixOption) apply(opts *dataStoreOptions) error {
 	opts.prefix = o.prefix
 	return nil
 }
 
-// Prefix creates an option for NewConsulFeatureStoreFactory, to specify a prefix for namespacing
-// the feature store's keys. The default value is DefaultPrefix.
+// Prefix creates an option for NewConsulDataStoreFactory, to specify a prefix for namespacing
+// the data store's keys. The default value is DefaultPrefix.
 //
-//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.Prefix("ld-data"))
-func Prefix(prefix string) FeatureStoreOption {
+//     factory, err := ldconsul.NewConsulDataStoreFactory(ldconsul.Prefix("ld-data"))
+func Prefix(prefix string) DataStoreOption {
 	return prefixOption{prefix}
 }
 
@@ -139,12 +139,12 @@ type cacheTTLOption struct {
 	ttl time.Duration
 }
 
-func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
+func (o cacheTTLOption) apply(opts *dataStoreOptions) error {
 	opts.cacheTTL = o.ttl
 	return nil
 }
 
-// CacheTTL creates an option for NewConsulFeatureStoreFactory, to specify how long flag data should be
+// CacheTTL creates an option for NewConsulDataStoreFactory, to specify how long flag data should be
 // cached in memory to avoid rereading it from Consul.
 //
 // The default value is DefaultCacheTTL. A value of zero disables in-memory caching completely.
@@ -154,8 +154,8 @@ func (o cacheTTLOption) apply(opts *featureStoreOptions) error {
 // process loses connectivity to LaunchDarkly while other processes are still receiving
 // updates and writing them to the database, the current process will have stale data.
 //
-//     factory, err := ldconsul.NewConsulFeatureStoreFactory(ldconsul.CacheTTL(30*time.Second))
-func CacheTTL(ttl time.Duration) FeatureStoreOption {
+//     factory, err := ldconsul.NewConsulDataStoreFactory(ldconsul.CacheTTL(30*time.Second))
+func CacheTTL(ttl time.Duration) DataStoreOption {
 	return cacheTTLOption{ttl}
 }
 
@@ -163,45 +163,45 @@ type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o loggerOption) apply(opts *featureStoreOptions) error {
+func (o loggerOption) apply(opts *dataStoreOptions) error {
 	opts.logger = o.logger
 	return nil
 }
 
-// Logger creates an option for NewConsulFeatureStore, to specify where to send log output.
+// Logger creates an option for NewConsulDataStore, to specify where to send log output.
 //
 // You normally do not need to specify a logger because it will use the same logging configuration as
 // the SDK client.
 //
-//     store, err := ldconsul.NewConsulFeatureStore(ldconsul.Logger(myLogger))
-func Logger(logger ld.Logger) FeatureStoreOption {
+//     store, err := ldconsul.NewConsulDataStore(ldconsul.Logger(myLogger))
+func Logger(logger ld.Logger) DataStoreOption {
 	return loggerOption{logger}
 }
 
-// NewConsulFeatureStoreFactory returns a factory function for a Consul-backed feature store with an
-// optional memory cache. You may customize its behavior with any number of FeatureStoreOption values,
+// NewConsulDataStoreFactory returns a factory function for a Consul-backed data store with an
+// optional memory cache. You may customize its behavior with any number of DataStoreOption values,
 // such as Config, Address, Prefix, CacheTTL, and Logger.
 //
-// Set the FeatureStoreFactory field in your Config to the returned value. Because this is specified
+// Set the DataStoreFactory field in your Config to the returned value. Because this is specified
 // as a factory function, the Consul client is not actually created until you create the SDK client.
 // This also allows it to use the same logging configuration as the SDK, so you do not have to
 // specify the Logger option separately.
-func NewConsulFeatureStoreFactory(options ...FeatureStoreOption) (ld.FeatureStoreFactory, error) {
+func NewConsulDataStoreFactory(options ...DataStoreOption) (ld.DataStoreFactory, error) {
 	configuredOptions, err := validateOptions(options...)
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (ld.FeatureStore, error) {
-		store, err := newConsulFeatureStoreInternal(configuredOptions, ldConfig)
+	return func(ldConfig ld.Config) (ld.DataStore, error) {
+		store, err := newConsulDataStoreInternal(configuredOptions, ldConfig)
 		if err != nil {
 			return nil, err
 		}
-		return utils.NewNonAtomicFeatureStoreWrapperWithConfig(store, ldConfig), nil
+		return utils.NewNonAtomicDataStoreWrapperWithConfig(store, ldConfig), nil
 	}, nil
 }
 
-func validateOptions(options ...FeatureStoreOption) (featureStoreOptions, error) {
-	ret := featureStoreOptions{
+func validateOptions(options ...DataStoreOption) (dataStoreOptions, error) {
+	ret := dataStoreOptions{
 		consulConfig: *c.DefaultConfig(),
 		cacheTTL:     DefaultCacheTTL,
 	}
@@ -214,13 +214,13 @@ func validateOptions(options ...FeatureStoreOption) (featureStoreOptions, error)
 	return ret, nil
 }
 
-func newConsulFeatureStoreInternal(configuredOptions featureStoreOptions, ldConfig ld.Config) (*featureStore, error) {
-	store := &featureStore{
+func newConsulDataStoreInternal(configuredOptions dataStoreOptions, ldConfig ld.Config) (*dataStore, error) {
+	store := &dataStore{
 		options: configuredOptions,
 		loggers: ldConfig.Loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
-	store.loggers.SetPrefix("ConsulFeatureStore:")
+	store.loggers.SetPrefix("ConsulDataStore:")
 
 	if store.options.prefix == "" {
 		store.options.prefix = DefaultPrefix
@@ -236,16 +236,16 @@ func newConsulFeatureStoreInternal(configuredOptions featureStoreOptions, ldConf
 	return store, nil
 }
 
-func (store *featureStore) GetCacheTTL() time.Duration {
+func (store *dataStore) GetCacheTTL() time.Duration {
 	return store.options.cacheTTL
 }
 
-func (store *featureStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *dataStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	item, _, err := store.getEvenIfDeleted(kind, key)
 	return item, err
 }
 
-func (store *featureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *dataStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	results := make(map[string]ld.VersionedData)
 
 	kv := store.client.KV()
@@ -267,7 +267,7 @@ func (store *featureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string
 	return results, nil
 }
 
-func (store *featureStore) InitCollectionsInternal(allData []utils.StoreCollection) error {
+func (store *dataStore) InitCollectionsInternal(allData []utils.StoreCollection) error {
 	kv := store.client.KV()
 
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
@@ -315,7 +315,7 @@ func (store *featureStore) InitCollectionsInternal(allData []utils.StoreCollecti
 	return batchOperations(kv, ops)
 }
 
-func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
+func (store *dataStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
 	data, jsonErr := json.Marshal(newItem)
 	if jsonErr != nil {
 		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, newItem.GetKey(), jsonErr)
@@ -332,7 +332,7 @@ func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.
 		}
 
 		// Check whether the item is stale. If so, don't do the update (and return the existing item to
-		// FeatureStoreWrapper so it can be cached)
+		// DataStoreWrapper so it can be cached)
 		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
 			return oldItem, nil
 		}
@@ -365,13 +365,13 @@ func (store *featureStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.
 	}
 }
 
-func (store *featureStore) InitializedInternal() bool {
+func (store *dataStore) InitializedInternal() bool {
 	kv := store.client.KV()
 	pair, _, err := kv.Get(store.initedKey(), nil)
 	return pair != nil && err == nil
 }
 
-func (store *featureStore) IsStoreAvailable() bool {
+func (store *dataStore) IsStoreAvailable() bool {
 	// Using a simple Get query here rather than the Consul Health API, because the latter seems to be
 	// oriented toward monitoring of specific nodes or services; what we really want to know is just
 	// whether a basic operation can succeed.
@@ -380,7 +380,7 @@ func (store *featureStore) IsStoreAvailable() bool {
 	return err == nil
 }
 
-func (store *featureStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (retrievedItem ld.VersionedData,
+func (store *dataStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (retrievedItem ld.VersionedData,
 	modifyIndex uint64, err error) {
 	var defaultModifyIndex = uint64(0)
 
@@ -424,14 +424,14 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 	return nil
 }
 
-func (store *featureStore) featuresKey(kind ld.VersionedDataKind) string {
+func (store *dataStore) featuresKey(kind ld.VersionedDataKind) string {
 	return store.options.prefix + "/" + kind.GetNamespace()
 }
 
-func (store *featureStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
+func (store *dataStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
 	return store.options.prefix + "/" + kind.GetNamespace() + "/" + k
 }
 
-func (store *featureStore) initedKey() string {
+func (store *dataStore) initedKey() string {
 	return store.options.prefix + "/" + initedKey
 }

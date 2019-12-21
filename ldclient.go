@@ -25,7 +25,7 @@ type LDClient struct {
 	config          Config
 	eventProcessor  EventProcessor
 	updateProcessor UpdateProcessor
-	store           FeatureStore
+	store           DataStore
 }
 
 // Logger is a generic logger interface.
@@ -83,16 +83,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
-	if config.FeatureStore == nil {
-		factory := config.FeatureStoreFactory
+	if config.DataStore == nil {
+		factory := config.DataStoreFactory
 		if factory == nil {
-			factory = NewInMemoryFeatureStoreFactory()
+			factory = NewInMemoryDataStoreFactory()
 		}
 		store, err := factory(config)
 		if err != nil {
 			return nil, err
 		}
-		config.FeatureStore = store
+		config.DataStore = store
 	}
 
 	defaultHTTPClient := config.newHTTPClient()
@@ -100,7 +100,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client := LDClient{
 		sdkKey: sdkKey,
 		config: config,
-		store:  config.FeatureStore,
+		store:  config.DataStore,
 	}
 
 	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
@@ -245,7 +245,7 @@ func (client *LDClient) Close() error {
 	}
 	_ = client.eventProcessor.Close()
 	_ = client.updateProcessor.Close()
-	if c, ok := client.store.(io.Closer); ok { // not all FeatureStores implement Closer
+	if c, ok := client.store.(io.Closer); ok { // not all DataStores implement Closer
 		_ = c.Close()
 	}
 	return nil
@@ -275,9 +275,9 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 		valid = false
 	} else if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Loggers.Warn("Called AllFlagsState before client initialization; using last known values from feature store")
+			client.config.Loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
-			client.config.Loggers.Warn("Called AllFlagsState before client initialization. Feature store not available; returning empty state")
+			client.config.Loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state")
 			valid = false
 		}
 	}
@@ -288,7 +288,7 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 
 	items, err := client.store.All(Features)
 	if err != nil {
-		client.config.Loggers.Warn("Unable to fetch flags from feature store. Returning empty state. Error: " + err.Error())
+		client.config.Loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
 	}
 
@@ -479,7 +479,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal inter
 
 	if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
+			client.config.Loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store")
 		} else {
 			return evalErrorResult(EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}

@@ -21,7 +21,7 @@ type VersionedDataKind interface {
 }
 
 // VersionedDataKinds is a list of supported VersionedDataKind's. Among other things, this list might
-// be used by feature stores to know what data (namespaces) to expect.
+// be used by data stores to know what data (namespaces) to expect.
 var VersionedDataKinds = [...]VersionedDataKind{
 	Features,
 	Segments,

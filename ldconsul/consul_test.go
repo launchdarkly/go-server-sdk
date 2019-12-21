@@ -11,37 +11,37 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
 )
 
-func TestConsulFeatureStoreUncached(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeConsulStoreWithCacheTTL(0), clearExistingData, false)
+func TestConsulDataStoreUncached(t *testing.T) {
+	ldtest.RunDataStoreTests(t, makeConsulStoreWithCacheTTL(0), clearExistingData, false)
 }
 
-func TestConsulFeatureStoreCached(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeConsulStoreWithCacheTTL(30*time.Second), clearExistingData, true)
+func TestConsulDataStoreCached(t *testing.T) {
+	ldtest.RunDataStoreTests(t, makeConsulStoreWithCacheTTL(30*time.Second), clearExistingData, true)
 }
 
-func TestConsulFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStoreFactory, error) {
-			return NewConsulFeatureStoreFactory(Prefix(prefix), CacheTTL(0))
+func TestConsulDataStorePrefixes(t *testing.T) {
+	ldtest.RunDataStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.DataStoreFactory, error) {
+			return NewConsulDataStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
-func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
+func TestConsulDataStoreConcurrentModification(t *testing.T) {
 	options, _ := validateOptions()
-	var store1Core *featureStore
-	factory1 := func(config ld.Config) (ld.FeatureStore, error) {
-		store1Core, _ = newConsulFeatureStoreInternal(options, config) // we need the underlying implementation object so we can set testTxHook
-		return utils.NewNonAtomicFeatureStoreWrapper(store1Core), nil
+	var store1Core *dataStore
+	factory1 := func(config ld.Config) (ld.DataStore, error) {
+		store1Core, _ = newConsulDataStoreInternal(options, config) // we need the underlying implementation object so we can set testTxHook
+		return utils.NewNonAtomicDataStoreWrapper(store1Core), nil
 	}
-	factory2, err := NewConsulFeatureStoreFactory()
+	factory2, err := NewConsulDataStoreFactory()
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
+	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Core.testTxHook = hook
 	})
 }
 
-func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
-	f, _ := NewConsulFeatureStoreFactory(CacheTTL(ttl))
+func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.DataStoreFactory {
+	f, _ := NewConsulDataStoreFactory(CacheTTL(ttl))
 	return f
 }
 

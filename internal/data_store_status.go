@@ -7,8 +7,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
-// FeatureStoreStatus is a description of whether a feature store is functioning normally.
-type FeatureStoreStatus struct {
+// DataStoreStatus is a description of whether a data store is functioning normally.
+type DataStoreStatus struct {
 	// True if the store is currently usable. For a persistent store, this will be false if the last
 	// database operation failed and we have not yet seen evidence that the database is working.
 	Available bool
@@ -17,31 +17,31 @@ type FeatureStoreStatus struct {
 	NeedsRefresh bool
 }
 
-// FeatureStoreStatusProvider is an optional interface that can be implemented by a FeatureStore.
+// DataStoreStatusProvider is an optional interface that can be implemented by a DataStore.
 // It allows other SDK components to detect whether the store is in a usable state.
-type FeatureStoreStatusProvider interface {
+type DataStoreStatusProvider interface {
 	// GetStoreStatus returns the current status of the store.
-	GetStoreStatus() FeatureStoreStatus
+	GetStoreStatus() DataStoreStatus
 	// StatusSubscribe creates a channel that will receive all changes in store status.
-	StatusSubscribe() FeatureStoreStatusSubscription
+	StatusSubscribe() DataStoreStatusSubscription
 }
 
-// FeatureStoreStatusSubscription represents a subscription to feature store status updates.
-type FeatureStoreStatusSubscription interface {
+// DataStoreStatusSubscription represents a subscription to data store status updates.
+type DataStoreStatusSubscription interface {
 	// The channel for receiving updates.
-	Channel() <-chan FeatureStoreStatus
+	Channel() <-chan DataStoreStatus
 	// Stops the subscription, closing the channel.
 	Close()
 }
 
-type featureStoreStatusSubcription struct {
-	ch    chan FeatureStoreStatus
-	owner *FeatureStoreStatusManager
+type DataStoreStatusSubcription struct {
+	ch    chan DataStoreStatus
+	owner *DataStoreStatusManager
 }
 
-// FeatureStoreStatusManager manages status subscriptions and can poll for recovery.
-type FeatureStoreStatusManager struct {
-	subs              []chan FeatureStoreStatus
+// DataStoreStatusManager manages status subscriptions and can poll for recovery.
+type DataStoreStatusManager struct {
+	subs              []chan DataStoreStatus
 	lock              sync.Mutex
 	lastAvailable     bool
 	pollFn            func() bool
@@ -53,11 +53,11 @@ type FeatureStoreStatusManager struct {
 
 var statusPollInterval = time.Millisecond * 500
 
-// NewFeatureStoreStatusManager creates a new FeatureStoreStatusManager. The pollFn should return
+// NewDataStoreStatusManager creates a new DataStoreStatusManager. The pollFn should return
 // true if the store is available, false if not.
-func NewFeatureStoreStatusManager(availableNow bool, pollFn func() bool, refreshOnRecovery bool,
-	loggers ldlog.Loggers) *FeatureStoreStatusManager {
-	return &FeatureStoreStatusManager{
+func NewDataStoreStatusManager(availableNow bool, pollFn func() bool, refreshOnRecovery bool,
+	loggers ldlog.Loggers) *DataStoreStatusManager {
+	return &DataStoreStatusManager{
 		lastAvailable:     availableNow,
 		pollFn:            pollFn,
 		refreshOnRecovery: refreshOnRecovery,
@@ -66,16 +66,16 @@ func NewFeatureStoreStatusManager(availableNow bool, pollFn func() bool, refresh
 }
 
 // Subscribe opens a channel for status updates.
-func (m *FeatureStoreStatusManager) Subscribe() FeatureStoreStatusSubscription {
-	ch := make(chan FeatureStoreStatus, 10)
-	sub := &featureStoreStatusSubcription{ch: ch, owner: m}
+func (m *DataStoreStatusManager) Subscribe() DataStoreStatusSubscription {
+	ch := make(chan DataStoreStatus, 10)
+	sub := &DataStoreStatusSubcription{ch: ch, owner: m}
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.subs = append(m.subs, ch)
 	return sub
 }
 
-func (m *FeatureStoreStatusManager) unsubscribe(subCh chan FeatureStoreStatus) {
+func (m *DataStoreStatusManager) unsubscribe(subCh chan DataStoreStatus) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	for i, ch := range m.subs {
@@ -89,14 +89,14 @@ func (m *FeatureStoreStatusManager) unsubscribe(subCh chan FeatureStoreStatus) {
 
 // UpdateAvailability signals that the store is now available or unavailable. If that is a change,
 // an update will be sent (and, if the new status is unavailable, it will start polling for recovery).
-func (m *FeatureStoreStatusManager) UpdateAvailability(available bool) {
+func (m *DataStoreStatusManager) UpdateAvailability(available bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if available == m.lastAvailable {
 		return
 	}
 	m.lastAvailable = available
-	newStatus := FeatureStoreStatus{Available: available}
+	newStatus := DataStoreStatus{Available: available}
 	if available {
 		m.loggers.Warn("Persistent store is available again")
 		newStatus.NeedsRefresh = m.refreshOnRecovery
@@ -104,7 +104,7 @@ func (m *FeatureStoreStatusManager) UpdateAvailability(available bool) {
 
 	// Notify all the subscribers (on another goroutine, to make sure we can't be blocked by a
 	// slow consumer).
-	subs := make([]chan FeatureStoreStatus, len(m.subs))
+	subs := make([]chan DataStoreStatus, len(m.subs))
 	copy(subs, m.subs)
 
 	// We'll dispatch these on another goroutine to make sure we can't be blocked by a slow consumer.
@@ -123,14 +123,14 @@ func (m *FeatureStoreStatusManager) UpdateAvailability(available bool) {
 }
 
 // IsAvailable tests whether the last known status was available.
-func (m *FeatureStoreStatusManager) IsAvailable() bool {
+func (m *DataStoreStatusManager) IsAvailable() bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	return m.lastAvailable
 }
 
 // Close shuts down all channels and goroutines used by the manager.
-func (m *FeatureStoreStatusManager) Close() {
+func (m *DataStoreStatusManager) Close() {
 	m.closeOnce.Do(func() {
 		if m.pollCloser != nil {
 			close(m.pollCloser)
@@ -142,7 +142,7 @@ func (m *FeatureStoreStatusManager) Close() {
 	})
 }
 
-func (m *FeatureStoreStatusManager) startStatusPoller() chan struct{} {
+func (m *DataStoreStatusManager) startStatusPoller() chan struct{} {
 	closer := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(statusPollInterval)
@@ -162,10 +162,10 @@ func (m *FeatureStoreStatusManager) startStatusPoller() chan struct{} {
 	return closer
 }
 
-func (s *featureStoreStatusSubcription) Channel() <-chan FeatureStoreStatus {
+func (s *DataStoreStatusSubcription) Channel() <-chan DataStoreStatus {
 	return s.ch
 }
 
-func (s *featureStoreStatusSubcription) Close() {
+func (s *DataStoreStatusSubcription) Close() {
 	s.owner.unsubscribe(s.ch)
 }

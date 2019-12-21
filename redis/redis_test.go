@@ -14,36 +14,36 @@ import (
 
 const redisURL = "redis://localhost:6379"
 
-func TestRedisFeatureStoreUncached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(0))
+func TestRedisDataStoreUncached(t *testing.T) {
+	f, err := NewRedisDataStoreFactory(CacheTTL(0))
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreTests(t, f, clearExistingData, false)
+	ldtest.RunDataStoreTests(t, f, clearExistingData, false)
 }
 
-func TestRedisFeatureStoreCached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(30 * time.Second))
+func TestRedisDataStoreCached(t *testing.T) {
+	f, err := NewRedisDataStoreFactory(CacheTTL(30 * time.Second))
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreTests(t, f, clearExistingData, true)
+	ldtest.RunDataStoreTests(t, f, clearExistingData, true)
 }
 
-func TestRedisFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStoreFactory, error) {
-			return NewRedisFeatureStoreFactory(Prefix(prefix), CacheTTL(0))
+func TestRedisDataStorePrefixes(t *testing.T) {
+	ldtest.RunDataStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.DataStoreFactory, error) {
+			return NewRedisDataStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
-func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
+func TestRedisDataStoreConcurrentModification(t *testing.T) {
 	opts, err := validateOptions()
 	require.NoError(t, err)
-	var core1 *redisFeatureStoreCore
-	factory1 := func(config ld.Config) (ld.FeatureStore, error) {
-		core1 = newRedisFeatureStoreInternal(opts, config) // use the internal object so we can set testTxHook
-		return utils.NewFeatureStoreWrapperWithConfig(core1, config), nil
+	var core1 *redisDataStoreCore
+	factory1 := func(config ld.Config) (ld.DataStore, error) {
+		core1 = newRedisDataStoreInternal(opts, config) // use the internal object so we can set testTxHook
+		return utils.NewDataStoreWrapperWithConfig(core1, config), nil
 	}
-	factory2, err := NewRedisFeatureStoreFactory()
+	factory2, err := NewRedisDataStoreFactory()
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
+	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		core1.testTxHook = hook
 	})
 }

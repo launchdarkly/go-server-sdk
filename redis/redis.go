@@ -1,35 +1,35 @@
-// Package redis provides a Redis-backed persistent feature store for the LaunchDarkly Go SDK.
+// Package redis provides a Redis-backed persistent data store for the LaunchDarkly Go SDK.
 //
-// For more details about how and why you can use a persistent feature store, see:
+// For more details about how and why you can use a persistent data store, see:
 // https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store
 //
-// To use the Redis feature store with the LaunchDarkly client:
+// To use the Redis data store with the LaunchDarkly client:
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory()
+//     factory, err := redis.NewRedisDataStoreFactory()
 //     if err != nil { ... }
 //
 //     config := ld.DefaultConfig
-//     config.FeatureStoreFactory = factory
+//     config.DataStoreFactory = factory
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // The default Redis pool configuration uses an address of localhost:6379, a maximum of 16
 // concurrent connections, and blocking connection requests. You may also customize other
-// properties of the feature store by providing options to NewRedisFeatureStoreFactory,
+// properties of the data store by providing options to NewRedisDataStoreFactory,
 // for example:
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.URL(myRedisURL),
+//     factory, err := redis.NewRedisDataStoreFactory(redis.URL(myRedisURL),
 //         redis.CacheTTL(30*time.Second))
 //
 // For advanced customization of the underlying Redigo client, use the DialOptions or Pool
-// options with NewRedisFeatureStoreFactory. Note that some Redis client features can
+// options with NewRedisDataStoreFactory. Note that some Redis client features can
 // also be specified as part of the URL: Redigo supports the redis:// syntax
 // (https://www.iana.org/assignments/uri-schemes/prov/redis), which can include a password
 // and a database number, as well as rediss:// (https://www.iana.org/assignments/uri-schemes/prov/rediss),
 // which enables TLS.
 //
-// If you are also using Redis for other purposes, the feature store can coexist with
+// If you are also using Redis for other purposes, the data store can coexist with
 // other data as long as you are not using the same keys. By default, the keys used by the
-// feature store will always start with "launchdarkly:"; you can change this to another
+// data store will always start with "launchdarkly:"; you can change this to another
 // prefix if desired.
 package redis
 
@@ -47,21 +47,21 @@ import (
 
 const (
 	// DefaultURL is the default URL for connecting to Redis, if you use
-	// NewRedisFeatureStoreWithDefaults. You can specify otherwise with the RedisURL option.
+	// NewRedisDataStoreWithDefaults. You can specify otherwise with the RedisURL option.
 	// If you are using the other constructors, you must specify the URL explicitly.
 	DefaultURL = "redis://localhost:6379"
 	// DefaultPrefix is a string that is prepended (along with a colon) to all Redis keys used
-	// by the feature store. You can change this value with the Prefix() option for
-	// NewRedisFeatureStoreWithDefaults, or with the "prefix" parameter to the other constructors.
+	// by the data store. You can change this value with the Prefix() option for
+	// NewRedisDataStoreWithDefaults, or with the "prefix" parameter to the other constructors.
 	DefaultPrefix = "launchdarkly"
 	// DefaultCacheTTL is the default amount of time that recently read or updated items will
-	// be cached in memory, if you use NewRedisFeatureStoreWithDefaults. You can specify otherwise
+	// be cached in memory, if you use NewRedisDataStoreWithDefaults. You can specify otherwise
 	// with the CacheTTL option. If you are using the other constructors, their "timeout"
 	// parameter serves the same purpose and there is no default.
 	DefaultCacheTTL = 15 * time.Second
 )
 
-type redisFeatureStoreOptions struct {
+type redisDataStoreOptions struct {
 	prefix      string
 	pool        *r.Pool
 	redisURL    string
@@ -70,39 +70,39 @@ type redisFeatureStoreOptions struct {
 	logger      ld.Logger
 }
 
-// FeatureStoreOption is the interface for optional configuration parameters that can be
-// passed to NewRedisFeatureStoreFactory. These include UseConfig, Prefix, CacheTTL, and UseLogger.
-type FeatureStoreOption interface {
-	apply(opts *redisFeatureStoreOptions) error
+// DataStoreOption is the interface for optional configuration parameters that can be
+// passed to NewRedisDataStoreFactory. These include UseConfig, Prefix, CacheTTL, and UseLogger.
+type DataStoreOption interface {
+	apply(opts *redisDataStoreOptions) error
 }
 
 type redisURLOption struct {
 	url string
 }
 
-func (o redisURLOption) apply(opts *redisFeatureStoreOptions) error {
+func (o redisURLOption) apply(opts *redisDataStoreOptions) error {
 	opts.redisURL = o.url
 	return nil
 }
 
-// URL creates an option for NewRedisFeatureStoreFactory to specify the Redis host URL.
+// URL creates an option for NewRedisDataStoreFactory to specify the Redis host URL.
 // If not specified, the default value is DefaultURL.
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.URL("redis://my-redis-host:6379"))
+//     factory, err := redis.NewRedisDataStoreFactory(redis.URL("redis://my-redis-host:6379"))
 //
 // Note that some Redis client features can also be specified as part of the URL: Redigo supports
 // the redis:// syntax (https://www.iana.org/assignments/uri-schemes/prov/redis), which can include a
 // password and a database number, as well as rediss://
 // (https://www.iana.org/assignments/uri-schemes/prov/rediss), which enables TLS.
-func URL(url string) FeatureStoreOption {
+func URL(url string) DataStoreOption {
 	return redisURLOption{url}
 }
 
-// HostAndPort creates an option for NewRedisFeatureStoreWithDefaults to specify the Redis host
+// HostAndPort creates an option for NewRedisDataStoreWithDefaults to specify the Redis host
 // address as a hostname and port.
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.HostAndPort("my-redis-host", 6379))
-func HostAndPort(host string, port int) FeatureStoreOption {
+//     factory, err := redis.NewRedisDataStoreFactory(redis.HostAndPort("my-redis-host", 6379))
+func HostAndPort(host string, port int) DataStoreOption {
 	return redisURLOption{fmt.Sprintf("redis://%s:%d", host, port)}
 }
 
@@ -110,21 +110,21 @@ type redisPoolOption struct {
 	pool *r.Pool
 }
 
-func (o redisPoolOption) apply(opts *redisFeatureStoreOptions) error {
+func (o redisPoolOption) apply(opts *redisDataStoreOptions) error {
 	opts.pool = o.pool
 	return nil
 }
 
-// Pool creates an option for NewRedisFeatureStoreFactory to make the feature store
+// Pool creates an option for NewRedisDataStoreFactory to make the data store
 // use a specific connection pool configuration. If not specified, it will create a default
 // configuration (see package description). Specifying this option will cause any address
 // specified with RedisURL or RedisHostAndPort to be ignored.
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.Pool(myPool))
+//     factory, err := redis.NewRedisDataStoreFactory(redis.Pool(myPool))
 //
 // If you only need to change basic connection options such as providing a password, it is
 // simpler to use DialOptions.
-func Pool(pool *r.Pool) FeatureStoreOption {
+func Pool(pool *r.Pool) DataStoreOption {
 	return redisPoolOption{pool}
 }
 
@@ -132,7 +132,7 @@ type prefixOption struct {
 	prefix string
 }
 
-func (o prefixOption) apply(opts *redisFeatureStoreOptions) error {
+func (o prefixOption) apply(opts *redisDataStoreOptions) error {
 	if o.prefix == "" {
 		opts.prefix = DefaultPrefix
 	} else {
@@ -141,12 +141,12 @@ func (o prefixOption) apply(opts *redisFeatureStoreOptions) error {
 	return nil
 }
 
-// Prefix creates an option for NewRedisFeatureStoreFactory to specify a string
-// that should be prepended to all Redis keys used by the feature store. A colon will be
+// Prefix creates an option for NewRedisDataStoreFactory to specify a string
+// that should be prepended to all Redis keys used by the data store. A colon will be
 // added to this automatically. If this is unspecified or empty, DefaultPrefix will be used.
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.Prefix("ld-data"))
-func Prefix(prefix string) FeatureStoreOption {
+//     factory, err := redis.NewRedisDataStoreFactory(redis.Prefix("ld-data"))
+func Prefix(prefix string) DataStoreOption {
 	return prefixOption{prefix}
 }
 
@@ -154,12 +154,12 @@ type cacheTTLOption struct {
 	cacheTTL time.Duration
 }
 
-func (o cacheTTLOption) apply(opts *redisFeatureStoreOptions) error {
+func (o cacheTTLOption) apply(opts *redisDataStoreOptions) error {
 	opts.cacheTTL = o.cacheTTL
 	return nil
 }
 
-// CacheTTL creates an option for NewRedisFeatureStoreFactory to set the amount of time
+// CacheTTL creates an option for NewRedisDataStoreFactory to set the amount of time
 // that recently read or updated items should remain in an in-memory cache. This reduces the
 // amount of database access if the same feature flags are being evaluated repeatedly.
 //
@@ -170,8 +170,8 @@ func (o cacheTTLOption) apply(opts *redisFeatureStoreOptions) error {
 // process loses connectivity to LaunchDarkly while other processes are still receiving
 // updates and writing them to the database, the current process will have stale data.
 //
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.CacheTTL(30*time.Second))
-func CacheTTL(ttl time.Duration) FeatureStoreOption {
+//     factory, err := redis.NewRedisDataStoreFactory(redis.CacheTTL(30*time.Second))
+func CacheTTL(ttl time.Duration) DataStoreOption {
 	return cacheTTLOption{ttl}
 }
 
@@ -179,18 +179,18 @@ type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o loggerOption) apply(opts *redisFeatureStoreOptions) error {
+func (o loggerOption) apply(opts *redisDataStoreOptions) error {
 	opts.logger = o.logger
 	return nil
 }
 
-// Logger creates an option for NewRedisFeatureStore, to specify where to send log output.
+// Logger creates an option for NewRedisDataStore, to specify where to send log output.
 //
 // You do not normally need to specify a logger because it will use the same logging configuration as
 // the SDK client.
 //
-//     store, err := redis.NewRedisFeatureStore(redis.Logger(myLogger))
-func Logger(logger ld.Logger) FeatureStoreOption {
+//     store, err := redis.NewRedisDataStore(redis.Logger(myLogger))
+func Logger(logger ld.Logger) DataStoreOption {
 	return loggerOption{logger}
 }
 
@@ -198,38 +198,38 @@ type redisDialOptionsOption struct {
 	options []r.DialOption
 }
 
-func (o redisDialOptionsOption) apply(opts *redisFeatureStoreOptions) error {
+func (o redisDialOptionsOption) apply(opts *redisDataStoreOptions) error {
 	opts.dialOptions = append(opts.dialOptions, o.options...)
 	return nil
 }
 
-// DialOptions creates an option for NewRedisFeatureStoreFactory to specify any of the
+// DialOptions creates an option for NewRedisDataStoreFactory to specify any of the
 // advanced Redis connection options supported by Redigo, such as DialPassword.
 //
 //     import (
 //         redigo "github.com/garyburd/redigo/redis"
 //         "gopkg.in/launchdarkly/go-server-sdk.v4/redis"
 //     )
-//     factory, err := redis.NewRedisFeatureStoreFactory(redis.DialOption(redigo.DialPassword("verysecure123")))
+//     factory, err := redis.NewRedisDataStoreFactory(redis.DialOption(redigo.DialPassword("verysecure123")))
 //
 // Note that some Redis client features can also be specified as part of the URL: see comments
 // on the URL() option.
-func DialOptions(options ...r.DialOption) FeatureStoreOption {
+func DialOptions(options ...r.DialOption) DataStoreOption {
 	return redisDialOptionsOption{options: options}
 }
 
-// RedisFeatureStore is a Redis-backed feature store implementation.
-type RedisFeatureStore struct { // nolint:golint // package name in type name
-	wrapper *utils.FeatureStoreWrapper
+// RedisDataStore is a Redis-backed data store implementation.
+type RedisDataStore struct { // nolint:golint // package name in type name
+	wrapper *utils.DataStoreWrapper
 }
 
-// redisFeatureStoreCore is the internal implementation, using the simpler interface defined in
-// utils.FeatureStoreCore. The FeatureStoreWrapper wraps this to add caching. The only reason that
-// there is a separate RedisFeatureStore type, instead of just using the FeatureStoreWrapper itself
-// as the outermost object, is a historical one: the NewRedisFeatureStore constructors had already
-// been defined as returning *RedisFeatureStore rather than the interface type.
-type redisFeatureStoreCore struct {
-	options    redisFeatureStoreOptions
+// redisDataStoreCore is the internal implementation, using the simpler interface defined in
+// utils.DataStoreCore. The DataStoreWrapper wraps this to add caching. The only reason that
+// there is a separate RedisDataStore type, instead of just using the DataStoreWrapper itself
+// as the outermost object, is a historical one: the NewRedisDataStore constructors had already
+// been defined as returning *RedisDataStore rather than the interface type.
+type redisDataStoreCore struct {
+	options    redisDataStoreOptions
 	loggers    ldlog.Loggers
 	pool       *r.Pool
 	testTxHook func()
@@ -255,31 +255,31 @@ func newPool(url string, dialOptions []r.DialOption) *r.Pool {
 
 const initedKey = "$inited"
 
-// NewRedisFeatureStoreFactory returns a factory function for a Redis-backed feature store.
+// NewRedisDataStoreFactory returns a factory function for a Redis-backed data store.
 //
 // By default, it uses DefaultURL as the Redis address, DefaultPrefix as the prefix for all keys,
 // DefaultCacheTTL as the duration for in-memory caching, no authentication and a default connection
 // pool configuration (see package description for details). You may override any of these with
-// FeatureStoreOption values created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL,
+// DataStoreOption values created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL,
 // Logger, or Auth.
 //
-// Set the FeatureStoreFactory field in your Config to the returned value. Because this is specified
+// Set the DataStoreFactory field in your Config to the returned value. Because this is specified
 // as a factory function, the Redis client is not actually created until you create the SDK client.
 // This also allows it to use the same logging configuration as the SDK, so you do not have to
 // specify the Logger option separately.
-func NewRedisFeatureStoreFactory(options ...FeatureStoreOption) (ld.FeatureStoreFactory, error) {
+func NewRedisDataStoreFactory(options ...DataStoreOption) (ld.DataStoreFactory, error) {
 	configuredOptions, err := validateOptions(options...)
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (ld.FeatureStore, error) {
-		core := newRedisFeatureStoreInternal(configuredOptions, ldConfig)
-		return utils.NewFeatureStoreWrapperWithConfig(core, ldConfig), nil
+	return func(ldConfig ld.Config) (ld.DataStore, error) {
+		core := newRedisDataStoreInternal(configuredOptions, ldConfig)
+		return utils.NewDataStoreWrapperWithConfig(core, ldConfig), nil
 	}, nil
 }
 
-func validateOptions(options ...FeatureStoreOption) (redisFeatureStoreOptions, error) {
-	ret := redisFeatureStoreOptions{
+func validateOptions(options ...DataStoreOption) (redisDataStoreOptions, error) {
+	ret := redisDataStoreOptions{
 		prefix:   DefaultPrefix,
 		redisURL: DefaultURL,
 		cacheTTL: DefaultCacheTTL,
@@ -293,14 +293,14 @@ func validateOptions(options ...FeatureStoreOption) (redisFeatureStoreOptions, e
 	return ret, nil
 }
 
-func newRedisFeatureStoreInternal(configuredOptions redisFeatureStoreOptions, ldConfig ld.Config) *redisFeatureStoreCore {
-	core := &redisFeatureStoreCore{
+func newRedisDataStoreInternal(configuredOptions redisDataStoreOptions, ldConfig ld.Config) *redisDataStoreCore {
+	core := &redisDataStoreCore{
 		options: configuredOptions,
 		pool:    configuredOptions.pool,
 		loggers: ldConfig.Loggers, // copied by value so we can modify it
 	}
 	core.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
-	core.loggers.SetPrefix("RedisFeatureStore:")
+	core.loggers.SetPrefix("RedisDataStore:")
 
 	if core.pool == nil {
 		core.loggers.Infof("Using url: %s", configuredOptions.redisURL)
@@ -310,43 +310,43 @@ func newRedisFeatureStoreInternal(configuredOptions redisFeatureStoreOptions, ld
 }
 
 // Get returns an individual object of a given type from the store
-func (store *RedisFeatureStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *RedisDataStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	return store.wrapper.Get(kind, key)
 }
 
 // All returns all the objects of a given kind from the store
-func (store *RedisFeatureStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *RedisDataStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	return store.wrapper.All(kind)
 }
 
 // Init populates the store with a complete set of versioned data
-func (store *RedisFeatureStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *RedisDataStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 	return store.wrapper.Init(allData)
 }
 
 // Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
-func (store *RedisFeatureStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *RedisDataStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
 	return store.wrapper.Upsert(kind, item)
 }
 
 // Delete removes an item of a given kind from the store
-func (store *RedisFeatureStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
+func (store *RedisDataStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
 	return store.wrapper.Delete(kind, key, version)
 }
 
 // Initialized returns whether redis contains an entry for this environment
-func (store *RedisFeatureStore) Initialized() bool {
+func (store *RedisDataStore) Initialized() bool {
 	return store.wrapper.Initialized()
 }
 
-// Actual implementation methods are below - these are called by FeatureStoreWrapper, which adds
+// Actual implementation methods are below - these are called by DataStoreWrapper, which adds
 // caching behavior if necessary.
 
-func (store *redisFeatureStoreCore) GetCacheTTL() time.Duration {
+func (store *redisDataStoreCore) GetCacheTTL() time.Duration {
 	return store.options.cacheTTL
 }
 
-func (store *redisFeatureStoreCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *redisDataStoreCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -367,7 +367,7 @@ func (store *redisFeatureStoreCore) GetInternal(kind ld.VersionedDataKind, key s
 	return item, nil
 }
 
-func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *redisDataStoreCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
 	results := make(map[string]ld.VersionedData)
 
 	c := store.getConn()
@@ -392,7 +392,7 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 }
 
 // Init populates the store with a complete set of versioned data
-func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *redisDataStoreCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -421,7 +421,7 @@ func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKin
 	return err
 }
 
-func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
+func (store *redisDataStoreCore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
 	baseKey := store.featuresKey(kind)
 	key := newItem.GetKey()
 	for {
@@ -479,28 +479,28 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 	}
 }
 
-func (store *redisFeatureStoreCore) InitializedInternal() bool {
+func (store *redisDataStoreCore) InitializedInternal() bool {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 	inited, _ := r.Bool(c.Do("EXISTS", store.initedKey()))
 	return inited
 }
 
-func (store *redisFeatureStoreCore) IsStoreAvailable() bool {
+func (store *redisDataStoreCore) IsStoreAvailable() bool {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 	_, err := r.Bool(c.Do("EXISTS", store.initedKey()))
 	return err == nil
 }
 
-func (store *redisFeatureStoreCore) featuresKey(kind ld.VersionedDataKind) string {
+func (store *redisDataStoreCore) featuresKey(kind ld.VersionedDataKind) string {
 	return store.options.prefix + ":" + kind.GetNamespace()
 }
 
-func (store *redisFeatureStoreCore) initedKey() string {
+func (store *redisDataStoreCore) initedKey() string {
 	return store.options.prefix + ":" + initedKey
 }
 
-func (store *redisFeatureStoreCore) getConn() r.Conn {
+func (store *redisDataStoreCore) getConn() r.Conn {
 	return store.pool.Get()
 }

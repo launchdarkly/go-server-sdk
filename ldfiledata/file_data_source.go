@@ -85,7 +85,7 @@ func UseReloader(reloaderFactory ReloaderFactory) FileDataSourceOption {
 }
 
 type fileDataSource struct {
-	store           ld.FeatureStore
+	store           ld.DataStore
 	options         fileDataSourceOptions
 	loggers         ldlog.Loggers
 	isInitialized   bool
@@ -176,11 +176,11 @@ func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.UpdateProcesso
 }
 
 func newFileDataSource(ldConfig ld.Config, options ...FileDataSourceOption) (*fileDataSource, error) {
-	if ldConfig.FeatureStore == nil {
-		return nil, fmt.Errorf("featureStore must not be nil")
+	if ldConfig.DataStore == nil {
+		return nil, fmt.Errorf("deatureStore must not be nil")
 	}
 	fs := &fileDataSource{
-		store:   ldConfig.FeatureStore,
+		store:   ldConfig.DataStore,
 		loggers: ldConfig.Loggers,
 	}
 	for _, o := range options {

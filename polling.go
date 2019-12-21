@@ -6,7 +6,7 @@ import (
 )
 
 type pollingProcessor struct {
-	store              FeatureStore
+	store              DataStore
 	requestor          *requestor
 	config             Config
 	setInitializedOnce sync.Once
@@ -17,7 +17,7 @@ type pollingProcessor struct {
 
 func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor {
 	pp := &pollingProcessor{
-		store:     config.FeatureStore,
+		store:     config.DataStore,
 		requestor: requestor,
 		config:    config,
 		quit:      make(chan struct{}),

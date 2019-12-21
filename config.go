@@ -36,21 +36,21 @@ type Config struct {
 	Loggers ldlog.Loggers
 	// The connection timeout to use when making polling requests to LaunchDarkly.
 	Timeout time.Duration
-	// Sets the implementation of FeatureStore for holding feature flags and related data received from
+	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
 	// Except for testing purposes, you should not set this property directly but instead use
-	// FeatureStoreFactory, which ensures that the FeatureStore component will use the same logging
+	// DataStoreFactory, which ensures that the DataStore component will use the same logging
 	// configuration as the rest of the SDK.
-	FeatureStore FeatureStore
-	// Sets the implementation of FeatureStore for holding feature flags and related data received from
-	// LaunchDarkly. See NewInMemoryFeatureStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
-	FeatureStoreFactory FeatureStoreFactory
+	DataStore DataStore
+	// Sets the implementation of DataStore for holding feature flags and related data received from
+	// LaunchDarkly. See NewInMemoryDataStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
+	DataStoreFactory DataStoreFactory
 	// Sets whether streaming mode should be enabled. By default, streaming is enabled. It should only be
 	// disabled on the advice of LaunchDarkly support.
 	Stream bool
 	// Sets whether this client should use the LaunchDarkly relay in daemon mode. In this mode, the client does
-	// not subscribe to the streaming or polling API, but reads data only from the feature store. See:
+	// not subscribe to the streaming or polling API, but reads data only from the data store. See:
 	// https://docs.launchdarkly.com/docs/the-relay-proxy
 	UseLdd bool
 	// Sets whether to send analytics events back to LaunchDarkly. By default, the client will send events. This
@@ -174,7 +174,7 @@ var DefaultConfig = Config{
 	PollInterval:                MinimumPollInterval,
 	Timeout:                     3000 * time.Millisecond,
 	Stream:                      true,
-	FeatureStore:                nil,
+	DataStore:                   nil,
 	UseLdd:                      false,
 	SendEvents:                  true,
 	Offline:                     false,

@@ -56,8 +56,8 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		PollInterval: time.Millisecond,
 		BaseUri:      ts.URL,
 	}
-	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
-	cfg.FeatureStore = store
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 	req := newRequestor("fake", cfg, nil)
 	p := newPollingProcessor(cfg, req)
 
@@ -172,8 +172,8 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 		BaseUri:           ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
-	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
-	cfg.FeatureStore = store
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 	req := newRequestor("fake", cfg, nil)
 
 	p := newPollingProcessor(cfg, req)

@@ -232,9 +232,9 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Offline:             false,
-		SendEvents:          true,
-		FeatureStoreFactory: NewInMemoryFeatureStoreFactory(),
+		Offline:          false,
+		SendEvents:       true,
+		DataStoreFactory: NewInMemoryDataStoreFactory(),
 		UpdateProcessorFactory: updateProcessorFactory(mockUpdateProcessor{
 			IsInitialized: true,
 		}),
