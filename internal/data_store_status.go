@@ -34,7 +34,7 @@ type DataStoreStatusSubscription interface {
 	Close()
 }
 
-type DataStoreStatusSubcription struct {
+type dataStoreStatusSubcription struct {
 	ch    chan DataStoreStatus
 	owner *DataStoreStatusManager
 }
@@ -68,7 +68,7 @@ func NewDataStoreStatusManager(availableNow bool, pollFn func() bool, refreshOnR
 // Subscribe opens a channel for status updates.
 func (m *DataStoreStatusManager) Subscribe() DataStoreStatusSubscription {
 	ch := make(chan DataStoreStatus, 10)
-	sub := &DataStoreStatusSubcription{ch: ch, owner: m}
+	sub := &dataStoreStatusSubcription{ch: ch, owner: m}
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.subs = append(m.subs, ch)
@@ -162,10 +162,10 @@ func (m *DataStoreStatusManager) startStatusPoller() chan struct{} {
 	return closer
 }
 
-func (s *DataStoreStatusSubcription) Channel() <-chan DataStoreStatus {
+func (s *dataStoreStatusSubcription) Channel() <-chan DataStoreStatus {
 	return s.ch
 }
 
-func (s *DataStoreStatusSubcription) Close() {
+func (s *dataStoreStatusSubcription) Close() {
 	s.owner.unsubscribe(s.ch)
 }
