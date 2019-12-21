@@ -7,11 +7,11 @@
 package proxytest
 
 import (
-	"io/ioutil"
-	"log"
 	"os"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,12 +39,12 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	os.Setenv("HTTP_PROXY", proxy.URL)
 
 	config := ld.DefaultConfig
-	config.Logger = log.New(ioutil.Discard, "", 0)
+	config.Loggers = ldlog.NewDisabledLoggers()
 	config.BaseUri = fakeBaseURL
 	config.SendEvents = false
 	config.Stream = false
-	
-	client, err := ld.MakeCustomClient("sdkKey", config, 5 * time.Second)
+
+	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 	require.NoError(t, err)
 	defer client.Close()
 
