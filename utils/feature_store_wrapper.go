@@ -459,7 +459,7 @@ func (w *DataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	}
 	if w.hasCacheWithInfiniteTTL() {
 		// If we're in infinite cache mode, then we can assume the cache has a full set of current
-		// flag data (since presumably the update processor has still been running) and we can just
+		// flag data (since presumably the data source has still been running) and we can just
 		// write the contents of the cache to the underlying data store.
 		allData := make(map[ld.VersionedDataKind]map[string]ld.VersionedData, 2)
 		for _, kind := range ld.VersionedDataKinds {

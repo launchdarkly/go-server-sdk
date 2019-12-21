@@ -11,32 +11,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockUpdateProcessor struct {
+type mockDataSource struct {
 	IsInitialized bool
 	CloseFn       func() error
 	StartFn       func(chan<- struct{})
 }
 
-func (u mockUpdateProcessor) Initialized() bool {
+func (u mockDataSource) Initialized() bool {
 	return u.IsInitialized
 }
 
-func (u mockUpdateProcessor) Close() error {
+func (u mockDataSource) Close() error {
 	if u.CloseFn == nil {
 		return nil
 	}
 	return u.CloseFn()
 }
 
-func (u mockUpdateProcessor) Start(closeWhenReady chan<- struct{}) {
+func (u mockDataSource) Start(closeWhenReady chan<- struct{}) {
 	if u.StartFn == nil {
 		return
 	}
 	u.StartFn(closeWhenReady)
 }
 
-func updateProcessorFactory(u UpdateProcessor) func(string, Config) (UpdateProcessor, error) {
-	return func(key string, c Config) (UpdateProcessor, error) {
+func dataSourceFactory(u DataSource) func(string, Config) (DataSource, error) {
+	return func(key string, c Config) (DataSource, error) {
 		return u, nil
 	}
 }
@@ -208,7 +208,7 @@ func TestTrackWithMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
-	updateProcessor := mockUpdateProcessor{
+	dataSource := mockDataSource{
 		IsInitialized: false,
 		StartFn: func(closeWhenReady chan<- struct{}) {
 			close(closeWhenReady)
@@ -216,10 +216,10 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient("sdkKey", Config{
-		Loggers:                ldlog.NewDisabledLoggers(),
-		UpdateProcessorFactory: updateProcessorFactory(updateProcessor),
-		EventProcessor:         &testEventProcessor{},
-		UserKeysFlushInterval:  30 * time.Second,
+		Loggers:               ldlog.NewDisabledLoggers(),
+		DataSourceFactory:     dataSourceFactory(dataSource),
+		EventProcessor:        &testEventProcessor{},
+		UserKeysFlushInterval: 30 * time.Second,
 	}, time.Second)
 
 	assert.NotNil(t, client)
@@ -235,7 +235,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 		Offline:          false,
 		SendEvents:       true,
 		DataStoreFactory: NewInMemoryDataStoreFactory(),
-		UpdateProcessorFactory: updateProcessorFactory(mockUpdateProcessor{
+		DataSourceFactory: dataSourceFactory(mockDataSource{
 			IsInitialized: true,
 		}),
 		EventProcessor:        &testEventProcessor{},

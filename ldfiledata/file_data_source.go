@@ -96,13 +96,13 @@ type fileDataSource struct {
 }
 
 // NewFileDataSourceFactory returns a function that allows the LaunchDarkly client to read feature
-// flag data from a file or files. You must store this function in the UpdateProcessorFactory
+// flag data from a file or files. You must store this function in the DataSourceFactory
 // property of your client configuration before creating the client:
 //
 //     fileSource, err := ldfiledata.NewFileDataSourceFactory(
 //         ldfiledata.FilePaths("./test-data/my-flags.json"))
 //     ldConfig := ld.DefaultConfig
-//     ldConfig.UpdateProcessorFactory = fileSource
+//     ldConfig.DataSourceFactory = fileSource
 //     ldClient := ld.MakeCustomClient(mySdkKey, ldConfig, 5*time.Second)
 //
 // Use FilePaths to specify any number of file paths. The files are not actually loaded until the
@@ -169,8 +169,8 @@ type fileDataSource struct {
 //
 // If the data source encounters any error in any file-- malformed content, a missing file, or a
 // duplicate key-- it will not load flags from any of the files.
-func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.UpdateProcessorFactory {
-	return func(sdkKey string, config ld.Config) (ld.UpdateProcessor, error) {
+func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.DataSourceFactory {
+	return func(sdkKey string, config ld.Config) (ld.DataSource, error) {
 		return newFileDataSource(config, options...)
 	}
 }

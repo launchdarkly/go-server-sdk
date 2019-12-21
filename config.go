@@ -78,7 +78,7 @@ type Config struct {
 	// Factory to create an object that is responsible for receiving feature flag updates from LaunchDarkly.
 	// If nil, a default implementation will be used depending on the rest of the configuration
 	// (streaming, polling, etc.); a custom implementation can be substituted for testing.
-	UpdateProcessorFactory UpdateProcessorFactory
+	DataSourceFactory DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
 	EventProcessor EventProcessor
@@ -123,8 +123,8 @@ type Config struct {
 // HTTPClientFactory is a function that creates a custom HTTP client.
 type HTTPClientFactory func(Config) http.Client
 
-// UpdateProcessorFactory is a function that creates an UpdateProcessor.
-type UpdateProcessorFactory func(sdkKey string, config Config) (UpdateProcessor, error)
+// DataSourceFactory is a function that creates an DataSource.
+type DataSourceFactory func(sdkKey string, config Config) (DataSource, error)
 
 // MinimumPollInterval describes the minimum value for Config.PollInterval. If you specify a smaller interval,
 // the minimum will be used instead.
