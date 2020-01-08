@@ -3,7 +3,9 @@ package ldhttp
 import (
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,4 +86,22 @@ func TestErrorForBadCertData(t *testing.T) {
 	_, _, err := NewHTTPTransport(CACertOption([]byte("sorry")))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Invalid CA certificate data")
+}
+
+func TestProxyEnvVarsAreUsedByDefault(t *testing.T) {
+	transport, _, err := NewHTTPTransport()
+	require.NoError(t, err)
+	require.NotNil(t, transport.Proxy)
+	assert.Equal(t, reflect.ValueOf(http.ProxyFromEnvironment).Pointer(), reflect.ValueOf(transport.Proxy).Pointer())
+}
+
+func TestCanSetProxyURL(t *testing.T) {
+	url, err := url.Parse("https://fake-proxy")
+	require.NoError(t, err)
+	transport, _, err := NewHTTPTransport(ProxyOption(*url))
+	require.NoError(t, err)
+	require.NotNil(t, transport.Proxy)
+	urlOut, err := transport.Proxy(&http.Request{})
+	require.NoError(t, err)
+	assert.Equal(t, url, urlOut)
 }
