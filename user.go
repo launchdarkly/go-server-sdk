@@ -343,6 +343,14 @@ type UserBuilder interface {
 type UserBuilderCanMakeAttributePrivate interface {
 	UserBuilder
 	AsPrivateAttribute() UserBuilder
+
+	// AsNonPrivateAttribute marks the last attribute that was set on this builder as not being a private attribute:
+	// that is, its value will be sent to LaunchDarkly and can appear on the dashboard.
+	//
+	// This is the opposite of AsPrivateAttribute(), and has no effect unless you have previously called
+	// AsPrivateAttribute() for the same attribute on the same user builder. For more details, see
+	// AsPrivateAttribute().
+	AsNonPrivateAttribute() UserBuilder
 }
 
 type userBuilderImpl struct {
@@ -559,6 +567,13 @@ func (b *userBuilderCanMakeAttributePrivate) AsPrivateAttribute() UserBuilder {
 		b.builder.privateAttrs = make(map[string]bool)
 	}
 	b.builder.privateAttrs[b.attrName] = true
+	return b.builder
+}
+
+func (b *userBuilderCanMakeAttributePrivate) AsNonPrivateAttribute() UserBuilder {
+	if b.builder.privateAttrs != nil {
+		delete(b.builder.privateAttrs, b.attrName)
+	}
 	return b.builder
 }
 

@@ -224,6 +224,17 @@ func TestUserBuilderCanSetPrivateStringAttributes(t *testing.T) {
 	}
 }
 
+func TestUserBuilderCanMakeAttributeNonPrivate(t *testing.T) {
+	builder := NewUserBuilder("some-key")
+	builder.Country("us").AsNonPrivateAttribute()
+	builder.Email("e").AsPrivateAttribute()
+	builder.Name("n").AsPrivateAttribute()
+	builder.Email("f").AsNonPrivateAttribute()
+	user := builder.Build()
+	assert.Equal(t, "f", *user.Email)
+	assert.Equal(t, []string{"name"}, user.PrivateAttributeNames)
+}
+
 func TestUserBuilderCanSetCustomAttributes(t *testing.T) {
 	user := NewUserBuilder("some-key").Custom("first", 1).Custom("second", "two").Build()
 
