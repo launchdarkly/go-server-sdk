@@ -9,26 +9,11 @@ workflows:
       - go-test:
           name: Go 1.13
           docker-image: circleci/golang:1.13
-          # We can't run the linter in Go 1.12 or 13 because of a known issue with build tags not working
-          # correctly in golangci-lint: the linter uses the build tags that *the linter* was built with,
-          # rather than the current environment, and there's some Go library code that relies on build tags.
-          run-lint: false
+          run-lint: true
       - go-test:
           name: Go 1.12
           docker-image: circleci/golang:1.12
           run-lint: false
-      - go-test:
-          name: Go 1.11
-          docker-image: circleci/golang:1.11
-      - go-test:
-          name: Go 1.10
-          docker-image: circleci/golang:1.10
-      - go-test:
-          name: Go 1.9
-          docker-image: circleci/golang:1.9
-      - go-test:
-          name: Go 1.8
-          docker-image: circleci/golang:1.8
       - go-test-windows:
           name: Windows
 
