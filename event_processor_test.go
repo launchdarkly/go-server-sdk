@@ -525,6 +525,27 @@ func TestUserAgentIsSent(t *testing.T) {
 	assert.Equal(t, config.UserAgent, msg.Header.Get("User-Agent"))
 }
 
+func TestUniquePayloadIDIsSent(t *testing.T) {
+	ep, st := createEventProcessor(epDefaultConfig)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg0 := st.getNextRequest()
+	msg1 := st.getNextRequest()
+	id0 := msg0.Header.Get(payloadIDHeader)
+	id1 := msg1.Header.Get(payloadIDHeader)
+	assert.NotEqual(t, "", id0)
+	assert.NotEqual(t, "", id1)
+	assert.NotEqual(t, id0, id1)
+}
+
 func TestDefaultPathIsAddedToEventsUri(t *testing.T) {
 	config := epDefaultConfig
 	config.EventsUri = "http://fake/"
@@ -596,24 +617,27 @@ func TestHTTPErrorHandling(t *testing.T) {
 			ep.Flush()
 			ep.waitUntilInactive()
 
-			msg := st.getNextRequest()
-			assert.NotNil(t, msg)
+			msg0 := st.getNextRequest()
+			assert.NotNil(t, msg0)
 
 			if tt.recoverable {
-				msg = st.getNextRequest() // 2nd request is a retry of the 1st
-				assert.NotNil(t, msg)
-				msg = st.getNextRequest()
-				assert.Nil(t, msg)
+				msg1 := st.getNextRequest() // 2nd request is a retry of the 1st
+				assert.NotNil(t, msg1)
+				id0 := msg0.Header.Get(payloadIDHeader)
+				assert.NotEqual(t, "", id0)
+				assert.Equal(t, id0, msg1.Header.Get(payloadIDHeader))
+				msg2 := st.getNextRequest()
+				assert.Nil(t, msg2)
 			} else {
-				msg = st.getNextRequest()
-				assert.Nil(t, msg)
+				msg1 := st.getNextRequest()
+				assert.Nil(t, msg1) // no 2nd request was sent
 
 				ep.SendEvent(ie)
 				ep.Flush()
 				ep.waitUntilInactive()
 
-				msg = st.getNextRequest()
-				assert.Nil(t, msg)
+				msg2 := st.getNextRequest()
+				assert.Nil(t, msg2)
 			}
 		})
 	}
