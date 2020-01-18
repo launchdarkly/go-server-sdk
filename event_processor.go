@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
@@ -90,6 +91,7 @@ type syncEventsMessage struct {
 const (
 	maxFlushWorkers    = 5
 	eventSchemaHeader  = "X-LaunchDarkly-Event-Schema"
+	payloadIDHeader    = "X-LaunchDarkly-Payload-ID"
 	currentEventSchema = "3"
 	defaultURIPath     = "/bulk"
 	diagnosticsURIPath = "/diagnostic"
@@ -505,6 +507,8 @@ func (t *sendEventsTask) postEvents(uri string, outputData interface{}, descript
 		t.config.Loggers.Errorf("Unexpected error marshalling event json: %+v", marshalErr)
 		return nil
 	}
+	payloadUUID, _ := uuid.NewRandom()
+	payloadID := payloadUUID.String() // if NewRandom somehow failed, we'll just proceed with an empty string
 
 	t.config.Loggers.Debugf("Sending %s: %s", description, jsonPayload)
 
@@ -524,6 +528,7 @@ func (t *sendEventsTask) postEvents(uri string, outputData interface{}, descript
 		addBaseHeaders(req, t.sdkKey, t.config)
 		req.Header.Add("Content-Type", "application/json")
 		req.Header.Add(eventSchemaHeader, currentEventSchema)
+		req.Header.Add(payloadIDHeader, payloadID)
 
 		resp, respErr = t.client.Do(req)
 

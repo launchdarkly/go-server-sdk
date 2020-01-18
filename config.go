@@ -127,9 +127,15 @@ type Config struct {
 	// If WrapperName is unset, this field will be ignored.
 	WrapperVersion string
 	// If not nil, this function will be called to create an HTTP client instead of using the default
-	// client. The SDK may modify the client properties after that point (for instance, to add caching),
+	// client. You may use this to specify custom HTTP properties such as a proxy URL or CA certificates.
+	// The SDK may modify the client properties after that point (for instance, to add caching),
 	// but will not replace the underlying Transport, and will not modify any timeout properties you set.
 	// See NewHTTPClientFactory().
+	//
+	// Usage:
+	//
+	//     config := ld.DefaultConfig
+	//     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyURL(myProxyURL))
 	HTTPClientFactory HTTPClientFactory
 	// Used internally to share a diagnosticsManager instance between components.
 	diagnosticsManager *diagnosticsManager
@@ -168,7 +174,7 @@ func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
 		}
 		allOpts := []ldhttp.TransportOption{ldhttp.ConnectTimeoutOption(c.Timeout)}
 		allOpts = append(allOpts, options...)
-		if transport, _, err := ldhttp.NewHTTPTransport(allOpts...); err != nil {
+		if transport, _, err := ldhttp.NewHTTPTransport(allOpts...); err == nil {
 			client.Transport = transport
 		}
 		return client
@@ -184,8 +190,9 @@ var defaultLogger = log.New(os.Stderr, "[LaunchDarkly] ", log.LstdFlags)
 // DefaultConfig provides the default configuration options for the LaunchDarkly client.
 // The easiest way to create a custom configuration is to start with the
 // default config, and set the custom options from there. For example:
-//   var config = DefaultConfig
-//   config.Capacity = 2000
+//
+//     var config = DefaultConfig
+//     config.Capacity = 2000
 var DefaultConfig = Config{
 	BaseUri:                     "https://app.launchdarkly.com",
 	StreamUri:                   "https://stream.launchdarkly.com",
