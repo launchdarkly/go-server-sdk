@@ -43,7 +43,7 @@ func NewNTLMProxyHTTPClientFactory(proxyURL, username, password, domain string,
 	}
 	parsedProxyURL, err := url.Parse(proxyURL)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid proxy URL %s: %s", proxyURL, err)
+		return nil, fmt.Errorf("invalid proxy URL %s: %s", proxyURL, err)
 	}
 	// Try creating a transport with these options just to make sure it's valid before we get any farther
 	if _, _, err := ldhttp.NewHTTPTransport(options...); err != nil {

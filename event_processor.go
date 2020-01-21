@@ -277,7 +277,6 @@ func (ed *eventDispatcher) runMainLoop(
 }
 
 func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys *lruCache) {
-
 	// Always record the event in the summarizer.
 	outbox.addToSummary(evt)
 
@@ -487,11 +486,11 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			break
 		}
 		if payload.diagnosticEvent != nil {
-			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event")
+			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose (response was already closed in postEvents)
 		} else {
 			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
-				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents)))
+				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose (response was already closed in postEvents)
 				if resp != nil {
 					responseFn(resp)
 				}
