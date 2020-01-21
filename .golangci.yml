@@ -5,7 +5,10 @@ run:
 linters:
   enable-all: true
   disable:
+    - funlen # allow long/complex functions for now
     - gochecknoglobals
+    - gocognit # allow long/complex functions for now
+    - gocritic # very aggressive about preferring switch statements to if/else
     - gocyclo
     - gofmt
     - gomnd # extremely aggressive linter that complains about all numeric literals, even just adding 1 to something (https://github.com/tommy-muehle/go-mnd)

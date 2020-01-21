@@ -430,7 +430,7 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 			for _, te := range resp.Errors {
 				errs = append(errs, te.What)
 			}
-			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", "))
+			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", ")) //nolint:stylecheck (this error message is capitalized on purpose)
 		}
 		i = j
 	}
