@@ -69,7 +69,6 @@ func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *Tar
 		if target != nil {
 			return variation.Value, target, false
 		}
-
 	}
 
 	var sum float32

@@ -103,7 +103,7 @@ func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 	default:
 		inputJsonBytes, err := json.Marshal(input)
 		if err != nil {
-			return nil, fmt.Errorf("Could not marshal: %+v to json", input)
+			return nil, fmt.Errorf("could not marshal: %+v to json", input)
 		}
 		inputJsonRawMessage := json.RawMessage(inputJsonBytes)
 		return inputJsonRawMessage, nil

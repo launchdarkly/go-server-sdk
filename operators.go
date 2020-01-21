@@ -105,7 +105,6 @@ func stringOperator(uValue interface{}, cValue interface{}, fn func(string, stri
 		}
 	}
 	return false
-
 }
 
 func operatorStartsWithFn(uValue interface{}, cValue interface{}) bool {

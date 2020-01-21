@@ -1,3 +1,6 @@
+// Package ldclient is the main package for the LaunchDarkly SDK.
+//
+// Most applications will only use the types and methods in this package.
 package ldclient
 
 import (

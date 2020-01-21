@@ -265,7 +265,7 @@ func (store *featureStore) GetAllInternal(kind ld.VersionedDataKind) (map[string
 	pairs, _, err := kv.List(store.featuresKey(kind), nil)
 
 	if err != nil {
-		return results, fmt.Errorf("List failed for %s: %s", kind, err)
+		return results, fmt.Errorf("list failed for %s: %s", kind, err)
 	}
 
 	for _, pair := range pairs {

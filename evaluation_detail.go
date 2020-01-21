@@ -400,7 +400,7 @@ func (c *EvaluationReasonContainer) UnmarshalJSON(data []byte) error {
 		}
 		c.Reason = r
 	default:
-		return fmt.Errorf("Unknown evaluation reason kind: %s", kindOnly.Kind)
+		return fmt.Errorf("unknown evaluation reason kind: %s", kindOnly.Kind)
 	}
 	return nil
 }
@@ -438,7 +438,8 @@ func (r EvaluationReasonTargetMatch) getOldExplanation(flag FeatureFlag, user Us
 	for _, target := range flag.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
-				ret.Target = &target
+				t := target
+				ret.Target = &t
 				return ret
 			}
 		}
@@ -459,7 +460,8 @@ func (r EvaluationReasonPrerequisiteFailed) getOldExplanation(flag FeatureFlag, 
 	var ret = Explanation{Kind: "prerequisite"}
 	for _, prereq := range flag.Prerequisites {
 		if prereq.Key == r.PrerequisiteKey {
-			ret.Prerequisite = &prereq
+			p := prereq
+			ret.Prerequisite = &p
 			break
 		}
 	}

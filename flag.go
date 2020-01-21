@@ -235,7 +235,7 @@ func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult
 
 	var err error
 	if detail.Reason != nil && detail.Reason.GetKind() == EvalReasonError && detail.Reason.GetErrorKind() == EvalErrorMalformedFlag {
-		err = errors.New("Invalid variation index") // this was the only type of error that could occur in the old logic
+		err = errors.New("invalid variation index") // this was the only type of error that could occur in the old logic
 	}
 	expl := Explanation{}
 	if conv, ok := detail.Reason.(deprecatedExplanationConversion); ok {
