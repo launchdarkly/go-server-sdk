@@ -46,7 +46,6 @@ func (f Feature) Evaluate(user User) (value interface{}, rulesPassed bool) {
 
 // EvaluateExplain returns the value of a feature for a specified user with an explanation of which rule was applied
 func (f Feature) EvaluateExplain(user User) (value interface{}, targetMatch *TargetRule, rulesPassed bool) {
-
 	if !*f.On {
 		return nil, nil, true
 	}

@@ -277,7 +277,6 @@ func (ed *eventDispatcher) runMainLoop(
 }
 
 func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys *lruCache) {
-
 	// Always record the event in the summarizer.
 	outbox.addToSummary(evt)
 
