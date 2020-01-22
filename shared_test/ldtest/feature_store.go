@@ -1,3 +1,6 @@
+// Package ldtest contains types and functions used by SDK unit tests in multiple packages.
+//
+// Application code should not use this package. In a future version, it will be moved to internal.
 package ldtest
 
 import (

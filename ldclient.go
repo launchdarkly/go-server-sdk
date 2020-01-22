@@ -1,3 +1,8 @@
+// Package ldclient is the main package for the LaunchDarkly SDK.
+//
+// This package contains the types and methods that most applications will use. The most commonly
+// used other packages are "ldlog" (the SDK's logging abstraction) and database integrations such
+// as "redis" and "lddynamodb".
 package ldclient
 
 import (
