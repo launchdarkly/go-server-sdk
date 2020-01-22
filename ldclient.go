@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the client version.
-const Version = "4.14.1"
+const Version = "4.14.2"
 
 // LDClient is the LaunchDarkly client. Client instances are thread-safe.
 // Applications should instantiate a single instance for the lifetime
