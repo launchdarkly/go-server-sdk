@@ -5,6 +5,7 @@ import (
 	"time"
 
 	c "github.com/hashicorp/consul/api"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
@@ -37,6 +38,12 @@ func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
 		store1Core.testTxHook = hook
 	})
+}
+
+func TestConsulStoreComponentTypeName(t *testing.T) {
+	factory, _ := NewConsulFeatureStoreFactory()
+	store, _ := factory(ld.DefaultConfig)
+	assert.Equal(t, "Consul", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
 func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {

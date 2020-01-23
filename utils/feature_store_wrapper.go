@@ -17,6 +17,13 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
+// Optional interface that can be implemented by components whose types can't be easily
+// determined by looking at the config object. This is also defined in diagnostic_events.go,
+// but that's in another package and we'd rather not export this implementation detail.
+type diagnosticsComponentDescriptor interface {
+	GetDiagnosticsComponentTypeName() string
+}
+
 // UnmarshalItem attempts to unmarshal an entity that has been stored as JSON in a
 // FeatureStore. The kind parameter indicates what type of entity is expected.
 func UnmarshalItem(kind ld.VersionedDataKind, raw []byte) (ld.VersionedData, error) {
@@ -447,6 +454,14 @@ func (w *FeatureStoreWrapper) GetStoreStatus() internal.FeatureStoreStatus {
 // StatusSubscribe creates a channel that will receive all changes in store status.
 func (w *FeatureStoreWrapper) StatusSubscribe() internal.FeatureStoreStatusSubscription {
 	return w.statusManager.Subscribe()
+}
+
+// Used internally to describe this component in diagnostic data.
+func (w *FeatureStoreWrapper) GetDiagnosticsComponentTypeName() string {
+	if dcd, ok := w.core.(diagnosticsComponentDescriptor); ok {
+		return dcd.GetDiagnosticsComponentTypeName()
+	}
+	return "custom"
 }
 
 func (w *FeatureStoreWrapper) processError(err error) {

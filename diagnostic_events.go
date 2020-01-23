@@ -35,6 +35,7 @@ type diagnosticConfigData struct {
 	CustomBaseURI               bool         `json:"customBaseURI"`
 	CustomStreamURI             bool         `json:"customStreamURI"`
 	CustomEventsURI             bool         `json:"customEventsURI"`
+	DataStoreType               *string      `json:"dataStoreType"`
 	EventsCapacity              int          `json:"eventsCapacity"`
 	ConnectTimeoutMillis        milliseconds `json:"connectTimeoutMillis"`
 	SocketTimeoutMillis         milliseconds `json:"socketTimeoutMillis"`
@@ -92,6 +93,12 @@ type diagnosticsManager struct {
 	streamInits       []diagnosticStreamInitInfo
 	periodicEventGate <-chan struct{}
 	lock              sync.Mutex
+}
+
+// Optional interface that can be implemented by components whose types can't be easily
+// determined by looking at the config object.
+type diagnosticsComponentDescriptor interface {
+	GetDiagnosticsComponentTypeName() string
 }
 
 func durationToMillis(d time.Duration) milliseconds {
@@ -157,6 +164,7 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 		CustomBaseURI:                     m.config.BaseUri != DefaultConfig.BaseUri,
 		CustomStreamURI:                   m.config.StreamUri != DefaultConfig.StreamUri,
 		CustomEventsURI:                   m.config.EventsUri != DefaultConfig.EventsUri,
+		DataStoreType:                     getComponentTypeName(m.config.FeatureStore),
 		EventsCapacity:                    m.config.Capacity,
 		ConnectTimeoutMillis:              durationToMillis(m.config.Timeout),
 		SocketTimeoutMillis:               durationToMillis(m.config.Timeout),
@@ -238,6 +246,17 @@ func (m *diagnosticsManager) CreateStatsEventAndReset(
 	m.streamInits = nil
 	m.dataSinceTime = timestamp
 	return event
+}
+
+func getComponentTypeName(component interface{}) *string {
+	if component != nil {
+		name := "custom"
+		if dcd, ok := component.(diagnosticsComponentDescriptor); ok {
+			name = dcd.GetDiagnosticsComponentTypeName()
+		}
+		return &name
+	}
+	return nil
 }
 
 func normalizeOSName(osName string) string {
