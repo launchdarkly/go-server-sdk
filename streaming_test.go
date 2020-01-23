@@ -208,10 +208,13 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
+	id := newDiagnosticId("sdkKey")
+	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
-		StreamUri:    ts.URL,
-		FeatureStore: NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:       log.New(ioutil.Discard, "", 0),
+		StreamUri:          ts.URL,
+		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
+		Logger:             log.New(ioutil.Discard, "", 0),
+		diagnosticsManager: diagnosticsManager,
 	}
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
@@ -227,6 +230,10 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	case <-time.After(time.Second * 3):
 		assert.Fail(t, "Initialization shouldn't block after this error")
 	}
+
+	event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
+	assert.Equal(t, 1, len(event.StreamInits))
+	assert.True(t, event.StreamInits[0].Failed)
 }
 
 func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
@@ -252,10 +259,13 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
+	id := newDiagnosticId("sdkKey")
+	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
-		StreamUri:    ts.URL,
-		FeatureStore: NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:       log.New(ioutil.Discard, "", 0),
+		StreamUri:          ts.URL,
+		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
+		Logger:             log.New(ioutil.Discard, "", 0),
+		diagnosticsManager: diagnosticsManager,
 	}
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
@@ -270,6 +280,11 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	case <-time.After(time.Second * 3):
 		assert.Fail(t, "Should have successfully retried before now")
 	}
+
+	event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
+	assert.Equal(t, 2, len(event.StreamInits))
+	assert.True(t, event.StreamInits[0].Failed)
+	assert.False(t, event.StreamInits[1].Failed)
 }
 
 func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {

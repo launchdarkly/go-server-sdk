@@ -721,6 +721,103 @@ func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
 	assert.Equal(t, []string{expectedMessage}, logger.output)
 }
 
+func TestDiagnosticInitEventIsSent(t *testing.T) {
+	id := newDiagnosticId("sdkkey")
+	startTime := time.Now()
+	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
+	config := epDefaultConfig
+	config.diagnosticsManager = diagnosticsManager
+
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	req, bytes := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req.URL.Path)
+	var event map[string]interface{}
+	json.Unmarshal(bytes, &event)
+	assert.Equal(t, "diagnostic-init", event["kind"])
+	assert.Equal(t, float64(toUnixMillis(startTime)), event["creationDate"])
+}
+
+func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
+	id := newDiagnosticId("sdkkey")
+	startTime := time.Now()
+	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
+	config := epDefaultConfig
+	config.diagnosticsManager = diagnosticsManager
+	config.DiagnosticRecordingInterval = 50 * time.Millisecond
+
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	req0, bytes0 := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req0.URL.Path)
+	var event0 map[string]interface{}
+	json.Unmarshal(bytes0, &event0)
+	assert.Equal(t, "diagnostic-init", event0["kind"])
+	time0 := uint64(event0["creationDate"].(float64))
+
+	req1, bytes1 := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req1.URL.Path)
+	var event1 map[string]interface{}
+	json.Unmarshal(bytes1, &event1)
+	assert.Equal(t, "diagnostic", event1["kind"])
+	time1 := uint64(event1["creationDate"].(float64))
+	assert.True(t, time1-time0 >= 40, "event times should follow configured interval: %d, %d", time0, time1)
+
+	req2, bytes2 := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req2.URL.Path)
+	var event2 map[string]interface{}
+	json.Unmarshal(bytes2, &event2)
+	assert.Equal(t, "diagnostic", event2["kind"])
+	time2 := uint64(event2["creationDate"].(float64))
+	assert.True(t, time2-time1 >= 40, "event times should follow configured interval: %d, %d", time1, time2)
+}
+
+func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
+	id := newDiagnosticId("sdkkey")
+	config := DefaultConfig
+	config.Capacity = 3
+	config.DiagnosticRecordingInterval = 100 * time.Millisecond
+	periodicEventGate := make(chan struct{})
+
+	diagnosticsManager := newDiagnosticsManager(id, config, time.Second, time.Now(), periodicEventGate)
+	config.diagnosticsManager = diagnosticsManager
+
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	req1, _ := st.awaitRequest() // diagnostic init event
+	assert.Equal(t, "/diagnostic", req1.URL.Path)
+
+	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.Flush()
+
+	req2, _ := st.awaitRequest() // flushed events
+	assert.Equal(t, "/bulk", req2.URL.Path)
+
+	periodicEventGate <- struct{}{} // periodic event won't be sent until we do this
+
+	_, bytes := st.awaitRequest()
+	var event map[string]interface{}
+	json.Unmarshal(bytes, &event)
+
+	assert.Equal(t, "diagnostic", event["kind"])
+	assert.Equal(t, float64(3), event["eventsInLastBatch"]) // 1 index, 2 custom
+	assert.Equal(t, float64(1), event["droppedEvents"])     // 3rd custom
+	assert.Equal(t, float64(2), event["deduplicatedUsers"])
+
+	periodicEventGate <- struct{}{}
+
+	_, bytes3 := st.awaitRequest() // next periodic event - all counters should have been reset
+	json.Unmarshal(bytes3, &event)
+	assert.Equal(t, float64(0), event["eventsInLastBatch"])
+	assert.Equal(t, float64(0), event["droppedEvents"])
+	assert.Equal(t, float64(0), event["deduplicatedUsers"])
+}
+
 func jsonMap(o interface{}) map[string]interface{} {
 	bytes, _ := json.Marshal(o)
 	var result map[string]interface{}
@@ -854,6 +951,12 @@ func (t *stubTransport) getNextRequest() *http.Request {
 	default:
 		return nil
 	}
+}
+
+func (t *stubTransport) awaitRequest() (*http.Request, []byte) {
+	req := <-t.messageSent
+	bytes, _ := ioutil.ReadAll(req.Body)
+	return req, bytes
 }
 
 // used only for testing - ensures that all pending messages and flushes have completed
