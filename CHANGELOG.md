@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.15.0] - 2020-01-23
+Note: if you are using the LaunchDarkly Relay Proxy to forward events, update the Relay to version 5.10.0 or later before updating to this Go SDK version.
+
+### Added:
+- The SDK now periodically sends diagnostic data to LaunchDarkly, describing the version and configuration of the SDK, the architecture and version of the runtime platform, and performance statistics. No credentials, hostnames, or other identifiable values are included. This behavior can be disabled with `Config.DiagnosticOptOut` or configured with `Config.DiagnosticRecordingInterval`.
+- New `Config` fields `WrapperName` and `WrapperVersion` allow a library that uses the Go SDK to identify itself for usage data if desired.
+
 ## [4.14.2] - 2020-01-22
 ### Fixed:
 - The SDK was logging a spurious "feature store query returned unexpected type" message at ERROR level if the application tried to evaluate an unknown feature flag when using a persistent data store.
