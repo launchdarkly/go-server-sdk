@@ -40,9 +40,9 @@ import (
 
 	r "github.com/garyburd/redigo/redis"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 const (
@@ -208,7 +208,7 @@ func (o redisDialOptionsOption) apply(opts *redisFeatureStoreOptions) error {
 //
 //     import (
 //         redigo "github.com/garyburd/redigo/redis"
-//         "gopkg.in/launchdarkly/go-server-sdk.v4/redis"
+//         "gopkg.in/launchdarkly/go-server-sdk.v5/redis"
 //     )
 //     factory, err := redis.NewRedisFeatureStoreFactory(redis.DialOption(redigo.DialPassword("verysecure123")))
 //

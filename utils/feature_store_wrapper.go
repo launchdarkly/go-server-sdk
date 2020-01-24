@@ -12,9 +12,9 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	cache "github.com/patrickmn/go-cache"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 // Optional interface that can be implemented by components whose types can't be easily

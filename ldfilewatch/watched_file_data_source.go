@@ -12,7 +12,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
 const retryDuration = time.Second

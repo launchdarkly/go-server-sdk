@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 // Config exposes advanced configuration options for the LaunchDarkly client.

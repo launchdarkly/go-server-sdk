@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 // See also: proxytest/http_transport_proxy_test.go

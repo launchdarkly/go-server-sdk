@@ -27,8 +27,8 @@ import (
 
 	ntlm "github.com/launchdarkly/go-ntlm-proxy-auth"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
 
 // NewNTLMProxyHTTPClientFactory returns a factory function for creating an HTTP client that will

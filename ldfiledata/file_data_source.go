@@ -12,8 +12,8 @@ import (
 
 	"gopkg.in/ghodss/yaml.v1"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 type fileDataSourceOptions struct {

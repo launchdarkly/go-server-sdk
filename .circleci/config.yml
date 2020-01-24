@@ -38,7 +38,7 @@ jobs:
       - image: consul
       - image: amazon/dynamodb-local
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
@@ -71,7 +71,7 @@ jobs:
 
     environment:
       GOPATH: C:\Users\VssAdministrator\go
-      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v4
+      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v5
 
     steps:
       - checkout

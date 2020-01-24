@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 func TestClientUsesProxyEnvVars(t *testing.T) {
