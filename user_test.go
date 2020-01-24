@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 type userStringPropertyDesc struct {
 	name             string
-	getter           func(User) OptionalString
+	getter           func(User) ldvalue.OptionalString
 	setter           func(UserBuilder, string) UserBuilderCanMakeAttributePrivate
 	deprecatedGetter func(User) *string
 }
@@ -69,7 +70,7 @@ var allUserStringProperties = []userStringPropertyDesc{
 }
 
 func (p userStringPropertyDesc) assertNotSet(t *testing.T, user User) {
-	assert.Equal(t, OptionalString{}, p.getter(user), "should not have had a value for %s", p.name)
+	assert.Equal(t, ldvalue.OptionalString{}, p.getter(user), "should not have had a value for %s", p.name)
 	assert.Nil(t, p.deprecatedGetter(user), "should not have had a value for %s", p.name)
 }
 
@@ -146,7 +147,7 @@ func TestUserBuilderCanSetStringAttributes(t *testing.T) {
 
 			for _, p1 := range allUserStringProperties {
 				if p1.name == p.name {
-					assert.Equal(t, NewOptionalStringWithValue("value"), p.getter(user), p.name)
+					assert.Equal(t, ldvalue.NewOptionalStringWithValue("value"), p.getter(user), p.name)
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
 					v, ok := user.valueOf(p.name)
@@ -209,7 +210,7 @@ func TestUserBuilderCanSetPrivateStringAttributes(t *testing.T) {
 
 			for _, p1 := range allUserStringProperties {
 				if p1.name == p.name {
-					assert.Equal(t, NewOptionalStringWithValue("value"), p.getter(user))
+					assert.Equal(t, ldvalue.NewOptionalStringWithValue("value"), p.getter(user))
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
 				} else {
@@ -236,19 +237,19 @@ func TestUserBuilderCanMakeAttributeNonPrivate(t *testing.T) {
 }
 
 func TestUserBuilderCanSetCustomAttributes(t *testing.T) {
-	user := NewUserBuilder("some-key").Custom("first", 1).Custom("second", "two").Build()
+	user := NewUserBuilder("some-key").Custom("first", ldvalue.Int(1)).Custom("second", ldvalue.String("two")).Build()
 
 	value, ok := user.GetCustom("first")
 	assert.True(t, ok)
-	assert.Equal(t, 1, value)
+	assert.Equal(t, 1, value.IntValue())
 
 	value, ok = user.GetCustom("second")
 	assert.True(t, ok)
-	assert.Equal(t, "two", value)
+	assert.Equal(t, "two", value.StringValue())
 
 	value, ok = user.GetCustom("no")
 	assert.False(t, ok)
-	assert.Nil(t, value)
+	assert.Equal(t, ldvalue.Null(), value)
 
 	keys := user.GetCustomKeys()
 	sort.Strings(keys)
@@ -257,20 +258,33 @@ func TestUserBuilderCanSetCustomAttributes(t *testing.T) {
 	assert.Nil(t, user.PrivateAttributeNames)
 }
 
+func TestUserWithNoCustomAttributes(t *testing.T) {
+	user := NewUser("some-key")
+
+	assert.Nil(t, user.Custom)
+
+	value, ok := user.GetCustom("attr")
+	assert.False(t, ok)
+	assert.Equal(t, ldvalue.Null(), value)
+
+	assert.Nil(t, user.GetCustomKeys())
+}
+
 func TestUserBuilderCanSetPrivateCustomAttributes(t *testing.T) {
-	user := NewUserBuilder("some-key").Custom("first", 1).AsPrivateAttribute().Custom("second", "two").Build()
+	user := NewUserBuilder("some-key").Custom("first", ldvalue.Int(1)).AsPrivateAttribute().
+		Custom("second", ldvalue.String("two")).Build()
 
 	value, ok := user.GetCustom("first")
 	assert.True(t, ok)
-	assert.Equal(t, 1, value)
+	assert.Equal(t, 1, value.IntValue())
 
 	value, ok = user.GetCustom("second")
 	assert.True(t, ok)
-	assert.Equal(t, "two", value)
+	assert.Equal(t, "two", value.StringValue())
 
 	value, ok = user.GetCustom("no")
 	assert.False(t, ok)
-	assert.Nil(t, value)
+	assert.Equal(t, ldvalue.Null(), value)
 
 	keys := user.GetCustomKeys()
 	sort.Strings(keys)
@@ -333,8 +347,8 @@ func TestUserEqualsComparesAllAttributes(t *testing.T) {
 	shouldNotEqual(user0, NewUserBuilderFromUser(user0).Anonymous(true).Build())
 	shouldNotEqual(NewUserBuilderFromUser(user0).Anonymous(true).Build(), NewUserBuilderFromUser(user0).Anonymous(false).Build())
 
-	shouldNotEqual(user1, NewUserBuilderFromUser(user1).Custom("thing1", "value9").Build())
-	shouldNotEqual(user1, NewUserBuilderFromUser(user1).Custom("thing1", "value1").AsPrivateAttribute().Build())
+	shouldNotEqual(user1, NewUserBuilderFromUser(user1).Custom("thing1", ldvalue.String("value9")).Build())
+	shouldNotEqual(user1, NewUserBuilderFromUser(user1).Custom("thing1", ldvalue.String("value1")).AsPrivateAttribute().Build())
 }
 
 func newUserBuilderWithAllPropertiesSet(key string) UserBuilder {
@@ -343,7 +357,7 @@ func newUserBuilderWithAllPropertiesSet(key string) UserBuilder {
 		p.setter(builder, fmt.Sprintf("value%d", i))
 	}
 	builder.Anonymous(true)
-	builder.Custom("thing1", "value1")
-	builder.Custom("thing2", "value2").AsPrivateAttribute()
+	builder.Custom("thing1", ldvalue.String("value1"))
+	builder.Custom("thing2", ldvalue.String("value2")).AsPrivateAttribute()
 	return builder
 }

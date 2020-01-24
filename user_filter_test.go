@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 func TestScrubUser(t *testing.T) {
@@ -58,8 +59,8 @@ func TestScrubUser(t *testing.T) {
 		filter := newUserFilter(DefaultConfig)
 		userKey := "userKey"
 		user := NewUserBuilder(userKey).
-			Custom("my-secret-attr", "my secret value").AsPrivateAttribute().
-			Custom("non-secret-attr", "OK value").
+			Custom("my-secret-attr", ldvalue.String("my secret value")).AsPrivateAttribute().
+			Custom("non-secret-attr", ldvalue.String("OK value")).
 			Build()
 
 		scrubbedUser := *filter.scrubUser(user)
@@ -80,7 +81,7 @@ func TestScrubUser(t *testing.T) {
 			IP("123.456.789").
 			Email("me@example.com").
 			Secondary("abcdef").
-			Custom("my-secret-attr", "my-secret-value").
+			Custom("my-secret-attr", ldvalue.String("my-secret-value")).
 			Build()
 
 		scrubbedUser := *filter.scrubUser(user)
@@ -114,8 +115,13 @@ func TestUserSerialization(t *testing.T) {
 		user := NewUserBuilder("user-key").
 			FirstName("sam").
 			Email("test@example.com").
-			Custom("problem", errorValue).
 			Build()
+
+		// To inject our problematic value, we need to access the Custom map directly. In a future version
+		// this will no longer be possible.
+		custom := make(map[string]interface{})
+		custom["problem"] = errorValue
+		user.Custom = &custom
 
 		scrubbedUser := filter.scrubUser(user)
 		bytes, err := json.Marshal(scrubbedUser)

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 var flagUser = NewUser("x")
@@ -412,7 +413,7 @@ func TestClauseCanMatchCustomAttribute(t *testing.T) {
 		Values:    []interface{}{4},
 	}
 	f := booleanFlagWithClause(clause)
-	user := NewUserBuilder("key").Custom("legs", 4).Build()
+	user := NewUserBuilder("key").Custom("legs", ldvalue.Int(4)).Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
 	assert.Equal(t, true, result.Value)
@@ -572,23 +573,23 @@ func TestBucketUserByKey(t *testing.T) {
 }
 
 func TestBucketUserByIntAttr(t *testing.T) {
-	user := NewUserBuilder("userKeyD").Custom("intAttr", 33333).Build()
+	user := NewUserBuilder("userKeyD").Custom("intAttr", ldvalue.Int(33333)).Build()
 	bucket := bucketUser(user, "hashKey", "intAttr", "saltyA")
 	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 
-	user = NewUserBuilder("userKeyD").Custom("stringAttr", "33333").Build()
+	user = NewUserBuilder("userKeyD").Custom("stringAttr", ldvalue.String("33333")).Build()
 	bucket2 := bucketUser(user, "hashKey", "stringAttr", "saltyA")
 	assert.InEpsilon(t, bucket, bucket2, 0.0000001)
 }
 
 func TestBucketUserByFloatAttrNotAllowed(t *testing.T) {
-	user := NewUserBuilder("userKeyE").Custom("floatAttr", float64(999.999)).Build()
+	user := NewUserBuilder("userKeyE").Custom("floatAttr", ldvalue.Float64(999.999)).Build()
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InDelta(t, 0.0, bucket, 0.0000001)
 }
 
 func TestBucketUserByFloatAttrThatIsReallyAnIntIsAllowed(t *testing.T) {
-	user := NewUserBuilder("userKeyE").Custom("floatAttr", float64(33333)).Build()
+	user := NewUserBuilder("userKeyE").Custom("floatAttr", ldvalue.Float64(33333)).Build()
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 }

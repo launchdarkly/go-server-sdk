@@ -672,9 +672,13 @@ func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
 func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
 	user1 := NewUserBuilder("user1").Name("Bandit").Build()
 	user2 := NewUserBuilder("user2").Name("Tinker").Build()
+
+	// see TestUserSerialization() regarding this method of injecting a custom attribute
+	user3 := NewUserBuilder("user3").Name("Pirate").Build()
 	errorMessage := "boom"
-	user3 := NewUserBuilder("user3").Name("Pirate").
-		Custom("uh-oh", valueThatPanicsWhenMarshalledToJSON(errorMessage)).Build() // see user_filter_test.go
+	custom := make(map[string]interface{})
+	custom["uh-oh"] = valueThatPanicsWhenMarshalledToJSON(errorMessage)
+	user3.Custom = &custom
 
 	config := epDefaultConfig
 	logger := newMockLogger("")

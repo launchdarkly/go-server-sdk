@@ -3,6 +3,8 @@ package ldclient
 import (
 	"encoding/json"
 	"time"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 // A User contains specific attributes of a user browsing your site. The only mandatory property property is the Key,
@@ -121,43 +123,43 @@ func (u User) GetKey() string {
 // This affects feature flag targeting (https://docs.launchdarkly.com/docs/targeting-users#section-targeting-rules-based-on-user-attributes)
 // as follows: if you have chosen to bucket users by a specific attribute, the secondary key (if set)
 // is used to further distinguish between users who are otherwise identical according to that attribute.
-func (u User) GetSecondaryKey() OptionalString {
-	return NewOptionalStringFromPointer(u.Secondary)
+func (u User) GetSecondaryKey() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.Secondary)
 }
 
 // GetIP() returns the IP address attribute of the user, if any.
-func (u User) GetIP() OptionalString {
-	return NewOptionalStringFromPointer(u.Ip)
+func (u User) GetIP() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.Ip)
 }
 
 // GetCountry() returns the country attribute of the user, if any.
-func (u User) GetCountry() OptionalString {
-	return NewOptionalStringFromPointer(u.Country)
+func (u User) GetCountry() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.Country)
 }
 
 // GetEmail() returns the email address attribute of the user, if any.
-func (u User) GetEmail() OptionalString {
-	return NewOptionalStringFromPointer(u.Email)
+func (u User) GetEmail() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.Email)
 }
 
 // GetFirstName() returns the first name attribute of the user, if any.
-func (u User) GetFirstName() OptionalString {
-	return NewOptionalStringFromPointer(u.FirstName)
+func (u User) GetFirstName() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.FirstName)
 }
 
 // GetLastName() returns the last name attribute of the user, if any.
-func (u User) GetLastName() OptionalString {
-	return NewOptionalStringFromPointer(u.LastName)
+func (u User) GetLastName() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.LastName)
 }
 
 // GetAvatar() returns the avatar URL attribute of the user, if any.
-func (u User) GetAvatar() OptionalString {
-	return NewOptionalStringFromPointer(u.Avatar)
+func (u User) GetAvatar() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.Avatar)
 }
 
 // GetName() returns the full name attribute of the user, if any.
-func (u User) GetName() OptionalString {
-	return NewOptionalStringFromPointer(u.Name)
+func (u User) GetName() ldvalue.OptionalString {
+	return ldvalue.NewOptionalStringFromPointer(u.Name)
 }
 
 // GetAnonymous() returns the anonymous attribute of the user.
@@ -176,18 +178,22 @@ func (u User) GetAnonymousOptional() (bool, bool) {
 // GetCustom() returns a custom attribute of the user by name. The boolean second return value indicates
 // whether any value was set for this attribute or not.
 //
-// A custom attribute value can be of any type supported by JSON: boolean, number, string, array
-// (slice), or object (map).
-//
-// Since slices and maps are passed by reference, it is important that you not modify any elements of
-// a slice or map that is in a user custom attribute, because the SDK might simultaneously be trying to
-// access it on another goroutine.
-func (u User) GetCustom(attrName string) (interface{}, bool) {
+// The value is returned using the ldvalue.Value type, which can contain any type supported by JSON:
+// boolean, number, string, array (slice), or object (map). Use Value methods to access the value as
+// the desired type, rather than casting it. If the attribute did not exist, the value will be
+// ldvalue.Null() and the second return value will be false.
+func (u User) GetCustom(attrName string) (ldvalue.Value, bool) {
 	if u.Custom == nil {
-		return nil, false
+		return ldvalue.Null(), false
 	}
 	value, found := (*u.Custom)[attrName]
-	return value, found
+	// Note: since the value is currently represented internally as interface{}, we are using a
+	// method that wraps the same interface{} in a Value, to avoid the overhead of a deep copy.
+	// This is designated as Unsafe because it is possible (using another Unsafe method) to access
+	// the interface{} value directly and, if it contains a slice or map, modify it. In a future
+	// version when the User fields are no longer exposed and backward compatibility is no longer
+	// necessary, a custom attribute will be stored as a completely immutable Value.
+	return ldvalue.UnsafeUseArbitraryValue(value), found
 }
 
 // GetCustomKeys() returns the keys of all custom attributes that have been set on this user.
@@ -260,19 +266,19 @@ func (u User) valueOf(attr string) (interface{}, bool) {
 		}
 		return nil, false
 	} else if attr == "ip" {
-		return u.GetIP().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetIP())
 	} else if attr == "country" {
-		return u.GetCountry().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetCountry())
 	} else if attr == "email" {
-		return u.GetEmail().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetEmail())
 	} else if attr == "firstName" {
-		return u.GetFirstName().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetFirstName())
 	} else if attr == "lastName" {
-		return u.GetLastName().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetLastName())
 	} else if attr == "avatar" {
-		return u.GetAvatar().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetAvatar())
 	} else if attr == "name" {
-		return u.GetName().asEmptyInterface()
+		return optionalStringAsEmptyInterface(u.GetName())
 	} else if attr == "anonymous" {
 		value, ok := u.GetAnonymousOptional()
 		return value, ok
@@ -280,7 +286,16 @@ func (u User) valueOf(attr string) (interface{}, bool) {
 
 	// Select a custom attribute
 	value, ok := u.GetCustom(attr)
-	return value, ok
+	// Currently our evaluation logic still uses interface{} rather than Value; we can use the faster
+	// Unsafe method to avoid a deep copy in this context
+	return value.UnsafeArbitraryValue(), ok
+}
+
+func optionalStringAsEmptyInterface(os ldvalue.OptionalString) (interface{}, bool) {
+	if os.IsDefined() {
+		return os.StringValue(), true
+	}
+	return nil, false
 }
 
 // DerivedAttribute is an entry in a Derived attribute map and is for internal use by LaunchDarkly only. Derived attributes
@@ -290,378 +305,4 @@ func (u User) valueOf(attr string) (interface{}, bool) {
 type DerivedAttribute struct {
 	Value       interface{} `json:"value" bson:"value"`
 	LastDerived time.Time   `json:"lastDerived" bson:"lastDerived"`
-}
-
-// NewUser creates a new user identified by the given key.
-func NewUser(key string) User {
-	return User{Key: &key}
-}
-
-// NewAnonymousUser creates a new anonymous user identified by the given key.
-func NewAnonymousUser(key string) User {
-	anonymous := true
-	return User{Key: &key, Anonymous: &anonymous}
-}
-
-// UserBuilder is a mutable struct that uses the Builder pattern to specify properties for a User.
-// This is the preferred method for constructing a User; direct access to User fields will be
-// removed in a future version.
-//
-// Obtain an instance of UserBuilder by calling NewUserBuilder, then call setter methods such as
-// Name to specify any additional user properties, then call Build() to construct the User. All of
-// the UserBuilder setters return a reference the same builder, so they can be chained together:
-//
-//     user := NewUserBuilder("user-key").Name("Bob").Email("test@example.com").Build()
-//
-// Setters for user attributes that can be designated private return the type
-// UserBuilderCanMakeAttributePrivate, so you can chain the AsPrivateAttribute method:
-//
-//     user := NewUserBuilder("user-key").Name("Bob").AsPrivateAttribute().Build() // Name is now private
-//
-// A UserBuilder should not be accessed by multiple goroutines at once.
-type UserBuilder interface {
-	// Key changes the unique key for the user being built.
-	Key(value string) UserBuilder
-
-	// Secondary sets the secondary key attribute for the user being built.
-	//
-	// This affects feature flag targeting (https://docs.launchdarkly.com/docs/targeting-users#section-targeting-rules-based-on-user-attributes)
-	// as follows: if you have chosen to bucket users by a specific attribute, the secondary key (if set)
-	// is used to further distinguish between users who are otherwise identical according to that attribute.
-	Secondary(value string) UserBuilderCanMakeAttributePrivate
-
-	// IP sets the IP address attribute for the user being built.
-	IP(value string) UserBuilderCanMakeAttributePrivate
-
-	// Country sets the country attribute for the user being built.
-	Country(value string) UserBuilderCanMakeAttributePrivate
-
-	// Email sets the email attribute for the user being built.
-	Email(value string) UserBuilderCanMakeAttributePrivate
-
-	// FirstName sets the first name attribute for the user being built.
-	FirstName(value string) UserBuilderCanMakeAttributePrivate
-
-	// LastName sets the last name attribute for the user being built.
-	LastName(value string) UserBuilderCanMakeAttributePrivate
-
-	// Avatar sets the avatar URL attribute for the user being built.
-	Avatar(value string) UserBuilderCanMakeAttributePrivate
-
-	// Name sets the full name attribute for the user being built.
-	Name(value string) UserBuilderCanMakeAttributePrivate
-
-	// Anonymous sets the anonymous attribute for the user being built.
-	//
-	// If a user is anonymous, the user key will not appear on your LaunchDarkly dashboard.
-	Anonymous(value bool) UserBuilder
-
-	// Custom sets a custom attribute for the user being built.
-	//
-	// A custom attribute value can be of any type supported by JSON: boolean, number, string, array
-	// (slice), or object (map).
-	//
-	// For slices and maps to work correctly, their element type should be interface{}. Since slices
-	// and maps are passed by reference, it is important that you not modify any elements of the slice
-	// or map after passing it to Custom, because the SDK might simultaneously be trying to access it
-	// on another goroutine.
-	Custom(name string, value interface{}) UserBuilderCanMakeAttributePrivate
-
-	// Build creates a User from the current UserBuilder properties.
-	//
-	// The User is independent of the UserBuilder once you have called Build(); modifying the UserBuilder
-	// will not affect an already-created User.
-	Build() User
-}
-
-// UserBuilderCanMakeAttributePrivate is an extension of UserBuilder that allows attributes to be
-// made private via the AsPrivateAttribute() method. All UserBuilderCanMakeAttributePrivate setter
-// methods are the same as UserBuilder, and apply to the original builder.
-//
-// UserBuilder setter methods for attributes that can be made private always return this interface.
-// See AsPrivateAttribute for details.
-type UserBuilderCanMakeAttributePrivate interface {
-	UserBuilder
-
-	// AsPrivateAttribute marks the last attribute that was set on this builder as being a private attribute: that is, its
-	// value will not be sent to LaunchDarkly.
-	//
-	// This action only affects analytics events that are generated by this particular user object. To mark some (or all)
-	// user attributes as private for all users, use the Config properties PrivateAttributeName and AllAttributesPrivate.
-	//
-	// Most attributes can be made private, but Key and Anonymous cannot. This is enforced by the compiler, since the builder
-	// methods for attributes that can be made private are the only ones that return UserBuilderCanMakeAttributePrivate;
-	// therefore, you cannot write an expression like NewUserBuilder("user-key").AsPrivateAttribute().
-	//
-	// In this example, FirstName and LastName are marked as private, but Country is not:
-	//
-	//     user := NewUserBuilder("user-key").
-	//         FirstName("Pierre").AsPrivateAttribute().
-	//         LastName("Menard").AsPrivateAttribute().
-	//         Country("ES").
-	//         Build()
-	AsPrivateAttribute() UserBuilder
-
-	// AsNonPrivateAttribute marks the last attribute that was set on this builder as not being a private attribute:
-	// that is, its value will be sent to LaunchDarkly and can appear on the dashboard.
-	//
-	// This is the opposite of AsPrivateAttribute(), and has no effect unless you have previously called
-	// AsPrivateAttribute() for the same attribute on the same user builder. For more details, see
-	// AsPrivateAttribute().
-	AsNonPrivateAttribute() UserBuilder
-}
-
-type userBuilderImpl struct {
-	key          string
-	secondary    OptionalString
-	ip           OptionalString
-	country      OptionalString
-	email        OptionalString
-	firstName    OptionalString
-	lastName     OptionalString
-	avatar       OptionalString
-	name         OptionalString
-	anonymous    bool
-	hasAnonymous bool
-	custom       map[string]interface{}
-	privateAttrs map[string]bool
-}
-
-type userBuilderCanMakeAttributePrivate struct {
-	builder  *userBuilderImpl
-	attrName string
-}
-
-// NewUserBuilder constructs a new UserBuilder, specifying the user key.
-//
-// For authenticated users, the key may be a username or e-mail address. For anonymous users,
-// this could be an IP address or session ID.
-func NewUserBuilder(key string) UserBuilder {
-	return &userBuilderImpl{key: key}
-}
-
-// NewUserBuilderFromUser constructs a new UserBuilder, copying all attributes from an existing user. You may
-// then call setter methods on the new UserBuilder to modify those attributes.
-func NewUserBuilderFromUser(fromUser User) UserBuilder {
-	builder := &userBuilderImpl{
-		secondary: fromUser.GetSecondaryKey(),
-		ip:        fromUser.GetIP(),
-		country:   fromUser.GetCountry(),
-		email:     fromUser.GetEmail(),
-		firstName: fromUser.GetFirstName(),
-		lastName:  fromUser.GetLastName(),
-		avatar:    fromUser.GetAvatar(),
-		name:      fromUser.GetName(),
-	}
-	if fromUser.Key != nil {
-		builder.key = *fromUser.Key
-	}
-	if fromUser.Anonymous != nil {
-		builder.anonymous = *fromUser.Anonymous
-		builder.hasAnonymous = true
-	}
-	if fromUser.Custom != nil {
-		builder.custom = make(map[string]interface{}, len(*fromUser.Custom))
-		for k, v := range *fromUser.Custom {
-			builder.custom[k] = v
-		}
-	}
-	if len(fromUser.PrivateAttributeNames) > 0 {
-		builder.privateAttrs = make(map[string]bool, len(fromUser.PrivateAttributeNames))
-		for _, name := range fromUser.PrivateAttributeNames {
-			builder.privateAttrs[name] = true
-		}
-	}
-	return builder
-}
-
-func (b *userBuilderImpl) canMakeAttributePrivate(attrName string) UserBuilderCanMakeAttributePrivate {
-	return &userBuilderCanMakeAttributePrivate{builder: b, attrName: attrName}
-}
-
-func (b *userBuilderImpl) Key(value string) UserBuilder {
-	b.key = value
-	return b
-}
-
-func (b *userBuilderImpl) Secondary(value string) UserBuilderCanMakeAttributePrivate {
-	b.secondary = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("secondary")
-}
-
-func (b *userBuilderImpl) IP(value string) UserBuilderCanMakeAttributePrivate {
-	b.ip = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("ip")
-}
-
-func (b *userBuilderImpl) Country(value string) UserBuilderCanMakeAttributePrivate {
-	b.country = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("country")
-}
-
-func (b *userBuilderImpl) Email(value string) UserBuilderCanMakeAttributePrivate {
-	b.email = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("email")
-}
-
-func (b *userBuilderImpl) FirstName(value string) UserBuilderCanMakeAttributePrivate {
-	b.firstName = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("firstName")
-}
-
-func (b *userBuilderImpl) LastName(value string) UserBuilderCanMakeAttributePrivate {
-	b.lastName = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("lastName")
-}
-
-func (b *userBuilderImpl) Avatar(value string) UserBuilderCanMakeAttributePrivate {
-	b.avatar = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("avatar")
-}
-
-func (b *userBuilderImpl) Name(value string) UserBuilderCanMakeAttributePrivate {
-	b.name = NewOptionalStringWithValue(value)
-	return b.canMakeAttributePrivate("name")
-}
-
-func (b *userBuilderImpl) Anonymous(value bool) UserBuilder {
-	b.anonymous = value
-	b.hasAnonymous = true
-	return b
-}
-
-func (b *userBuilderImpl) Custom(name string, value interface{}) UserBuilderCanMakeAttributePrivate {
-	if b.custom == nil {
-		b.custom = make(map[string]interface{})
-	}
-	b.custom[name] = value
-	return b.canMakeAttributePrivate(name)
-}
-
-func (b *userBuilderImpl) Build() User {
-	key := b.key
-	u := User{
-		Key:       &key,
-		Secondary: b.secondary.AsPointer(),
-		Ip:        b.ip.AsPointer(),
-		Country:   b.country.AsPointer(),
-		Email:     b.email.AsPointer(),
-		FirstName: b.firstName.AsPointer(),
-		LastName:  b.lastName.AsPointer(),
-		Avatar:    b.avatar.AsPointer(),
-		Name:      b.name.AsPointer(),
-	}
-	if b.hasAnonymous {
-		value := b.anonymous
-		u.Anonymous = &value
-	}
-	if len(b.custom) > 0 {
-		c := make(map[string]interface{}, len(b.custom))
-		for k, v := range b.custom {
-			c[k] = v
-		}
-		u.Custom = &c
-	}
-	if len(b.privateAttrs) > 0 {
-		a := make([]string, 0, len(b.privateAttrs))
-		for key, value := range b.privateAttrs {
-			if value {
-				a = append(a, key)
-			}
-		}
-		u.PrivateAttributeNames = a
-	}
-	return u
-}
-
-func (b *userBuilderCanMakeAttributePrivate) AsPrivateAttribute() UserBuilder {
-	if b.builder.privateAttrs == nil {
-		b.builder.privateAttrs = make(map[string]bool)
-	}
-	b.builder.privateAttrs[b.attrName] = true
-	return b.builder
-}
-
-func (b *userBuilderCanMakeAttributePrivate) AsNonPrivateAttribute() UserBuilder {
-	if b.builder.privateAttrs != nil {
-		delete(b.builder.privateAttrs, b.attrName)
-	}
-	return b.builder
-}
-
-// Key changes the unique key for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) Key(value string) UserBuilder {
-	return b.builder.Key(value)
-}
-
-// Secxondary sets the secondary key attribute for the user being built.
-//
-// This affects feature flag targeting (https://docs.launchdarkly.com/docs/targeting-users#section-targeting-rules-based-on-user-attributes)
-// as follows: if you have chosen to bucket users by a specific attribute, the secondary key (if set)
-// is used to further distinguish between users who are otherwise identical according to that attribute.
-func (b *userBuilderCanMakeAttributePrivate) Secondary(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.Secondary(value)
-}
-
-// IP sets the IP address attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) IP(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.IP(value)
-}
-
-// Country sets the country attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) Country(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.Country(value)
-}
-
-// Email sets the email address attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) Email(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.Email(value)
-}
-
-// FirstName sets the first name attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) FirstName(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.FirstName(value)
-}
-
-// LastName sets the last name attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) LastName(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.LastName(value)
-}
-
-// Avatar sets the avatar URL attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) Avatar(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.Avatar(value)
-}
-
-// Name sets the full name attribute for the user being built.
-func (b *userBuilderCanMakeAttributePrivate) Name(value string) UserBuilderCanMakeAttributePrivate {
-	return b.builder.Name(value)
-}
-
-// Anonymous sets the anonymous attribute for the user being built.
-//
-// If a user is anonymous, the user key will not appear on your LaunchDarkly dashboard.
-func (b *userBuilderCanMakeAttributePrivate) Anonymous(value bool) UserBuilder {
-	return b.builder.Anonymous(value)
-}
-
-// Custom sets a custom attribute for the user being built.
-//
-// A custom attribute value can be of any type supported by JSON: boolean, number, string, array
-// (slice), or object (map).
-//
-// For slices and maps to work correctly, their element type should be interface{}. Since slices
-// and maps are passed by reference, it is important that you not modify any elements of the slice
-// or map after passing it to Custom, because the SDK might simultaneously be trying to access it
-// on another goroutine.
-func (b *userBuilderCanMakeAttributePrivate) Custom(name string, value interface{}) UserBuilderCanMakeAttributePrivate {
-	return b.builder.Custom(name, value)
-}
-
-// Build creates a User from the current UserBuilder properties.
-//
-// The User is independent of the UserBuilder once you have called Build(); modifying the UserBuilder
-// will not affect an already-created User.
-func (b *userBuilderCanMakeAttributePrivate) Build() User {
-	return b.builder.Build()
 }
