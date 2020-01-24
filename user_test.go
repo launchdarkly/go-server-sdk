@@ -34,6 +34,12 @@ var userCountryProperty = userStringPropertyDesc{
 	UserBuilder.Country,
 	func(u User) *string { return u.Country },
 }
+var userEmailProperty = userStringPropertyDesc{
+	"email",
+	User.GetEmail,
+	UserBuilder.Email,
+	func(u User) *string { return u.Email },
+}
 var userFirstNameProperty = userStringPropertyDesc{
 	"firstName",
 	User.GetFirstName,
@@ -63,6 +69,7 @@ var allUserStringProperties = []userStringPropertyDesc{
 	userSecondaryKeyProperty,
 	userIPProperty,
 	userCountryProperty,
+	userEmailProperty,
 	userFirstNameProperty,
 	userLastNameProperty,
 	userAvatarProperty,
@@ -118,6 +125,16 @@ func TestNewAnonymousUser(t *testing.T) {
 	assert.True(t, *user.Anonymous)
 	assert.Nil(t, user.Custom)
 	assert.Nil(t, user.PrivateAttributeNames)
+}
+
+func TestUserWithNilKey(t *testing.T) {
+	user := User{}
+
+	assert.Equal(t, "", user.GetKey())
+
+	k, ok := user.valueOf("key")
+	assert.False(t, ok)
+	assert.Nil(t, k)
 }
 
 func TestUserBuilderSetsOnlyKeyByDefault(t *testing.T) {
