@@ -164,7 +164,7 @@ func TestUserBuilderCanSetStringAttributes(t *testing.T) {
 
 			for _, p1 := range allUserStringProperties {
 				if p1.name == p.name {
-					assert.Equal(t, ldvalue.NewOptionalStringWithValue("value"), p.getter(user), p.name)
+					assert.Equal(t, ldvalue.NewOptionalString("value"), p.getter(user), p.name)
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
 					v, ok := user.valueOf(p.name)
@@ -227,7 +227,7 @@ func TestUserBuilderCanSetPrivateStringAttributes(t *testing.T) {
 
 			for _, p1 := range allUserStringProperties {
 				if p1.name == p.name {
-					assert.Equal(t, ldvalue.NewOptionalStringWithValue("value"), p.getter(user))
+					assert.Equal(t, ldvalue.NewOptionalString("value"), p.getter(user))
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
 				} else {

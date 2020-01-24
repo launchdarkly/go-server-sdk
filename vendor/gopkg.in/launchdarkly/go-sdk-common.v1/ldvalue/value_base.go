@@ -267,7 +267,7 @@ func (v Value) StringValue() string {
 // value or nothing if the original value was not a string.
 func (v Value) AsOptionalString() OptionalString {
 	if v.valueType == StringType {
-		return NewOptionalStringWithValue(v.stringValue)
+		return NewOptionalString(v.stringValue)
 	}
 	return OptionalString{}
 }
@@ -404,4 +404,21 @@ func (v Value) Equal(other Value) bool {
 		}
 	}
 	return false
+}
+
+// AsPointer returns either a pointer to a copy of this Value, or nil if it is a null value.
+//
+// This may be desirable if you are serializing a struct that contains a Value, and you want
+// that field to be completely omitted if the Value is null; since the "omitempty" tag only
+// works for pointers, you can declare the field as a *Value like so:
+//
+//     type MyJsonStruct struct {
+//         AnOptionalField *Value `json:"anOptionalField,omitempty"`
+//     }
+//     s := MyJsonStruct{AnOptionalField: someValue.AsPointer()}
+func (v Value) AsPointer() *Value {
+	if v.IsNull() {
+		return nil
+	}
+	return &v
 }

@@ -233,11 +233,11 @@
 
 [[projects]]
   branch = "v1"
-  digest = "1:00e1ad3e418044dbd4c3bf328b505daf565d728f1d9467b3b325e72a7a769945"
+  digest = "1:797d10f97b03b3580492b34e3a1cb2608a1d905307a002341e4b957c1b92d0ab"
   name = "gopkg.in/launchdarkly/go-sdk-common.v1"
   packages = ["ldvalue"]
   pruneopts = "NUT"
-  revision = "4a686f5e1deea03b91ac035bce858561756c20d1"
+  revision = "7a88acd5758de151314b415405fa914edbad16f2"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]

@@ -10,4 +10,6 @@
 // causing unexpected effects in another place. Value is guaranteed to be immutable and to contain only
 // JSON-compatible types as long as you do not use the UnsafeUseArbitraryValue() and
 // UnsafeArbitraryValue() methods (which will be removed in the future).
+//
+// This package also provides the helper type OptionalString, a safer alternative to using string pointers.
 package ldvalue
