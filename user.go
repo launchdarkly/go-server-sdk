@@ -193,7 +193,7 @@ func (u User) GetCustom(attrName string) (ldvalue.Value, bool) {
 	// the interface{} value directly and, if it contains a slice or map, modify it. In a future
 	// version when the User fields are no longer exposed and backward compatibility is no longer
 	// necessary, a custom attribute will be stored as a completely immutable Value.
-	return ldvalue.UnsafeUseArbitraryValue(value), found
+	return ldvalue.UnsafeUseArbitraryValue(value), found //nolint (using deprecated method)
 }
 
 // GetCustomKeys() returns the keys of all custom attributes that have been set on this user.
@@ -288,7 +288,7 @@ func (u User) valueOf(attr string) (interface{}, bool) {
 	value, ok := u.GetCustom(attr)
 	// Currently our evaluation logic still uses interface{} rather than Value; we can use the faster
 	// Unsafe method to avoid a deep copy in this context
-	return value.UnsafeArbitraryValue(), ok
+	return value.UnsafeArbitraryValue(), ok //nolint (using deprecated method)
 }
 
 func optionalStringAsEmptyInterface(os ldvalue.OptionalString) (interface{}, bool) {
