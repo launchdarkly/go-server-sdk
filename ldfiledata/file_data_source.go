@@ -267,9 +267,9 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ld.FeatureFlag
+	Flags      *map[string]ld.FeatureFlag //nolint:megacheck // allow deprecated usage
 	FlagValues *map[string]interface{}
-	Segments   *map[string]ld.Segment
+	Segments   *map[string]ld.Segment //nolint:megacheck // allow deprecated usage
 }
 
 func insertData(all map[ld.VersionedDataKind]map[string]ld.VersionedData, kind ld.VersionedDataKind, key string,
@@ -306,14 +306,14 @@ func detectJSON(rawData []byte) bool {
 
 func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string]ld.VersionedData, error) {
 	all := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: {},
-		ld.Segments: {},
+		ld.Features: {}, //nolint:megacheck // allow deprecated usage
+		ld.Segments: {}, //nolint:megacheck // allow deprecated usage
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				data := f
-				if err := insertData(all, ld.Features, key, &data); err != nil {
+				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -321,13 +321,13 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 		if d.FlagValues != nil {
 			for key, f := range *d.FlagValues {
 				zeroVariation := 0
-				data := ld.FeatureFlag{
+				data := ld.FeatureFlag{ //nolint:megacheck // allow deprecated usage
 					Key:         key,
 					Variations:  []interface{}{f},
 					On:          true,
-					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation},
+					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation}, //nolint:megacheck // allow deprecated usage
 				}
-				if err := insertData(all, ld.Features, key, &data); err != nil {
+				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -335,7 +335,7 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := s
-				if err := insertData(all, ld.Segments, key, &data); err != nil {
+				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}

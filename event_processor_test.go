@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 var BuiltinAttributes = []string{
@@ -34,10 +34,7 @@ var epDefaultConfig = Config{
 	UserKeysFlushInterval: 1 * time.Hour,
 }
 
-var epDefaultUser = User{
-	Key:  strPtr("userKey"),
-	Name: strPtr("Red"),
-}
+var epDefaultUser = NewUserBuilder("userKey").Name("Red").Build()
 
 var userJson = map[string]interface{}{"key": "userKey", "name": "Red"}
 var filteredUserJson = map[string]interface{}{"key": "userKey", "privateAttrs": []interface{}{"name"}}
@@ -296,7 +293,7 @@ func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
 	st.serverTime = serverTime
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(User{Key: strPtr("otherUser")})
+	ie := NewIdentifyEvent(NewUser("otherUser"))
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -331,7 +328,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	st.serverTime = serverTime
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(User{Key: strPtr("otherUser")})
+	ie := NewIdentifyEvent(NewUser("otherUser"))
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -526,6 +523,27 @@ func TestUserAgentIsSent(t *testing.T) {
 	assert.Equal(t, config.UserAgent, msg.Header.Get("User-Agent"))
 }
 
+func TestUniquePayloadIDIsSent(t *testing.T) {
+	ep, st := createEventProcessor(epDefaultConfig)
+	defer ep.Close()
+
+	ie := NewIdentifyEvent(epDefaultUser)
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
+
+	msg0 := st.getNextRequest()
+	msg1 := st.getNextRequest()
+	id0 := msg0.Header.Get(payloadIDHeader)
+	id1 := msg1.Header.Get(payloadIDHeader)
+	assert.NotEqual(t, "", id0)
+	assert.NotEqual(t, "", id1)
+	assert.NotEqual(t, id0, id1)
+}
+
 func TestDefaultPathIsAddedToEventsUri(t *testing.T) {
 	config := epDefaultConfig
 	config.EventsUri = "http://fake/"
@@ -597,24 +615,27 @@ func TestHTTPErrorHandling(t *testing.T) {
 			ep.Flush()
 			ep.waitUntilInactive()
 
-			msg := st.getNextRequest()
-			assert.NotNil(t, msg)
+			msg0 := st.getNextRequest()
+			assert.NotNil(t, msg0)
 
 			if tt.recoverable {
-				msg = st.getNextRequest() // 2nd request is a retry of the 1st
-				assert.NotNil(t, msg)
-				msg = st.getNextRequest()
-				assert.Nil(t, msg)
+				msg1 := st.getNextRequest() // 2nd request is a retry of the 1st
+				assert.NotNil(t, msg1)
+				id0 := msg0.Header.Get(payloadIDHeader)
+				assert.NotEqual(t, "", id0)
+				assert.Equal(t, id0, msg1.Header.Get(payloadIDHeader))
+				msg2 := st.getNextRequest()
+				assert.Nil(t, msg2)
 			} else {
-				msg = st.getNextRequest()
-				assert.Nil(t, msg)
+				msg1 := st.getNextRequest()
+				assert.Nil(t, msg1) // no 2nd request was sent
 
 				ep.SendEvent(ie)
 				ep.Flush()
 				ep.waitUntilInactive()
 
-				msg = st.getNextRequest()
-				assert.Nil(t, msg)
+				msg2 := st.getNextRequest()
+				assert.Nil(t, msg2)
 			}
 		})
 	}
@@ -650,23 +671,15 @@ func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
 }
 
 func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
-	user1 := User{
-		Key:  strPtr("user1"),
-		Name: strPtr("Bandit"),
-	}
-	user2 := User{
-		Key:  strPtr("user2"),
-		Name: strPtr("Tinker"),
-	}
+	user1 := NewUserBuilder("user1").Name("Bandit").Build()
+	user2 := NewUserBuilder("user2").Name("Tinker").Build()
+
+	// see TestUserSerialization() regarding this method of injecting a custom attribute
+	user3 := NewUserBuilder("user3").Name("Pirate").Build()
 	errorMessage := "boom"
-	user3Custom := map[string]interface{}{
-		"uh-oh": valueThatPanicsWhenMarshalledToJSON(errorMessage), // see user_filter_test.go
-	}
-	user3 := User{
-		Key:    strPtr("user3"),
-		Name:   strPtr("Pirate"),
-		Custom: &user3Custom,
-	}
+	custom := make(map[string]interface{})
+	custom["uh-oh"] = valueThatPanicsWhenMarshalledToJSON(errorMessage)
+	user3.Custom = &custom
 
 	config := epDefaultConfig
 	logger := newMockLogger("")
@@ -696,6 +709,103 @@ func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
 
 	expectedMessage := "ERROR: " + fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user3, false), errorMessage)
 	assert.Equal(t, []string{expectedMessage}, logger.output)
+}
+
+func TestDiagnosticInitEventIsSent(t *testing.T) {
+	id := newDiagnosticId("sdkkey")
+	startTime := time.Now()
+	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
+	config := epDefaultConfig
+	config.diagnosticsManager = diagnosticsManager
+
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	req, bytes := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req.URL.Path)
+	var event map[string]interface{}
+	json.Unmarshal(bytes, &event)
+	assert.Equal(t, "diagnostic-init", event["kind"])
+	assert.Equal(t, float64(toUnixMillis(startTime)), event["creationDate"])
+}
+
+func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
+	id := newDiagnosticId("sdkkey")
+	startTime := time.Now()
+	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
+	config := epDefaultConfig
+	config.diagnosticsManager = diagnosticsManager
+	config.DiagnosticRecordingInterval = 50 * time.Millisecond
+
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	req0, bytes0 := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req0.URL.Path)
+	var event0 map[string]interface{}
+	json.Unmarshal(bytes0, &event0)
+	assert.Equal(t, "diagnostic-init", event0["kind"])
+	time0 := uint64(event0["creationDate"].(float64))
+
+	req1, bytes1 := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req1.URL.Path)
+	var event1 map[string]interface{}
+	json.Unmarshal(bytes1, &event1)
+	assert.Equal(t, "diagnostic", event1["kind"])
+	time1 := uint64(event1["creationDate"].(float64))
+	assert.True(t, time1-time0 >= 40, "event times should follow configured interval: %d, %d", time0, time1)
+
+	req2, bytes2 := st.awaitRequest()
+	assert.Equal(t, "/diagnostic", req2.URL.Path)
+	var event2 map[string]interface{}
+	json.Unmarshal(bytes2, &event2)
+	assert.Equal(t, "diagnostic", event2["kind"])
+	time2 := uint64(event2["creationDate"].(float64))
+	assert.True(t, time2-time1 >= 40, "event times should follow configured interval: %d, %d", time1, time2)
+}
+
+func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
+	id := newDiagnosticId("sdkkey")
+	config := DefaultConfig
+	config.Capacity = 3
+	config.DiagnosticRecordingInterval = 100 * time.Millisecond
+	periodicEventGate := make(chan struct{})
+
+	diagnosticsManager := newDiagnosticsManager(id, config, time.Second, time.Now(), periodicEventGate)
+	config.diagnosticsManager = diagnosticsManager
+
+	ep, st := createEventProcessor(config)
+	defer ep.Close()
+
+	req1, _ := st.awaitRequest() // diagnostic init event
+	assert.Equal(t, "/diagnostic", req1.URL.Path)
+
+	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.Flush()
+
+	req2, _ := st.awaitRequest() // flushed events
+	assert.Equal(t, "/bulk", req2.URL.Path)
+
+	periodicEventGate <- struct{}{} // periodic event won't be sent until we do this
+
+	_, bytes := st.awaitRequest()
+	var event map[string]interface{}
+	json.Unmarshal(bytes, &event)
+
+	assert.Equal(t, "diagnostic", event["kind"])
+	assert.Equal(t, float64(3), event["eventsInLastBatch"]) // 1 index, 2 custom
+	assert.Equal(t, float64(1), event["droppedEvents"])     // 3rd custom
+	assert.Equal(t, float64(2), event["deduplicatedUsers"])
+
+	periodicEventGate <- struct{}{}
+
+	_, bytes3 := st.awaitRequest() // next periodic event - all counters should have been reset
+	json.Unmarshal(bytes3, &event)
+	assert.Equal(t, float64(0), event["eventsInLastBatch"])
+	assert.Equal(t, float64(0), event["droppedEvents"])
+	assert.Equal(t, float64(0), event["deduplicatedUsers"])
 }
 
 func jsonMap(o interface{}) map[string]interface{} {
@@ -735,7 +845,7 @@ func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, fl
 		"creationDate": float64(sourceEvent.CreationDate),
 		"key":          flag.Key,
 		"version":      float64(flag.Version),
-		"value":        value.UnsafeInnerValue(),
+		"value":        value.AsArbitraryValue(),
 		"default":      nil,
 	}
 	if sourceEvent.Variation != nil {
@@ -765,7 +875,7 @@ func assertSummaryEventHasCounter(t *testing.T, flag FeatureFlag, variation *int
 		f, _ := output["features"].(map[string]interface{})[flag.Key].(map[string]interface{})
 		assert.NotNil(t, f)
 		expected := map[string]interface{}{
-			"value":   value.UnsafeInnerValue(),
+			"value":   value.AsArbitraryValue(),
 			"count":   float64(count),
 			"version": float64(flag.Version),
 		}
@@ -831,6 +941,12 @@ func (t *stubTransport) getNextRequest() *http.Request {
 	default:
 		return nil
 	}
+}
+
+func (t *stubTransport) awaitRequest() (*http.Request, []byte) {
+	req := <-t.messageSent
+	bytes, _ := ioutil.ReadAll(req.Body)
+	return req, bytes
 }
 
 // used only for testing - ensures that all pending messages and flushes have completed

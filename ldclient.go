@@ -1,3 +1,8 @@
+// Package ldclient is the main package for the LaunchDarkly SDK.
+//
+// This package contains the types and methods that most applications will use. The most commonly
+// used other packages are "ldlog" (the SDK's logging abstraction) and database integrations such
+// as "redis" and "lddynamodb".
 package ldclient
 
 import (
@@ -12,11 +17,11 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 // Version is the client version.
-const Version = "4.13.1"
+const Version = "4.15.0"
 
 // LDClient is the LaunchDarkly client. Client instances are thread-safe.
 // Applications should instantiate a single instance for the lifetime
@@ -112,6 +117,11 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		sdkKey: sdkKey,
 		config: config,
 		store:  config.FeatureStore,
+	}
+
+	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
+		id := newDiagnosticId(sdkKey)
+		config.diagnosticsManager = newDiagnosticsManager(id, config, waitFor, time.Now(), nil)
 	}
 
 	if config.EventProcessor != nil {
@@ -341,14 +351,14 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 // has no off variation.
 func (client *LDClient) BoolVariation(key string, user User, defaultVal bool) (bool, error) {
 	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, false)
-	return detail.JSONValue.Bool(), err
+	return detail.JSONValue.BoolValue(), err
 }
 
 // BoolVariationDetail is the same as BoolVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 func (client *LDClient) BoolVariationDetail(key string, user User, defaultVal bool) (bool, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, true)
-	return detail.JSONValue.Bool(), detail, err
+	return detail.JSONValue.BoolValue(), detail, err
 }
 
 // IntVariation returns the value of a feature flag (whose variations are integers) for the given user.
@@ -359,14 +369,14 @@ func (client *LDClient) BoolVariationDetail(key string, user User, defaultVal bo
 // If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 func (client *LDClient) IntVariation(key string, user User, defaultVal int) (int, error) {
 	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, false)
-	return detail.JSONValue.Int(), err
+	return detail.JSONValue.IntValue(), err
 }
 
 // IntVariationDetail is the same as IntVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 func (client *LDClient) IntVariationDetail(key string, user User, defaultVal int) (int, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, true)
-	return detail.JSONValue.Int(), detail, err
+	return detail.JSONValue.IntValue(), detail, err
 }
 
 // Float64Variation returns the value of a feature flag (whose variations are floats) for the given user.
@@ -375,14 +385,14 @@ func (client *LDClient) IntVariationDetail(key string, user User, defaultVal int
 // has no off variation.
 func (client *LDClient) Float64Variation(key string, user User, defaultVal float64) (float64, error) {
 	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, false)
-	return detail.JSONValue.Float64(), err
+	return detail.JSONValue.Float64Value(), err
 }
 
 // Float64VariationDetail is the same as Float64Variation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 func (client *LDClient) Float64VariationDetail(key string, user User, defaultVal float64) (float64, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, true)
-	return detail.JSONValue.Float64(), detail, err
+	return detail.JSONValue.Float64Value(), detail, err
 }
 
 // StringVariation returns the value of a feature flag (whose variations are strings) for the given user.
@@ -391,61 +401,61 @@ func (client *LDClient) Float64VariationDetail(key string, user User, defaultVal
 // no off variation.
 func (client *LDClient) StringVariation(key string, user User, defaultVal string) (string, error) {
 	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, false)
-	return detail.JSONValue.String(), err
+	return detail.JSONValue.StringValue(), err
 }
 
 // StringVariationDetail is the same as StringVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 func (client *LDClient) StringVariationDetail(key string, user User, defaultVal string) (string, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, true)
-	return detail.JSONValue.String(), detail, err
+	return detail.JSONValue.StringValue(), detail, err
 }
 
-// Obsolete name for JSONRawVariation.
+// Obsolete alternative to JSONVariation.
 //
-// Deprecated: Use JSONRawVariation.
+// Deprecated: See JSONVariation.
 func (client *LDClient) JsonVariation(key string, user User, defaultVal json.RawMessage) (json.RawMessage, error) {
-	return client.JSONRawVariation(key, user, defaultVal)
-}
-
-// Obsolete name for JSONRawVariationDetail.
-//
-// Deprecated: Use JSONRawVariationDetail.
-func (client *LDClient) JsonVariationDetail(key string, user User, defaultVal json.RawMessage) (json.RawMessage, EvaluationDetail, error) {
-	return client.JSONRawVariationDetail(key, user, defaultVal)
-}
-
-// JSONRawVariation returns the value of a feature flag for the given user, allowing the value to be of
-// any JSON type. The value is returned as an unparsed json.RawMessage; to get it instead as an ldvalue.Value,
-// use JSONValueVariation.
-//
-// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
-// has no off variation.
-func (client *LDClient) JSONRawVariation(key string, user User, defaultVal json.RawMessage) (json.RawMessage, error) {
 	detail, err := client.variation(key, user, ldvalue.Raw(defaultVal), false, false)
-	return detail.JSONValue.Raw(), err
+	return detail.JSONValue.AsRaw(), err
 }
 
-// JSONRawVariationDetail is the same as JSONRawVariation, but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) JSONRawVariationDetail(key string, user User, defaultVal json.RawMessage) (json.RawMessage, EvaluationDetail, error) {
+// Obsolete alternative to JSONVariationDetail.
+//
+// Deprecated: See JSONVariationDetail.
+func (client *LDClient) JsonVariationDetail(key string, user User, defaultVal json.RawMessage) (json.RawMessage, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Raw(defaultVal), false, true)
-	return detail.JSONValue.Raw(), detail, err
+	return detail.JSONValue.AsRaw(), detail, err
 }
 
-// JSONValueVariation returns the value of a feature flag for the given user, allowing the value to be
-// of any JSON type. The value is returned as an ldvalue.Value, which can be easily converted to other
-// types; to get it instead as a json.RawMessage, use JsonVariation.
+// JSONVariation returns the value of a feature flag for the given user, allowing the value to be
+// of any JSON type.
+//
+// The value is returned as an ldvalue.Value, which can be inspected or converted to other types using
+// Value methods such as GetType() and BoolValue(). The defaultVal parameter also uses this type. For
+// instance, if the values for this flag are JSON arrays:
+//
+//     defaultValAsArray := ldvalue.BuildArray().
+//         Add(ldvalue.String("defaultFirstItem")).
+//         Add(ldvalue.String("defaultSecondItem")).
+//         Build()
+//     result, err := client.JSONVariation(flagKey, user, defaultValAsArray)
+//     firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
+//
+// You can also use unparsed json.RawMessage values:
+//
+//     defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"things":[1,2,3]}`))
+//     result, err := client.JSONVariation(flagKey, user, defaultValAsJSON
+//     resultAsRawJSON := result.AsRaw()
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
-func (client *LDClient) JSONValueVariation(key string, user User, defaultVal ldvalue.Value) (ldvalue.Value, error) {
+func (client *LDClient) JSONVariation(key string, user User, defaultVal ldvalue.Value) (ldvalue.Value, error) {
 	detail, err := client.variation(key, user, defaultVal, false, false)
 	return detail.JSONValue, err
 }
 
-// JSONValueVariationDetail is the same as JSONValueVariation, but also returns further information about how
+// JSONVariationDetail is the same as JSONVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) JSONValueVariationDetail(key string, user User, defaultVal ldvalue.Value) (ldvalue.Value, EvaluationDetail, error) {
+func (client *LDClient) JSONVariationDetail(key string, user User, defaultVal ldvalue.Value) (ldvalue.Value, EvaluationDetail, error) {
 	detail, err := client.variation(key, user, defaultVal, false, true)
 	return detail.JSONValue, detail, err
 }
@@ -457,11 +467,11 @@ func (client *LDClient) variation(key string, user User, defaultVal ldvalue.Valu
 	}
 	result, flag, err := client.evaluateInternal(key, user, defaultVal, sendReasonsInEvents)
 	if err != nil {
-		result.Value = defaultVal.UnsafeInnerValue() //nolint
+		result.Value = defaultVal.UnsafeArbitraryValue() //nolint (using deprecated method)
 		result.JSONValue = defaultVal
 		result.VariationIndex = nil
 	} else {
-		if checkType && result.JSONValue.Type() != defaultVal.Type() {
+		if checkType && defaultVal.Type() != ldvalue.NullType && result.JSONValue.Type() != defaultVal.Type() {
 			result = NewEvaluationError(defaultVal, EvalErrorWrongType)
 		}
 	}
@@ -480,10 +490,10 @@ func (client *LDClient) variation(key string, user User, defaultVal ldvalue.Valu
 
 // Evaluate returns the value of a feature for a specified user.
 //
-// Deprecated: Use one of the Variation methods (JSONValueVariation if you do not need a specific type).
+// Deprecated: Use one of the Variation methods (JSONVariation if you do not need a specific type).
 func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, *int, error) {
-	result, _, err := client.evaluateInternal(key, user, ldvalue.UnsafeValueCopy(defaultVal), false)
-	return result.JSONValue.UnsafeInnerValue(), result.VariationIndex, err
+	result, _, err := client.evaluateInternal(key, user, ldvalue.UnsafeUseArbitraryValue(defaultVal), false) //nolint (using deprecated method)
+	return result.JSONValue.UnsafeArbitraryValue(), result.VariationIndex, err                               //nolint (using deprecated method)
 }
 
 // Performs all the steps of evaluation except for sending the feature request event (the main one;
@@ -539,13 +549,11 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 
 	detail, prereqEvents := feature.EvaluateDetail(user, client.store, sendReasonsInEvents)
 	if detail.Reason != nil && detail.Reason.GetKind() == EvalReasonError && client.config.LogEvaluationErrors {
-		if re, ok := detail.Reason.(EvaluationReasonError); ok {
-			client.config.Loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
-				key, re.ErrorKind)
-		}
+		client.config.Loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
+			key, detail.Reason.GetErrorKind())
 	}
 	if detail.IsDefaultValue() {
-		detail.Value = defaultVal.UnsafeInnerValue() //nolint
+		detail.Value = defaultVal.UnsafeArbitraryValue() //nolint (using deprecated method)
 		detail.JSONValue = defaultVal
 	}
 	for _, event := range prereqEvents {

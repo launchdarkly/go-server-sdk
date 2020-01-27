@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	r "github.com/garyburd/redigo/redis"
@@ -67,6 +68,11 @@ func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
 		core1.testTxHook = hook
 	})
+}
+
+func TestRedisStoreComponentTypeName(t *testing.T) {
+	store, _ := NewRedisFeatureStoreWithDefaults()
+	assert.Equal(t, "Redis", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
 func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {

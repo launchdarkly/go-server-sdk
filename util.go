@@ -9,6 +9,8 @@ import (
 )
 
 // HttpStatusError describes an http error
+//
+// Deprecated: this type is for internal use and will be removed in a future version.
 type HttpStatusError struct {
 	Message string
 	Code    int
@@ -26,6 +28,8 @@ func (e HttpStatusError) Error() string {
 // Passing in a time.Time value will return a pointer to the input value.
 // Unparsable inputs will return nil
 // More info on RFC3339: http://stackoverflow.com/questions/522251/whats-the-difference-between-iso-8601-and-rfc-3339-date-formats
+//
+// Deprecated: this function is for internal use and will be removed in a future version.
 func ParseTime(input interface{}) *time.Time {
 	if input == nil {
 		return nil
@@ -54,6 +58,8 @@ func ParseTime(input interface{}) *time.Time {
 
 // ParseFloat64 parses a numeric value as float64 from a string or another numeric type.
 // Returns nil pointer if input is nil or unparsable.
+//
+// Deprecated: this function is for internal use and will be removed in a future version.
 func ParseFloat64(input interface{}) *float64 {
 	if input == nil {
 		return nil
@@ -82,7 +88,7 @@ func unixMillisToUtcTime(unixMillis float64) time.Time {
 
 // ToJsonRawMessage converts input to a *json.RawMessage if possible.
 //
-// Deprecated: No longer used in the SDK, will be removed in a future version.
+// Deprecated: this function is for internal use and will be removed in a future version.
 func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
 	if input == nil {
 		return nil, nil
@@ -126,6 +132,8 @@ func checkForHttpError(statusCode int, url string) error {
 }
 
 // MakeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a feature store
+//
+// Deprecated: this functioin is for internal use and will be removed in a future version.
 func MakeAllVersionedDataMap(
 	features map[string]*FeatureFlag,
 	segments map[string]*Segment) map[VersionedDataKind]map[string]VersionedData {
@@ -140,6 +148,18 @@ func MakeAllVersionedDataMap(
 		allData[Segments][k] = v
 	}
 	return allData
+}
+
+func addBaseHeaders(req *http.Request, sdkKey string, config Config) {
+	req.Header.Add("Authorization", sdkKey)
+	req.Header.Add("User-Agent", config.UserAgent)
+	if config.WrapperName != "" {
+		w := config.WrapperName
+		if config.WrapperVersion != "" {
+			w = w + "/" + config.WrapperVersion
+		}
+		req.Header.Add("X-LaunchDarkly-Wrapper", w)
+	}
 }
 
 // Tests whether an HTTP error status represents a condition that might resolve on its own if we retry,
@@ -182,4 +202,23 @@ func describeUserForErrorLog(user *User, logUserKeyInErrors bool) string {
 		return fmt.Sprintf("user '%s'", key)
 	}
 	return "a user (enable LogUserKeyInErrors to see the user key)"
+}
+
+func stringSlicesEqual(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, n0 := range a {
+		ok := false
+		for _, n1 := range b {
+			if n1 == n0 {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
 }

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 var user = NewUser("key")
