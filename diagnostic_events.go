@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 type diagnosticId struct {
@@ -32,26 +33,26 @@ type diagnosticPlatformData struct {
 type milliseconds int
 
 type diagnosticConfigData struct {
-	CustomBaseURI               bool         `json:"customBaseURI"`
-	CustomStreamURI             bool         `json:"customStreamURI"`
-	CustomEventsURI             bool         `json:"customEventsURI"`
-	DataStoreType               *string      `json:"dataStoreType"`
-	EventsCapacity              int          `json:"eventsCapacity"`
-	ConnectTimeoutMillis        milliseconds `json:"connectTimeoutMillis"`
-	SocketTimeoutMillis         milliseconds `json:"socketTimeoutMillis"`
-	EventsFlushIntervalMillis   milliseconds `json:"eventsFlushIntervalMillis"`
-	PollingIntervalMillis       milliseconds `json:"pollingIntervalMillis"`
-	StartWaitMillis             milliseconds `json:"startWaitMillis"`
-	SamplingInterval            int32        `json:"samplingInterval"`
-	ReconnectTimeMillis         milliseconds `json:"reconnectTimeMillis"`
-	StreamingDisabled           bool         `json:"streamingDisabled"`
-	UsingRelayDaemon            bool         `json:"usingRelayDaemon"`
-	Offline                     bool         `json:"offline"`
-	AllAttributesPrivate        bool         `json:"allAttributesPrivate"`
-	InlineUsersInEvents         bool         `json:"inlineUsersInEvents"`
-	UserKeysCapacity            int          `json:"userKeysCapacity"`
-	UserKeysFlushIntervalMillis milliseconds `json:"userKeysFlushIntervalMillis"`
-	UsingProxy                  bool         `json:"usingProxy"`
+	CustomBaseURI               bool                   `json:"customBaseURI"`
+	CustomStreamURI             bool                   `json:"customStreamURI"`
+	CustomEventsURI             bool                   `json:"customEventsURI"`
+	DataStoreType               ldvalue.OptionalString `json:"dataStoreType"`
+	EventsCapacity              int                    `json:"eventsCapacity"`
+	ConnectTimeoutMillis        milliseconds           `json:"connectTimeoutMillis"`
+	SocketTimeoutMillis         milliseconds           `json:"socketTimeoutMillis"`
+	EventsFlushIntervalMillis   milliseconds           `json:"eventsFlushIntervalMillis"`
+	PollingIntervalMillis       milliseconds           `json:"pollingIntervalMillis"`
+	StartWaitMillis             milliseconds           `json:"startWaitMillis"`
+	SamplingInterval            int32                  `json:"samplingInterval"`
+	ReconnectTimeMillis         milliseconds           `json:"reconnectTimeMillis"`
+	StreamingDisabled           bool                   `json:"streamingDisabled"`
+	UsingRelayDaemon            bool                   `json:"usingRelayDaemon"`
+	Offline                     bool                   `json:"offline"`
+	AllAttributesPrivate        bool                   `json:"allAttributesPrivate"`
+	InlineUsersInEvents         bool                   `json:"inlineUsersInEvents"`
+	UserKeysCapacity            int                    `json:"userKeysCapacity"`
+	UserKeysFlushIntervalMillis milliseconds           `json:"userKeysFlushIntervalMillis"`
+	UsingProxy                  bool                   `json:"usingProxy"`
 	// UsingProxyAuthenticator  bool         `json:"usingProxyAuthenticator"` // not knowable in Go SDK
 	DiagnosticRecordingIntervalMillis milliseconds `json:"diagnosticRecordingIntervalMillis"`
 }
@@ -248,15 +249,14 @@ func (m *diagnosticsManager) CreateStatsEventAndReset(
 	return event
 }
 
-func getComponentTypeName(component interface{}) *string {
+func getComponentTypeName(component interface{}) ldvalue.OptionalString {
 	if component != nil {
-		name := "custom"
 		if dcd, ok := component.(diagnosticsComponentDescriptor); ok {
-			name = dcd.GetDiagnosticsComponentTypeName()
+			return ldvalue.NewOptionalString(dcd.GetDiagnosticsComponentTypeName())
 		}
-		return &name
+		return ldvalue.NewOptionalString("custom")
 	}
-	return nil
+	return ldvalue.OptionalString{}
 }
 
 func normalizeOSName(osName string) string {

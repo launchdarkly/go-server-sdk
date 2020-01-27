@@ -151,10 +151,13 @@ type Prerequisite struct {
 }
 
 func bucketUser(user User, key, attr, salt string) float32 {
-	uValue, pass := user.valueOf(attr)
+	uValue, found := user.valueOf(attr)
+	if !found {
+		return 0
+	}
 
 	idHash, ok := bucketableStringValue(uValue)
-	if pass || !ok {
+	if !ok {
 		return 0
 	}
 
@@ -343,9 +346,9 @@ func (r Rule) matchesUser(store FeatureStore, user User) bool {
 }
 
 func (c Clause) matchesUserNoSegments(user User) bool {
-	uValue, pass := user.valueOf(c.Attribute)
+	uValue, found := user.valueOf(c.Attribute)
 
-	if pass {
+	if !found {
 		return false
 	}
 	matchFn := operatorFn(c.Op)

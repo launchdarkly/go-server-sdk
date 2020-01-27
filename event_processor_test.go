@@ -33,10 +33,7 @@ var epDefaultConfig = Config{
 	UserKeysFlushInterval: 1 * time.Hour,
 }
 
-var epDefaultUser = User{
-	Key:  strPtr("userKey"),
-	Name: strPtr("Red"),
-}
+var epDefaultUser = NewUserBuilder("userKey").Name("Red").Build()
 
 var userJson = map[string]interface{}{"key": "userKey", "name": "Red"}
 var filteredUserJson = map[string]interface{}{"key": "userKey", "privateAttrs": []interface{}{"name"}}
@@ -295,7 +292,7 @@ func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
 	st.serverTime = serverTime
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(User{Key: strPtr("otherUser")})
+	ie := NewIdentifyEvent(NewUser("otherUser"))
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -330,7 +327,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	st.serverTime = serverTime
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(User{Key: strPtr("otherUser")})
+	ie := NewIdentifyEvent(NewUser("otherUser"))
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -673,23 +670,15 @@ func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
 }
 
 func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
-	user1 := User{
-		Key:  strPtr("user1"),
-		Name: strPtr("Bandit"),
-	}
-	user2 := User{
-		Key:  strPtr("user2"),
-		Name: strPtr("Tinker"),
-	}
+	user1 := NewUserBuilder("user1").Name("Bandit").Build()
+	user2 := NewUserBuilder("user2").Name("Tinker").Build()
+
+	// see TestUserSerialization() regarding this method of injecting a custom attribute
+	user3 := NewUserBuilder("user3").Name("Pirate").Build()
 	errorMessage := "boom"
-	user3Custom := map[string]interface{}{
-		"uh-oh": valueThatPanicsWhenMarshalledToJSON(errorMessage), // see user_filter_test.go
-	}
-	user3 := User{
-		Key:    strPtr("user3"),
-		Name:   strPtr("Pirate"),
-		Custom: &user3Custom,
-	}
+	custom := make(map[string]interface{})
+	custom["uh-oh"] = valueThatPanicsWhenMarshalledToJSON(errorMessage)
+	user3.Custom = &custom
 
 	config := epDefaultConfig
 	logger := newMockLogger("")

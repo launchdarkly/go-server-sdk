@@ -781,7 +781,7 @@ func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
 	client.store.Upsert(Features, flag1)
 	client.store.Upsert(Features, flag2)
 
-	state := client.AllFlagsState(User{})
+	state := client.AllFlagsState(evalTestUserWithNilKey)
 	assert.False(t, state.IsValid())
 	assert.Nil(t, state.ToValuesMap())
 }
@@ -792,7 +792,7 @@ func TestUnknownFlagErrorLogging(t *testing.T) {
 }
 
 func TestInvalidUserErrorLogging(t *testing.T) {
-	testEvalErrorLogging(t, makeTestFlag("valid-flag", 1, false, true), "", User{},
+	testEvalErrorLogging(t, makeTestFlag("valid-flag", 1, false, true), "", evalTestUserWithNilKey,
 		"WARN: user\\.Key cannot be nil when evaluating flag: valid-flag\\. Returning default value")
 }
 
