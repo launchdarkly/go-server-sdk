@@ -120,12 +120,13 @@ func isExperiment(flag *FeatureFlag, reason EvaluationReason) bool {
 	if reason == nil {
 		return false
 	}
-	switch r := reason.(type) {
-	case EvaluationReasonFallthrough:
+	switch reason.GetKind() {
+	case EvalReasonFallthrough:
 		return flag.TrackEventsFallthrough
-	case EvaluationReasonRuleMatch:
-		if r.RuleIndex >= 0 && r.RuleIndex < len(flag.Rules) {
-			return flag.Rules[r.RuleIndex].TrackEvents
+	case EvalReasonRuleMatch:
+		i := reason.GetRuleIndex()
+		if i >= 0 && i < len(flag.Rules) {
+			return flag.Rules[i].TrackEvents
 		}
 	}
 	return false
