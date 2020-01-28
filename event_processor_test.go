@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
 var BuiltinAttributes = []string{
@@ -91,8 +92,8 @@ func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
 		Key:     "flagkey",
 		Version: 11,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -111,8 +112,8 @@ func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
 		Version:     11,
 		TrackEvents: true,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -134,8 +135,8 @@ func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 		Version:     11,
 		TrackEvents: true,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -157,8 +158,8 @@ func TestFeatureEventCanContainInlineUser(t *testing.T) {
 		Version:     11,
 		TrackEvents: true,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -180,8 +181,8 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 		Version:     11,
 		TrackEvents: true,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -202,8 +203,8 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 		Version:     11,
 		TrackEvents: true,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	fe.Reason.Reason = evalReasonFallthroughInstance
 	ep.SendEvent(fe)
 
@@ -225,8 +226,8 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 		Version:     11,
 		TrackEvents: false,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -247,8 +248,8 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &futureTime,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -270,8 +271,8 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 		TrackEvents:          true,
 		DebugEventsUntilDate: &futureTime,
 	}
-	value := "value"
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -307,14 +308,14 @@ func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &debugUntil,
 	}
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, nil, nil, nil, nil, false, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, nil, ldvalue.Null(), ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
 	if assert.Equal(t, 2, len(output)) {
 		assertIndexEventMatches(t, fe, userJson, output[0])
 		// should get a summary event only, not a debug event
-		assertSummaryEventHasCounter(t, flag, nil, nil, 1, output[1])
+		assertSummaryEventHasCounter(t, flag, nil, ldvalue.Null(), 1, output[1])
 	}
 }
 
@@ -342,14 +343,14 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &debugUntil,
 	}
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, nil, nil, nil, nil, false, nil)
+	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, nil, ldvalue.Null(), ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
 	if assert.Equal(t, 2, len(output)) {
 		assertIndexEventMatches(t, fe, userJson, output[0])
 		// should get a summary event only, not a debug event
-		assertSummaryEventHasCounter(t, flag, nil, nil, 1, output[1])
+		assertSummaryEventHasCounter(t, flag, nil, ldvalue.Null(), 1, output[1])
 	}
 }
 
@@ -367,9 +368,9 @@ func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
 		Version:     22,
 		TrackEvents: true,
 	}
-	value := "value"
-	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
-	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
+	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 
@@ -397,10 +398,10 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 		Version:     22,
 		TrackEvents: false,
 	}
-	value := "value"
-	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, intPtr(2), value, nil, nil, false, nil)
-	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(3), value, nil, nil, false, nil)
-	fe3 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(3), value, nil, nil, false, nil)
+	value := ldvalue.String("value")
+	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, intPtr(2), value, ldvalue.Null(), nil, false, nil)
+	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(3), value, ldvalue.Null(), nil, false, nil)
+	fe3 := newSuccessfulEvalEvent(&flag2, epDefaultUser, intPtr(3), value, ldvalue.Null(), nil, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 	ep.SendEvent(fe3)
@@ -834,7 +835,7 @@ func assertIndexEventMatches(t *testing.T, sourceEvent Event, encodedUser map[st
 }
 
 func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, flag FeatureFlag,
-	value interface{}, debug bool, inlineUser *map[string]interface{}, output map[string]interface{}) {
+	value ldvalue.Value, debug bool, inlineUser *map[string]interface{}, output map[string]interface{}) {
 	kind := "feature"
 	if debug {
 		kind = "debug"
@@ -844,7 +845,7 @@ func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, fl
 		"creationDate": float64(sourceEvent.CreationDate),
 		"key":          flag.Key,
 		"version":      float64(flag.Version),
-		"value":        value,
+		"value":        value.AsArbitraryValue(),
 		"default":      nil,
 	}
 	if sourceEvent.Variation != nil {
@@ -869,12 +870,12 @@ func assertSummaryEventHasFlag(t *testing.T, flag FeatureFlag, output map[string
 	return false
 }
 
-func assertSummaryEventHasCounter(t *testing.T, flag FeatureFlag, variation *int, value interface{}, count int, output map[string]interface{}) {
+func assertSummaryEventHasCounter(t *testing.T, flag FeatureFlag, variation *int, value ldvalue.Value, count int, output map[string]interface{}) {
 	if assertSummaryEventHasFlag(t, flag, output) {
 		f, _ := output["features"].(map[string]interface{})[flag.Key].(map[string]interface{})
 		assert.NotNil(t, f)
 		expected := map[string]interface{}{
-			"value":   value,
+			"value":   value.AsArbitraryValue(),
 			"count":   float64(count),
 			"version": float64(flag.Version),
 		}
