@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 // FeatureStoreStatus is a description of whether a feature store is functioning normally.

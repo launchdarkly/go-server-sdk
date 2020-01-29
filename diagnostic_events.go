@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 type diagnosticId struct {
@@ -32,24 +33,25 @@ type diagnosticPlatformData struct {
 type milliseconds int
 
 type diagnosticConfigData struct {
-	CustomBaseURI               bool         `json:"customBaseURI"`
-	CustomStreamURI             bool         `json:"customStreamURI"`
-	CustomEventsURI             bool         `json:"customEventsURI"`
-	EventsCapacity              int          `json:"eventsCapacity"`
-	ConnectTimeoutMillis        milliseconds `json:"connectTimeoutMillis"`
-	SocketTimeoutMillis         milliseconds `json:"socketTimeoutMillis"`
-	EventsFlushIntervalMillis   milliseconds `json:"eventsFlushIntervalMillis"`
-	PollingIntervalMillis       milliseconds `json:"pollingIntervalMillis"`
-	StartWaitMillis             milliseconds `json:"startWaitMillis"`
-	ReconnectTimeMillis         milliseconds `json:"reconnectTimeMillis"`
-	StreamingDisabled           bool         `json:"streamingDisabled"`
-	UsingRelayDaemon            bool         `json:"usingRelayDaemon"`
-	Offline                     bool         `json:"offline"`
-	AllAttributesPrivate        bool         `json:"allAttributesPrivate"`
-	InlineUsersInEvents         bool         `json:"inlineUsersInEvents"`
-	UserKeysCapacity            int          `json:"userKeysCapacity"`
-	UserKeysFlushIntervalMillis milliseconds `json:"userKeysFlushIntervalMillis"`
-	UsingProxy                  bool         `json:"usingProxy"`
+	CustomBaseURI               bool                   `json:"customBaseURI"`
+	CustomStreamURI             bool                   `json:"customStreamURI"`
+	CustomEventsURI             bool                   `json:"customEventsURI"`
+	DataStoreType               ldvalue.OptionalString `json:"dataStoreType"`
+	EventsCapacity              int                    `json:"eventsCapacity"`
+	ConnectTimeoutMillis        milliseconds           `json:"connectTimeoutMillis"`
+	SocketTimeoutMillis         milliseconds           `json:"socketTimeoutMillis"`
+	EventsFlushIntervalMillis   milliseconds           `json:"eventsFlushIntervalMillis"`
+	PollingIntervalMillis       milliseconds           `json:"pollingIntervalMillis"`
+	StartWaitMillis             milliseconds           `json:"startWaitMillis"`
+	ReconnectTimeMillis         milliseconds           `json:"reconnectTimeMillis"`
+	StreamingDisabled           bool                   `json:"streamingDisabled"`
+	UsingRelayDaemon            bool                   `json:"usingRelayDaemon"`
+	Offline                     bool                   `json:"offline"`
+	AllAttributesPrivate        bool                   `json:"allAttributesPrivate"`
+	InlineUsersInEvents         bool                   `json:"inlineUsersInEvents"`
+	UserKeysCapacity            int                    `json:"userKeysCapacity"`
+	UserKeysFlushIntervalMillis milliseconds           `json:"userKeysFlushIntervalMillis"`
+	UsingProxy                  bool                   `json:"usingProxy"`
 	// UsingProxyAuthenticator  bool         `json:"usingProxyAuthenticator"` // not knowable in Go SDK
 	DiagnosticRecordingIntervalMillis milliseconds `json:"diagnosticRecordingIntervalMillis"`
 }
@@ -91,6 +93,12 @@ type diagnosticsManager struct {
 	streamInits       []diagnosticStreamInitInfo
 	periodicEventGate <-chan struct{}
 	lock              sync.Mutex
+}
+
+// Optional interface that can be implemented by components whose types can't be easily
+// determined by looking at the config object.
+type diagnosticsComponentDescriptor interface {
+	GetDiagnosticsComponentTypeName() string
 }
 
 func durationToMillis(d time.Duration) milliseconds {
@@ -156,6 +164,7 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 		CustomBaseURI:                     m.config.BaseUri != DefaultConfig.BaseUri,
 		CustomStreamURI:                   m.config.StreamUri != DefaultConfig.StreamUri,
 		CustomEventsURI:                   m.config.EventsUri != DefaultConfig.EventsUri,
+		DataStoreType:                     getComponentTypeName(m.config.FeatureStore),
 		EventsCapacity:                    m.config.Capacity,
 		ConnectTimeoutMillis:              durationToMillis(m.config.Timeout),
 		SocketTimeoutMillis:               durationToMillis(m.config.Timeout),
@@ -236,6 +245,16 @@ func (m *diagnosticsManager) CreateStatsEventAndReset(
 	m.streamInits = nil
 	m.dataSinceTime = timestamp
 	return event
+}
+
+func getComponentTypeName(component interface{}) ldvalue.OptionalString {
+	if component != nil {
+		if dcd, ok := component.(diagnosticsComponentDescriptor); ok {
+			return ldvalue.NewOptionalString(dcd.GetDiagnosticsComponentTypeName())
+		}
+		return ldvalue.NewOptionalString("custom")
+	}
+	return ldvalue.OptionalString{}
 }
 
 func normalizeOSName(osName string) string {

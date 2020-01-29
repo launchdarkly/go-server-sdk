@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
 )

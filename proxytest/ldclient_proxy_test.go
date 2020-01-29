@@ -7,17 +7,19 @@
 package proxytest
 
 import (
+	"net/url"
 	"os"
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 func TestClientUsesProxyEnvVars(t *testing.T) {
@@ -39,6 +41,32 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	os.Setenv("HTTP_PROXY", proxy.URL)
 
 	config := ld.DefaultConfig
+	config.Loggers = ldlog.NewDisabledLoggers()
+	config.BaseUri = fakeBaseURL
+	config.SendEvents = false
+	config.Stream = false
+
+	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
+	require.NoError(t, err)
+	defer client.Close()
+
+	assert.Equal(t, []string{fakeEndpointURL}, proxy.RequestedURLs)
+}
+
+func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
+	fakeBaseURL := "http://badhost/url"
+	fakeEndpointURL := fakeBaseURL + "/sdk/latest-all"
+
+	// Create an extremely minimal fake proxy server that doesn't actually do any proxying, just to
+	// verify that we are connecting to it. If the HTTP_PROXY setting is ignored, then it will try
+	// to connect directly to the nonexistent host "badhost" instead and get an error.
+	proxy := shared.NewStubHTTPServer(shared.StubResponse{Code: 200, Body: "{}"})
+	defer proxy.Close()
+	proxyURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err)
+
+	config := ld.DefaultConfig
+	config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
 	config.Loggers = ldlog.NewDisabledLoggers()
 	config.BaseUri = fakeBaseURL
 	config.SendEvents = false

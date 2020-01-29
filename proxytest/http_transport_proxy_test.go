@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 func TestDefaultTransportUsesProxyEnvVars(t *testing.T) {

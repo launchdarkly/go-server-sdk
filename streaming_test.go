@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 type testEvent struct {

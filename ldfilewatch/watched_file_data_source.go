@@ -12,7 +12,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
 const retryDuration = time.Second
@@ -34,7 +34,7 @@ type fileWatcher struct {
 func WatchFiles(paths []string, errorLogger ld.Logger, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return fmt.Errorf("Unable to create file watcher: %s", err)
+		return fmt.Errorf("unable to create file watcher: %s", err)
 	}
 	fw := &fileWatcher{
 		watcher:     watcher,
@@ -80,16 +80,16 @@ func (fw *fileWatcher) setupWatches() error {
 		absDirPath := path.Dir(p)
 		realDirPath, err := filepath.EvalSymlinks(absDirPath)
 		if err != nil {
-			return fmt.Errorf(`Unable to evaluate symlinks for "%s": %s`, absDirPath, err)
+			return fmt.Errorf(`unable to evaluate symlinks for "%s": %s`, absDirPath, err)
 		}
 
 		realPath := path.Join(realDirPath, path.Base(p))
 		fw.absPaths[realPath] = true
 		if err = fw.watcher.Add(realPath); err != nil {
-			return fmt.Errorf(`Unable to watch path "%s": %s`, realPath, err)
+			return fmt.Errorf(`unable to watch path "%s": %s`, realPath, err)
 		}
 		if err = fw.watcher.Add(realDirPath); err != nil {
-			return fmt.Errorf(`Unable to watch path "%s": %s`, realDirPath, err)
+			return fmt.Errorf(`unable to watch path "%s": %s`, realDirPath, err)
 		}
 	}
 	return nil

@@ -1,7 +1,6 @@
 package ldclient
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 )
@@ -100,31 +99,5 @@ func testParseBadNumber(t *testing.T, input interface{}) {
 	actual := parseFloat64(input)
 	if actual != nil {
 		t.Errorf("Expected nil result, but instead got: %+v when parsing: %+v", actual, input)
-	}
-}
-
-func TestToJsonRawMessage(t *testing.T) {
-	expectedJsonString := `{"FieldName":"fieldValue","NumericField":1.02}`
-
-	type expected struct {
-		FieldName    string  `json:"FieldName"`
-		NumericField float64 `json:"NumericField"`
-	}
-	expectedStruct := expected{FieldName: "fieldValue", NumericField: 1.02}
-
-	inputs := [3]interface{}{
-		json.RawMessage([]byte(expectedJsonString)),
-		[]byte(expectedJsonString),
-		expectedStruct,
-	}
-
-	for _, input := range inputs {
-		actual, err := toJsonRawMessage(input)
-		if err != nil {
-			t.Errorf("Got unexpected error: %+v", err.Error())
-		}
-		if expectedJsonString != string(actual) {
-			t.Errorf("Got unexpected result: %+v but was expecting: %+v", string(actual), expectedJsonString)
-		}
 	}
 }

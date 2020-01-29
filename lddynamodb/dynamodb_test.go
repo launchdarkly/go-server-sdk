@@ -10,10 +10,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 const (
@@ -55,6 +56,12 @@ func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Internal.testUpdateHook = hook
 	})
+}
+
+func TestDynamoDBStoreComponentTypeName(t *testing.T) {
+	factory, _ := NewDynamoDBFeatureStoreFactory("table")
+	store, _ := factory(ld.DefaultConfig)
+	assert.Equal(t, "DynamoDB", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
 func makeStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {

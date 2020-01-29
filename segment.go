@@ -8,7 +8,7 @@ type Segment struct {
 	Included []string      `json:"included" bson:"included"`
 	Excluded []string      `json:"excluded" bson:"excluded"`
 	Salt     string        `json:"salt" bson:"salt"`
-	Rules    []SegmentRule `json:"rules" bson:"rules"`
+	Rules    []segmentRule `json:"rules" bson:"rules"`
 	Version  int           `json:"version" bson:"version"`
 	Deleted  bool          `json:"deleted" bson:"deleted"`
 }
@@ -34,42 +34,38 @@ func (s *Segment) Clone() VersionedData {
 	return &s1
 }
 
-// SegmentVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for segments.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type SegmentVersionedDataKind struct{}
+// segmentVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for segments.
+type segmentVersionedDataKind struct{}
 
 // GetNamespace returns the a unique namespace identifier for feature flag objects
-func (sk SegmentVersionedDataKind) GetNamespace() string {
+func (sk segmentVersionedDataKind) GetNamespace() string {
 	return "segments"
 }
 
 // String returns the namespace
-func (sk SegmentVersionedDataKind) String() string {
+func (sk segmentVersionedDataKind) String() string {
 	return sk.GetNamespace()
 }
 
 // GetDefaultItem returns a default segment representation
-func (sk SegmentVersionedDataKind) GetDefaultItem() interface{} {
+func (sk segmentVersionedDataKind) GetDefaultItem() interface{} {
 	return &Segment{}
 }
 
 // MakeDeletedItem returns representation of a deleted segment
-func (sk SegmentVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
+func (sk segmentVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
 	return &Segment{Key: key, Version: version, Deleted: true}
 }
 
-// Segments is convenience variable to access an instance of SegmentVersionedDataKind.
+// Segments is a convenience variable to access an instance of VersionedDataKind.
 //
 // Deprecated: this variable is for internal use and will be moved to another package in a future version.
-var Segments SegmentVersionedDataKind
+var Segments VersionedDataKind = segmentVersionedDataKind{}
 
-// SegmentRule describes a set of rules in a Segment.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type SegmentRule struct {
+// segmentRule describes a set of rules in a Segment.
+type segmentRule struct {
 	Id       string   `json:"id,omitempty" bson:"id,omitempty"`
-	Clauses  []Clause `json:"clauses" bson:"clauses"`
+	Clauses  []clause `json:"clauses" bson:"clauses"`
 	Weight   *int     `json:"weight,omitempty" bson:"weight,omitempty"`
 	BucketBy *string  `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
@@ -105,7 +101,7 @@ func (s Segment) containsUser(user User) bool {
 }
 
 // MatchesUser returns whether a rule applies to a user
-func (r SegmentRule) matchesUser(user User, key, salt string) bool {
+func (r segmentRule) matchesUser(user User, key, salt string) bool {
 	for _, clause := range r.Clauses {
 		if !clause.matchesUserNoSegments(user) {
 			return false

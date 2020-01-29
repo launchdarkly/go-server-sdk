@@ -1,16 +1,17 @@
 package utils
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 type testCacheMode string
@@ -254,13 +255,16 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Get with missing item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapperWithConfig(core, configWithoutLogging)
+		mockLog := shared_test.NewMockLoggers()
+		w := NewFeatureStoreWrapperWithConfig(core, ld.Config{Loggers: mockLog.Loggers})
 		defer w.Close()
 		flag := ld.FeatureFlag{Key: "flag", Version: 1}
 
 		item, err := w.Get(ld.Features, flag.Key)
 		require.NoError(t, err)
 		require.Nil(t, item)
+
+		assert.Nil(t, mockLog.Output[ldlog.Error]) // missing item should *not* be logged as an error by this component
 
 		core.forceSet(ld.Features, &flag)
 		item, err = w.Get(ld.Features, flag.Key)
@@ -778,26 +782,22 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 var dependencyOrderingTestData = map[ld.VersionedDataKind]map[string]ld.VersionedData{
 	ld.Features: {
-		"a": &ld.FeatureFlag{
-			Key: "a",
-			Prerequisites: []ld.Prerequisite{
-				ld.Prerequisite{Key: "b"},
-				ld.Prerequisite{Key: "c"},
-			},
-		},
-		"b": &ld.FeatureFlag{
-			Key: "b",
-			Prerequisites: []ld.Prerequisite{
-				ld.Prerequisite{Key: "c"},
-				ld.Prerequisite{Key: "e"},
-			},
-		},
-		"c": &ld.FeatureFlag{Key: "c"},
-		"d": &ld.FeatureFlag{Key: "d"},
-		"e": &ld.FeatureFlag{Key: "e"},
-		"f": &ld.FeatureFlag{Key: "f"},
+		"a": parseFlag(`{"key":"a","prerequisites":[{"key":"b"},{"key":"c"}]}`),
+		"b": parseFlag(`{"key":"b","prerequisites":[{"key":"c"},{"key":"e"}]}`),
+		"c": parseFlag(`{"key":"c"}`),
+		"d": parseFlag(`{"key":"d"}`),
+		"e": parseFlag(`{"key":"e"}`),
+		"f": parseFlag(`{"key":"f"}`),
 	},
 	ld.Segments: {
 		"1": &ld.Segment{Key: "1"},
 	},
+}
+
+func parseFlag(jsonString string) *ld.FeatureFlag {
+	var f ld.FeatureFlag
+	if err := json.Unmarshal([]byte(jsonString), &f); err != nil {
+		panic(err)
+	}
+	return &f
 }
