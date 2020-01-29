@@ -26,7 +26,7 @@
   go-tests = true
 
 [[constraint]]
-  name = "gopkg.in/launchdarkly/go-sdk-common.v1"
+  name = "gopkg.in/launchdarkly/go-sdk-common.v2"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[constraint]]

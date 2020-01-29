@@ -1,6 +1,6 @@
 package ldclient
 
-import "gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
+import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 
 // NewUser creates a new user identified by the given key.
 func NewUser(key string) User {
@@ -191,42 +191,42 @@ func (b *userBuilderImpl) Key(value string) UserBuilder {
 }
 
 func (b *userBuilderImpl) Secondary(value string) UserBuilderCanMakeAttributePrivate {
-	b.secondary = ldvalue.NewOptionalStringWithValue(value)
+	b.secondary = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("secondary")
 }
 
 func (b *userBuilderImpl) IP(value string) UserBuilderCanMakeAttributePrivate {
-	b.ip = ldvalue.NewOptionalStringWithValue(value)
+	b.ip = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("ip")
 }
 
 func (b *userBuilderImpl) Country(value string) UserBuilderCanMakeAttributePrivate {
-	b.country = ldvalue.NewOptionalStringWithValue(value)
+	b.country = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("country")
 }
 
 func (b *userBuilderImpl) Email(value string) UserBuilderCanMakeAttributePrivate {
-	b.email = ldvalue.NewOptionalStringWithValue(value)
+	b.email = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("email")
 }
 
 func (b *userBuilderImpl) FirstName(value string) UserBuilderCanMakeAttributePrivate {
-	b.firstName = ldvalue.NewOptionalStringWithValue(value)
+	b.firstName = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("firstName")
 }
 
 func (b *userBuilderImpl) LastName(value string) UserBuilderCanMakeAttributePrivate {
-	b.lastName = ldvalue.NewOptionalStringWithValue(value)
+	b.lastName = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("lastName")
 }
 
 func (b *userBuilderImpl) Avatar(value string) UserBuilderCanMakeAttributePrivate {
-	b.avatar = ldvalue.NewOptionalStringWithValue(value)
+	b.avatar = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("avatar")
 }
 
 func (b *userBuilderImpl) Name(value string) UserBuilderCanMakeAttributePrivate {
-	b.name = ldvalue.NewOptionalStringWithValue(value)
+	b.name = ldvalue.NewOptionalString(value)
 	return b.canMakeAttributePrivate("name")
 }
 

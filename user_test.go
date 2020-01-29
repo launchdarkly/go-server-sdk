@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 type userStringPropertyDesc struct {
@@ -33,6 +33,12 @@ var userCountryProperty = userStringPropertyDesc{
 	User.GetCountry,
 	UserBuilder.Country,
 	func(u User) *string { return u.Country },
+}
+var userEmailProperty = userStringPropertyDesc{
+	"email",
+	User.GetEmail,
+	UserBuilder.Email,
+	func(u User) *string { return u.Email },
 }
 var userFirstNameProperty = userStringPropertyDesc{
 	"firstName",
@@ -63,6 +69,7 @@ var allUserStringProperties = []userStringPropertyDesc{
 	userSecondaryKeyProperty,
 	userIPProperty,
 	userCountryProperty,
+	userEmailProperty,
 	userFirstNameProperty,
 	userLastNameProperty,
 	userAvatarProperty,
@@ -120,6 +127,16 @@ func TestNewAnonymousUser(t *testing.T) {
 	assert.Nil(t, user.PrivateAttributeNames)
 }
 
+func TestUserWithNilKey(t *testing.T) {
+	user := User{}
+
+	assert.Equal(t, "", user.GetKey())
+
+	k, ok := user.valueOf("key")
+	assert.False(t, ok)
+	assert.Nil(t, k)
+}
+
 func TestUserBuilderSetsOnlyKeyByDefault(t *testing.T) {
 	user := NewUserBuilder("some-key").Build()
 
@@ -147,7 +164,7 @@ func TestUserBuilderCanSetStringAttributes(t *testing.T) {
 
 			for _, p1 := range allUserStringProperties {
 				if p1.name == p.name {
-					assert.Equal(t, ldvalue.NewOptionalStringWithValue("value"), p.getter(user), p.name)
+					assert.Equal(t, ldvalue.NewOptionalString("value"), p.getter(user), p.name)
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
 					v, ok := user.valueOf(p.name)
@@ -210,7 +227,7 @@ func TestUserBuilderCanSetPrivateStringAttributes(t *testing.T) {
 
 			for _, p1 := range allUserStringProperties {
 				if p1.name == p.name {
-					assert.Equal(t, ldvalue.NewOptionalStringWithValue("value"), p.getter(user))
+					assert.Equal(t, ldvalue.NewOptionalString("value"), p.getter(user))
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
 				} else {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func TestDiagnosticIDHasRandomID(t *testing.T) {
@@ -87,11 +88,11 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		{func(c *Config) { c.EventsUri = "custom" }, func(d *diagnosticConfigData) { d.CustomEventsURI = true }},
 		{func(c *Config) { c.FeatureStore = NewInMemoryFeatureStore(nil) },
 			func(d *diagnosticConfigData) {
-				d.DataStoreType = strPtr("memory")
+				d.DataStoreType = ldvalue.NewOptionalString("memory")
 			}},
 		{func(c *Config) { c.FeatureStore = customStoreForDiagnostics{name: "Foo"} },
 			func(d *diagnosticConfigData) {
-				d.DataStoreType = strPtr("Foo")
+				d.DataStoreType = ldvalue.NewOptionalString("Foo")
 			}},
 		// Can't use our actual persistent store implementations (Redis, etc.) in this test because it'd be
 		// a circular package reference. There are tests in each of those packages to verify that they

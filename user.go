@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 // A User contains specific attributes of a user browsing your site. The only mandatory property property is the Key,

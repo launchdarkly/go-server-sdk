@@ -40,6 +40,10 @@ func (v Value) JSONString() string {
 }
 
 // MarshalJSON converts the Value to its JSON representation.
+//
+// Note that the "omitempty" tag for a struct field will not cause an empty Value field to be
+// omitted; it will be output as null. If you want to completely omit a JSON property when there
+// is no value, it must be a pointer; use AsPointer().
 func (v Value) MarshalJSON() ([]byte, error) {
 	switch v.valueType {
 	case NullType:
