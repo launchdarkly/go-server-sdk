@@ -10,8 +10,8 @@ import (
 	"time"
 
 	es "github.com/launchdarkly/eventsource"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 const (
@@ -23,17 +23,18 @@ const (
 )
 
 type streamProcessor struct {
-	store              FeatureStore
-	client             *http.Client
-	requestor          *requestor
-	config             Config
-	sdkKey             string
-	setInitializedOnce sync.Once
-	isInitialized      bool
-	halt               chan struct{}
-	storeStatusSub     internal.FeatureStoreStatusSubscription
-	readyOnce          sync.Once
-	closeOnce          sync.Once
+	store                      FeatureStore
+	client                     *http.Client
+	requestor                  *requestor
+	config                     Config
+	sdkKey                     string
+	setInitializedOnce         sync.Once
+	isInitialized              bool
+	halt                       chan struct{}
+	storeStatusSub             internal.FeatureStoreStatusSubscription
+	connectionAttemptStartTime uint64
+	readyOnce                  sync.Once
+	closeOnce                  sync.Once
 }
 
 type putData struct {
@@ -118,6 +119,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 				sp.config.Loggers.Info("Event stream closed")
 				return false
 			}
+			sp.logConnectionResult(true)
 			switch event.Event() {
 			case putEvent:
 				var put putData
@@ -237,9 +239,10 @@ func newStreamProcessor(sdkKey string, config Config, requestor *requestor) *str
 func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	for {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/all", nil)
-		req.Header.Add("Authorization", sp.sdkKey)
-		req.Header.Add("User-Agent", sp.config.UserAgent)
+		addBaseHeaders(req, sp.sdkKey, sp.config)
 		sp.config.Loggers.Info("Connecting to LaunchDarkly stream")
+
+		sp.logConnectionStarted()
 
 		if stream, err := es.SubscribeWithRequestAndOptions(req,
 			es.StreamOptionHTTPClient(sp.client),
@@ -247,6 +250,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			es.StreamOptionLogger(sp.config.Loggers.ForLevel(ldlog.Info))); err != nil {
 
 			sp.config.Loggers.Warnf("Unable to establish streaming connection: %+v", err)
+			sp.logConnectionResult(false)
 
 			if sp.checkIfPermanentFailure(err) {
 				close(closeWhenReady)
@@ -278,6 +282,19 @@ func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
 		}
 	}
 	return false
+}
+
+func (sp *streamProcessor) logConnectionStarted() {
+	sp.connectionAttemptStartTime = now()
+}
+
+func (sp *streamProcessor) logConnectionResult(success bool) {
+	if sp.connectionAttemptStartTime > 0 && sp.config.diagnosticsManager != nil {
+		timestamp := now()
+		sp.config.diagnosticsManager.RecordStreamInit(timestamp, !success,
+			milliseconds(timestamp-sp.connectionAttemptStartTime))
+	}
+	sp.connectionAttemptStartTime = 0
 }
 
 // Close instructs the processor to stop receiving updates

@@ -8,7 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 type testCacheMode string
@@ -250,13 +252,16 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Get with missing item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		mockLog := shared_test.NewMockLoggers()
+		w := NewFeatureStoreWrapperWithConfig(core, ld.Config{Loggers: mockLog.Loggers})
 		defer w.Close()
 		flag := ld.FeatureFlag{Key: "flag", Version: 1}
 
 		item, err := w.Get(ld.Features, flag.Key)
 		require.NoError(t, err)
 		require.Nil(t, item)
+
+		assert.Nil(t, mockLog.Output[ldlog.Error]) // missing item should *not* be logged as an error by this component
 
 		core.forceSet(ld.Features, &flag)
 		item, err = w.Get(ld.Features, flag.Key)

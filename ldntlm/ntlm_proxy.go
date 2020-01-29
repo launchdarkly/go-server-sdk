@@ -27,8 +27,8 @@ import (
 
 	ntlm "github.com/launchdarkly/go-ntlm-proxy-auth"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
 
 // NewNTLMProxyHTTPClientFactory returns a factory function for creating an HTTP client that will
@@ -43,7 +43,7 @@ func NewNTLMProxyHTTPClientFactory(proxyURL, username, password, domain string,
 	}
 	parsedProxyURL, err := url.Parse(proxyURL)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid proxy URL %s: %s", proxyURL, err)
+		return nil, fmt.Errorf("invalid proxy URL %s: %s", proxyURL, err)
 	}
 	// Try creating a transport with these options just to make sure it's valid before we get any farther
 	if _, _, err := ldhttp.NewHTTPTransport(options...); err != nil {

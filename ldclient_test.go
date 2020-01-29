@@ -63,7 +63,7 @@ func TestSecureModeHash(t *testing.T) {
 
 	client, _ := MakeCustomClient("secret", config, 0*time.Second)
 
-	hash := client.SecureModeHash(User{Key: &key})
+	hash := client.SecureModeHash(NewUser(key))
 
 	assert.Equal(t, expected, hash)
 }
@@ -86,7 +86,7 @@ func TestIdentifyWithNilUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Identify(User{})
+	err := client.Identify(evalTestUserWithNilKey)
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -165,7 +165,7 @@ func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Track("eventkey", User{}, nil)
+	err := client.Track("eventkey", evalTestUserWithNilKey, nil)
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -188,7 +188,7 @@ func TestTrackWithMetricWithNilUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric("eventKey", User{}, data, 2.5)
+	err := client.TrackWithMetric("eventKey", evalTestUserWithNilKey, data, 2.5)
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events

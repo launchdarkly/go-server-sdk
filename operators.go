@@ -28,10 +28,14 @@ const (
 
 type opFn (func(interface{}, interface{}) bool)
 
-// Operator describes an operator for a clause
+// Operator describes an operator for a clause.
+//
+// Deprecated: this type is for internal use and will be moved to another package in a future version.
 type Operator string
 
 // OpsList is the list of available operators
+//
+// Deprecated: this variable is for internal use and will be removed in a future version.
 var OpsList = []Operator{
 	OperatorIn,
 	OperatorEndsWith,
@@ -101,7 +105,6 @@ func stringOperator(uValue interface{}, cValue interface{}, fn func(string, stri
 		}
 	}
 	return false
-
 }
 
 func operatorStartsWithFn(uValue interface{}, cValue interface{}) bool {

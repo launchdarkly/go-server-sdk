@@ -73,9 +73,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 const (
@@ -504,6 +504,11 @@ func (store *dynamoDBFeatureStore) IsStoreAvailable() bool {
 		},
 	})
 	return err == nil
+}
+
+// Used internally to describe this component in diagnostic data.
+func (store *dynamoDBFeatureStore) GetDiagnosticsComponentTypeName() string {
+	return "DynamoDB"
 }
 
 func (store *dynamoDBFeatureStore) prefixedNamespace(baseNamespace string) string {

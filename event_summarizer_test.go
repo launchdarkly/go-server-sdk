@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 var user = NewUser("key")
@@ -33,9 +34,9 @@ func TestSummarizeEventSetsStartAndEndDates(t *testing.T) {
 	flag := FeatureFlag{
 		Key: "key",
 	}
-	event1 := newSuccessfulEvalEvent(&flag, user, nil, nil, nil, EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag, user, nil, nil, nil, EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag, user, nil, nil, nil, EvaluationReason{}, false, nil)
+	event1 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.Null(), ldvalue.Null(), EvaluationReason{}, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.Null(), ldvalue.Null(), EvaluationReason{}, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.Null(), ldvalue.Null(), EvaluationReason{}, false, nil)
 	event1.BaseEvent.CreationDate = 2000
 	event2.BaseEvent.CreationDate = 1000
 	event3.BaseEvent.CreationDate = 1500
@@ -60,11 +61,15 @@ func TestSummarizeEventIncrementsCounters(t *testing.T) {
 	unknownFlagKey := "badkey"
 	variation1 := 1
 	variation2 := 2
-	event1 := newSuccessfulEvalEvent(&flag1, user, &variation1, "value1", "default1", EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag1, user, &variation2, "value2", "default1", EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag2, user, &variation1, "value99", "default2", EvaluationReason{}, false, nil)
-	event4 := newSuccessfulEvalEvent(&flag1, user, &variation1, "value1", "default1", EvaluationReason{}, false, nil)
-	event5 := newUnknownFlagEvent(unknownFlagKey, user, "default3", EvaluationReason{}, false)
+	event1 := newSuccessfulEvalEvent(&flag1, user, &variation1, ldvalue.String("value1"),
+		ldvalue.String("default1"), EvaluationReason{}, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag1, user, &variation2, ldvalue.String("value2"),
+		ldvalue.String("default1"), EvaluationReason{}, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag2, user, &variation1, ldvalue.String("value99"),
+		ldvalue.String("default2"), EvaluationReason{}, false, nil)
+	event4 := newSuccessfulEvalEvent(&flag1, user, &variation1, ldvalue.String("value1"),
+		ldvalue.String("default1"), EvaluationReason{}, false, nil)
+	event5 := newUnknownFlagEvent(unknownFlagKey, user, ldvalue.String("default3"), EvaluationReason{}, false)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)
@@ -89,9 +94,12 @@ func TestCounterForNilVariationIsDistinctFromOthers(t *testing.T) {
 	}
 	variation1 := 1
 	variation2 := 2
-	event1 := newSuccessfulEvalEvent(&flag, user, &variation1, "value1", "default1", EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag, user, &variation2, "value2", "default1", EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag, user, nil, "default1", "default1", EvaluationReason{}, false, nil)
+	event1 := newSuccessfulEvalEvent(&flag, user, &variation1, ldvalue.String("value1"),
+		ldvalue.String("default1"), EvaluationReason{}, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag, user, &variation2, ldvalue.String("value2"),
+		ldvalue.String("default1"), EvaluationReason{}, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.String("default1"),
+		ldvalue.String("default1"), EvaluationReason{}, false, nil)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)

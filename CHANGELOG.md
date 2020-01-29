@@ -2,6 +2,34 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.15.0] - 2020-01-23
+Note: if you are using the LaunchDarkly Relay Proxy to forward events, update the Relay to version 5.10.0 or later before updating to this Go SDK version.
+
+### Added:
+- The SDK now periodically sends diagnostic data to LaunchDarkly, describing the version and configuration of the SDK, the architecture and version of the runtime platform, and performance statistics. No credentials, hostnames, or other identifiable values are included. This behavior can be disabled with `Config.DiagnosticOptOut` or configured with `Config.DiagnosticRecordingInterval`.
+- New `Config` fields `WrapperName` and `WrapperVersion` allow a library that uses the Go SDK to identify itself for usage data if desired.
+
+## [4.14.2] - 2020-01-22
+### Fixed:
+- The SDK was logging a spurious "feature store query returned unexpected type" message at ERROR level if the application tried to evaluate an unknown feature flag when using a persistent data store.
+- Added missing package comments.
+
+## [4.14.1] - 2020-01-15
+### Fixed:
+- The SDK now specifies a uniquely identifiable request header when sending events to LaunchDarkly to ensure that events are only processed once, even if the SDK sends them two times due to a failed initial attempt.
+
+## [4.14.0] - 2020-01-09
+### Added:
+- `ldhttp.ProxyOption`, for specifying an HTTP/HTTPS proxy URL programmatically rather than using environment variables.
+
+### Fixed:
+- `NewHTTPClientFactory` did not work correctly: it did construct an HTTP client, but did not actually apply any `ldhttp` transport options that were specified.
+- In rare circumstances (depending on the exact data in the flag configuration, the flag's salt value, and the user properties), a percentage rollout could fail and return a default value, logging the error "Data inconsistency in feature flag ... variation/rollout object with no variation or rollout". This would happen if the user's hashed value fell exactly at the end of the last "bucket" (the last variation defined in the rollout). This has been fixed so that the user will get the last variation.
+
+### Deprecated:
+- Data model classes `FeatureFlag`, `Segment`, etc. are all deprecated and will be moved to another package in the future. Application code should never need to reference these types, and feature store integration code should only use abstractions like `ld.VersionedData`.
+- `SegmentExplanation`, `HttpStatusError`, `ParseTime`, `ParseFloat64`, and `ToJsonRawMessage` were meant for internal use, and will be removed or made private in a future version.
+
 ## [4.13.1] - 2019-11-05
 ### Fixed:
 - When using a persistent feature store (Redis, etc.), if multiple goroutines request the same flag in rapid succession when the flag data is not in the cache, the SDK will coalesce these requests so only a single database query is done.
@@ -18,7 +46,7 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 
 ## [4.12.0] - 2019-09-12
 ### Added:
-- The Go SDK now has log levels, similar to the logging frameworks used in the other LaunchDarkly SDKs. Log messages can have a level of Debug, Info, Warn, or Error; by default, Debug is hidden. The new package [`ldlog`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v4/ldlog) defines these levels, and you can use `Config.Loggers.SetMinLevel()` and `Config.Loggers.SetBaseLogger()` to control the behavior. The old property `Config.Logger` still works but is deprecated.
+- The Go SDK now has log levels, similar to the logging frameworks used in the other LaunchDarkly SDKs. Log messages can have a level of Debug, Info, Warn, or Error; by default, Debug is hidden. The new package [`ldlog`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/ldlog) defines these levels, and you can use `Config.Loggers.SetMinLevel()` and `Config.Loggers.SetBaseLogger()` to control the behavior. The old property `Config.Logger` still works but is deprecated.
 - The SDK will produce very detailed output if you call `Config.Loggers.SetMinLevel(ldlog.Debug)`. This includes information about when and how it connects to LaunchDarkly, and a full dump of all analytics event data it is sending. Since the debug logging is very verbose, and the event data includes user properties, you should not normally enable this log level in production unless advised to by LaunchDarkly support.
 - There is now a different property for specifying a feature store mechanism: `Config.FeatureStoreFactory`, which takes a factory method, rather than `Config.FeatureStore`, which takes an implementation instance. Using a factory method allows the implementation to access `Config` properties such as the logging configuration. The new methods `NewInMemoryFeatureStoreFactory`, `redis.NewRedisFeatureStoreFactory`, `consul.NewConsulFeatureStoreFactory`, and `dynamodb.NewDynamoDBFeatureStoreFactory` work with this mechanism.
 - The SDK's CI build now verifies compatibility with Go 1.11 and 1.12.
@@ -73,7 +101,7 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 
 ## [4.7.3] - 2019-04-29
 ### Changed:
-- Import paths in subpackages and tests have been changed from `gopkg.in/launchdarkly/go-client.v4` to `gopkg.in/launchdarkly/go-server-sdk.v4`. Users of this SDK should update their import paths accordingly.
+- Import paths in subpackages and tests have been changed from `gopkg.in/launchdarkly/go-client.v4` to `gopkg.in/launchdarkly/go-server-sdk.v5`. Users of this SDK should update their import paths accordingly.
 - This is the first release from the new `launchdarkly/go-server-sdk` repository.
 
 ## [4.7.2] - 2019-04-25
@@ -87,7 +115,7 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 ### Note on future releases:
 The LaunchDarkly SDK repositories are being renamed for consistency. All future releases of the Go SDK will use the name `go-server-sdk` rather than `go-client`. The import path will change to:
 
-    "gopkg.in/launchdarkly/go-server-sdk.v4"
+    "gopkg.in/launchdarkly/go-server-sdk.v5"
 
 Since Go uses the repository name as part of the import path, to avoid breaking existing code, we will retain the existing `go-client` repository as well. However, it will not be updated after this release.
 
@@ -114,11 +142,11 @@ Since Go uses the repository name as part of the import path, to avoid breaking 
 
 ## [4.5.0] - 2018-11-14
 ### Added:
-- It is now possible to use DynamoDB or Consul as a persistent feature store, similar to the existing Redis integration. See the [`ldconsul`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v4/ldconsul) and [`lddynamodb`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v4/lddynamodb) subpackages, and the reference guide to ["Using a persistent feature store"](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store).
+- It is now possible to use DynamoDB or Consul as a persistent feature store, similar to the existing Redis integration. See the [`ldconsul`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul) and [`lddynamodb`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb) subpackages, and the reference guide to ["Using a persistent feature store"](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store).
 
 ## [4.4.0] - 2018-10-30
 ### Added:
-- It is now possible to inject feature flags into the client from local JSON or YAML files, replacing the normal LaunchDarkly connection. This would typically be for testing purposes. See the [`ldfiledata`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v4/ldfiledata) and [`ldfilewatch`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v4/ldfilewatch) subpackages.
+- It is now possible to inject feature flags into the client from local JSON or YAML files, replacing the normal LaunchDarkly connection. This would typically be for testing purposes. See the [`ldfiledata`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata) and [`ldfilewatch`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/ldfilewatch) subpackages.
 
 - The `AllFlagsState` method now accepts a new option, `DetailsOnlyForTrackedFlags`, which reduces the size of the JSON representation of the flag state by omitting some metadata. Specifically, it omits any data that is normally used for generating detailed evaluation events if a flag does not have event tracking or debugging turned on.
 

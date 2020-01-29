@@ -3,7 +3,7 @@ package ldclient
 import (
 	"encoding/json"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 type serializableUser struct {
