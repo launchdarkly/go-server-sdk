@@ -414,7 +414,7 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 		assertSummaryEventHasCounter(t, flag1, intPtr(2), value, 1, seo)
 		assertSummaryEventHasCounter(t, flag2, intPtr(3), value, 2, seo)
 		assert.Equal(t, float64(fe1.CreationDate), seo["startDate"])
-		assert.Equal(t, float64(fe2.CreationDate), seo["endDate"])
+		assert.Equal(t, float64(fe3.CreationDate), seo["endDate"])
 	}
 }
 
