@@ -205,29 +205,29 @@ func (client *LDClient) Identify(user User) error {
 
 // TrackEvent reports that a user has performed an event.
 //
-// The key is defined by the application and will be shown in analytics reports; it normally
-// corresponds to the event name of a metric that you have created through the LaunchDarkly
-// dashboard. If you want to associate additional data with this event, use TrackData
+// The eventName parameter is defined by the application and will be shown in analytics reports;
+// it normally corresponds to the event name of a metric that you have created through the
+// LaunchDarkly dashboard. If you want to associate additional data with this event, use TrackData
 // or TrackMetric.
-func (client *LDClient) TrackEvent(key string, user User) error {
-	return client.TrackData(key, user, ldvalue.Null())
+func (client *LDClient) TrackEvent(eventName string, user User) error {
+	return client.TrackData(eventName, user, ldvalue.Null())
 }
 
 // TrackData reports that a user has performed an event, and associates it with custom data.
 //
-// The key is defined by the application and will be shown in analytics reports; it normally
-// corresponds to the event name of a metric that you have created through the LaunchDarkly
-// dashboard.
+// The eventName parameter is defined by the application and will be shown in analytics reports;
+// it normally corresponds to the event name of a metric that you have created through the
+// LaunchDarkly dashboard.
 //
 // The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 // will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
 // instead). To send a numeric value for experimentation, use TrackMetric.
-func (client *LDClient) TrackData(key string, user User, data ldvalue.Value) error {
+func (client *LDClient) TrackData(eventName string, user User, data ldvalue.Value) error {
 	if user.Key == nil || *user.Key == "" {
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(newCustomEvent(key, user, data, false, 0))
+	client.eventProcessor.SendEvent(newCustomEvent(eventName, user, data, false, 0))
 	return nil
 }
 
@@ -235,18 +235,18 @@ func (client *LDClient) TrackData(key string, user User, data ldvalue.Value) err
 // This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
 // be returned as part of the custom event for Data Export.
 //
-// The key is defined by the application and will be shown in analytics reports; it normally
-// corresponds to the event name of a metric that you have created through the LaunchDarkly
-// dashboard.
+// The eventName parameter is defined by the application and will be shown in analytics reports;
+// it normally corresponds to the event name of a metric that you have created through the
+// LaunchDarkly dashboard.
 //
 // The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 // will be sent with the event. If no such value is needed, use ldvalue.Null().
-func (client *LDClient) TrackMetric(key string, user User, metricValue float64, data ldvalue.Value) error {
+func (client *LDClient) TrackMetric(eventName string, user User, metricValue float64, data ldvalue.Value) error {
 	if user.Key == nil || *user.Key == "" {
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(newCustomEvent(key, user, data, true, metricValue))
+	client.eventProcessor.SendEvent(newCustomEvent(eventName, user, data, true, metricValue))
 	return nil
 }
 
@@ -258,8 +258,8 @@ func (client *LDClient) TrackMetric(key string, user User, metricValue float64, 
 //
 // Deprecated: Use TrackData, which uses the ldvalue.Value type to more safely represent only
 // allowable JSON types.
-func (client *LDClient) Track(key string, user User, data interface{}) error {
-	return client.TrackData(key, user,
+func (client *LDClient) Track(eventName string, user User, data interface{}) error {
+	return client.TrackData(eventName, user,
 		ldvalue.UnsafeUseArbitraryValue(data)) //nolint:megacheck // allow deprecated usage
 }
 
@@ -272,8 +272,8 @@ func (client *LDClient) Track(key string, user User, data interface{}) error {
 //
 // Deprecated: Use TrackMetric, which uses the ldvalue.Value type to more safely represent only allowable
 // JSON types.
-func (client *LDClient) TrackWithMetric(key string, user User, data interface{}, metricValue float64) error {
-	return client.TrackMetric(key, user, metricValue,
+func (client *LDClient) TrackWithMetric(eventName string, user User, data interface{}, metricValue float64) error {
+	return client.TrackMetric(eventName, user, metricValue,
 		ldvalue.UnsafeUseArbitraryValue(data)) // nolint:megacheck // allow deprecated usage
 }
 
