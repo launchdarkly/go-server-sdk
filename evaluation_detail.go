@@ -361,7 +361,7 @@ type EvaluationDetail struct {
 // to the same value that is wrapped by jsonValue.
 func NewEvaluationDetail(jsonValue ldvalue.Value, variationIndex *int, reason EvaluationReason) EvaluationDetail {
 	return EvaluationDetail{
-		Value:          jsonValue.UnsafeArbitraryValue(), //nolint (using deprecated method)
+		Value:          jsonValue.UnsafeArbitraryValue(), //nolint // allow deprecated usage
 		JSONValue:      jsonValue,
 		VariationIndex: variationIndex,
 		Reason:         reason,
@@ -372,7 +372,7 @@ func NewEvaluationDetail(jsonValue ldvalue.Value, variationIndex *int, reason Ev
 // to the same value that is wrapped by jsonValue.
 func NewEvaluationError(jsonValue ldvalue.Value, errorKind EvalErrorKind) EvaluationDetail {
 	return EvaluationDetail{
-		Value:     jsonValue.UnsafeArbitraryValue(), //nolint (using deprecated method)
+		Value:     jsonValue.UnsafeArbitraryValue(), //nolint // allow deprecated usage
 		JSONValue: jsonValue,
 		Reason:    newEvalReasonError(errorKind),
 	}

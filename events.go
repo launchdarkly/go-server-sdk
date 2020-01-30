@@ -80,7 +80,7 @@ func NewFeatureRequestEvent(key string, flag *FeatureFlag, user User, variation 
 
 func newUnknownFlagEvent(key string, user User, defaultVal ldvalue.Value, reason EvaluationReason,
 	includeReason bool) FeatureRequestEvent {
-	defaultAsIntf := defaultVal.UnsafeArbitraryValue() //nolint:megacheck (using deprecated method)
+	defaultAsIntf := defaultVal.UnsafeArbitraryValue() //nolint:megacheck // allow deprecated usage
 	fre := FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
@@ -107,8 +107,8 @@ func newSuccessfulEvalEvent(flag *FeatureFlag, user User, variation *int, value,
 		Key:                  flag.Key,
 		Version:              &flag.Version,
 		Variation:            variation,
-		Value:                value.UnsafeArbitraryValue(),      //nolint:megacheck (using deprecated method)
-		Default:              defaultVal.UnsafeArbitraryValue(), //nolint:megacheck (using deprecated method)
+		Value:                value.UnsafeArbitraryValue(),      //nolint:megacheck // allow deprecated usage
+		Default:              defaultVal.UnsafeArbitraryValue(), //nolint:megacheck // allow deprecated usage
 		PrereqOf:             prereqOf,
 		TrackEvents:          requireExperimentData || flag.TrackEvents,
 		DebugEventsUntilDate: flag.DebugEventsUntilDate,
@@ -142,20 +142,26 @@ func (evt FeatureRequestEvent) GetBase() BaseEvent {
 
 // NewCustomEvent constructs a new custom event, but does not send it. Typically, Track should be used to both create the
 // event and send it to LaunchDarkly.
+//
+// Deprecated: This function will be removed in a later release.
 func NewCustomEvent(key string, user User, data interface{}) CustomEvent {
-	return newCustomEvent(key, user, data, nil)
+	return newCustomEvent(key, user, ldvalue.UnsafeUseArbitraryValue(data), //nolint:megacheck // allow deprecated usage
+		false, 0)
 }
 
-func newCustomEvent(key string, user User, data interface{}, metricValue *float64) CustomEvent {
-	return CustomEvent{
+func newCustomEvent(key string, user User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
+	ce := CustomEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
 			User:         user,
 		},
-		Key:         key,
-		Data:        data,
-		MetricValue: metricValue,
+		Key:  key,
+		Data: data.UnsafeArbitraryValue(), //nolint:megacheck // allow deprecated usage
 	}
+	if withMetric {
+		ce.MetricValue = &metricValue
+	}
+	return ce
 }
 
 // GetBase returns the BaseEvent
