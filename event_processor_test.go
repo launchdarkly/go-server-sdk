@@ -735,7 +735,7 @@ func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
 	config := epDefaultConfig
 	config.diagnosticsManager = diagnosticsManager
-	config.DiagnosticRecordingInterval = 50 * time.Millisecond
+	config.DiagnosticRecordingInterval = 100 * time.Millisecond
 
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
@@ -753,7 +753,7 @@ func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 	json.Unmarshal(bytes1, &event1)
 	assert.Equal(t, "diagnostic", event1["kind"])
 	time1 := uint64(event1["creationDate"].(float64))
-	assert.True(t, time1-time0 >= 40, "event times should follow configured interval: %d, %d", time0, time1)
+	assert.True(t, time1-time0 >= 70, "event times should follow configured interval: %d, %d", time0, time1)
 
 	req2, bytes2 := st.awaitRequest()
 	assert.Equal(t, "/diagnostic", req2.URL.Path)
@@ -761,7 +761,7 @@ func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 	json.Unmarshal(bytes2, &event2)
 	assert.Equal(t, "diagnostic", event2["kind"])
 	time2 := uint64(event2["creationDate"].(float64))
-	assert.True(t, time2-time1 >= 40, "event times should follow configured interval: %d, %d", time1, time2)
+	assert.True(t, time2-time1 >= 70, "event times should follow configured interval: %d, %d", time1, time2)
 }
 
 func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
