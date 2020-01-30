@@ -246,7 +246,7 @@ func (b *userBuilderImpl) Custom(name string, value ldvalue.Value) UserBuilderCa
 	// map, then it is mutable, which is undesirable; this is why direct access to User.Custom is
 	// deprecated. In a future version when backward compatibility is no longer an issue, a custom
 	// attribute will be stored as a completely immutable Value.
-	b.custom[name] = value.UnsafeArbitraryValue() //nolint (using deprecated method)
+	b.custom[name] = value.UnsafeArbitraryValue() //nolint // allow deprecated usage
 	return b.canMakeAttributePrivate(name)
 }
 
