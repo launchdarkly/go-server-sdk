@@ -252,7 +252,7 @@ func (f FeatureFlag) getVariation(index int, reason EvaluationReason) Evaluation
 	return EvaluationDetail{
 		Reason:         reason,
 		Value:          value,
-		JSONValue:      ldvalue.UnsafeUseArbitraryValue(value), //nolint:staticcheck // allow deprecated usage
+		JSONValue:      ldvalue.UnsafeUseArbitraryValue(value), //nolint // allow deprecated usage
 		VariationIndex: &index,
 	}
 }
