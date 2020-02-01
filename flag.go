@@ -181,18 +181,18 @@ func bucketableStringValue(uValue interface{}) (string, bool) {
 func (f FeatureFlag) evaluateDetail(user User, store FeatureStore, sendReasonsInEvents bool) (EvaluationDetail, []FeatureRequestEvent) {
 	if f.On {
 		prereqErrorReason, prereqEvents := f.checkPrerequisites(user, store, sendReasonsInEvents)
-		if prereqErrorReason != nil {
+		if prereqErrorReason.GetKind() != "" {
 			return f.getOffValue(prereqErrorReason), prereqEvents
 		}
 		return f.evaluateInternal(user, store), prereqEvents
 	}
-	return f.getOffValue(evalReasonOffInstance), nil
+	return f.getOffValue(newEvalReasonOff()), nil
 }
 
-// Returns nil if all prerequisites are OK, otherwise constructs an error reason that describes the failure
+// Returns an empty reason if all prerequisites are OK, otherwise constructs an error reason that describes the failure
 func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReasonsInEvents bool) (EvaluationReason, []FeatureRequestEvent) {
 	if len(f.Prerequisites) == 0 {
-		return nil, nil
+		return EvaluationReason{}, nil
 	}
 
 	events := make([]FeatureRequestEvent, 0, len(f.Prerequisites))
@@ -214,16 +214,13 @@ func (f FeatureFlag) checkPrerequisites(user User, store FeatureStore, sendReaso
 		events = append(events, moreEvents...)
 		prereqEvent := newSuccessfulEvalEvent(prereqFeatureFlag, user, prereqResult.VariationIndex,
 			prereqResult.JSONValue, ldvalue.Null(), prereqResult.Reason, sendReasonsInEvents, &f.Key)
-		if sendReasonsInEvents {
-			prereqEvent.Reason.Reason = prereqResult.Reason
-		}
 		events = append(events, prereqEvent)
 
 		if !prereqOK {
 			return newEvalReasonPrerequisiteFailed(prereq.Key), events
 		}
 	}
-	return nil, events
+	return EvaluationReason{}, events
 }
 
 func (f FeatureFlag) evaluateInternal(user User, store FeatureStore) EvaluationDetail {
@@ -231,7 +228,7 @@ func (f FeatureFlag) evaluateInternal(user User, store FeatureStore) EvaluationD
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
-				return f.getVariation(target.Variation, evalReasonTargetMatchInstance)
+				return f.getVariation(target.Variation, newEvalReasonTargetMatch())
 			}
 		}
 	}
@@ -244,7 +241,7 @@ func (f FeatureFlag) evaluateInternal(user User, store FeatureStore) EvaluationD
 		}
 	}
 
-	return f.getValueForVariationOrRollout(f.Fallthrough, user, evalReasonFallthroughInstance)
+	return f.getValueForVariationOrRollout(f.Fallthrough, user, newEvalReasonFallthrough())
 }
 
 func (f FeatureFlag) getVariation(index int, reason EvaluationReason) EvaluationDetail {
