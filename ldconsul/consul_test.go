@@ -41,19 +41,14 @@ func TestConsulDataStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-<<<<<<< HEAD
-func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.DataStoreFactory {
-	f, _ := NewConsulDataStoreFactory(CacheTTL(ttl))
-=======
 func TestConsulStoreComponentTypeName(t *testing.T) {
-	factory, _ := NewConsulFeatureStoreFactory()
+	factory, _ := NewConsulDataStoreFactory()
 	store, _ := factory(ld.DefaultConfig)
-	assert.Equal(t, "Consul", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "Consul", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
-func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
-	f, _ := NewConsulFeatureStoreFactory(CacheTTL(ttl))
->>>>>>> eb/ch59296/remove-deprecated
+func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.DataStoreFactory {
+	f, _ := NewConsulDataStoreFactory(CacheTTL(ttl))
 	return f
 }
 
