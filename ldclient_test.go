@@ -156,7 +156,7 @@ func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Track("eventkey", lduser.NewUser(""), nil)
+	err := client.TrackEvent("eventkey", lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
