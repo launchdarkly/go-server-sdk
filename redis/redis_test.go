@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	r "github.com/garyburd/redigo/redis"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	ldtest "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	ldtest "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 const redisURL = "redis://localhost:6379"
@@ -46,6 +47,12 @@ func TestRedisDataStoreConcurrentModification(t *testing.T) {
 	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		core1.testTxHook = hook
 	})
+}
+
+func TestRedisStoreComponentTypeName(t *testing.T) {
+	f, _ := NewRedisFeatureStoreFactory()
+	store, _ := f(ld.DefaultConfig)
+	assert.Equal(t, "Redis", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
 func clearExistingData() error {

@@ -8,22 +8,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func TestScrubUser(t *testing.T) {
 	t.Run("private built-in attributes per user", func(t *testing.T) {
 		filter := newUserFilter(DefaultConfig)
-		user := User{
-			Key:       strPtr("user-key"),
-			FirstName: strPtr("sam"),
-			LastName:  strPtr("smith"),
-			Name:      strPtr("sammy"),
-			Country:   strPtr("freedonia"),
-			Avatar:    strPtr("my-avatar"),
-			Ip:        strPtr("123.456.789"),
-			Email:     strPtr("me@example.com"),
-			Secondary: strPtr("abcdef"),
-		}
+		user := NewUserBuilder("user-key").
+			FirstName("sam").
+			LastName("smith").
+			Name("sammy").
+			Country("freedonia").
+			Avatar("my-avatar").
+			IP("123.456.789").
+			Email("me@example.com").
+			Secondary("abcdef").
+			Build()
 
 		for _, attr := range BuiltinAttributes {
 			user.PrivateAttributeNames = []string{attr}
@@ -35,17 +35,16 @@ func TestScrubUser(t *testing.T) {
 	})
 
 	t.Run("global private built-in attributes", func(t *testing.T) {
-		user := User{
-			Key:       strPtr("user-key"),
-			FirstName: strPtr("sam"),
-			LastName:  strPtr("smith"),
-			Name:      strPtr("sammy"),
-			Country:   strPtr("freedonia"),
-			Avatar:    strPtr("my-avatar"),
-			Ip:        strPtr("123.456.789"),
-			Email:     strPtr("me@example.com"),
-			Secondary: strPtr("abcdef"),
-		}
+		user := NewUserBuilder("user-key").
+			FirstName("sam").
+			LastName("smith").
+			Name("sammy").
+			Country("freedonia").
+			Avatar("my-avatar").
+			IP("123.456.789").
+			Email("me@example.com").
+			Secondary("abcdef").
+			Build()
 
 		for _, attr := range BuiltinAttributes {
 			filter := newUserFilter(Config{PrivateAttributeNames: []string{attr}})
@@ -59,13 +58,10 @@ func TestScrubUser(t *testing.T) {
 	t.Run("private custom attribute", func(t *testing.T) {
 		filter := newUserFilter(DefaultConfig)
 		userKey := "userKey"
-		user := User{
-			Key: &userKey,
-			PrivateAttributeNames: []string{"my-secret-attr"},
-			Custom: &map[string]interface{}{
-				"my-secret-attr":  "my secret value",
-				"non-secret-attr": "OK value",
-			}}
+		user := NewUserBuilder(userKey).
+			Custom("my-secret-attr", ldvalue.String("my secret value")).AsPrivateAttribute().
+			Custom("non-secret-attr", ldvalue.String("OK value")).
+			Build()
 
 		scrubbedUser := *filter.scrubUser(user)
 
@@ -76,19 +72,17 @@ func TestScrubUser(t *testing.T) {
 	t.Run("all attributes private", func(t *testing.T) {
 		filter := newUserFilter(Config{AllAttributesPrivate: true})
 		userKey := "userKey"
-		user := User{
-			Key:       &userKey,
-			FirstName: strPtr("sam"),
-			LastName:  strPtr("smith"),
-			Name:      strPtr("sammy"),
-			Country:   strPtr("freedonia"),
-			Avatar:    strPtr("my-avatar"),
-			Ip:        strPtr("123.456.789"),
-			Email:     strPtr("me@example.com"),
-			Secondary: strPtr("abcdef"),
-			Custom: &map[string]interface{}{
-				"my-secret-attr": "my secret value",
-			}}
+		user := NewUserBuilder(userKey).
+			FirstName("sam").
+			LastName("smith").
+			Name("sammy").
+			Country("freedonia").
+			Avatar("my-avatar").
+			IP("123.456.789").
+			Email("me@example.com").
+			Secondary("abcdef").
+			Custom("my-secret-attr", ldvalue.String("my-secret-value")).
+			Build()
 
 		scrubbedUser := *filter.scrubUser(user)
 		sort.Strings(scrubbedUser.PrivateAttributes)
@@ -97,16 +91,12 @@ func TestScrubUser(t *testing.T) {
 		assert.Equal(t, expectedAttributes, scrubbedUser.PrivateAttributes)
 
 		scrubbedUser.PrivateAttributes = nil
-		assert.Equal(t, User{Key: &userKey}, scrubbedUser.User)
+		assert.Equal(t, NewUser(userKey), scrubbedUser.User)
 	})
 
 	t.Run("anonymous attribute can't be private", func(t *testing.T) {
 		filter := newUserFilter(Config{AllAttributesPrivate: true})
-		userKey := "userKey"
-		anon := true
-		user := User{
-			Key:       &userKey,
-			Anonymous: &anon}
+		user := NewUserBuilder(userKey).Anonymous(true).Build()
 
 		scrubbedUser := *filter.scrubUser(user)
 		assert.Equal(t, user, scrubbedUser.User)
@@ -122,12 +112,15 @@ func TestUserSerialization(t *testing.T) {
 		config.Loggers.SetBaseLogger(logger)
 		config.LogUserKeyInErrors = withUserKey
 		filter := newUserFilter(config)
-		user := User{
-			Key:       strPtr("user-key"),
-			FirstName: strPtr("sam"),
-			Email:     strPtr("test@example.com"),
-		}
-		custom := map[string]interface{}{"problem": errorValue}
+		user := NewUserBuilder("user-key").
+			FirstName("sam").
+			Email("test@example.com").
+			Build()
+
+		// To inject our problematic value, we need to access the Custom map directly. In a future version
+		// this will no longer be possible.
+		custom := make(map[string]interface{})
+		custom["problem"] = errorValue
 		user.Custom = &custom
 
 		scrubbedUser := filter.scrubUser(user)
@@ -140,7 +133,7 @@ func TestUserSerialization(t *testing.T) {
 		// Verify that we did marshal all of the user attributes except the custom ones
 		expectedUser := user
 		expectedUser.Custom = nil
-		resultUser := User{}
+		resultUser := NewUser("")
 		err = json.Unmarshal(bytes, &resultUser)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedUser, resultUser)

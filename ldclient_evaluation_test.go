@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 var evalTestUser = NewUser("userkey")
@@ -16,7 +17,7 @@ func makeTestFlag(key string, fallThroughVariation int, variations ...interface{
 		Key:         key,
 		Version:     1,
 		On:          true,
-		Fallthrough: VariationOrRollout{Variation: &fallThroughVariation},
+		Fallthrough: variationOrRollout{Variation: &fallThroughVariation},
 		Variations:  variations,
 	}
 }
@@ -25,7 +26,8 @@ func makeMalformedFlag(key string) *FeatureFlag {
 	return &FeatureFlag{Key: key, On: false, OffVariation: intPtr(-1)}
 }
 
-func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value interface{}, variation int, defaultVal interface{}, reason EvaluationReason) {
+func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value ldvalue.Value,
+	variation int, defaultVal ldvalue.Value, reason EvaluationReason) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(FeatureRequestEvent)
@@ -36,10 +38,10 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user Use
 		},
 		Key:       flag.Key,
 		Version:   &flag.Version,
-		Value:     value,
+		Value:     value.UnsafeArbitraryValue(),
 		Variation: intPtr(variation),
-		Default:   defaultVal,
-		Reason:    EvaluationReasonContainer{reason},
+		Default:   defaultVal.UnsafeArbitraryValue(),
+		Reason:    reason,
 	}
 	assert.Equal(t, expectedEvent, e)
 }
@@ -58,7 +60,7 @@ func TestBoolVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Bool(expected), 1, ldvalue.Bool(defaultVal), EvaluationReason{})
 }
 
 func TestBoolVariationDetail(t *testing.T) {
@@ -75,10 +77,11 @@ func TestBoolVariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.BoolValue())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Bool(expected), 1, ldvalue.Bool(defaultVal), detail.Reason)
 }
 
 func TestIntVariation(t *testing.T) {
@@ -95,7 +98,7 @@ func TestIntVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int(expected), actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Int(expected), 1, ldvalue.Int(defaultVal), EvaluationReason{})
 }
 
 func TestIntVariationRoundsFloatTowardZero(t *testing.T) {
@@ -142,10 +145,11 @@ func TestIntVariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, float64(expected), detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.IntValue())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, float64(expected), 1, float64(defaultVal), detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Int(expected), 1, ldvalue.Int(defaultVal), detail.Reason)
 }
 
 func TestFloat64Variation(t *testing.T) {
@@ -162,7 +166,7 @@ func TestFloat64Variation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Float64(expected), 1, ldvalue.Float64(defaultVal), EvaluationReason{})
 }
 
 func TestFloat64VariationDetail(t *testing.T) {
@@ -179,10 +183,11 @@ func TestFloat64VariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.Float64Value())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), detail.Reason)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Float64(expected), 1, ldvalue.Float64(defaultVal), detail.Reason)
 }
 
 func TestStringVariation(t *testing.T) {
@@ -199,7 +204,7 @@ func TestStringVariation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, nil)
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.String(expected), 1, ldvalue.String(defaultVal), EvaluationReason{})
 }
 
 func TestStringVariationDetail(t *testing.T) {
@@ -216,55 +221,99 @@ func TestStringVariationDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, expected, detail.Value)
+	assert.Equal(t, expected, detail.JSONValue.StringValue())
 	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), detail.Reason)
+
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.String(expected), 1, ldvalue.String(defaultVal), detail.Reason)
+}
+
+func TestJSONRawVariation(t *testing.T) {
+	expectedValue := map[string]interface{}{"field2": "value2"}
+	otherValue := map[string]interface{}{"field1": "value1"}
+	expectedJSON, _ := json.Marshal(expectedValue)
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
+	actual, err := client.JSONVariation("validFeatureKey", evalTestUser, ldvalue.Raw(defaultVal))
+
+	assert.NoError(t, err)
+	assert.Equal(t, json.RawMessage(expectedJSON), actual.AsRaw())
+
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.CopyArbitraryValue(expectedValue), 1,
+		ldvalue.CopyArbitraryValue(defaultVal), EvaluationReason{})
+}
+
+func TestJSONRawVariationDetail(t *testing.T) {
+	expectedValue := map[string]interface{}{"field2": "value2"}
+	otherValue := map[string]interface{}{"field1": "value1"}
+	expectedJSON, _ := json.Marshal(expectedValue)
+	expectedRaw := json.RawMessage(expectedJSON)
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
+	actual, detail, err := client.JSONVariationDetail("validFeatureKey", evalTestUser, ldvalue.Raw(defaultVal))
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedRaw, actual.AsRaw())
+	assert.Equal(t, expectedValue, detail.Value)
+	assert.Equal(t, expectedRaw, detail.JSONValue.AsRaw())
+	assert.Equal(t, intPtr(1), detail.VariationIndex)
+	assert.Equal(t, newEvalReasonFallthrough(), detail.Reason)
+
+	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.CopyArbitraryValue(expectedValue), 1, ldvalue.CopyArbitraryValue(defaultVal), detail.Reason)
+}
+
+func TestJSONVariation(t *testing.T) {
+	expected := ldvalue.CopyArbitraryValue(map[string]interface{}{"field2": "value2"})
+	otherValue := ldvalue.CopyArbitraryValue(map[string]interface{}{"field1": "value1"})
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue.AsArbitraryValue(), expected.AsArbitraryValue())
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	defaultVal := ldvalue.String("no")
+	actual, err := client.JSONVariation("validFeatureKey", evalTestUser, defaultVal)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected.AsArbitraryValue(), actual.AsArbitraryValue()) // assert.Equal isn't currently reliable for complex Value types
+
+	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, EvaluationReason{})
+}
+
+func TestJSONVariationDetail(t *testing.T) {
+	expected := ldvalue.CopyArbitraryValue(map[string]interface{}{"field2": "value2"})
+	otherValue := ldvalue.CopyArbitraryValue(map[string]interface{}{"field1": "value1"})
+
+	flag := makeTestFlag("validFeatureKey", 1, otherValue.AsArbitraryValue(), expected.AsArbitraryValue())
+
+	client := makeTestClient()
+	defer client.Close()
+	client.store.Upsert(Features, flag)
+
+	defaultVal := ldvalue.String("no")
+	actual, detail, err := client.JSONVariationDetail("validFeatureKey", evalTestUser, defaultVal)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected.AsArbitraryValue(), actual.AsArbitraryValue())
+	assert.Equal(t, expected.AsArbitraryValue(), detail.Value)
+	assert.Equal(t, expected.AsArbitraryValue(), detail.JSONValue.AsArbitraryValue())
+	assert.Equal(t, intPtr(1), detail.VariationIndex)
+	assert.Equal(t, newEvalReasonFallthrough(), detail.Reason)
 
 	assertEvalEvent(t, client, flag, evalTestUser, expected, 1, defaultVal, detail.Reason)
-}
-
-func TestJsonVariation(t *testing.T) {
-	expectedValue := map[string]interface{}{"field2": "value2"}
-	otherValue := map[string]interface{}{"field1": "value1"}
-	expectedJSON, _ := json.Marshal(expectedValue)
-
-	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
-
-	client := makeTestClient()
-	defer client.Close()
-	client.store.Upsert(Features, flag)
-
-	var actual json.RawMessage
-	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
-	actual, err := client.JsonVariation("validFeatureKey", evalTestUser, defaultVal)
-
-	assert.NoError(t, err)
-	assert.Equal(t, json.RawMessage(expectedJSON), actual)
-
-	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, nil)
-}
-
-func TestJsonVariationDetail(t *testing.T) {
-	expectedValue := map[string]interface{}{"field2": "value2"}
-	otherValue := map[string]interface{}{"field1": "value1"}
-	expectedJSON, _ := json.Marshal(expectedValue)
-
-	flag := makeTestFlag("validFeatureKey", 1, otherValue, expectedValue)
-
-	client := makeTestClient()
-	defer client.Close()
-	client.store.Upsert(Features, flag)
-
-	var actual json.RawMessage
-	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
-	actual, detail, err := client.JsonVariationDetail("validFeatureKey", evalTestUser, defaultVal)
-
-	assert.NoError(t, err)
-	assert.Equal(t, json.RawMessage(expectedJSON), actual)
-	assert.Equal(t, expectedValue, detail.Value)
-	assert.Equal(t, intPtr(1), detail.VariationIndex)
-	assert.Equal(t, evalReasonFallthroughInstance, detail.Reason)
-
-	assertEvalEvent(t, client, flag, evalTestUser, expectedValue, 1, defaultVal, detail.Reason)
 }
 
 func TestEvaluatingUnknownFlagReturnsDefault(t *testing.T) {
@@ -319,18 +368,18 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNilWithDetail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "default", detail.Value)
 	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, evalReasonOffInstance, detail.Reason)
+	assert.Equal(t, newEvalReasonOff(), detail.Reason)
 }
 
 func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 	flag := FeatureFlag{
 		Key: "flagKey",
 		On:  true,
-		Rules: []Rule{
-			Rule{
+		Rules: []flagRule{
+			flagRule{
 				ID:                 "rule-id",
-				Clauses:            []Clause{makeClauseToMatchUser(evalTestUser)},
-				VariationOrRollout: VariationOrRollout{Variation: intPtr(1)},
+				Clauses:            []clause{makeClauseToMatchUser(evalTestUser)},
+				variationOrRollout: variationOrRollout{Variation: intPtr(1)},
 				TrackEvents:        true,
 			},
 		},
@@ -351,24 +400,24 @@ func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 
 	e := events[0].(FeatureRequestEvent)
 	assert.True(t, e.TrackEvents)
-	assert.Equal(t, newEvalReasonRuleMatch(0, "rule-id"), e.Reason.Reason)
+	assert.Equal(t, newEvalReasonRuleMatch(0, "rule-id"), e.Reason)
 }
 
 func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *testing.T) {
 	flag := FeatureFlag{
 		Key: "flagKey",
 		On:  true,
-		Rules: []Rule{
-			Rule{
+		Rules: []flagRule{
+			flagRule{
 				ID:                 "id0",
-				Clauses:            []Clause{makeClauseToNotMatchUser(evalTestUser)},
-				VariationOrRollout: VariationOrRollout{Variation: intPtr(0)},
+				Clauses:            []clause{makeClauseToNotMatchUser(evalTestUser)},
+				variationOrRollout: variationOrRollout{Variation: intPtr(0)},
 				TrackEvents:        true,
 			},
-			Rule{
+			flagRule{
 				ID:                 "id1",
-				Clauses:            []Clause{makeClauseToMatchUser(evalTestUser)},
-				VariationOrRollout: VariationOrRollout{Variation: intPtr(1)},
+				Clauses:            []clause{makeClauseToMatchUser(evalTestUser)},
+				variationOrRollout: variationOrRollout{Variation: intPtr(1)},
 			},
 		},
 		Variations: []interface{}{"off", "on"},
@@ -388,14 +437,14 @@ func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *test
 
 	e := events[0].(FeatureRequestEvent)
 	assert.False(t, e.TrackEvents)
-	assert.Nil(t, e.Reason.Reason)
+	assert.Equal(t, EvaluationReason{}, e.Reason)
 }
 
 func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 	flag := FeatureFlag{
 		Key:                    "flagKey",
 		On:                     true,
-		Fallthrough:            VariationOrRollout{Variation: intPtr(1)},
+		Fallthrough:            variationOrRollout{Variation: intPtr(1)},
 		Variations:             []interface{}{"off", "on"},
 		TrackEventsFallthrough: true,
 		Version:                1,
@@ -414,14 +463,14 @@ func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 
 	e := events[0].(FeatureRequestEvent)
 	assert.True(t, e.TrackEvents)
-	assert.Equal(t, evalReasonFallthroughInstance, e.Reason.Reason)
+	assert.Equal(t, newEvalReasonFallthrough(), e.Reason)
 }
 
 func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testing.T) {
 	flag := FeatureFlag{
 		Key:         "flagKey",
 		On:          true,
-		Fallthrough: VariationOrRollout{Variation: intPtr(1)},
+		Fallthrough: variationOrRollout{Variation: intPtr(1)},
 		Variations:  []interface{}{"off", "on"},
 		Version:     1,
 	}
@@ -439,7 +488,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testi
 
 	e := events[0].(FeatureRequestEvent)
 	assert.False(t, e.TrackEvents)
-	assert.Nil(t, e.Reason.Reason)
+	assert.Equal(t, EvaluationReason{}, e.Reason)
 }
 
 func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthrough(t *testing.T) {
@@ -447,7 +496,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 		Key:                    "flagKey",
 		On:                     false,
 		OffVariation:           intPtr(0),
-		Fallthrough:            VariationOrRollout{Variation: intPtr(1)},
+		Fallthrough:            variationOrRollout{Variation: intPtr(1)},
 		Variations:             []interface{}{"off", "on"},
 		TrackEventsFallthrough: true,
 		Version:                1,
@@ -466,7 +515,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 
 	e := events[0].(FeatureRequestEvent)
 	assert.False(t, e.TrackEvents)
-	assert.Nil(t, e.Reason.Reason)
+	assert.Equal(t, EvaluationReason{}, e.Reason)
 }
 
 func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
@@ -528,8 +577,8 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	defer client.Close()
 
 	flag0 := makeTestFlag("flag0", 1, "a", "b")
-	flag0.Prerequisites = []Prerequisite{
-		Prerequisite{Key: "flag1", Variation: 1},
+	flag0.Prerequisites = []prerequisite{
+		prerequisite{Key: "flag1", Variation: 1},
 	}
 	flag1 := makeTestFlag("flag1", 1, "c", "d")
 	client.store.Upsert(Features, flag0)
@@ -603,10 +652,10 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 		"key2":"value2",
 		"$flagsState":{
 	  		"key1":{
-				"variation":0,"version":100
+				"variation":0,"version":100,"reason":null
 			},
 			"key2": {
-				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000
+				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000,"reason":null
 			}
 		},
 		"$valid":true
@@ -754,7 +803,7 @@ func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
 	client.store.Upsert(Features, flag1)
 	client.store.Upsert(Features, flag2)
 
-	state := client.AllFlagsState(User{})
+	state := client.AllFlagsState(evalTestUserWithNilKey)
 	assert.False(t, state.IsValid())
 	assert.Nil(t, state.ToValuesMap())
 }
@@ -765,7 +814,7 @@ func TestUnknownFlagErrorLogging(t *testing.T) {
 }
 
 func TestInvalidUserErrorLogging(t *testing.T) {
-	testEvalErrorLogging(t, makeTestFlag("valid-flag", 1, false, true), "", User{},
+	testEvalErrorLogging(t, makeTestFlag("valid-flag", 1, false, true), "", evalTestUserWithNilKey,
 		"WARN: user\\.Key cannot be nil when evaluating flag: valid-flag\\. Returning default value")
 }
 

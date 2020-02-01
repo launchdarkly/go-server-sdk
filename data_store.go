@@ -3,7 +3,7 @@ package ldclient
 import (
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 // DataStore is an interface describing a structure that maintains the live collection of features
@@ -169,4 +169,9 @@ func (store *InMemoryDataStore) Initialized() bool {
 	store.RLock()
 	defer store.RUnlock()
 	return store.isInitialized
+}
+
+// Used internally to describe this component in diagnostic data.
+func (store *InMemoryDataStore) GetDiagnosticsComponentTypeName() string {
+	return "memory"
 }

@@ -40,9 +40,9 @@ import (
 
 	r "github.com/garyburd/redigo/redis"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 const (
@@ -208,7 +208,7 @@ func (o redisDialOptionsOption) apply(opts *redisDataStoreOptions) error {
 //
 //     import (
 //         redigo "github.com/garyburd/redigo/redis"
-//         "gopkg.in/launchdarkly/go-server-sdk.v4/redis"
+//         "gopkg.in/launchdarkly/go-server-sdk.v5/redis"
 //     )
 //     factory, err := redis.NewRedisDataStoreFactory(redis.DialOption(redigo.DialPassword("verysecure123")))
 //
@@ -491,6 +491,11 @@ func (store *redisDataStoreCore) IsStoreAvailable() bool {
 	defer c.Close() // nolint:errcheck
 	_, err := r.Bool(c.Do("EXISTS", store.initedKey()))
 	return err == nil
+}
+
+// Used internally to describe this component in diagnostic data.
+func (store *redisDataStoreCore) GetDiagnosticsComponentTypeName() string {
+	return "Redis"
 }
 
 func (store *redisDataStoreCore) featuresKey(kind ld.VersionedDataKind) string {

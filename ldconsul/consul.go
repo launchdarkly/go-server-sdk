@@ -28,9 +28,9 @@ import (
 	"time"
 
 	c "github.com/hashicorp/consul/api"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 // Implementation notes:
@@ -252,7 +252,7 @@ func (store *dataStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld
 	pairs, _, err := kv.List(store.featuresKey(kind), nil)
 
 	if err != nil {
-		return results, fmt.Errorf("List failed for %s: %s", kind, err)
+		return results, fmt.Errorf("list failed for %s: %s", kind, err)
 	}
 
 	for _, pair := range pairs {
@@ -380,6 +380,11 @@ func (store *dataStore) IsStoreAvailable() bool {
 	return err == nil
 }
 
+// Used internally to describe this component in diagnostic data.
+func (store *dataStore) GetDiagnosticsComponentTypeName() string {
+	return "Consul"
+}
+
 func (store *dataStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (retrievedItem ld.VersionedData,
 	modifyIndex uint64, err error) {
 	var defaultModifyIndex = uint64(0)
@@ -417,7 +422,7 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 			for _, te := range resp.Errors {
 				errs = append(errs, te.What)
 			}
-			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", "))
+			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", ")) //nolint:stylecheck // this error message is capitalized on purpose
 		}
 		i = j
 	}

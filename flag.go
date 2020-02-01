@@ -7,6 +7,8 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 const (
@@ -24,12 +26,12 @@ type FeatureFlag struct {
 	TrackEvents            bool               `json:"trackEvents" bson:"trackEvents"`
 	TrackEventsFallthrough bool               `json:"trackEventsFallthrough" bson:"trackEventsFallthrough"`
 	Deleted                bool               `json:"deleted" bson:"deleted"`
-	Prerequisites          []Prerequisite     `json:"prerequisites" bson:"prerequisites"`
+	Prerequisites          []prerequisite     `json:"prerequisites" bson:"prerequisites"`
 	Salt                   string             `json:"salt" bson:"salt"`
 	Sel                    string             `json:"sel" bson:"sel"`
-	Targets                []Target           `json:"targets" bson:"targets"`
-	Rules                  []Rule             `json:"rules" bson:"rules"`
-	Fallthrough            VariationOrRollout `json:"fallthrough" bson:"fallthrough"`
+	Targets                []target           `json:"targets" bson:"targets"`
+	Rules                  []flagRule         `json:"rules" bson:"rules"`
+	Fallthrough            variationOrRollout `json:"fallthrough" bson:"fallthrough"`
 	OffVariation           *int               `json:"offVariation" bson:"offVariation"`
 	Variations             []interface{}      `json:"variations" bson:"variations"`
 	DebugEventsUntilDate   *uint64            `json:"debugEventsUntilDate" bson:"debugEventsUntilDate"`
@@ -57,103 +59,90 @@ func (f *FeatureFlag) Clone() VersionedData {
 	return &f1
 }
 
-// FeatureFlagVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for flags.
-//
-// Deprecated: this type is for internal use and will be removed in a future version.
-type FeatureFlagVersionedDataKind struct{}
+// featureFlagVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for flags.
+type featureFlagVersionedDataKind struct{}
 
 // GetNamespace returns the a unique namespace identifier for feature flag objects
-func (fk FeatureFlagVersionedDataKind) GetNamespace() string {
+func (fk featureFlagVersionedDataKind) GetNamespace() string {
 	return "features"
 }
 
 // String returns the namespace
-func (fk FeatureFlagVersionedDataKind) String() string {
+func (fk featureFlagVersionedDataKind) String() string {
 	return fk.GetNamespace()
 }
 
 // GetDefaultItem returns a default feature flag representation
-func (fk FeatureFlagVersionedDataKind) GetDefaultItem() interface{} {
+func (fk featureFlagVersionedDataKind) GetDefaultItem() interface{} {
 	return &FeatureFlag{}
 }
 
 // MakeDeletedItem returns representation of a deleted flag
-func (fk FeatureFlagVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
+func (fk featureFlagVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
 	return &FeatureFlag{Key: key, Version: version, Deleted: true}
 }
 
-// Features is convenience variable to access an instance of FeatureFlagVersionedDataKind.
+// Features is a convenience variable to access an instance of VersionedDataKind.
 //
 // Deprecated: this variable is for internal use and will be removed in a future version.
-var Features FeatureFlagVersionedDataKind
+var Features VersionedDataKind = featureFlagVersionedDataKind{}
 
-// Rule expresses a set of AND-ed matching conditions for a user, along with either a fixed
+// flagRule expresses a set of AND-ed matching conditions for a user, along with either a fixed
 // variation or a set of rollout percentages.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type Rule struct {
-	ID                 string `json:"id,omitempty" bson:"id,omitempty"`
-	VariationOrRollout `bson:",inline"`
-	Clauses            []Clause `json:"clauses" bson:"clauses"`
+type flagRule struct {
+	variationOrRollout `bson:",inline"`
+	ID                 string   `json:"id,omitempty" bson:"id,omitempty"`
+	Clauses            []clause `json:"clauses" bson:"clauses"`
 	TrackEvents        bool     `json:"trackEvents" bson:"trackEvents"`
 }
 
-// VariationOrRollout contains either the fixed variation or percent rollout to serve.
+// variationOrRollout contains either the fixed variation or percent rollout to serve.
 // Invariant: one of the variation or rollout must be non-nil.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type VariationOrRollout struct {
+type variationOrRollout struct {
 	Variation *int     `json:"variation,omitempty" bson:"variation,omitempty"`
-	Rollout   *Rollout `json:"rollout,omitempty" bson:"rollout,omitempty"`
+	Rollout   *rollout `json:"rollout,omitempty" bson:"rollout,omitempty"`
 }
 
-// Rollout describes how users will be bucketed into variations during a percentage rollout.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type Rollout struct {
-	Variations []WeightedVariation `json:"variations" bson:"variations"`
+// rollout describes how users will be bucketed into variations during a percentage rollout.
+type rollout struct {
+	Variations []weightedVariation `json:"variations" bson:"variations"`
 	BucketBy   *string             `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
 
-// Clause describes an individual cluuse within a targeting rule.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type Clause struct {
+// clause describes an individual cluuse within a targeting rule.
+type clause struct {
 	Attribute string        `json:"attribute" bson:"attribute"`
 	Op        operator      `json:"op" bson:"op"`
 	Values    []interface{} `json:"values" bson:"values"` // An array, interpreted as an OR of values
 	Negate    bool          `json:"negate" bson:"negate"`
 }
 
-// WeightedVariation describes a fraction of users who will receive a specific variation.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type WeightedVariation struct {
+// weightedVariation describes a fraction of users who will receive a specific variation.
+type weightedVariation struct {
 	Variation int `json:"variation" bson:"variation"`
 	Weight    int `json:"weight" bson:"weight"` // Ranges from 0 to 100000
 }
 
-// Target describes a set of users who will receive a specific variation.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type Target struct {
+// target describes a set of users who will receive a specific variation.
+type target struct {
 	Values    []string `json:"values" bson:"values"`
 	Variation int      `json:"variation" bson:"variation"`
 }
 
-// Prerequisite describes a requirement that another feature flag return a specific variation.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type Prerequisite struct {
+// prerequisite describes a requirement that another feature flag return a specific variation.
+type prerequisite struct {
 	Key       string `json:"key"`
 	Variation int    `json:"variation"`
 }
 
 func bucketUser(user User, key, attr, salt string) float32 {
-	uValue, pass := user.valueOf(attr)
+	uValue, found := user.valueOf(attr)
+	if !found {
+		return 0
+	}
 
 	idHash, ok := bucketableStringValue(uValue)
-	if pass || !ok {
+	if !ok {
 		return 0
 	}
 
@@ -189,23 +178,21 @@ func bucketableStringValue(uValue interface{}) (string, bool) {
 
 // EvaluateDetail attempts to evaluate the feature flag for the given user and returns its
 // value, the reason for the value, and any events generated by prerequisite flags.
-//
-// Deprecated: this method is for internal use and will be moved to another package in a future version.
-func (f FeatureFlag) EvaluateDetail(user User, store DataStore, sendReasonsInEvents bool) (EvaluationDetail, []FeatureRequestEvent) {
+func (f FeatureFlag) evaluateDetail(user User, store DataStore, sendReasonsInEvents bool) (EvaluationDetail, []FeatureRequestEvent) {
 	if f.On {
 		prereqErrorReason, prereqEvents := f.checkPrerequisites(user, store, sendReasonsInEvents)
-		if prereqErrorReason != nil {
+		if prereqErrorReason.GetKind() != "" {
 			return f.getOffValue(prereqErrorReason), prereqEvents
 		}
 		return f.evaluateInternal(user, store), prereqEvents
 	}
-	return f.getOffValue(evalReasonOffInstance), nil
+	return f.getOffValue(newEvalReasonOff()), nil
 }
 
-// Returns nil if all prerequisites are OK, otherwise constructs an error reason that describes the failure
+// Returns an empty reason if all prerequisites are OK, otherwise constructs an error reason that describes the failure
 func (f FeatureFlag) checkPrerequisites(user User, store DataStore, sendReasonsInEvents bool) (EvaluationReason, []FeatureRequestEvent) {
 	if len(f.Prerequisites) == 0 {
-		return nil, nil
+		return EvaluationReason{}, nil
 	}
 
 	events := make([]FeatureRequestEvent, 0, len(f.Prerequisites))
@@ -217,7 +204,7 @@ func (f FeatureFlag) checkPrerequisites(user User, store DataStore, sendReasonsI
 		prereqFeatureFlag, _ := data.(*FeatureFlag)
 		prereqOK := true
 
-		prereqResult, moreEvents := prereqFeatureFlag.EvaluateDetail(user, store, sendReasonsInEvents)
+		prereqResult, moreEvents := prereqFeatureFlag.evaluateDetail(user, store, sendReasonsInEvents)
 		if !prereqFeatureFlag.On || prereqResult.VariationIndex == nil || *prereqResult.VariationIndex != prereq.Variation {
 			// Note that if the prerequisite flag is off, we don't consider it a match no matter what its
 			// off variation was. But we still need to evaluate it in order to generate an event.
@@ -226,17 +213,14 @@ func (f FeatureFlag) checkPrerequisites(user User, store DataStore, sendReasonsI
 
 		events = append(events, moreEvents...)
 		prereqEvent := newSuccessfulEvalEvent(prereqFeatureFlag, user, prereqResult.VariationIndex,
-			prereqResult.Value, nil, prereqResult.Reason, sendReasonsInEvents, &f.Key)
-		if sendReasonsInEvents {
-			prereqEvent.Reason.Reason = prereqResult.Reason
-		}
+			prereqResult.JSONValue, ldvalue.Null(), prereqResult.Reason, sendReasonsInEvents, &f.Key)
 		events = append(events, prereqEvent)
 
 		if !prereqOK {
 			return newEvalReasonPrerequisiteFailed(prereq.Key), events
 		}
 	}
-	return nil, events
+	return EvaluationReason{}, events
 }
 
 func (f FeatureFlag) evaluateInternal(user User, store DataStore) EvaluationDetail {
@@ -244,7 +228,7 @@ func (f FeatureFlag) evaluateInternal(user User, store DataStore) EvaluationDeta
 	for _, target := range f.Targets {
 		for _, value := range target.Values {
 			if value == *user.Key {
-				return f.getVariation(target.Variation, evalReasonTargetMatchInstance)
+				return f.getVariation(target.Variation, newEvalReasonTargetMatch())
 			}
 		}
 	}
@@ -253,20 +237,22 @@ func (f FeatureFlag) evaluateInternal(user User, store DataStore) EvaluationDeta
 	for ruleIndex, rule := range f.Rules {
 		if rule.matchesUser(store, user) {
 			reason := newEvalReasonRuleMatch(ruleIndex, rule.ID)
-			return f.getValueForVariationOrRollout(rule.VariationOrRollout, user, reason)
+			return f.getValueForVariationOrRollout(rule.variationOrRollout, user, reason)
 		}
 	}
 
-	return f.getValueForVariationOrRollout(f.Fallthrough, user, evalReasonFallthroughInstance)
+	return f.getValueForVariationOrRollout(f.Fallthrough, user, newEvalReasonFallthrough())
 }
 
 func (f FeatureFlag) getVariation(index int, reason EvaluationReason) EvaluationDetail {
 	if index < 0 || index >= len(f.Variations) {
 		return EvaluationDetail{Reason: newEvalReasonError(EvalErrorMalformedFlag)}
 	}
+	value := f.Variations[index]
 	return EvaluationDetail{
 		Reason:         reason,
-		Value:          f.Variations[index],
+		Value:          value,
+		JSONValue:      ldvalue.UnsafeUseArbitraryValue(value), //nolint:staticcheck // allow deprecated usage
 		VariationIndex: &index,
 	}
 }
@@ -278,7 +264,7 @@ func (f FeatureFlag) getOffValue(reason EvaluationReason) EvaluationDetail {
 	return f.getVariation(*f.OffVariation, reason)
 }
 
-func (f FeatureFlag) getValueForVariationOrRollout(vr VariationOrRollout, user User, reason EvaluationReason) EvaluationDetail {
+func (f FeatureFlag) getValueForVariationOrRollout(vr variationOrRollout, user User, reason EvaluationReason) EvaluationDetail {
 	index := vr.variationIndexForUser(user, f.Key, f.Salt)
 	if index == nil {
 		return EvaluationDetail{Reason: newEvalReasonError(EvalErrorMalformedFlag)}
@@ -286,7 +272,7 @@ func (f FeatureFlag) getValueForVariationOrRollout(vr VariationOrRollout, user U
 	return f.getVariation(*index, reason)
 }
 
-func (r Rule) matchesUser(store DataStore, user User) bool {
+func (r flagRule) matchesUser(store DataStore, user User) bool {
 	for _, clause := range r.Clauses {
 		if !clause.matchesUser(store, user) {
 			return false
@@ -295,10 +281,10 @@ func (r Rule) matchesUser(store DataStore, user User) bool {
 	return true
 }
 
-func (c Clause) matchesUserNoSegments(user User) bool {
-	uValue, pass := user.valueOf(c.Attribute)
+func (c clause) matchesUserNoSegments(user User) bool {
+	uValue, found := user.valueOf(c.Attribute)
 
-	if pass {
+	if !found {
 		return false
 	}
 	matchFn := operatorFn(c.Op)
@@ -320,7 +306,7 @@ func (c Clause) matchesUserNoSegments(user User) bool {
 	return c.maybeNegate(matchAny(matchFn, uValue, c.Values))
 }
 
-func (c Clause) matchesUser(store DataStore, user User) bool {
+func (c clause) matchesUser(store DataStore, user User) bool {
 	// In the case of a segment match operator, we check if the user is in any of the segments,
 	// and possibly negate
 	if c.Op == operatorSegmentMatch {
@@ -342,7 +328,7 @@ func (c Clause) matchesUser(store DataStore, user User) bool {
 	return c.matchesUserNoSegments(user)
 }
 
-func (c Clause) maybeNegate(b bool) bool {
+func (c clause) maybeNegate(b bool) bool {
 	if c.Negate {
 		return !b
 	}
@@ -358,12 +344,12 @@ func matchAny(fn opFn, value interface{}, values []interface{}) bool {
 	return false
 }
 
-func (r VariationOrRollout) variationIndexForUser(user User, key, salt string) *int {
+func (r variationOrRollout) variationIndexForUser(user User, key, salt string) *int {
 	if r.Variation != nil {
 		return r.Variation
 	}
 	if r.Rollout == nil {
-		// This is an error (malformed flag); either Variation or Rollout must be non-nil.
+		// This is an error (malformed flag); either Variation or rollout must be non-nil.
 		return nil
 	}
 

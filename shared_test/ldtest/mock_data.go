@@ -3,7 +3,7 @@ package ldtest
 import (
 	"fmt"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
 // MockDataItem is a test implementation of ld.VersionedData.

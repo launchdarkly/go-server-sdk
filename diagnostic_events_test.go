@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func TestDiagnosticIDHasRandomID(t *testing.T) {
@@ -84,6 +85,20 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		{func(c *Config) { c.BaseUri = "custom" }, func(d *diagnosticConfigData) { d.CustomBaseURI = true }},
 		{func(c *Config) { c.StreamUri = "custom" }, func(d *diagnosticConfigData) { d.CustomStreamURI = true }},
 		{func(c *Config) { c.EventsUri = "custom" }, func(d *diagnosticConfigData) { d.CustomEventsURI = true }},
+		{func(c *Config) {
+			f := NewInMemoryDataStoreFactory()
+			c.DataStore, _ = f(DefaultConfig)
+		},
+			func(d *diagnosticConfigData) {
+				d.DataStoreType = ldvalue.NewOptionalString("memory")
+			}},
+		{func(c *Config) { c.DataStore = customStoreForDiagnostics{name: "Foo"} },
+			func(d *diagnosticConfigData) {
+				d.DataStoreType = ldvalue.NewOptionalString("Foo")
+			}},
+		// Can't use our actual persistent store implementations (Redis, etc.) in this test because it'd be
+		// a circular package reference. There are tests in each of those packages to verify that they
+		// return the expected component type names.
 		{func(c *Config) { c.Capacity = 99 }, func(d *diagnosticConfigData) { d.EventsCapacity = 99 }},
 		{func(c *Config) { c.Timeout = time.Second }, func(d *diagnosticConfigData) {
 			d.ConnectTimeoutMillis = 1000
@@ -109,4 +124,36 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		event := m.CreateInitEvent()
 		assert.Equal(t, expected, event.Configuration)
 	}
+}
+
+type customStoreForDiagnostics struct {
+	name string
+}
+
+func (c customStoreForDiagnostics) GetDiagnosticsComponentTypeName() string {
+	return c.name
+}
+
+func (c customStoreForDiagnostics) Get(kind VersionedDataKind, key string) (VersionedData, error) {
+	return nil, nil
+}
+
+func (c customStoreForDiagnostics) All(kind VersionedDataKind) (map[string]VersionedData, error) {
+	return nil, nil
+}
+
+func (c customStoreForDiagnostics) Init(data map[VersionedDataKind]map[string]VersionedData) error {
+	return nil
+}
+
+func (c customStoreForDiagnostics) Delete(kind VersionedDataKind, key string, version int) error {
+	return nil
+}
+
+func (c customStoreForDiagnostics) Upsert(kind VersionedDataKind, item VersionedData) error {
+	return nil
+}
+
+func (c customStoreForDiagnostics) Initialized() bool {
+	return false
 }

@@ -1,7 +1,6 @@
 package ldclient
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -74,28 +73,6 @@ func parseFloat64(input interface{}) *float64 {
 // unixMillisToUtcTime converts a Unix epoch milliseconds float64 value to the equivalent time.Time value with UTC location
 func unixMillisToUtcTime(unixMillis float64) time.Time {
 	return time.Unix(0, int64(unixMillis)*int64(time.Millisecond)).UTC()
-}
-
-// toJsonRawMessage converts input to a *json.RawMessage if possible.
-func toJsonRawMessage(input interface{}) (json.RawMessage, error) {
-	if input == nil {
-		return nil, nil
-	}
-	switch typedInput := input.(type) {
-	//already json, so just return casted input value
-	case json.RawMessage:
-		return typedInput, nil
-	case []byte:
-		inputJsonRawMessage := json.RawMessage(typedInput)
-		return inputJsonRawMessage, nil
-	default:
-		inputJsonBytes, err := json.Marshal(input)
-		if err != nil {
-			return nil, fmt.Errorf("Could not marshal: %+v to json", input)
-		}
-		inputJsonRawMessage := json.RawMessage(inputJsonBytes)
-		return inputJsonRawMessage, nil
-	}
 }
 
 func checkForHttpError(statusCode int, url string) error {
@@ -188,4 +165,23 @@ func describeUserForErrorLog(user *User, logUserKeyInErrors bool) string {
 		return fmt.Sprintf("user '%s'", key)
 	}
 	return "a user (enable LogUserKeyInErrors to see the user key)"
+}
+
+func stringSlicesEqual(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, n0 := range a {
+		ok := false
+		for _, n1 := range b {
+			if n1 == n0 {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
 }

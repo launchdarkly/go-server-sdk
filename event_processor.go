@@ -10,7 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"github.com/google/uuid"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 // EventProcessor defines the interface for dispatching analytics events.
@@ -89,6 +90,7 @@ type syncEventsMessage struct {
 const (
 	maxFlushWorkers    = 5
 	eventSchemaHeader  = "X-LaunchDarkly-Event-Schema"
+	payloadIDHeader    = "X-LaunchDarkly-Payload-ID"
 	currentEventSchema = "3"
 	defaultURIPath     = "/bulk"
 	diagnosticsURIPath = "/diagnostic"
@@ -474,11 +476,11 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			break
 		}
 		if payload.diagnosticEvent != nil {
-			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event")
+			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose // response was already closed in postEvents
 		} else {
 			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
-				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents)))
+				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose // response was already closed in postEvents
 				if resp != nil {
 					responseFn(resp)
 				}
@@ -494,6 +496,8 @@ func (t *sendEventsTask) postEvents(uri string, outputData interface{}, descript
 		t.config.Loggers.Errorf("Unexpected error marshalling event json: %+v", marshalErr)
 		return nil
 	}
+	payloadUUID, _ := uuid.NewRandom()
+	payloadID := payloadUUID.String() // if NewRandom somehow failed, we'll just proceed with an empty string
 
 	t.config.Loggers.Debugf("Sending %s: %s", description, jsonPayload)
 
@@ -513,6 +517,7 @@ func (t *sendEventsTask) postEvents(uri string, outputData interface{}, descript
 		addBaseHeaders(req, t.sdkKey, t.config)
 		req.Header.Add("Content-Type", "application/json")
 		req.Header.Add(eventSchemaHeader, currentEventSchema)
+		req.Header.Add(payloadIDHeader, payloadID)
 
 		resp, respErr = t.client.Do(req)
 

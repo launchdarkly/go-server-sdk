@@ -12,10 +12,17 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	cache "github.com/patrickmn/go-cache"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
+
+// Optional interface that can be implemented by components whose types can't be easily
+// determined by looking at the config object. This is also defined in diagnostic_events.go,
+// but that's in another package and we'd rather not export this implementation detail.
+type diagnosticsComponentDescriptor interface {
+	GetDiagnosticsComponentTypeName() string
+}
 
 // UnmarshalItem attempts to unmarshal an entity that has been stored as JSON in a
 // DataStore. The kind parameter indicates what type of entity is expected.
@@ -290,7 +297,7 @@ func (w *DataStoreWrapper) Get(kind ld.VersionedDataKind, key string) (ld.Versio
 		}
 		return itemOnlyIfNotDeleted(item), err
 	})
-	if err != nil {
+	if err != nil || itemIntf == nil {
 		return nil, err
 	}
 	if item, ok := itemIntf.(ld.VersionedData); ok { // singleflight.Group.Do returns value as interface{}
@@ -440,6 +447,14 @@ func (w *DataStoreWrapper) GetStoreStatus() internal.DataStoreStatus {
 // StatusSubscribe creates a channel that will receive all changes in store status.
 func (w *DataStoreWrapper) StatusSubscribe() internal.DataStoreStatusSubscription {
 	return w.statusManager.Subscribe()
+}
+
+// Used internally to describe this component in diagnostic data.
+func (w *DataStoreWrapper) GetDiagnosticsComponentTypeName() string {
+	if dcd, ok := w.core.(diagnosticsComponentDescriptor); ok {
+		return dcd.GetDiagnosticsComponentTypeName()
+	}
+	return "custom"
 }
 
 func (w *DataStoreWrapper) processError(err error) {

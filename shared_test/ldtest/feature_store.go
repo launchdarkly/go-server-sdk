@@ -1,14 +1,17 @@
+// Package ldtest contains types and functions used by SDK unit tests in multiple packages.
+//
+// Application code should not use this package. In a future version, it will be moved to internal.
 package ldtest
 
 import (
 	"testing"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
 // RunDataStoreTests runs a suite of tests on a data store.
