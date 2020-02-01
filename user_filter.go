@@ -100,9 +100,8 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 			if isPrivate(string(attr)) {
 				privateAttrs = append(privateAttrs, string(attr))
 				return nil
-			} else {
-				return value.AsPointer()
 			}
+			return value.AsPointer()
 		}
 		return nil
 	}
@@ -130,9 +129,8 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 			if isPrivate(key) {
 				privateAttrs = append(privateAttrs, key)
 				return ldvalue.Null(), false
-			} else {
-				return v, true
 			}
+			return v, true
 		})
 		if filteredCustom.Count() > 0 {
 			ret.filteredUser.Custom = &filteredCustom
@@ -140,7 +138,7 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 	}
 
 	ret.filteredUser.PrivateAttrs = privateAttrs
-	return
+	return //nolint:nakedret // linter complains about "naked return" in a lengthy function
 }
 
 func (u serializableUser) MarshalJSON() (output []byte, err error) {
