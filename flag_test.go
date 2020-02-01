@@ -8,7 +8,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-var flagUser = Nlduser.ewUser("x")
+var flagUser = lduser.NewUser("x")
 var emptyDataStore = newInMemoryDataStoreInternal(Config{})
 var fallthroughValue = ldvalue.String("fall")
 var offValue = ldvalue.String("off")
