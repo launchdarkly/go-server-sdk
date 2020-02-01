@@ -592,7 +592,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 	}
 
 	detail, prereqEvents := feature.EvaluateDetail(user, client.store, sendReasonsInEvents)
-	if detail.Reason != nil && detail.Reason.GetKind() == EvalReasonError && client.config.LogEvaluationErrors {
+	if detail.Reason.GetKind() == EvalReasonError && client.config.LogEvaluationErrors {
 		client.config.Loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
 			key, detail.Reason.GetErrorKind())
 	}
