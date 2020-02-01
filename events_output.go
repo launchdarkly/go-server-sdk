@@ -25,7 +25,7 @@ type featureRequestEventOutput struct {
 type identifyEventOutput struct {
 	Kind         string            `json:"kind"`
 	CreationDate uint64            `json:"creationDate"`
-	Key          *string           `json:"key"`
+	Key          string            `json:"key"`
 	User         *serializableUser `json:"user"`
 }
 
@@ -116,7 +116,8 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 		if ef.inlineUsers || evt.Debug {
 			fe.User = ef.userFilter.scrubUser(evt.User)
 		} else {
-			fe.UserKey = evt.User.Key
+			key := evt.User.GetKey()
+			fe.UserKey = &key
 		}
 		if evt.Debug {
 			fe.Kind = FeatureDebugEventKind
@@ -135,14 +136,15 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 		if ef.inlineUsers {
 			ce.User = ef.userFilter.scrubUser(evt.User)
 		} else {
-			ce.UserKey = evt.User.Key
+			key := evt.User.GetKey()
+			ce.UserKey = &key
 		}
 		return ce
 	case IdentifyEvent:
 		return identifyEventOutput{
 			Kind:         IdentifyEventKind,
 			CreationDate: evt.BaseEvent.CreationDate,
-			Key:          evt.User.Key,
+			Key:          evt.User.GetKey(),
 			User:         ef.userFilter.scrubUser(evt.User),
 		}
 	case IndexEvent:

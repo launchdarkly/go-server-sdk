@@ -232,12 +232,15 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "v1"
-  digest = "1:797d10f97b03b3580492b34e3a1cb2608a1d905307a002341e4b957c1b92d0ab"
+  branch = "v2"
+  digest = "1:ba6119517f93cb9ff33af39d0beab782f1347e100dad1c524c2adf15330232fa"
   name = "gopkg.in/launchdarkly/go-sdk-common.v2"
-  packages = ["ldvalue"]
+  packages = [
+    "lduser",
+    "ldvalue",
+  ]
   pruneopts = "NUT"
-  revision = "7a88acd5758de151314b415405fa914edbad16f2"
+  revision = "3e63beb8271e9cdddcbda53d0cdd2bfec9f3c8d1"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]
@@ -271,6 +274,7 @@
     "github.com/stretchr/testify/require",
     "golang.org/x/sync/singleflight",
     "gopkg.in/ghodss/yaml.v1",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
   ]
   solver-name = "gps-cdcl"

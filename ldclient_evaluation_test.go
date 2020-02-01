@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-var evalTestUser = NewUser("userkey")
-var evalTestUserWithNilKey = User{Name: strPtr("Bob")}
+var evalTestUser = lduser.NewUser("userkey")
 
 func makeTestFlag(key string, fallThroughVariation int, variations ...ldvalue.Value) *FeatureFlag {
 	return &FeatureFlag{
@@ -26,7 +26,7 @@ func makeMalformedFlag(key string) *FeatureFlag {
 	return &FeatureFlag{Key: key, On: false, OffVariation: intPtr(-1)}
 }
 
-func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user User, value ldvalue.Value,
+func assertEvalEvent(t *testing.T, client *LDClient, flag *FeatureFlag, user lduser.User, value ldvalue.Value,
 	variation int, defaultVal ldvalue.Value, reason EvaluationReason) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
@@ -540,34 +540,6 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 	assert.Equal(t, expectedEvent, e)
 }
 
-func TestEvaluatingFlagWithNilUserKeySendsEvent(t *testing.T) {
-	flag := makeTestFlag("flagKey", 1, ldvalue.String("a"), ldvalue.String("b"))
-	client := makeTestClient()
-	defer client.Close()
-	client.store.Upsert(Features, flag)
-
-	_, err := client.StringVariation(flag.Key, evalTestUserWithNilKey, "x")
-	assert.Error(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-
-	assert.Equal(t, 1, len(events))
-	e := events[0].(FeatureRequestEvent)
-	expectedEvent := FeatureRequestEvent{
-		BaseEvent: BaseEvent{
-			CreationDate: e.CreationDate,
-			User:         evalTestUserWithNilKey,
-		},
-		Key:       flag.Key,
-		Version:   &flag.Version,
-		Value:     ldvalue.String("x"),
-		Variation: nil,
-		Default:   ldvalue.String("x"),
-		PrereqOf:  nil,
-	}
-	assert.Equal(t, expectedEvent, e)
-}
-
 func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
@@ -580,7 +552,7 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	client.store.Upsert(Features, flag0)
 	client.store.Upsert(Features, flag1)
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	_, err := client.StringVariation(flag0.Key, user, "x")
 	assert.NoError(t, err)
 
@@ -640,7 +612,7 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 	client.store.Upsert(Features, &flag1)
 	client.store.Upsert(Features, &flag2)
 
-	state := client.AllFlagsState(NewUser("userkey"))
+	state := client.AllFlagsState(lduser.NewUser("userkey"))
 	assert.True(t, state.IsValid())
 
 	expectedString := `{
@@ -684,7 +656,7 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 	client.store.Upsert(Features, &flag3)
 	client.store.Upsert(Features, &flag4)
 
-	state := client.AllFlagsState(NewUser("userkey"), ClientSideOnly)
+	state := client.AllFlagsState(lduser.NewUser("userkey"), ClientSideOnly)
 	assert.True(t, state.IsValid())
 
 	expectedValues := map[string]ldvalue.Value{"client-side-1": ldvalue.String("value1"), "client-side-2": ldvalue.String("value2")}
@@ -713,7 +685,7 @@ func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
 	client.store.Upsert(Features, &flag1)
 	client.store.Upsert(Features, &flag2)
 
-	state := client.AllFlagsState(NewUser("userkey"), WithReasons)
+	state := client.AllFlagsState(lduser.NewUser("userkey"), WithReasons)
 	assert.True(t, state.IsValid())
 
 	expectedString := `{
@@ -765,7 +737,7 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	client.store.Upsert(Features, &flag2)
 	client.store.Upsert(Features, &flag3)
 
-	state := client.AllFlagsState(NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
+	state := client.AllFlagsState(lduser.NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
 	assert.True(t, state.IsValid())
 
 	expectedString := `{
@@ -790,29 +762,9 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	assert.JSONEq(t, expectedString, string(actualBytes))
 }
 
-func TestAllFlagsStateReturnsEmptyStateForNilUserKey(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	flag1 := makeTestFlag("flag0", 0, ldvalue.String("value1"))
-	flag2 := makeTestFlag("flag1", 0, ldvalue.String("value2"))
-	client.store.Upsert(Features, flag1)
-	client.store.Upsert(Features, flag2)
-
-	state := client.AllFlagsState(evalTestUserWithNilKey)
-	assert.False(t, state.IsValid())
-	assert.Nil(t, state.ToValuesMap())
-}
-
 func TestUnknownFlagErrorLogging(t *testing.T) {
 	testEvalErrorLogging(t, nil, "unknown-flag", evalTestUser,
 		"WARN: unknown feature key: unknown-flag\\. Verify that this feature key exists\\. Returning default value")
-}
-
-func TestInvalidUserErrorLogging(t *testing.T) {
-	testEvalErrorLogging(t, makeTestFlag("valid-flag", 1, ldvalue.Bool(false), ldvalue.Bool(true)),
-		"", evalTestUserWithNilKey,
-		"WARN: user\\.Key cannot be nil when evaluating flag: valid-flag\\. Returning default value")
 }
 
 func TestMalformedFlagErrorLogging(t *testing.T) {
@@ -820,7 +772,7 @@ func TestMalformedFlagErrorLogging(t *testing.T) {
 		"WARN: flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
-func testEvalErrorLogging(t *testing.T, flag *FeatureFlag, key string, user User, expectedMessageRegex string) {
+func testEvalErrorLogging(t *testing.T, flag *FeatureFlag, key string, user lduser.User, expectedMessageRegex string) {
 	runTest := func(withLogging bool) {
 		logger := newMockLogger("WARN:")
 		client := makeTestClientWithConfig(func(c *Config) {

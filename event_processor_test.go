@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -34,7 +35,7 @@ var epDefaultConfig = Config{
 	UserKeysFlushInterval: 1 * time.Hour,
 }
 
-var epDefaultUser = NewUserBuilder("userKey").Name("Red").Build()
+var epDefaultUser = lduser.NewUserBuilder("userKey").Name("Red").Build()
 
 var userJson = map[string]interface{}{"key": "userKey", "name": "Red"}
 var filteredUserJson = map[string]interface{}{"key": "userKey", "privateAttrs": []interface{}{"name"}}
@@ -293,7 +294,7 @@ func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
 	st.serverTime = serverTime
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(NewUser("otherUser"))
+	ie := NewIdentifyEvent(lduser.NewUser("otherUser"))
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -328,7 +329,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	st.serverTime = serverTime
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(NewUser("otherUser"))
+	ie := NewIdentifyEvent(lduser.NewUser("otherUser"))
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -436,7 +437,7 @@ func TestCustomEventIsQueuedWithUser(t *testing.T) {
 			"creationDate": float64(ce.CreationDate),
 			"key":          ce.Key,
 			"data":         data.AsArbitraryValue(),
-			"userKey":      *epDefaultUser.Key,
+			"userKey":      epDefaultUser.GetKey(),
 		}
 		assert.Equal(t, expected, ceo)
 	}
@@ -460,7 +461,7 @@ func TestCustomEventCanContainInlineUser(t *testing.T) {
 			"creationDate": float64(ce.CreationDate),
 			"key":          ce.Key,
 			"data":         data.AsArbitraryValue(),
-			"user":         jsonMap(epDefaultUser),
+			"user":         userJsonMap(epDefaultUser),
 		}
 		assert.Equal(t, expected, ceo)
 	}
@@ -666,47 +667,6 @@ func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
 	assert.Equal(t, "/bulk/transformed", postedURL)
 }
 
-func TestPanicInSerializationOfOneUserDoesNotDropEvents(t *testing.T) {
-	user1 := NewUserBuilder("user1").Name("Bandit").Build()
-	user2 := NewUserBuilder("user2").Name("Tinker").Build()
-
-	// see TestUserSerialization() regarding this method of injecting a custom attribute
-	user3 := NewUserBuilder("user3").Name("Pirate").Build()
-	errorMessage := "boom"
-	custom := make(map[string]interface{})
-	custom["uh-oh"] = valueThatPanicsWhenMarshalledToJSON(errorMessage)
-	user3.Custom = &custom
-
-	config := epDefaultConfig
-	logger := newMockLogger("")
-	config.Loggers.SetBaseLogger(logger)
-	ep, st := createEventProcessor(config)
-	defer ep.Close()
-
-	ep.SendEvent(NewIdentifyEvent(user1))
-	ep.SendEvent(NewIdentifyEvent(user2))
-	ep.SendEvent(NewIdentifyEvent(user3))
-
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 3, len(output)) {
-		assert.Equal(t, "identify", output[0]["kind"])
-		assert.Equal(t, jsonMap(user1), output[0]["user"])
-
-		assert.Equal(t, "identify", output[1]["kind"])
-		assert.Equal(t, jsonMap(user2), output[1]["user"])
-
-		partialUser := map[string]interface{}{
-			"key":  *user3.Key,
-			"name": *user3.Name,
-		}
-		assert.Equal(t, "identify", output[2]["kind"])
-		assert.Equal(t, partialUser, output[2]["user"])
-	}
-
-	expectedMessage := "ERROR: " + fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user3, false), errorMessage)
-	assert.Equal(t, []string{expectedMessage}, logger.output)
-}
-
 func TestDiagnosticInitEventIsSent(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	startTime := time.Now()
@@ -776,9 +736,9 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	req1, _ := st.awaitRequest() // diagnostic init event
 	assert.Equal(t, "/diagnostic", req1.URL.Path)
 
-	ep.SendEvent(newCustomEvent("key", NewUser("userkey"), ldvalue.Null(), false, 0))
-	ep.SendEvent(newCustomEvent("key", NewUser("userkey"), ldvalue.Null(), false, 0))
-	ep.SendEvent(newCustomEvent("key", NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(newCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(newCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(newCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
 	ep.Flush()
 
 	req2, _ := st.awaitRequest() // flushed events
@@ -811,10 +771,16 @@ func jsonMap(o interface{}) map[string]interface{} {
 	return result
 }
 
+func userJsonMap(u lduser.User) map[string]interface{} {
+	filter := newUserFilter(DefaultConfig)
+	fu := filter.scrubUser(u).filteredUser
+	return jsonMap(fu)
+}
+
 func assertIdentifyEventMatches(t *testing.T, sourceEvent Event, encodedUser map[string]interface{}, output map[string]interface{}) {
 	expected := map[string]interface{}{
 		"kind":         "identify",
-		"key":          *sourceEvent.GetBase().User.Key,
+		"key":          sourceEvent.GetBase().User.GetKey(),
 		"creationDate": float64(sourceEvent.GetBase().CreationDate),
 		"user":         encodedUser,
 	}
@@ -853,7 +819,7 @@ func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, fl
 		expected["reason"] = nil
 	}
 	if inlineUser == nil {
-		expected["userKey"] = *sourceEvent.User.Key
+		expected["userKey"] = sourceEvent.User.GetKey()
 	} else {
 		expected["user"] = *inlineUser
 	}

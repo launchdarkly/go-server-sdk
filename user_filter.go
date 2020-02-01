@@ -3,12 +3,29 @@ package ldclient
 import (
 	"encoding/json"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
+type filteredUser struct {
+	Key          string         `json:"key"`
+	Secondary    *string        `json:"secondary,omitempty"`
+	IP           *string        `json:"ip,omitempty"`
+	Country      *string        `json:"country,omitempty"`
+	Email        *string        `json:"email,omitempty"`
+	FirstName    *string        `json:"firstName,omitempty"`
+	LastName     *string        `json:"lastName,omitempty"`
+	Avatar       *string        `json:"avatar,omitempty"`
+	Name         *string        `json:"name,omitempty"`
+	Anonymous    *bool          `json:"anonymous,omitempty"`
+	Custom       *ldvalue.Value `json:"custom,omitempty"`
+	PrivateAttrs []string       `json:"privateAttrs,omitempty"`
+}
+
 type serializableUser struct {
-	User
-	filter *userFilter
+	filteredUser filteredUser
+	filter       *userFilter
 }
 
 type userFilter struct {
@@ -42,92 +59,88 @@ const userSerializationErrorMessage = "An error occurred while processing custom
 // here, or during JSON serialization), but we can at least recover from such an error and log the
 // problem. In that case, all of the custom attributes for the user will be lost (since we have no
 // way to know whether they are still correct after the concurrent modification).
-func (uf *userFilter) scrubUser(user User) (ret *serializableUser) {
-	ret = &serializableUser{User: user, filter: uf}
-	if len(user.PrivateAttributeNames) == 0 && len(uf.globalPrivateAttributes) == 0 && !uf.allAttributesPrivate {
+func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
+	ret = &serializableUser{}
+	ret.filter = uf
+
+	ret.filteredUser.Key = user.GetKey()
+	if anon, hasAnon := user.GetAnonymousOptional(); hasAnon {
+		ret.filteredUser.Anonymous = &anon
+	}
+
+	if !user.HasPrivateAttributes() && len(uf.globalPrivateAttributes) == 0 && !uf.allAttributesPrivate {
+		// No need to filter the user attributes
+		ret.filteredUser.Secondary = user.GetSecondaryKey().AsPointer()
+		ret.filteredUser.IP = user.GetIP().AsPointer()
+		ret.filteredUser.Country = user.GetCountry().AsPointer()
+		ret.filteredUser.Email = user.GetEmail().AsPointer()
+		ret.filteredUser.FirstName = user.GetFirstName().AsPointer()
+		ret.filteredUser.LastName = user.GetLastName().AsPointer()
+		ret.filteredUser.Avatar = user.GetAvatar().AsPointer()
+		ret.filteredUser.Name = user.GetName().AsPointer()
+		ret.filteredUser.Custom = user.GetAllCustom().AsPointer()
 		return
 	}
 
-	isPrivate := map[string]bool{}
-	for _, n := range uf.globalPrivateAttributes {
-		isPrivate[n] = true
+	privateAttrs := []string{}
+	isPrivate := func(attrName string) bool {
+		if uf.allAttributesPrivate || user.IsPrivateAttribute(lduser.UserAttribute(attrName)) {
+			return true
+		}
+		for _, a := range uf.globalPrivateAttributes {
+			if a == attrName {
+				return true
+			}
+		}
+		return false
 	}
-	for _, n := range user.PrivateAttributeNames {
-		isPrivate[n] = true
+	maybeFilter := func(attr lduser.UserAttribute, getter func(lduser.User) ldvalue.OptionalString) *string {
+		value := getter(user)
+		if value.IsDefined() {
+			if isPrivate(string(attr)) {
+				privateAttrs = append(privateAttrs, string(attr))
+				return nil
+			} else {
+				return value.AsPointer()
+			}
+		}
+		return nil
 	}
-	ret.User.PrivateAttributeNames = nil // this property is not used in the output schema for events
-	ret.User.PrivateAttributes = nil     // see below
-	// Because we're only resetting these properties if we're going to proceed with the scrubbing logic, it is
-	// possible to pass an already-scrubbed user to this function (with, potentially, some attribute names in
-	// PrivateAttributes) and get back the same object, as long as the configuration does not have private
-	// attributes enabled. This allows us to reuse the event processor code in ld-relay, where we may have to
-	// reprocess events that have already been through the scrubbing process.
+	ret.filteredUser.Secondary = maybeFilter(lduser.SecondaryKeyAttribute, lduser.User.GetSecondaryKey)
+	ret.filteredUser.IP = maybeFilter(lduser.IPAttribute, lduser.User.GetIP)
+	ret.filteredUser.Country = maybeFilter(lduser.CountryAttribute, lduser.User.GetCountry)
+	ret.filteredUser.Email = maybeFilter(lduser.EmailAttribute, lduser.User.GetEmail)
+	ret.filteredUser.FirstName = maybeFilter(lduser.FirstNameAttribute, lduser.User.GetFirstName)
+	ret.filteredUser.LastName = maybeFilter(lduser.LastNameAttribute, lduser.User.GetLastName)
+	ret.filteredUser.Avatar = maybeFilter(lduser.AvatarAttribute, lduser.User.GetAvatar)
+	ret.filteredUser.Name = maybeFilter(lduser.NameAttribute, lduser.User.GetName)
 
-	if !isEmpty(user.Avatar) && (uf.allAttributesPrivate || isPrivate["avatar"]) {
-		ret.User.Avatar = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "avatar")
-	}
-
-	if !isEmpty(user.Country) && (uf.allAttributesPrivate || isPrivate["country"]) {
-		ret.User.Country = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "country")
-	}
-
-	if !isEmpty(user.Ip) && (uf.allAttributesPrivate || isPrivate["ip"]) {
-		ret.User.Ip = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "ip")
-	}
-
-	if !isEmpty(user.FirstName) && (uf.allAttributesPrivate || isPrivate["firstName"]) {
-		ret.User.FirstName = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "firstName")
-	}
-
-	if !isEmpty(user.LastName) && (uf.allAttributesPrivate || isPrivate["lastName"]) {
-		ret.User.LastName = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "lastName")
-	}
-
-	if !isEmpty(user.Name) && (uf.allAttributesPrivate || isPrivate["name"]) {
-		ret.User.Name = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "name")
-	}
-
-	if !isEmpty(user.Secondary) && (uf.allAttributesPrivate || isPrivate["secondary"]) {
-		ret.User.Secondary = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "secondary")
-	}
-
-	if !isEmpty(user.Email) && (uf.allAttributesPrivate || isPrivate["email"]) {
-		ret.User.Email = nil
-		ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, "email")
-	}
-
-	if user.Custom != nil {
+	if !user.GetAllCustom().IsNull() {
 		// Any panics that happen from this point on (presumably due to concurrent modification of the
 		// custom attributes map) will be caught here, in which case we simply drop the custom attributes.
+		// Such a concurrent modification shouldn't be possible since the map is not exposed outside of
+		// the ldvalue package, but better safe than sorry.
 		defer func() {
 			if r := recover(); r != nil {
-				uf.loggers.Errorf(userSerializationErrorMessage, describeUserForErrorLog(&user, uf.logUserKeyInErrors), r)
-				ret.User.Custom = nil
+				uf.loggers.Errorf(userSerializationErrorMessage, describeUserForErrorLog(user.GetKey(), uf.logUserKeyInErrors), r)
+				ret.filteredUser.Custom = nil
 			}
 		}()
-		var custom = map[string]interface{}{}
-		for k, v := range *user.Custom {
-			if uf.allAttributesPrivate || isPrivate[k] {
-				ret.User.PrivateAttributes = append(ret.User.PrivateAttributes, k)
+		filteredCustom := user.GetAllCustom().Transform(func(i int, key string, v ldvalue.Value) (ldvalue.Value, bool) {
+			if isPrivate(key) {
+				privateAttrs = append(privateAttrs, key)
+				return ldvalue.Null(), false
 			} else {
-				custom[k] = v
+				return v, true
 			}
-		}
-		if len(custom) > 0 {
-			ret.User.Custom = &custom
-		} else {
-			ret.User.Custom = nil
+		})
+		if filteredCustom.Count() > 0 {
+			ret.filteredUser.Custom = &filteredCustom
 		}
 	}
 
-	return ret
+	ret.filteredUser.PrivateAttrs = privateAttrs
+	return
 }
 
 func (u serializableUser) MarshalJSON() (output []byte, err error) {
@@ -135,9 +148,9 @@ func (u serializableUser) MarshalJSON() (output []byte, err error) {
 		if me, ok := err.(*json.MarshalerError); ok {
 			err = me.Err
 		}
-		u.filter.loggers.Errorf(userSerializationErrorMessage, describeUserForErrorLog(&u.User, u.filter.logUserKeyInErrors), err)
-		u.User.Custom = nil
-		return json.Marshal(u.User)
+		u.filter.loggers.Errorf(userSerializationErrorMessage, describeUserForErrorLog(u.filteredUser.Key, u.filter.logUserKeyInErrors), err)
+		u.filteredUser.Custom = nil
+		return json.Marshal(u.filteredUser)
 	}
 	defer func() {
 		// See comments on scrubUser.
@@ -148,13 +161,9 @@ func (u serializableUser) MarshalJSON() (output []byte, err error) {
 	// Note that in some versions of Go, any panic within json.Marshal is automatically caught and converted into
 	// an error result. Since there shouldn't be any way for serialization to fail on any user attributes other
 	// than the custom ones, we want to treat that the same as a panic.
-	output, err = json.Marshal(u.User)
+	output, err = json.Marshal(u.filteredUser)
 	if err != nil {
 		output, err = marshalUserWithoutCustomAttrs(err)
 	}
 	return
-}
-
-func isEmpty(s *string) bool {
-	return s == nil || *s == ""
 }

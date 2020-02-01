@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
@@ -317,11 +318,11 @@ func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys
 }
 
 // Add to the set of users we've noticed, and return true if the user was already known to us.
-func noticeUser(userKeys *lruCache, user *User) bool {
-	if user == nil || user.Key == nil {
+func noticeUser(userKeys *lruCache, user *lduser.User) bool {
+	if user == nil {
 		return true
 	}
-	return userKeys.add(*user.Key)
+	return userKeys.add(user.GetKey())
 }
 
 func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
