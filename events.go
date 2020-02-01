@@ -111,7 +111,7 @@ func (evt FeatureRequestEvent) GetBase() BaseEvent {
 	return evt.BaseEvent
 }
 
-func newCustomEvent(key string, user User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
+func newCustomEvent(key string, user lduser.User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
 	ce := CustomEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),

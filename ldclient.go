@@ -209,7 +209,7 @@ func (client *LDClient) TrackEvent(eventName string, user lduser.User) error {
 // will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
 // instead). To send a numeric value for experimentation, use TrackMetric.
 func (client *LDClient) TrackData(eventName string, user lduser.User, data ldvalue.Value) error {
-	if user.Key == nil || *user.Key == "" {
+	if user.GetKey() == "" {
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
