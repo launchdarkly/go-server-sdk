@@ -3,8 +3,10 @@ package ldclient
 import (
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/blang/semver"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 // List of available operators
@@ -26,7 +28,7 @@ const (
 	OperatorSemVerGreaterThan  Operator = "semVerGreaterThan"
 )
 
-type opFn (func(interface{}, interface{}) bool)
+type opFn (func(ldvalue.Value, ldvalue.Value) bool)
 
 // Operator describes an operator for a clause.
 //
@@ -86,36 +88,26 @@ func operatorFn(operator Operator) opFn {
 	return operatorNoneFn
 }
 
-func operatorInFn(uValue interface{}, cValue interface{}) bool {
-	if uValue == cValue {
-		return true
-	}
-
-	if numericOperator(uValue, cValue, func(u float64, c float64) bool { return u == c }) {
-		return true
-	}
-
-	return false
+func operatorInFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
+	return uValue.Equal(cValue)
 }
 
-func stringOperator(uValue interface{}, cValue interface{}, fn func(string, string) bool) bool {
-	if uStr, ok := uValue.(string); ok {
-		if cStr, ok := cValue.(string); ok {
-			return fn(uStr, cStr)
-		}
+func stringOperator(uValue ldvalue.Value, cValue ldvalue.Value, fn func(string, string) bool) bool {
+	if uValue.Type() == ldvalue.StringType && cValue.Type() == ldvalue.StringType {
+		return fn(uValue.StringValue(), cValue.StringValue())
 	}
 	return false
 }
 
-func operatorStartsWithFn(uValue interface{}, cValue interface{}) bool {
+func operatorStartsWithFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return stringOperator(uValue, cValue, func(u string, c string) bool { return strings.HasPrefix(u, c) })
 }
 
-func operatorEndsWithFn(uValue interface{}, cValue interface{}) bool {
+func operatorEndsWithFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return stringOperator(uValue, cValue, func(u string, c string) bool { return strings.HasSuffix(u, c) })
 }
 
-func operatorMatchesFn(uValue interface{}, cValue interface{}) bool {
+func operatorMatchesFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return stringOperator(uValue, cValue, func(u string, c string) bool {
 		if matched, err := regexp.MatchString(c, u); err == nil {
 			return matched
@@ -124,61 +116,67 @@ func operatorMatchesFn(uValue interface{}, cValue interface{}) bool {
 	})
 }
 
-func operatorContainsFn(uValue interface{}, cValue interface{}) bool {
+func operatorContainsFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return stringOperator(uValue, cValue, func(u string, c string) bool { return strings.Contains(u, c) })
 }
 
-func numericOperator(uValue interface{}, cValue interface{}, fn func(float64, float64) bool) bool {
-	uFloat64 := ParseFloat64(uValue)
-	if uFloat64 != nil {
-		cFloat64 := ParseFloat64(cValue)
-		if cFloat64 != nil {
-			return fn(*uFloat64, *cFloat64)
-		}
+func numericOperator(uValue ldvalue.Value, cValue ldvalue.Value, fn func(float64, float64) bool) bool {
+	if uValue.IsNumber() && cValue.IsNumber() {
+		return fn(uValue.Float64Value(), cValue.Float64Value())
 	}
 	return false
 }
 
-func operatorLessThanFn(uValue interface{}, cValue interface{}) bool {
+func operatorLessThanFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return numericOperator(uValue, cValue, func(u float64, c float64) bool { return u < c })
 }
 
-func operatorLessThanOrEqualFn(uValue interface{}, cValue interface{}) bool {
+func operatorLessThanOrEqualFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return numericOperator(uValue, cValue, func(u float64, c float64) bool { return u <= c })
 }
 
-func operatorGreaterThanFn(uValue interface{}, cValue interface{}) bool {
+func operatorGreaterThanFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return numericOperator(uValue, cValue, func(u float64, c float64) bool { return u > c })
 }
 
-func operatorGreaterThanOrEqualFn(uValue interface{}, cValue interface{}) bool {
+func operatorGreaterThanOrEqualFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return numericOperator(uValue, cValue, func(u float64, c float64) bool { return u >= c })
 }
 
-func operatorBeforeFn(uValue interface{}, cValue interface{}) bool {
-	uTime := ParseTime(uValue)
-	if uTime != nil {
-		cTime := ParseTime(cValue)
-		if cTime != nil {
-			return uTime.Before(*cTime)
+func operatorBeforeFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
+	if u, ok := parseDateTime(uValue); ok {
+		if c, ok := parseDateTime(cValue); ok {
+			return u.Before(c)
 		}
 	}
 	return false
 }
 
-func operatorAfterFn(uValue interface{}, cValue interface{}) bool {
-	uTime := ParseTime(uValue)
-	if uTime != nil {
-		cTime := ParseTime(cValue)
-		if cTime != nil {
-			return uTime.After(*cTime)
+func operatorAfterFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
+	if u, ok := parseDateTime(uValue); ok {
+		if c, ok := parseDateTime(cValue); ok {
+			return u.After(c)
 		}
 	}
 	return false
 }
 
-func parseSemVer(value interface{}) (semver.Version, bool) {
-	if versionStr, ok := value.(string); ok {
+func parseDateTime(value ldvalue.Value) (time.Time, bool) {
+	switch value.Type() {
+	case ldvalue.StringType:
+		t, err := time.Parse(time.RFC3339Nano, value.StringValue())
+		if err == nil {
+			return t.UTC(), true
+		}
+	case ldvalue.NumberType:
+		return unixMillisToUtcTime(value.Float64Value()), true
+	}
+	return time.Time{}, false
+}
+
+func parseSemVer(value ldvalue.Value) (semver.Version, bool) {
+	if value.Type() == ldvalue.StringType {
+		versionStr := value.StringValue()
 		if sv, err := semver.Parse(versionStr); err == nil {
 			return sv, true
 		}
@@ -200,24 +198,24 @@ func parseSemVer(value interface{}) (semver.Version, bool) {
 	return semver.Version{}, false
 }
 
-func semVerOperator(uValue interface{}, cValue interface{}, fn func(semver.Version, semver.Version) bool) bool {
+func semVerOperator(uValue ldvalue.Value, cValue ldvalue.Value, fn func(semver.Version, semver.Version) bool) bool {
 	u, uOk := parseSemVer(uValue)
 	c, cOk := parseSemVer(cValue)
 	return uOk && cOk && fn(u, c)
 }
 
-func operatorSemVerEqualFn(uValue interface{}, cValue interface{}) bool {
+func operatorSemVerEqualFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return semVerOperator(uValue, cValue, semver.Version.Equals)
 }
 
-func operatorSemVerLessThanFn(uValue interface{}, cValue interface{}) bool {
+func operatorSemVerLessThanFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return semVerOperator(uValue, cValue, semver.Version.LT)
 }
 
-func operatorSemVerGreaterThanFn(uValue interface{}, cValue interface{}) bool {
+func operatorSemVerGreaterThanFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return semVerOperator(uValue, cValue, semver.Version.GT)
 }
 
-func operatorNoneFn(uValue interface{}, cValue interface{}) bool {
+func operatorNoneFn(uValue ldvalue.Value, cValue ldvalue.Value) bool {
 	return false
 }

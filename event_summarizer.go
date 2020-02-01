@@ -1,5 +1,7 @@
 package ldclient
 
+import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+
 // Manages the state of summarizable information for the EventProcessor, including the
 // event counters and user deduplication. Note that the methods for this type are
 // deliberately not thread-safe, because they should always be called from EventProcessor's
@@ -26,8 +28,8 @@ const (
 
 type counterValue struct {
 	count       int
-	flagValue   interface{}
-	flagDefault interface{}
+	flagValue   ldvalue.Value
+	flagDefault ldvalue.Value
 }
 
 func newEventSummarizer() eventSummarizer {

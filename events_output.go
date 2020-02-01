@@ -1,5 +1,7 @@
 package ldclient
 
+import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+
 // The types in this file are for analytics event data structures that we send to
 // LaunchDarkly.
 
@@ -12,8 +14,8 @@ type featureRequestEventOutput struct {
 	UserKey      *string           `json:"userKey,omitempty"`
 	User         *serializableUser `json:"user,omitempty"`
 	Variation    *int              `json:"variation,omitempty"`
-	Value        interface{}       `json:"value"`
-	Default      interface{}       `json:"default"`
+	Value        ldvalue.Value     `json:"value"`
+	Default      ldvalue.Value     `json:"default"`
 	Version      *int              `json:"version,omitempty"`
 	PrereqOf     *string           `json:"prereqOf,omitempty"`
 	Reason       EvaluationReason  `json:"reason,omitempty"`
@@ -34,7 +36,7 @@ type customEventOutput struct {
 	Key          string            `json:"key"`
 	UserKey      *string           `json:"userKey,omitempty"`
 	User         *serializableUser `json:"user,omitempty"`
-	Data         interface{}       `json:"data,omitempty"`
+	Data         ldvalue.Value     `json:"data,omitempty"`
 	MetricValue  *float64          `json:"metricValue,omitempty"`
 }
 
@@ -56,16 +58,16 @@ type summaryEventOutput struct {
 }
 
 type flagSummaryData struct {
-	Default  interface{}       `json:"default"`
+	Default  ldvalue.Value     `json:"default"`
 	Counters []flagCounterData `json:"counters"`
 }
 
 type flagCounterData struct {
-	Value     interface{} `json:"value"`
-	Variation *int        `json:"variation,omitempty"`
-	Version   *int        `json:"version,omitempty"`
-	Count     int         `json:"count"`
-	Unknown   *bool       `json:"unknown,omitempty"`
+	Value     ldvalue.Value `json:"value"`
+	Variation *int          `json:"variation,omitempty"`
+	Version   *int          `json:"version,omitempty"`
+	Count     int           `json:"count"`
+	Unknown   *bool         `json:"unknown,omitempty"`
 }
 
 // Event types

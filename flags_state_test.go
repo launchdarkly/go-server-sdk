@@ -5,26 +5,27 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func TestFlagsStateCanGetFlagValue(t *testing.T) {
 	flag := FeatureFlag{Key: "key"}
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), nil, false)
+	state.addFlag(&flag, ldvalue.String("value"), intPtr(1), nil, false)
 
-	assert.Equal(t, "value", state.GetFlagValue("key"))
+	assert.Equal(t, ldvalue.String("value"), state.GetFlagValue("key"))
 }
 
 func TestFlagsStateUnknownFlagReturnsNilValue(t *testing.T) {
 	state := newFeatureFlagsState()
 
-	assert.Nil(t, state.GetFlagValue("key"))
+	assert.Equal(t, ldvalue.Null(), state.GetFlagValue("key"))
 }
 
 func TestFlagsStateCanGetFlagReason(t *testing.T) {
 	flag := FeatureFlag{Key: "key"}
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), evalReasonOffInstance, false)
+	state.addFlag(&flag, ldvalue.String("value"), intPtr(1), evalReasonOffInstance, false)
 
 	assert.Equal(t, evalReasonOffInstance, state.GetFlagReason("key"))
 }
@@ -38,7 +39,7 @@ func TestFlagsStateUnknownFlagReturnsNilReason(t *testing.T) {
 func TestFlagsStateReturnsNilReasonIfReasonsWereNotRecored(t *testing.T) {
 	flag := FeatureFlag{Key: "key"}
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), nil, false)
+	state.addFlag(&flag, ldvalue.String("value"), intPtr(1), nil, false)
 
 	assert.Nil(t, state.GetFlagReason("key"))
 }
@@ -47,10 +48,10 @@ func TestFlagsStateToValuesMap(t *testing.T) {
 	flag1 := FeatureFlag{Key: "key1"}
 	flag2 := FeatureFlag{Key: "key2"}
 	state := newFeatureFlagsState()
-	state.addFlag(&flag1, "value1", intPtr(0), nil, false)
-	state.addFlag(&flag2, "value2", intPtr(1), nil, false)
+	state.addFlag(&flag1, ldvalue.String("value1"), intPtr(0), nil, false)
+	state.addFlag(&flag2, ldvalue.String("value2"), intPtr(1), nil, false)
 
-	expected := map[string]interface{}{"key1": "value1", "key2": "value2"}
+	expected := map[string]ldvalue.Value{"key1": ldvalue.String("value1"), "key2": ldvalue.String("value2")}
 	assert.Equal(t, expected, state.ToValuesMap())
 }
 
@@ -59,8 +60,8 @@ func TestFlagsStateToJSON(t *testing.T) {
 	flag1 := FeatureFlag{Key: "key1", Version: 100, TrackEvents: false}
 	flag2 := FeatureFlag{Key: "key2", Version: 200, TrackEvents: true, DebugEventsUntilDate: &date}
 	state := newFeatureFlagsState()
-	state.addFlag(&flag1, "value1", intPtr(0), nil, false)
-	state.addFlag(&flag2, "value2", intPtr(1), nil, false)
+	state.addFlag(&flag1, ldvalue.String("value1"), intPtr(0), nil, false)
+	state.addFlag(&flag2, ldvalue.String("value2"), intPtr(1), nil, false)
 
 	expectedString := `{
 		"key1":"value1",

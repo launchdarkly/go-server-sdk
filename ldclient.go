@@ -250,33 +250,6 @@ func (client *LDClient) TrackMetric(eventName string, user User, metricValue flo
 	return nil
 }
 
-// Track reports that a user has performed an event.
-//
-// The data parameter is a value of any type that will be serialized to JSON using the encoding/json
-// package (http://golang.org/pkg/encoding/json/) and sent with the event. It may be nil if no such
-// value is needed.
-//
-// Deprecated: Use TrackData, which uses the ldvalue.Value type to more safely represent only
-// allowable JSON types.
-func (client *LDClient) Track(eventName string, user User, data interface{}) error {
-	return client.TrackData(eventName, user,
-		ldvalue.UnsafeUseArbitraryValue(data)) //nolint:megacheck // allow deprecated usage
-}
-
-// TrackWithMetric reports that a user has performed an event, and associates it with a numeric value.
-// This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
-// be returned as part of the custom event for Data Export.
-//
-// Custom data can also be attached to the event, and is serialized to JSON using the encoding/json package
-// (http://golang.org/pkg/encoding/json/).
-//
-// Deprecated: Use TrackMetric, which uses the ldvalue.Value type to more safely represent only allowable
-// JSON types.
-func (client *LDClient) TrackWithMetric(eventName string, user User, data interface{}, metricValue float64) error {
-	return client.TrackMetric(eventName, user, metricValue,
-		ldvalue.UnsafeUseArbitraryValue(data)) // nolint:megacheck // allow deprecated usage
-}
-
 // IsOffline returns whether the LaunchDarkly client is in offline mode.
 func (client *LDClient) IsOffline() bool {
 	return client.config.Offline
@@ -320,18 +293,6 @@ func (client *LDClient) Close() error {
 // However, if you call Close(), events are guaranteed to be sent before that method returns.
 func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
-}
-
-// AllFlags returns a map from feature flag keys to values for
-// a given user. If the result of the flag's evaluation would
-// result in the default value, `nil` will be returned. This method
-// does not send analytics events back to LaunchDarkly
-//
-// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK
-// will not generate analytics events correctly if you pass the result of AllFlags.
-func (client *LDClient) AllFlags(user User) map[string]interface{} {
-	state := client.AllFlagsState(user)
-	return state.ToValuesMap()
 }
 
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a
@@ -382,7 +343,7 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 			if withReasons {
 				reason = result.Reason
 			}
-			state.addFlag(flag, result.Value, result.VariationIndex, reason, detailsOnlyIfTracked)
+			state.addFlag(flag, result.JSONValue, result.VariationIndex, reason, detailsOnlyIfTracked)
 		}
 	}
 
@@ -511,7 +472,6 @@ func (client *LDClient) variation(key string, user User, defaultVal ldvalue.Valu
 	}
 	result, flag, err := client.evaluateInternal(key, user, defaultVal, sendReasonsInEvents)
 	if err != nil {
-		result.Value = defaultVal.UnsafeArbitraryValue() //nolint // allow deprecated usage
 		result.JSONValue = defaultVal
 		result.VariationIndex = nil
 	} else {
@@ -597,7 +557,6 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 			key, detail.Reason.GetErrorKind())
 	}
 	if detail.IsDefaultValue() {
-		detail.Value = defaultVal.UnsafeArbitraryValue() //nolint // allow deprecated usage
 		detail.JSONValue = defaultVal
 	}
 	for _, event := range prereqEvents {

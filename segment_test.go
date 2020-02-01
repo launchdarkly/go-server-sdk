@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 var (
@@ -74,7 +75,7 @@ func TestMatchingRuleWithFullRollout(t *testing.T) {
 			Clauses: []Clause{Clause{
 				Attribute: "email",
 				Op:        OperatorIn,
-				Values:    []interface{}{"test@example.com"},
+				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			}},
 			Weight:   &max_weight,
@@ -108,7 +109,7 @@ func TestMatchingRuleWithZeroRollout(t *testing.T) {
 			Clauses: []Clause{Clause{
 				Attribute: "email",
 				Op:        OperatorIn,
-				Values:    []interface{}{"test@example.com"},
+				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			}},
 			Weight:   &min_weight,
@@ -140,12 +141,12 @@ func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 				Clause{
 					Attribute: "email",
 					Op:        OperatorIn,
-					Values:    []interface{}{"test@example.com"},
+					Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				},
 				Clause{
 					Attribute: "name",
 					Op:        OperatorIn,
-					Values:    []interface{}{"bob"},
+					Values:    []ldvalue.Value{ldvalue.String("bob")},
 				},
 			},
 			Weight:   nil,
@@ -179,13 +180,13 @@ func TestNonMatchingRuleWithMultipleClauses(t *testing.T) {
 			Clauses: []Clause{Clause{
 				Attribute: "email",
 				Op:        OperatorIn,
-				Values:    []interface{}{"test@example.com"},
+				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			},
 				Clause{
 					Attribute: "name",
 					Op:        OperatorIn,
-					Values:    []interface{}{"bill"},
+					Values:    []ldvalue.Value{ldvalue.String("bill")},
 				},
 			},
 			Weight:   nil,

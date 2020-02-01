@@ -3,8 +3,10 @@ package ldclient
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 const dateStr1 = "2017-12-06T00:00:00.000-07:00"
@@ -103,7 +105,67 @@ var operatorTests = []opTestInfo{
 func TestAllOperators(t *testing.T) {
 	for _, ti := range operatorTests {
 		t.Run(fmt.Sprintf("%v %s %v should be %v", ti.userValue, ti.opName, ti.clauseValue, ti.expected), func(t *testing.T) {
-			assert.Equal(t, ti.expected, operatorFn(ti.opName)(ti.userValue, ti.clauseValue))
+			uValue := ldvalue.CopyArbitraryValue(ti.userValue)
+			cValue := ldvalue.CopyArbitraryValue(ti.clauseValue)
+			assert.Equal(t, ti.expected, operatorFn(ti.opName)(uValue, cValue))
 		})
+	}
+}
+
+func TestParseDateZero(t *testing.T) {
+	expectedTimeStamp := "1970-01-01T00:00:00Z"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParseTime(t, expected, expected)
+	testParseTime(t, 0, expected)
+	testParseTime(t, 0.0, expected)
+	testParseTime(t, expectedTimeStamp, expected)
+}
+
+func TestParseUtcTimestamp(t *testing.T) {
+	expectedTimeStamp := "2016-04-16T22:57:31.684Z"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParseTime(t, expected, expected)
+	testParseTime(t, 1460847451684, expected)
+	testParseTime(t, 1460847451684.0, expected)
+	testParseTime(t, expectedTimeStamp, expected)
+}
+
+func TestParseTimezone(t *testing.T) {
+	expectedTimeStamp := "2016-04-16T17:09:12.759-07:00"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParseTime(t, expected, expected)
+	testParseTime(t, 1460851752759, expected)
+	testParseTime(t, 1460851752759.0, expected)
+	testParseTime(t, expectedTimeStamp, expected)
+}
+
+func TestParseTimezoneNoMillis(t *testing.T) {
+	expectedTimeStamp := "2016-04-16T17:09:12-07:00"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParseTime(t, expected, expected)
+	testParseTime(t, 1460851752000, expected)
+	testParseTime(t, 1460851752000.0, expected)
+	testParseTime(t, expectedTimeStamp, expected)
+}
+
+func TestParseTimestampBeforeEpoch(t *testing.T) {
+	expectedTimeStamp := "1969-12-31T23:57:56.544-00:00"
+	expected, _ := time.Parse(time.RFC3339Nano, expectedTimeStamp)
+	testParseTime(t, expected, expected)
+	testParseTime(t, -123456, expected)
+	testParseTime(t, -123456.0, expected)
+	testParseTime(t, expectedTimeStamp, expected)
+}
+
+func testParseTime(t *testing.T, input interface{}, expected time.Time) {
+	value := ldvalue.CopyArbitraryValue(input)
+	actual, ok := parseDateTime(value)
+	if !ok {
+		t.Errorf("failed to parse: %s", value)
+		return
+	}
+
+	if !actual.Equal(expected) {
+		t.Errorf("Got unexpected result: %+v Expected: %+v when parsing: %s", actual, expected, value)
 	}
 }

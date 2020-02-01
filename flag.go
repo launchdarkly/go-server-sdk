@@ -3,10 +3,7 @@ package ldclient
 import (
 	"crypto/sha1" // nolint:gas // just used for insecure hashing
 	"encoding/hex"
-	"errors"
 	"io"
-	"math"
-	"reflect"
 	"strconv"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -34,7 +31,7 @@ type FeatureFlag struct {
 	Rules                  []Rule             `json:"rules" bson:"rules"`
 	Fallthrough            VariationOrRollout `json:"fallthrough" bson:"fallthrough"`
 	OffVariation           *int               `json:"offVariation" bson:"offVariation"`
-	Variations             []interface{}      `json:"variations" bson:"variations"`
+	Variations             []ldvalue.Value    `json:"variations" bson:"variations"`
 	DebugEventsUntilDate   *uint64            `json:"debugEventsUntilDate" bson:"debugEventsUntilDate"`
 	ClientSide             bool               `json:"clientSide" bson:"-"`
 }
@@ -122,10 +119,10 @@ type Rollout struct {
 //
 // Deprecated: this type is for internal use and will be moved to another package in a future version.
 type Clause struct {
-	Attribute string        `json:"attribute" bson:"attribute"`
-	Op        Operator      `json:"op" bson:"op"`
-	Values    []interface{} `json:"values" bson:"values"` // An array, interpreted as an OR of values
-	Negate    bool          `json:"negate" bson:"negate"`
+	Attribute string          `json:"attribute" bson:"attribute"`
+	Op        Operator        `json:"op" bson:"op"`
+	Values    []ldvalue.Value `json:"values" bson:"values"` // An array, interpreted as an OR of values
+	Negate    bool            `json:"negate" bson:"negate"`
 }
 
 // WeightedVariation describes a fraction of users who will receive a specific variation.
@@ -178,17 +175,12 @@ func bucketUser(user User, key, attr, salt string) float32 {
 	return bucket
 }
 
-func bucketableStringValue(uValue interface{}) (string, bool) {
-	if s, ok := uValue.(string); ok {
-		return s, true
+func bucketableStringValue(uValue ldvalue.Value) (string, bool) {
+	if uValue.Type() == ldvalue.StringType {
+		return uValue.StringValue(), true
 	}
-	// Can't only check for int type, because integer values in JSON may be decoded as float64
-	if i, ok := uValue.(int); ok {
-		return strconv.Itoa(i), true
-	} else if i, ok := uValue.(float64); ok {
-		if i == math.Trunc(i) {
-			return strconv.Itoa(int(i)), true
-		}
+	if uValue.IsInt() {
+		return strconv.Itoa(uValue.IntValue()), true
 	}
 	return "", false
 }
@@ -198,7 +190,7 @@ func bucketableStringValue(uValue interface{}) (string, bool) {
 //
 // Deprecated: this type is for internal use and will be removed in a future version.
 type EvalResult struct {
-	Value                     interface{}
+	Value                     ldvalue.Value
 	Variation                 *int
 	Explanation               *Explanation
 	PrerequisiteRequestEvents []FeatureRequestEvent //to be sent to LD
@@ -217,41 +209,6 @@ func (f FeatureFlag) EvaluateDetail(user User, store FeatureStore, sendReasonsIn
 		return f.evaluateInternal(user, store), prereqEvents
 	}
 	return f.getOffValue(evalReasonOffInstance), nil
-}
-
-// Evaluate returns the variation selected for a user.
-// It also contains a list of events generated during evaluation.
-//
-// Deprecated: this method is for internal use and will be removed in a future version.
-func (f FeatureFlag) Evaluate(user User, store FeatureStore) (interface{}, *int, []FeatureRequestEvent) {
-	detail, prereqEvents := f.EvaluateDetail(user, store, false)
-	return detail.Value, detail.VariationIndex, prereqEvents
-}
-
-// EvaluateExplain returns the variation selected for a user along with a detailed explanation of which rule
-// resulted in the selected variation.
-//
-// Deprecated: this method is for internal use and will be removed in a future version.
-func (f FeatureFlag) EvaluateExplain(user User, store FeatureStore) (*EvalResult, error) {
-	if user.Key == nil {
-		return nil, nil
-	}
-	detail, events := f.EvaluateDetail(user, store, false)
-
-	var err error
-	if detail.Reason != nil && detail.Reason.GetKind() == EvalReasonError && detail.Reason.GetErrorKind() == EvalErrorMalformedFlag {
-		err = errors.New("invalid variation index") // this was the only type of error that could occur in the old logic
-	}
-	expl := Explanation{}
-	if conv, ok := detail.Reason.(deprecatedExplanationConversion); ok {
-		expl = conv.getOldExplanation(f, user)
-	}
-	return &EvalResult{
-		Value:                     detail.Value,
-		Variation:                 detail.VariationIndex,
-		Explanation:               &expl,
-		PrerequisiteRequestEvents: events,
-	}, err
 }
 
 // Returns nil if all prerequisites are OK, otherwise constructs an error reason that describes the failure
@@ -319,8 +276,7 @@ func (f FeatureFlag) getVariation(index int, reason EvaluationReason) Evaluation
 	value := f.Variations[index]
 	return EvaluationDetail{
 		Reason:         reason,
-		Value:          value,
-		JSONValue:      ldvalue.UnsafeUseArbitraryValue(value), //nolint // allow deprecated usage
+		JSONValue:      value,
 		VariationIndex: &index,
 	}
 }
@@ -357,14 +313,11 @@ func (c Clause) matchesUserNoSegments(user User) bool {
 	}
 	matchFn := operatorFn(c.Op)
 
-	val := reflect.ValueOf(uValue)
-
-	// If the user value is an array or slice,
-	// see if the intersection is non-empty. If so,
+	// If the user value is an array or slice, see if the intersection is non-empty. If so,
 	// this clause matches
-	if val.Kind() == reflect.Array || val.Kind() == reflect.Slice {
-		for i := 0; i < val.Len(); i++ {
-			if matchAny(matchFn, val.Index(i).Interface(), c.Values) {
+	if uValue.Type() == ldvalue.ArrayType {
+		for i := 0; i < uValue.Count(); i++ {
+			if matchAny(matchFn, uValue.GetByIndex(i), c.Values) {
 				return c.maybeNegate(true)
 			}
 		}
@@ -379,8 +332,8 @@ func (c Clause) matchesUser(store FeatureStore, user User) bool {
 	// and possibly negate
 	if c.Op == OperatorSegmentMatch {
 		for _, value := range c.Values {
-			if vStr, ok := value.(string); ok {
-				data, _ := store.Get(Segments, vStr)
+			if value.Type() == ldvalue.StringType {
+				data, _ := store.Get(Segments, value.StringValue())
 				// If segment is not found or the store got an error, data will be nil and we'll just fall through
 				// the next block. Unfortunately we have no access to a logger here so this failure is silent.
 				if segment, segmentOk := data.(*Segment); segmentOk {
@@ -403,7 +356,7 @@ func (c Clause) maybeNegate(b bool) bool {
 	return b
 }
 
-func matchAny(fn opFn, value interface{}, values []interface{}) bool {
+func matchAny(fn opFn, value ldvalue.Value, values []ldvalue.Value) bool {
 	for _, v := range values {
 		if fn(value, v) {
 			return true

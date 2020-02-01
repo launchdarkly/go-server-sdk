@@ -422,10 +422,8 @@ func TestCustomEventIsQueuedWithUser(t *testing.T) {
 	ep, st := createEventProcessor(epDefaultConfig)
 	defer ep.Close()
 
-	data := map[string]interface{}{
-		"thing": "stuff",
-	}
-	ce := NewCustomEvent("eventkey", epDefaultUser, data)
+	data := ldvalue.ObjectBuild().Set("thing", ldvalue.String("stuff")).Build()
+	ce := newCustomEvent("eventkey", epDefaultUser, data, false, 0)
 	ep.SendEvent(ce)
 
 	output := flushAndGetEvents(ep, st)
@@ -437,7 +435,7 @@ func TestCustomEventIsQueuedWithUser(t *testing.T) {
 			"kind":         "custom",
 			"creationDate": float64(ce.CreationDate),
 			"key":          ce.Key,
-			"data":         data,
+			"data":         data.AsArbitraryValue(),
 			"userKey":      *epDefaultUser.Key,
 		}
 		assert.Equal(t, expected, ceo)
@@ -450,10 +448,8 @@ func TestCustomEventCanContainInlineUser(t *testing.T) {
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
 
-	data := map[string]interface{}{
-		"thing": "stuff",
-	}
-	ce := NewCustomEvent("eventkey", epDefaultUser, data)
+	data := ldvalue.ObjectBuild().Set("thing", ldvalue.String("stuff")).Build()
+	ce := newCustomEvent("eventkey", epDefaultUser, data, false, 0)
 	ep.SendEvent(ce)
 
 	output := flushAndGetEvents(ep, st)
@@ -463,7 +459,7 @@ func TestCustomEventCanContainInlineUser(t *testing.T) {
 			"kind":         "custom",
 			"creationDate": float64(ce.CreationDate),
 			"key":          ce.Key,
-			"data":         data,
+			"data":         data.AsArbitraryValue(),
 			"user":         jsonMap(epDefaultUser),
 		}
 		assert.Equal(t, expected, ceo)
@@ -780,9 +776,9 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	req1, _ := st.awaitRequest() // diagnostic init event
 	assert.Equal(t, "/diagnostic", req1.URL.Path)
 
-	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
-	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
-	ep.SendEvent(NewCustomEvent("key", NewUser("userkey"), nil))
+	ep.SendEvent(newCustomEvent("key", NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(newCustomEvent("key", NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(newCustomEvent("key", NewUser("userkey"), ldvalue.Null(), false, 0))
 	ep.Flush()
 
 	req2, _ := st.awaitRequest() // flushed events

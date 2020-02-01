@@ -9,6 +9,9 @@ import (
 
 var flagUser = NewUser("x")
 var emptyFeatureStore = NewInMemoryFeatureStore(nil)
+var fallthroughValue = ldvalue.String("fall")
+var offValue = ldvalue.String("off")
+var onValue = ldvalue.String("on")
 
 func intPtr(n int) *int {
 	return &n
@@ -20,11 +23,11 @@ func TestFlagReturnsOffVariationIfFlagIsOff(t *testing.T) {
 		On:           false,
 		OffVariation: intPtr(1),
 		Fallthrough:  VariationOrRollout{Variation: intPtr(0)},
-		Variations:   []interface{}{"fall", "off", "on"},
+		Variations:   []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, offValue, result.JSONValue)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
 	assert.Equal(t, evalReasonOffInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
@@ -35,11 +38,11 @@ func TestFlagReturnsNilIfFlagIsOffAndOffVariationIsUnspecified(t *testing.T) {
 		Key:         "feature",
 		On:          false,
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assert.Nil(t, result.Value)
+	assert.Equal(t, ldvalue.Null(), result.JSONValue)
 	assert.Nil(t, result.VariationIndex)
 	assert.Equal(t, evalReasonOffInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
@@ -51,11 +54,11 @@ func TestFlagReturnsFallthroughIfFlagIsOnAndThereAreNoRules(t *testing.T) {
 		On:          true,
 		Rules:       []Rule{},
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, fallthroughValue, result.JSONValue)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
@@ -67,7 +70,7 @@ func TestFlagReturnsErrorIfFallthroughHasTooHighVariation(t *testing.T) {
 		On:          true,
 		Rules:       []Rule{},
 		Fallthrough: VariationOrRollout{Variation: intPtr(999)},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
@@ -81,7 +84,7 @@ func TestFlagReturnsErrorIfFallthroughHasNegativeVariation(t *testing.T) {
 		On:          true,
 		Rules:       []Rule{},
 		Fallthrough: VariationOrRollout{Variation: intPtr(-1)},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
@@ -95,7 +98,7 @@ func TestFlagReturnsErrorIfFallthroughHasNeitherVariationNorRollout(t *testing.T
 		On:          true,
 		Rules:       []Rule{},
 		Fallthrough: VariationOrRollout{},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
@@ -109,7 +112,7 @@ func TestFlagReturnsErrorIfFallthroughHasEmptyRolloutVariationList(t *testing.T)
 		On:          true,
 		Rules:       []Rule{},
 		Fallthrough: VariationOrRollout{Rollout: &Rollout{Variations: []WeightedVariation{}}},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f.EvaluateDetail(flagUser, emptyFeatureStore, false)
@@ -124,11 +127,11 @@ func TestFlagReturnsOffVariationIfPrerequisiteIsNotFound(t *testing.T) {
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
-		Variations:    []interface{}{"fall", "off", "on"},
+		Variations:    []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 
 	result, events := f0.EvaluateDetail(flagUser, emptyFeatureStore, false)
-	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, offValue, result.JSONValue)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
 	assert.Equal(t, newEvalReasonPrerequisiteFailed("feature1"), result.Reason)
 	assert.Equal(t, 0, len(events))
@@ -141,7 +144,7 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsOff(t *testing.T) {
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
-		Variations:    []interface{}{"fall", "off", "on"},
+		Variations:    []ldvalue.Value{fallthroughValue, offValue, onValue},
 		Version:       1,
 	}
 	f1 := FeatureFlag{
@@ -150,21 +153,21 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsOff(t *testing.T) {
 		OffVariation: intPtr(1),
 		// note that even though it returns the desired variation, it is still off and therefore not a match
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{"nogo", "go"},
+		Variations:  []ldvalue.Value{ldvalue.String("nogo"), ldvalue.String("go")},
 		Version:     2,
 	}
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
-	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, offValue, result.JSONValue)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
 	assert.Equal(t, newEvalReasonPrerequisiteFailed("feature1"), result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
 	assert.Equal(t, f1.Key, e.Key)
-	assert.Equal(t, "go", e.Value)
+	assert.Equal(t, ldvalue.String("go"), e.Value)
 	assert.Equal(t, intPtr(f1.Version), e.Version)
 	assert.Equal(t, intPtr(1), e.Variation)
 	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
@@ -177,7 +180,7 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
-		Variations:    []interface{}{"fall", "off", "on"},
+		Variations:    []ldvalue.Value{fallthroughValue, offValue, onValue},
 		Version:       1,
 	}
 	f1 := FeatureFlag{
@@ -185,21 +188,21 @@ func TestFlagReturnsOffVariationAndEventIfPrerequisiteIsNotMet(t *testing.T) {
 		On:           true,
 		OffVariation: intPtr(1),
 		Fallthrough:  VariationOrRollout{Variation: intPtr(0)},
-		Variations:   []interface{}{"nogo", "go"},
+		Variations:   []ldvalue.Value{ldvalue.String("nogo"), ldvalue.String("go")},
 		Version:      2,
 	}
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
-	assert.Equal(t, "off", result.Value)
+	assert.Equal(t, offValue, result.JSONValue)
 	assert.Equal(t, intPtr(1), result.VariationIndex)
 	assert.Equal(t, newEvalReasonPrerequisiteFailed("feature1"), result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
 	assert.Equal(t, f1.Key, e.Key)
-	assert.Equal(t, "nogo", e.Value)
+	assert.Equal(t, ldvalue.String("nogo"), e.Value)
 	assert.Equal(t, intPtr(f1.Version), e.Version)
 	assert.Equal(t, intPtr(0), e.Variation)
 	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
@@ -212,7 +215,7 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
-		Variations:    []interface{}{"fall", "off", "on"},
+		Variations:    []ldvalue.Value{fallthroughValue, offValue, onValue},
 		Version:       1,
 	}
 	f1 := FeatureFlag{
@@ -220,21 +223,21 @@ func TestFlagReturnsFallthroughVariationAndEventIfPrerequisiteIsMetAndThereAreNo
 		On:           true,
 		OffVariation: intPtr(1),
 		Fallthrough:  VariationOrRollout{Variation: intPtr(1)}, // this 1 matches the 1 in the prerequisites array
-		Variations:   []interface{}{"nogo", "go"},
+		Variations:   []ldvalue.Value{ldvalue.String("nogo"), ldvalue.String("go")},
 		Version:      2,
 	}
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
-	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, fallthroughValue, result.JSONValue)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
 	assert.Equal(t, f1.Key, e.Key)
-	assert.Equal(t, "go", e.Value)
+	assert.Equal(t, ldvalue.String("go"), e.Value)
 	assert.Equal(t, intPtr(1), e.Variation)
 	assert.Equal(t, intPtr(f1.Version), e.Version)
 	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
@@ -247,7 +250,7 @@ func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
-		Variations:    []interface{}{"fall", "off", "on"},
+		Variations:    []ldvalue.Value{fallthroughValue, offValue, onValue},
 		Version:       1,
 	}
 	f1 := FeatureFlag{
@@ -255,21 +258,21 @@ func TestPrerequisiteCanMatchWithNonScalarValue(t *testing.T) {
 		On:           true,
 		OffVariation: intPtr(1),
 		Fallthrough:  VariationOrRollout{Variation: intPtr(1)}, // this 1 matches the 1 in the prerequisites array
-		Variations:   []interface{}{[]interface{}{"000"}, []interface{}{"001"}},
+		Variations:   []ldvalue.Value{ldvalue.ArrayOf(ldvalue.String("000")), ldvalue.ArrayOf(ldvalue.String("001"))},
 		Version:      2,
 	}
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Features, &f1)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
-	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, fallthroughValue, result.JSONValue)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 
 	assert.Equal(t, 1, len(events))
 	e := events[0]
 	assert.Equal(t, f1.Key, e.Key)
-	assert.Equal(t, []interface{}{"001"}, e.Value)
+	assert.Equal(t, ldvalue.ArrayOf(ldvalue.String("001")), e.Value)
 	assert.Equal(t, intPtr(1), e.Variation)
 	assert.Equal(t, intPtr(f1.Version), e.Version)
 	assert.Equal(t, strPtr(f0.Key), e.PrereqOf)
@@ -282,7 +285,7 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature1", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(0)},
-		Variations:    []interface{}{"fall", "off", "on"},
+		Variations:    []ldvalue.Value{fallthroughValue, offValue, onValue},
 		Version:       1,
 	}
 	f1 := FeatureFlag{
@@ -291,14 +294,14 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 		OffVariation:  intPtr(1),
 		Prerequisites: []Prerequisite{Prerequisite{"feature2", 1}},
 		Fallthrough:   VariationOrRollout{Variation: intPtr(1)}, // this 1 matches the 1 in the prerequisites array
-		Variations:    []interface{}{"nogo", "go"},
+		Variations:    []ldvalue.Value{ldvalue.String("nogo"), ldvalue.String("go")},
 		Version:       2,
 	}
 	f2 := FeatureFlag{
 		Key:         "feature2",
 		On:          true,
 		Fallthrough: VariationOrRollout{Variation: intPtr(1)},
-		Variations:  []interface{}{"nogo", "go"},
+		Variations:  []ldvalue.Value{ldvalue.String("nogo"), ldvalue.String("go")},
 		Version:     3,
 	}
 	featureStore := NewInMemoryFeatureStore(nil)
@@ -306,7 +309,7 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 	featureStore.Upsert(Features, &f2)
 
 	result, events := f0.EvaluateDetail(flagUser, featureStore, false)
-	assert.Equal(t, "fall", result.Value)
+	assert.Equal(t, fallthroughValue, result.JSONValue)
 	assert.Equal(t, intPtr(0), result.VariationIndex)
 	assert.Equal(t, evalReasonFallthroughInstance, result.Reason)
 
@@ -315,14 +318,14 @@ func TestMultipleLevelsOfPrerequisiteProduceMultipleEvents(t *testing.T) {
 
 	e0 := events[0]
 	assert.Equal(t, f2.Key, e0.Key)
-	assert.Equal(t, "go", e0.Value)
+	assert.Equal(t, ldvalue.String("go"), e0.Value)
 	assert.Equal(t, intPtr(1), e0.Variation)
 	assert.Equal(t, intPtr(f2.Version), e0.Version)
 	assert.Equal(t, strPtr(f1.Key), e0.PrereqOf)
 
 	e1 := events[1]
 	assert.Equal(t, f1.Key, e1.Key)
-	assert.Equal(t, "go", e1.Value)
+	assert.Equal(t, ldvalue.String("go"), e1.Value)
 	assert.Equal(t, intPtr(1), e1.Variation)
 	assert.Equal(t, intPtr(f1.Version), e1.Version)
 	assert.Equal(t, strPtr(f0.Key), e1.PrereqOf)
@@ -335,12 +338,12 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 		OffVariation: intPtr(1),
 		Targets:      []Target{Target{[]string{"whoever", "userkey"}, 2}},
 		Fallthrough:  VariationOrRollout{Variation: intPtr(0)},
-		Variations:   []interface{}{"fall", "off", "on"},
+		Variations:   []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 	user := NewUser("userkey")
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, "on", result.Value)
+	assert.Equal(t, onValue, result.JSONValue)
 	assert.Equal(t, intPtr(2), result.VariationIndex)
 	assert.Equal(t, evalReasonTargetMatchInstance, result.Reason)
 	assert.Equal(t, 0, len(events))
@@ -351,7 +354,7 @@ func TestFlagMatchesUserFromRules(t *testing.T) {
 	f := makeFlagToMatchUser(user, VariationOrRollout{Variation: intPtr(2)})
 
 	result, events := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, "on", result.Value)
+	assert.Equal(t, onValue, result.JSONValue)
 	assert.Equal(t, intPtr(2), result.VariationIndex)
 	assert.Equal(t, newEvalReasonRuleMatch(0, "rule-id"), result.Reason)
 	assert.Equal(t, 0, len(events))
@@ -397,93 +400,93 @@ func TestClauseCanMatchBuiltInAttribute(t *testing.T) {
 	clause := Clause{
 		Attribute: "name",
 		Op:        "in",
-		Values:    []interface{}{"Bob"},
+		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 	}
 	f := booleanFlagWithClause(clause)
 	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, true, result.Value)
+	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
 }
 
 func TestClauseCanMatchCustomAttribute(t *testing.T) {
 	clause := Clause{
 		Attribute: "legs",
 		Op:        "in",
-		Values:    []interface{}{4},
+		Values:    []ldvalue.Value{ldvalue.Int(4)},
 	}
 	f := booleanFlagWithClause(clause)
 	user := NewUserBuilder("key").Custom("legs", ldvalue.Int(4)).Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, true, result.Value)
+	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
 }
 
 func TestClauseReturnsFalseForMissingAttribute(t *testing.T) {
 	clause := Clause{
 		Attribute: "legs",
 		Op:        "in",
-		Values:    []interface{}{4},
+		Values:    []ldvalue.Value{ldvalue.Int(4)},
 	}
 	f := booleanFlagWithClause(clause)
 	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, false, result.Value)
+	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
 }
 
 func TestClauseCanBeNegated(t *testing.T) {
 	clause := Clause{
 		Attribute: "name",
 		Op:        "in",
-		Values:    []interface{}{"Bob"},
+		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 		Negate:    true,
 	}
 	f := booleanFlagWithClause(clause)
 	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, false, result.Value)
+	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
 }
 
 func TestClauseForMissingAttributeIsFalseEvenIfNegated(t *testing.T) {
 	clause := Clause{
 		Attribute: "legs",
 		Op:        "in",
-		Values:    []interface{}{4},
+		Values:    []ldvalue.Value{ldvalue.Int(4)},
 		Negate:    true,
 	}
 	f := booleanFlagWithClause(clause)
 	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, false, result.Value)
+	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
 }
 
 func TestClauseWithUnknownOperatorDoesNotMatch(t *testing.T) {
 	clause := Clause{
 		Attribute: "name",
 		Op:        "doesSomethingUnsupported",
-		Values:    []interface{}{"Bob"},
+		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 	}
 	f := booleanFlagWithClause(clause)
 	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, false, result.Value)
+	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
 }
 
 func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testing.T) {
 	badClause := Clause{
 		Attribute: "name",
 		Op:        "doesSomethingUnsupported",
-		Values:    []interface{}{"Bob"},
+		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 	}
 	badRule := Rule{ID: "bad", Clauses: []Clause{badClause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}}
 	goodClause := Clause{
 		Attribute: "name",
 		Op:        "in",
-		Values:    []interface{}{"Bob"},
+		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 	}
 	goodRule := Rule{ID: "good", Clauses: []Clause{goodClause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}}
 	f := FeatureFlag{
@@ -491,12 +494,12 @@ func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testi
 		On:          true,
 		Rules:       []Rule{badRule, goodRule},
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{false, true},
+		Variations:  []ldvalue.Value{ldvalue.Bool(false), ldvalue.Bool(true)},
 	}
 	user := NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, true, result.Value)
+	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
 	assert.Equal(t, newEvalReasonRuleMatch(1, "good"), result.Reason)
 }
 
@@ -505,23 +508,23 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 		Key:      "segkey",
 		Included: []string{"foo"},
 	}
-	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}}
+	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []ldvalue.Value{ldvalue.String("segkey")}}
 	f := booleanFlagWithClause(clause)
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
 
 	result, _ := f.EvaluateDetail(user, featureStore, false)
-	assert.Equal(t, true, result.Value)
+	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
 }
 
 func TestSegmentMatchClauseFallsThroughIfSegmentNotFound(t *testing.T) {
-	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"segkey"}}
+	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []ldvalue.Value{ldvalue.String("segkey")}}
 	f := booleanFlagWithClause(clause)
 	user := NewUser("foo")
 
 	result, _ := f.EvaluateDetail(user, emptyFeatureStore, false)
-	assert.Equal(t, false, result.Value)
+	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
 }
 
 func TestCanMatchJustOneSegmentFromList(t *testing.T) {
@@ -529,14 +532,18 @@ func TestCanMatchJustOneSegmentFromList(t *testing.T) {
 		Key:      "segkey",
 		Included: []string{"foo"},
 	}
-	clause := Clause{Attribute: "", Op: "segmentMatch", Values: []interface{}{"unknownsegkey", "segkey"}}
+	clause := Clause{
+		Attribute: "",
+		Op:        "segmentMatch",
+		Values:    []ldvalue.Value{ldvalue.String("unknownsegkey"), ldvalue.String("segkey")},
+	}
 	f := booleanFlagWithClause(clause)
 	featureStore := NewInMemoryFeatureStore(nil)
 	featureStore.Upsert(Segments, &segment)
 	user := NewUser("foo")
 
 	result, _ := f.EvaluateDetail(user, featureStore, false)
-	assert.Equal(t, true, result.Value)
+	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
 }
 
 func TestVariationIndexForUser(t *testing.T) {
@@ -602,7 +609,7 @@ func booleanFlagWithClause(clause Clause) FeatureFlag {
 			Rule{Clauses: []Clause{clause}, VariationOrRollout: VariationOrRollout{Variation: intPtr(1)}},
 		},
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{false, true},
+		Variations:  []ldvalue.Value{ldvalue.Bool(false), ldvalue.Bool(true)},
 	}
 }
 
@@ -614,7 +621,7 @@ func makeClauseToMatchUser(user User) Clause {
 	return Clause{
 		Attribute: "key",
 		Op:        "in",
-		Values:    []interface{}{*user.Key},
+		Values:    []ldvalue.Value{ldvalue.String(user.GetKey())},
 	}
 }
 
@@ -622,7 +629,7 @@ func makeClauseToNotMatchUser(user User) Clause {
 	return Clause{
 		Attribute: "key",
 		Op:        "in",
-		Values:    []interface{}{"not-" + *user.Key},
+		Values:    []ldvalue.Value{ldvalue.String("not-" + user.GetKey())},
 	}
 }
 
@@ -639,6 +646,6 @@ func makeFlagToMatchUser(user User, variationOrRollout VariationOrRollout) Featu
 			},
 		},
 		Fallthrough: VariationOrRollout{Variation: intPtr(0)},
-		Variations:  []interface{}{"fall", "off", "on"},
+		Variations:  []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
 }

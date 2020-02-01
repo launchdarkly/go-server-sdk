@@ -3,6 +3,8 @@ package ldclient
 import (
 	"encoding/json"
 	"fmt"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 // FeatureFlagsState is a snapshot of the state of all feature flags with regard to a
@@ -10,7 +12,7 @@ import (
 // to JSON using json.Marshal will produce the appropriate data structure for
 // bootstrapping the LaunchDarkly JavaScript client.
 type FeatureFlagsState struct {
-	flagValues   map[string]interface{}
+	flagValues   map[string]ldvalue.Value
 	flagMetadata map[string]flagMetadata
 	valid        bool
 }
@@ -64,7 +66,7 @@ func (o detailsOnlyForTrackedFlagsOption) String() string {
 
 func newFeatureFlagsState() FeatureFlagsState {
 	return FeatureFlagsState{
-		flagValues:   make(map[string]interface{}),
+		flagValues:   make(map[string]ldvalue.Value),
 		flagMetadata: make(map[string]flagMetadata),
 		valid:        true,
 	}
@@ -79,7 +81,7 @@ func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) boo
 	return false
 }
 
-func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value interface{}, variation *int, reason EvaluationReason, detailsOnlyIfTracked bool) {
+func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value ldvalue.Value, variation *int, reason EvaluationReason, detailsOnlyIfTracked bool) {
 	meta := flagMetadata{
 		Variation:            variation,
 		DebugEventsUntilDate: flag.DebugEventsUntilDate,
@@ -106,8 +108,8 @@ func (s FeatureFlagsState) IsValid() bool {
 }
 
 // GetFlagValue returns the value of an individual feature flag at the time the state was recorded. The
-// return value will be nil if the flag returned the default value, or if there was no such flag.
-func (s FeatureFlagsState) GetFlagValue(key string) interface{} {
+// return value will be ldvalue.Null() if the flag returned the default value, or if there was no such flag.
+func (s FeatureFlagsState) GetFlagValue(key string) ldvalue.Value {
 	return s.flagValues[key]
 }
 
@@ -125,7 +127,7 @@ func (s FeatureFlagsState) GetFlagReason(key string) EvaluationReason {
 //
 // Do not use this method if you are passing data to the front end to "bootstrap" the JavaScript client.
 // Instead, convert the state object to JSON using json.Marshal.
-func (s FeatureFlagsState) ToValuesMap() map[string]interface{} {
+func (s FeatureFlagsState) ToValuesMap() map[string]ldvalue.Value {
 	return s.flagValues
 }
 
