@@ -6,20 +6,22 @@ package ldtest
 import (
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
-// RunFeatureStoreTests runs a suite of tests on a feature store.
-// - makeStore: Creates a new feature store instance, but does not call Init on it.
+// RunDataStoreTests runs a suite of tests on a data store.
+// - makeStore: Creates a new data store instance, but does not call Init on it.
 // - clearExistingData: If non-nil, this function will be called before each test to clear any storage
 //   that the store instances may be sharing. If this is nil, it means store instances do not share any
 //   common storage.
 // - isCached: True if the instances returned by makeStore have caching enabled.
-func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, clearExistingData func() error, isCached bool) {
-	makeStore := func(t *testing.T) ld.FeatureStore {
+func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExistingData func() error, isCached bool) {
+	makeStore := func(t *testing.T) ld.DataStore {
 		store, err := storeFactory(ld.Config{})
 		require.NoError(t, err)
 		return store
@@ -31,7 +33,7 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 		}
 	}
 
-	initWithEmptyData := func(t *testing.T, store ld.FeatureStore) {
+	initWithEmptyData := func(t *testing.T, store ld.DataStore) {
 		err := store.Init(makeMockDataMap())
 		require.NoError(t, err)
 	}
@@ -228,33 +230,37 @@ func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, cle
 	})
 }
 
-// RunFeatureStorePrefixIndependenceTests is for feature store implementations that support
+// RunDataStorePrefixIndependenceTests is for data store implementations that support
 // storing independent data sets in the same database by assigning a different prefix/namespace
 // to each one. It verifies that two store instances with different prefixes do not interfere
 // with each other's data.
 //
-// makeStoreWithPrefix: Creates a FeatureStore instance with the specified prefix/namespace,
+// makeStoreWithPrefix: Creates a DataStore instance with the specified prefix/namespace,
 // which can be empty. All instances should use the same underlying database. The store
 // should not have caching enabled.
 //
 // clearExistingData: Removes all data from the underlying store.
-func RunFeatureStorePrefixIndependenceTests(t *testing.T,
-	makeStoreWithPrefix func(string) (ld.FeatureStore, error),
+func RunDataStorePrefixIndependenceTests(t *testing.T,
+	makeStoreWithPrefix func(string) (ld.DataStoreFactory, error),
 	clearExistingData func() error) {
 
-	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, ld.FeatureStore, ld.FeatureStore)) {
+	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, ld.DataStore, ld.DataStore)) {
 		err := clearExistingData()
 		require.NoError(t, err)
-		store1, err := makeStoreWithPrefix("aaa")
+		factory1, err := makeStoreWithPrefix("aaa")
 		require.NoError(t, err)
-		store2, err := makeStoreWithPrefix("bbb")
+		store1, err := factory1(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+		require.NoError(t, err)
+		factory2, err := makeStoreWithPrefix("bbb")
+		require.NoError(t, err)
+		store2, err := factory2(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
 		require.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
 			test(t, store1, store2)
 		})
 	}
 
-	runWithPrefixes(t, "Init", func(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore) {
+	runWithPrefixes(t, "Init", func(t *testing.T, store1 ld.DataStore, store2 ld.DataStore) {
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
@@ -303,7 +309,7 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		assert.Equal(t, item2c, newItem2c)
 	})
 
-	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore) {
+	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 ld.DataStore, store2 ld.DataStore) {
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
@@ -335,18 +341,24 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 	})
 }
 
-// RunFeatureStoreConcurrentModificationTests runs tests of concurrent modification behavior
+// RunDataStoreConcurrentModificationTests runs tests of concurrent modification behavior
 // for store implementations that support testing this.
 //
-// store1: A FeatureStore instance.
+// store1: A DataStore instance.
 //
-// store2: A second FeatureStore instance which will be used to perform concurrent updates.
+// store2: A second DataStore instance which will be used to perform concurrent updates.
 //
 // setStore1UpdateHook: A function which, when called with another function as a parameter,
 // will modify store1 so that it will call the latter function synchronously during each Upsert
 // operation - after the old value has been read, but before the new one has been written.
-func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore,
+func RunDataStoreConcurrentModificationTests(t *testing.T, factory1 ld.DataStoreFactory, factory2 ld.DataStoreFactory,
 	setStore1UpdateHook func(func())) {
+
+	config := ld.Config{Loggers: ldlog.NewDisabledLoggers()}
+	store1, err := factory1(config)
+	require.NoError(t, err)
+	store2, err := factory2(config)
+	require.NoError(t, err)
 
 	key := "foo"
 

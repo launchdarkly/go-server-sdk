@@ -11,77 +11,54 @@ import (
 
 // List of available operators
 const (
-	OperatorIn                 Operator = "in"
-	OperatorEndsWith           Operator = "endsWith"
-	OperatorStartsWith         Operator = "startsWith"
-	OperatorMatches            Operator = "matches"
-	OperatorContains           Operator = "contains"
-	OperatorLessThan           Operator = "lessThan"
-	OperatorLessThanOrEqual    Operator = "lessThanOrEqual"
-	OperatorGreaterThan        Operator = "greaterThan"
-	OperatorGreaterThanOrEqual Operator = "greaterThanOrEqual"
-	OperatorBefore             Operator = "before"
-	OperatorAfter              Operator = "after"
-	OperatorSegmentMatch       Operator = "segmentMatch"
-	OperatorSemVerEqual        Operator = "semVerEqual"
-	OperatorSemVerLessThan     Operator = "semVerLessThan"
-	OperatorSemVerGreaterThan  Operator = "semVerGreaterThan"
+	operatorIn                 operator = "in"
+	operatorEndsWith           operator = "endsWith"
+	operatorStartsWith         operator = "startsWith"
+	operatorMatches            operator = "matches"
+	operatorContains           operator = "contains"
+	operatorLessThan           operator = "lessThan"
+	operatorLessThanOrEqual    operator = "lessThanOrEqual"
+	operatorGreaterThan        operator = "greaterThan"
+	operatorGreaterThanOrEqual operator = "greaterThanOrEqual"
+	operatorBefore             operator = "before"
+	operatorAfter              operator = "after"
+	operatorSegmentMatch       operator = "segmentMatch"
+	operatorSemVerEqual        operator = "semVerEqual"
+	operatorSemVerLessThan     operator = "semVerLessThan"
+	operatorSemVerGreaterThan  operator = "semVerGreaterThan"
 )
 
 type opFn (func(ldvalue.Value, ldvalue.Value) bool)
 
-// Operator describes an operator for a clause.
-//
-// Deprecated: this type is for internal use and will be moved to another package in a future version.
-type Operator string
-
-// OpsList is the list of available operators
-//
-// Deprecated: this variable is for internal use and will be removed in a future version.
-var OpsList = []Operator{
-	OperatorIn,
-	OperatorEndsWith,
-	OperatorStartsWith,
-	OperatorMatches,
-	OperatorContains,
-	OperatorLessThan,
-	OperatorLessThanOrEqual,
-	OperatorGreaterThan,
-	OperatorGreaterThanOrEqual,
-	OperatorBefore,
-	OperatorAfter,
-	OperatorSegmentMatch,
-	OperatorSemVerEqual,
-	OperatorSemVerLessThan,
-	OperatorSemVerGreaterThan,
-}
+// operator describes an operator for a clause.
+type operator string
 
 var versionNumericComponentsRegex = regexp.MustCompile(`^\d+(\.\d+)?(\.\d+)?`)
 
 // Name returns the string name for an operator
-func (op Operator) Name() string {
+func (op operator) Name() string {
 	return string(op)
 }
 
-var allOps = map[Operator]opFn{
-	OperatorIn:                 operatorInFn,
-	OperatorEndsWith:           operatorEndsWithFn,
-	OperatorStartsWith:         operatorStartsWithFn,
-	OperatorMatches:            operatorMatchesFn,
-	OperatorContains:           operatorContainsFn,
-	OperatorLessThan:           operatorLessThanFn,
-	OperatorLessThanOrEqual:    operatorLessThanOrEqualFn,
-	OperatorGreaterThan:        operatorGreaterThanFn,
-	OperatorGreaterThanOrEqual: operatorGreaterThanOrEqualFn,
-	OperatorBefore:             operatorBeforeFn,
-	OperatorAfter:              operatorAfterFn,
-	OperatorSemVerEqual:        operatorSemVerEqualFn,
-	OperatorSemVerLessThan:     operatorSemVerLessThanFn,
-	OperatorSemVerGreaterThan:  operatorSemVerGreaterThanFn,
+var allOps = map[operator]opFn{
+	operatorIn:                 operatorInFn,
+	operatorEndsWith:           operatorEndsWithFn,
+	operatorStartsWith:         operatorStartsWithFn,
+	operatorMatches:            operatorMatchesFn,
+	operatorContains:           operatorContainsFn,
+	operatorLessThan:           operatorLessThanFn,
+	operatorLessThanOrEqual:    operatorLessThanOrEqualFn,
+	operatorGreaterThan:        operatorGreaterThanFn,
+	operatorGreaterThanOrEqual: operatorGreaterThanOrEqualFn,
+	operatorBefore:             operatorBeforeFn,
+	operatorAfter:              operatorAfterFn,
+	operatorSemVerEqual:        operatorSemVerEqualFn,
+	operatorSemVerLessThan:     operatorSemVerLessThanFn,
+	operatorSemVerGreaterThan:  operatorSemVerGreaterThanFn,
 }
 
 // Turn this into a static map
-func operatorFn(operator Operator) opFn {
+func operatorFn(operator operator) opFn {
 	if op, ok := allOps[operator]; ok {
 		return op
 	}

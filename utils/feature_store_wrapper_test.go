@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -21,6 +22,8 @@ const (
 	testCachedIndefinitely testCacheMode = "cached indefinitely"
 )
 
+var configWithoutLogging = ld.Config{Loggers: ldlog.NewDisabledLoggers()}
+
 func (m testCacheMode) isCached() bool {
 	return m != testUncached
 }
@@ -36,7 +39,7 @@ func (m testCacheMode) ttl() time.Duration {
 	}
 }
 
-// Test implementation of FeatureStoreCore
+// Test implementation of DataStoreCore
 type mockCore struct {
 	cacheTTL         time.Duration
 	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
@@ -45,12 +48,12 @@ type mockCore struct {
 	initQueriedCount int
 }
 
-// Test implementation of NonAtomicFeatureStoreCore - we test this in somewhat less detail
+// Test implementation of NonAtomicDataStoreCore - we test this in somewhat less detail
 type mockNonAtomicCore struct {
 	data []StoreCollection
 }
 
-// Test implementation of FeatureStoreCore for request-coalescing tests
+// Test implementation of DataStoreCore for request-coalescing tests
 type mockCoreWithInstrumentedQueries struct {
 	cacheTTL       time.Duration
 	data           map[ld.VersionedDataKind]map[string]ld.VersionedData
@@ -192,7 +195,7 @@ func (c *mockCoreWithInstrumentedQueries) InitializedInternal() bool {
 	return c.inited
 }
 
-func TestFeatureStoreWrapper(t *testing.T) {
+func TestDataStoreWrapper(t *testing.T) {
 	cacheTime := 30 * time.Second
 
 	runTests := func(t *testing.T, name string, test func(t *testing.T, mode testCacheMode, core *mockCore),
@@ -210,7 +213,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}
 
 	runTests(t, "Get", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
 		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
@@ -231,7 +234,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Get with deleted item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1, Deleted: true}
 		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2, Deleted: false}
@@ -253,7 +256,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	runTests(t, "Get with missing item", func(t *testing.T, mode testCacheMode, core *mockCore) {
 		mockLog := shared_test.NewMockLoggers()
-		w := NewFeatureStoreWrapperWithConfig(core, ld.Config{Loggers: mockLog.Loggers})
+		w := NewDataStoreWrapperWithConfig(core, ld.Config{Loggers: mockLog.Loggers})
 		defer w.Close()
 		flag := ld.FeatureFlag{Key: "flag", Version: 1}
 
@@ -274,7 +277,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "cached Get uses values from Init", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -294,7 +297,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testCached, testCachedIndefinitely)
 
 	runTests(t, "All", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
 		flag2 := ld.FeatureFlag{Key: "flag2", Version: 1}
@@ -316,7 +319,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "cached All uses values from Init", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -336,7 +339,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testCached, testCachedIndefinitely)
 
 	runTests(t, "cached All uses fresh values if there has been an update", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -365,7 +368,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testCached)
 
 	runTests(t, "Upsert - successful", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -396,7 +399,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 		// store, this is just a no-op as far as the wrapper is concerned so there's nothing to
 		// test here. In a cached store, we need to verify that the cache has been refreshed
 		// using the data that was found in the store.
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -419,7 +422,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 	}, testCached, testCachedIndefinitely)
 
 	runTests(t, "Delete", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -449,7 +452,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Initialized calls InitializedInternal only if not already inited", func(t *testing.T) {
 		core := newCore(0)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		assert.False(t, w.Initialized())
@@ -466,7 +469,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Initialized won't call InitializedInternal if Init has been called", func(t *testing.T) {
 		core := newCore(0)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		assert.False(t, w.Initialized())
@@ -482,7 +485,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Initialized can cache false result", func(t *testing.T) {
 		core := newCore(500 * time.Millisecond)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		assert.False(t, w.Initialized())
@@ -499,7 +502,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached Get coalesces requests for same key", func(t *testing.T) {
 		core := newCoreWithInstrumentedQueries(cacheTime)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag := ld.FeatureFlag{Key: "flag", Version: 9}
@@ -529,7 +532,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached Get doesn't coalesce requests for same key", func(t *testing.T) {
 		core := newCoreWithInstrumentedQueries(cacheTime)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag1 := ld.FeatureFlag{Key: "flag1", Version: 8}
@@ -558,7 +561,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached All coalesces requests", func(t *testing.T) {
 		core := newCoreWithInstrumentedQueries(cacheTime)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag := ld.FeatureFlag{Key: "flag", Version: 9}
@@ -585,7 +588,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached store with finite TTL won't update cache if core update fails", func(t *testing.T) {
 		core := newCore(cacheTime)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -609,7 +612,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached store with infinite TTL will update cache even if core update fails", func(t *testing.T) {
 		core := newCore(-1)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -633,7 +636,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached store with finite TTL won't update cache if core init fails", func(t *testing.T) {
 		core := newCore(cacheTime)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -652,7 +655,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached store with infinite TTL will update cache even if core init fails", func(t *testing.T) {
 		core := newCore(-1)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
@@ -671,7 +674,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached store with finite TTL removes cached All data if a single item is updated", func(t *testing.T) {
 		core := newCore(cacheTime)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag1v1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -704,7 +707,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Cached store with infinite TTL updates cached All data if a single item is updated", func(t *testing.T) {
 		core := newCore(-1)
-		w := NewFeatureStoreWrapper(core)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		flag1v1 := ld.FeatureFlag{Key: "flag1", Version: 1}
@@ -737,7 +740,7 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 	t.Run("Non-atomic init passes ordered data to core", func(t *testing.T) {
 		core := &mockNonAtomicCore{}
-		w := NewNonAtomicFeatureStoreWrapper(core)
+		w := NewNonAtomicDataStoreWrapper(core)
 
 		assert.NoError(t, w.Init(dependencyOrderingTestData))
 
@@ -779,26 +782,22 @@ func TestFeatureStoreWrapper(t *testing.T) {
 
 var dependencyOrderingTestData = map[ld.VersionedDataKind]map[string]ld.VersionedData{
 	ld.Features: {
-		"a": &ld.FeatureFlag{
-			Key: "a",
-			Prerequisites: []ld.Prerequisite{
-				ld.Prerequisite{Key: "b"},
-				ld.Prerequisite{Key: "c"},
-			},
-		},
-		"b": &ld.FeatureFlag{
-			Key: "b",
-			Prerequisites: []ld.Prerequisite{
-				ld.Prerequisite{Key: "c"},
-				ld.Prerequisite{Key: "e"},
-			},
-		},
-		"c": &ld.FeatureFlag{Key: "c"},
-		"d": &ld.FeatureFlag{Key: "d"},
-		"e": &ld.FeatureFlag{Key: "e"},
-		"f": &ld.FeatureFlag{Key: "f"},
+		"a": parseFlag(`{"key":"a","prerequisites":[{"key":"b"},{"key":"c"}]}`),
+		"b": parseFlag(`{"key":"b","prerequisites":[{"key":"c"},{"key":"e"}]}`),
+		"c": parseFlag(`{"key":"c"}`),
+		"d": parseFlag(`{"key":"d"}`),
+		"e": parseFlag(`{"key":"e"}`),
+		"f": parseFlag(`{"key":"f"}`),
 	},
 	ld.Segments: {
 		"1": &ld.Segment{Key: "1"},
 	},
+}
+
+func parseFlag(jsonString string) *ld.FeatureFlag {
+	var f ld.FeatureFlag
+	if err := json.Unmarshal([]byte(jsonString), &f); err != nil {
+		panic(err)
+	}
+	return &f
 }

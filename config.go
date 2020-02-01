@@ -1,9 +1,7 @@
 package ldclient
 
 import (
-	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
@@ -29,41 +27,30 @@ type Config struct {
 	// The time between flushes of the event buffer. Decreasing the flush interval means that the event buffer
 	// is less likely to reach capacity.
 	FlushInterval time.Duration
-	// Enables event sampling if non-zero. When set to the default of zero, all events are sent to Launchdarkly.
-	// If greater than zero, there is a 1 in SamplingInterval chance that events will be sent (for example, a
-	// value of 20 means on average 5% of events will be sent).
-	//
-	// Deprecated: This feature will be removed in a future version of the SDK.
-	SamplingInterval int32
 	// The polling interval (when streaming is disabled). Values less than the default of MinimumPollInterval
 	// will be set to the default.
 	PollInterval time.Duration
-	// An object that can be used to produce log output. Setting this property is equivalent to passing
-	// the same object to config.Loggers.SetBaseLogger().
-	//
-	// Deprecated: This property may be removed in the future. Use Loggers.SetBaseLogger() instead.
-	Logger Logger
 	// Configures the SDK's logging behavior. You may call its SetBaseLogger() method to specify the
 	// output destination (the default is standard error), and SetMinLevel() to specify the minimum level
 	// of messages to be logged (the default is ldlog.Info).
 	Loggers ldlog.Loggers
 	// The connection timeout to use when making polling requests to LaunchDarkly.
 	Timeout time.Duration
-	// Sets the implementation of FeatureStore for holding feature flags and related data received from
+	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
 	// Except for testing purposes, you should not set this property directly but instead use
-	// FeatureStoreFactory, which ensures that the FeatureStore component will use the same logging
+	// DataStoreFactory, which ensures that the DataStore component will use the same logging
 	// configuration as the rest of the SDK.
-	FeatureStore FeatureStore
-	// Sets the implementation of FeatureStore for holding feature flags and related data received from
-	// LaunchDarkly. See NewInMemoryFeatureStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
-	FeatureStoreFactory FeatureStoreFactory
+	DataStore DataStore
+	// Sets the implementation of DataStore for holding feature flags and related data received from
+	// LaunchDarkly. See NewInMemoryDataStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
+	DataStoreFactory DataStoreFactory
 	// Sets whether streaming mode should be enabled. By default, streaming is enabled. It should only be
 	// disabled on the advice of LaunchDarkly support.
 	Stream bool
 	// Sets whether this client should use the LaunchDarkly relay in daemon mode. In this mode, the client does
-	// not subscribe to the streaming or polling API, but reads data only from the feature store. See:
+	// not subscribe to the streaming or polling API, but reads data only from the data store. See:
 	// https://docs.launchdarkly.com/docs/the-relay-proxy
 	UseLdd bool
 	// Sets whether to send analytics events back to LaunchDarkly. By default, the client will send events. This
@@ -88,12 +75,10 @@ type Config struct {
 	// Sets whether log messages for errors related to a specific user can include the user key. By default, they
 	// will not, since the user key might be considered privileged information.
 	LogUserKeyInErrors bool
-	// Deprecated: Please use UpdateProcessorFactory.
-	UpdateProcessor UpdateProcessor
 	// Factory to create an object that is responsible for receiving feature flag updates from LaunchDarkly.
 	// If nil, a default implementation will be used depending on the rest of the configuration
 	// (streaming, polling, etc.); a custom implementation can be substituted for testing.
-	UpdateProcessorFactory UpdateProcessorFactory
+	DataSourceFactory DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
 	EventProcessor EventProcessor
@@ -144,8 +129,8 @@ type Config struct {
 // HTTPClientFactory is a function that creates a custom HTTP client.
 type HTTPClientFactory func(Config) http.Client
 
-// UpdateProcessorFactory is a function that creates an UpdateProcessor.
-type UpdateProcessorFactory func(sdkKey string, config Config) (UpdateProcessor, error)
+// DataSourceFactory is a function that creates an DataSource.
+type DataSourceFactory func(sdkKey string, config Config) (DataSource, error)
 
 // MinimumPollInterval describes the minimum value for Config.PollInterval. If you specify a smaller interval,
 // the minimum will be used instead.
@@ -181,12 +166,6 @@ func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
 	}
 }
 
-// The ldlog package already has its own logic for using a default logger if none was set.
-// However, in the past we've always guaranteed that DefaultConfig.Logger is non-nil, so
-// we need to continue doing so for now. If the client initialization logic sees that
-// config.Logger is set to this exact instance, it'll ignore it.
-var defaultLogger = log.New(os.Stderr, "[LaunchDarkly] ", log.LstdFlags)
-
 // DefaultConfig provides the default configuration options for the LaunchDarkly client.
 // The easiest way to create a custom configuration is to start with the
 // default config, and set the custom options from there. For example:
@@ -202,13 +181,12 @@ var DefaultConfig = Config{
 	PollInterval:                MinimumPollInterval,
 	Timeout:                     3000 * time.Millisecond,
 	Stream:                      true,
-	FeatureStore:                nil,
+	DataStore:                   nil,
 	UseLdd:                      false,
 	SendEvents:                  true,
 	Offline:                     false,
 	UserKeysCapacity:            1000,
 	UserKeysFlushInterval:       5 * time.Minute,
 	UserAgent:                   "",
-	Logger:                      defaultLogger,
 	DiagnosticRecordingInterval: 15 * time.Minute,
 }

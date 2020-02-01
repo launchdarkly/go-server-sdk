@@ -15,70 +15,44 @@ import (
 
 const redisURL = "redis://localhost:6379"
 
-func TestRedisFeatureStoreUncached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(0))
+func TestRedisDataStoreUncached(t *testing.T) {
+	f, err := NewRedisDataStoreFactory(CacheTTL(0))
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreTests(t, f, clearExistingData, false)
+	ldtest.RunDataStoreTests(t, f, clearExistingData, false)
 }
 
-func TestRedisFeatureStoreUncachedWithDeprecatedOptionsConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreWithDefaults(CacheTTL(0))
-	}, clearExistingData, false)
-}
-
-func TestRedisFeatureStoreUncachedWithDeprecatedConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 0, nil), nil
-	}, clearExistingData, false)
-}
-
-func TestRedisFeatureStoreCached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(30 * time.Second))
+func TestRedisDataStoreCached(t *testing.T) {
+	f, err := NewRedisDataStoreFactory(CacheTTL(30 * time.Second))
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreTests(t, f, clearExistingData, true)
+	ldtest.RunDataStoreTests(t, f, clearExistingData, true)
 }
 
-func TestRedisFeatureStoreCachedWithDeprecatedOptionsConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreWithDefaults(CacheTTL(30 * time.Second))
-	}, clearExistingData, true)
-}
-
-func TestRedisFeatureStoreCachedWithDeprecatedConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 30*time.Second, nil), nil
-	}, clearExistingData, true)
-}
-
-func TestRedisFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewRedisFeatureStoreWithDefaults(Prefix(prefix), CacheTTL(0))
+func TestRedisDataStorePrefixes(t *testing.T) {
+	ldtest.RunDataStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.DataStoreFactory, error) {
+			return NewRedisDataStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
-func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
+func TestRedisDataStoreConcurrentModification(t *testing.T) {
 	opts, err := validateOptions()
 	require.NoError(t, err)
-	core1 := newRedisFeatureStoreInternal(opts, ld.Config{}) // use the internal object so we can set testTxHook
-	store1 := utils.NewFeatureStoreWrapper(core1)
-	store2, err := NewRedisFeatureStoreWithDefaults()
+	var core1 *redisDataStoreCore
+	factory1 := func(config ld.Config) (ld.DataStore, error) {
+		core1 = newRedisDataStoreInternal(opts, config) // use the internal object so we can set testTxHook
+		return utils.NewDataStoreWrapperWithConfig(core1, config), nil
+	}
+	factory2, err := NewRedisDataStoreFactory()
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
+	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		core1.testTxHook = hook
 	})
 }
 
 func TestRedisStoreComponentTypeName(t *testing.T) {
-	store, _ := NewRedisFeatureStoreWithDefaults()
+	f, _ := NewRedisFeatureStoreFactory()
+	store, _ := f(ld.DefaultConfig)
 	assert.Equal(t, "Redis", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
-}
-
-func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(redisURL, "", ttl, nil), nil
-	}
 }
 
 func clearExistingData() error {

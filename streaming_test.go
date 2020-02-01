@@ -1,12 +1,12 @@
 package ldclient
 
 import (
-	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +31,7 @@ func (r *testRepo) Replay(channel, id string) chan eventsource.Event {
 	return c
 }
 
-func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(events chan<- eventsource.Event, store FeatureStore)) {
+func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(events chan<- eventsource.Event, store DataStore)) {
 	esserver := eventsource.NewServer()
 	esserver.ReplayAll = true
 	esserver.Register("test", &testRepo{initialEvent: initialEvent})
@@ -54,14 +54,13 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 	defer sdkServer.Close()
 	defer esserver.Close()
 
-	store := NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0))
-
 	cfg := Config{
-		FeatureStore: store,
-		StreamUri:    streamServer.URL,
-		BaseUri:      sdkServer.URL,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		StreamUri: streamServer.URL,
+		BaseUri:   sdkServer.URL,
+		Loggers:   ldlog.NewDisabledLoggers(),
 	}
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 
 	requestor := newRequestor("sdkKey", cfg, nil)
 	sp := newStreamProcessor("sdkKey", cfg, requestor)
@@ -92,13 +91,13 @@ func TestStreamProcessor(t *testing.T) {
 	}
 
 	t.Run("initial put", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
 			waitForVersion(t, store, Features, "my-flag", 2)
 		})
 	})
 
 	t.Run("patch flag", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
 			events <- &testEvent{
 				event: patchEvent,
 				data:  `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`,
@@ -109,7 +108,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("delete flag", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
 			events <- &testEvent{
 				event: deleteEvent,
 				data:  `{"path": "/flags/my-flag", "version": 4}`,
@@ -120,7 +119,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("patch segment", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
 			events <- &testEvent{
 				event: patchEvent,
 				data:  `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`,
@@ -131,7 +130,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("delete segment", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
 			events <- &testEvent{
 				event: deleteEvent,
 				data:  `{"path": "/segments/my-segment", "version": 8}`,
@@ -142,7 +141,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("indirect flag patch", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
 			events <- &testEvent{
 				event: indirectPatchEvent,
 				data:  "/flags/my-flag",
@@ -154,7 +153,7 @@ func TestStreamProcessor(t *testing.T) {
 
 }
 
-func waitForVersion(t *testing.T, store FeatureStore, kind VersionedDataKind, key string, version int) VersionedData {
+func waitForVersion(t *testing.T, store DataStore, kind VersionedDataKind, key string, version int) VersionedData {
 	var item VersionedData
 	var err error
 	deadline := time.Now().Add(time.Second * 3)
@@ -171,7 +170,7 @@ func waitForVersion(t *testing.T, store FeatureStore, kind VersionedDataKind, ke
 	return nil
 }
 
-func waitForDelete(t *testing.T, store FeatureStore, kind VersionedDataKind, key string) {
+func waitForDelete(t *testing.T, store DataStore, kind VersionedDataKind, key string) {
 	var item VersionedData
 	var err error
 	deadline := time.Now().Add(time.Second * 3)
@@ -212,10 +211,11 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
-		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:             log.New(ioutil.Discard, "", 0),
+		Loggers:            ldlog.NewDisabledLoggers(),
 		diagnosticsManager: diagnosticsManager,
 	}
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -263,10 +263,11 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
-		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:             log.New(ioutil.Discard, "", 0),
+		Loggers:            ldlog.NewDisabledLoggers(),
 		diagnosticsManager: diagnosticsManager,
 	}
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -298,10 +299,12 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:            log.New(ioutil.Discard, "", 0),
+		Loggers:           ldlog.NewDisabledLoggers(),
 		StreamUri:         ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -324,10 +327,12 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:    log.New(ioutil.Discard, "", 0),
+		Loggers:   ldlog.NewDisabledLoggers(),
 		StreamUri: ts.URL,
 		Timeout:   200 * time.Millisecond,
 	}
+	store, _ := NewInMemoryDataStoreFactory()(cfg)
+	cfg.DataStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -360,13 +365,13 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	store := &testFeatureStoreWithStatus{
+	store := &testDataStoreWithStatus{
 		inits: make(chan map[VersionedDataKind]map[string]VersionedData),
 	}
 	cfg := Config{
-		StreamUri:    ts.URL,
-		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		StreamUri: ts.URL,
+		DataStore: store,
+		Loggers:   ldlog.NewDisabledLoggers(),
 	}
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
@@ -388,67 +393,67 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 			}}`,
 	}
 
-	// Make the feature store simulate an outage and recovery with NeedsRefresh: true
-	store.publishStatus(internal.FeatureStoreStatus{Available: false})
-	store.publishStatus(internal.FeatureStoreStatus{Available: true, NeedsRefresh: true})
+	// Make the data store simulate an outage and recovery with NeedsRefresh: true
+	store.publishStatus(internal.DataStoreStatus{Available: false})
+	store.publishStatus(internal.DataStoreStatus{Available: true, NeedsRefresh: true})
 
 	// When the stream restarts, it'll call Init with the refreshed data
 	receivedNewData := <-store.inits
 	assert.Equal(t, 2, receivedNewData[Features]["my-flag"].GetVersion())
 }
 
-type testFeatureStoreWithStatus struct {
+type testDataStoreWithStatus struct {
 	inits     chan map[VersionedDataKind]map[string]VersionedData
 	statusSub *testStatusSubscription
 }
 
-func (t *testFeatureStoreWithStatus) Get(kind VersionedDataKind, key string) (VersionedData, error) {
+func (t *testDataStoreWithStatus) Get(kind VersionedDataKind, key string) (VersionedData, error) {
 	return nil, nil
 }
 
-func (t *testFeatureStoreWithStatus) All(kind VersionedDataKind) (map[string]VersionedData, error) {
+func (t *testDataStoreWithStatus) All(kind VersionedDataKind) (map[string]VersionedData, error) {
 	return nil, nil
 }
 
-func (t *testFeatureStoreWithStatus) Init(data map[VersionedDataKind]map[string]VersionedData) error {
+func (t *testDataStoreWithStatus) Init(data map[VersionedDataKind]map[string]VersionedData) error {
 	t.inits <- data
 	return nil
 }
 
-func (t *testFeatureStoreWithStatus) Delete(kind VersionedDataKind, key string, version int) error {
+func (t *testDataStoreWithStatus) Delete(kind VersionedDataKind, key string, version int) error {
 	return nil
 }
 
-func (t *testFeatureStoreWithStatus) Upsert(kind VersionedDataKind, item VersionedData) error {
+func (t *testDataStoreWithStatus) Upsert(kind VersionedDataKind, item VersionedData) error {
 	return nil
 }
 
-func (t *testFeatureStoreWithStatus) Initialized() bool {
+func (t *testDataStoreWithStatus) Initialized() bool {
 	return true
 }
 
-func (t *testFeatureStoreWithStatus) GetStoreStatus() internal.FeatureStoreStatus {
-	return internal.FeatureStoreStatus{Available: true}
+func (t *testDataStoreWithStatus) GetStoreStatus() internal.DataStoreStatus {
+	return internal.DataStoreStatus{Available: true}
 }
 
-func (t *testFeatureStoreWithStatus) StatusSubscribe() internal.FeatureStoreStatusSubscription {
+func (t *testDataStoreWithStatus) StatusSubscribe() internal.DataStoreStatusSubscription {
 	t.statusSub = &testStatusSubscription{
-		ch: make(chan internal.FeatureStoreStatus),
+		ch: make(chan internal.DataStoreStatus),
 	}
 	return t.statusSub
 }
 
-func (t *testFeatureStoreWithStatus) publishStatus(status internal.FeatureStoreStatus) {
+func (t *testDataStoreWithStatus) publishStatus(status internal.DataStoreStatus) {
 	if t.statusSub != nil {
 		t.statusSub.ch <- status
 	}
 }
 
 type testStatusSubscription struct {
-	ch chan internal.FeatureStoreStatus
+	ch chan internal.DataStoreStatus
 }
 
-func (s *testStatusSubscription) Channel() <-chan internal.FeatureStoreStatus {
+func (s *testStatusSubscription) Channel() <-chan internal.DataStoreStatus {
 	return s.ch
 }
 

@@ -23,7 +23,7 @@ const (
 )
 
 type streamProcessor struct {
-	store                      FeatureStore
+	store                      DataStore
 	client                     *http.Client
 	requestor                  *requestor
 	config                     Config
@@ -31,7 +31,7 @@ type streamProcessor struct {
 	setInitializedOnce         sync.Once
 	isInitialized              bool
 	halt                       chan struct{}
-	storeStatusSub             internal.FeatureStoreStatusSubscription
+	storeStatusSub             internal.DataStoreStatusSubscription
 	connectionAttemptStartTime uint64
 	readyOnce                  sync.Once
 	closeOnce                  sync.Once
@@ -64,7 +64,7 @@ func (sp *streamProcessor) Initialized() bool {
 
 func (sp *streamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.config.Loggers.Info("Starting LaunchDarkly streaming connection")
-	if fss, ok := sp.store.(internal.FeatureStoreStatusProvider); ok {
+	if fss, ok := sp.store.(internal.DataStoreStatusProvider); ok {
 		sp.storeStatusSub = fss.StatusSubscribe()
 	}
 	go sp.subscribe(closeWhenReady)
@@ -107,7 +107,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 		}
 	}()
 
-	var statusCh <-chan internal.FeatureStoreStatus
+	var statusCh <-chan internal.DataStoreStatus
 	if sp.storeStatusSub != nil {
 		statusCh = sp.storeStatusSub.Channel()
 	}
@@ -127,7 +127,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 					sp.config.Loggers.Errorf("Unexpected error unmarshalling PUT json: %+v", err)
 					break
 				}
-				err := sp.store.Init(MakeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
+				err := sp.store.Init(makeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
 				if err != nil {
 					sp.config.Loggers.Errorf("Error initializing store: %s", err)
 					return false
@@ -206,7 +206,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 			if newStoreStatus.Available && newStoreStatus.NeedsRefresh {
 				// The store has just transitioned from unavailable to available, and we can't guarantee that
 				// all of the latest data got cached, so let's restart the stream to refresh all the data.
-				sp.config.Loggers.Warn("Restarting stream to refresh data after feature store outage")
+				sp.config.Loggers.Warn("Restarting stream to refresh data after data store outage")
 				stream.Close()
 				return true // causes subscribe() to restart the connection
 			}
@@ -219,7 +219,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 
 func newStreamProcessor(sdkKey string, config Config, requestor *requestor) *streamProcessor {
 	sp := &streamProcessor{
-		store:     config.FeatureStore,
+		store:     config.DataStore,
 		config:    config,
 		sdkKey:    sdkKey,
 		requestor: requestor,

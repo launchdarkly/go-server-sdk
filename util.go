@@ -6,16 +6,12 @@ import (
 	"time"
 )
 
-// HttpStatusError describes an http error
-//
-// Deprecated: this type is for internal use and will be removed in a future version.
-type HttpStatusError struct {
+type httpStatusError struct {
 	Message string
 	Code    int
 }
 
-// Error returns a the error message for an http status error
-func (e HttpStatusError) Error() string {
+func (e httpStatusError) Error() string {
 	return e.Message
 }
 
@@ -26,29 +22,27 @@ func unixMillisToUtcTime(unixMillis float64) time.Time {
 
 func checkForHttpError(statusCode int, url string) error {
 	if statusCode == http.StatusUnauthorized {
-		return HttpStatusError{
+		return httpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
 			Code:    statusCode}
 	}
 
 	if statusCode == http.StatusNotFound {
-		return HttpStatusError{
+		return httpStatusError{
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
 			Code:    statusCode}
 	}
 
 	if statusCode/100 != 2 {
-		return HttpStatusError{
+		return httpStatusError{
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
 			Code:    statusCode}
 	}
 	return nil
 }
 
-// MakeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a feature store
-//
-// Deprecated: this functioin is for internal use and will be removed in a future version.
-func MakeAllVersionedDataMap(
+// makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a data store
+func makeAllVersionedDataMap(
 	features map[string]*FeatureFlag,
 	segments map[string]*Segment) map[VersionedDataKind]map[string]VersionedData {
 

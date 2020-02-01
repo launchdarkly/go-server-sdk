@@ -7,14 +7,13 @@
 package proxytest
 
 import (
-	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +41,7 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	os.Setenv("HTTP_PROXY", proxy.URL)
 
 	config := ld.DefaultConfig
-	config.Logger = log.New(ioutil.Discard, "", 0)
+	config.Loggers = ldlog.NewDisabledLoggers()
 	config.BaseUri = fakeBaseURL
 	config.SendEvents = false
 	config.Stream = false
@@ -68,7 +67,7 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 
 	config := ld.DefaultConfig
 	config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
-	config.Logger = log.New(ioutil.Discard, "", 0)
+	config.Loggers = ldlog.NewDisabledLoggers()
 	config.BaseUri = fakeBaseURL
 	config.SendEvents = false
 	config.Stream = false

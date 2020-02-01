@@ -89,6 +89,14 @@ type levelLogger struct {
 
 var nullLog = levelLogger{enabled: false}
 
+// NewDisabledLoggers returns a Loggers instance that will never generate output.
+func NewDisabledLoggers() Loggers {
+	ret := Loggers{}
+	ret.SetBaseLogger(nullLog)
+	ret.SetMinLevel(None)
+	return ret
+}
+
 // Debug logs a message at Debug level, if that level is enabled. It calls the BaseLogger's Println.
 func (l Loggers) Debug(values ...interface{}) {
 	l.ForLevel(Debug).Println(values...)

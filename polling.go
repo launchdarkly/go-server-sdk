@@ -6,7 +6,7 @@ import (
 )
 
 type pollingProcessor struct {
-	store              FeatureStore
+	store              DataStore
 	requestor          *requestor
 	config             Config
 	setInitializedOnce sync.Once
@@ -17,7 +17,7 @@ type pollingProcessor struct {
 
 func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor {
 	pp := &pollingProcessor{
-		store:     config.FeatureStore,
+		store:     config.DataStore,
 		requestor: requestor,
 		config:    config,
 		quit:      make(chan struct{}),
@@ -51,7 +51,7 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 			case <-ticker.C:
 				if err := pp.poll(); err != nil {
 					pp.config.Loggers.Errorf("Error when requesting feature updates: %+v", err)
-					if hse, ok := err.(HttpStatusError); ok {
+					if hse, ok := err.(httpStatusError); ok {
 						pp.config.Loggers.Error(httpErrorMessage(hse.Code, "polling request", "will retry"))
 						if !isHTTPErrorRecoverable(hse.Code) {
 							notifyReady()
@@ -79,7 +79,7 @@ func (pp *pollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		return pp.store.Init(MakeAllVersionedDataMap(allData.Flags, allData.Segments))
+		return pp.store.Init(makeAllVersionedDataMap(allData.Flags, allData.Segments))
 	}
 	return nil
 }

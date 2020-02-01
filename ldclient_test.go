@@ -2,42 +2,42 @@ package ldclient
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-type mockUpdateProcessor struct {
+type mockDataSource struct {
 	IsInitialized bool
 	CloseFn       func() error
 	StartFn       func(chan<- struct{})
 }
 
-func (u mockUpdateProcessor) Initialized() bool {
+func (u mockDataSource) Initialized() bool {
 	return u.IsInitialized
 }
 
-func (u mockUpdateProcessor) Close() error {
+func (u mockDataSource) Close() error {
 	if u.CloseFn == nil {
 		return nil
 	}
 	return u.CloseFn()
 }
 
-func (u mockUpdateProcessor) Start(closeWhenReady chan<- struct{}) {
+func (u mockDataSource) Start(closeWhenReady chan<- struct{}) {
 	if u.StartFn == nil {
 		return
 	}
 	u.StartFn(closeWhenReady)
 }
 
-func updateProcessorFactory(u UpdateProcessor) func(string, Config) (UpdateProcessor, error) {
-	return func(key string, c Config) (UpdateProcessor, error) {
+func dataSourceFactory(u DataSource) func(string, Config) (DataSource, error) {
+	return func(key string, c Config) (DataSource, error) {
 		return u, nil
 	}
 }
@@ -207,7 +207,7 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
-	updateProcessor := mockUpdateProcessor{
+	dataSource := mockDataSource{
 		IsInitialized: false,
 		StartFn: func(closeWhenReady chan<- struct{}) {
 			close(closeWhenReady)
@@ -215,10 +215,10 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient("sdkKey", Config{
-		Logger:                 log.New(ioutil.Discard, "", 0),
-		UpdateProcessorFactory: updateProcessorFactory(updateProcessor),
-		EventProcessor:         &testEventProcessor{},
-		UserKeysFlushInterval:  30 * time.Second,
+		Loggers:               ldlog.NewDisabledLoggers(),
+		DataSourceFactory:     dataSourceFactory(dataSource),
+		EventProcessor:        &testEventProcessor{},
+		UserKeysFlushInterval: 30 * time.Second,
 	}, time.Second)
 
 	assert.NotNil(t, client)
@@ -231,16 +231,16 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Logger:       newMockLogger(""),
-		Offline:      false,
-		SendEvents:   true,
-		FeatureStore: NewInMemoryFeatureStore(nil),
-		UpdateProcessorFactory: updateProcessorFactory(mockUpdateProcessor{
+		Offline:          false,
+		SendEvents:       true,
+		DataStoreFactory: NewInMemoryDataStoreFactory(),
+		DataSourceFactory: dataSourceFactory(mockDataSource{
 			IsInitialized: true,
 		}),
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}
+	config.Loggers.SetBaseLogger(newMockLogger(""))
 	if modConfig != nil {
 		modConfig(&config)
 	}

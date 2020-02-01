@@ -1,11 +1,11 @@
 package ldclient
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func makeOfflineClient() *LDClient {
@@ -92,16 +92,23 @@ func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
 	client := makeOfflineClient()
 	defer client.Close()
 
-	defaultVal := map[string]interface{}{"field2": "value2"}
-	defaultJSON, _ := json.Marshal(defaultVal)
-	value, err := client.JsonVariation("featureKey", evalTestUser, defaultJSON)
+	defaultVal := ldvalue.ObjectBuild().Set("field2", ldvalue.String("value2")).Build()
+	value, err := client.JSONVariation("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
-	assert.Equal(t, json.RawMessage(defaultJSON), value)
+	assert.Equal(t, defaultVal, value)
 
-	value, detail, err := client.JsonVariationDetail("featureKey", evalTestUser, defaultJSON)
+	value, detail, err := client.JSONVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
-	assert.Equal(t, json.RawMessage(defaultJSON), value)
-	assert.Equal(t, json.RawMessage(defaultJSON), detail.JSONValue.AsRaw())
+	assert.Equal(t, defaultVal, value)
+	assert.Equal(t, defaultVal, detail.JSONValue)
 	assert.Nil(t, detail.VariationIndex)
 	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
+}
+
+func TestAllFlagsStateReturnsEmptyStateOffline(t *testing.T) {
+	client := makeOfflineClient()
+	defer client.Close()
+
+	result := client.AllFlagsState(evalTestUser)
+	assert.False(t, result.IsValid())
 }

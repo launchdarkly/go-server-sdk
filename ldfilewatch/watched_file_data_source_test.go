@@ -12,6 +12,7 @@ import (
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 func makeTempFile(t *testing.T, initialText string) string {
@@ -20,6 +21,11 @@ func makeTempFile(t *testing.T, initialText string) string {
 	f.WriteString(initialText)
 	require.NoError(t, f.Close())
 	return f.Name()
+}
+
+func makeDataStore() ld.DataStore {
+	store, _ := ld.NewInMemoryDataStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+	return store
 }
 
 func replaceFileContents(t *testing.T, filename string, text string) {
@@ -43,7 +49,7 @@ func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() 
 	}
 }
 
-func hasFlag(t *testing.T, store ld.FeatureStore, key string, test func(ld.FeatureFlag) bool) bool {
+func hasFlag(t *testing.T, store ld.DataStore, key string, test func(ld.FeatureFlag) bool) bool {
 	flag, err := store.Get(ld.Features, key)
 	if assert.NoError(t, err) && flag != nil {
 		return test(*(flag.(*ld.FeatureFlag)))
@@ -58,12 +64,12 @@ flags: bad
 `)
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeDataStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	defer dataSource.Close()
 
@@ -110,12 +116,12 @@ func TestNewWatchedFileMissing(t *testing.T) {
 	require.NoError(t, os.Remove(filename))
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeDataStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	defer dataSource.Close()
 
 	require.NoError(t, err)
@@ -145,7 +151,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "file-source-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeDataStore()
 
 	dirPath := path.Join(tempDir, "test")
 	filePath := path.Join(dirPath, "flags.yml")
@@ -153,7 +159,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filePath),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	defer dataSource.Close()
 

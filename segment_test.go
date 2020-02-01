@@ -24,11 +24,8 @@ func TestExplicitIncludeUser(t *testing.T) {
 	}
 	user := NewUser("foo")
 
-	containsUser, reason := segment.ContainsUser(user)
-
+	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
-	assert.NotNil(t, reason, "Reason should not be nil")
-	assert.Equal(t, "included", reason.Kind, "Reason should be 'included'")
 }
 
 func TestExplicitExcludeUser(t *testing.T) {
@@ -43,11 +40,8 @@ func TestExplicitExcludeUser(t *testing.T) {
 	}
 	user := NewUser("foo")
 
-	containsUser, reason := segment.ContainsUser(user)
-
+	containsUser := segment.containsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
-	assert.NotNil(t, reason, "Reason should not be nil")
-	assert.Equal(t, "excluded", reason.Kind, "Reason should be 'excluded'")
 }
 
 func TestExplicitIncludeHasPrecedence(t *testing.T) {
@@ -62,19 +56,16 @@ func TestExplicitIncludeHasPrecedence(t *testing.T) {
 	}
 	user := NewUser("foo")
 
-	containsUser, reason := segment.ContainsUser(user)
-
+	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
-	assert.NotNil(t, reason, "Reason should not be nil")
-	assert.Equal(t, "included", reason.Kind, "Reason should be 'included'")
 }
 
 func TestMatchingRuleWithFullRollout(t *testing.T) {
-	rules := []SegmentRule{
-		SegmentRule{
-			Clauses: []Clause{Clause{
+	rules := []segmentRule{
+		segmentRule{
+			Clauses: []clause{clause{
 				Attribute: "email",
-				Op:        OperatorIn,
+				Op:        operatorIn,
 				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			}},
@@ -95,20 +86,16 @@ func TestMatchingRuleWithFullRollout(t *testing.T) {
 
 	user := NewUserBuilder("foo").Email("test@example.com").Build()
 
-	containsUser, reason := segment.ContainsUser(user)
+	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
-	assert.NotNil(t, reason, "Reason should not be nil")
-	assert.Equal(t, "rule", reason.Kind, "Reason should be 'rule'")
-	assert.NotNil(t, reason.MatchedRule, "Matched rule should not be nil")
-	assert.True(t, assert.ObjectsAreEqual(rules[0], *reason.MatchedRule), "Reason rule should match but %+v and %+v are not equal", rules[0], *reason.MatchedRule)
 }
 
 func TestMatchingRuleWithZeroRollout(t *testing.T) {
-	rules := []SegmentRule{
-		SegmentRule{
-			Clauses: []Clause{Clause{
+	rules := []segmentRule{
+		segmentRule{
+			Clauses: []clause{clause{
 				Attribute: "email",
-				Op:        OperatorIn,
+				Op:        operatorIn,
 				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			}},
@@ -129,23 +116,22 @@ func TestMatchingRuleWithZeroRollout(t *testing.T) {
 
 	user := NewUserBuilder("foo").Email("test@example.com").Build()
 
-	containsUser, reason := segment.ContainsUser(user)
+	containsUser := segment.containsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
-	assert.Nil(t, reason, "Reason should be nil")
 }
 
 func TestMatchingRuleWithMultipleClauses(t *testing.T) {
-	rules := []SegmentRule{
-		SegmentRule{
-			Clauses: []Clause{
-				Clause{
+	rules := []segmentRule{
+		segmentRule{
+			Clauses: []clause{
+				clause{
 					Attribute: "email",
-					Op:        OperatorIn,
+					Op:        operatorIn,
 					Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				},
-				Clause{
+				clause{
 					Attribute: "name",
-					Op:        OperatorIn,
+					Op:        operatorIn,
 					Values:    []ldvalue.Value{ldvalue.String("bob")},
 				},
 			},
@@ -166,26 +152,22 @@ func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 
 	user := NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
 
-	containsUser, reason := segment.ContainsUser(user)
+	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
-	assert.NotNil(t, reason, "Reason should not be nil")
-	assert.Equal(t, "rule", reason.Kind, "Reason should be 'rule'")
-	assert.NotNil(t, reason.MatchedRule, "Matched rule should not be nil")
-	assert.True(t, assert.ObjectsAreEqual(rules[0], *reason.MatchedRule), "Reason rule should match but %+v and %+v are not equal", rules[0], *reason.MatchedRule)
 }
 
 func TestNonMatchingRuleWithMultipleClauses(t *testing.T) {
-	rules := []SegmentRule{
-		SegmentRule{
-			Clauses: []Clause{Clause{
+	rules := []segmentRule{
+		segmentRule{
+			Clauses: []clause{clause{
 				Attribute: "email",
-				Op:        OperatorIn,
+				Op:        operatorIn,
 				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			},
-				Clause{
+				clause{
 					Attribute: "name",
-					Op:        OperatorIn,
+					Op:        operatorIn,
 					Values:    []ldvalue.Value{ldvalue.String("bill")},
 				},
 			},
@@ -206,7 +188,6 @@ func TestNonMatchingRuleWithMultipleClauses(t *testing.T) {
 
 	user := NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
 
-	containsUser, reason := segment.ContainsUser(user)
+	containsUser := segment.containsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
-	assert.Nil(t, reason, "Reason should be nil")
 }
