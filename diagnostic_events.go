@@ -164,7 +164,7 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 		CustomBaseURI:                     m.config.BaseUri != DefaultConfig.BaseUri,
 		CustomStreamURI:                   m.config.StreamUri != DefaultConfig.StreamUri,
 		CustomEventsURI:                   m.config.EventsUri != DefaultConfig.EventsUri,
-		DataStoreType:                     getComponentTypeName(m.config.FeatureStore),
+		DataStoreType:                     getComponentTypeName(m.config.DataStore),
 		EventsCapacity:                    m.config.Capacity,
 		ConnectTimeoutMillis:              durationToMillis(m.config.Timeout),
 		SocketTimeoutMillis:               durationToMillis(m.config.Timeout),

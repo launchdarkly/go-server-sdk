@@ -22,50 +22,50 @@ const (
 	testTableName       = "LD_DYNAMODB_TEST_TABLE"
 )
 
-func TestDynamoDBFeatureStoreUncached(t *testing.T) {
+func TestDynamoDBDataStoreUncached(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(0), clearExistingData, false)
+	ldtest.RunDataStoreTests(t, makeStoreWithCacheTTL(0), clearExistingData, false)
 }
 
-func TestDynamoDBFeatureStoreCached(t *testing.T) {
+func TestDynamoDBDataStoreCached(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(30*time.Second), clearExistingData, true)
+	ldtest.RunDataStoreTests(t, makeStoreWithCacheTTL(30*time.Second), clearExistingData, true)
 }
 
-func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStoreFactory, error) {
-			return NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()),
+func TestDynamoDBDataStorePrefixes(t *testing.T) {
+	ldtest.RunDataStorePrefixIndependenceTests(t,
+		func(prefix string) (ld.DataStoreFactory, error) {
+			return NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()),
 				Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
-func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	var store1Internal *dynamoDBFeatureStore
-	factory1 := func(config ld.Config) (ld.FeatureStore, error) {
+func TestDynamoDBDataStoreConcurrentModification(t *testing.T) {
+	var store1Internal *dynamoDBDataStore
+	factory1 := func(config ld.Config) (ld.DataStore, error) {
 		opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
-		store1Internal, _ = newDynamoDBFeatureStoreInternal(opts, config)
-		return utils.NewNonAtomicFeatureStoreWrapper(store1Internal), nil
+		store1Internal, _ = newDynamoDBDataStoreInternal(opts, config)
+		return utils.NewNonAtomicDataStoreWrapper(store1Internal), nil
 	}
-	factory2, err := NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()))
+	factory2, err := NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()))
 	require.NoError(t, err)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
+	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Internal.testUpdateHook = hook
 	})
 }
 
 func TestDynamoDBStoreComponentTypeName(t *testing.T) {
-	factory, _ := NewDynamoDBFeatureStoreFactory("table")
+	factory, _ := NewDynamoDBDataStoreFactory("table")
 	store, _ := factory(ld.DefaultConfig)
-	assert.Equal(t, "DynamoDB", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "DynamoDB", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
-func makeStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
-	f, _ := NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
+func makeStoreWithCacheTTL(ttl time.Duration) ld.DataStoreFactory {
+	f, _ := NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
 	return f
 }
 

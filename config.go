@@ -36,21 +36,21 @@ type Config struct {
 	Loggers ldlog.Loggers
 	// The connection timeout to use when making polling requests to LaunchDarkly.
 	Timeout time.Duration
-	// Sets the implementation of FeatureStore for holding feature flags and related data received from
+	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
 	// Except for testing purposes, you should not set this property directly but instead use
-	// FeatureStoreFactory, which ensures that the FeatureStore component will use the same logging
+	// DataStoreFactory, which ensures that the DataStore component will use the same logging
 	// configuration as the rest of the SDK.
-	FeatureStore FeatureStore
-	// Sets the implementation of FeatureStore for holding feature flags and related data received from
-	// LaunchDarkly. See NewInMemoryFeatureStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
-	FeatureStoreFactory FeatureStoreFactory
+	DataStore DataStore
+	// Sets the implementation of DataStore for holding feature flags and related data received from
+	// LaunchDarkly. See NewInMemoryDataStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
+	DataStoreFactory DataStoreFactory
 	// Sets whether streaming mode should be enabled. By default, streaming is enabled. It should only be
 	// disabled on the advice of LaunchDarkly support.
 	Stream bool
 	// Sets whether this client should use the LaunchDarkly relay in daemon mode. In this mode, the client does
-	// not subscribe to the streaming or polling API, but reads data only from the feature store. See:
+	// not subscribe to the streaming or polling API, but reads data only from the data store. See:
 	// https://docs.launchdarkly.com/docs/the-relay-proxy
 	UseLdd bool
 	// Sets whether to send analytics events back to LaunchDarkly. By default, the client will send events. This
@@ -78,7 +78,7 @@ type Config struct {
 	// Factory to create an object that is responsible for receiving feature flag updates from LaunchDarkly.
 	// If nil, a default implementation will be used depending on the rest of the configuration
 	// (streaming, polling, etc.); a custom implementation can be substituted for testing.
-	UpdateProcessorFactory UpdateProcessorFactory
+	DataSourceFactory DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
 	EventProcessor EventProcessor
@@ -129,8 +129,8 @@ type Config struct {
 // HTTPClientFactory is a function that creates a custom HTTP client.
 type HTTPClientFactory func(Config) http.Client
 
-// UpdateProcessorFactory is a function that creates an UpdateProcessor.
-type UpdateProcessorFactory func(sdkKey string, config Config) (UpdateProcessor, error)
+// DataSourceFactory is a function that creates an DataSource.
+type DataSourceFactory func(sdkKey string, config Config) (DataSource, error)
 
 // MinimumPollInterval describes the minimum value for Config.PollInterval. If you specify a smaller interval,
 // the minimum will be used instead.
@@ -181,7 +181,7 @@ var DefaultConfig = Config{
 	PollInterval:                MinimumPollInterval,
 	Timeout:                     3000 * time.Millisecond,
 	Stream:                      true,
-	FeatureStore:                nil,
+	DataStore:                   nil,
 	UseLdd:                      false,
 	SendEvents:                  true,
 	Offline:                     false,

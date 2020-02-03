@@ -96,7 +96,7 @@ func checkForHttpError(statusCode int, url string) error {
 	return nil
 }
 
-// makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a feature store
+// makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a data store
 func makeAllVersionedDataMap(
 	features map[string]*FeatureFlag,
 	segments map[string]*Segment) map[VersionedDataKind]map[string]VersionedData {

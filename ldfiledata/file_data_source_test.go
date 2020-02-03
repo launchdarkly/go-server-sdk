@@ -21,8 +21,8 @@ func makeTempFile(t *testing.T, initialText string) string {
 	return f.Name()
 }
 
-func makeFeatureStore() ld.FeatureStore {
-	store, _ := ld.NewInMemoryFeatureStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+func makeDataStore() ld.DataStore {
+	store, _ := ld.NewInMemoryDataStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
 	return store
 }
 
@@ -38,10 +38,10 @@ segments:
 `)
 	defer os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -62,10 +62,10 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	filename := makeTempFile(t, `{"flags": {"my-flag": {"on": true}}}`)
 	defer os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -83,10 +83,10 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	filename2 := makeTempFile(t, `{"flags": {"my-flag2": {"on": true}}}`)
 	defer os.Remove(filename2)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -110,10 +110,10 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 	filename2 := makeTempFile(t, `{"flags": {"my-flag1": {"on": true}}}`)
 	defer os.Remove(filename2)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -125,10 +125,10 @@ func TestNewFileDataSourceBadData(t *testing.T) {
 	filename := makeTempFile(t, `bad data`)
 	defer os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -140,10 +140,10 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 	filename := makeTempFile(t, "")
 	os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -159,10 +159,10 @@ flagValues:
 `)
 	defer os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)

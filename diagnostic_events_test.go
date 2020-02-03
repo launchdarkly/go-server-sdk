@@ -86,13 +86,13 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		{func(c *Config) { c.StreamUri = "custom" }, func(d *diagnosticConfigData) { d.CustomStreamURI = true }},
 		{func(c *Config) { c.EventsUri = "custom" }, func(d *diagnosticConfigData) { d.CustomEventsURI = true }},
 		{func(c *Config) {
-			f := NewInMemoryFeatureStoreFactory()
-			c.FeatureStore, _ = f(DefaultConfig)
+			f := NewInMemoryDataStoreFactory()
+			c.DataStore, _ = f(DefaultConfig)
 		},
 			func(d *diagnosticConfigData) {
 				d.DataStoreType = ldvalue.NewOptionalString("memory")
 			}},
-		{func(c *Config) { c.FeatureStore = customStoreForDiagnostics{name: "Foo"} },
+		{func(c *Config) { c.DataStore = customStoreForDiagnostics{name: "Foo"} },
 			func(d *diagnosticConfigData) {
 				d.DataStoreType = ldvalue.NewOptionalString("Foo")
 			}},

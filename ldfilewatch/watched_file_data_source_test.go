@@ -23,8 +23,8 @@ func makeTempFile(t *testing.T, initialText string) string {
 	return f.Name()
 }
 
-func makeFeatureStore() ld.FeatureStore {
-	store, _ := ld.NewInMemoryFeatureStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+func makeDataStore() ld.DataStore {
+	store, _ := ld.NewInMemoryDataStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
 	return store
 }
 
@@ -49,7 +49,7 @@ func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() 
 	}
 }
 
-func hasFlag(t *testing.T, store ld.FeatureStore, key string, test func(ld.FeatureFlag) bool) bool {
+func hasFlag(t *testing.T, store ld.DataStore, key string, test func(ld.FeatureFlag) bool) bool {
 	flag, err := store.Get(ld.Features, key)
 	if assert.NoError(t, err) && flag != nil {
 		return test(*(flag.(*ld.FeatureFlag)))
@@ -64,12 +64,12 @@ flags: bad
 `)
 	defer os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	defer dataSource.Close()
 
@@ -116,12 +116,12 @@ func TestNewWatchedFileMissing(t *testing.T) {
 	require.NoError(t, os.Remove(filename))
 	defer os.Remove(filename)
 
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	defer dataSource.Close()
 
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "file-source-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
-	store := makeFeatureStore()
+	store := makeDataStore()
 
 	dirPath := path.Join(tempDir, "test")
 	filePath := path.Join(dirPath, "flags.yml")
@@ -159,7 +159,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filePath),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store})
 	require.NoError(t, err)
 	defer dataSource.Close()
 

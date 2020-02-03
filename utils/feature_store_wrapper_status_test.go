@@ -12,7 +12,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
-// Test implementation of FeatureStoreCore with FeatureStoreCoreStatus.
+// Test implementation of DataStoreCore with DataStoreCoreStatus.
 type mockCoreWithStatus struct {
 	cacheTTL         time.Duration
 	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
@@ -95,7 +95,7 @@ func (c *mockCoreWithStatus) setAvailable(available bool) {
 	c.fakeAvailability = available
 }
 
-func consumeStatusWithTimeout(t *testing.T, subCh <-chan internal.FeatureStoreStatus, timeout time.Duration) internal.FeatureStoreStatus {
+func consumeStatusWithTimeout(t *testing.T, subCh <-chan internal.DataStoreStatus, timeout time.Duration) internal.DataStoreStatus {
 	deadline := time.After(timeout)
 	for {
 		select {
@@ -107,7 +107,7 @@ func consumeStatusWithTimeout(t *testing.T, subCh <-chan internal.FeatureStoreSt
 	}
 }
 
-func TestFeatureStoreWrapperStatus(t *testing.T) {
+func TestDataStoreWrapperStatus(t *testing.T) {
 	statusUpdateTimeout := 1 * time.Second // status poller has an interval of 500ms
 
 	runTests := func(t *testing.T, name string, test func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus),
@@ -122,24 +122,24 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 	}
 
 	runTests(t, "Status is OK initially", func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus) {
-		w := NewFeatureStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
-		assert.Equal(t, internal.FeatureStoreStatus{Available: true}, w.GetStoreStatus())
+		assert.Equal(t, internal.DataStoreStatus{Available: true}, w.GetStoreStatus())
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Status is unavailable after error", func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus) {
-		w := NewFeatureStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
 		core.fakeError = errors.New("sorry")
 		_, err := w.All(ld.Features)
 		require.Equal(t, core.fakeError, err)
 
-		assert.Equal(t, internal.FeatureStoreStatus{Available: false}, w.GetStoreStatus())
+		assert.Equal(t, internal.DataStoreStatus{Available: false}, w.GetStoreStatus())
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Error listener is notified on failure and recovery", func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus) {
-		w := NewFeatureStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 		sub := w.StatusSubscribe()
 		require.NotNil(t, sub)
@@ -151,7 +151,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		require.Equal(t, core.fakeError, err)
 
 		updatedStatus := consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
-		require.Equal(t, internal.FeatureStoreStatus{Available: false}, updatedStatus)
+		require.Equal(t, internal.DataStoreStatus{Available: false}, updatedStatus)
 
 		// Trigger another error, just to show that it will *not* publish a redundant status update since it
 		// is already in a failed state - the consumeStatusWithTimeout call below will get the success update
@@ -161,7 +161,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		// Now simulate the data store becoming OK again; the poller detects this and publishes a new status
 		core.setAvailable(true)
 		updatedStatus = consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
-		expectedStatus := internal.FeatureStoreStatus{
+		expectedStatus := internal.DataStoreStatus{
 			Available:    true,
 			NeedsRefresh: mode != testCachedIndefinitely,
 		}
@@ -170,7 +170,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 
 	t.Run("Cache is written to store after recovery if TTL is infinite", func(t *testing.T) {
 		core := newCoreWithStatus(-1)
-		w := NewFeatureStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 		sub := w.StatusSubscribe()
 		require.NotNil(t, sub)
@@ -182,7 +182,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		require.Equal(t, core.fakeError, err)
 
 		updatedStatus := consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
-		require.Equal(t, internal.FeatureStoreStatus{Available: false}, updatedStatus)
+		require.Equal(t, internal.DataStoreStatus{Available: false}, updatedStatus)
 
 		// While the store is still down, try to update it - the update goes into the cache
 		flag := &ld.FeatureFlag{Key: "flag", Version: 1}
@@ -201,7 +201,7 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 
 		// Wait for the poller to notice this and publish a new status
 		updatedStatus = consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
-		assert.Equal(t, internal.FeatureStoreStatus{Available: true}, updatedStatus)
+		assert.Equal(t, internal.DataStoreStatus{Available: true}, updatedStatus)
 
 		// Once that has happened, the cache should have been written to the store
 		assert.Equal(t, flag, core.data[ld.Features][flag.Key])

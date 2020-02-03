@@ -26,11 +26,11 @@ const Version = "5.0.0"
 // Applications should instantiate a single instance for the lifetime
 // of their application.
 type LDClient struct {
-	sdkKey          string
-	config          Config
-	eventProcessor  EventProcessor
-	updateProcessor UpdateProcessor
-	store           FeatureStore
+	sdkKey         string
+	config         Config
+	eventProcessor EventProcessor
+	dataSource     DataSource
+	store          DataStore
 }
 
 // Logger is a generic logger interface.
@@ -39,24 +39,24 @@ type Logger interface {
 	Printf(string, ...interface{})
 }
 
-// UpdateProcessor describes the interface for an object that receives feature flag data.
-type UpdateProcessor interface {
+// DataSource describes the interface for an object that receives feature flag data.
+type DataSource interface {
 	Initialized() bool
 	Close() error
 	Start(closeWhenReady chan<- struct{})
 }
 
-type nullUpdateProcessor struct{}
+type nullDataSource struct{}
 
-func (n nullUpdateProcessor) Initialized() bool {
+func (n nullDataSource) Initialized() bool {
 	return true
 }
 
-func (n nullUpdateProcessor) Close() error {
+func (n nullDataSource) Close() error {
 	return nil
 }
 
-func (n nullUpdateProcessor) Start(closeWhenReady chan<- struct{}) {
+func (n nullDataSource) Start(closeWhenReady chan<- struct{}) {
 	close(closeWhenReady)
 }
 
@@ -88,16 +88,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
-	if config.FeatureStore == nil {
-		factory := config.FeatureStoreFactory
+	if config.DataStore == nil {
+		factory := config.DataStoreFactory
 		if factory == nil {
-			factory = NewInMemoryFeatureStoreFactory()
+			factory = NewInMemoryDataStoreFactory()
 		}
 		store, err := factory(config)
 		if err != nil {
 			return nil, err
 		}
-		config.FeatureStore = store
+		config.DataStore = store
 	}
 
 	defaultHTTPClient := config.newHTTPClient()
@@ -105,7 +105,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client := LDClient{
 		sdkKey: sdkKey,
 		config: config,
-		store:  config.FeatureStore,
+		store:  config.DataStore,
 	}
 
 	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
@@ -121,16 +121,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventProcessor = newNullEventProcessor()
 	}
 
-	factory := config.UpdateProcessorFactory
+	factory := config.DataSourceFactory
 	if factory == nil {
-		factory = createDefaultUpdateProcessor(defaultHTTPClient)
+		factory = createDefaultDataSource(defaultHTTPClient)
 	}
 	var err error
-	client.updateProcessor, err = factory(sdkKey, config)
+	client.dataSource, err = factory(sdkKey, config)
 	if err != nil {
 		return nil, err
 	}
-	client.updateProcessor.Start(closeWhenReady)
+	client.dataSource.Start(closeWhenReady)
 	if waitFor > 0 && !config.Offline && !config.UseLdd {
 		config.Loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
@@ -139,7 +139,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	for {
 		select {
 		case <-closeWhenReady:
-			if !client.updateProcessor.Initialized() {
+			if !client.dataSource.Initialized() {
 				config.Loggers.Warn("LaunchDarkly client initialization failed")
 				return &client, ErrInitializationFailed
 			}
@@ -152,21 +152,21 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 				return &client, ErrInitializationTimeout
 			}
 
-			go func() { <-closeWhenReady }() // Don't block the UpdateProcessor when not waiting
+			go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
 			return &client, nil
 		}
 	}
 }
 
-func createDefaultUpdateProcessor(httpClient *http.Client) func(string, Config) (UpdateProcessor, error) {
-	return func(sdkKey string, config Config) (UpdateProcessor, error) {
+func createDefaultDataSource(httpClient *http.Client) func(string, Config) (DataSource, error) {
+	return func(sdkKey string, config Config) (DataSource, error) {
 		if config.Offline {
 			config.Loggers.Info("Started LaunchDarkly client in offline mode")
-			return nullUpdateProcessor{}, nil
+			return nullDataSource{}, nil
 		}
 		if config.UseLdd {
 			config.Loggers.Info("Started LaunchDarkly client in LDD mode")
-			return nullUpdateProcessor{}, nil
+			return nullDataSource{}, nil
 		}
 		requestor := newRequestor(sdkKey, config, httpClient)
 		if config.Stream {
@@ -281,7 +281,7 @@ func (client *LDClient) SecureModeHash(user User) string {
 
 // Initialized returns whether the LaunchDarkly client is initialized.
 func (client *LDClient) Initialized() bool {
-	return client.IsOffline() || client.config.UseLdd || client.updateProcessor.Initialized()
+	return client.IsOffline() || client.config.UseLdd || client.dataSource.Initialized()
 }
 
 // Close shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
@@ -293,8 +293,8 @@ func (client *LDClient) Close() error {
 		return nil
 	}
 	_ = client.eventProcessor.Close()
-	_ = client.updateProcessor.Close()
-	if c, ok := client.store.(io.Closer); ok { // not all FeatureStores implement Closer
+	_ = client.dataSource.Close()
+	if c, ok := client.store.(io.Closer); ok { // not all DataStores implement Closer
 		_ = c.Close()
 	}
 	return nil
@@ -324,9 +324,9 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 		valid = false
 	} else if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Loggers.Warn("Called AllFlagsState before client initialization; using last known values from feature store")
+			client.config.Loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
-			client.config.Loggers.Warn("Called AllFlagsState before client initialization. Feature store not available; returning empty state")
+			client.config.Loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state")
 			valid = false
 		}
 	}
@@ -337,7 +337,7 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 
 	items, err := client.store.All(Features)
 	if err != nil {
-		client.config.Loggers.Warn("Unable to fetch flags from feature store. Returning empty state. Error: " + err.Error())
+		client.config.Loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
 	}
 
@@ -510,7 +510,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 
 	if !client.Initialized() {
 		if client.store.Initialized() {
-			client.config.Loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from feature store")
+			client.config.Loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store")
 		} else {
 			return evalErrorResult(EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}

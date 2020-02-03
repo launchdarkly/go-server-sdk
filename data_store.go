@@ -6,21 +6,21 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
-// FeatureStore is an interface describing a structure that maintains the live collection of features
+// DataStore is an interface describing a structure that maintains the live collection of features
 // and related objects. Whenever the SDK retrieves feature flag data from LaunchDarkly, via streaming
-// or polling, it puts the data into the FeatureStore; then it queries the store whenever a flag needs
+// or polling, it puts the data into the DataStore; then it queries the store whenever a flag needs
 // to be evaluated. Therefore, implementations must be thread-safe.
 //
-// The SDK provides a default in-memory implementation (NewInMemoryFeatureStore), as well as database
+// The SDK provides a default in-memory implementation (NewInMemoryDataStore), as well as database
 // integrations in the "redis", "ldconsul", and "lddynamodb" packages. To use an implementation other
-// than the default, put an instance of it in the FeatureStore property of your client configuration.
+// than the default, put an instance of it in the DataStore property of your client configuration.
 //
-// If you want to create a custom implementation, it may be helpful to use the FeatureStoreWrapper
+// If you want to create a custom implementation, it may be helpful to use the DataStoreWrapper
 // type in the utils package; this provides commonly desired behaviors such as caching. Custom
 // implementations must be able to handle any objects that implement the VersionedData interface,
 // so if they need to marshal objects, the marshaling must be reflection-based. The VersionedDataKind
 // type provides the necessary metadata to support this.
-type FeatureStore interface {
+type DataStore interface {
 	// Get attempts to retrieve an item of the specified kind from the data store using its unique key.
 	// If no such item exists, it returns nil. If the item exists but has a Deleted property that is true,
 	// it returns nil.
@@ -47,32 +47,32 @@ type FeatureStore interface {
 	Initialized() bool
 }
 
-// FeatureStoreFactory is a factory function that produces a FeatureStore implementation. It receives
+// DataStoreFactory is a factory function that produces a DataStore implementation. It receives
 // a copy of the Config so that it can use the same logging configuration as the rest of the SDK; it
 // can assume that config.Loggers has been initialized so it can write to any log level.
-type FeatureStoreFactory func(config Config) (FeatureStore, error)
+type DataStoreFactory func(config Config) (DataStore, error)
 
-// InMemoryFeatureStore is a memory based FeatureStore implementation, backed by a lock-striped map.
-type InMemoryFeatureStore struct {
+// InMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.
+type InMemoryDataStore struct {
 	allData       map[VersionedDataKind]map[string]VersionedData
 	isInitialized bool
 	sync.RWMutex
 	loggers ldlog.Loggers
 }
 
-// NewInMemoryFeatureStoreFactory returns a factory function to create an in-memory FeatureStore.
-// Setting the FeatureStoreFactory option in Config to this function ensures that it will use the
+// NewInMemoryDataStoreFactory returns a factory function to create an in-memory DataStore.
+// Setting the DataStoreFactory option in Config to this function ensures that it will use the
 // same logging configuration as the other SDK components.
-func NewInMemoryFeatureStoreFactory() FeatureStoreFactory {
-	return func(config Config) (FeatureStore, error) {
-		return newInMemoryFeatureStoreInternal(config), nil
+func NewInMemoryDataStoreFactory() DataStoreFactory {
+	return func(config Config) (DataStore, error) {
+		return newInMemoryDataStoreInternal(config), nil
 	}
 }
 
-func newInMemoryFeatureStoreInternal(config Config) *InMemoryFeatureStore {
+func newInMemoryDataStoreInternal(config Config) *InMemoryDataStore {
 	loggers := config.Loggers
-	loggers.SetPrefix("InMemoryFeatureStore:")
-	return &InMemoryFeatureStore{
+	loggers.SetPrefix("InMemoryDataStore:")
+	return &InMemoryDataStore{
 		allData:       make(map[VersionedDataKind]map[string]VersionedData),
 		isInitialized: false,
 		loggers:       loggers,
@@ -80,7 +80,7 @@ func newInMemoryFeatureStoreInternal(config Config) *InMemoryFeatureStore {
 }
 
 // Get returns an individual object of a given type from the store
-func (store *InMemoryFeatureStore) Get(kind VersionedDataKind, key string) (VersionedData, error) {
+func (store *InMemoryDataStore) Get(kind VersionedDataKind, key string) (VersionedData, error) {
 	store.RLock()
 	defer store.RUnlock()
 	if store.allData[kind] == nil {
@@ -100,7 +100,7 @@ func (store *InMemoryFeatureStore) Get(kind VersionedDataKind, key string) (Vers
 }
 
 // All returns all the objects of a given kind from the store
-func (store *InMemoryFeatureStore) All(kind VersionedDataKind) (map[string]VersionedData, error) {
+func (store *InMemoryDataStore) All(kind VersionedDataKind) (map[string]VersionedData, error) {
 	store.RLock()
 	defer store.RUnlock()
 	ret := make(map[string]VersionedData)
@@ -114,7 +114,7 @@ func (store *InMemoryFeatureStore) All(kind VersionedDataKind) (map[string]Versi
 }
 
 // Delete removes an item of a given kind from the store
-func (store *InMemoryFeatureStore) Delete(kind VersionedDataKind, key string, version int) error {
+func (store *InMemoryDataStore) Delete(kind VersionedDataKind, key string, version int) error {
 	store.Lock()
 	defer store.Unlock()
 	if store.allData[kind] == nil {
@@ -130,7 +130,7 @@ func (store *InMemoryFeatureStore) Delete(kind VersionedDataKind, key string, ve
 }
 
 // Init populates the store with a complete set of versioned data
-func (store *InMemoryFeatureStore) Init(allData map[VersionedDataKind]map[string]VersionedData) error {
+func (store *InMemoryDataStore) Init(allData map[VersionedDataKind]map[string]VersionedData) error {
 	store.Lock()
 	defer store.Unlock()
 
@@ -149,7 +149,7 @@ func (store *InMemoryFeatureStore) Init(allData map[VersionedDataKind]map[string
 }
 
 // Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
-func (store *InMemoryFeatureStore) Upsert(kind VersionedDataKind, item VersionedData) error {
+func (store *InMemoryDataStore) Upsert(kind VersionedDataKind, item VersionedData) error {
 	store.Lock()
 	defer store.Unlock()
 	if store.allData[kind] == nil {
@@ -165,13 +165,13 @@ func (store *InMemoryFeatureStore) Upsert(kind VersionedDataKind, item Versioned
 }
 
 // Initialized returns whether the store has been initialized with data
-func (store *InMemoryFeatureStore) Initialized() bool {
+func (store *InMemoryDataStore) Initialized() bool {
 	store.RLock()
 	defer store.RUnlock()
 	return store.isInitialized
 }
 
 // Used internally to describe this component in diagnostic data.
-func (store *InMemoryFeatureStore) GetDiagnosticsComponentTypeName() string {
+func (store *InMemoryDataStore) GetDiagnosticsComponentTypeName() string {
 	return "memory"
 }
