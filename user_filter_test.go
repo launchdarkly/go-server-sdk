@@ -1,172 +1,160 @@
 package ldclient
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-func TestScrubUser(t *testing.T) {
-	t.Run("private built-in attributes per user", func(t *testing.T) {
+var optionalStringSetters = map[lduser.UserAttribute]func(lduser.UserBuilder, string) lduser.UserBuilderCanMakeAttributePrivate{
+	lduser.SecondaryKeyAttribute: lduser.UserBuilder.Secondary,
+	lduser.IPAttribute:           lduser.UserBuilder.IP,
+	lduser.CountryAttribute:      lduser.UserBuilder.Country,
+	lduser.EmailAttribute:        lduser.UserBuilder.Email,
+	lduser.FirstNameAttribute:    lduser.UserBuilder.FirstName,
+	lduser.LastNameAttribute:     lduser.UserBuilder.LastName,
+	lduser.AvatarAttribute:       lduser.UserBuilder.Avatar,
+	lduser.NameAttribute:         lduser.UserBuilder.Name,
+}
+
+const customAttrName1 = "thing1"
+const customAttrName2 = "thing2"
+
+var customAttrValue1 = ldvalue.String("value1")
+var customAttrValue2 = ldvalue.String("value2")
+
+func buildUserWithAllAttributes() lduser.UserBuilder {
+	return lduser.NewUserBuilder("user-key").
+		FirstName("sam").
+		LastName("smith").
+		Name("sammy").
+		Country("freedonia").
+		Avatar("my-avatar").
+		IP("123.456.789").
+		Email("me@example.com").
+		Secondary("abcdef").
+		Anonymous(true).
+		Custom(customAttrName1, customAttrValue1).
+		Custom(customAttrName2, customAttrValue2)
+}
+
+func getAllPrivatableAttributeNames() []string {
+	ret := []string{customAttrName1, customAttrName2}
+	for a, _ := range optionalStringSetters {
+		ret = append(ret, string(a))
+	}
+	sort.Strings(ret)
+	return ret
+}
+
+func TestScrubUserWithNoFiltering(t *testing.T) {
+	t.Run("user with no attributes", func(t *testing.T) {
 		filter := newUserFilter(DefaultConfig)
-		user := NewUserBuilder("user-key").
-			FirstName("sam").
-			LastName("smith").
-			Name("sammy").
-			Country("freedonia").
-			Avatar("my-avatar").
-			IP("123.456.789").
-			Email("me@example.com").
-			Secondary("abcdef").
-			Build()
-
-		for _, attr := range BuiltinAttributes {
-			user.PrivateAttributeNames = []string{attr}
-			scrubbedUser := *filter.scrubUser(user)
-			assert.Equal(t, []string{attr}, scrubbedUser.PrivateAttributes)
-			scrubbedUser.PrivateAttributes = nil
-			assert.NotEqual(t, user, scrubbedUser)
-		}
+		u := lduser.NewUser("user-key")
+		fu := filter.scrubUser(u).filteredUser
+		assert.Equal(t,
+			filteredUser{
+				Key: u.GetKey(),
+			}, fu)
 	})
-
-	t.Run("global private built-in attributes", func(t *testing.T) {
-		user := NewUserBuilder("user-key").
-			FirstName("sam").
-			LastName("smith").
-			Name("sammy").
-			Country("freedonia").
-			Avatar("my-avatar").
-			IP("123.456.789").
-			Email("me@example.com").
-			Secondary("abcdef").
-			Build()
-
-		for _, attr := range BuiltinAttributes {
-			filter := newUserFilter(Config{PrivateAttributeNames: []string{attr}})
-			scrubbedUser := *filter.scrubUser(user)
-			assert.Equal(t, []string{attr}, scrubbedUser.PrivateAttributes)
-			scrubbedUser.PrivateAttributes = nil
-			assert.NotEqual(t, user, scrubbedUser)
-		}
-	})
-
-	t.Run("private custom attribute", func(t *testing.T) {
+	t.Run("user with all attributes", func(t *testing.T) {
 		filter := newUserFilter(DefaultConfig)
-		userKey := "userKey"
-		user := NewUserBuilder(userKey).
-			Custom("my-secret-attr", ldvalue.String("my secret value")).AsPrivateAttribute().
-			Custom("non-secret-attr", ldvalue.String("OK value")).
-			Build()
-
-		scrubbedUser := *filter.scrubUser(user)
-
-		assert.Equal(t, []string{"my-secret-attr"}, scrubbedUser.PrivateAttributes)
-		assert.NotContains(t, *scrubbedUser.Custom, "my-secret-attr")
-	})
-
-	t.Run("all attributes private", func(t *testing.T) {
-		filter := newUserFilter(Config{AllAttributesPrivate: true})
-		userKey := "userKey"
-		user := NewUserBuilder(userKey).
-			FirstName("sam").
-			LastName("smith").
-			Name("sammy").
-			Country("freedonia").
-			Avatar("my-avatar").
-			IP("123.456.789").
-			Email("me@example.com").
-			Secondary("abcdef").
-			Custom("my-secret-attr", ldvalue.String("my-secret-value")).
-			Build()
-
-		scrubbedUser := *filter.scrubUser(user)
-		sort.Strings(scrubbedUser.PrivateAttributes)
-		expectedAttributes := append(BuiltinAttributes, "my-secret-attr")
-		sort.Strings(expectedAttributes)
-		assert.Equal(t, expectedAttributes, scrubbedUser.PrivateAttributes)
-
-		scrubbedUser.PrivateAttributes = nil
-		assert.Equal(t, NewUser(userKey), scrubbedUser.User)
-	})
-
-	t.Run("anonymous attribute can't be private", func(t *testing.T) {
-		filter := newUserFilter(Config{AllAttributesPrivate: true})
-		user := NewUserBuilder(userKey).Anonymous(true).Build()
-
-		scrubbedUser := *filter.scrubUser(user)
-		assert.Equal(t, user, scrubbedUser.User)
+		u := buildUserWithAllAttributes().Build()
+		fu := filter.scrubUser(u).filteredUser
+		tru := true
+		assert.Equal(t,
+			filteredUser{
+				Key:       u.GetKey(),
+				FirstName: u.GetFirstName().AsPointer(),
+				Name:      u.GetName().AsPointer(),
+				LastName:  u.GetLastName().AsPointer(),
+				Country:   u.GetCountry().AsPointer(),
+				Avatar:    u.GetAvatar().AsPointer(),
+				IP:        u.GetIP().AsPointer(),
+				Email:     u.GetEmail().AsPointer(),
+				Secondary: u.GetSecondaryKey().AsPointer(),
+				Custom:    u.GetAllCustom().AsPointer(),
+				Anonymous: &tru,
+			}, fu)
 	})
 }
 
-func TestUserSerialization(t *testing.T) {
-	var errorMessage = "don't serialize me, bro"
-
-	doUserSerializationErrorTest := func(errorValue interface{}, withUserKey bool) {
-		logger := newMockLogger("")
-		config := DefaultConfig
-		config.Loggers.SetBaseLogger(logger)
-		config.LogUserKeyInErrors = withUserKey
-		filter := newUserFilter(config)
-		user := NewUserBuilder("user-key").
-			FirstName("sam").
-			Email("test@example.com").
-			Build()
-
-		// To inject our problematic value, we need to access the Custom map directly. In a future version
-		// this will no longer be possible.
-		custom := make(map[string]interface{})
-		custom["problem"] = errorValue
-		user.Custom = &custom
-
-		scrubbedUser := filter.scrubUser(user)
-		bytes, err := json.Marshal(scrubbedUser)
-		assert.NoError(t, err)
-
-		expectedMessage := "ERROR: " + fmt.Sprintf(userSerializationErrorMessage, describeUserForErrorLog(&user, withUserKey), errorMessage)
-		assert.Equal(t, []string{expectedMessage}, logger.output)
-
-		// Verify that we did marshal all of the user attributes except the custom ones
-		expectedUser := user
-		expectedUser.Custom = nil
-		resultUser := NewUser("")
-		err = json.Unmarshal(bytes, &resultUser)
-		assert.NoError(t, err)
-		assert.Equal(t, expectedUser, resultUser)
+func TestScrubUserWithPerUserPrivateAttributes(t *testing.T) {
+	filter := newUserFilter(DefaultConfig)
+	fu0 := filter.scrubUser(buildUserWithAllAttributes().Build()).filteredUser
+	for attr, setter := range optionalStringSetters {
+		t.Run(string(attr), func(t *testing.T) {
+			builder := buildUserWithAllAttributes()
+			setter(builder, "private-value").AsPrivateAttribute()
+			u1 := builder.Build()
+			fu1 := filter.scrubUser(u1).filteredUser
+			assert.Equal(t, []string{string(attr)}, fu1.PrivateAttrs)
+			fu1.PrivateAttrs = nil
+			assert.NotEqual(t, fu0, fu1)
+		})
 	}
-
-	t.Run("error in serialization of custom attributes is caught", func(t *testing.T) {
-		doUserSerializationErrorTest(valueThatErrorsWhenMarshalledToJSON(errorMessage), false)
+	t.Run("custom", func(t *testing.T) {
+		u1 := buildUserWithAllAttributes().
+			Custom(customAttrName1, customAttrValue1).AsPrivateAttribute().
+			Build()
+		fu1 := filter.scrubUser(u1).filteredUser
+		assert.Equal(t, []string{customAttrName1}, fu1.PrivateAttrs)
+		assert.Equal(t, ldvalue.ObjectBuild().Set(customAttrName2, customAttrValue2).Build().AsPointer(),
+			fu1.Custom)
+		fu1.PrivateAttrs = nil
+		assert.NotEqual(t, fu0, fu1)
+		fu1.Custom = u1.GetAllCustom().AsPointer()
+		assert.Equal(t, fu0, fu1)
 	})
+}
 
-	t.Run("panic in serialization of custom attributes is caught", func(t *testing.T) {
-		doUserSerializationErrorTest(valueThatPanicsWhenMarshalledToJSON(errorMessage), false)
+func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
+	filter0 := newUserFilter(DefaultConfig)
+	u := buildUserWithAllAttributes().Build()
+	fu0 := filter0.scrubUser(u).filteredUser
+	for attr, _ := range optionalStringSetters {
+		t.Run(string(attr), func(t *testing.T) {
+			config := DefaultConfig
+			config.PrivateAttributeNames = []string{string(attr)}
+			filter1 := newUserFilter(config)
+			fu1 := filter1.scrubUser(u).filteredUser
+			assert.Equal(t, []string{string(attr)}, fu1.PrivateAttrs)
+			fu1.PrivateAttrs = nil
+			assert.NotEqual(t, fu0, fu1)
+		})
+	}
+	t.Run("custom", func(t *testing.T) {
+		config := DefaultConfig
+		config.PrivateAttributeNames = []string{customAttrName1}
+		filter1 := newUserFilter(config)
+		fu1 := filter1.scrubUser(u).filteredUser
+		assert.Equal(t, []string{customAttrName1}, fu1.PrivateAttrs)
+		assert.Equal(t, ldvalue.ObjectBuild().Set(customAttrName2, customAttrValue2).Build().AsPointer(),
+			fu1.Custom)
+		fu1.PrivateAttrs = nil
+		assert.NotEqual(t, fu0, fu1)
+		fu1.Custom = u.GetAllCustom().AsPointer()
+		assert.Equal(t, fu0, fu1)
 	})
-
-	t.Run("error message includes user key depending on configuration", func(t *testing.T) {
-		doUserSerializationErrorTest(valueThatErrorsWhenMarshalledToJSON(errorMessage), true)
-	})
-
-	t.Run("panic message includes user key depending on configuration", func(t *testing.T) {
-		doUserSerializationErrorTest(valueThatPanicsWhenMarshalledToJSON(errorMessage), true)
+	t.Run("allAttributesPrivate", func(t *testing.T) {
+		config := DefaultConfig
+		config.AllAttributesPrivate = true
+		filter1 := newUserFilter(config)
+		fu1 := filter1.scrubUser(u).filteredUser
+		sort.Strings(fu1.PrivateAttrs)
+		tru := true
+		assert.Equal(t,
+			filteredUser{
+				Key:          u.GetKey(),
+				Anonymous:    &tru,
+				PrivateAttrs: getAllPrivatableAttributeNames(),
+			}, fu1)
 	})
 }
 
 func strPtr(s string) *string {
 	return &s
-}
-
-type valueThatErrorsWhenMarshalledToJSON string
-type valueThatPanicsWhenMarshalledToJSON string
-
-func (v valueThatErrorsWhenMarshalledToJSON) MarshalJSON() ([]byte, error) {
-	return nil, errors.New(string(v))
-}
-
-func (v valueThatPanicsWhenMarshalledToJSON) MarshalJSON() ([]byte, error) {
-	panic(errors.New(string(v)))
 }

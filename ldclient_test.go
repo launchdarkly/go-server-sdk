@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
@@ -64,7 +65,7 @@ func TestSecureModeHash(t *testing.T) {
 
 	client, _ := MakeCustomClient("secret", config, 0*time.Second)
 
-	hash := client.SecureModeHash(NewUser(key))
+	hash := client.SecureModeHash(lduser.NewUser(key))
 
 	assert.Equal(t, expected, hash)
 }
@@ -73,7 +74,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	err := client.Identify(user)
 	assert.NoError(t, err)
 
@@ -83,22 +84,11 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	assert.Equal(t, user, e.User)
 }
 
-func TestIdentifyWithNilUserKeySendsNoEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	err := client.Identify(evalTestUserWithNilKey)
-	assert.NoError(t, err) // we don't return an error for this, we just log it
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 0, len(events))
-}
-
 func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Identify(NewUser(""))
+	err := client.Identify(lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -109,7 +99,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	key := "eventKey"
 	err := client.TrackEvent(key, user)
 	assert.NoError(t, err)
@@ -127,7 +117,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	key := "eventKey"
 	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
 	err := client.TrackData(key, user, data)
@@ -146,7 +136,7 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	key := "eventKey"
 	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
 	metric := float64(1.5)
@@ -162,33 +152,11 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	assert.Equal(t, &metric, e.MetricValue)
 }
 
-func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	err := client.TrackEvent("eventkey", evalTestUserWithNilKey)
-	assert.NoError(t, err) // we don't return an error for this, we just log it
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 0, len(events))
-}
-
 func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.TrackEvent("eventkey", NewUser(""))
-	assert.NoError(t, err) // we don't return an error for this, we just log it
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 0, len(events))
-}
-
-func TestTrackMetricWithNilUserKeySendsNoEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	err := client.TrackMetric("eventKey", evalTestUserWithNilKey, 2.5, ldvalue.Null())
+	err := client.TrackEvent("eventkey", lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -199,7 +167,7 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.TrackMetric("eventKey", NewUser(""), 2.5, ldvalue.Null())
+	err := client.TrackMetric("eventKey", lduser.NewUser(""), 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events

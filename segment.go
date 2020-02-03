@@ -1,5 +1,9 @@
 package ldclient
 
+import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+)
+
 // Segment describes a group of users.
 //
 // Deprecated: this type is for internal use and will be moved to another package in a future version.
@@ -64,28 +68,26 @@ var Segments VersionedDataKind = segmentVersionedDataKind{}
 
 // segmentRule describes a set of rules in a Segment.
 type segmentRule struct {
-	Id       string   `json:"id,omitempty" bson:"id,omitempty"`
-	Clauses  []clause `json:"clauses" bson:"clauses"`
-	Weight   *int     `json:"weight,omitempty" bson:"weight,omitempty"`
-	BucketBy *string  `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
+	Id       string                `json:"id,omitempty" bson:"id,omitempty"`
+	Clauses  []clause              `json:"clauses" bson:"clauses"`
+	Weight   *int                  `json:"weight,omitempty" bson:"weight,omitempty"`
+	BucketBy *lduser.UserAttribute `json:"bucketBy,omitempty" bson:"bucketBy,omitempty"`
 }
 
 // containsUser returns whether a user belongs to the segment
-func (s Segment) containsUser(user User) bool {
-	if user.Key == nil {
-		return false
-	}
+func (s Segment) containsUser(user lduser.User) bool {
+	userKey := user.GetKey()
 
 	// Check if the user is included in the segment by key
 	for _, key := range s.Included {
-		if *user.Key == key {
+		if userKey == key {
 			return true
 		}
 	}
 
 	// Check if the user is excluded from the segment by key
 	for _, key := range s.Excluded {
-		if *user.Key == key {
+		if userKey == key {
 			return false
 		}
 	}
@@ -101,7 +103,7 @@ func (s Segment) containsUser(user User) bool {
 }
 
 // MatchesUser returns whether a rule applies to a user
-func (r segmentRule) matchesUser(user User, key, salt string) bool {
+func (r segmentRule) matchesUser(user lduser.User, key, salt string) bool {
 	for _, clause := range r.Clauses {
 		if !clause.matchesUserNoSegments(user) {
 			return false
@@ -114,7 +116,7 @@ func (r segmentRule) matchesUser(user User, key, salt string) bool {
 	}
 
 	// All of the clauses are met. Check to see if the user buckets in
-	bucketBy := "key"
+	bucketBy := lduser.KeyAttribute
 
 	if r.BucketBy != nil {
 		bucketBy = *r.BucketBy

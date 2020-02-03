@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
@@ -22,7 +23,7 @@ func TestExplicitIncludeUser(t *testing.T) {
 		Version:  1,
 		Deleted:  false,
 	}
-	user := NewUser("foo")
+	user := lduser.NewUser("foo")
 
 	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
@@ -38,7 +39,7 @@ func TestExplicitExcludeUser(t *testing.T) {
 		Version:  1,
 		Deleted:  false,
 	}
-	user := NewUser("foo")
+	user := lduser.NewUser("foo")
 
 	containsUser := segment.containsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
@@ -54,7 +55,7 @@ func TestExplicitIncludeHasPrecedence(t *testing.T) {
 		Version:  1,
 		Deleted:  false,
 	}
-	user := NewUser("foo")
+	user := lduser.NewUser("foo")
 
 	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
@@ -84,7 +85,7 @@ func TestMatchingRuleWithFullRollout(t *testing.T) {
 		Deleted:  false,
 	}
 
-	user := NewUserBuilder("foo").Email("test@example.com").Build()
+	user := lduser.NewUserBuilder("foo").Email("test@example.com").Build()
 
 	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
@@ -114,7 +115,7 @@ func TestMatchingRuleWithZeroRollout(t *testing.T) {
 		Deleted:  false,
 	}
 
-	user := NewUserBuilder("foo").Email("test@example.com").Build()
+	user := lduser.NewUserBuilder("foo").Email("test@example.com").Build()
 
 	containsUser := segment.containsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
@@ -150,7 +151,7 @@ func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 		Deleted:  false,
 	}
 
-	user := NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
+	user := lduser.NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
 
 	containsUser := segment.containsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
@@ -186,7 +187,7 @@ func TestNonMatchingRuleWithMultipleClauses(t *testing.T) {
 		Deleted:  false,
 	}
 
-	user := NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
+	user := lduser.NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
 
 	containsUser := segment.containsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)

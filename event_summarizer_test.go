@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-var user = NewUser("key")
+var user = lduser.NewUser("key")
 
 func TestSummarizeEventDoesNothingForIdentifyEvent(t *testing.T) {
 	es := newEventSummarizer()

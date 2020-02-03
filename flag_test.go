@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-var flagUser = NewUser("x")
+var flagUser = lduser.NewUser("x")
 var emptyDataStore = newInMemoryDataStoreInternal(Config{})
 var fallthroughValue = ldvalue.String("fall")
 var offValue = ldvalue.String("off")
@@ -340,7 +341,7 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 		Fallthrough:  variationOrRollout{Variation: intPtr(0)},
 		Variations:   []ldvalue.Value{fallthroughValue, offValue, onValue},
 	}
-	user := NewUser("userkey")
+	user := lduser.NewUser("userkey")
 
 	result, events := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, onValue, result.JSONValue)
@@ -350,7 +351,7 @@ func TestFlagMatchesUserFromTargets(t *testing.T) {
 }
 
 func TestFlagMatchesUserFromRules(t *testing.T) {
-	user := NewUser("userkey")
+	user := lduser.NewUser("userkey")
 	f := makeFlagToMatchUser(user, variationOrRollout{Variation: intPtr(2)})
 
 	result, events := f.evaluateDetail(user, emptyDataStore, false)
@@ -361,7 +362,7 @@ func TestFlagMatchesUserFromRules(t *testing.T) {
 }
 
 func TestRuleWithTooHighVariationIndexReturnsMalformedFlagError(t *testing.T) {
-	user := NewUser("userkey")
+	user := lduser.NewUser("userkey")
 	f := makeFlagToMatchUser(user, variationOrRollout{Variation: intPtr(999)})
 
 	result, events := f.evaluateDetail(user, emptyDataStore, false)
@@ -370,7 +371,7 @@ func TestRuleWithTooHighVariationIndexReturnsMalformedFlagError(t *testing.T) {
 }
 
 func TestRuleWithNegativeVariationIndexReturnsMalformedFlagError(t *testing.T) {
-	user := NewUser("userkey")
+	user := lduser.NewUser("userkey")
 	f := makeFlagToMatchUser(user, variationOrRollout{Variation: intPtr(-1)})
 
 	result, events := f.evaluateDetail(user, emptyDataStore, false)
@@ -379,7 +380,7 @@ func TestRuleWithNegativeVariationIndexReturnsMalformedFlagError(t *testing.T) {
 }
 
 func TestRuleWithNoVariationOrRolloutReturnsMalformedFlagError(t *testing.T) {
-	user := NewUser("userkey")
+	user := lduser.NewUser("userkey")
 	f := makeFlagToMatchUser(user, variationOrRollout{})
 
 	result, events := f.evaluateDetail(user, emptyDataStore, false)
@@ -388,7 +389,7 @@ func TestRuleWithNoVariationOrRolloutReturnsMalformedFlagError(t *testing.T) {
 }
 
 func TestRuleWithRolloutWithEmptyVariationsListReturnsMalformedFlagError(t *testing.T) {
-	user := NewUser("userkey")
+	user := lduser.NewUser("userkey")
 	f := makeFlagToMatchUser(user, variationOrRollout{Rollout: &rollout{Variations: []weightedVariation{}}})
 
 	result, events := f.evaluateDetail(user, emptyDataStore, false)
@@ -403,7 +404,7 @@ func TestClauseCanMatchBuiltInAttribute(t *testing.T) {
 		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 	}
 	f := booleanFlagWithClause(c)
-	user := NewUserBuilder("key").Name("Bob").Build()
+	user := lduser.NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
@@ -416,7 +417,7 @@ func TestClauseCanMatchCustomAttribute(t *testing.T) {
 		Values:    []ldvalue.Value{ldvalue.Int(4)},
 	}
 	f := booleanFlagWithClause(c)
-	user := NewUserBuilder("key").Custom("legs", ldvalue.Int(4)).Build()
+	user := lduser.NewUserBuilder("key").Custom("legs", ldvalue.Int(4)).Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
@@ -429,7 +430,7 @@ func TestClauseReturnsFalseForMissingAttribute(t *testing.T) {
 		Values:    []ldvalue.Value{ldvalue.Int(4)},
 	}
 	f := booleanFlagWithClause(c)
-	user := NewUserBuilder("key").Name("Bob").Build()
+	user := lduser.NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
@@ -443,7 +444,7 @@ func TestClauseCanBeNegated(t *testing.T) {
 		Negate:    true,
 	}
 	f := booleanFlagWithClause(c)
-	user := NewUserBuilder("key").Name("Bob").Build()
+	user := lduser.NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
@@ -457,7 +458,7 @@ func TestClauseForMissingAttributeIsFalseEvenIfNegated(t *testing.T) {
 		Negate:    true,
 	}
 	f := booleanFlagWithClause(c)
-	user := NewUserBuilder("key").Name("Bob").Build()
+	user := lduser.NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
@@ -470,7 +471,7 @@ func TestClauseWithUnknownOperatorDoesNotMatch(t *testing.T) {
 		Values:    []ldvalue.Value{ldvalue.String("Bob")},
 	}
 	f := booleanFlagWithClause(c)
-	user := NewUserBuilder("key").Name("Bob").Build()
+	user := lduser.NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
@@ -496,7 +497,7 @@ func TestClauseWithUnknownOperatorDoesNotStopSubsequentRuleFromMatching(t *testi
 		Fallthrough: variationOrRollout{Variation: intPtr(0)},
 		Variations:  []ldvalue.Value{ldvalue.Bool(false), ldvalue.Bool(true)},
 	}
-	user := NewUserBuilder("key").Name("Bob").Build()
+	user := lduser.NewUserBuilder("key").Name("Bob").Build()
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
@@ -512,7 +513,7 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	dataStore := newInMemoryDataStoreInternal(Config{})
 	dataStore.Upsert(Segments, &segment)
-	user := NewUser("foo")
+	user := lduser.NewUser("foo")
 
 	result, _ := f.evaluateDetail(user, dataStore, false)
 	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
@@ -521,7 +522,7 @@ func TestSegmentMatchClauseRetrievesSegmentFromStore(t *testing.T) {
 func TestSegmentMatchClauseFallsThroughIfSegmentNotFound(t *testing.T) {
 	clause := clause{Attribute: "", Op: "segmentMatch", Values: []ldvalue.Value{ldvalue.String("segkey")}}
 	f := booleanFlagWithClause(clause)
-	user := NewUser("foo")
+	user := lduser.NewUser("foo")
 
 	result, _ := f.evaluateDetail(user, emptyDataStore, false)
 	assert.Equal(t, ldvalue.Bool(false), result.JSONValue)
@@ -540,7 +541,7 @@ func TestCanMatchJustOneSegmentFromList(t *testing.T) {
 	f := booleanFlagWithClause(clause)
 	dataStore := newInMemoryDataStoreInternal(Config{})
 	dataStore.Upsert(Segments, &segment)
-	user := NewUser("foo")
+	user := lduser.NewUser("foo")
 
 	result, _ := f.evaluateDetail(user, dataStore, false)
 	assert.Equal(t, ldvalue.Bool(true), result.JSONValue)
@@ -552,51 +553,51 @@ func TestVariationIndexForUser(t *testing.T) {
 	rollout := rollout{Variations: []weightedVariation{wv1, wv2}}
 	rule := flagRule{variationOrRollout: variationOrRollout{Rollout: &rollout}}
 
-	variationIndex := rule.variationIndexForUser(NewUser("userKeyA"), "hashKey", "saltyA")
+	variationIndex := rule.variationIndexForUser(lduser.NewUser("userKeyA"), "hashKey", "saltyA")
 	assert.NotNil(t, variationIndex)
 	assert.Equal(t, 0, *variationIndex)
 
-	variationIndex = rule.variationIndexForUser(NewUser("userKeyB"), "hashKey", "saltyA")
+	variationIndex = rule.variationIndexForUser(lduser.NewUser("userKeyB"), "hashKey", "saltyA")
 	assert.NotNil(t, variationIndex)
 	assert.Equal(t, 1, *variationIndex)
 
-	variationIndex = rule.variationIndexForUser(NewUser("userKeyC"), "hashKey", "saltyA")
+	variationIndex = rule.variationIndexForUser(lduser.NewUser("userKeyC"), "hashKey", "saltyA")
 	assert.NotNil(t, variationIndex)
 	assert.Equal(t, 0, *variationIndex)
 }
 
 func TestBucketUserByKey(t *testing.T) {
-	user := NewUser("userKeyA")
+	user := lduser.NewUser("userKeyA")
 	bucket := bucketUser(user, "hashKey", "key", "saltyA")
 	assert.InEpsilon(t, 0.42157587, bucket, 0.0000001)
 
-	user = NewUser("userKeyB")
+	user = lduser.NewUser("userKeyB")
 	bucket = bucketUser(user, "hashKey", "key", "saltyA")
 	assert.InEpsilon(t, 0.6708485, bucket, 0.0000001)
 
-	user = NewUser("userKeyC")
+	user = lduser.NewUser("userKeyC")
 	bucket = bucketUser(user, "hashKey", "key", "saltyA")
 	assert.InEpsilon(t, 0.10343106, bucket, 0.0000001)
 }
 
 func TestBucketUserByIntAttr(t *testing.T) {
-	user := NewUserBuilder("userKeyD").Custom("intAttr", ldvalue.Int(33333)).Build()
+	user := lduser.NewUserBuilder("userKeyD").Custom("intAttr", ldvalue.Int(33333)).Build()
 	bucket := bucketUser(user, "hashKey", "intAttr", "saltyA")
 	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 
-	user = NewUserBuilder("userKeyD").Custom("stringAttr", ldvalue.String("33333")).Build()
+	user = lduser.NewUserBuilder("userKeyD").Custom("stringAttr", ldvalue.String("33333")).Build()
 	bucket2 := bucketUser(user, "hashKey", "stringAttr", "saltyA")
 	assert.InEpsilon(t, bucket, bucket2, 0.0000001)
 }
 
 func TestBucketUserByFloatAttrNotAllowed(t *testing.T) {
-	user := NewUserBuilder("userKeyE").Custom("floatAttr", ldvalue.Float64(999.999)).Build()
+	user := lduser.NewUserBuilder("userKeyE").Custom("floatAttr", ldvalue.Float64(999.999)).Build()
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InDelta(t, 0.0, bucket, 0.0000001)
 }
 
 func TestBucketUserByFloatAttrThatIsReallyAnIntIsAllowed(t *testing.T) {
-	user := NewUserBuilder("userKeyE").Custom("floatAttr", ldvalue.Float64(33333)).Build()
+	user := lduser.NewUserBuilder("userKeyE").Custom("floatAttr", ldvalue.Float64(33333)).Build()
 	bucket := bucketUser(user, "hashKey", "floatAttr", "saltyA")
 	assert.InEpsilon(t, 0.54771423, bucket, 0.0000001)
 }
@@ -617,7 +618,7 @@ func newEvalErrorResult(kind EvalErrorKind) EvaluationDetail {
 	return EvaluationDetail{Reason: newEvalReasonError(kind)}
 }
 
-func makeClauseToMatchUser(user User) clause {
+func makeClauseToMatchUser(user lduser.User) clause {
 	return clause{
 		Attribute: "key",
 		Op:        "in",
@@ -625,7 +626,7 @@ func makeClauseToMatchUser(user User) clause {
 	}
 }
 
-func makeClauseToNotMatchUser(user User) clause {
+func makeClauseToNotMatchUser(user lduser.User) clause {
 	return clause{
 		Attribute: "key",
 		Op:        "in",
@@ -633,7 +634,7 @@ func makeClauseToNotMatchUser(user User) clause {
 	}
 }
 
-func makeFlagToMatchUser(user User, vr variationOrRollout) FeatureFlag {
+func makeFlagToMatchUser(user lduser.User, vr variationOrRollout) FeatureFlag {
 	return FeatureFlag{
 		Key:          "feature",
 		On:           true,

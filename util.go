@@ -101,32 +101,9 @@ func httpErrorMessage(statusCode int, context string, recoverableMessage string)
 		statusCode, statusDesc, context, resultMessage)
 }
 
-func describeUserForErrorLog(user *User, logUserKeyInErrors bool) string {
+func describeUserForErrorLog(key string, logUserKeyInErrors bool) string {
 	if logUserKeyInErrors {
-		key := ""
-		if user != nil && user.Key != nil {
-			key = *user.Key
-		}
 		return fmt.Sprintf("user '%s'", key)
 	}
 	return "a user (enable LogUserKeyInErrors to see the user key)"
-}
-
-func stringSlicesEqual(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for _, n0 := range a {
-		ok := false
-		for _, n1 := range b {
-			if n1 == n0 {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			return false
-		}
-	}
-	return true
 }
