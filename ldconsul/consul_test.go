@@ -22,20 +22,21 @@ func TestConsulFeatureStoreCached(t *testing.T) {
 
 func TestConsulFeatureStorePrefixes(t *testing.T) {
 	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewConsulFeatureStore(Prefix(prefix), CacheTTL(0))
+		func(prefix string) (ld.FeatureStoreFactory, error) {
+			return NewConsulFeatureStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
 
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	options, _ := validateOptions()
-	store1Core, err := newConsulFeatureStoreInternal(options, ld.Config{}) // we need the underlying implementation object so we can set testTxHook
+	var store1Core *featureStore
+	factory1 := func(config ld.Config) (ld.FeatureStore, error) {
+		store1Core, _ = newConsulFeatureStoreInternal(options, config) // we need the underlying implementation object so we can set testTxHook
+		return utils.NewNonAtomicFeatureStoreWrapper(store1Core), nil
+	}
+	factory2, err := NewConsulFeatureStoreFactory()
 	require.NoError(t, err)
-	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Core)
-	store2, err := NewConsulFeatureStore()
-	require.NoError(t, err)
-
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
+	ldtest.RunFeatureStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Core.testTxHook = hook
 	})
 }

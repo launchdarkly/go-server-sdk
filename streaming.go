@@ -127,7 +127,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 					sp.config.Loggers.Errorf("Unexpected error unmarshalling PUT json: %+v", err)
 					break
 				}
-				err := sp.store.Init(MakeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
+				err := sp.store.Init(makeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
 				if err != nil {
 					sp.config.Loggers.Errorf("Error initializing store: %s", err)
 					return false

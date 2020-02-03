@@ -64,9 +64,9 @@ func (r *requestor) requestAll() (allData, bool, error) {
 func (r *requestor) requestResource(kind VersionedDataKind, key string) (VersionedData, error) {
 	var resource string
 	switch kind {
-	case SegmentVersionedDataKind{}:
+	case segmentVersionedDataKind{}:
 		resource = LatestSegmentsPath + "/" + key
-	case FeatureFlagVersionedDataKind{}:
+	case featureFlagVersionedDataKind{}:
 		resource = LatestFlagsPath + "/" + key
 	default:
 		return nil, fmt.Errorf("unexpected item type: %s", kind)

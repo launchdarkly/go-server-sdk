@@ -1,12 +1,12 @@
 package ldclient
 
 import (
-	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
@@ -54,14 +54,13 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 	defer sdkServer.Close()
 	defer esserver.Close()
 
-	store := NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0))
-
 	cfg := Config{
-		FeatureStore: store,
-		StreamUri:    streamServer.URL,
-		BaseUri:      sdkServer.URL,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		StreamUri: streamServer.URL,
+		BaseUri:   sdkServer.URL,
+		Loggers:   ldlog.NewDisabledLoggers(),
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 
 	requestor := newRequestor("sdkKey", cfg, nil)
 	sp := newStreamProcessor("sdkKey", cfg, requestor)
@@ -212,10 +211,11 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
-		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:             log.New(ioutil.Discard, "", 0),
+		Loggers:            ldlog.NewDisabledLoggers(),
 		diagnosticsManager: diagnosticsManager,
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -263,10 +263,11 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
-		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:             log.New(ioutil.Discard, "", 0),
+		Loggers:            ldlog.NewDisabledLoggers(),
 		diagnosticsManager: diagnosticsManager,
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -298,10 +299,12 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:            log.New(ioutil.Discard, "", 0),
+		Loggers:           ldlog.NewDisabledLoggers(),
 		StreamUri:         ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -324,10 +327,12 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:    log.New(ioutil.Discard, "", 0),
+		Loggers:   ldlog.NewDisabledLoggers(),
 		StreamUri: ts.URL,
 		Timeout:   200 * time.Millisecond,
 	}
+	store, _ := NewInMemoryFeatureStoreFactory()(cfg)
+	cfg.FeatureStore = store
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
@@ -366,7 +371,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	cfg := Config{
 		StreamUri:    ts.URL,
 		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      ldlog.NewDisabledLoggers(),
 	}
 
 	sp := newStreamProcessor("sdkKey", cfg, nil)

@@ -43,7 +43,6 @@ type diagnosticConfigData struct {
 	EventsFlushIntervalMillis   milliseconds           `json:"eventsFlushIntervalMillis"`
 	PollingIntervalMillis       milliseconds           `json:"pollingIntervalMillis"`
 	StartWaitMillis             milliseconds           `json:"startWaitMillis"`
-	SamplingInterval            int32                  `json:"samplingInterval"`
 	ReconnectTimeMillis         milliseconds           `json:"reconnectTimeMillis"`
 	StreamingDisabled           bool                   `json:"streamingDisabled"`
 	UsingRelayDaemon            bool                   `json:"usingRelayDaemon"`
@@ -172,7 +171,6 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 		EventsFlushIntervalMillis:         durationToMillis(m.config.FlushInterval),
 		PollingIntervalMillis:             durationToMillis(m.config.PollInterval),
 		StartWaitMillis:                   durationToMillis(m.startWaitTime),
-		SamplingInterval:                  m.config.SamplingInterval,
 		ReconnectTimeMillis:               3000,
 		StreamingDisabled:                 !m.config.Stream,
 		UsingRelayDaemon:                  m.config.UseLdd,

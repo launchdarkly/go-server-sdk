@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"encoding/json"
-	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
@@ -87,11 +86,6 @@ type User struct {
 	// Deprecated: Direct access to User fields is now deprecated in favor of UserBuilder. In a future version,
 	// User fields will be private and only accessible via getter methods.
 	Custom *map[string]interface{} `json:"custom,omitempty" bson:"custom,omitempty"`
-	// Derived is used internally by the SDK.
-	//
-	// Deprecated: Direct access to User fields is now deprecated in favor of UserBuilder. In a future version,
-	// User fields will be private and only accessible via getter methods.
-	Derived map[string]*DerivedAttribute `json:"derived,omitempty" bson:"derived,omitempty"`
 
 	// PrivateAttributes contains a list of attribute names that were included in the user,
 	// but were marked as private. As such, these attributes are not included in the fields above.
@@ -296,13 +290,4 @@ func optionalStringAsEmptyInterface(os ldvalue.OptionalString) (interface{}, boo
 		return os.StringValue(), true
 	}
 	return nil, false
-}
-
-// DerivedAttribute is an entry in a Derived attribute map and is for internal use by LaunchDarkly only. Derived attributes
-// sent to LaunchDarkly are ignored.
-//
-// Deprecated: this type is for internal use and will be removed in a future version.
-type DerivedAttribute struct {
-	Value       interface{} `json:"value" bson:"value"`
-	LastDerived time.Time   `json:"lastDerived" bson:"lastDerived"`
 }

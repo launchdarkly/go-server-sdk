@@ -319,15 +319,12 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 			}
 		}
 		if d.FlagValues != nil {
-			for key, f := range *d.FlagValues {
-				zeroVariation := 0
-				data := ld.FeatureFlag{ //nolint:megacheck // allow deprecated usage
-					Key:         key,
-					Variations:  []interface{}{f},
-					On:          true,
-					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation}, //nolint:megacheck // allow deprecated usage
+			for key, value := range *d.FlagValues {
+				flag, err := makeFlagWithValue(key, value)
+				if err != nil {
+					return nil, err
 				}
-				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, ld.Features, key, flag); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -335,13 +332,32 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := s
-				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:staticcheck // allow deprecated usage)
 					return nil, err
 				}
 			}
 		}
 	}
 	return all, nil
+}
+
+func makeFlagWithValue(key string, v interface{}) (*ld.FeatureFlag, error) { //nolint:staticcheck // allow deprecated usage)
+	props := map[string]interface{}{
+		"key":         key,
+		"on":          true,
+		"variations":  []interface{}{v},
+		"fallthrough": map[string]interface{}{"variation": 0},
+	}
+	bytes, err := json.Marshal(props)
+	if err != nil {
+		return nil, err
+	}
+	var f ld.FeatureFlag //nolint:staticcheck // allow deprecated usage
+	err = json.Unmarshal(bytes, &f)
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
 }
 
 // Close is called automatically when the client is closed.

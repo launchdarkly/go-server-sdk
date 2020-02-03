@@ -9,7 +9,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -87,16 +86,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
-	// Our logger configuration logic is a little funny for backward compatibility reasons. We had
-	// to continue providing a non-nil logger in DefaultConfig.Logger, but we still want ldlog to
-	// use its own default behavior if the app did not specifically override the logger. So if we
-	// see that same exact logger instance, we'll ignore it.
-	if config.Logger != nil && config.Logger != defaultLogger {
-		config.Loggers.SetBaseLogger(config.Logger)
-	}
-	if config.Logger == nil {
-		config.Logger = DefaultConfig.Logger // always set this, in case someone accidentally uses it instead of Loggers
-	}
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
 	if config.FeatureStore == nil {
@@ -132,18 +121,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventProcessor = newNullEventProcessor()
 	}
 
-	if config.UpdateProcessor != nil {
-		client.updateProcessor = config.UpdateProcessor
-	} else {
-		factory := config.UpdateProcessorFactory
-		if factory == nil {
-			factory = createDefaultUpdateProcessor(defaultHTTPClient)
-		}
-		var err error
-		client.updateProcessor, err = factory(sdkKey, config)
-		if err != nil {
-			return nil, err
-		}
+	factory := config.UpdateProcessorFactory
+	if factory == nil {
+		factory = createDefaultUpdateProcessor(defaultHTTPClient)
+	}
+	var err error
+	client.updateProcessor, err = factory(sdkKey, config)
+	if err != nil {
+		return nil, err
 	}
 	client.updateProcessor.Start(closeWhenReady)
 	if waitFor > 0 && !config.Offline && !config.UseLdd {
@@ -322,18 +307,6 @@ func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
 }
 
-// AllFlags returns a map from feature flag keys to values for
-// a given user. If the result of the flag's evaluation would
-// result in the default value, `nil` will be returned. This method
-// does not send analytics events back to LaunchDarkly
-//
-// Deprecated: Use AllFlagsState instead. Current versions of the client-side SDK
-// will not generate analytics events correctly if you pass the result of AllFlags.
-func (client *LDClient) AllFlags(user User) map[string]interface{} {
-	state := client.AllFlagsState(user)
-	return state.ToValuesMap()
-}
-
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a
 // given user, including the flag values and also metadata that can be used on the front end.
 // You may pass any combination of ClientSideOnly, WithReasons, and DetailsOnlyForTrackedFlags
@@ -377,7 +350,7 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 			if clientSideOnly && !flag.ClientSide {
 				continue
 			}
-			result, _ := flag.EvaluateDetail(user, client.store, false)
+			result, _ := flag.evaluateDetail(user, client.store, false)
 			var reason EvaluationReason
 			if withReasons {
 				reason = result.Reason
@@ -455,22 +428,6 @@ func (client *LDClient) StringVariationDetail(key string, user User, defaultVal 
 	return detail.JSONValue.StringValue(), detail, err
 }
 
-// Obsolete alternative to JSONVariation.
-//
-// Deprecated: See JSONVariation.
-func (client *LDClient) JsonVariation(key string, user User, defaultVal json.RawMessage) (json.RawMessage, error) {
-	detail, err := client.variation(key, user, ldvalue.Raw(defaultVal), false, false)
-	return detail.JSONValue.AsRaw(), err
-}
-
-// Obsolete alternative to JSONVariationDetail.
-//
-// Deprecated: See JSONVariationDetail.
-func (client *LDClient) JsonVariationDetail(key string, user User, defaultVal json.RawMessage) (json.RawMessage, EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Raw(defaultVal), false, true)
-	return detail.JSONValue.AsRaw(), detail, err
-}
-
 // JSONVariation returns the value of a feature flag for the given user, allowing the value to be
 // of any JSON type.
 //
@@ -532,14 +489,6 @@ func (client *LDClient) variation(key string, user User, defaultVal ldvalue.Valu
 	return result, err
 }
 
-// Evaluate returns the value of a feature for a specified user.
-//
-// Deprecated: Use one of the Variation methods (JSONVariation if you do not need a specific type).
-func (client *LDClient) Evaluate(key string, user User, defaultVal interface{}) (interface{}, *int, error) {
-	result, _, err := client.evaluateInternal(key, user, ldvalue.UnsafeUseArbitraryValue(defaultVal), false) //nolint // allow deprecated usage
-	return result.JSONValue.UnsafeArbitraryValue(), result.VariationIndex, err                               //nolint // allow deprecated usage
-}
-
 // Performs all the steps of evaluation except for sending the feature request event (the main one;
 // events for prerequisites will be sent).
 func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldvalue.Value, sendReasonsInEvents bool) (EvaluationDetail, *FeatureFlag, error) {
@@ -591,7 +540,7 @@ func (client *LDClient) evaluateInternal(key string, user User, defaultVal ldval
 			fmt.Errorf("user.Key cannot be nil when evaluating flag: %s. Returning default value", key))
 	}
 
-	detail, prereqEvents := feature.EvaluateDetail(user, client.store, sendReasonsInEvents)
+	detail, prereqEvents := feature.evaluateDetail(user, client.store, sendReasonsInEvents)
 	if detail.Reason.GetKind() == EvalReasonError && client.config.LogEvaluationErrors {
 		client.config.Loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
 			key, detail.Reason.GetErrorKind())

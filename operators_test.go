@@ -14,7 +14,7 @@ const dateMs2 = 10000001
 const invalidDate = "hey what's this?"
 
 type opTestInfo struct {
-	opName      Operator
+	opName      operator
 	userValue   interface{}
 	clauseValue interface{}
 	expected    bool

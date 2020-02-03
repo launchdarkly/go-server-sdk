@@ -1,36 +1,29 @@
 package ldclient
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
 	"time"
 )
 
-// HttpStatusError describes an http error
-//
-// Deprecated: this type is for internal use and will be removed in a future version.
-type HttpStatusError struct {
+type httpStatusError struct {
 	Message string
 	Code    int
 }
 
-// Error returns a the error message for an http status error
-func (e HttpStatusError) Error() string {
+func (e httpStatusError) Error() string {
 	return e.Message
 }
 
-// ParseTime converts any of the following into a pointer to a time.Time value:
+// parseTime converts any of the following into a pointer to a time.Time value:
 //   RFC3339/ISO8601 timestamp (example: 2016-04-16T17:09:12.759-07:00)
 //   Unix epoch milliseconds as string
 //   Unix milliseconds as number
 // Passing in a time.Time value will return a pointer to the input value.
 // Unparsable inputs will return nil
 // More info on RFC3339: http://stackoverflow.com/questions/522251/whats-the-difference-between-iso-8601-and-rfc-3339-date-formats
-//
-// Deprecated: this function is for internal use and will be removed in a future version.
-func ParseTime(input interface{}) *time.Time {
+func parseTime(input interface{}) *time.Time {
 	if input == nil {
 		return nil
 	}
@@ -48,7 +41,7 @@ func ParseTime(input interface{}) *time.Time {
 	}
 
 	// Is it a number or can it be parsed as a number?
-	parsedNumberPtr := ParseFloat64(input)
+	parsedNumberPtr := parseFloat64(input)
 	if parsedNumberPtr != nil {
 		value := unixMillisToUtcTime(*parsedNumberPtr)
 		return &value
@@ -56,11 +49,7 @@ func ParseTime(input interface{}) *time.Time {
 	return nil
 }
 
-// ParseFloat64 parses a numeric value as float64 from a string or another numeric type.
-// Returns nil pointer if input is nil or unparsable.
-//
-// Deprecated: this function is for internal use and will be removed in a future version.
-func ParseFloat64(input interface{}) *float64 {
+func parseFloat64(input interface{}) *float64 {
 	if input == nil {
 		return nil
 	}
@@ -86,55 +75,29 @@ func unixMillisToUtcTime(unixMillis float64) time.Time {
 	return time.Unix(0, int64(unixMillis)*int64(time.Millisecond)).UTC()
 }
 
-// ToJsonRawMessage converts input to a *json.RawMessage if possible.
-//
-// Deprecated: this function is for internal use and will be removed in a future version.
-func ToJsonRawMessage(input interface{}) (json.RawMessage, error) {
-	if input == nil {
-		return nil, nil
-	}
-	switch typedInput := input.(type) {
-	//already json, so just return casted input value
-	case json.RawMessage:
-		return typedInput, nil
-	case []byte:
-		inputJsonRawMessage := json.RawMessage(typedInput)
-		return inputJsonRawMessage, nil
-	default:
-		inputJsonBytes, err := json.Marshal(input)
-		if err != nil {
-			return nil, fmt.Errorf("could not marshal: %+v to json", input)
-		}
-		inputJsonRawMessage := json.RawMessage(inputJsonBytes)
-		return inputJsonRawMessage, nil
-	}
-}
-
 func checkForHttpError(statusCode int, url string) error {
 	if statusCode == http.StatusUnauthorized {
-		return HttpStatusError{
+		return httpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
 			Code:    statusCode}
 	}
 
 	if statusCode == http.StatusNotFound {
-		return HttpStatusError{
+		return httpStatusError{
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
 			Code:    statusCode}
 	}
 
 	if statusCode/100 != 2 {
-		return HttpStatusError{
+		return httpStatusError{
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
 			Code:    statusCode}
 	}
 	return nil
 }
 
-// MakeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a feature store
-//
-// Deprecated: this functioin is for internal use and will be removed in a future version.
-func MakeAllVersionedDataMap(
+// makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a feature store
+func makeAllVersionedDataMap(
 	features map[string]*FeatureFlag,
 	segments map[string]*Segment) map[VersionedDataKind]map[string]VersionedData {
 

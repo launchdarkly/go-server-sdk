@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,6 +21,11 @@ func makeTempFile(t *testing.T, initialText string) string {
 	return f.Name()
 }
 
+func makeFeatureStore() ld.FeatureStore {
+	store, _ := ld.NewInMemoryFeatureStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+	return store
+}
+
 func TestNewFileDataSourceYaml(t *testing.T) {
 	filename := makeTempFile(t, `
 ---
@@ -31,7 +38,7 @@ segments:
 `)
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})
@@ -55,7 +62,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	filename := makeTempFile(t, `{"flags": {"my-flag": {"on": true}}}`)
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})
@@ -76,7 +83,7 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	filename2 := makeTempFile(t, `{"flags": {"my-flag2": {"on": true}}}`)
 	defer os.Remove(filename2)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})
@@ -103,7 +110,7 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 	filename2 := makeTempFile(t, `{"flags": {"my-flag1": {"on": true}}}`)
 	defer os.Remove(filename2)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})
@@ -118,7 +125,7 @@ func TestNewFileDataSourceBadData(t *testing.T) {
 	filename := makeTempFile(t, `bad data`)
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})
@@ -133,7 +140,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 	filename := makeTempFile(t, "")
 	os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})
@@ -152,7 +159,7 @@ flagValues:
 `)
 	defer os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+	store := makeFeatureStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
 	dataSource, err := factory("", ld.Config{FeatureStore: store})

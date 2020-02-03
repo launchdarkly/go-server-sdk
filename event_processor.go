@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -118,9 +117,6 @@ func NewDefaultEventProcessor(sdkKey string, config Config, client *http.Client)
 	}
 	inboxCh := make(chan eventDispatcherMessage, config.Capacity)
 	startEventDispatcher(sdkKey, config, client, inboxCh)
-	if config.SamplingInterval > 0 {
-		config.Loggers.Warn("Config.SamplingInterval is deprecated")
-	}
 	return &defaultEventProcessor{
 		inboxCh: inboxCh,
 		loggers: config.Loggers,
@@ -282,20 +278,18 @@ func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys
 
 	// Decide whether to add the event to the payload. Feature events may be added twice, once for
 	// the event (if tracked) and once for debugging.
-	willAddFullEvent := false
+	var willAddFullEvent bool
 	var debugEvent Event
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
-		if ed.shouldSampleEvent() {
-			willAddFullEvent = evt.TrackEvents
-			if ed.shouldDebugEvent(&evt) {
-				de := evt
-				de.Debug = true
-				debugEvent = de
-			}
+		willAddFullEvent = evt.TrackEvents
+		if ed.shouldDebugEvent(&evt) {
+			de := evt
+			de.Debug = true
+			debugEvent = de
 		}
 	default:
-		willAddFullEvent = ed.shouldSampleEvent()
+		willAddFullEvent = true
 	}
 
 	// For each user we haven't seen before, we add an index event - unless this is already
@@ -328,10 +322,6 @@ func noticeUser(userKeys *lruCache, user *User) bool {
 		return true
 	}
 	return userKeys.add(*user.Key)
-}
-
-func (ed *eventDispatcher) shouldSampleEvent() bool {
-	return ed.config.SamplingInterval == 0 || rand.Int31n(ed.config.SamplingInterval) == 0
 }
 
 func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
@@ -486,11 +476,11 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			break
 		}
 		if payload.diagnosticEvent != nil {
-			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose (response was already closed in postEvents)
+			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose // response was already closed in postEvents
 		} else {
 			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
-				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose (response was already closed in postEvents)
+				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose // response was already closed in postEvents
 				if resp != nil {
 					responseFn(resp)
 				}

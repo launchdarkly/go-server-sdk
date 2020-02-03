@@ -64,7 +64,6 @@ func expectedDiagnosticConfigForDefaultConfig() diagnosticConfigData {
 		EventsFlushIntervalMillis:         durationToMillis(DefaultConfig.FlushInterval),
 		PollingIntervalMillis:             durationToMillis(DefaultConfig.PollInterval),
 		StartWaitMillis:                   milliseconds(5000),
-		SamplingInterval:                  0,
 		ReconnectTimeMillis:               3000,
 		StreamingDisabled:                 false,
 		UsingRelayDaemon:                  false,
@@ -86,7 +85,10 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		{func(c *Config) { c.BaseUri = "custom" }, func(d *diagnosticConfigData) { d.CustomBaseURI = true }},
 		{func(c *Config) { c.StreamUri = "custom" }, func(d *diagnosticConfigData) { d.CustomStreamURI = true }},
 		{func(c *Config) { c.EventsUri = "custom" }, func(d *diagnosticConfigData) { d.CustomEventsURI = true }},
-		{func(c *Config) { c.FeatureStore = NewInMemoryFeatureStore(nil) },
+		{func(c *Config) {
+			f := NewInMemoryFeatureStoreFactory()
+			c.FeatureStore, _ = f(DefaultConfig)
+		},
 			func(d *diagnosticConfigData) {
 				d.DataStoreType = ldvalue.NewOptionalString("memory")
 			}},
@@ -104,7 +106,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		}},
 		{func(c *Config) { c.FlushInterval = time.Second }, func(d *diagnosticConfigData) { d.EventsFlushIntervalMillis = 1000 }},
 		{func(c *Config) { c.PollInterval = time.Second }, func(d *diagnosticConfigData) { d.PollingIntervalMillis = 1000 }},
-		{func(c *Config) { c.SamplingInterval = 2 }, func(d *diagnosticConfigData) { d.SamplingInterval = 2 }},
 		{func(c *Config) { c.Stream = false }, func(d *diagnosticConfigData) { d.StreamingDisabled = true }},
 		{func(c *Config) { c.UseLdd = true }, func(d *diagnosticConfigData) { d.UsingRelayDaemon = true }},
 		{func(c *Config) { c.AllAttributesPrivate = true }, func(d *diagnosticConfigData) { d.AllAttributesPrivate = true }},
