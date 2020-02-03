@@ -92,10 +92,6 @@ func TestNewUser(t *testing.T) {
 
 	assert.Equal(t, "some-key", user.GetKey())
 
-	k, ok := user.valueOf("key")
-	assert.True(t, ok)
-	assert.Equal(t, "some-key", k)
-
 	for _, p := range allUserStringProperties {
 		p.assertNotSet(t, user)
 	}
@@ -109,16 +105,6 @@ func TestNewAnonymousUser(t *testing.T) {
 
 	assert.Equal(t, "some-key", user.GetKey())
 
-	k, ok := user.valueOf("key")
-	assert.True(t, ok)
-	assert.Equal(t, "some-key", k)
-
-	anonymous, _ := user.valueOf("anonymous")
-	assert.Equal(t, true, anonymous)
-	v, ok := user.valueOf("anonymous")
-	assert.True(t, ok)
-	assert.Equal(t, true, v)
-
 	for _, p := range allUserStringProperties {
 		p.assertNotSet(t, user)
 	}
@@ -131,19 +117,12 @@ func TestUserWithNilKey(t *testing.T) {
 	user := User{}
 
 	assert.Equal(t, "", user.GetKey())
-
-	k, ok := user.valueOf("key")
-	assert.False(t, ok)
-	assert.Nil(t, k)
 }
 
 func TestUserBuilderSetsOnlyKeyByDefault(t *testing.T) {
 	user := NewUserBuilder("some-key").Build()
 
 	assert.Equal(t, "some-key", user.GetKey())
-
-	k, _ := user.valueOf("key")
-	assert.Equal(t, "some-key", k)
 
 	for _, p := range allUserStringProperties {
 		p.assertNotSet(t, user)
@@ -167,20 +146,8 @@ func TestUserBuilderCanSetStringAttributes(t *testing.T) {
 					assert.Equal(t, ldvalue.NewOptionalString("value"), p.getter(user), p.name)
 					assert.NotNil(t, p.deprecatedGetter(user), p.name)
 					assert.Equal(t, "value", *p.deprecatedGetter(user), p.name)
-					v, ok := user.valueOf(p.name)
-					if p.name == "secondary" {
-						// this attribute is special in that it *can't* be used in evaluations
-						assert.False(t, ok, p.name)
-						assert.Nil(t, v, p.name)
-					} else {
-						assert.True(t, ok, p.name)
-						assert.Equal(t, "value", v)
-					}
 				} else {
 					p1.assertNotSet(t, user)
-					v, ok := user.valueOf(p1.name)
-					assert.False(t, ok, p1.name)
-					assert.Nil(t, v, p1.name)
 				}
 			}
 
@@ -316,9 +283,6 @@ func TestUserBuilderCanCopyFromExistingUserWithOnlyKey(t *testing.T) {
 	user1 := NewUserBuilderFromUser(user0).Build()
 
 	assert.Equal(t, "some-key", user1.GetKey())
-
-	k, _ := user1.valueOf("key")
-	assert.Equal(t, "some-key", k)
 
 	for _, p := range allUserStringProperties {
 		p.assertNotSet(t, user1)

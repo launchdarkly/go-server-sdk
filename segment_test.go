@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 var (
@@ -65,7 +66,7 @@ func TestMatchingRuleWithFullRollout(t *testing.T) {
 			Clauses: []clause{clause{
 				Attribute: "email",
 				Op:        operatorIn,
-				Values:    []interface{}{"test@example.com"},
+				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			}},
 			Weight:   &max_weight,
@@ -95,7 +96,7 @@ func TestMatchingRuleWithZeroRollout(t *testing.T) {
 			Clauses: []clause{clause{
 				Attribute: "email",
 				Op:        operatorIn,
-				Values:    []interface{}{"test@example.com"},
+				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				Negate:    false,
 			}},
 			Weight:   &min_weight,
@@ -126,12 +127,12 @@ func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 				clause{
 					Attribute: "email",
 					Op:        operatorIn,
-					Values:    []interface{}{"test@example.com"},
+					Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
 				},
 				clause{
 					Attribute: "name",
 					Op:        operatorIn,
-					Values:    []interface{}{"bob"},
+					Values:    []ldvalue.Value{ldvalue.String("bob")},
 				},
 			},
 			Weight:   nil,
@@ -158,17 +159,16 @@ func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 func TestNonMatchingRuleWithMultipleClauses(t *testing.T) {
 	rules := []segmentRule{
 		segmentRule{
-			Clauses: []clause{
-				clause{
-					Attribute: "email",
-					Op:        operatorIn,
-					Values:    []interface{}{"test@example.com"},
-					Negate:    false,
-				},
+			Clauses: []clause{clause{
+				Attribute: "email",
+				Op:        operatorIn,
+				Values:    []ldvalue.Value{ldvalue.String("test@example.com")},
+				Negate:    false,
+			},
 				clause{
 					Attribute: "name",
 					Op:        operatorIn,
-					Values:    []interface{}{"bill"},
+					Values:    []ldvalue.Value{ldvalue.String("bill")},
 				},
 			},
 			Weight:   nil,

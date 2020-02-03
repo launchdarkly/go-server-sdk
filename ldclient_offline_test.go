@@ -32,8 +32,7 @@ func TestBoolVariationReturnsDefaultValueOffline(t *testing.T) {
 
 	value, detail, err := client.BoolVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.Value)
+	assert.Equal(t, defaultVal, detail.JSONValue.BoolValue())
 	assert.Nil(t, detail.VariationIndex)
 	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
@@ -50,7 +49,7 @@ func TestIntVariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.IntVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, float64(defaultVal), detail.Value)
+	assert.Equal(t, defaultVal, detail.JSONValue.IntValue())
 	assert.Nil(t, detail.VariationIndex)
 	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
@@ -67,7 +66,7 @@ func TestFloat64VariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.Float64VariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.Value)
+	assert.Equal(t, defaultVal, detail.JSONValue.Float64Value())
 	assert.Nil(t, detail.VariationIndex)
 	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }
@@ -84,7 +83,7 @@ func TestStringVariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.StringVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.Value)
+	assert.Equal(t, defaultVal, detail.JSONValue.StringValue())
 	assert.Nil(t, detail.VariationIndex)
 	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
 }

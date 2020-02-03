@@ -23,7 +23,7 @@ func TestSummarizeEventDoesNothingForCustomEvent(t *testing.T) {
 	es := newEventSummarizer()
 	snapshot := es.snapshot()
 
-	event := NewCustomEvent("whatever", user, nil)
+	event := newCustomEvent("whatever", user, ldvalue.Null(), false, 0)
 	es.summarizeEvent(event)
 
 	assert.Equal(t, snapshot, es.snapshot())
@@ -78,10 +78,10 @@ func TestSummarizeEventIncrementsCounters(t *testing.T) {
 	data := es.snapshot()
 
 	expectedCounters := map[counterKey]*counterValue{
-		counterKey{flag1.Key, variation1, flag1.Version}: &counterValue{2, "value1", "default1"},
-		counterKey{flag1.Key, variation2, flag1.Version}: &counterValue{1, "value2", "default1"},
-		counterKey{flag2.Key, variation1, flag2.Version}: &counterValue{1, "value99", "default2"},
-		counterKey{unknownFlagKey, -1, 0}:                &counterValue{1, "default3", "default3"},
+		counterKey{flag1.Key, variation1, flag1.Version}: &counterValue{2, ldvalue.String("value1"), ldvalue.String("default1")},
+		counterKey{flag1.Key, variation2, flag1.Version}: &counterValue{1, ldvalue.String("value2"), ldvalue.String("default1")},
+		counterKey{flag2.Key, variation1, flag2.Version}: &counterValue{1, ldvalue.String("value99"), ldvalue.String("default2")},
+		counterKey{unknownFlagKey, -1, 0}:                &counterValue{1, ldvalue.String("default3"), ldvalue.String("default3")},
 	}
 	assert.Equal(t, expectedCounters, data.counters)
 }
@@ -106,9 +106,9 @@ func TestCounterForNilVariationIsDistinctFromOthers(t *testing.T) {
 	data := es.snapshot()
 
 	expectedCounters := map[counterKey]*counterValue{
-		counterKey{flag.Key, variation1, flag.Version}: &counterValue{1, "value1", "default1"},
-		counterKey{flag.Key, variation2, flag.Version}: &counterValue{1, "value2", "default1"},
-		counterKey{flag.Key, -1, flag.Version}:         &counterValue{1, "default1", "default1"},
+		counterKey{flag.Key, variation1, flag.Version}: &counterValue{1, ldvalue.String("value1"), ldvalue.String("default1")},
+		counterKey{flag.Key, variation2, flag.Version}: &counterValue{1, ldvalue.String("value2"), ldvalue.String("default1")},
+		counterKey{flag.Key, -1, flag.Version}:         &counterValue{1, ldvalue.String("default1"), ldvalue.String("default1")},
 	}
 	assert.Equal(t, expectedCounters, data.counters)
 }

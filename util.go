@@ -3,7 +3,6 @@ package ldclient
 import (
 	"fmt"
 	"net/http"
-	"reflect"
 	"time"
 )
 
@@ -14,60 +13,6 @@ type httpStatusError struct {
 
 func (e httpStatusError) Error() string {
 	return e.Message
-}
-
-// parseTime converts any of the following into a pointer to a time.Time value:
-//   RFC3339/ISO8601 timestamp (example: 2016-04-16T17:09:12.759-07:00)
-//   Unix epoch milliseconds as string
-//   Unix milliseconds as number
-// Passing in a time.Time value will return a pointer to the input value.
-// Unparsable inputs will return nil
-// More info on RFC3339: http://stackoverflow.com/questions/522251/whats-the-difference-between-iso-8601-and-rfc-3339-date-formats
-func parseTime(input interface{}) *time.Time {
-	if input == nil {
-		return nil
-	}
-
-	// First check if we can easily detect the type as a time.Time or timestamp as string
-	switch typedInput := input.(type) {
-	case time.Time:
-		return &typedInput
-	case string:
-		value, err := time.Parse(time.RFC3339Nano, typedInput)
-		if err == nil {
-			utcValue := value.UTC()
-			return &utcValue
-		}
-	}
-
-	// Is it a number or can it be parsed as a number?
-	parsedNumberPtr := parseFloat64(input)
-	if parsedNumberPtr != nil {
-		value := unixMillisToUtcTime(*parsedNumberPtr)
-		return &value
-	}
-	return nil
-}
-
-func parseFloat64(input interface{}) *float64 {
-	if input == nil {
-		return nil
-	}
-
-	switch typedInput := input.(type) {
-	case float64:
-		return &typedInput
-	default:
-		float64Type := reflect.TypeOf(float64(0))
-		v := reflect.ValueOf(input)
-		v = reflect.Indirect(v)
-		if v.Type().ConvertibleTo(float64Type) {
-			floatValue := v.Convert(float64Type)
-			f64 := floatValue.Float()
-			return &f64
-		}
-	}
-	return nil
 }
 
 // unixMillisToUtcTime converts a Unix epoch milliseconds float64 value to the equivalent time.Time value with UTC location

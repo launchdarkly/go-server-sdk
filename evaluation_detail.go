@@ -136,18 +136,9 @@ func newEvalReasonError(errorKind EvalErrorKind) EvaluationReason {
 // EvaluationDetail is an object returned by LDClient.VariationDetail, combining the result of a
 // flag evaluation with an explanation of how it was calculated.
 type EvaluationDetail struct {
-	// Value is the result of the flag evaluation. This will be either one of the flag's variations or
-	// the default value that was passed to the Variation method.
-	//
-	// Deprecated: Use JSONValue instead. The Value property will be removed in a future version.
-	Value interface{}
 	// JSONValue is the result of the flag evaluation, represented with the ldvalue.Value type.
 	// This is always the same value you would get by calling LDClient.JSONVariation(). You can
 	// convert it to a bool, int, string, etc. using methods of ldvalue.Value.
-	//
-	// This property is preferred over EvaluationDetail.Value, because the interface{} type of Value
-	// can expose a mutable data structure (slice or map) and accidentally modifying such a structure
-	// could affect SDK behavior.
 	JSONValue ldvalue.Value
 	// VariationIndex is the index of the returned value within the flag's list of variations, e.g.
 	// 0 for the first variation - or nil if the default value was returned.
@@ -161,7 +152,6 @@ type EvaluationDetail struct {
 // to the same value that is wrapped by jsonValue.
 func NewEvaluationDetail(jsonValue ldvalue.Value, variationIndex *int, reason EvaluationReason) EvaluationDetail {
 	return EvaluationDetail{
-		Value:          jsonValue.UnsafeArbitraryValue(), //nolint // allow deprecated usage
 		JSONValue:      jsonValue,
 		VariationIndex: variationIndex,
 		Reason:         reason,
@@ -172,7 +162,6 @@ func NewEvaluationDetail(jsonValue ldvalue.Value, variationIndex *int, reason Ev
 // to the same value that is wrapped by jsonValue.
 func NewEvaluationError(jsonValue ldvalue.Value, errorKind EvalErrorKind) EvaluationDetail {
 	return EvaluationDetail{
-		Value:     jsonValue.UnsafeArbitraryValue(), //nolint // allow deprecated usage
 		JSONValue: jsonValue,
 		Reason:    newEvalReasonError(errorKind),
 	}

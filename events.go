@@ -24,8 +24,8 @@ type FeatureRequestEvent struct {
 	BaseEvent
 	Key                  string
 	Variation            *int
-	Value                interface{}
-	Default              interface{}
+	Value                ldvalue.Value
+	Default              ldvalue.Value
 	Version              *int
 	PrereqOf             *string
 	Reason               EvaluationReason
@@ -38,7 +38,7 @@ type FeatureRequestEvent struct {
 type CustomEvent struct {
 	BaseEvent
 	Key         string
-	Data        interface{}
+	Data        ldvalue.Value
 	MetricValue *float64
 }
 
@@ -54,15 +54,14 @@ type IndexEvent struct {
 
 func newUnknownFlagEvent(key string, user User, defaultVal ldvalue.Value, reason EvaluationReason,
 	includeReason bool) FeatureRequestEvent {
-	defaultAsIntf := defaultVal.UnsafeArbitraryValue() //nolint:megacheck // allow deprecated usage
 	fre := FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
 			User:         user,
 		},
 		Key:     key,
-		Value:   defaultAsIntf,
-		Default: defaultAsIntf,
+		Value:   defaultVal,
+		Default: defaultVal,
 	}
 	if includeReason {
 		fre.Reason = reason
@@ -81,8 +80,8 @@ func newSuccessfulEvalEvent(flag *FeatureFlag, user User, variation *int, value,
 		Key:                  flag.Key,
 		Version:              &flag.Version,
 		Variation:            variation,
-		Value:                value.UnsafeArbitraryValue(),      //nolint:megacheck // allow deprecated usage
-		Default:              defaultVal.UnsafeArbitraryValue(), //nolint:megacheck // allow deprecated usage
+		Value:                value,
+		Default:              defaultVal,
 		PrereqOf:             prereqOf,
 		TrackEvents:          requireExperimentData || flag.TrackEvents,
 		DebugEventsUntilDate: flag.DebugEventsUntilDate,
@@ -111,15 +110,6 @@ func (evt FeatureRequestEvent) GetBase() BaseEvent {
 	return evt.BaseEvent
 }
 
-// NewCustomEvent constructs a new custom event, but does not send it. Typically, Track should be used to both create the
-// event and send it to LaunchDarkly.
-//
-// Deprecated: This function will be removed in a later release.
-func NewCustomEvent(key string, user User, data interface{}) CustomEvent {
-	return newCustomEvent(key, user, ldvalue.UnsafeUseArbitraryValue(data), //nolint:megacheck // allow deprecated usage
-		false, 0)
-}
-
 func newCustomEvent(key string, user User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
 	ce := CustomEvent{
 		BaseEvent: BaseEvent{
@@ -127,7 +117,7 @@ func newCustomEvent(key string, user User, data ldvalue.Value, withMetric bool, 
 			User:         user,
 		},
 		Key:  key,
-		Data: data.UnsafeArbitraryValue(), //nolint:megacheck // allow deprecated usage
+		Data: data,
 	}
 	if withMetric {
 		ce.MetricValue = &metricValue

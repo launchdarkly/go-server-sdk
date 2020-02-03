@@ -119,7 +119,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	e := events[0].(CustomEvent)
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
-	assert.Nil(t, e.Data)
+	assert.Equal(t, ldvalue.Null(), e.Data)
 	assert.Nil(t, e.MetricValue)
 }
 
@@ -138,7 +138,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	e := events[0].(CustomEvent)
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data.AsArbitraryValue(), e.Data)
+	assert.Equal(t, data, e.Data)
 	assert.Nil(t, e.MetricValue)
 }
 
@@ -158,72 +158,15 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	e := events[0].(CustomEvent)
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data.AsArbitraryValue(), e.Data)
+	assert.Equal(t, data, e.Data)
 	assert.Equal(t, &metric, e.MetricValue)
-}
-
-func TestDeprecatedTrackSendsCustomEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	user := NewUser("userKey")
-	key := "eventKey"
-	err := client.Track(key, user, nil) //nolint:megacheck // allow deprecated usage
-	assert.NoError(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
-	assert.Equal(t, key, e.Key)
-	assert.Nil(t, e.Data)
-	assert.Nil(t, e.MetricValue)
-}
-
-func TestDeprecatedTrackSendsCustomEventWithData(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	user := NewUser("userKey")
-	key := "eventKey"
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.Track(key, user, data) //nolint:megacheck // allow deprecated usage
-	assert.NoError(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
-	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data, e.Data)
-	assert.Nil(t, e.MetricValue)
-}
-
-func TestDeprecatedTrackWithMetricSendsCustomEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	user := NewUser("userKey")
-	key := "eventKey"
-	value := 2.5
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric(key, user, data, value) //nolint:megacheck // allow deprecated usage
-	assert.NoError(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
-	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data, e.Data)
-	assert.Equal(t, value, *e.MetricValue)
 }
 
 func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Track("eventkey", evalTestUserWithNilKey, nil)
+	err := client.TrackEvent("eventkey", evalTestUserWithNilKey)
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -234,31 +177,29 @@ func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Track("eventkey", NewUser(""), nil)
+	err := client.TrackEvent("eventkey", NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
 }
 
-func TestTrackWithMetricWithNilUserKeySendsNoEvent(t *testing.T) {
+func TestTrackMetricWithNilUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric("eventKey", evalTestUserWithNilKey, data, 2.5)
+	err := client.TrackMetric("eventKey", evalTestUserWithNilKey, 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
 }
 
-func TestTrackWithMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
+func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric("eventKey", NewUser(""), data, 2.5)
+	err := client.TrackMetric("eventKey", NewUser(""), 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events

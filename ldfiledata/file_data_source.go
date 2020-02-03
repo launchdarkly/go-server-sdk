@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/ghodss/yaml.v1"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -268,7 +269,7 @@ func absFilePaths(paths []string) ([]string, error) {
 
 type fileData struct {
 	Flags      *map[string]ld.FeatureFlag //nolint:megacheck // allow deprecated usage
-	FlagValues *map[string]interface{}
+	FlagValues *map[string]ldvalue.Value
 	Segments   *map[string]ld.Segment //nolint:megacheck // allow deprecated usage
 }
 

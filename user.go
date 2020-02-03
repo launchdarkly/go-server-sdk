@@ -253,41 +253,37 @@ func (u User) String() string {
 
 // Used internally in evaluations. The second return value is true if the attribute exists for this user,
 // false if not.
-func (u User) valueOf(attr string) (interface{}, bool) {
+func (u User) valueOf(attr string) (ldvalue.Value, bool) {
 	if attr == "key" {
 		if u.Key != nil {
-			return *u.Key, true
+			return ldvalue.String(*u.Key), true
 		}
-		return nil, false
+		return ldvalue.Null(), false
 	} else if attr == "ip" {
-		return optionalStringAsEmptyInterface(u.GetIP())
+		return optionalAttr(u.GetIP())
 	} else if attr == "country" {
-		return optionalStringAsEmptyInterface(u.GetCountry())
+		return optionalAttr(u.GetCountry())
 	} else if attr == "email" {
-		return optionalStringAsEmptyInterface(u.GetEmail())
+		return optionalAttr(u.GetEmail())
 	} else if attr == "firstName" {
-		return optionalStringAsEmptyInterface(u.GetFirstName())
+		return optionalAttr(u.GetFirstName())
 	} else if attr == "lastName" {
-		return optionalStringAsEmptyInterface(u.GetLastName())
+		return optionalAttr(u.GetLastName())
 	} else if attr == "avatar" {
-		return optionalStringAsEmptyInterface(u.GetAvatar())
+		return optionalAttr(u.GetAvatar())
 	} else if attr == "name" {
-		return optionalStringAsEmptyInterface(u.GetName())
+		return optionalAttr(u.GetName())
 	} else if attr == "anonymous" {
-		value, ok := u.GetAnonymousOptional()
-		return value, ok
+		if value, ok := u.GetAnonymousOptional(); ok {
+			return ldvalue.Bool(value), true
+		}
+		return ldvalue.Null(), false
 	}
 
 	// Select a custom attribute
-	value, ok := u.GetCustom(attr)
-	// Currently our evaluation logic still uses interface{} rather than Value; we can use the faster
-	// Unsafe method to avoid a deep copy in this context
-	return value.UnsafeArbitraryValue(), ok //nolint // allow deprecated usage
+	return u.GetCustom(attr)
 }
 
-func optionalStringAsEmptyInterface(os ldvalue.OptionalString) (interface{}, bool) {
-	if os.IsDefined() {
-		return os.StringValue(), true
-	}
-	return nil, false
+func optionalAttr(os ldvalue.OptionalString) (ldvalue.Value, bool) {
+	return os.AsValue(), os.IsDefined()
 }
