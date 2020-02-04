@@ -313,7 +313,7 @@ func (store *dynamoDBDataStore) GetCacheTTL() time.Duration {
 	return store.options.cacheTTL
 }
 
-func (store *dynamoDBDataStore) InitCollectionsInternal(allData []utils.StoreCollection) error {
+func (store *dynamoDBDataStore) InitCollectionsInternal(allData []interfaces.StoreCollection) error {
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys(allData)
 	if err != nil {
@@ -526,7 +526,7 @@ func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.VersionedDataKi
 	}
 }
 
-func (store *dynamoDBDataStore) readExistingKeys(newData []utils.StoreCollection) (map[namespaceAndKey]bool, error) {
+func (store *dynamoDBDataStore) readExistingKeys(newData []interfaces.StoreCollection) (map[namespaceAndKey]bool, error) {
 	keys := make(map[namespaceAndKey]bool)
 	for _, coll := range newData {
 		kind := coll.Kind

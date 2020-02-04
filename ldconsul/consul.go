@@ -268,7 +268,7 @@ func (store *dataStore) GetAllInternal(kind interfaces.VersionedDataKind) (map[s
 	return results, nil
 }
 
-func (store *dataStore) InitCollectionsInternal(allData []utils.StoreCollection) error {
+func (store *dataStore) InitCollectionsInternal(allData []interfaces.StoreCollection) error {
 	kv := store.client.KV()
 
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
