@@ -2,6 +2,25 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.16.0] - 2020-02-04
+This release introduces new types for building user properties and representing arbitrary JSON values. In the next major version, these will entirely replace the current deprecated equivalents.
+
+### Added:
+- `NewUserBuilder`, and its associated interfaces `UserBuilder` and `UserBuilderCanMakeAttributePrivate`. This is the new preferred mechanism for creating `User` instances when you need to set multiple properties; it reduces unsafe and inconvenient use of pointers.
+- `User` property getter methods such as `GetName()`.
+- The SDK has a new dependency on `gopkg.in/launchdarkly/go-sdk-common.v1`, which provides the helper types `ldvalue.Value` and `ldvalue.OptionalString`.
+- In `LDClient`, `JSONVariation` and `JSONVariationDetail` are the new preferred mechanism for evaluating flags whose values can be of any JSON type. The value is represented as an `ldvalue.Value` rather than a `json.RawMessage`, but can be easily converted to `json.RawMessage` or to other Go types.
+- In `LDClient`, `TrackData` and `TrackMetric` are the new preferred versions of `Track` and `TrackWithMetric`; they use `ldvalue.Value` rather than `interface{}` for the data parameter.
+- `EvaluationReason` methods `GetRuleIndex()`, `GetRuleID()`, `GetPrerequisiteKey()`, `GetErrorKind()`. These were formerly only on concrete implementation types such as `EvaluationReasonRuleMatch`; they are being added to the interface type because in a future version, it will be changed to a struct.
+
+### Fixed:
+- By default, the SDK should log to `os.Stderr` with a minimum level of `ldlog.Info`, omitting only `Debug`-level messages. A bug introduced in 4.12.0 caused the default logger not to produce any output. It will now log at `Info` level by default again, as documented.
+
+### Deprecated:
+- All exported fields of `User`. In a future version, these will be hidden. Use getters such as `GetName()` to read these fields, and `NewUserBuilder` to set them.
+- In `LDClient`, `JsonVariation`, `JsonVariationDetail`, `Track`, and `TrackWithMetric`. Use `JSONVariation`, `JSONVariationDetail`, `TrackData`, `TrackEvent`, or `TrackMetric` instead.
+- The `EvaluationReason` implementation types such as `EvaluationReasonRuleMatch` are deprecated. Instead of casting to these types, use `EvaluationReason` methods such as `GetKind()` and `GetErrorKind()`.
+
 ## [4.15.0] - 2020-01-23
 Note: if you are using the LaunchDarkly Relay Proxy to forward events, update the Relay to version 5.10.0 or later before updating to this Go SDK version.
 
