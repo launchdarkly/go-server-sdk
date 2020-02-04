@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
@@ -49,10 +50,10 @@ func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() 
 	}
 }
 
-func hasFlag(t *testing.T, store ld.DataStore, key string, test func(ld.FeatureFlag) bool) bool {
+func hasFlag(t *testing.T, store ld.DataStore, key string, test func(ldeval.FeatureFlag) bool) bool {
 	flag, err := store.Get(ld.Features, key)
 	if assert.NoError(t, err) && flag != nil {
-		return test(*(flag.(*ld.FeatureFlag)))
+		return test(*(flag.(*ldeval.FeatureFlag)))
 	}
 	return false
 }
@@ -90,7 +91,7 @@ flags:
 	// Don't use waitForExpectedChange here because the expectation is that as soon as the dataSource
 	// reports being ready (which it will only do once we've given it a valid file), the flag should
 	// be available immediately.
-	assert.True(t, hasFlag(t, store, "my-flag", func(f ld.FeatureFlag) bool {
+	assert.True(t, hasFlag(t, store, "my-flag", func(f ldeval.FeatureFlag) bool {
 		return f.On
 	}))
 	assert.True(t, dataSource.Initialized())
@@ -104,7 +105,7 @@ flags:
 `)
 
 	requireTrueWithinDuration(t, time.Second, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ld.FeatureFlag) bool {
+		return hasFlag(t, store, "my-flag", func(f ldeval.FeatureFlag) bool {
 			return !f.On
 		})
 	})
@@ -139,7 +140,7 @@ flags:
 	<-closeWhenReady
 
 	requireTrueWithinDuration(t, time.Second, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ld.FeatureFlag) bool {
+		return hasFlag(t, store, "my-flag", func(f ldeval.FeatureFlag) bool {
 			return f.On
 		})
 	})
@@ -181,7 +182,7 @@ flags:
 	<-closeWhenReady
 
 	requireTrueWithinDuration(t, time.Second*2, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ld.FeatureFlag) bool {
+		return hasFlag(t, store, "my-flag", func(f ldeval.FeatureFlag) bool {
 			return f.On
 		})
 	})

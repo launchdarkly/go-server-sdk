@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
@@ -215,8 +216,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	runTests(t, "Get", func(t *testing.T, mode testCacheMode, core *mockCore) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
 
 		core.forceSet(ld.Features, &flagv1)
 		item, err := w.Get(ld.Features, flagv1.Key)
@@ -236,8 +237,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	runTests(t, "Get with deleted item", func(t *testing.T, mode testCacheMode, core *mockCore) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1, Deleted: true}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2, Deleted: false}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1, Deleted: true}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2, Deleted: false}
 
 		core.forceSet(ld.Features, &flagv1)
 		item, err := w.Get(ld.Features, flagv1.Key)
@@ -258,7 +259,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		mockLog := shared_test.NewMockLoggers()
 		w := NewDataStoreWrapperWithConfig(core, ld.Config{Loggers: mockLog.Loggers})
 		defer w.Close()
-		flag := ld.FeatureFlag{Key: "flag", Version: 1}
+		flag := ldeval.FeatureFlag{Key: "flag", Version: 1}
 
 		item, err := w.Get(ld.Features, flag.Key)
 		require.NoError(t, err)
@@ -280,8 +281,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
@@ -299,8 +300,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	runTests(t, "All", func(t *testing.T, mode testCacheMode, core *mockCore) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
-		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flag2 := ld.FeatureFlag{Key: "flag2", Version: 1}
+		flag1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
+		flag2 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
 
 		core.forceSet(ld.Features, &flag1)
 		core.forceSet(ld.Features, &flag2)
@@ -322,8 +323,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flag2 := ld.FeatureFlag{Key: "flag2", Version: 1}
+		flag1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
+		flag2 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
 
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flag1.Key: &flag1, flag2.Key: &flag2},
@@ -342,10 +343,10 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flag1v2 := ld.FeatureFlag{Key: "flag1", Version: 2}
-		flag2 := ld.FeatureFlag{Key: "flag2", Version: 1}
-		flag2v2 := ld.FeatureFlag{Key: "flag2", Version: 2}
+		flag1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
+		flag1v2 := ldeval.FeatureFlag{Key: "flag1", Version: 2}
+		flag2 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
+		flag2v2 := ldeval.FeatureFlag{Key: "flag2", Version: 2}
 
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flag1.Key: &flag1, flag2.Key: &flag2},
@@ -371,8 +372,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
 
 		err := w.Upsert(ld.Features, &flagv1)
 		require.NoError(t, err)
@@ -385,7 +386,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		// if we have a cache, verify that the new item is now cached by writing a different value
 		// to the underlying data - Get should still return the cached item
 		if mode.isCached() {
-			flagv3 := ld.FeatureFlag{Key: "flag", Version: 3}
+			flagv3 := ldeval.FeatureFlag{Key: "flag", Version: 3}
 			core.forceSet(ld.Features, &flagv3)
 		}
 
@@ -402,8 +403,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
 
 		err := w.Upsert(ld.Features, &flagv2)
 		require.NoError(t, err)
@@ -413,7 +414,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key]) // value in store remains the same
 
-		flagv3 := ld.FeatureFlag{Key: "flag", Version: 3}
+		flagv3 := ldeval.FeatureFlag{Key: "flag", Version: 3}
 		core.forceSet(ld.Features, &flagv3) // bypasses cache so we can verify that flagv2 is in the cache
 
 		item, err := w.Get(ld.Features, flagv1.Key)
@@ -425,9 +426,9 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag1", Version: 2, Deleted: true}
-		flagv3 := ld.FeatureFlag{Key: "flag1", Version: 3}
+		flagv1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag1", Version: 2, Deleted: true}
+		flagv3 := ldeval.FeatureFlag{Key: "flag1", Version: 3}
 
 		core.forceSet(ld.Features, &flagv1)
 		item, err := w.Get(ld.Features, flagv1.Key)
@@ -505,7 +506,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag := ld.FeatureFlag{Key: "flag", Version: 9}
+		flag := ldeval.FeatureFlag{Key: "flag", Version: 9}
 		core.forceSet(ld.Features, &flag)
 
 		resultCh := make(chan int, 2)
@@ -535,8 +536,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag1 := ld.FeatureFlag{Key: "flag1", Version: 8}
-		flag2 := ld.FeatureFlag{Key: "flag2", Version: 9}
+		flag1 := ldeval.FeatureFlag{Key: "flag1", Version: 8}
+		flag2 := ldeval.FeatureFlag{Key: "flag2", Version: 9}
 		core.forceSet(ld.Features, &flag1)
 		core.forceSet(ld.Features, &flag2)
 
@@ -564,7 +565,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag := ld.FeatureFlag{Key: "flag", Version: 9}
+		flag := ldeval.FeatureFlag{Key: "flag", Version: 9}
 		core.forceSet(ld.Features, &flag)
 
 		resultCh := make(chan int, 2)
@@ -591,8 +592,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
@@ -615,8 +616,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
-		flagv2 := ld.FeatureFlag{Key: "flag", Version: 2}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
+		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
@@ -639,7 +640,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
@@ -658,7 +659,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flagv1 := ld.FeatureFlag{Key: "flag", Version: 1}
+		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
@@ -677,10 +678,10 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag1v1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flag1v2 := ld.FeatureFlag{Key: "flag1", Version: 2}
-		flag2v1 := ld.FeatureFlag{Key: "flag2", Version: 1}
-		flag2v2 := ld.FeatureFlag{Key: "flag2", Version: 2}
+		flag1v1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
+		flag1v2 := ldeval.FeatureFlag{Key: "flag1", Version: 2}
+		flag2v1 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
+		flag2v2 := ldeval.FeatureFlag{Key: "flag2", Version: 2}
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
 		}
@@ -710,10 +711,10 @@ func TestDataStoreWrapper(t *testing.T) {
 		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
 		defer w.Close()
 
-		flag1v1 := ld.FeatureFlag{Key: "flag1", Version: 1}
-		flag1v2 := ld.FeatureFlag{Key: "flag1", Version: 2}
-		flag2v1 := ld.FeatureFlag{Key: "flag2", Version: 1}
-		flag2v2 := ld.FeatureFlag{Key: "flag2", Version: 2}
+		flag1v1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
+		flag1v2 := ldeval.FeatureFlag{Key: "flag1", Version: 2}
+		flag2v1 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
+		flag2v2 := ldeval.FeatureFlag{Key: "flag2", Version: 2}
 		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
 			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
 		}
@@ -762,7 +763,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		}
 
 		for _, item := range dependencyOrderingTestData[ld.Features] {
-			if flag, ok := item.(*ld.FeatureFlag); ok {
+			if flag, ok := item.(*ldeval.FeatureFlag); ok {
 				flagIndex := findFlagIndex(flag.Key)
 				for _, prereq := range flag.Prerequisites {
 					prereqIndex := findFlagIndex(prereq.Key)
@@ -790,12 +791,12 @@ var dependencyOrderingTestData = map[ld.VersionedDataKind]map[string]ld.Versione
 		"f": parseFlag(`{"key":"f"}`),
 	},
 	ld.Segments: {
-		"1": &ld.Segment{Key: "1"},
+		"1": &ldeval.Segment{Key: "1"},
 	},
 }
 
-func parseFlag(jsonString string) *ld.FeatureFlag {
-	var f ld.FeatureFlag
+func parseFlag(jsonString string) *ldeval.FeatureFlag {
+	var f ldeval.FeatureFlag
 	if err := json.Unmarshal([]byte(jsonString), &f); err != nil {
 		panic(err)
 	}

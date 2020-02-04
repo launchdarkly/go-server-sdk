@@ -1,10 +1,8 @@
-package ldclient
+package ldreason
 
 import (
 	"encoding/json"
 	"fmt"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 // EvalReasonKind defines the possible values of the Kind property of EvaluationReason.
@@ -54,6 +52,8 @@ const (
 )
 
 // EvaluationReason describes the reason that a flag evaluation producted a particular value.
+//
+// This struct is immutable; its properties can be accessed only via getter methods.
 type EvaluationReason struct {
 	kind            EvalReasonKind
 	ruleIndex       int
@@ -109,67 +109,34 @@ func (r EvaluationReason) GetErrorKind() EvalErrorKind {
 	return r.errorKind
 }
 
-func newEvalReasonOff() EvaluationReason {
+// NewEvalReasonOff returns an EvaluationReason whose Kind is EvalReasonOff.
+func NewEvalReasonOff() EvaluationReason {
 	return EvaluationReason{kind: EvalReasonOff}
 }
 
-func newEvalReasonFallthrough() EvaluationReason {
+// NewEvalReasonFallthrough returns an EvaluationReason whose Kind is EvalReasonFallthrough.
+func NewEvalReasonFallthrough() EvaluationReason {
 	return EvaluationReason{kind: EvalReasonFallthrough}
 }
 
-func newEvalReasonTargetMatch() EvaluationReason {
+// NewEvalReasonTargetMatch returns an EvaluationReason whose Kind is EvalReasonTargetMatch.
+func NewEvalReasonTargetMatch() EvaluationReason {
 	return EvaluationReason{kind: EvalReasonTargetMatch}
 }
 
-func newEvalReasonRuleMatch(ruleIndex int, ruleID string) EvaluationReason {
+// NewEvalReasonRuleMatch returns an EvaluationReason whose Kind is EvalReasonRuleMatch.
+func NewEvalReasonRuleMatch(ruleIndex int, ruleID string) EvaluationReason {
 	return EvaluationReason{kind: EvalReasonRuleMatch, ruleIndex: ruleIndex, ruleID: ruleID}
 }
 
-func newEvalReasonPrerequisiteFailed(prereqKey string) EvaluationReason {
+// NewEvalReasonPrerequisiteFailed returns an EvaluationReason whose Kind is EvalReasonPrerequisiteFailed.
+func NewEvalReasonPrerequisiteFailed(prereqKey string) EvaluationReason {
 	return EvaluationReason{kind: EvalReasonPrerequisiteFailed, prerequisiteKey: prereqKey}
 }
 
-func newEvalReasonError(errorKind EvalErrorKind) EvaluationReason {
+// NewEvalReasonError returns an EvaluationReason whose Kind is EvalReasonError.
+func NewEvalReasonError(errorKind EvalErrorKind) EvaluationReason {
 	return EvaluationReason{kind: EvalReasonError, errorKind: errorKind}
-}
-
-// EvaluationDetail is an object returned by LDClient.VariationDetail, combining the result of a
-// flag evaluation with an explanation of how it was calculated.
-type EvaluationDetail struct {
-	// JSONValue is the result of the flag evaluation, represented with the ldvalue.Value type.
-	// This is always the same value you would get by calling LDClient.JSONVariation(). You can
-	// convert it to a bool, int, string, etc. using methods of ldvalue.Value.
-	JSONValue ldvalue.Value
-	// VariationIndex is the index of the returned value within the flag's list of variations, e.g.
-	// 0 for the first variation - or nil if the default value was returned.
-	VariationIndex *int
-	// Reason is an EvaluationReason object describing the main factor that influenced the flag
-	// evaluation value.
-	Reason EvaluationReason
-}
-
-// NewEvaluationDetail creates an EvaluationDetail, specifying all fields. The deprecated Value property is set
-// to the same value that is wrapped by jsonValue.
-func NewEvaluationDetail(jsonValue ldvalue.Value, variationIndex *int, reason EvaluationReason) EvaluationDetail {
-	return EvaluationDetail{
-		JSONValue:      jsonValue,
-		VariationIndex: variationIndex,
-		Reason:         reason,
-	}
-}
-
-// NewEvaluationError creates an EvaluationDetail describing an error. The deprecated Value property is set
-// to the same value that is wrapped by jsonValue.
-func NewEvaluationError(jsonValue ldvalue.Value, errorKind EvalErrorKind) EvaluationDetail {
-	return EvaluationDetail{
-		JSONValue: jsonValue,
-		Reason:    newEvalReasonError(errorKind),
-	}
-}
-
-// IsDefaultValue returns true if the result of the evaluation was the default value.
-func (d EvaluationDetail) IsDefaultValue() bool {
-	return d.VariationIndex == nil
 }
 
 type evaluationReasonForMarshaling struct {

@@ -1,6 +1,9 @@
 package ldclient
 
-import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+)
 
 // The types in this file are for analytics event data structures that we send to
 // LaunchDarkly.
@@ -8,17 +11,17 @@ import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 // Serializable form of a feature request event. This differs from the event that was
 // passed in to us in that it usually has a user key instead of a user object.
 type featureRequestEventOutput struct {
-	Kind         string            `json:"kind"`
-	CreationDate uint64            `json:"creationDate"`
-	Key          string            `json:"key"`
-	UserKey      *string           `json:"userKey,omitempty"`
-	User         *serializableUser `json:"user,omitempty"`
-	Variation    *int              `json:"variation,omitempty"`
-	Value        ldvalue.Value     `json:"value"`
-	Default      ldvalue.Value     `json:"default"`
-	Version      *int              `json:"version,omitempty"`
-	PrereqOf     *string           `json:"prereqOf,omitempty"`
-	Reason       EvaluationReason  `json:"reason,omitempty"`
+	Kind         string                    `json:"kind"`
+	CreationDate uint64                    `json:"creationDate"`
+	Key          string                    `json:"key"`
+	UserKey      *string                   `json:"userKey,omitempty"`
+	User         *serializableUser         `json:"user,omitempty"`
+	Variation    *int                      `json:"variation,omitempty"`
+	Value        ldvalue.Value             `json:"value"`
+	Default      ldvalue.Value             `json:"default"`
+	Version      *int                      `json:"version,omitempty"`
+	PrereqOf     *string                   `json:"prereqOf,omitempty"`
+	Reason       ldreason.EvaluationReason `json:"reason,omitempty"`
 }
 
 // Serializable form of an identify event.

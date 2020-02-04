@@ -233,15 +233,25 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:ba6119517f93cb9ff33af39d0beab782f1347e100dad1c524c2adf15330232fa"
+  digest = "1:c977c78149f2d31b8d5cf4e59c110827cf25c7ed1521f835d5c0f7c9e9928864"
   name = "gopkg.in/launchdarkly/go-sdk-common.v2"
   packages = [
+    "ldreason",
     "lduser",
     "ldvalue",
   ]
   pruneopts = "NUT"
-  revision = "3e63beb8271e9cdddcbda53d0cdd2bfec9f3c8d1"
+  revision = "0b761e24d59de7e0a84da62a4634aed8a9b18bc4"
   source = "github.com/launchdarkly/go-sdk-common-private"
+
+[[projects]]
+  branch = "v1"
+  digest = "1:07cdbb104468fab60a14eaa7e36231ec700436b12b24653bcff4d45895b714fe"
+  name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "7216fcfc90272bef335a43d18245ea3a45579bbd"
+  source = "github.com/launchdarkly/go-server-sdk-evaluation-private"
 
 [[projects]]
   digest = "1:7c95b35057a0ff2e19f707173cc1a947fa43a6eb5c4d300d196ece0334046082"
@@ -261,7 +271,6 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface",
-    "github.com/blang/semver",
     "github.com/fsnotify/fsnotify",
     "github.com/garyburd/redigo/redis",
     "github.com/google/uuid",
@@ -274,8 +283,10 @@
     "github.com/stretchr/testify/require",
     "golang.org/x/sync/singleflight",
     "gopkg.in/ghodss/yaml.v1",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldreason",
     "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
+    "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
