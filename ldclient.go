@@ -97,6 +97,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if config.Logger == nil {
 		config.Logger = DefaultConfig.Logger // always set this, in case someone accidentally uses it instead of Loggers
 	}
+	config.Loggers.Init()
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
 	if config.FeatureStore == nil {
