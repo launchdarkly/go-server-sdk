@@ -73,7 +73,7 @@ func (v Value) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON parses a Value from JSON.
-func (v *Value) UnmarshalJSON(data []byte) error {
+func (v *Value) UnmarshalJSON(data []byte) error { //nolint:funlen // yes, we know it's a long function
 	if len(data) == 0 { // should not be possible, the parser doesn't pass empty slices to UnmarshalJSON
 		return errors.New("cannot parse empty data")
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
 
 // DataStoreStatus is a description of whether a data store is functioning normally.

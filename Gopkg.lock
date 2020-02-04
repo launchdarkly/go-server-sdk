@@ -233,7 +233,7 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:c977c78149f2d31b8d5cf4e59c110827cf25c7ed1521f835d5c0f7c9e9928864"
+  digest = "1:a2abe09f5e155b3e41090b0fccac3ad75c3f440fb9c15ae2d2be1e8baec0b4d0"
   name = "gopkg.in/launchdarkly/go-sdk-common.v2"
   packages = [
     "ldreason",
@@ -241,7 +241,7 @@
     "ldvalue",
   ]
   pruneopts = "NUT"
-  revision = "0b761e24d59de7e0a84da62a4634aed8a9b18bc4"
+  revision = "08c2cf552141855a4c6a8676ba935ebede167278"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]
