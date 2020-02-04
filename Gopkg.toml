@@ -26,10 +26,6 @@
   go-tests = true
 
 [[constraint]]
-  name = "gopkg.in/launchdarkly/go-sdk-common.v1"
-  source = "github.com/launchdarkly/go-sdk-common-private"
-
-[[constraint]]
   name = "github.com/blang/semver"
   version = "3.5.1"
 
