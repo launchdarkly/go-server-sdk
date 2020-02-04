@@ -233,9 +233,10 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:a2abe09f5e155b3e41090b0fccac3ad75c3f440fb9c15ae2d2be1e8baec0b4d0"
+  digest = "1:a5d09471bfbe8763cf5b21a20510b025b1e27a4593f37d17770c640be586fe60"
   name = "gopkg.in/launchdarkly/go-sdk-common.v2"
   packages = [
+    "ldlog",
     "ldreason",
     "lduser",
     "ldvalue",
@@ -283,6 +284,7 @@
     "github.com/stretchr/testify/require",
     "golang.org/x/sync/singleflight",
     "gopkg.in/ghodss/yaml.v1",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldlog",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldreason",
     "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
