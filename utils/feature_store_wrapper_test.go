@@ -52,7 +52,7 @@ type mockCore struct {
 
 // Test implementation of NonAtomicDataStoreCore - we test this in somewhat less detail
 type mockNonAtomicCore struct {
-	data []StoreCollection
+	data []interfaces.StoreCollection
 }
 
 // Test implementation of DataStoreCore for request-coalescing tests
@@ -137,7 +137,7 @@ func (c *mockNonAtomicCore) GetCacheTTL() time.Duration {
 	return 0
 }
 
-func (c *mockNonAtomicCore) InitCollectionsInternal(allData []StoreCollection) error {
+func (c *mockNonAtomicCore) InitCollectionsInternal(allData []interfaces.StoreCollection) error {
 	c.data = allData
 	return nil
 }

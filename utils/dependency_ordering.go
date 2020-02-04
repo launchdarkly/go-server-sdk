@@ -8,8 +8,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) []StoreCollection {
-	colls := make([]StoreCollection, 0, len(allData))
+func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) []interfaces.StoreCollection {
+	colls := make([]interfaces.StoreCollection, 0, len(allData))
 	for kind, itemsMap := range allData {
 		items := make([]interfaces.VersionedData, 0, len(itemsMap))
 		if doesDataKindSupportDependencies(kind) {
@@ -19,7 +19,7 @@ func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKin
 				items = append(items, item)
 			}
 		}
-		colls = append(colls, StoreCollection{Kind: kind, Items: items})
+		colls = append(colls, interfaces.StoreCollection{Kind: kind, Items: items})
 	}
 	sort.Slice(colls, func(i, j int) bool {
 		return dataKindPriority(colls[i].Kind) < dataKindPriority(colls[j].Kind)
