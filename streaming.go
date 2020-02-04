@@ -10,10 +10,10 @@ import (
 	"time"
 
 	es "github.com/launchdarkly/eventsource"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 const (

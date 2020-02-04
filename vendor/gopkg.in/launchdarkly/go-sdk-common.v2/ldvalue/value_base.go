@@ -115,7 +115,7 @@ func Raw(value json.RawMessage) Value {
 // For all other types, the value is marshaled to JSON and then converted to the corresponding
 // Value type (unless marshalling returns an error, in which case it becomes Null()). This is
 // somewhat inefficient since it involves parsing the marshaled JSON.
-func CopyArbitraryValue(valueAsInterface interface{}) Value {
+func CopyArbitraryValue(valueAsInterface interface{}) Value { //nolint:funlen // yes, we know it's a long function
 	if valueAsInterface == nil {
 		return Null()
 	}

@@ -3,8 +3,8 @@ package ldclient
 import (
 	"sync"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
 // DataStoreFactory is a factory function that produces a DataStore implementation. It receives

@@ -233,15 +233,16 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:c977c78149f2d31b8d5cf4e59c110827cf25c7ed1521f835d5c0f7c9e9928864"
+  digest = "1:a5d09471bfbe8763cf5b21a20510b025b1e27a4593f37d17770c640be586fe60"
   name = "gopkg.in/launchdarkly/go-sdk-common.v2"
   packages = [
+    "ldlog",
     "ldreason",
     "lduser",
     "ldvalue",
   ]
   pruneopts = "NUT"
-  revision = "0b761e24d59de7e0a84da62a4634aed8a9b18bc4"
+  revision = "08c2cf552141855a4c6a8676ba935ebede167278"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]
@@ -283,6 +284,7 @@
     "github.com/stretchr/testify/require",
     "golang.org/x/sync/singleflight",
     "gopkg.in/ghodss/yaml.v1",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldlog",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldreason",
     "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",

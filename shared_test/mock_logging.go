@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
 
 // MockLoggers provides the ability to capture log output.
