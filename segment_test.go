@@ -21,12 +21,7 @@ func TestExplicitIncludeUser(t *testing.T) {
 		Version:  1,
 		Deleted:  false,
 	}
-
-	userKey := "foo"
-
-	user := User{
-		Key: &userKey,
-	}
+	user := NewUser("foo")
 
 	containsUser, reason := segment.ContainsUser(user)
 
@@ -45,12 +40,7 @@ func TestExplicitExcludeUser(t *testing.T) {
 		Version:  1,
 		Deleted:  false,
 	}
-
-	userKey := "foo"
-
-	user := User{
-		Key: &userKey,
-	}
+	user := NewUser("foo")
 
 	containsUser, reason := segment.ContainsUser(user)
 
@@ -69,12 +59,7 @@ func TestExplicitIncludeHasPrecedence(t *testing.T) {
 		Version:  1,
 		Deleted:  false,
 	}
-
-	userKey := "foo"
-
-	user := User{
-		Key: &userKey,
-	}
+	user := NewUser("foo")
 
 	containsUser, reason := segment.ContainsUser(user)
 
@@ -107,13 +92,7 @@ func TestMatchingRuleWithFullRollout(t *testing.T) {
 		Deleted:  false,
 	}
 
-	userKey := "foo"
-	userEmail := "test@example.com"
-
-	user := User{
-		Key:   &userKey,
-		Email: &userEmail,
-	}
+	user := NewUserBuilder("foo").Email("test@example.com").Build()
 
 	containsUser, reason := segment.ContainsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
@@ -147,13 +126,7 @@ func TestMatchingRuleWithZeroRollout(t *testing.T) {
 		Deleted:  false,
 	}
 
-	userKey := "foo"
-	userEmail := "test@example.com"
-
-	user := User{
-		Key:   &userKey,
-		Email: &userEmail,
-	}
+	user := NewUserBuilder("foo").Email("test@example.com").Build()
 
 	containsUser, reason := segment.ContainsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
@@ -163,12 +136,12 @@ func TestMatchingRuleWithZeroRollout(t *testing.T) {
 func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 	rules := []SegmentRule{
 		SegmentRule{
-			Clauses: []Clause{Clause{
-				Attribute: "email",
-				Op:        OperatorIn,
-				Values:    []interface{}{"test@example.com"},
-				Negate:    false,
-			},
+			Clauses: []Clause{
+				Clause{
+					Attribute: "email",
+					Op:        OperatorIn,
+					Values:    []interface{}{"test@example.com"},
+				},
 				Clause{
 					Attribute: "name",
 					Op:        OperatorIn,
@@ -190,15 +163,7 @@ func TestMatchingRuleWithMultipleClauses(t *testing.T) {
 		Deleted:  false,
 	}
 
-	userKey := "foo"
-	userEmail := "test@example.com"
-	userName := "bob"
-
-	user := User{
-		Key:   &userKey,
-		Email: &userEmail,
-		Name:  &userName,
-	}
+	user := NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
 
 	containsUser, reason := segment.ContainsUser(user)
 	assert.True(t, containsUser, "Segment %+v should contain user %+v", segment, user)
@@ -238,15 +203,7 @@ func TestNonMatchingRuleWithMultipleClauses(t *testing.T) {
 		Deleted:  false,
 	}
 
-	userKey := "foo"
-	userEmail := "test@example.com"
-	userName := "bob"
-
-	user := User{
-		Key:   &userKey,
-		Email: &userEmail,
-		Name:  &userName,
-	}
+	user := NewUserBuilder("foo").Email("test@example.com").Name("bob").Build()
 
 	containsUser, reason := segment.ContainsUser(user)
 	assert.False(t, containsUser, "Segment %+v should not contain user %+v", segment, user)
