@@ -34,10 +34,6 @@
   source = "github.com/launchdarkly/go-server-sdk-evaluation-private"
 
 [[constraint]]
-  name = "github.com/blang/semver"
-  version = "3.5.1"
-
-[[constraint]]
   name = "github.com/garyburd/redigo"
   version = "1.4.0"
 
