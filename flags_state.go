@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
 // FeatureFlagsState is a snapshot of the state of all feature flags with regard to a
@@ -18,11 +20,11 @@ type FeatureFlagsState struct {
 }
 
 type flagMetadata struct {
-	Variation            *int              `json:"variation,omitempty"`
-	Version              *int              `json:"version,omitempty"`
-	Reason               *EvaluationReason `json:"reason,omitempty"`
-	TrackEvents          *bool             `json:"trackEvents,omitempty"`
-	DebugEventsUntilDate *uint64           `json:"debugEventsUntilDate,omitempty"`
+	Variation            *int                       `json:"variation,omitempty"`
+	Version              *int                       `json:"version,omitempty"`
+	Reason               *ldreason.EvaluationReason `json:"reason,omitempty"`
+	TrackEvents          *bool                      `json:"trackEvents,omitempty"`
+	DebugEventsUntilDate *uint64                    `json:"debugEventsUntilDate,omitempty"`
 }
 
 // FlagsStateOption is the type of optional parameters that can be passed to LDClient.AllFlagsState.
@@ -81,10 +83,11 @@ func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) boo
 	return false
 }
 
-func (s *FeatureFlagsState) addFlag(flag *FeatureFlag, value ldvalue.Value, variation *int, reason EvaluationReason, detailsOnlyIfTracked bool) {
-	meta := flagMetadata{
-		Variation:            variation,
-		DebugEventsUntilDate: flag.DebugEventsUntilDate,
+func (s *FeatureFlagsState) addFlag(flag ldeval.FeatureFlag, value ldvalue.Value, variation int,
+	reason ldreason.EvaluationReason, detailsOnlyIfTracked bool) {
+	meta := flagMetadata{DebugEventsUntilDate: flag.DebugEventsUntilDate}
+	if variation >= 0 {
+		meta.Variation = &variation
 	}
 	includeDetail := !detailsOnlyIfTracked || flag.TrackEvents
 	if !includeDetail && flag.DebugEventsUntilDate != nil {
@@ -115,13 +118,13 @@ func (s FeatureFlagsState) GetFlagValue(key string) ldvalue.Value {
 
 // GetFlagReason returns the evaluation reason for an individual feature flag at the time the state was
 // recorded. The return value will be empty if reasons were not recorded, or if there was no such flag.
-func (s FeatureFlagsState) GetFlagReason(key string) EvaluationReason {
+func (s FeatureFlagsState) GetFlagReason(key string) ldreason.EvaluationReason {
 	if m, ok := s.flagMetadata[key]; ok {
 		if m.Reason != nil {
 			return *m.Reason
 		}
 	}
-	return EvaluationReason{}
+	return ldreason.EvaluationReason{}
 }
 
 // ToValuesMap returns a map of flag keys to flag values. If a flag would have evaluated to the default

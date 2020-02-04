@@ -13,6 +13,7 @@ import (
 	"gopkg.in/ghodss/yaml.v1"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -268,9 +269,9 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ld.FeatureFlag //nolint:megacheck // allow deprecated usage
+	Flags      *map[string]ldeval.FeatureFlag //nolint:megacheck // allow deprecated usage
 	FlagValues *map[string]ldvalue.Value
-	Segments   *map[string]ld.Segment //nolint:megacheck // allow deprecated usage
+	Segments   *map[string]ldeval.Segment //nolint:megacheck // allow deprecated usage
 }
 
 func insertData(all map[ld.VersionedDataKind]map[string]ld.VersionedData, kind ld.VersionedDataKind, key string,
@@ -342,7 +343,7 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 	return all, nil
 }
 
-func makeFlagWithValue(key string, v interface{}) (*ld.FeatureFlag, error) { //nolint:staticcheck // allow deprecated usage)
+func makeFlagWithValue(key string, v interface{}) (*ldeval.FeatureFlag, error) { //nolint:staticcheck // allow deprecated usage)
 	props := map[string]interface{}{
 		"key":         key,
 		"on":          true,
@@ -353,7 +354,7 @@ func makeFlagWithValue(key string, v interface{}) (*ld.FeatureFlag, error) { //n
 	if err != nil {
 		return nil, err
 	}
-	var f ld.FeatureFlag //nolint:staticcheck // allow deprecated usage
+	var f ldeval.FeatureFlag //nolint:staticcheck // allow deprecated usage
 	err = json.Unmarshal(bytes, &f)
 	if err != nil {
 		return nil, err

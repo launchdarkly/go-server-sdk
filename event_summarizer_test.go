@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
 var user = lduser.NewUser("key")
@@ -32,12 +34,12 @@ func TestSummarizeEventDoesNothingForCustomEvent(t *testing.T) {
 
 func TestSummarizeEventSetsStartAndEndDates(t *testing.T) {
 	es := newEventSummarizer()
-	flag := FeatureFlag{
+	flag := ldeval.FeatureFlag{
 		Key: "key",
 	}
-	event1 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.Null(), ldvalue.Null(), EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.Null(), ldvalue.Null(), EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.Null(), ldvalue.Null(), EvaluationReason{}, false, nil)
+	event1 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	event1.BaseEvent.CreationDate = 2000
 	event2.BaseEvent.CreationDate = 1000
 	event3.BaseEvent.CreationDate = 1500
@@ -51,26 +53,26 @@ func TestSummarizeEventSetsStartAndEndDates(t *testing.T) {
 
 func TestSummarizeEventIncrementsCounters(t *testing.T) {
 	es := newEventSummarizer()
-	flag1 := FeatureFlag{
+	flag1 := ldeval.FeatureFlag{
 		Key:     "key1",
 		Version: 11,
 	}
-	flag2 := FeatureFlag{
+	flag2 := ldeval.FeatureFlag{
 		Key:     "key2",
 		Version: 22,
 	}
 	unknownFlagKey := "badkey"
 	variation1 := 1
 	variation2 := 2
-	event1 := newSuccessfulEvalEvent(&flag1, user, &variation1, ldvalue.String("value1"),
-		ldvalue.String("default1"), EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag1, user, &variation2, ldvalue.String("value2"),
-		ldvalue.String("default1"), EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag2, user, &variation1, ldvalue.String("value99"),
-		ldvalue.String("default2"), EvaluationReason{}, false, nil)
-	event4 := newSuccessfulEvalEvent(&flag1, user, &variation1, ldvalue.String("value1"),
-		ldvalue.String("default1"), EvaluationReason{}, false, nil)
-	event5 := newUnknownFlagEvent(unknownFlagKey, user, ldvalue.String("default3"), EvaluationReason{}, false)
+	event1 := newSuccessfulEvalEvent(&flag1, user, variation1, ldvalue.String("value1"),
+		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag1, user, variation2, ldvalue.String("value2"),
+		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag2, user, variation1, ldvalue.String("value99"),
+		ldvalue.String("default2"), ldreason.EvaluationReason{}, false, nil)
+	event4 := newSuccessfulEvalEvent(&flag1, user, variation1, ldvalue.String("value1"),
+		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
+	event5 := newUnknownFlagEvent(unknownFlagKey, user, ldvalue.String("default3"), ldreason.EvaluationReason{}, false)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)
@@ -89,18 +91,18 @@ func TestSummarizeEventIncrementsCounters(t *testing.T) {
 
 func TestCounterForNilVariationIsDistinctFromOthers(t *testing.T) {
 	es := newEventSummarizer()
-	flag := FeatureFlag{
+	flag := ldeval.FeatureFlag{
 		Key:     "key1",
 		Version: 11,
 	}
 	variation1 := 1
 	variation2 := 2
-	event1 := newSuccessfulEvalEvent(&flag, user, &variation1, ldvalue.String("value1"),
-		ldvalue.String("default1"), EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag, user, &variation2, ldvalue.String("value2"),
-		ldvalue.String("default1"), EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag, user, nil, ldvalue.String("default1"),
-		ldvalue.String("default1"), EvaluationReason{}, false, nil)
+	event1 := newSuccessfulEvalEvent(&flag, user, variation1, ldvalue.String("value1"),
+		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
+	event2 := newSuccessfulEvalEvent(&flag, user, variation2, ldvalue.String("value2"),
+		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
+	event3 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.String("default1"),
+		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)

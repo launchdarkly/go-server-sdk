@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
@@ -50,12 +51,12 @@ segments:
 	flag, err := store.Get(ld.Features, "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
-	assert.True(t, flag.(*ld.FeatureFlag).On)
+	assert.True(t, flag.(*ldeval.FeatureFlag).On)
 
 	segment, err := store.Get(ld.Segments, "my-segment")
 	require.NoError(t, err)
 	require.NotNil(t, segment)
-	assert.Empty(t, segment.(*ld.Segment).Rules)
+	assert.Empty(t, segment.(*ldeval.Segment).Rules)
 }
 
 func TestNewFileDataSourceJson(t *testing.T) {
@@ -74,7 +75,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	flag, err := store.Get(ld.Features, "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
-	assert.True(t, flag.(*ld.FeatureFlag).On)
+	assert.True(t, flag.(*ldeval.FeatureFlag).On)
 }
 
 func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
@@ -96,12 +97,12 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	flag1, err := store.Get(ld.Features, "my-flag1")
 	require.NoError(t, err)
 	require.NotNil(t, flag1)
-	assert.True(t, flag1.(*ld.FeatureFlag).On)
+	assert.True(t, flag1.(*ldeval.FeatureFlag).On)
 
 	flag2, err := store.Get(ld.Features, "my-flag2")
 	require.NoError(t, err)
 	require.NotNil(t, flag2)
-	assert.True(t, flag2.(*ld.FeatureFlag).On)
+	assert.True(t, flag2.(*ldeval.FeatureFlag).On)
 }
 
 func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
@@ -171,7 +172,7 @@ flagValues:
 	flag, err := store.Get(ld.Features, "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
-	require.NotNil(t, flag.(*ld.FeatureFlag).Fallthrough.Variation)
-	require.True(t, flag.(*ld.FeatureFlag).On)
-	assert.Equal(t, 0, *flag.(*ld.FeatureFlag).Fallthrough.Variation)
+	require.NotNil(t, flag.(*ldeval.FeatureFlag).Fallthrough.Variation)
+	require.True(t, flag.(*ldeval.FeatureFlag).On)
+	assert.Equal(t, 0, *flag.(*ldeval.FeatureFlag).Fallthrough.Variation)
 }

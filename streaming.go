@@ -10,6 +10,7 @@ import (
 	"time"
 
 	es "github.com/launchdarkly/eventsource"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -43,8 +44,8 @@ type putData struct {
 }
 
 type allData struct {
-	Flags    map[string]*FeatureFlag `json:"flags"`
-	Segments map[string]*Segment     `json:"segments"`
+	Flags    map[string]*ldeval.FeatureFlag `json:"flags"`
+	Segments map[string]*ldeval.Segment     `json:"segments"`
 }
 
 type patchData struct {

@@ -3,7 +3,8 @@ package ldclient
 import (
 	"fmt"
 	"net/http"
-	"time"
+
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
 type httpStatusError struct {
@@ -13,11 +14,6 @@ type httpStatusError struct {
 
 func (e httpStatusError) Error() string {
 	return e.Message
-}
-
-// unixMillisToUtcTime converts a Unix epoch milliseconds float64 value to the equivalent time.Time value with UTC location
-func unixMillisToUtcTime(unixMillis float64) time.Time {
-	return time.Unix(0, int64(unixMillis)*int64(time.Millisecond)).UTC()
 }
 
 func checkForHttpError(statusCode int, url string) error {
@@ -43,8 +39,8 @@ func checkForHttpError(statusCode int, url string) error {
 
 // makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a data store
 func makeAllVersionedDataMap(
-	features map[string]*FeatureFlag,
-	segments map[string]*Segment) map[VersionedDataKind]map[string]VersionedData {
+	features map[string]*ldeval.FeatureFlag,
+	segments map[string]*ldeval.Segment) map[VersionedDataKind]map[string]VersionedData {
 
 	allData := make(map[VersionedDataKind]map[string]VersionedData)
 	allData[Features] = make(map[string]VersionedData)

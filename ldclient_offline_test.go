@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
@@ -32,9 +33,7 @@ func TestBoolVariationReturnsDefaultValueOffline(t *testing.T) {
 
 	value, detail, err := client.BoolVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, detail.JSONValue.BoolValue())
-	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
+	assert.Equal(t, newEvaluationError(ldvalue.Bool(defaultVal), ldreason.EvalErrorClientNotReady), detail)
 }
 
 func TestIntVariationReturnsDefaultValueOffline(t *testing.T) {
@@ -49,9 +48,7 @@ func TestIntVariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.IntVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.JSONValue.IntValue())
-	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
+	assert.Equal(t, newEvaluationError(ldvalue.Int(defaultVal), ldreason.EvalErrorClientNotReady), detail)
 }
 
 func TestFloat64VariationReturnsDefaultValueOffline(t *testing.T) {
@@ -66,9 +63,7 @@ func TestFloat64VariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.Float64VariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.JSONValue.Float64Value())
-	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
+	assert.Equal(t, newEvaluationError(ldvalue.Float64(defaultVal), ldreason.EvalErrorClientNotReady), detail)
 }
 
 func TestStringVariationReturnsDefaultValueOffline(t *testing.T) {
@@ -83,9 +78,7 @@ func TestStringVariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.StringVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.JSONValue.StringValue())
-	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
+	assert.Equal(t, newEvaluationError(ldvalue.String(defaultVal), ldreason.EvalErrorClientNotReady), detail)
 }
 
 func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
@@ -100,9 +93,7 @@ func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
 	value, detail, err := client.JSONVariationDetail("featureKey", evalTestUser, defaultVal)
 	assert.NoError(t, err)
 	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, defaultVal, detail.JSONValue)
-	assert.Nil(t, detail.VariationIndex)
-	assert.Equal(t, newEvalReasonError(EvalErrorClientNotReady), detail.Reason)
+	assert.Equal(t, newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), detail)
 }
 
 func TestAllFlagsStateReturnsEmptyStateOffline(t *testing.T) {
