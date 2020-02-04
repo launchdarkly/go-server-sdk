@@ -123,6 +123,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
+	config.Loggers.Init()
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
 	if config.DataStore == nil {
