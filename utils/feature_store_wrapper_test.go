@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
@@ -43,7 +44,7 @@ func (m testCacheMode) ttl() time.Duration {
 // Test implementation of DataStoreCore
 type mockCore struct {
 	cacheTTL         time.Duration
-	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
+	data             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
 	fakeError        error
 	inited           bool
 	initQueriedCount int
@@ -57,7 +58,7 @@ type mockNonAtomicCore struct {
 // Test implementation of DataStoreCore for request-coalescing tests
 type mockCoreWithInstrumentedQueries struct {
 	cacheTTL       time.Duration
-	data           map[ld.VersionedDataKind]map[string]ld.VersionedData
+	data           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
 	inited         bool
 	queryCount     int
 	queryDelay     time.Duration
@@ -67,24 +68,24 @@ type mockCoreWithInstrumentedQueries struct {
 func newCore(ttl time.Duration) *mockCore {
 	return &mockCore{
 		cacheTTL: ttl,
-		data:     map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
+		data:     map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}, ld.Segments: {}},
 	}
 }
 
 func newCoreWithInstrumentedQueries(ttl time.Duration) *mockCoreWithInstrumentedQueries {
 	return &mockCoreWithInstrumentedQueries{
 		cacheTTL:       ttl,
-		data:           map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
+		data:           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}, ld.Segments: {}},
 		queryDelay:     200 * time.Millisecond,
 		queryStartedCh: make(chan struct{}, 2),
 	}
 }
 
-func (c *mockCore) forceSet(kind ld.VersionedDataKind, item ld.VersionedData) {
+func (c *mockCore) forceSet(kind interfaces.VersionedDataKind, item interfaces.VersionedData) {
 	c.data[kind][item.GetKey()] = item
 }
 
-func (c *mockCore) forceRemove(kind ld.VersionedDataKind, key string) {
+func (c *mockCore) forceRemove(kind interfaces.VersionedDataKind, key string) {
 	delete(c.data[kind], key)
 }
 
@@ -92,7 +93,7 @@ func (c *mockCore) GetCacheTTL() time.Duration {
 	return c.cacheTTL
 }
 
-func (c *mockCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (c *mockCore) InitInternal(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	if c.fakeError != nil {
 		return c.fakeError
 	}
@@ -101,21 +102,21 @@ func (c *mockCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.V
 	return nil
 }
 
-func (c *mockCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (c *mockCore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
 	return c.data[kind][key], nil
 }
 
-func (c *mockCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (c *mockCore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
 	return c.data[kind], nil
 }
 
-func (c *mockCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+func (c *mockCore) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
@@ -141,15 +142,15 @@ func (c *mockNonAtomicCore) InitCollectionsInternal(allData []StoreCollection) e
 	return nil
 }
 
-func (c *mockNonAtomicCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (c *mockNonAtomicCore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	return nil, nil // not used in tests
 }
 
-func (c *mockNonAtomicCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (c *mockNonAtomicCore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	return nil, nil // not used in tests
 }
 
-func (c *mockNonAtomicCore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+func (c *mockNonAtomicCore) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
 	return nil, nil // not used in tests
 }
 
@@ -157,7 +158,7 @@ func (c *mockNonAtomicCore) InitializedInternal() bool {
 	return false // not used in tests
 }
 
-func (c *mockCoreWithInstrumentedQueries) forceSet(kind ld.VersionedDataKind, item ld.VersionedData) {
+func (c *mockCoreWithInstrumentedQueries) forceSet(kind interfaces.VersionedDataKind, item interfaces.VersionedData) {
 	c.data[kind][item.GetKey()] = item
 }
 
@@ -165,25 +166,25 @@ func (c *mockCoreWithInstrumentedQueries) GetCacheTTL() time.Duration {
 	return c.cacheTTL
 }
 
-func (c *mockCoreWithInstrumentedQueries) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (c *mockCoreWithInstrumentedQueries) InitInternal(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	c.data = allData
 	c.inited = true
 	return nil
 }
 
-func (c *mockCoreWithInstrumentedQueries) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (c *mockCoreWithInstrumentedQueries) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	c.queryStartedCh <- struct{}{}
 	<-time.After(c.queryDelay)
 	return c.data[kind][key], nil
 }
 
-func (c *mockCoreWithInstrumentedQueries) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (c *mockCoreWithInstrumentedQueries) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	c.queryStartedCh <- struct{}{}
 	<-time.After(c.queryDelay)
 	return c.data[kind], nil
 }
 
-func (c *mockCoreWithInstrumentedQueries) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+func (c *mockCoreWithInstrumentedQueries) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
 	oldItem := c.data[kind][item.GetKey()]
 	if oldItem != nil && oldItem.GetVersion() >= item.GetVersion() {
 		return oldItem, nil
@@ -284,7 +285,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
 		err := w.Init(allData)
@@ -326,7 +327,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag1 := ldeval.FeatureFlag{Key: "flag1", Version: 1}
 		flag2 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
 
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flag1.Key: &flag1, flag2.Key: &flag2},
 		}
 		err := w.Init(allData)
@@ -348,7 +349,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag2 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
 		flag2v2 := ldeval.FeatureFlag{Key: "flag2", Version: 2}
 
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flag1.Key: &flag1, flag2.Key: &flag2},
 		}
 		err := w.Init(allData)
@@ -476,7 +477,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		assert.False(t, w.Initialized())
 		assert.Equal(t, 1, core.initQueriedCount)
 
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}}
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}}
 		err := w.Init(allData)
 		require.NoError(t, err)
 
@@ -594,7 +595,7 @@ func TestDataStoreWrapper(t *testing.T) {
 
 		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
 		err := w.Init(allData)
@@ -618,7 +619,7 @@ func TestDataStoreWrapper(t *testing.T) {
 
 		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
 		flagv2 := ldeval.FeatureFlag{Key: "flag", Version: 2}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
 		err := w.Init(allData)
@@ -641,7 +642,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		defer w.Close()
 
 		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
 		core.fakeError = errors.New("sorry")
@@ -651,7 +652,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		core.fakeError = nil
 		data, err := w.All(ld.Features)
 		require.NoError(t, err)
-		require.Equal(t, map[string]ld.VersionedData{}, data)
+		require.Equal(t, map[string]interfaces.VersionedData{}, data)
 	})
 
 	t.Run("Cached store with infinite TTL will update cache even if core init fails", func(t *testing.T) {
@@ -660,7 +661,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		defer w.Close()
 
 		flagv1 := ldeval.FeatureFlag{Key: "flag", Version: 1}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flagv1.Key: &flagv1},
 		}
 		core.fakeError = errors.New("sorry")
@@ -682,7 +683,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag1v2 := ldeval.FeatureFlag{Key: "flag1", Version: 2}
 		flag2v1 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
 		flag2v2 := ldeval.FeatureFlag{Key: "flag2", Version: 2}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
 		}
 		err := w.Init(allData)
@@ -715,7 +716,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag1v2 := ldeval.FeatureFlag{Key: "flag1", Version: 2}
 		flag2v1 := ldeval.FeatureFlag{Key: "flag2", Version: 1}
 		flag2v2 := ldeval.FeatureFlag{Key: "flag2", Version: 2}
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
 		}
 		err := w.Init(allData)
@@ -781,7 +782,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 }
 
-var dependencyOrderingTestData = map[ld.VersionedDataKind]map[string]ld.VersionedData{
+var dependencyOrderingTestData = map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 	ld.Features: {
 		"a": parseFlag(`{"key":"a","prerequisites":[{"key":"b"},{"key":"c"}]}`),
 		"b": parseFlag(`{"key":"b","prerequisites":[{"key":"c"},{"key":"e"}]}`),

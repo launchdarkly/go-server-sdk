@@ -74,6 +74,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -261,7 +262,7 @@ func NewDynamoDBDataStoreFactory(table string, options ...DataStoreOption) (ld.D
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (ld.DataStore, error) {
+	return func(ldConfig ld.Config) (interfaces.DataStore, error) {
 		store, err := newDynamoDBDataStoreInternal(configuredOptions, ldConfig)
 		if err != nil {
 			return nil, err
@@ -383,7 +384,7 @@ func (store *dynamoDBDataStore) InitializedInternal() bool {
 	return err == nil && len(result.Item) != 0
 }
 
-func (store *dynamoDBDataStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *dynamoDBDataStore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	var items []map[string]*dynamodb.AttributeValue
 
 	err := store.client.QueryPages(store.makeQueryForKind(kind),
@@ -395,7 +396,7 @@ func (store *dynamoDBDataStore) GetAllInternal(kind ld.VersionedDataKind) (map[s
 		return nil, err
 	}
 
-	results := make(map[string]ld.VersionedData)
+	results := make(map[string]interfaces.VersionedData)
 
 	for _, i := range items {
 		item, err := unmarshalItem(kind, i)
@@ -408,7 +409,7 @@ func (store *dynamoDBDataStore) GetAllInternal(kind ld.VersionedDataKind) (map[s
 	return results, nil
 }
 
-func (store *dynamoDBDataStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *dynamoDBDataStore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.options.table),
 		ConsistentRead: aws.Bool(true),
@@ -434,7 +435,7 @@ func (store *dynamoDBDataStore) GetInternal(kind ld.VersionedDataKind, key strin
 	return item, nil
 }
 
-func (store *dynamoDBDataStore) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+func (store *dynamoDBDataStore) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
 	av, err := store.marshalItem(kind, item)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, item.GetKey(), err)
@@ -502,7 +503,7 @@ func (store *dynamoDBDataStore) prefixedNamespace(baseNamespace string) string {
 	return store.options.prefix + ":" + baseNamespace
 }
 
-func (store *dynamoDBDataStore) namespaceForKind(kind ld.VersionedDataKind) string {
+func (store *dynamoDBDataStore) namespaceForKind(kind interfaces.VersionedDataKind) string {
 	return store.prefixedNamespace(kind.GetNamespace())
 }
 
@@ -510,7 +511,7 @@ func (store *dynamoDBDataStore) initedKey() string {
 	return store.prefixedNamespace("$inited")
 }
 
-func (store *dynamoDBDataStore) makeQueryForKind(kind ld.VersionedDataKind) *dynamodb.QueryInput {
+func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.VersionedDataKind) *dynamodb.QueryInput {
 	return &dynamodb.QueryInput{
 		TableName:      aws.String(store.options.table),
 		ConsistentRead: aws.Bool(true),
@@ -568,7 +569,7 @@ func batchWriteRequests(client dynamodbiface.DynamoDBAPI, table string, requests
 	return nil
 }
 
-func (store *dynamoDBDataStore) marshalItem(kind ld.VersionedDataKind, item ld.VersionedData) (map[string]*dynamodb.AttributeValue, error) {
+func (store *dynamoDBDataStore) marshalItem(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (map[string]*dynamodb.AttributeValue, error) {
 	jsonItem, err := json.Marshal(item)
 	if err != nil {
 		return nil, err
@@ -581,7 +582,7 @@ func (store *dynamoDBDataStore) marshalItem(kind ld.VersionedDataKind, item ld.V
 	}, nil
 }
 
-func unmarshalItem(kind ld.VersionedDataKind, item map[string]*dynamodb.AttributeValue) (ld.VersionedData, error) {
+func unmarshalItem(kind interfaces.VersionedDataKind, item map[string]*dynamodb.AttributeValue) (interfaces.VersionedData, error) {
 	if itemAttr := item[itemJSONAttribute]; itemAttr != nil && itemAttr.S != nil {
 		data, err := utils.UnmarshalItem(kind, []byte(*itemAttr.S))
 		return data, err

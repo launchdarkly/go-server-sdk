@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ func makeTempFile(t *testing.T, initialText string) string {
 	return f.Name()
 }
 
-func makeDataStore() ld.DataStore {
+func makeDataStore() interfaces.DataStore {
 	store, _ := ld.NewInMemoryDataStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
 	return store
 }

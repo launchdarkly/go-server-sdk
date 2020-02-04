@@ -3,7 +3,7 @@ package ldtest
 import (
 	"fmt"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 // MockDataItem is a test implementation of ld.VersionedData.
@@ -45,7 +45,7 @@ func (sk mockDataKind) GetDefaultItem() interface{} {
 	return &MockDataItem{}
 }
 
-func (sk mockDataKind) MakeDeletedItem(key string, version int) ld.VersionedData {
+func (sk mockDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
 	return &MockDataItem{Key: key, Version: version, Deleted: true}
 }
 
@@ -88,14 +88,14 @@ func (sk mockOtherDataKind) GetDefaultItem() interface{} {
 	return &MockOtherDataItem{}
 }
 
-func (sk mockOtherDataKind) MakeDeletedItem(key string, version int) ld.VersionedData {
+func (sk mockOtherDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
 	return &MockOtherDataItem{Key: key, Version: version, Deleted: true}
 }
 
-func makeMockDataMap(items ...ld.VersionedData) map[ld.VersionedDataKind]map[string]ld.VersionedData {
-	allData := make(map[ld.VersionedDataKind]map[string]ld.VersionedData)
+func makeMockDataMap(items ...interfaces.VersionedData) map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData {
+	allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData)
 	for _, item := range items {
-		var kind ld.VersionedDataKind
+		var kind interfaces.VersionedDataKind
 		if _, ok := item.(*MockDataItem); ok {
 			kind = MockData
 		} else if _, ok := item.(*MockOtherDataItem); ok {
@@ -105,7 +105,7 @@ func makeMockDataMap(items ...ld.VersionedData) map[ld.VersionedDataKind]map[str
 		}
 		items, ok := allData[kind]
 		if !ok {
-			items = make(map[string]ld.VersionedData)
+			items = make(map[string]interfaces.VersionedData)
 			allData[kind] = items
 		}
 		items[item.GetKey()] = item

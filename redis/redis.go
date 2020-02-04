@@ -41,6 +41,7 @@ import (
 	r "github.com/garyburd/redigo/redis"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -272,7 +273,7 @@ func NewRedisDataStoreFactory(options ...DataStoreOption) (ld.DataStoreFactory, 
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (ld.DataStore, error) {
+	return func(ldConfig ld.Config) (interfaces.DataStore, error) {
 		core := newRedisDataStoreInternal(configuredOptions, ldConfig)
 		return utils.NewDataStoreWrapperWithConfig(core, ldConfig), nil
 	}, nil
@@ -310,27 +311,27 @@ func newRedisDataStoreInternal(configuredOptions redisDataStoreOptions, ldConfig
 }
 
 // Get returns an individual object of a given type from the store
-func (store *RedisDataStore) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *RedisDataStore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	return store.wrapper.Get(kind, key)
 }
 
 // All returns all the objects of a given kind from the store
-func (store *RedisDataStore) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (store *RedisDataStore) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	return store.wrapper.All(kind)
 }
 
 // Init populates the store with a complete set of versioned data
-func (store *RedisDataStore) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *RedisDataStore) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	return store.wrapper.Init(allData)
 }
 
 // Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
-func (store *RedisDataStore) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (store *RedisDataStore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
 	return store.wrapper.Upsert(kind, item)
 }
 
 // Delete removes an item of a given kind from the store
-func (store *RedisDataStore) Delete(kind ld.VersionedDataKind, key string, version int) error {
+func (store *RedisDataStore) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	return store.wrapper.Delete(kind, key, version)
 }
 
@@ -346,7 +347,7 @@ func (store *redisDataStoreCore) GetCacheTTL() time.Duration {
 	return store.options.cacheTTL
 }
 
-func (store *redisDataStoreCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *redisDataStoreCore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -367,8 +368,8 @@ func (store *redisDataStoreCore) GetInternal(kind ld.VersionedDataKind, key stri
 	return item, nil
 }
 
-func (store *redisDataStoreCore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
-	results := make(map[string]ld.VersionedData)
+func (store *redisDataStoreCore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+	results := make(map[string]interfaces.VersionedData)
 
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
@@ -392,7 +393,7 @@ func (store *redisDataStoreCore) GetAllInternal(kind ld.VersionedDataKind) (map[
 }
 
 // Init populates the store with a complete set of versioned data
-func (store *redisDataStoreCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (store *redisDataStoreCore) InitInternal(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -421,7 +422,7 @@ func (store *redisDataStoreCore) InitInternal(allData map[ld.VersionedDataKind]m
 	return err
 }
 
-func (store *redisDataStoreCore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
+func (store *redisDataStoreCore) UpsertInternal(kind interfaces.VersionedDataKind, newItem interfaces.VersionedData) (interfaces.VersionedData, error) {
 	baseKey := store.featuresKey(kind)
 	key := newItem.GetKey()
 	for {
@@ -498,7 +499,7 @@ func (store *redisDataStoreCore) GetDiagnosticsComponentTypeName() string {
 	return "Redis"
 }
 
-func (store *redisDataStoreCore) featuresKey(kind ld.VersionedDataKind) string {
+func (store *redisDataStoreCore) featuresKey(kind interfaces.VersionedDataKind) string {
 	return store.options.prefix + ":" + kind.GetNamespace()
 }
 

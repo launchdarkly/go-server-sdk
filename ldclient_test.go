@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
@@ -37,8 +38,8 @@ func (u mockDataSource) Start(closeWhenReady chan<- struct{}) {
 	u.StartFn(closeWhenReady)
 }
 
-func dataSourceFactory(u DataSource) func(string, Config) (DataSource, error) {
-	return func(key string, c Config) (DataSource, error) {
+func dataSourceFactory(u interfaces.DataSource) func(string, Config) (interfaces.DataSource, error) {
+	return func(key string, c Config) (interfaces.DataSource, error) {
 		return u, nil
 	}
 }

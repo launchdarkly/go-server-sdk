@@ -9,6 +9,7 @@ import (
 
 	r "github.com/garyburd/redigo/redis"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	ldtest "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -38,7 +39,7 @@ func TestRedisDataStoreConcurrentModification(t *testing.T) {
 	opts, err := validateOptions()
 	require.NoError(t, err)
 	var core1 *redisDataStoreCore
-	factory1 := func(config ld.Config) (ld.DataStore, error) {
+	factory1 := func(config ld.Config) (interfaces.DataStore, error) {
 		core1 = newRedisDataStoreInternal(opts, config) // use the internal object so we can set testTxHook
 		return utils.NewDataStoreWrapperWithConfig(core1, config), nil
 	}

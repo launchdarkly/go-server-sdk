@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 func TestDiagnosticIDHasRandomID(t *testing.T) {
@@ -134,23 +135,23 @@ func (c customStoreForDiagnostics) GetDiagnosticsComponentTypeName() string {
 	return c.name
 }
 
-func (c customStoreForDiagnostics) Get(kind VersionedDataKind, key string) (VersionedData, error) {
+func (c customStoreForDiagnostics) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	return nil, nil
 }
 
-func (c customStoreForDiagnostics) All(kind VersionedDataKind) (map[string]VersionedData, error) {
+func (c customStoreForDiagnostics) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	return nil, nil
 }
 
-func (c customStoreForDiagnostics) Init(data map[VersionedDataKind]map[string]VersionedData) error {
+func (c customStoreForDiagnostics) Init(data map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	return nil
 }
 
-func (c customStoreForDiagnostics) Delete(kind VersionedDataKind, key string, version int) error {
+func (c customStoreForDiagnostics) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	return nil
 }
 
-func (c customStoreForDiagnostics) Upsert(kind VersionedDataKind, item VersionedData) error {
+func (c customStoreForDiagnostics) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
 	return nil
 }
 

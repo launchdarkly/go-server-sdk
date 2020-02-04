@@ -29,6 +29,7 @@ import (
 
 	c "github.com/hashicorp/consul/api"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -191,7 +192,7 @@ func NewConsulDataStoreFactory(options ...DataStoreOption) (ld.DataStoreFactory,
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (ld.DataStore, error) {
+	return func(ldConfig ld.Config) (interfaces.DataStore, error) {
 		store, err := newConsulDataStoreInternal(configuredOptions, ldConfig)
 		if err != nil {
 			return nil, err
@@ -240,13 +241,13 @@ func (store *dataStore) GetCacheTTL() time.Duration {
 	return store.options.cacheTTL
 }
 
-func (store *dataStore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (store *dataStore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	item, _, err := store.getEvenIfDeleted(kind, key)
 	return item, err
 }
 
-func (store *dataStore) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
-	results := make(map[string]ld.VersionedData)
+func (store *dataStore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+	results := make(map[string]interfaces.VersionedData)
 
 	kv := store.client.KV()
 	pairs, _, err := kv.List(store.featuresKey(kind), nil)
@@ -315,7 +316,7 @@ func (store *dataStore) InitCollectionsInternal(allData []utils.StoreCollection)
 	return batchOperations(kv, ops)
 }
 
-func (store *dataStore) UpsertInternal(kind ld.VersionedDataKind, newItem ld.VersionedData) (ld.VersionedData, error) {
+func (store *dataStore) UpsertInternal(kind interfaces.VersionedDataKind, newItem interfaces.VersionedData) (interfaces.VersionedData, error) {
 	data, jsonErr := json.Marshal(newItem)
 	if jsonErr != nil {
 		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, newItem.GetKey(), jsonErr)
@@ -385,7 +386,7 @@ func (store *dataStore) GetDiagnosticsComponentTypeName() string {
 	return "Consul"
 }
 
-func (store *dataStore) getEvenIfDeleted(kind ld.VersionedDataKind, key string) (retrievedItem ld.VersionedData,
+func (store *dataStore) getEvenIfDeleted(kind interfaces.VersionedDataKind, key string) (retrievedItem interfaces.VersionedData,
 	modifyIndex uint64, err error) {
 	var defaultModifyIndex = uint64(0)
 
@@ -429,11 +430,11 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 	return nil
 }
 
-func (store *dataStore) featuresKey(kind ld.VersionedDataKind) string {
+func (store *dataStore) featuresKey(kind interfaces.VersionedDataKind) string {
 	return store.options.prefix + "/" + kind.GetNamespace()
 }
 
-func (store *dataStore) featureKeyFor(kind ld.VersionedDataKind, k string) string {
+func (store *dataStore) featureKeyFor(kind interfaces.VersionedDataKind, k string) string {
 	return store.options.prefix + "/" + kind.GetNamespace() + "/" + k
 }
 

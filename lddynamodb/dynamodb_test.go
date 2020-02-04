@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -46,7 +47,7 @@ func TestDynamoDBDataStorePrefixes(t *testing.T) {
 
 func TestDynamoDBDataStoreConcurrentModification(t *testing.T) {
 	var store1Internal *dynamoDBDataStore
-	factory1 := func(config ld.Config) (ld.DataStore, error) {
+	factory1 := func(config ld.Config) (interfaces.DataStore, error) {
 		opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
 		store1Internal, _ = newDynamoDBDataStoreInternal(opts, config)
 		return utils.NewNonAtomicDataStoreWrapper(store1Internal), nil
