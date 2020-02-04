@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 // Test implementation of DataStoreCore with DataStoreCoreStatus.
 type mockCoreWithStatus struct {
 	cacheTTL         time.Duration
-	data             map[ld.VersionedDataKind]map[string]ld.VersionedData
+	data             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
 	fakeError        error
 	fakeAvailability bool
 	inited           bool
@@ -27,16 +28,16 @@ type mockCoreWithStatus struct {
 func newCoreWithStatus(ttl time.Duration) *mockCoreWithStatus {
 	return &mockCoreWithStatus{
 		cacheTTL:         ttl,
-		data:             map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: {}, ld.Segments: {}},
+		data:             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}, ld.Segments: {}},
 		fakeAvailability: true,
 	}
 }
 
-func (c *mockCoreWithStatus) forceSet(kind ld.VersionedDataKind, item ld.VersionedData) {
+func (c *mockCoreWithStatus) forceSet(kind interfaces.VersionedDataKind, item interfaces.VersionedData) {
 	c.data[kind][item.GetKey()] = item
 }
 
-func (c *mockCoreWithStatus) forceRemove(kind ld.VersionedDataKind, key string) {
+func (c *mockCoreWithStatus) forceRemove(kind interfaces.VersionedDataKind, key string) {
 	delete(c.data[kind], key)
 }
 
@@ -44,7 +45,7 @@ func (c *mockCoreWithStatus) GetCacheTTL() time.Duration {
 	return c.cacheTTL
 }
 
-func (c *mockCoreWithStatus) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (c *mockCoreWithStatus) InitInternal(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	if c.fakeError != nil {
 		return c.fakeError
 	}
@@ -53,21 +54,21 @@ func (c *mockCoreWithStatus) InitInternal(allData map[ld.VersionedDataKind]map[s
 	return nil
 }
 
-func (c *mockCoreWithStatus) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (c *mockCoreWithStatus) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
 	return c.data[kind][key], nil
 }
 
-func (c *mockCoreWithStatus) GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (c *mockCoreWithStatus) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
 	return c.data[kind], nil
 }
 
-func (c *mockCoreWithStatus) UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error) {
+func (c *mockCoreWithStatus) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -42,7 +43,7 @@ type Config struct {
 	// Except for testing purposes, you should not set this property directly but instead use
 	// DataStoreFactory, which ensures that the DataStore component will use the same logging
 	// configuration as the rest of the SDK.
-	DataStore DataStore
+	DataStore interfaces.DataStore
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly. See NewInMemoryDataStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
 	DataStoreFactory DataStoreFactory
@@ -130,7 +131,7 @@ type Config struct {
 type HTTPClientFactory func(Config) http.Client
 
 // DataSourceFactory is a function that creates an DataSource.
-type DataSourceFactory func(sdkKey string, config Config) (DataSource, error)
+type DataSourceFactory func(sdkKey string, config Config) (interfaces.DataSource, error)
 
 // MinimumPollInterval describes the minimum value for Config.PollInterval. If you specify a smaller interval,
 // the minimum will be used instead.

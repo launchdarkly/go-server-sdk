@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -30,7 +31,7 @@ func TestConsulDataStorePrefixes(t *testing.T) {
 func TestConsulDataStoreConcurrentModification(t *testing.T) {
 	options, _ := validateOptions()
 	var store1Core *dataStore
-	factory1 := func(config ld.Config) (ld.DataStore, error) {
+	factory1 := func(config ld.Config) (interfaces.DataStore, error) {
 		store1Core, _ = newConsulDataStoreInternal(options, config) // we need the underlying implementation object so we can set testTxHook
 		return utils.NewNonAtomicDataStoreWrapper(store1Core), nil
 	}

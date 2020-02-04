@@ -6,6 +6,7 @@ package ldtest
 import (
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ import (
 //   common storage.
 // - isCached: True if the instances returned by makeStore have caching enabled.
 func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExistingData func() error, isCached bool) {
-	makeStore := func(t *testing.T) ld.DataStore {
+	makeStore := func(t *testing.T) interfaces.DataStore {
 		store, err := storeFactory(ld.Config{})
 		require.NoError(t, err)
 		return store
@@ -33,7 +34,7 @@ func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExis
 		}
 	}
 
-	initWithEmptyData := func(t *testing.T, store ld.DataStore) {
+	initWithEmptyData := func(t *testing.T, store interfaces.DataStore) {
 		err := store.Init(makeMockDataMap())
 		require.NoError(t, err)
 	}
@@ -59,10 +60,10 @@ func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExis
 
 		items, err := store.All(MockData)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]ld.VersionedData{item1.Key: item1, item2.Key: item2}, items)
+		assert.Equal(t, map[string]interfaces.VersionedData{item1.Key: item1, item2.Key: item2}, items)
 		otherItems, err := store.All(MockOtherData)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]ld.VersionedData{otherItem1.Key: otherItem1}, otherItems)
+		assert.Equal(t, map[string]interfaces.VersionedData{otherItem1.Key: otherItem1}, otherItems)
 
 		otherItem2 := &MockOtherDataItem{Key: "second", Version: 1}
 		allData = makeMockDataMap(item1, otherItem2)
@@ -70,10 +71,10 @@ func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExis
 
 		items, err = store.All(MockData)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]ld.VersionedData{item1.Key: item1}, items)
+		assert.Equal(t, map[string]interfaces.VersionedData{item1.Key: item1}, items)
 		otherItems, err = store.All(MockOtherData)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]ld.VersionedData{otherItem2.Key: otherItem2}, otherItems)
+		assert.Equal(t, map[string]interfaces.VersionedData{otherItem2.Key: otherItem2}, otherItems)
 	})
 
 	if !isCached && clearExistingData != nil {
@@ -135,7 +136,7 @@ func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExis
 		result, err = store.All(MockData)
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
-		assert.Equal(t, map[string]ld.VersionedData{item1.Key: item1, item2.Key: item2}, result)
+		assert.Equal(t, map[string]interfaces.VersionedData{item1.Key: item1, item2.Key: item2}, result)
 	})
 
 	t.Run("upsert with newer version", func(t *testing.T) {
@@ -244,7 +245,7 @@ func RunDataStorePrefixIndependenceTests(t *testing.T,
 	makeStoreWithPrefix func(string) (ld.DataStoreFactory, error),
 	clearExistingData func() error) {
 
-	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, ld.DataStore, ld.DataStore)) {
+	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, interfaces.DataStore, interfaces.DataStore)) {
 		err := clearExistingData()
 		require.NoError(t, err)
 		factory1, err := makeStoreWithPrefix("aaa")
@@ -260,7 +261,7 @@ func RunDataStorePrefixIndependenceTests(t *testing.T,
 		})
 	}
 
-	runWithPrefixes(t, "Init", func(t *testing.T, store1 ld.DataStore, store2 ld.DataStore) {
+	runWithPrefixes(t, "Init", func(t *testing.T, store1 interfaces.DataStore, store2 interfaces.DataStore) {
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
@@ -309,7 +310,7 @@ func RunDataStorePrefixIndependenceTests(t *testing.T,
 		assert.Equal(t, item2c, newItem2c)
 	})
 
-	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 ld.DataStore, store2 ld.DataStore) {
+	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 interfaces.DataStore, store2 interfaces.DataStore) {
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
@@ -389,7 +390,7 @@ func RunDataStoreConcurrentModificationTests(t *testing.T, factory1 ld.DataStore
 
 		assert.NoError(t, store1.Upsert(MockData, makeItemWithVersion(10)))
 
-		var result ld.VersionedData
+		var result interfaces.VersionedData
 		result, err := store1.Get(MockData, key)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -402,7 +403,7 @@ func RunDataStoreConcurrentModificationTests(t *testing.T, factory1 ld.DataStore
 
 		assert.NoError(t, store1.Upsert(MockData, makeItemWithVersion(2)))
 
-		var result ld.VersionedData
+		var result interfaces.VersionedData
 		result, err := store1.Get(MockData, key)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)

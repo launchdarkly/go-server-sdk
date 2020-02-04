@@ -3,10 +3,12 @@ package ldclient
 import (
 	"sync"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 type pollingProcessor struct {
-	store              DataStore
+	store              interfaces.DataStore
 	requestor          *requestor
 	config             Config
 	setInitializedOnce sync.Once

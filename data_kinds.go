@@ -1,30 +1,13 @@
 package ldclient
 
-import ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
-
-// VersionedData is a common interface for string-keyed, versioned objects such as feature flags.
-type VersionedData interface {
-	// GetKey returns the string key for this object.
-	GetKey() string
-	// GetVersion returns the version number for this object.
-	GetVersion() int
-	// IsDeleted returns whether or not this object has been deleted.
-	IsDeleted() bool
-}
-
-// VersionedDataKind describes a kind of VersionedData objects that may exist in a store.
-type VersionedDataKind interface {
-	// GetNamespace returns a short string that serves as the unique name for the collection of these objects, e.g. "features".
-	GetNamespace() string
-	// GetDefaultItem return a pointer to a newly created null value of this object type. This is used for JSON unmarshalling.
-	GetDefaultItem() interface{}
-	// MakeDeletedItem returns a value of this object type with the specified key and version, and Deleted=true.
-	MakeDeletedItem(key string, version int) VersionedData
-}
+import (
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+)
 
 // VersionedDataKinds is a list of supported VersionedDataKind's. Among other things, this list might
 // be used by data stores to know what data (namespaces) to expect.
-var VersionedDataKinds = [...]VersionedDataKind{
+var VersionedDataKinds = [...]interfaces.VersionedDataKind{
 	Features,
 	Segments,
 }
@@ -48,14 +31,14 @@ func (fk featureFlagVersionedDataKind) GetDefaultItem() interface{} {
 }
 
 // MakeDeletedItem returns representation of a deleted flag
-func (fk featureFlagVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
+func (fk featureFlagVersionedDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
 	return &ldeval.FeatureFlag{Key: key, Version: version, Deleted: true}
 }
 
 // Features is a convenience variable to access an instance of VersionedDataKind.
 //
 // Deprecated: this variable is for internal use and will be removed in a future version.
-var Features VersionedDataKind = featureFlagVersionedDataKind{}
+var Features interfaces.VersionedDataKind = featureFlagVersionedDataKind{}
 
 // segmentVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for segments.
 type segmentVersionedDataKind struct{}
@@ -76,11 +59,11 @@ func (sk segmentVersionedDataKind) GetDefaultItem() interface{} {
 }
 
 // MakeDeletedItem returns representation of a deleted segment
-func (sk segmentVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
+func (sk segmentVersionedDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
 	return &ldeval.Segment{Key: key, Version: version, Deleted: true}
 }
 
 // Segments is a convenience variable to access an instance of VersionedDataKind.
 //
 // Deprecated: this variable is for internal use and will be moved to another package in a future version.
-var Segments VersionedDataKind = segmentVersionedDataKind{}
+var Segments interfaces.VersionedDataKind = segmentVersionedDataKind{}

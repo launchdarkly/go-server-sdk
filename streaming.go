@@ -11,6 +11,7 @@ import (
 
 	es "github.com/launchdarkly/eventsource"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -24,7 +25,7 @@ const (
 )
 
 type streamProcessor struct {
-	store                      DataStore
+	store                      interfaces.DataStore
 	client                     *http.Client
 	requestor                  *requestor
 	config                     Config
@@ -73,7 +74,7 @@ func (sp *streamProcessor) Start(closeWhenReady chan<- struct{}) {
 
 type parsedPath struct {
 	key  string
-	kind VersionedDataKind
+	kind interfaces.VersionedDataKind
 }
 
 func parsePath(path string) (parsedPath, error) {
@@ -149,7 +150,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 					sp.config.Loggers.Errorf("Unable to process event %s: %s", event.Event(), err)
 					break
 				}
-				item := path.kind.GetDefaultItem().(VersionedData)
+				item := path.kind.GetDefaultItem().(interfaces.VersionedData)
 				if err = json.Unmarshal(patch.Data, item); err != nil {
 					sp.config.Loggers.Errorf("Unexpected error unmarshalling JSON for %s item: %+v", path.kind, err)
 					break

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gregjones/httpcache"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 // SDK endpoints
@@ -61,7 +62,7 @@ func (r *requestor) requestAll() (allData, bool, error) {
 	return data, cached, nil
 }
 
-func (r *requestor) requestResource(kind VersionedDataKind, key string) (VersionedData, error) {
+func (r *requestor) requestResource(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	var resource string
 	switch kind {
 	case segmentVersionedDataKind{}:
@@ -75,7 +76,7 @@ func (r *requestor) requestResource(kind VersionedDataKind, key string) (Version
 	if err != nil {
 		return nil, err
 	}
-	item := kind.GetDefaultItem().(VersionedData)
+	item := kind.GetDefaultItem().(interfaces.VersionedData)
 	err = json.Unmarshal(body, item)
 	if err != nil {
 		return nil, err

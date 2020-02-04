@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 
 	"github.com/launchdarkly/eventsource"
@@ -31,7 +32,7 @@ func (r *testRepo) Replay(channel, id string) chan eventsource.Event {
 	return c
 }
 
-func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(events chan<- eventsource.Event, store DataStore)) {
+func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(events chan<- eventsource.Event, store interfaces.DataStore)) {
 	esserver := eventsource.NewServer()
 	esserver.ReplayAll = true
 	esserver.Register("test", &testRepo{initialEvent: initialEvent})
@@ -91,13 +92,13 @@ func TestStreamProcessor(t *testing.T) {
 	}
 
 	t.Run("initial put", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
 			waitForVersion(t, store, Features, "my-flag", 2)
 		})
 	})
 
 	t.Run("patch flag", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
 			events <- &testEvent{
 				event: patchEvent,
 				data:  `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`,
@@ -108,7 +109,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("delete flag", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
 			events <- &testEvent{
 				event: deleteEvent,
 				data:  `{"path": "/flags/my-flag", "version": 4}`,
@@ -119,7 +120,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("patch segment", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
 			events <- &testEvent{
 				event: patchEvent,
 				data:  `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`,
@@ -130,7 +131,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("delete segment", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
 			events <- &testEvent{
 				event: deleteEvent,
 				data:  `{"path": "/segments/my-segment", "version": 8}`,
@@ -141,7 +142,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("indirect flag patch", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store DataStore) {
+		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
 			events <- &testEvent{
 				event: indirectPatchEvent,
 				data:  "/flags/my-flag",
@@ -153,8 +154,8 @@ func TestStreamProcessor(t *testing.T) {
 
 }
 
-func waitForVersion(t *testing.T, store DataStore, kind VersionedDataKind, key string, version int) VersionedData {
-	var item VersionedData
+func waitForVersion(t *testing.T, store interfaces.DataStore, kind interfaces.VersionedDataKind, key string, version int) interfaces.VersionedData {
+	var item interfaces.VersionedData
 	var err error
 	deadline := time.Now().Add(time.Second * 3)
 	for {
@@ -170,8 +171,8 @@ func waitForVersion(t *testing.T, store DataStore, kind VersionedDataKind, key s
 	return nil
 }
 
-func waitForDelete(t *testing.T, store DataStore, kind VersionedDataKind, key string) {
-	var item VersionedData
+func waitForDelete(t *testing.T, store interfaces.DataStore, kind interfaces.VersionedDataKind, key string) {
+	var item interfaces.VersionedData
 	var err error
 	deadline := time.Now().Add(time.Second * 3)
 	for {
@@ -366,7 +367,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	defer ts.Close()
 
 	store := &testDataStoreWithStatus{
-		inits: make(chan map[VersionedDataKind]map[string]VersionedData),
+		inits: make(chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
 	}
 	cfg := Config{
 		StreamUri: ts.URL,
@@ -403,28 +404,28 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 }
 
 type testDataStoreWithStatus struct {
-	inits     chan map[VersionedDataKind]map[string]VersionedData
+	inits     chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
 	statusSub *testStatusSubscription
 }
 
-func (t *testDataStoreWithStatus) Get(kind VersionedDataKind, key string) (VersionedData, error) {
+func (t *testDataStoreWithStatus) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	return nil, nil
 }
 
-func (t *testDataStoreWithStatus) All(kind VersionedDataKind) (map[string]VersionedData, error) {
+func (t *testDataStoreWithStatus) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	return nil, nil
 }
 
-func (t *testDataStoreWithStatus) Init(data map[VersionedDataKind]map[string]VersionedData) error {
+func (t *testDataStoreWithStatus) Init(data map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	t.inits <- data
 	return nil
 }
 
-func (t *testDataStoreWithStatus) Delete(kind VersionedDataKind, key string, version int) error {
+func (t *testDataStoreWithStatus) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	return nil
 }
 
-func (t *testDataStoreWithStatus) Upsert(kind VersionedDataKind, item VersionedData) error {
+func (t *testDataStoreWithStatus) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
 	return nil
 }
 

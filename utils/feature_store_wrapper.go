@@ -13,6 +13,7 @@ import (
 
 	cache "github.com/patrickmn/go-cache"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
@@ -26,108 +27,15 @@ type diagnosticsComponentDescriptor interface {
 
 // UnmarshalItem attempts to unmarshal an entity that has been stored as JSON in a
 // DataStore. The kind parameter indicates what type of entity is expected.
-func UnmarshalItem(kind ld.VersionedDataKind, raw []byte) (ld.VersionedData, error) {
+func UnmarshalItem(kind interfaces.VersionedDataKind, raw []byte) (interfaces.VersionedData, error) {
 	data := kind.GetDefaultItem()
 	if jsonErr := json.Unmarshal(raw, &data); jsonErr != nil {
 		return nil, jsonErr
 	}
-	if item, ok := data.(ld.VersionedData); ok {
+	if item, ok := data.(interfaces.VersionedData); ok {
 		return item, nil
 	}
 	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
-}
-
-// DataStoreCoreBase defines methods that are common to the DataStoreCore and
-// NonAtomicDataStoreCore interfaces.
-type DataStoreCoreBase interface {
-	// GetInternal queries a single item from the data store. The kind parameter distinguishes
-	// between different categories of data (flags, segments) and the key is the unique key
-	// within that category. If no such item exists, the method should return (nil, nil).
-	// It should not attempt to filter out any items based on their Deleted property, nor to
-	// cache any items.
-	GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error)
-	// GetAllInternal queries all items in a given category from the data store, returning
-	// a map of unique keys to items. It should not attempt to filter out any items based
-	// on their Deleted property, nor to cache any items.
-	GetAllInternal(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error)
-	// UpsertInternal adds or updates a single item. If an item with the same key already
-	// exists, it should update it only if the new item's GetVersion() value is greater
-	// than the old one. It should return the final state of the item, i.e. if the update
-	// succeeded then it returns the item that was passed in, and if the update failed due
-	// to the version check then it returns the item that is currently in the data store
-	// (this ensures that caching works correctly).
-	//
-	// Note that deletes are implemented by using UpsertInternal to store an item whose
-	// Deleted property is true.
-	UpsertInternal(kind ld.VersionedDataKind, item ld.VersionedData) (ld.VersionedData, error)
-	// InitializedInternal returns true if the data store contains a complete data set,
-	// meaning that InitInternal has been called at least once. In a shared data store, it
-	// should be able to detect this even if InitInternal was called in a different process,
-	// i.e. the test should be based on looking at what is in the data store. The method
-	// does not need to worry about caching this value; DataStoreWrapper will only call
-	// it when necessary.
-	InitializedInternal() bool
-	// GetCacheTTL returns the length of time that data should be retained in an in-memory
-	// cache. This cache is maintained by DataStoreWrapper. If GetCacheTTL returns zero,
-	// there will be no cache. If it returns a negative number, the cache never expires.
-	GetCacheTTL() time.Duration
-}
-
-// DataStoreCoreStatus is an optional interface that can be implemented by DataStoreCoreBase
-// implementations. It allows DataStoreWrapper to request a status check on the availability of
-// the underlying data store.
-type DataStoreCoreStatus interface {
-	// Tests whether the data store seems to be functioning normally. This should not be a detailed
-	// test of different kinds of operations, but just the smallest possible operation to determine
-	// whether (for instance) we can reach the database. DataStoreWrapper will call this method
-	// at intervals if the store has previously failed, until it returns true.
-	IsStoreAvailable() bool
-}
-
-// DataStoreCore is an interface for a simplified subset of the functionality of
-// ldclient.DataStore, to be used in conjunction with DataStoreWrapper. This allows
-// developers of custom DataStore implementations to avoid repeating logic that would
-// commonly be needed in any such implementation, such as caching. Instead, they can
-// implement only DataStoreCore and then call NewDataStoreWrapper.
-//
-// This interface assumes that the data store can update the data set atomically. If
-// not, use NonAtomicDataStoreCore instead. DataStoreCoreBase defines the common methods.
-type DataStoreCore interface {
-	DataStoreCoreBase
-	// InitInternal replaces the entire contents of the data store. This should be done
-	// atomically (i.e. within a transaction).
-	InitInternal(map[ld.VersionedDataKind]map[string]ld.VersionedData) error
-}
-
-// NonAtomicDataStoreCore is an interface for a limited subset of the functionality of
-// ldclient.DataStore, to be used in conjunction with DataStoreWrapper. This allows
-// developers of custom DataStore implementations to avoid repeating logic that would
-// commonly be needed in any such implementation, such as caching. Instead, they can
-// implement only DataStoreCore and then call NewDataStoreWrapper.
-//
-// This interface assumes that the data store cannot update the data set atomically and
-// will require the SDK to specify the order of operations. If atomic updates are possible,
-// then use DataStoreCore instead. DataStoreCoreBase defines the common methods.
-//
-// Note that this is somewhat different from the way the LaunchDarkly SDK addresses the
-// atomicity issue on most other platforms. There, the data stores just have one
-// interface, which always receives the data as a map, but the SDK can control the
-// iteration order of the map. That isn't possible in Go where maps never have a defined
-// iteration order.
-type NonAtomicDataStoreCore interface {
-	DataStoreCoreBase
-	// InitCollectionsInternal replaces the entire contents of the data store. The SDK will
-	// pass a data set with a defined ordering; the collections (kinds) should be processed in
-	// the specified order, and the items within each collection should be written in the
-	// specified order. The store should delete any obsolete items only after writing all of
-	// the items provided.
-	InitCollectionsInternal(allData []StoreCollection) error
-}
-
-// StoreCollection is used by the NonAtomicDataStoreCore interface.
-type StoreCollection struct {
-	Kind  ld.VersionedDataKind
-	Items []ld.VersionedData
 }
 
 // DataStoreWrapper is a partial implementation of ldclient.DataStore that delegates basic
@@ -138,10 +46,10 @@ type StoreCollection struct {
 // will make it possible for SDK components to react appropriately if the availability of the store
 // changes (e.g. if we lose a database connection, but then regain it).
 type DataStoreWrapper struct {
-	core          DataStoreCoreBase
-	coreAtomic    DataStoreCore
-	coreNonAtomic NonAtomicDataStoreCore
-	coreStatus    DataStoreCoreStatus
+	core          interfaces.DataStoreCoreBase
+	coreAtomic    interfaces.DataStoreCore
+	coreNonAtomic interfaces.NonAtomicDataStoreCore
+	coreStatus    interfaces.DataStoreCoreStatus
 	statusManager *internal.DataStoreStatusManager
 	cache         *cache.Cache
 	requests      singleflight.Group
@@ -155,7 +63,7 @@ const initCheckedKey = "$initChecked"
 // NewDataStoreWrapperWithConfig creates an instance of DataStoreWrapper that wraps an instance
 // of DataStoreCore. It takes a Config parameter so that it can use the same logging configuration
 // as the SDK.
-func NewDataStoreWrapperWithConfig(core DataStoreCore, config ld.Config) *DataStoreWrapper {
+func NewDataStoreWrapperWithConfig(core interfaces.DataStoreCore, config ld.Config) *DataStoreWrapper {
 	w := newBaseWrapper(core, config)
 	w.coreAtomic = core
 	return w
@@ -164,7 +72,7 @@ func NewDataStoreWrapperWithConfig(core DataStoreCore, config ld.Config) *DataSt
 // NewNonAtomicDataStoreWrapperWithConfig creates an instance of DataStoreWrapper that wraps an
 // instance of NonAtomicDataStoreCore. It takes a Config parameter so that it can use the same logging configuration
 // as the SDK.
-func NewNonAtomicDataStoreWrapperWithConfig(core NonAtomicDataStoreCore, config ld.Config) *DataStoreWrapper {
+func NewNonAtomicDataStoreWrapperWithConfig(core interfaces.NonAtomicDataStoreCore, config ld.Config) *DataStoreWrapper {
 	w := newBaseWrapper(core, config)
 	w.coreNonAtomic = core
 	return w
@@ -172,11 +80,11 @@ func NewNonAtomicDataStoreWrapperWithConfig(core NonAtomicDataStoreCore, config 
 
 // NewNonAtomicDataStoreWrapper creates an instance of DataStoreWrapper that wraps an
 // instance of NonAtomicDataStoreCore.
-func NewNonAtomicDataStoreWrapper(core NonAtomicDataStoreCore) *DataStoreWrapper {
+func NewNonAtomicDataStoreWrapper(core interfaces.NonAtomicDataStoreCore) *DataStoreWrapper {
 	return NewNonAtomicDataStoreWrapperWithConfig(core, ld.Config{})
 }
 
-func newBaseWrapper(core DataStoreCoreBase, config ld.Config) *DataStoreWrapper {
+func newBaseWrapper(core interfaces.DataStoreCoreBase, config ld.Config) *DataStoreWrapper {
 	cacheTTL := core.GetCacheTTL()
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
@@ -190,7 +98,7 @@ func newBaseWrapper(core DataStoreCoreBase, config ld.Config) *DataStoreWrapper 
 		cache:   myCache,
 		loggers: config.Loggers,
 	}
-	if cs, ok := core.(DataStoreCoreStatus); ok {
+	if cs, ok := core.(interfaces.DataStoreCoreStatus); ok {
 		w.coreStatus = cs
 	}
 	w.statusManager = internal.NewDataStoreStatusManager(
@@ -203,16 +111,16 @@ func newBaseWrapper(core DataStoreCoreBase, config ld.Config) *DataStoreWrapper 
 	return w
 }
 
-func dataStoreCacheKey(kind ld.VersionedDataKind, key string) string {
+func dataStoreCacheKey(kind interfaces.VersionedDataKind, key string) string {
 	return kind.GetNamespace() + ":" + key
 }
 
-func dataStoreAllItemsCacheKey(kind ld.VersionedDataKind) string {
+func dataStoreAllItemsCacheKey(kind interfaces.VersionedDataKind) string {
 	return "all:" + kind.GetNamespace()
 }
 
 // Init performs an update of the entire data store, with optional caching.
-func (w *DataStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (w *DataStoreWrapper) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	err := w.initCore(allData)
 	if w.cache != nil {
 		w.cache.Flush()
@@ -237,7 +145,7 @@ func (w *DataStoreWrapper) Init(allData map[ld.VersionedDataKind]map[string]ld.V
 	return err
 }
 
-func (w *DataStoreWrapper) initCore(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
+func (w *DataStoreWrapper) initCore(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	var err error
 	if w.coreNonAtomic != nil {
 		// If the store uses non-atomic initialization, we'll need to put the data in the proper update
@@ -251,11 +159,11 @@ func (w *DataStoreWrapper) initCore(allData map[ld.VersionedDataKind]map[string]
 	return err
 }
 
-func (w *DataStoreWrapper) filterAndCacheItems(kind ld.VersionedDataKind, items map[string]ld.VersionedData) map[string]ld.VersionedData {
+func (w *DataStoreWrapper) filterAndCacheItems(kind interfaces.VersionedDataKind, items map[string]interfaces.VersionedData) map[string]interfaces.VersionedData {
 	// We do some filtering here so that deleted items are not included in the full cached data set
 	// that's used by All. This is so that All doesn't have to do that filtering itself. However,
 	// since Get does know to filter out deleted items, we will still cache those individually,
-	filteredItems := make(map[string]ld.VersionedData, len(items))
+	filteredItems := make(map[string]interfaces.VersionedData, len(items))
 	for key, item := range items {
 		if !item.IsDeleted() {
 			filteredItems[key] = item
@@ -271,7 +179,7 @@ func (w *DataStoreWrapper) filterAndCacheItems(kind ld.VersionedDataKind, items 
 }
 
 // Get retrieves a single item by key, with optional caching.
-func (w *DataStoreWrapper) Get(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
+func (w *DataStoreWrapper) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	if w.cache == nil {
 		item, err := w.core.GetInternal(kind, key)
 		w.processError(err)
@@ -282,7 +190,7 @@ func (w *DataStoreWrapper) Get(kind ld.VersionedDataKind, key string) (ld.Versio
 		if data == nil { // If present is true but data is nil, we have cached the absence of an item
 			return nil, nil
 		}
-		if item, ok := data.(ld.VersionedData); ok {
+		if item, ok := data.(interfaces.VersionedData); ok {
 			return itemOnlyIfNotDeleted(item), nil
 		}
 	}
@@ -300,14 +208,14 @@ func (w *DataStoreWrapper) Get(kind ld.VersionedDataKind, key string) (ld.Versio
 	if err != nil || itemIntf == nil {
 		return nil, err
 	}
-	if item, ok := itemIntf.(ld.VersionedData); ok { // singleflight.Group.Do returns value as interface{}
+	if item, ok := itemIntf.(interfaces.VersionedData); ok { // singleflight.Group.Do returns value as interface{}
 		return item, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemIntf)
 	return nil, nil
 }
 
-func itemOnlyIfNotDeleted(item ld.VersionedData) ld.VersionedData {
+func itemOnlyIfNotDeleted(item interfaces.VersionedData) interfaces.VersionedData {
 	if item != nil && item.IsDeleted() {
 		return nil
 	}
@@ -315,7 +223,7 @@ func itemOnlyIfNotDeleted(item ld.VersionedData) ld.VersionedData {
 }
 
 // All retrieves all items of the specified kind, with optional caching.
-func (w *DataStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.VersionedData, error) {
+func (w *DataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	if w.cache == nil {
 		items, err := w.core.GetAllInternal(kind)
 		w.processError(err)
@@ -324,7 +232,7 @@ func (w *DataStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.Version
 	// Check whether we have a cache item for the entire data set
 	cacheKey := dataStoreAllItemsCacheKey(kind)
 	if data, present := w.cache.Get(cacheKey); present {
-		if items, ok := data.(map[string]ld.VersionedData); ok {
+		if items, ok := data.(map[string]interfaces.VersionedData); ok {
 			return items, nil
 		}
 	}
@@ -342,7 +250,7 @@ func (w *DataStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.Version
 	if err != nil {
 		return nil, err
 	}
-	if items, ok := itemsIntf.(map[string]ld.VersionedData); ok { // singleflight.Group.Do returns value as interface{}
+	if items, ok := itemsIntf.(map[string]interfaces.VersionedData); ok { // singleflight.Group.Do returns value as interface{}
 		return items, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemsIntf)
@@ -350,7 +258,7 @@ func (w *DataStoreWrapper) All(kind ld.VersionedDataKind) (map[string]ld.Version
 }
 
 // Upsert updates or adds an item, with optional caching.
-func (w *DataStoreWrapper) Upsert(kind ld.VersionedDataKind, item ld.VersionedData) error {
+func (w *DataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
 	finalItem, err := w.core.UpsertInternal(kind, item)
 	w.processError(err)
 	// Normally, if the underlying store failed to do the update, we do not want to update the cache -
@@ -374,11 +282,11 @@ func (w *DataStoreWrapper) Upsert(kind ld.VersionedDataKind, item ld.VersionedDa
 		allCacheKey := dataStoreAllItemsCacheKey(kind)
 		if w.hasCacheWithInfiniteTTL() {
 			if data, present := w.cache.Get(allCacheKey); present {
-				if items, ok := data.(map[string]ld.VersionedData); ok {
+				if items, ok := data.(map[string]interfaces.VersionedData); ok {
 					items[item.GetKey()] = item // updates the existing map since maps are passed by reference
 				}
 			} else {
-				items := map[string]ld.VersionedData{item.GetKey(): item}
+				items := map[string]interfaces.VersionedData{item.GetKey(): item}
 				w.cache.Set(allCacheKey, items, cache.DefaultExpiration)
 			}
 		} else {
@@ -389,7 +297,7 @@ func (w *DataStoreWrapper) Upsert(kind ld.VersionedDataKind, item ld.VersionedDa
 }
 
 // Delete deletes an item, with optional caching.
-func (w *DataStoreWrapper) Delete(kind ld.VersionedDataKind, key string, version int) error {
+func (w *DataStoreWrapper) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return w.Upsert(kind, deletedItem)
 }
@@ -476,11 +384,11 @@ func (w *DataStoreWrapper) pollAvailabilityAfterOutage() bool {
 		// If we're in infinite cache mode, then we can assume the cache has a full set of current
 		// flag data (since presumably the data source has still been running) and we can just
 		// write the contents of the cache to the underlying data store.
-		allData := make(map[ld.VersionedDataKind]map[string]ld.VersionedData, 2)
+		allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, 2)
 		for _, kind := range ld.VersionedDataKinds {
 			allCacheKey := dataStoreAllItemsCacheKey(kind)
 			if data, present := w.cache.Get(allCacheKey); present {
-				if items, ok := data.(map[string]ld.VersionedData); ok {
+				if items, ok := data.(map[string]interfaces.VersionedData); ok {
 					allData[kind] = items
 				}
 			}

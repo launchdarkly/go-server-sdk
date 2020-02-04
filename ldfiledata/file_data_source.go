@@ -15,6 +15,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldlog"
 )
 
@@ -87,7 +88,7 @@ func UseReloader(reloaderFactory ReloaderFactory) FileDataSourceOption {
 }
 
 type fileDataSource struct {
-	store           ld.DataStore
+	store           interfaces.DataStore
 	options         fileDataSourceOptions
 	loggers         ldlog.Loggers
 	isInitialized   bool
@@ -172,7 +173,7 @@ type fileDataSource struct {
 // If the data source encounters any error in any file-- malformed content, a missing file, or a
 // duplicate key-- it will not load flags from any of the files.
 func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.DataSourceFactory {
-	return func(sdkKey string, config ld.Config) (ld.DataSource, error) {
+	return func(sdkKey string, config ld.Config) (interfaces.DataSource, error) {
 		return newFileDataSource(config, options...)
 	}
 }
@@ -274,8 +275,8 @@ type fileData struct {
 	Segments   *map[string]ldeval.Segment //nolint:megacheck // allow deprecated usage
 }
 
-func insertData(all map[ld.VersionedDataKind]map[string]ld.VersionedData, kind ld.VersionedDataKind, key string,
-	data ld.VersionedData) error {
+func insertData(all map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, kind interfaces.VersionedDataKind, key string,
+	data interfaces.VersionedData) error {
 	if _, exists := all[kind][key]; exists {
 		return fmt.Errorf("%s '%s' is specified by multiple files", kind.GetNamespace(), key)
 	}
@@ -306,8 +307,8 @@ func detectJSON(rawData []byte) bool {
 	return strings.HasPrefix("{", strings.TrimLeftFunc(string(rawData), unicode.IsSpace))
 }
 
-func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string]ld.VersionedData, error) {
-	all := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, error) {
+	all := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
 		ld.Features: {}, //nolint:megacheck // allow deprecated usage
 		ld.Segments: {}, //nolint:megacheck // allow deprecated usage
 	}

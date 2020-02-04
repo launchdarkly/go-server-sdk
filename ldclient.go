@@ -20,6 +20,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 // Version is the client version.
@@ -32,8 +33,8 @@ type LDClient struct {
 	sdkKey         string
 	config         Config
 	eventProcessor EventProcessor
-	dataSource     DataSource
-	store          DataStore
+	dataSource     interfaces.DataSource
+	store          interfaces.DataStore
 	evaluator      ldeval.Evaluator
 }
 
@@ -41,13 +42,6 @@ type LDClient struct {
 type Logger interface {
 	Println(...interface{})
 	Printf(string, ...interface{})
-}
-
-// DataSource describes the interface for an object that receives feature flag data.
-type DataSource interface {
-	Initialized() bool
-	Close() error
-	Start(closeWhenReady chan<- struct{})
 }
 
 type nullDataSource struct{}
@@ -66,7 +60,7 @@ func (n nullDataSource) Start(closeWhenReady chan<- struct{}) {
 
 // Implementation of ldeval.DataProvider
 type clientEvaluatorDataProvider struct {
-	store DataStore
+	store interfaces.DataStore
 }
 
 func (c *clientEvaluatorDataProvider) GetFeatureFlag(key string) (ldeval.FeatureFlag, bool) {
@@ -204,8 +198,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 }
 
-func createDefaultDataSource(httpClient *http.Client) func(string, Config) (DataSource, error) {
-	return func(sdkKey string, config Config) (DataSource, error) {
+func createDefaultDataSource(httpClient *http.Client) func(string, Config) (interfaces.DataSource, error) {
+	return func(sdkKey string, config Config) (interfaces.DataSource, error) {
 		if config.Offline {
 			config.Loggers.Info("Started LaunchDarkly client in offline mode")
 			return nullDataSource{}, nil
