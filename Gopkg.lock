@@ -245,12 +245,12 @@
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]
-  branch = "eb/ch58944/initial"
+  branch = "v1"
   digest = "1:07cdbb104468fab60a14eaa7e36231ec700436b12b24653bcff4d45895b714fe"
   name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "1b7bc36a8ea04f985e092e03de6fb6c41129cf83"
+  revision = "7216fcfc90272bef335a43d18245ea3a45579bbd"
   source = "github.com/launchdarkly/go-server-sdk-evaluation-private"
 
 [[projects]]
@@ -271,7 +271,6 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface",
-    "github.com/blang/semver",
     "github.com/fsnotify/fsnotify",
     "github.com/garyburd/redigo/redis",
     "github.com/google/uuid",
