@@ -152,7 +152,7 @@ func (m *diagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, dur
 // Called by DefaultEventProcessor to create the initial diagnostics event that includes the configuration.
 func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 	sdkData := diagnosticSDKData{
-		Name:    "Go",
+		Name:    "go-server-sdk",
 		Version: Version,
 	}
 	// Notes on configData
