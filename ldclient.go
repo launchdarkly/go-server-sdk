@@ -21,6 +21,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
 
 // Version is the client version.
@@ -32,7 +33,7 @@ const Version = "5.0.0"
 type LDClient struct {
 	sdkKey         string
 	config         Config
-	eventProcessor EventProcessor
+	eventProcessor ldevents.EventProcessor
 	dataSource     interfaces.DataSource
 	store          interfaces.DataStore
 	evaluator      ldeval.Evaluator
@@ -86,12 +87,12 @@ func (c *clientEvaluatorDataProvider) GetSegment(key string) (ldeval.Segment, bo
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
 type clientEvaluatorEventSink struct {
 	user                *lduser.User
-	events              []FeatureRequestEvent
+	events              []ldevents.FeatureRequestEvent
 	sendReasonsInEvents bool
 }
 
 func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.PrerequisiteFlagEvent) {
-	event := newSuccessfulEvalEvent(&params.PrerequisiteFlag, *c.user, params.PrerequisiteResult.VariationIndex,
+	event := ldevents.NewSuccessfulEvalEvent(&params.PrerequisiteFlag, *c.user, params.PrerequisiteResult.VariationIndex,
 		params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, c.sendReasonsInEvents,
 		&params.TargetFlagKey)
 	c.events = append(c.events, event)
@@ -150,16 +151,15 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
-		id := newDiagnosticId(sdkKey)
-		config.diagnosticsManager = newDiagnosticsManager(id, config, waitFor, time.Now(), nil)
+		config.diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
 	}
 
 	if config.EventProcessor != nil {
 		client.eventProcessor = config.EventProcessor
 	} else if config.SendEvents && !config.Offline {
-		client.eventProcessor = NewDefaultEventProcessor(sdkKey, config, defaultHTTPClient)
+		client.eventProcessor = createDefaultEventProcessor(sdkKey, config, defaultHTTPClient, config.diagnosticsManager)
 	} else {
-		client.eventProcessor = newNullEventProcessor()
+		client.eventProcessor = ldevents.NewNullEventProcessor()
 	}
 
 	factory := config.DataSourceFactory
@@ -218,13 +218,37 @@ func createDefaultDataSource(httpClient *http.Client) func(string, Config) (inte
 	}
 }
 
+func createDefaultEventProcessor(sdkKey string, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {
+	headers := make(http.Header)
+	addBaseHeaders(headers, sdkKey, config)
+	eventsConfig := ldevents.EventsConfiguration{
+		AllAttributesPrivate:        config.AllAttributesPrivate,
+		Capacity:                    config.Capacity,
+		DiagnosticRecordingInterval: config.DiagnosticRecordingInterval,
+		DiagnosticURI:               "", // TODO
+		DiagnosticsManager:          diagnosticsManager,
+		EventsURI:                   "", // TODO
+		FlushInterval:               config.FlushInterval,
+		Headers:                     headers,
+		HTTPClient:                  client,
+		InlineUsersInEvents:         config.InlineUsersInEvents,
+		Loggers:                     config.Loggers,
+		LogUserKeyInErrors:          config.LogUserKeyInErrors,
+		PrivateAttributeNames:       config.PrivateAttributeNames,
+		SDKKey:                      sdkKey,
+		UserKeysCapacity:            config.UserKeysCapacity,
+		UserKeysFlushInterval:       config.UserKeysFlushInterval,
+	}
+	return ldevents.NewDefaultEventProcessor(eventsConfig)
+}
+
 // Identify reports details about a a user.
 func (client *LDClient) Identify(user lduser.User) error {
 	if user.GetKey() == "" {
 		client.config.Loggers.Warn("Identify called with empty user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := NewIdentifyEvent(user)
+	evt := ldevents.NewIdentifyEvent(user)
 	client.eventProcessor.SendEvent(evt)
 	return nil
 }
@@ -253,7 +277,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(newCustomEvent(eventName, user, data, false, 0))
+	client.eventProcessor.SendEvent(ldevents.NewCustomEvent(eventName, user, data, false, 0))
 	return nil
 }
 
@@ -272,7 +296,7 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(newCustomEvent(eventName, user, data, true, metricValue))
+	client.eventProcessor.SendEvent(ldevents.NewCustomEvent(eventName, user, data, true, metricValue))
 	return nil
 }
 
@@ -490,11 +514,11 @@ func (client *LDClient) variation(
 		}
 	}
 
-	var evt FeatureRequestEvent
+	var evt ldevents.FeatureRequestEvent
 	if flag == nil {
-		evt = newUnknownFlagEvent(key, user, defaultVal, result.Reason, sendReasonsInEvents) //nolint
+		evt = ldevents.NewUnknownFlagEvent(key, user, defaultVal, result.Reason, sendReasonsInEvents) //nolint
 	} else {
-		evt = newSuccessfulEvalEvent(flag, user, result.VariationIndex, result.Value, defaultVal,
+		evt = ldevents.NewSuccessfulEvalEvent(flag, user, result.VariationIndex, result.Value, defaultVal,
 			result.Reason, sendReasonsInEvents, nil)
 	}
 	client.eventProcessor.SendEvent(evt)

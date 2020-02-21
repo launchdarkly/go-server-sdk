@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
@@ -84,9 +84,8 @@ const (
 )
 
 type eventOutputFormatter struct {
-	userFilter  userFilter
-	inlineUsers bool
-	config      Config
+	userFilter userFilter
+	config     EventsConfiguration
 }
 
 func (ef eventOutputFormatter) makeOutputEvents(events []Event, summary eventSummary) []interface{} {
@@ -116,7 +115,7 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 			PrereqOf:     evt.PrereqOf,
 			Reason:       evt.Reason,
 		}
-		if ef.inlineUsers || evt.Debug {
+		if ef.config.InlineUsersInEvents || evt.Debug {
 			fe.User = ef.userFilter.scrubUser(evt.User)
 		} else {
 			key := evt.User.GetKey()
@@ -136,7 +135,7 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 			Data:         evt.Data,
 			MetricValue:  evt.MetricValue,
 		}
-		if ef.inlineUsers {
+		if ef.config.InlineUsersInEvents {
 			ce.User = ef.userFilter.scrubUser(evt.User)
 		} else {
 			key := evt.User.GetKey()

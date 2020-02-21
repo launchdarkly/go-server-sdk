@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
@@ -208,8 +210,8 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
-	id := newDiagnosticId("sdkKey")
-	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
+	id := ldevents.NewDiagnosticId("sdkKey")
+	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
 		Loggers:            ldlog.NewDisabledLoggers(),
@@ -260,8 +262,8 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
-	id := newDiagnosticId("sdkKey")
-	diagnosticsManager := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
+	id := ldevents.NewDiagnosticId("sdkKey")
+	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
 		Loggers:            ldlog.NewDisabledLoggers(),

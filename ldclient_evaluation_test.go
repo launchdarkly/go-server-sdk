@@ -10,6 +10,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
 
 var evalTestUser = lduser.NewUser("userkey")
@@ -56,9 +57,9 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag *ldeval.FeatureFlag, u
 	variation int, defaultVal ldvalue.Value, reason ldreason.EvaluationReason) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(FeatureRequestEvent)
-	expectedEvent := FeatureRequestEvent{
-		BaseEvent: BaseEvent{
+	e := events[0].(ldevents.FeatureRequestEvent)
+	expectedEvent := ldevents.FeatureRequestEvent{
+		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e.CreationDate,
 			User:         user,
 		},
@@ -420,7 +421,7 @@ func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 
-	e := events[0].(FeatureRequestEvent)
+	e := events[0].(ldevents.FeatureRequestEvent)
 	assert.True(t, e.TrackEvents)
 	assert.Equal(t, ldreason.NewEvalReasonRuleMatch(0, "rule-id"), e.Reason)
 }
@@ -457,7 +458,7 @@ func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *test
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 
-	e := events[0].(FeatureRequestEvent)
+	e := events[0].(ldevents.FeatureRequestEvent)
 	assert.False(t, e.TrackEvents)
 	assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 }
@@ -483,7 +484,7 @@ func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 
-	e := events[0].(FeatureRequestEvent)
+	e := events[0].(ldevents.FeatureRequestEvent)
 	assert.True(t, e.TrackEvents)
 	assert.Equal(t, ldreason.NewEvalReasonFallthrough(), e.Reason)
 }
@@ -508,7 +509,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testi
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 
-	e := events[0].(FeatureRequestEvent)
+	e := events[0].(ldevents.FeatureRequestEvent)
 	assert.False(t, e.TrackEvents)
 	assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 }
@@ -535,7 +536,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 
-	e := events[0].(FeatureRequestEvent)
+	e := events[0].(ldevents.FeatureRequestEvent)
 	assert.False(t, e.TrackEvents)
 	assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 }
@@ -550,9 +551,9 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
 
-	e := events[0].(FeatureRequestEvent)
-	expectedEvent := FeatureRequestEvent{
-		BaseEvent: BaseEvent{
+	e := events[0].(ldevents.FeatureRequestEvent)
+	expectedEvent := ldevents.FeatureRequestEvent{
+		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e.CreationDate,
 			User:         evalTestUser,
 		},
@@ -585,9 +586,9 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 2, len(events))
 
-	e0 := events[0].(FeatureRequestEvent)
-	expected0 := FeatureRequestEvent{
-		BaseEvent: BaseEvent{
+	e0 := events[0].(ldevents.FeatureRequestEvent)
+	expected0 := ldevents.FeatureRequestEvent{
+		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e0.CreationDate,
 			User:         user,
 		},
@@ -600,9 +601,9 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	}
 	assert.Equal(t, expected0, e0)
 
-	e1 := events[1].(FeatureRequestEvent)
-	expected1 := FeatureRequestEvent{
-		BaseEvent: BaseEvent{
+	e1 := events[1].(ldevents.FeatureRequestEvent)
+	expected1 := ldevents.FeatureRequestEvent{
+		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e1.CreationDate,
 			User:         user,
 		},

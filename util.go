@@ -3,6 +3,7 @@ package ldclient
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -55,15 +56,15 @@ func makeAllVersionedDataMap(
 	return allData
 }
 
-func addBaseHeaders(req *http.Request, sdkKey string, config Config) {
-	req.Header.Add("Authorization", sdkKey)
-	req.Header.Add("User-Agent", config.UserAgent)
+func addBaseHeaders(h http.Header, sdkKey string, config Config) {
+	h.Add("Authorization", sdkKey)
+	h.Add("User-Agent", config.UserAgent)
 	if config.WrapperName != "" {
 		w := config.WrapperName
 		if config.WrapperVersion != "" {
 			w = w + "/" + config.WrapperVersion
 		}
-		req.Header.Add("X-LaunchDarkly-Wrapper", w)
+		h.Add("X-LaunchDarkly-Wrapper", w)
 	}
 }
 
@@ -103,4 +104,14 @@ func describeUserForErrorLog(key string, logUserKeyInErrors bool) string {
 		return fmt.Sprintf("user '%s'", key)
 	}
 	return "a user (enable LogUserKeyInErrors to see the user key)"
+}
+
+func now() uint64 {
+	return toUnixMillis(time.Now())
+}
+
+func toUnixMillis(t time.Time) uint64 {
+	ms := time.Duration(t.UnixNano()) / time.Millisecond
+
+	return uint64(ms)
 }

@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"sort"
@@ -52,7 +52,7 @@ func getAllPrivatableAttributeNames() []string {
 
 func TestScrubUserWithNoFiltering(t *testing.T) {
 	t.Run("user with no attributes", func(t *testing.T) {
-		filter := newUserFilter(DefaultConfig)
+		filter := newUserFilter(epDefaultConfig)
 		u := lduser.NewUser("user-key")
 		fu := filter.scrubUser(u).filteredUser
 		assert.Equal(t,
@@ -61,7 +61,7 @@ func TestScrubUserWithNoFiltering(t *testing.T) {
 			}, fu)
 	})
 	t.Run("user with all attributes", func(t *testing.T) {
-		filter := newUserFilter(DefaultConfig)
+		filter := newUserFilter(epDefaultConfig)
 		u := buildUserWithAllAttributes().Build()
 		fu := filter.scrubUser(u).filteredUser
 		tru := true
@@ -83,7 +83,7 @@ func TestScrubUserWithNoFiltering(t *testing.T) {
 }
 
 func TestScrubUserWithPerUserPrivateAttributes(t *testing.T) {
-	filter := newUserFilter(DefaultConfig)
+	filter := newUserFilter(epDefaultConfig)
 	fu0 := filter.scrubUser(buildUserWithAllAttributes().Build()).filteredUser
 	for attr, setter := range optionalStringSetters {
 		t.Run(string(attr), func(t *testing.T) {
@@ -112,12 +112,12 @@ func TestScrubUserWithPerUserPrivateAttributes(t *testing.T) {
 }
 
 func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
-	filter0 := newUserFilter(DefaultConfig)
+	filter0 := newUserFilter(epDefaultConfig)
 	u := buildUserWithAllAttributes().Build()
 	fu0 := filter0.scrubUser(u).filteredUser
 	for attr, _ := range optionalStringSetters {
 		t.Run(string(attr), func(t *testing.T) {
-			config := DefaultConfig
+			config := epDefaultConfig
 			config.PrivateAttributeNames = []string{string(attr)}
 			filter1 := newUserFilter(config)
 			fu1 := filter1.scrubUser(u).filteredUser
@@ -127,7 +127,7 @@ func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 		})
 	}
 	t.Run("custom", func(t *testing.T) {
-		config := DefaultConfig
+		config := epDefaultConfig
 		config.PrivateAttributeNames = []string{customAttrName1}
 		filter1 := newUserFilter(config)
 		fu1 := filter1.scrubUser(u).filteredUser
@@ -140,7 +140,7 @@ func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 		assert.Equal(t, fu0, fu1)
 	})
 	t.Run("allAttributesPrivate", func(t *testing.T) {
-		config := DefaultConfig
+		config := epDefaultConfig
 		config.AllAttributesPrivate = true
 		filter1 := newUserFilter(config)
 		fu1 := filter1.scrubUser(u).filteredUser

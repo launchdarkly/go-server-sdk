@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
 
@@ -82,7 +83,7 @@ type Config struct {
 	DataSourceFactory DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
-	EventProcessor EventProcessor
+	EventProcessor ldevents.EventProcessor
 	// The number of user keys that the event processor can remember at any one time, so that
 	// duplicate user details will not be sent in analytics events.
 	UserKeysCapacity int
@@ -124,7 +125,7 @@ type Config struct {
 	//     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyURL(myProxyURL))
 	HTTPClientFactory HTTPClientFactory
 	// Used internally to share a diagnosticsManager instance between components.
-	diagnosticsManager *diagnosticsManager
+	diagnosticsManager *ldevents.DiagnosticsManager
 }
 
 // HTTPClientFactory is a function that creates a custom HTTP client.

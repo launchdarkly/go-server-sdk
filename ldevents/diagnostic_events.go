@@ -1,7 +1,6 @@
-package ldclient
+package ldevents
 
 import (
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -64,8 +63,8 @@ type diagnosticBaseEvent struct {
 
 type diagnosticInitEvent struct {
 	diagnosticBaseEvent
-	SDK           diagnosticSDKData      `json:"sdk"`
-	Configuration diagnosticConfigData   `json:"configuration"`
+	SDK           ldvalue.Value          `json:"sdk"`
+	Configuration ldvalue.Value          `json:"configuration"`
 	Platform      diagnosticPlatformData `json:"platform"`
 }
 
@@ -79,15 +78,15 @@ type diagnosticPeriodicEvent struct {
 }
 
 type diagnosticStreamInitInfo struct {
-	Timestamp      uint64       `json:"timestamp"`
-	Failed         bool         `json:"failed"`
-	DurationMillis milliseconds `json:"durationMillis"`
+	Timestamp      uint64 `json:"timestamp"`
+	Failed         bool   `json:"failed"`
+	DurationMillis uint64 `json:"durationMillis"`
 }
 
-type diagnosticsManager struct {
+type DiagnosticsManager struct {
 	id                diagnosticId
-	config            Config
-	startWaitTime     time.Duration // this is passed in separately because in Go, it's not part of the Config
+	configData        ldvalue.Value
+	sdkData           ldvalue.Value
 	startTime         uint64
 	dataSinceTime     uint64
 	streamInits       []diagnosticStreamInitInfo
@@ -95,17 +94,7 @@ type diagnosticsManager struct {
 	lock              sync.Mutex
 }
 
-// Optional interface that can be implemented by components whose types can't be easily
-// determined by looking at the config object.
-type diagnosticsComponentDescriptor interface {
-	GetDiagnosticsComponentTypeName() string
-}
-
-func durationToMillis(d time.Duration) milliseconds {
-	return milliseconds(d / time.Millisecond)
-}
-
-func newDiagnosticId(sdkKey string) diagnosticId {
+func NewDiagnosticId(sdkKey string) diagnosticId {
 	uuid, _ := uuid.NewRandom()
 	id := diagnosticId{
 		DiagnosticID: uuid.String(),
@@ -118,18 +107,18 @@ func newDiagnosticId(sdkKey string) diagnosticId {
 	return id
 }
 
-func newDiagnosticsManager(
+func NewDiagnosticsManager(
 	id diagnosticId,
-	config Config,
-	startWaitTime time.Duration,
+	configData ldvalue.Value,
+	sdkData ldvalue.Value,
 	startTime time.Time,
 	periodicEventGate <-chan struct{}, // periodicEventGate is test instrumentation - see CanSendStatsEvent
-) *diagnosticsManager {
+) *DiagnosticsManager {
 	timestamp := toUnixMillis(startTime)
-	m := &diagnosticsManager{
+	m := &DiagnosticsManager{
 		id:                id,
-		config:            config,
-		startWaitTime:     startWaitTime,
+		configData:        configData,
+		sdkData:           sdkData,
 		startTime:         timestamp,
 		dataSinceTime:     timestamp,
 		periodicEventGate: periodicEventGate,
@@ -138,7 +127,7 @@ func newDiagnosticsManager(
 }
 
 // Called by the stream processor when a stream connection has either succeeded or failed.
-func (m *diagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, durationMillis milliseconds) {
+func (m *DiagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, durationMillis uint64) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.streamInits = append(m.streamInits, diagnosticStreamInitInfo{
@@ -149,39 +138,7 @@ func (m *diagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, dur
 }
 
 // Called by DefaultEventProcessor to create the initial diagnostics event that includes the configuration.
-func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
-	sdkData := diagnosticSDKData{
-		Name:    "go-server-sdk",
-		Version: Version,
-	}
-	// Notes on configData
-	// - reconnectTimeMillis: hard-coded in eventsource because we're not overriding StreamOptionInitialRetry.
-	// - usingProxy: there are many ways to implement an HTTP proxy in Go, but the only one we're capable of
-	//   detecting is the HTTP_PROXY environment variable; programmatic approaches involve using a custom
-	//   transport, which we have no way of distinguishing from other kinds of custom transports (for the
-	//   same reason, we cannot detect if proxy authentication is being used).
-	configData := diagnosticConfigData{
-		CustomBaseURI:                     m.config.BaseUri != DefaultConfig.BaseUri,
-		CustomStreamURI:                   m.config.StreamUri != DefaultConfig.StreamUri,
-		CustomEventsURI:                   m.config.EventsUri != DefaultConfig.EventsUri,
-		DataStoreType:                     getComponentTypeName(m.config.DataStore),
-		EventsCapacity:                    m.config.Capacity,
-		ConnectTimeoutMillis:              durationToMillis(m.config.Timeout),
-		SocketTimeoutMillis:               durationToMillis(m.config.Timeout),
-		EventsFlushIntervalMillis:         durationToMillis(m.config.FlushInterval),
-		PollingIntervalMillis:             durationToMillis(m.config.PollInterval),
-		StartWaitMillis:                   durationToMillis(m.startWaitTime),
-		ReconnectTimeMillis:               3000,
-		StreamingDisabled:                 !m.config.Stream,
-		UsingRelayDaemon:                  m.config.UseLdd,
-		Offline:                           m.config.Offline,
-		AllAttributesPrivate:              m.config.AllAttributesPrivate,
-		InlineUsersInEvents:               m.config.InlineUsersInEvents,
-		UserKeysCapacity:                  m.config.UserKeysCapacity,
-		UserKeysFlushIntervalMillis:       durationToMillis(m.config.UserKeysFlushInterval),
-		UsingProxy:                        os.Getenv("HTTP_PROXY") != "",
-		DiagnosticRecordingIntervalMillis: durationToMillis(m.config.DiagnosticRecordingInterval),
-	}
+func (m *DiagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 	// Notes on platformData
 	// - osArch: in Go, GOARCH is set at compile time, not at runtime (unlike GOOS, whiich is runtime).
 	// - osVersion: Go provides no portable way to get this property.
@@ -198,8 +155,8 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 			ID:           m.id,
 			CreationDate: m.startTime,
 		},
-		SDK:           sdkData,
-		Configuration: configData,
+		SDK:           m.sdkData,
+		Configuration: m.configData,
 		Platform:      platformData,
 	}
 }
@@ -207,7 +164,7 @@ func (m *diagnosticsManager) CreateInitEvent() diagnosticInitEvent {
 // This is strictly for test instrumentation. In unit tests, we need to be able to stop DefaultEventProcessor
 // from constructing the periodic event until the test has finished setting up its preconditions. This is done
 // by passing in a periodicEventGate channel which the test will push to when it's ready.
-func (m *diagnosticsManager) CanSendStatsEvent() bool {
+func (m *DiagnosticsManager) CanSendStatsEvent() bool {
 	if m.periodicEventGate != nil {
 		select {
 		case <-m.periodicEventGate: // non-blocking receive
@@ -222,7 +179,7 @@ func (m *diagnosticsManager) CanSendStatsEvent() bool {
 // Called by DefaultEventProcessor to create the periodic event containing usage statistics. Some of the
 // statistics are passed in as parameters because DefaultEventProcessor owns them and can more easily keep
 // track of them internally - pushing them into diagnosticsManager would require frequent lock usage.
-func (m *diagnosticsManager) CreateStatsEventAndReset(
+func (m *DiagnosticsManager) CreateStatsEventAndReset(
 	droppedEvents int,
 	deduplicatedUsers int,
 	eventsInLastBatch int,
@@ -245,16 +202,6 @@ func (m *diagnosticsManager) CreateStatsEventAndReset(
 	m.streamInits = nil
 	m.dataSinceTime = timestamp
 	return event
-}
-
-func getComponentTypeName(component interface{}) ldvalue.OptionalString {
-	if component != nil {
-		if dcd, ok := component.(diagnosticsComponentDescriptor); ok {
-			return ldvalue.NewOptionalString(dcd.GetDiagnosticsComponentTypeName())
-		}
-		return ldvalue.NewOptionalString("custom")
-	}
-	return ldvalue.OptionalString{}
 }
 
 func normalizeOSName(osName string) string {

@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,21 +13,6 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 )
-
-// EventProcessor defines the interface for dispatching analytics events.
-type EventProcessor interface {
-	// SendEvent records an event asynchronously.
-	SendEvent(Event)
-	// Flush specifies that any buffered events should be sent as soon as possible, rather than waiting
-	// for the next flush interval. This method is asynchronous, so events still may not be sent
-	// until a later time.
-	Flush()
-	// Close shuts down all event processor activity, after first ensuring that all events have been
-	// delivered. Subsequent calls to SendEvent() or Flush() will be ignored.
-	Close() error
-}
-
-type nullEventProcessor struct{}
 
 type defaultEventProcessor struct {
 	inboxCh       chan eventDispatcherMessage
@@ -38,22 +22,12 @@ type defaultEventProcessor struct {
 }
 
 type eventDispatcher struct {
-	sdkKey            string
-	config            Config
+	config            EventsConfiguration
 	lastKnownPastTime uint64
 	deduplicatedUsers int
 	eventsInLastBatch int
 	disabled          bool
 	stateLock         sync.Mutex
-}
-
-type eventBuffer struct {
-	events           []Event
-	summarizer       eventSummarizer
-	capacity         int
-	capacityExceeded bool
-	droppedEvents    int
-	loggers          ldlog.Loggers
 }
 
 type flushPayload struct {
@@ -63,12 +37,9 @@ type flushPayload struct {
 }
 
 type sendEventsTask struct {
-	client        *http.Client
-	eventsURI     string
-	diagnosticURI string
-	sdkKey        string
-	config        Config
-	formatter     eventOutputFormatter
+	client    *http.Client
+	config    EventsConfiguration
+	formatter eventOutputFormatter
 }
 
 // Payload of the inboxCh channel.
@@ -97,27 +68,13 @@ const (
 	diagnosticsURIPath = "/diagnostic"
 )
 
-func newNullEventProcessor() *nullEventProcessor {
-	return &nullEventProcessor{}
-}
-
-func (n *nullEventProcessor) SendEvent(e Event) {}
-
-func (n *nullEventProcessor) Flush() {}
-
-func (n *nullEventProcessor) Close() error {
-	return nil
-}
-
 // NewDefaultEventProcessor creates an instance of the default implementation of analytics event processing.
-// This is normally only used internally; it is public because the Go SDK code is reused by other LaunchDarkly
-// components.
-func NewDefaultEventProcessor(sdkKey string, config Config, client *http.Client) EventProcessor {
-	if client == nil {
-		client = config.newHTTPClient()
+func NewDefaultEventProcessor(config EventsConfiguration) EventProcessor {
+	if config.HTTPClient == nil {
+		config.HTTPClient = http.DefaultClient
 	}
 	inboxCh := make(chan eventDispatcherMessage, config.Capacity)
-	startEventDispatcher(sdkKey, config, client, inboxCh)
+	startEventDispatcher(config, inboxCh)
 	return &defaultEventProcessor{
 		inboxCh: inboxCh,
 		loggers: config.Loggers,
@@ -162,13 +119,10 @@ func (ep *defaultEventProcessor) Close() error {
 }
 
 func startEventDispatcher(
-	sdkKey string,
-	config Config,
-	client *http.Client,
+	config EventsConfiguration,
 	inboxCh <-chan eventDispatcherMessage,
 ) {
 	ed := &eventDispatcher{
-		sdkKey: sdkKey,
 		config: config,
 	}
 
@@ -177,52 +131,47 @@ func startEventDispatcher(
 	flushCh := make(chan *flushPayload, 1)
 	var workersGroup sync.WaitGroup
 	for i := 0; i < maxFlushWorkers; i++ {
-		startFlushTask(sdkKey, config, client, flushCh, &workersGroup,
+		startFlushTask(config, flushCh, &workersGroup,
 			func(r *http.Response) { ed.handleResponse(r) })
 	}
-	if config.diagnosticsManager != nil {
-		event := config.diagnosticsManager.CreateInitEvent()
-		ed.sendDiagnosticsEvent(event, client, flushCh, &workersGroup)
+	if config.DiagnosticsManager != nil {
+		event := config.DiagnosticsManager.CreateInitEvent()
+		ed.sendDiagnosticsEvent(event, flushCh, &workersGroup)
 	}
-	go ed.runMainLoop(inboxCh, flushCh, &workersGroup, client)
+	go ed.runMainLoop(inboxCh, flushCh, &workersGroup)
 }
 
 func (ed *eventDispatcher) runMainLoop(
 	inboxCh <-chan eventDispatcherMessage,
 	flushCh chan<- *flushPayload,
 	workersGroup *sync.WaitGroup,
-	client *http.Client,
 ) {
 	if err := recover(); err != nil {
 		ed.config.Loggers.Errorf("Unexpected panic in event processing thread: %+v", err)
 	}
 
-	outbox := eventBuffer{
-		events:     make([]Event, 0, ed.config.Capacity),
-		summarizer: newEventSummarizer(),
-		capacity:   ed.config.Capacity,
-		loggers:    ed.config.Loggers,
-	}
+	outbox := newEventsOutbox(ed.config.Capacity, ed.config.Loggers)
+
 	userKeys := newLruCache(ed.config.UserKeysCapacity)
 
 	flushInterval := ed.config.FlushInterval
 	if flushInterval <= 0 {
-		flushInterval = DefaultConfig.FlushInterval
+		flushInterval = DefaultFlushInterval
 	}
 	userKeysFlushInterval := ed.config.UserKeysFlushInterval
 	if userKeysFlushInterval <= 0 {
-		userKeysFlushInterval = DefaultConfig.UserKeysFlushInterval
+		userKeysFlushInterval = DefaultUserKeysFlushInterval
 	}
 	flushTicker := time.NewTicker(flushInterval)
 	usersResetTicker := time.NewTicker(userKeysFlushInterval)
 
 	var diagnosticsTicker *time.Ticker
 	var diagnosticsTickerCh <-chan time.Time
-	diagnosticsManager := ed.config.diagnosticsManager
+	diagnosticsManager := ed.config.DiagnosticsManager
 	if diagnosticsManager != nil {
 		interval := ed.config.DiagnosticRecordingInterval
 		if interval <= 0 {
-			interval = DefaultConfig.DiagnosticRecordingInterval
+			interval = DefaultDiagnosticRecordingInterval
 		}
 		diagnosticsTicker = time.NewTicker(interval)
 		diagnosticsTickerCh = diagnosticsTicker.C
@@ -235,9 +184,9 @@ func (ed *eventDispatcher) runMainLoop(
 		case message := <-inboxCh:
 			switch m := message.(type) {
 			case sendEventMessage:
-				ed.processEvent(m.event, &outbox, &userKeys)
+				ed.processEvent(m.event, outbox, &userKeys)
 			case flushEventsMessage:
-				ed.triggerFlush(&outbox, flushCh, workersGroup)
+				ed.triggerFlush(outbox, flushCh, workersGroup)
 			case syncEventsMessage:
 				workersGroup.Wait()
 				m.replyCh <- struct{}{}
@@ -253,7 +202,7 @@ func (ed *eventDispatcher) runMainLoop(
 				return
 			}
 		case <-flushTicker.C:
-			ed.triggerFlush(&outbox, flushCh, workersGroup)
+			ed.triggerFlush(outbox, flushCh, workersGroup)
 		case <-usersResetTicker.C:
 			userKeys.clear()
 		case <-diagnosticsTickerCh:
@@ -268,18 +217,18 @@ func (ed *eventDispatcher) runMainLoop(
 			outbox.droppedEvents = 0
 			ed.deduplicatedUsers = 0
 			ed.eventsInLastBatch = 0
-			ed.sendDiagnosticsEvent(event, client, flushCh, workersGroup)
+			ed.sendDiagnosticsEvent(event, flushCh, workersGroup)
 		}
 	}
 }
 
-func (ed *eventDispatcher) processEvent(evt Event, outbox *eventBuffer, userKeys *lruCache) {
+func (ed *eventDispatcher) processEvent(evt Event, outbox *eventsOutbox, userKeys *lruCache) {
 	// Always record the event in the summarizer.
 	outbox.addToSummary(evt)
 
 	// Decide whether to add the event to the payload. Feature events may be added twice, once for
 	// the event (if tracked) and once for debugging.
-	var willAddFullEvent bool
+	willAddFullEvent := false
 	var debugEvent Event
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
@@ -340,7 +289,7 @@ func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
 }
 
 // Signal that we would like to do a flush as soon as possible.
-func (ed *eventDispatcher) triggerFlush(outbox *eventBuffer, flushCh chan<- *flushPayload,
+func (ed *eventDispatcher) triggerFlush(outbox *eventsOutbox, flushCh chan<- *flushPayload,
 	workersGroup *sync.WaitGroup) {
 	if ed.isDisabled() {
 		outbox.clear()
@@ -398,7 +347,6 @@ func (ed *eventDispatcher) handleResponse(resp *http.Response) {
 
 func (ed *eventDispatcher) sendDiagnosticsEvent(
 	event interface{},
-	client *http.Client,
 	flushCh chan<- *flushPayload,
 	workersGroup *sync.WaitGroup,
 ) {
@@ -417,53 +365,16 @@ func (ed *eventDispatcher) sendDiagnosticsEvent(
 	}
 }
 
-func (b *eventBuffer) addEvent(event Event) {
-	if len(b.events) >= b.capacity {
-		if !b.capacityExceeded {
-			b.capacityExceeded = true
-			b.loggers.Warn("Exceeded event queue capacity. Increase capacity to avoid dropping events.")
-		}
-		b.droppedEvents++
-		return
-	}
-	b.capacityExceeded = false
-	b.events = append(b.events, event)
-}
-
-func (b *eventBuffer) addToSummary(event Event) {
-	b.summarizer.summarizeEvent(event)
-}
-
-func (b *eventBuffer) getPayload() flushPayload {
-	return flushPayload{
-		events:  b.events,
-		summary: b.summarizer.snapshot(),
-	}
-}
-
-func (b *eventBuffer) clear() {
-	b.events = make([]Event, 0, b.capacity)
-	b.summarizer.reset()
-}
-
-func startFlushTask(sdkKey string, config Config, client *http.Client, flushCh <-chan *flushPayload,
+func startFlushTask(config EventsConfiguration, flushCh <-chan *flushPayload,
 	workersGroup *sync.WaitGroup, responseFn func(*http.Response)) {
 	ef := eventOutputFormatter{
-		userFilter:  newUserFilter(config),
-		inlineUsers: config.InlineUsersInEvents,
-		config:      config,
-	}
-	uri := config.EventsEndpointUri
-	if uri == "" {
-		uri = strings.TrimRight(config.EventsUri, "/") + defaultURIPath
+		userFilter: newUserFilter(config),
+		config:     config,
 	}
 	t := sendEventsTask{
-		client:        client,
-		eventsURI:     uri,
-		diagnosticURI: strings.TrimRight(config.EventsUri, "/") + diagnosticsURIPath,
-		sdkKey:        sdkKey,
-		config:        config,
-		formatter:     ef,
+		client:    config.HTTPClient,
+		config:    config,
+		formatter: ef,
 	}
 	go t.run(flushCh, responseFn, workersGroup)
 }
@@ -477,11 +388,11 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			break
 		}
 		if payload.diagnosticEvent != nil {
-			t.postEvents(t.diagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose // response was already closed in postEvents
+			t.postEvents(t.config.DiagnosticURI, payload.diagnosticEvent, "diagnostic event")
 		} else {
 			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
-				resp := t.postEvents(t.eventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose // response was already closed in postEvents
+				resp := t.postEvents(t.config.EventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents)))
 				if resp != nil {
 					responseFn(resp)
 				}
@@ -515,7 +426,11 @@ func (t *sendEventsTask) postEvents(uri string, outputData interface{}, descript
 			return nil
 		}
 
-		addBaseHeaders(req, t.sdkKey, t.config)
+		for k, vv := range t.config.Headers {
+			for _, v := range vv {
+				req.Header.Add(k, v)
+			}
+		}
 		req.Header.Add("Content-Type", "application/json")
 		req.Header.Add(eventSchemaHeader, currentEventSchema)
 		req.Header.Add(payloadIDHeader, payloadID)
