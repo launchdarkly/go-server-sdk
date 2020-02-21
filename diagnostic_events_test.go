@@ -36,7 +36,7 @@ func TestDiagnosticInitEventSDKData(t *testing.T) {
 	id := newDiagnosticId("sdkkey")
 	m := newDiagnosticsManager(id, Config{}, time.Second, time.Now(), nil)
 	event := m.CreateInitEvent()
-	assert.Equal(t, "Go", event.SDK.Name)
+	assert.Equal(t, "go-server-sdk", event.SDK.Name)
 	assert.Equal(t, Version, event.SDK.Version)
 }
 

@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.16.1] - 2020-02-10
+### Changed:
+- Diagnostic events reported by this SDK now have an SDK name of `go-server-sdk` instead of `Go`.
+
+
 ## [4.16.0] - 2020-02-04
 This release introduces new types for building user properties and representing arbitrary JSON values. In the next major version, these will entirely replace the current deprecated equivalents.
 
