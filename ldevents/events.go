@@ -55,6 +55,7 @@ type IndexEvent struct {
 	BaseEvent
 }
 
+// NewUnknownFlagEvent creates an evaluation event for a missing flag.
 func NewUnknownFlagEvent(key string, user lduser.User, defaultVal ldvalue.Value, reason ldreason.EvaluationReason,
 	includeReason bool) FeatureRequestEvent {
 	fre := FeatureRequestEvent{
@@ -72,6 +73,7 @@ func NewUnknownFlagEvent(key string, user lduser.User, defaultVal ldvalue.Value,
 	return fre
 }
 
+// NewSuccessfulEvalEvent creates an evaluation event.
 func NewSuccessfulEvalEvent(flag *ldeval.FeatureFlag, user lduser.User, variation int, value, defaultVal ldvalue.Value,
 	reason ldreason.EvaluationReason, includeReason bool, prereqOf *string) FeatureRequestEvent {
 	requireExperimentData := ldeval.IsExperimentationEnabled(*flag, reason)
@@ -102,6 +104,7 @@ func (evt FeatureRequestEvent) GetBase() BaseEvent {
 	return evt.BaseEvent
 }
 
+// NewCustomEvent creates a new custom event.
 func NewCustomEvent(key string, user lduser.User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
 	ce := CustomEvent{
 		BaseEvent: BaseEvent{

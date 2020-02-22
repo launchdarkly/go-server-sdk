@@ -225,9 +225,9 @@ func createDefaultEventProcessor(sdkKey string, config Config, client *http.Clie
 		AllAttributesPrivate:        config.AllAttributesPrivate,
 		Capacity:                    config.Capacity,
 		DiagnosticRecordingInterval: config.DiagnosticRecordingInterval,
-		DiagnosticURI:               "", // TODO
+		DiagnosticURI:               strings.TrimRight(config.EventsUri, "/") + "/diagnostic",
 		DiagnosticsManager:          diagnosticsManager,
-		EventsURI:                   "", // TODO
+		EventsURI:                   strings.TrimRight(config.EventsUri, "/") + "/bulk",
 		FlushInterval:               config.FlushInterval,
 		Headers:                     headers,
 		HTTPClient:                  client,
@@ -235,7 +235,6 @@ func createDefaultEventProcessor(sdkKey string, config Config, client *http.Clie
 		Loggers:                     config.Loggers,
 		LogUserKeyInErrors:          config.LogUserKeyInErrors,
 		PrivateAttributeNames:       config.PrivateAttributeNames,
-		SDKKey:                      sdkKey,
 		UserKeysCapacity:            config.UserKeysCapacity,
 		UserKeysFlushInterval:       config.UserKeysFlushInterval,
 	}

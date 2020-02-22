@@ -9,7 +9,7 @@ import (
 )
 
 func createDiagnosticsManager(sdkKey string, config Config, waitFor time.Duration) *ldevents.DiagnosticsManager {
-	id := ldevents.NewDiagnosticId(sdkKey)
+	id := ldevents.NewDiagnosticID(sdkKey)
 	return ldevents.NewDiagnosticsManager(id, makeDiagnosticConfigData(config, waitFor), makeDiagnosticSDKData(), time.Now(), nil)
 }
 

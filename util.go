@@ -99,13 +99,6 @@ func httpErrorMessage(statusCode int, context string, recoverableMessage string)
 		statusCode, statusDesc, context, resultMessage)
 }
 
-func describeUserForErrorLog(key string, logUserKeyInErrors bool) string {
-	if logUserKeyInErrors {
-		return fmt.Sprintf("user '%s'", key)
-	}
-	return "a user (enable LogUserKeyInErrors to see the user key)"
-}
-
 func now() uint64 {
 	return toUnixMillis(time.Now())
 }

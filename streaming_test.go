@@ -210,7 +210,7 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
-	id := ldevents.NewDiagnosticId("sdkKey")
+	id := ldevents.NewDiagnosticID("sdkKey")
 	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
@@ -235,8 +235,8 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	}
 
 	event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
-	assert.Equal(t, 1, len(event.StreamInits))
-	assert.True(t, event.StreamInits[0].Failed)
+	assert.Equal(t, 1, event.GetByKey("streamInits").Count())
+	assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
 }
 
 func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
@@ -262,7 +262,7 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
-	id := ldevents.NewDiagnosticId("sdkKey")
+	id := ldevents.NewDiagnosticID("sdkKey")
 	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 	cfg := Config{
 		StreamUri:          ts.URL,
@@ -286,9 +286,9 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	}
 
 	event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
-	assert.Equal(t, 2, len(event.StreamInits))
-	assert.True(t, event.StreamInits[0].Failed)
-	assert.False(t, event.StreamInits[1].Failed)
+	assert.Equal(t, 2, event.GetByKey("streamInits").Count())
+	assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
+	assert.Equal(t, ldvalue.Bool(false), event.GetByKey("streamInits").GetByIndex(1).GetByKey("failed"))
 }
 
 func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {

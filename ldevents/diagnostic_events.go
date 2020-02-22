@@ -9,82 +9,17 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-type diagnosticId struct {
-	DiagnosticID string `json:"diagnosticId"`
-	SDKKeySuffix string `json:"sdkKeySuffix,omitempty"`
-}
-
-type diagnosticSDKData struct {
-	Name           string `json:"name"`
-	Version        string `json:"version"`
-	WrapperName    string `json:"wrapperName,omitempty"`
-	WrapperVersion string `json:"wrapperVersion,omitempty"`
-}
-
-type diagnosticPlatformData struct {
-	Name      string `json:"name"`
-	GoVersion string `json:"goVersion"`
-	OSArch    string `json:"osArch"`
-	OSName    string `json:"osName"`
-	OSVersion string `json:"osVersion"`
-}
-
-type milliseconds int
-
-type diagnosticConfigData struct {
-	CustomBaseURI               bool                   `json:"customBaseURI"`
-	CustomStreamURI             bool                   `json:"customStreamURI"`
-	CustomEventsURI             bool                   `json:"customEventsURI"`
-	DataStoreType               ldvalue.OptionalString `json:"dataStoreType"`
-	EventsCapacity              int                    `json:"eventsCapacity"`
-	ConnectTimeoutMillis        milliseconds           `json:"connectTimeoutMillis"`
-	SocketTimeoutMillis         milliseconds           `json:"socketTimeoutMillis"`
-	EventsFlushIntervalMillis   milliseconds           `json:"eventsFlushIntervalMillis"`
-	PollingIntervalMillis       milliseconds           `json:"pollingIntervalMillis"`
-	StartWaitMillis             milliseconds           `json:"startWaitMillis"`
-	ReconnectTimeMillis         milliseconds           `json:"reconnectTimeMillis"`
-	StreamingDisabled           bool                   `json:"streamingDisabled"`
-	UsingRelayDaemon            bool                   `json:"usingRelayDaemon"`
-	Offline                     bool                   `json:"offline"`
-	AllAttributesPrivate        bool                   `json:"allAttributesPrivate"`
-	InlineUsersInEvents         bool                   `json:"inlineUsersInEvents"`
-	UserKeysCapacity            int                    `json:"userKeysCapacity"`
-	UserKeysFlushIntervalMillis milliseconds           `json:"userKeysFlushIntervalMillis"`
-	UsingProxy                  bool                   `json:"usingProxy"`
-	// UsingProxyAuthenticator  bool         `json:"usingProxyAuthenticator"` // not knowable in Go SDK
-	DiagnosticRecordingIntervalMillis milliseconds `json:"diagnosticRecordingIntervalMillis"`
-}
-
-type diagnosticBaseEvent struct {
-	Kind         string       `json:"kind"`
-	ID           diagnosticId `json:"id"`
-	CreationDate uint64       `json:"creationDate"`
-}
-
-type diagnosticInitEvent struct {
-	diagnosticBaseEvent
-	SDK           ldvalue.Value          `json:"sdk"`
-	Configuration ldvalue.Value          `json:"configuration"`
-	Platform      diagnosticPlatformData `json:"platform"`
-}
-
-type diagnosticPeriodicEvent struct {
-	diagnosticBaseEvent
-	DataSinceDate     uint64                     `json:"dataSinceDate"`
-	DroppedEvents     int                        `json:"droppedEvents"`
-	DeduplicatedUsers int                        `json:"deduplicatedUsers"`
-	EventsInLastBatch int                        `json:"eventsInLastBatch"`
-	StreamInits       []diagnosticStreamInitInfo `json:"streamInits"`
-}
-
 type diagnosticStreamInitInfo struct {
-	Timestamp      uint64 `json:"timestamp"`
-	Failed         bool   `json:"failed"`
-	DurationMillis uint64 `json:"durationMillis"`
+	timestamp      uint64
+	failed         bool
+	durationMillis uint64
 }
 
+// DiagnosticsManager is an object that maintains state for diagnostic events and produces JSON data.
+//
+// The format of the JSON event data is subject to change. Diagnostic events are represented opaquely with the Value type.
 type DiagnosticsManager struct {
-	id                diagnosticId
+	id                ldvalue.Value
 	configData        ldvalue.Value
 	sdkData           ldvalue.Value
 	startTime         uint64
@@ -94,21 +29,21 @@ type DiagnosticsManager struct {
 	lock              sync.Mutex
 }
 
-func NewDiagnosticId(sdkKey string) diagnosticId {
+// NewDiagnosticID creates a unique identifier for this SDK instance.
+func NewDiagnosticID(sdkKey string) ldvalue.Value {
 	uuid, _ := uuid.NewRandom()
-	id := diagnosticId{
-		DiagnosticID: uuid.String(),
-	}
+	var sdkKeySuffix string
 	if len(sdkKey) > 6 {
-		id.SDKKeySuffix = sdkKey[len(sdkKey)-6:]
+		sdkKeySuffix = sdkKey[len(sdkKey)-6:]
 	} else {
-		id.SDKKeySuffix = sdkKey
+		sdkKeySuffix = sdkKey
 	}
-	return id
+	return ldvalue.ObjectBuild().Set("diagnosticId", ldvalue.String(uuid.String())).Set("sdkKeySuffix", ldvalue.String(sdkKeySuffix)).Build()
 }
 
+// NewDiagnosticsManager creates an instance of DiagnosticsManager.
 func NewDiagnosticsManager(
-	id diagnosticId,
+	id ldvalue.Value,
 	configData ldvalue.Value,
 	sdkData ldvalue.Value,
 	startTime time.Time,
@@ -126,42 +61,40 @@ func NewDiagnosticsManager(
 	return m
 }
 
-// Called by the stream processor when a stream connection has either succeeded or failed.
+// RecordStreamInit is called by the stream processor when a stream connection has either succeeded or failed.
 func (m *DiagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, durationMillis uint64) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.streamInits = append(m.streamInits, diagnosticStreamInitInfo{
-		Timestamp:      timestamp,
-		Failed:         failed,
-		DurationMillis: durationMillis,
+		timestamp:      timestamp,
+		failed:         failed,
+		durationMillis: durationMillis,
 	})
 }
 
-// Called by DefaultEventProcessor to create the initial diagnostics event that includes the configuration.
-func (m *DiagnosticsManager) CreateInitEvent() diagnosticInitEvent {
+// CreateInitEvent is called by DefaultEventProcessor to create the initial diagnostics event that includes the configuration.
+func (m *DiagnosticsManager) CreateInitEvent() ldvalue.Value {
 	// Notes on platformData
 	// - osArch: in Go, GOARCH is set at compile time, not at runtime (unlike GOOS, whiich is runtime).
 	// - osVersion: Go provides no portable way to get this property.
-	platformData := diagnosticPlatformData{
-		Name:      "Go",
-		GoVersion: runtime.Version(),
-		OSName:    normalizeOSName(runtime.GOOS),
-		OSArch:    runtime.GOARCH,
-		//OSVersion: // not available, see above
-	}
-	return diagnosticInitEvent{
-		diagnosticBaseEvent: diagnosticBaseEvent{
-			Kind:         "diagnostic-init",
-			ID:           m.id,
-			CreationDate: m.startTime,
-		},
-		SDK:           m.sdkData,
-		Configuration: m.configData,
-		Platform:      platformData,
-	}
+	platformData := ldvalue.ObjectBuild().
+		Set("name", ldvalue.String("Go")).
+		Set("goVersion", ldvalue.String(runtime.Version())).
+		Set("osName", ldvalue.String(normalizeOSName(runtime.GOOS))).
+		Set("osArch", ldvalue.String(runtime.GOARCH)).
+		Build()
+		// osVersion is not available, see above
+	return ldvalue.ObjectBuild().
+		Set("kind", ldvalue.String("diagnostic-init")).
+		Set("id", m.id).
+		Set("creationDate", ldvalue.Float64(float64(m.startTime))).
+		Set("sdk", m.sdkData).
+		Set("configuration", m.configData).
+		Set("platform", platformData).
+		Build()
 }
 
-// This is strictly for test instrumentation. In unit tests, we need to be able to stop DefaultEventProcessor
+// CanSendStatsEvent is strictly for test instrumentation. In unit tests, we need to be able to stop DefaultEventProcessor
 // from constructing the periodic event until the test has finished setting up its preconditions. This is done
 // by passing in a periodicEventGate channel which the test will push to when it's ready.
 func (m *DiagnosticsManager) CanSendStatsEvent() bool {
@@ -176,29 +109,35 @@ func (m *DiagnosticsManager) CanSendStatsEvent() bool {
 	return true
 }
 
-// Called by DefaultEventProcessor to create the periodic event containing usage statistics. Some of the
+// CreateStatsEventAndReset is called by DefaultEventProcessor to create the periodic event containing usage statistics. Some of the
 // statistics are passed in as parameters because DefaultEventProcessor owns them and can more easily keep
-// track of them internally - pushing them into diagnosticsManager would require frequent lock usage.
+// track of them internally - pushing them into DiagnosticsManager would require frequent lock usage.
 func (m *DiagnosticsManager) CreateStatsEventAndReset(
 	droppedEvents int,
 	deduplicatedUsers int,
 	eventsInLastBatch int,
-) diagnosticPeriodicEvent {
+) ldvalue.Value {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	timestamp := now()
-	event := diagnosticPeriodicEvent{
-		diagnosticBaseEvent: diagnosticBaseEvent{
-			Kind:         "diagnostic",
-			ID:           m.id,
-			CreationDate: timestamp,
-		},
-		DataSinceDate:     m.dataSinceTime,
-		EventsInLastBatch: eventsInLastBatch,
-		DroppedEvents:     droppedEvents,
-		DeduplicatedUsers: deduplicatedUsers,
-		StreamInits:       m.streamInits,
+	streamInitsBuilder := ldvalue.ArrayBuildWithCapacity(len(m.streamInits))
+	for _, si := range m.streamInits {
+		streamInitsBuilder.Add(ldvalue.ObjectBuild().
+			Set("timestamp", ldvalue.Float64(float64(si.timestamp))).
+			Set("failed", ldvalue.Bool(si.failed)).
+			Set("durationMillis", ldvalue.Float64(float64(si.durationMillis))).
+			Build())
 	}
+	event := ldvalue.ObjectBuild().
+		Set("kind", ldvalue.String("diagnostic")).
+		Set("id", m.id).
+		Set("creationDate", ldvalue.Float64(float64(timestamp))).
+		Set("dataSinceDate", ldvalue.Float64(float64(m.dataSinceTime))).
+		Set("droppedEvents", ldvalue.Int(droppedEvents)).
+		Set("deduplicatedUsers", ldvalue.Int(deduplicatedUsers)).
+		Set("eventsInLastBatch", ldvalue.Int(eventsInLastBatch)).
+		Set("streamInits", streamInitsBuilder.Build()).
+		Build()
 	m.streamInits = nil
 	m.dataSinceTime = timestamp
 	return event

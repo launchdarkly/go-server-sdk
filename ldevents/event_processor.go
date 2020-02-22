@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 type defaultEventProcessor struct {
@@ -31,7 +32,7 @@ type eventDispatcher struct {
 }
 
 type flushPayload struct {
-	diagnosticEvent interface{}
+	diagnosticEvent ldvalue.Value
 	events          []Event
 	summary         eventSummary
 }
@@ -64,8 +65,6 @@ const (
 	eventSchemaHeader  = "X-LaunchDarkly-Event-Schema"
 	payloadIDHeader    = "X-LaunchDarkly-Payload-ID"
 	currentEventSchema = "3"
-	defaultURIPath     = "/bulk"
-	diagnosticsURIPath = "/diagnostic"
 )
 
 // NewDefaultEventProcessor creates an instance of the default implementation of analytics event processing.
@@ -346,7 +345,7 @@ func (ed *eventDispatcher) handleResponse(resp *http.Response) {
 }
 
 func (ed *eventDispatcher) sendDiagnosticsEvent(
-	event interface{},
+	event ldvalue.Value,
 	flushCh chan<- *flushPayload,
 	workersGroup *sync.WaitGroup,
 ) {
@@ -387,12 +386,12 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			// Channel has been closed - we're shutting down
 			break
 		}
-		if payload.diagnosticEvent != nil {
-			t.postEvents(t.config.DiagnosticURI, payload.diagnosticEvent, "diagnostic event")
+		if !payload.diagnosticEvent.IsNull() {
+			t.postEvents(t.config.DiagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose // already closed by postEvents
 		} else {
 			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
-				resp := t.postEvents(t.config.EventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents)))
+				resp := t.postEvents(t.config.EventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose // already closed by postEvents
 				if resp != nil {
 					responseFn(resp)
 				}

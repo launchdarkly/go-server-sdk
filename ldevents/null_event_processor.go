@@ -2,6 +2,7 @@ package ldevents
 
 type nullEventProcessor struct{}
 
+// NewNullEventProcessor creates a no-op implementation of EventProcessor.
 func NewNullEventProcessor() EventProcessor {
 	return nullEventProcessor{}
 }

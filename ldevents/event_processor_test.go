@@ -284,7 +284,7 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 	}
 }
 
-func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
+func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 	ep, st := createEventProcessor(epDefaultConfig)
 	defer ep.Close()
 
@@ -582,7 +582,7 @@ func TestHTTPErrorHandling(t *testing.T) {
 }
 
 func TestDiagnosticInitEventIsSent(t *testing.T) {
-	id := NewDiagnosticId("sdkkey")
+	id := NewDiagnosticID("sdkkey")
 	startTime := time.Now()
 	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), startTime, nil)
 	config := epDefaultConfig
@@ -601,7 +601,7 @@ func TestDiagnosticInitEventIsSent(t *testing.T) {
 }
 
 func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
-	id := NewDiagnosticId("sdkkey")
+	id := NewDiagnosticID("sdkkey")
 	startTime := time.Now()
 	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), startTime, nil)
 	config := epDefaultConfig
@@ -637,7 +637,7 @@ func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 }
 
 func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
-	id := NewDiagnosticId("sdkkey")
+	id := NewDiagnosticID("sdkkey")
 	config := epDefaultConfig
 	config.Capacity = 3
 	config.DiagnosticRecordingInterval = 100 * time.Millisecond
