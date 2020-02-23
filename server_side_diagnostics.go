@@ -24,7 +24,7 @@ func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Valu
 		Set("customBaseURI", ldvalue.Bool(config.BaseUri != DefaultConfig.BaseUri)).
 		Set("customEventsURI", ldvalue.Bool(config.EventsUri != DefaultConfig.EventsUri)).
 		Set("customStreamURI", ldvalue.Bool(config.StreamUri != DefaultConfig.StreamUri)).
-		Set("dataStoreType", getComponentTypeName(config.DataStore).AsValue()).
+		Set("dataStoreType", ldvalue.String(getComponentTypeName(config.DataStore).OrElse("memory"))).
 		Set("eventsCapacity", ldvalue.Int(config.Capacity)).
 		Set("connectTimeoutMillis", durationToMillis(config.Timeout)).
 		Set("socketTimeoutMillis", durationToMillis(config.Timeout)).
@@ -46,7 +46,7 @@ func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Valu
 func makeDiagnosticSDKData() ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("name", ldvalue.String("go-server-sdk")).
-		Set("version", ldvalue.String("version")).
+		Set("version", ldvalue.String(Version)).
 		Build()
 }
 
