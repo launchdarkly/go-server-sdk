@@ -113,9 +113,13 @@ func (s *defaultEventSender) SendEventData(kind EventDataKind, data []byte, even
 			return result
 		}
 		if isHTTPErrorRecoverable(resp.StatusCode) {
-			s.loggers.Warnf("Received error status %d when sending events", resp.StatusCode)
-			continue
+			maybeRetry := "will retry"
+			if attempt == 1 {
+				maybeRetry = "some events were dropped"
+			}
+			s.loggers.Warnf(httpErrorMessage(resp.StatusCode, "sending events", maybeRetry))
 		} else {
+			s.loggers.Warnf(httpErrorMessage(resp.StatusCode, "sending events", ""))
 			return EventSenderResult{MustShutDown: true}
 		}
 	}
