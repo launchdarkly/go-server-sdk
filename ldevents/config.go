@@ -1,7 +1,6 @@
 package ldevents
 
 import (
-	"net/http"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
@@ -9,6 +8,9 @@ import (
 
 // DefaultDiagnosticRecordingInterval is the default value for EventsConfiguration.DiagnosticRecordingInterval.
 const DefaultDiagnosticRecordingInterval = 15 * time.Minute
+
+// MinimumDiagnosticRecordingInterval is the minimum value for EventsConfiguration.DiagnosticRecordingInterval.
+const MinimumDiagnosticRecordingInterval = 1 * time.Minute
 
 // DefaultFlushInterval is the default value for EventsConfiguration.FlushInterval.
 const DefaultFlushInterval = 5 * time.Second
@@ -26,20 +28,14 @@ type EventsConfiguration struct {
 	Capacity int
 	// The interval at which periodic diagnostic events will be sent, if DiagnosticsManager is non-nil.
 	DiagnosticRecordingInterval time.Duration
-	// The URI to which diagnostic events wilil be sent.
-	DiagnosticURI string
 	// An object that computes and formats diagnostic event data. This is only used within the SDK; for all other usage
 	// of the ldevents package, it should be nil.
 	DiagnosticsManager *DiagnosticsManager
-	// The URI to which analytics events will be sent.
-	EventsURI string
+	// The implementation of event delivery to use.
+	EventSender EventSender
 	// The time between flushes of the event buffer. Decreasing the flush interval means that the event buffer
 	// is less likely to reach capacity.
 	FlushInterval time.Duration
-	// HTTP headers to be sent with each request to the events service.
-	Headers http.Header
-	// The HTTP client instance to use.
-	HTTPClient *http.Client
 	// Set to true if you need to see the full user details in every analytics event.
 	InlineUsersInEvents bool
 	// The destination for log output.
@@ -54,4 +50,6 @@ type EventsConfiguration struct {
 	UserKeysCapacity int
 	// The interval at which the event processor will reset its set of known user keys.
 	UserKeysFlushInterval time.Duration
+	// Used internally in testing to set a DiagnosticRecordingInterval that is less than the minimum.
+	forceDiagnosticRecordingInterval time.Duration
 }

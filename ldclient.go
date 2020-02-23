@@ -221,16 +221,14 @@ func createDefaultDataSource(httpClient *http.Client) func(string, Config) (inte
 func createDefaultEventProcessor(sdkKey string, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {
 	headers := make(http.Header)
 	addBaseHeaders(headers, sdkKey, config)
+	eventSender := ldevents.NewServerSideEventSender(client, sdkKey, config.EventsUri, headers, config.Loggers)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        config.AllAttributesPrivate,
 		Capacity:                    config.Capacity,
 		DiagnosticRecordingInterval: config.DiagnosticRecordingInterval,
-		DiagnosticURI:               strings.TrimRight(config.EventsUri, "/") + "/diagnostic",
 		DiagnosticsManager:          diagnosticsManager,
-		EventsURI:                   strings.TrimRight(config.EventsUri, "/") + "/bulk",
+		EventSender:                 eventSender,
 		FlushInterval:               config.FlushInterval,
-		Headers:                     headers,
-		HTTPClient:                  client,
 		InlineUsersInEvents:         config.InlineUsersInEvents,
 		Loggers:                     config.Loggers,
 		LogUserKeyInErrors:          config.LogUserKeyInErrors,

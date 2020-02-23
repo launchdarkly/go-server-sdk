@@ -1,5 +1,7 @@
 package ldevents
 
+import "time"
+
 // EventProcessor defines the interface for dispatching analytics events.
 type EventProcessor interface {
 	// SendEvent records an event asynchronously.
@@ -11,4 +13,21 @@ type EventProcessor interface {
 	// Close shuts down all event processor activity, after first ensuring that all events have been
 	// delivered. Subsequent calls to SendEvent() or Flush() will be ignored.
 	Close() error
+}
+
+type EventSender interface {
+	SendEventData(kind EventDataKind, data []byte, eventCount int) EventSenderResult
+}
+
+type EventDataKind string
+
+const (
+	AnalyticsEventDataKind  EventDataKind = "analytics"
+	DiagnosticEventDataKind EventDataKind = "diagnostic"
+)
+
+type EventSenderResult struct {
+	Success        bool
+	MustShutDown   bool
+	TimeFromServer time.Time
 }

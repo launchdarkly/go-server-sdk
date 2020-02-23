@@ -57,3 +57,22 @@ func TestDiagnosticInitEventPlatformData(t *testing.T) {
 	event := m.CreateInitEvent()
 	assert.Equal(t, "Go", event.GetByKey("platform").GetByKey("name").StringValue())
 }
+
+func TestRecordStreamInit(t *testing.T) {
+	id := NewDiagnosticID("sdkkey")
+	m := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
+	m.RecordStreamInit(10000, true, 100)
+	m.RecordStreamInit(20000, false, 50)
+	event := m.CreateStatsEventAndReset(0, 0, 0)
+
+	streamInits := event.GetByKey("streamInits")
+	assert.Equal(t, 2, streamInits.Count())
+	s0 := streamInits.GetByIndex(0)
+	assert.Equal(t, 10000, s0.GetByKey("timestamp").IntValue())
+	assert.Equal(t, true, s0.GetByKey("failed").BoolValue())
+	assert.Equal(t, 100, s0.GetByKey("durationMillis").IntValue())
+	s1 := streamInits.GetByIndex(1)
+	assert.Equal(t, 20000, s1.GetByKey("timestamp").IntValue())
+	assert.Equal(t, false, s1.GetByKey("failed").BoolValue())
+	assert.Equal(t, 50, s1.GetByKey("durationMillis").IntValue())
+}
