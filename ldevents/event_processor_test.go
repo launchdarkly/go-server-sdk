@@ -2,10 +2,7 @@ package ldevents
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,17 +13,6 @@ import (
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
-var BuiltinAttributes = []string{
-	"avatar",
-	"country",
-	"email",
-	"firstName",
-	"ip",
-	"lastName",
-	"name",
-	"secondary",
-}
-
 var epDefaultConfig = EventsConfiguration{
 	Capacity:              1000,
 	FlushInterval:         1 * time.Hour,
@@ -36,56 +22,51 @@ var epDefaultConfig = EventsConfiguration{
 
 var epDefaultUser = lduser.NewUserBuilder("userKey").Name("Red").Build()
 
-var userJson = map[string]interface{}{"key": "userKey", "name": "Red"}
-var filteredUserJson = map[string]interface{}{"key": "userKey", "privateAttrs": []interface{}{"name"}}
+var userJson = ldvalue.ObjectBuild().
+	Set("key", ldvalue.String("userKey")).
+	Set("name", ldvalue.String("Red")).
+	Build()
+var filteredUserJson = ldvalue.ObjectBuild().
+	Set("key", ldvalue.String("userKey")).
+	Set("privateAttrs", ldvalue.ArrayOf(ldvalue.String("name"))).
+	Build()
 
 const (
 	sdkKey = "SDK_KEY"
 )
 
-type stubTransport struct {
-	messageSent chan *http.Request
-	statusCode  int
-	serverTime  uint64
-	error       error
-}
-
-var epoch = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-
-func init() {
-	sort.Strings(BuiltinAttributes)
-}
-
 func TestIdentifyEventIsQueued(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 1, len(output)) {
-		assertIdentifyEventMatches(t, ie, userJson, output[0])
+	if assert.Equal(t, 1, len(es.events)) {
+		assert.Equal(t, expectedIdentifyEvent(ie, userJson), es.events[0])
 	}
 }
 
 func TestUserDetailsAreScrubbedInIdentifyEvent(t *testing.T) {
 	config := epDefaultConfig
 	config.AllAttributesPrivate = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 1, len(output)) {
-		assertIdentifyEventMatches(t, ie, filteredUserJson, output[0])
+	if assert.Equal(t, 1, len(es.events)) {
+		assert.Equal(t, expectedIdentifyEvent(ie, filteredUserJson), es.events[0])
 	}
 }
 
 func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -95,16 +76,17 @@ func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[1])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe, userJson), es.events[0])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[1])
 	}
 }
 
 func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -115,19 +97,20 @@ func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 3, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0])
-		assertFeatureEventMatches(t, fe, flag, value, false, nil, output[1])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[2])
+	if assert.Equal(t, 3, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe, userJson), es.events[0])
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, false, nil), es.events[1])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[2])
 	}
 }
 
 func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 	config := epDefaultConfig
 	config.AllAttributesPrivate = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -138,19 +121,20 @@ func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 3, len(output)) {
-		assertIndexEventMatches(t, fe, filteredUserJson, output[0])
-		assertFeatureEventMatches(t, fe, flag, value, false, nil, output[1])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[2])
+	if assert.Equal(t, 3, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe, filteredUserJson), es.events[0])
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, false, nil), es.events[1])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[2])
 	}
 }
 
 func TestFeatureEventCanContainInlineUser(t *testing.T) {
 	config := epDefaultConfig
 	config.InlineUsersInEvents = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -161,11 +145,12 @@ func TestFeatureEventCanContainInlineUser(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertFeatureEventMatches(t, fe, flag, value, false, &userJson, output[0])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[1])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, false, &userJson), es.events[0])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[1])
 	}
 }
 
@@ -173,7 +158,7 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 	config := epDefaultConfig
 	config.InlineUsersInEvents = true
 	config.AllAttributesPrivate = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -184,18 +169,19 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertFeatureEventMatches(t, fe, flag, value, false, &filteredUserJson, output[0])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[1])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, false, &filteredUserJson), es.events[0])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[1])
 	}
 }
 
 func TestFeatureEventCanContainReason(t *testing.T) {
 	config := epDefaultConfig
 	config.InlineUsersInEvents = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -207,18 +193,19 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	fe.Reason = ldreason.NewEvalReasonFallthrough()
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertFeatureEventMatches(t, fe, flag, value, false, &userJson, output[0])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[1])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, false, &userJson), es.events[0])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[1])
 	}
 }
 
 func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *testing.T) {
 	config := epDefaultConfig
 	config.InlineUsersInEvents = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	flag := ldeval.FeatureFlag{
@@ -229,16 +216,17 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0]) // we get this because we are *not* getting the full event
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[1])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe, userJson), es.events[0]) // we get this because we are *not* getting the full event
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[1])
 	}
 }
 
 func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	futureTime := now() + 1000000
@@ -251,17 +239,18 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 3, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0])
-		assertFeatureEventMatches(t, fe, flag, value, true, &userJson, output[1])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[2])
+	if assert.Equal(t, 3, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe, userJson), es.events[0])
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, true, &userJson), es.events[1])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[2])
 	}
 }
 
 func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	futureTime := now() + 1000000
@@ -274,34 +263,34 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 	value := ldvalue.String("value")
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 4, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0])
-		assertFeatureEventMatches(t, fe, flag, value, false, nil, output[1])
-		assertFeatureEventMatches(t, fe, flag, value, true, &userJson, output[2])
-		assertSummaryEventHasCounter(t, flag, 2, value, 1, output[3])
+	if assert.Equal(t, 4, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe, userJson), es.events[0])
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, false, nil), es.events[1])
+		assert.Equal(t, expectedFeatureEvent(fe, flag, value, true, &userJson), es.events[2])
+		assertSummaryEventHasCounter(t, flag, 2, value, 1, es.events[3])
 	}
 }
 
 func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	// Pick a server time that is somewhat behind the client time
-	serverTime := now() - 20000
-	st.serverTime = serverTime
+	serverTime := time.Now().Add(-20 * time.Second)
+	es.result = EventSenderResult{Success: true, TimeFromServer: serverTime}
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(lduser.NewUser("otherUser"))
+	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
-	st.getNextRequest()
 
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the server time, but in the past compared to the client.
-	debugUntil := serverTime + 1000
+	debugUntil := toUnixMillis(serverTime) + 1000
 	flag := ldeval.FeatureFlag{
 		Key:                  "flagkey",
 		Version:              11,
@@ -310,33 +299,33 @@ func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 	}
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedIdentifyEvent(ie, userJson), es.events[0])
 		// should get a summary event only, not a debug event
-		assertSummaryEventHasCounter(t, flag, -1, ldvalue.Null(), 1, output[1])
+		assertSummaryEventHasCounter(t, flag, -1, ldvalue.Null(), 1, es.events[1])
 	}
 }
 
 func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	// Pick a server time that is somewhat ahead of the client time
-	serverTime := now() + 20000
-	st.serverTime = serverTime
+	serverTime := time.Now().Add(20 * time.Second)
+	es.result = EventSenderResult{Success: true, TimeFromServer: serverTime}
 
 	// Send and flush an event we don't care about, just to set the last server time
-	ie := NewIdentifyEvent(lduser.NewUser("otherUser"))
+	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
-	st.getNextRequest()
 
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the client time, but in the past compared to the server.
-	debugUntil := serverTime - 1000
+	debugUntil := toUnixMillis(serverTime) - 1000
 	flag := ldeval.FeatureFlag{
 		Key:                  "flagkey",
 		Version:              11,
@@ -345,17 +334,18 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	}
 	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertIndexEventMatches(t, fe, userJson, output[0])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedIdentifyEvent(ie, userJson), es.events[0])
 		// should get a summary event only, not a debug event
-		assertSummaryEventHasCounter(t, flag, -1, ldvalue.Null(), 1, output[1])
+		assertSummaryEventHasCounter(t, flag, -1, ldvalue.Null(), 1, es.events[1])
 	}
 }
 
 func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	flag1 := ldeval.FeatureFlag{
@@ -373,19 +363,20 @@ func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
 	fe2 := NewSuccessfulEvalEvent(&flag2, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 4, len(output)) {
-		assertIndexEventMatches(t, fe1, userJson, output[0])
-		assertFeatureEventMatches(t, fe1, flag1, value, false, nil, output[1])
-		assertFeatureEventMatches(t, fe2, flag2, value, false, nil, output[2])
-		assertSummaryEventHasCounter(t, flag1, 2, value, 1, output[3])
-		assertSummaryEventHasCounter(t, flag2, 2, value, 1, output[3])
+	if assert.Equal(t, 4, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe1, userJson), es.events[0])
+		assert.Equal(t, expectedFeatureEvent(fe1, flag1, value, false, nil), es.events[1])
+		assert.Equal(t, expectedFeatureEvent(fe2, flag2, value, false, nil), es.events[2])
+		assertSummaryEventHasCounter(t, flag1, 2, value, 1, es.events[3])
+		assertSummaryEventHasCounter(t, flag2, 2, value, 1, es.events[3])
 	}
 }
 
 func TestNonTrackedEventsAreSummarized(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	flag1 := ldeval.FeatureFlag{
@@ -405,180 +396,109 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 	ep.SendEvent(fe3)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertIndexEventMatches(t, fe1, userJson, output[0])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(fe1, userJson), es.events[0])
 
-		seo := output[1]
-		assertSummaryEventHasCounter(t, flag1, 2, value, 1, seo)
-		assertSummaryEventHasCounter(t, flag2, 3, value, 2, seo)
-		assert.Equal(t, float64(fe1.CreationDate), seo["startDate"])
-		assert.Equal(t, float64(fe3.CreationDate), seo["endDate"])
+		se := es.events[1]
+		assertSummaryEventHasCounter(t, flag1, 2, value, 1, se)
+		assertSummaryEventHasCounter(t, flag2, 3, value, 2, se)
+		assert.Equal(t, float64(fe1.CreationDate), se.GetByKey("startDate").Float64Value())
+		assert.Equal(t, float64(fe3.CreationDate), se.GetByKey("endDate").Float64Value())
 	}
 }
 
 func TestCustomEventIsQueuedWithUser(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	data := ldvalue.ObjectBuild().Set("thing", ldvalue.String("stuff")).Build()
 	ce := NewCustomEvent("eventkey", epDefaultUser, data, false, 0)
 	ep.SendEvent(ce)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 2, len(output)) {
-		assertIndexEventMatches(t, ce, userJson, output[0])
+	if assert.Equal(t, 2, len(es.events)) {
+		assert.Equal(t, expectedIndexEvent(ce, userJson), es.events[0])
 
-		ceo := output[1]
-		expected := map[string]interface{}{
-			"kind":         "custom",
-			"creationDate": float64(ce.CreationDate),
-			"key":          ce.Key,
-			"data":         data.AsArbitraryValue(),
-			"userKey":      epDefaultUser.GetKey(),
-		}
-		assert.Equal(t, expected, ceo)
+		expected := ldvalue.ObjectBuild().
+			Set("kind", ldvalue.String("custom")).
+			Set("creationDate", ldvalue.Float64(float64(ce.CreationDate))).
+			Set("key", ldvalue.String(ce.Key)).
+			Set("data", data).
+			Set("userKey", ldvalue.String(epDefaultUser.GetKey())).
+			Build()
+		assert.Equal(t, expected, es.events[1])
 	}
 }
 
 func TestCustomEventCanContainInlineUser(t *testing.T) {
 	config := epDefaultConfig
 	config.InlineUsersInEvents = true
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
 	data := ldvalue.ObjectBuild().Set("thing", ldvalue.String("stuff")).Build()
 	ce := NewCustomEvent("eventkey", epDefaultUser, data, false, 0)
 	ep.SendEvent(ce)
+	ep.Flush()
+	ep.waitUntilInactive()
 
-	output := flushAndGetEvents(ep, st)
-	if assert.Equal(t, 1, len(output)) {
-		ceo := output[0]
-		expected := map[string]interface{}{
-			"kind":         "custom",
-			"creationDate": float64(ce.CreationDate),
-			"key":          ce.Key,
-			"data":         data.AsArbitraryValue(),
-			"user":         userJsonMap(epDefaultUser),
-		}
-		assert.Equal(t, expected, ceo)
+	if assert.Equal(t, 1, len(es.events)) {
+		expected := ldvalue.ObjectBuild().
+			Set("kind", ldvalue.String("custom")).
+			Set("creationDate", ldvalue.Float64(float64(ce.CreationDate))).
+			Set("key", ldvalue.String(ce.Key)).
+			Set("data", data).
+			Set("user", userJsonEncoding(epDefaultUser)).
+			Build()
+		assert.Equal(t, expected, es.events[0])
 	}
 }
 
 func TestClosingEventProcessorForcesSynchronousFlush(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)
 	ep.Close()
 
-	output := getEventsFromRequest(st)
-	if assert.Equal(t, 1, len(output)) {
-		assertIdentifyEventMatches(t, ie, userJson, output[0])
+	if assert.Equal(t, 1, len(es.events)) {
+		assert.Equal(t, expectedIdentifyEvent(ie, userJson), es.events[0])
 	}
 }
 
 func TestNothingIsSentIfThereAreNoEvents(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
 	ep.Flush()
 	ep.waitUntilInactive()
 
-	msg := st.getNextRequest()
-	assert.Nil(t, msg)
+	assert.Equal(t, 0, len(es.events))
 }
 
-func TestBaseHeadersAreSent(t *testing.T) {
-	ua := "SecretAgent"
-	config := epDefaultConfig
-	config.Headers = make(http.Header)
-	config.Headers.Add("User-Agent", ua)
-	ep, st := createEventProcessor(config)
+func TestEventProcessorStopsSendingEventsAfterUnrecoverableError(t *testing.T) {
+	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
+
+	es.result = EventSenderResult{MustShutDown: true}
 
 	ie := NewIdentifyEvent(epDefaultUser)
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
 
-	msg := st.getNextRequest()
-	assert.Equal(t, ua, msg.Header.Get("User-Agent"))
-}
+	assert.Equal(t, 1, len(es.events))
 
-func TestUniquePayloadIDIsSent(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
-	defer ep.Close()
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
 	ep.SendEvent(ie)
 	ep.Flush()
 	ep.waitUntilInactive()
 
-	msg0 := st.getNextRequest()
-	msg1 := st.getNextRequest()
-	id0 := msg0.Header.Get(payloadIDHeader)
-	id1 := msg1.Header.Get(payloadIDHeader)
-	assert.NotEqual(t, "", id0)
-	assert.NotEqual(t, "", id1)
-	assert.NotEqual(t, id0, id1)
-}
-
-var httpErrorTests = []struct {
-	status      int
-	recoverable bool
-}{
-	{400, true},
-	{401, false},
-	{403, false},
-	{408, true},
-	{429, true},
-	{500, true},
-	{503, true},
-}
-
-func TestHTTPErrorHandling(t *testing.T) {
-	for _, tt := range httpErrorTests {
-		t.Run(fmt.Sprintf("%d error, recoverable: %v", tt.status, tt.recoverable), func(t *testing.T) {
-			ep, st := createEventProcessor(epDefaultConfig)
-			defer ep.Close()
-
-			st.statusCode = tt.status
-
-			ie := NewIdentifyEvent(epDefaultUser)
-			ep.SendEvent(ie)
-			ep.Flush()
-			ep.waitUntilInactive()
-
-			msg0 := st.getNextRequest()
-			assert.NotNil(t, msg0)
-
-			if tt.recoverable {
-				msg1 := st.getNextRequest() // 2nd request is a retry of the 1st
-				assert.NotNil(t, msg1)
-				id0 := msg0.Header.Get(payloadIDHeader)
-				assert.NotEqual(t, "", id0)
-				assert.Equal(t, id0, msg1.Header.Get(payloadIDHeader))
-				msg2 := st.getNextRequest()
-				assert.Nil(t, msg2)
-			} else {
-				msg1 := st.getNextRequest()
-				assert.Nil(t, msg1) // no 2nd request was sent
-
-				ep.SendEvent(ie)
-				ep.Flush()
-				ep.waitUntilInactive()
-
-				msg2 := st.getNextRequest()
-				assert.Nil(t, msg2)
-			}
-		})
-	}
+	assert.Equal(t, 1, len(es.events)) // no additional payload was sent
 }
 
 func TestDiagnosticInitEventIsSent(t *testing.T) {
@@ -587,17 +507,16 @@ func TestDiagnosticInitEventIsSent(t *testing.T) {
 	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), startTime, nil)
 	config := epDefaultConfig
 	config.DiagnosticsManager = diagnosticsManager
-	config.DiagnosticURI = "http://fake/diagnostic"
 
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
+	ep.waitUntilInactive()
 
-	req, bytes := st.awaitRequest()
-	assert.Equal(t, "/diagnostic", req.URL.Path)
-	var event map[string]interface{}
-	json.Unmarshal(bytes, &event)
-	assert.Equal(t, "diagnostic-init", event["kind"])
-	assert.Equal(t, float64(toUnixMillis(startTime)), event["creationDate"])
+	if assert.Equal(t, 1, len(es.diagnosticEvents)) {
+		event := es.diagnosticEvents[0]
+		assert.Equal(t, "diagnostic-init", event.GetByKey("kind").StringValue())
+		assert.Equal(t, float64(toUnixMillis(startTime)), event.GetByKey("creationDate").Float64Value())
+	}
 }
 
 func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
@@ -606,33 +525,24 @@ func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), startTime, nil)
 	config := epDefaultConfig
 	config.DiagnosticsManager = diagnosticsManager
-	config.DiagnosticRecordingInterval = 100 * time.Millisecond
-	config.DiagnosticURI = "http://fake/diagnostic"
+	config.forceDiagnosticRecordingInterval = 100 * time.Millisecond
 
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	req0, bytes0 := st.awaitRequest()
-	assert.Equal(t, "/diagnostic", req0.URL.Path)
-	var event0 map[string]interface{}
-	json.Unmarshal(bytes0, &event0)
-	assert.Equal(t, "diagnostic-init", event0["kind"])
-	time0 := uint64(event0["creationDate"].(float64))
+	// We use a channel for this because we can't predict exactly when the events will be sent
+	initEvent := <-es.diagnosticEventsCh
+	assert.Equal(t, "diagnostic-init", initEvent.GetByKey("kind").StringValue())
+	time0 := uint64(initEvent.GetByKey("creationDate").Float64Value())
 
-	req1, bytes1 := st.awaitRequest()
-	assert.Equal(t, "/diagnostic", req1.URL.Path)
-	var event1 map[string]interface{}
-	json.Unmarshal(bytes1, &event1)
-	assert.Equal(t, "diagnostic", event1["kind"])
-	time1 := uint64(event1["creationDate"].(float64))
+	event1 := <-es.diagnosticEventsCh
+	assert.Equal(t, "diagnostic", event1.GetByKey("kind").StringValue())
+	time1 := uint64(event1.GetByKey("creationDate").Float64Value())
 	assert.True(t, time1-time0 >= 70, "event times should follow configured interval: %d, %d", time0, time1)
 
-	req2, bytes2 := st.awaitRequest()
-	assert.Equal(t, "/diagnostic", req2.URL.Path)
-	var event2 map[string]interface{}
-	json.Unmarshal(bytes2, &event2)
-	assert.Equal(t, "diagnostic", event2["kind"])
-	time2 := uint64(event2["creationDate"].(float64))
+	event2 := <-es.diagnosticEventsCh
+	assert.Equal(t, "diagnostic", event2.GetByKey("kind").StringValue())
+	time2 := uint64(event2.GetByKey("creationDate").Float64Value())
 	assert.True(t, time2-time1 >= 70, "event times should follow configured interval: %d, %d", time1, time2)
 }
 
@@ -640,195 +550,122 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	id := NewDiagnosticID("sdkkey")
 	config := epDefaultConfig
 	config.Capacity = 3
-	config.DiagnosticRecordingInterval = 100 * time.Millisecond
-	config.DiagnosticURI = "http://fake/diagnostic"
-	config.EventsURI = "http://fake/bulk"
+	config.forceDiagnosticRecordingInterval = 100 * time.Millisecond
 	periodicEventGate := make(chan struct{})
 
 	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), periodicEventGate)
 	config.DiagnosticsManager = diagnosticsManager
 
-	ep, st := createEventProcessor(config)
+	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	req1, _ := st.awaitRequest() // diagnostic init event
-	assert.Equal(t, "/diagnostic", req1.URL.Path)
+	initEvent := <-es.diagnosticEventsCh
+	assert.Equal(t, "diagnostic-init", initEvent.GetByKey("kind").StringValue())
 
 	ep.SendEvent(NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
 	ep.SendEvent(NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
 	ep.SendEvent(NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
 	ep.Flush()
 
-	req2, _ := st.awaitRequest() // flushed events
-	assert.Equal(t, "/bulk", req2.URL.Path)
-
 	periodicEventGate <- struct{}{} // periodic event won't be sent until we do this
 
-	_, bytes := st.awaitRequest()
-	var event map[string]interface{}
-	json.Unmarshal(bytes, &event)
-
-	assert.Equal(t, "diagnostic", event["kind"])
-	assert.Equal(t, float64(3), event["eventsInLastBatch"]) // 1 index, 2 custom
-	assert.Equal(t, float64(1), event["droppedEvents"])     // 3rd custom
-	assert.Equal(t, float64(2), event["deduplicatedUsers"])
+	event1 := <-es.diagnosticEventsCh
+	assert.Equal(t, "diagnostic", event1.GetByKey("kind").StringValue())
+	assert.Equal(t, 3, event1.GetByKey("eventsInLastBatch").IntValue()) // 1 index, 2 custom
+	assert.Equal(t, 1, event1.GetByKey("droppedEvents").IntValue())     // 3rd custom event was dropped
+	assert.Equal(t, 2, event1.GetByKey("deduplicatedUsers").IntValue())
 
 	periodicEventGate <- struct{}{}
 
-	_, bytes3 := st.awaitRequest() // next periodic event - all counters should have been reset
-	json.Unmarshal(bytes3, &event)
-	assert.Equal(t, float64(0), event["eventsInLastBatch"])
-	assert.Equal(t, float64(0), event["droppedEvents"])
-	assert.Equal(t, float64(0), event["deduplicatedUsers"])
+	event2 := <-es.diagnosticEventsCh // next periodic event - all counters should have been reset
+	assert.Equal(t, "diagnostic", event2.GetByKey("kind").StringValue())
+	assert.Equal(t, 0, event2.GetByKey("eventsInLastBatch").IntValue())
+	assert.Equal(t, 0, event2.GetByKey("droppedEvents").IntValue())
+	assert.Equal(t, 0, event2.GetByKey("deduplicatedUsers").IntValue())
 }
 
-func jsonMap(o interface{}) map[string]interface{} {
+func jsonEncoding(o interface{}) ldvalue.Value {
 	bytes, _ := json.Marshal(o)
-	var result map[string]interface{}
+	var result ldvalue.Value
 	json.Unmarshal(bytes, &result)
 	return result
 }
 
-func userJsonMap(u lduser.User) map[string]interface{} {
+func userJsonEncoding(u lduser.User) ldvalue.Value {
 	filter := newUserFilter(epDefaultConfig)
 	fu := filter.scrubUser(u).filteredUser
-	return jsonMap(fu)
+	return jsonEncoding(fu)
 }
 
-func assertIdentifyEventMatches(t *testing.T, sourceEvent Event, encodedUser map[string]interface{}, output map[string]interface{}) {
-	expected := map[string]interface{}{
-		"kind":         "identify",
-		"key":          sourceEvent.GetBase().User.GetKey(),
-		"creationDate": float64(sourceEvent.GetBase().CreationDate),
-		"user":         encodedUser,
-	}
-	assert.Equal(t, expected, output)
+func expectedIdentifyEvent(sourceEvent Event, encodedUser ldvalue.Value) ldvalue.Value {
+	return ldvalue.ObjectBuild().
+		Set("kind", ldvalue.String("identify")).
+		Set("key", ldvalue.String(sourceEvent.GetBase().User.GetKey())).
+		Set("creationDate", ldvalue.Float64(float64(sourceEvent.GetBase().CreationDate))).
+		Set("user", encodedUser).
+		Build()
 }
 
-func assertIndexEventMatches(t *testing.T, sourceEvent Event, encodedUser map[string]interface{}, output map[string]interface{}) {
-	expected := map[string]interface{}{
-		"kind":         "index",
-		"creationDate": float64(sourceEvent.GetBase().CreationDate),
-		"user":         encodedUser,
-	}
-	assert.Equal(t, expected, output)
+func expectedIndexEvent(sourceEvent Event, encodedUser ldvalue.Value) ldvalue.Value {
+	return ldvalue.ObjectBuild().
+		Set("kind", ldvalue.String("index")).
+		Set("creationDate", ldvalue.Float64(float64(sourceEvent.GetBase().CreationDate))).
+		Set("user", encodedUser).
+		Build()
 }
 
-func assertFeatureEventMatches(t *testing.T, sourceEvent FeatureRequestEvent, flag ldeval.FeatureFlag,
-	value ldvalue.Value, debug bool, inlineUser *map[string]interface{}, output map[string]interface{}) {
+func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldeval.FeatureFlag,
+	value ldvalue.Value, debug bool, inlineUser *ldvalue.Value) ldvalue.Value {
 	kind := "feature"
 	if debug {
 		kind = "debug"
 	}
-	expected := map[string]interface{}{
-		"kind":         kind,
-		"creationDate": float64(sourceEvent.CreationDate),
-		"key":          flag.Key,
-		"version":      float64(flag.Version),
-		"value":        value.AsArbitraryValue(),
-		"default":      nil,
-	}
+	expected := ldvalue.ObjectBuild().
+		Set("kind", ldvalue.String(kind)).
+		Set("key", ldvalue.String(flag.Key)).
+		Set("creationDate", ldvalue.Float64(float64(sourceEvent.GetBase().CreationDate))).
+		Set("version", ldvalue.Int(flag.Version)).
+		Set("value", value).
+		Set("default", ldvalue.Null())
 	if sourceEvent.Variation != nil {
-		expected["variation"] = float64(*sourceEvent.Variation)
+		expected.Set("variation", ldvalue.Int(*sourceEvent.Variation))
 	}
 	if sourceEvent.Reason.GetKind() != "" {
-		expected["reason"] = jsonMap(sourceEvent.Reason)
+		expected.Set("reason", jsonEncoding(sourceEvent.Reason))
 	} else {
-		expected["reason"] = nil
+		expected.Set("reason", ldvalue.Null())
 	}
 	if inlineUser == nil {
-		expected["userKey"] = sourceEvent.User.GetKey()
+		expected.Set("userKey", ldvalue.String(sourceEvent.User.GetKey()))
 	} else {
-		expected["user"] = *inlineUser
+		expected.Set("user", *inlineUser)
 	}
-	assert.Equal(t, expected, output)
+	return expected.Build()
 }
 
-func assertSummaryEventHasFlag(t *testing.T, flag ldeval.FeatureFlag, output map[string]interface{}) bool {
-	if assert.Equal(t, "summary", output["kind"]) {
-		flags, _ := output["features"].(map[string]interface{})
-		return assert.NotNil(t, flags) && assert.NotNil(t, flags[flag.Key])
+func assertSummaryEventHasFlag(t *testing.T, flag ldeval.FeatureFlag, output ldvalue.Value) bool {
+	if assert.Equal(t, "summary", output.GetByKey("kind").StringValue()) {
+		flags := output.GetByKey("features")
+		return !flags.GetByKey(flag.Key).IsNull()
 	}
 	return false
 }
 
-func assertSummaryEventHasCounter(t *testing.T, flag ldeval.FeatureFlag, variation int, value ldvalue.Value, count int, output map[string]interface{}) {
+func assertSummaryEventHasCounter(t *testing.T, flag ldeval.FeatureFlag, variation int, value ldvalue.Value, count int, output ldvalue.Value) {
 	if assertSummaryEventHasFlag(t, flag, output) {
-		f, _ := output["features"].(map[string]interface{})[flag.Key].(map[string]interface{})
-		assert.NotNil(t, f)
-		expected := map[string]interface{}{
-			"value":   value.AsArbitraryValue(),
-			"count":   float64(count),
-			"version": float64(flag.Version),
-		}
+		f := output.GetByKey("features").GetByKey(flag.Key)
+		assert.Equal(t, ldvalue.ObjectType, f.Type())
+		expected := ldvalue.ObjectBuild().Set("value", value).Set("count", ldvalue.Int(count)).Set("version", ldvalue.Int(flag.Version))
 		if variation >= 0 {
-			expected["variation"] = float64(variation)
+			expected.Set("variation", ldvalue.Int(variation))
 		}
-		assert.Contains(t, f["counters"], expected)
+		counters := []ldvalue.Value{}
+		f.GetByKey("counters").Enumerate(func(i int, k string, v ldvalue.Value) bool {
+			counters = append(counters, v)
+			return true
+		})
+		assert.Contains(t, counters, expected.Build())
 	}
-}
-
-func createEventProcessor(config EventsConfiguration) (*defaultEventProcessor, *stubTransport) {
-	transport := &stubTransport{
-		statusCode:  200,
-		messageSent: make(chan *http.Request, 100),
-	}
-	config.HTTPClient = &http.Client{
-		Transport: transport,
-	}
-	ep := NewDefaultEventProcessor(config)
-	return ep.(*defaultEventProcessor), transport
-}
-
-func flushAndGetEvents(ep *defaultEventProcessor, st *stubTransport) []map[string]interface{} {
-	ep.Flush()
-	ep.waitUntilInactive()
-	return getEventsFromRequest(st)
-}
-
-func getEventsFromRequest(st *stubTransport) (output []map[string]interface{}) {
-	msg := st.getNextRequest()
-	if msg == nil {
-		return
-	}
-	bytes, err := ioutil.ReadAll(msg.Body)
-	if err != nil {
-		return
-	}
-	json.Unmarshal(bytes, &output)
-	return
-}
-
-func (t *stubTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	t.messageSent <- request
-	if t.error != nil {
-		return nil, t.error
-	}
-	resp := http.Response{
-		StatusCode: t.statusCode,
-		Header:     make(http.Header),
-		Request:    request,
-	}
-	if t.serverTime != 0 {
-		ts := epoch.Add(time.Duration(t.serverTime) * time.Millisecond)
-		resp.Header.Add("Date", ts.Format(http.TimeFormat))
-	}
-	return &resp, nil
-}
-
-func (t *stubTransport) getNextRequest() *http.Request {
-	select {
-	case msg := <-t.messageSent:
-		return msg
-	default:
-		return nil
-	}
-}
-
-func (t *stubTransport) awaitRequest() (*http.Request, []byte) {
-	req := <-t.messageSent
-	bytes, _ := ioutil.ReadAll(req.Body)
-	return req, bytes
 }
 
 // used only for testing - ensures that all pending messages and flushes have completed
@@ -836,4 +673,49 @@ func (ep *defaultEventProcessor) waitUntilInactive() {
 	m := syncEventsMessage{replyCh: make(chan struct{})}
 	ep.inboxCh <- m
 	<-m.replyCh // Now we know that all events prior to this call have been processed
+}
+
+type mockEventSender struct {
+	events             []ldvalue.Value
+	diagnosticEvents   []ldvalue.Value
+	eventsCh           chan ldvalue.Value
+	diagnosticEventsCh chan ldvalue.Value
+	result             EventSenderResult
+	lock               sync.Mutex
+}
+
+func newMockEventSender() *mockEventSender {
+	return &mockEventSender{
+		eventsCh:           make(chan ldvalue.Value, 100),
+		diagnosticEventsCh: make(chan ldvalue.Value, 100),
+		result:             EventSenderResult{Success: true},
+	}
+}
+
+func (ms *mockEventSender) SendEventData(kind EventDataKind, data []byte, eventCount int) EventSenderResult {
+	var jsonData ldvalue.Value
+	err := json.Unmarshal(data, &jsonData)
+	if err != nil {
+		panic(err)
+	}
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
+	if kind == DiagnosticEventDataKind {
+		ms.diagnosticEvents = append(ms.diagnosticEvents, jsonData)
+		ms.diagnosticEventsCh <- jsonData
+	} else {
+		jsonData.Enumerate(func(i int, k string, v ldvalue.Value) bool {
+			ms.events = append(ms.events, v)
+			ms.eventsCh <- v
+			return true
+		})
+	}
+	return ms.result
+}
+
+func createEventProcessorAndSender(config EventsConfiguration) (*defaultEventProcessor, *mockEventSender) {
+	sender := newMockEventSender()
+	config.EventSender = sender
+	ep := NewDefaultEventProcessor(config)
+	return ep.(*defaultEventProcessor), sender
 }

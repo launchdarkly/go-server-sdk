@@ -1,15 +1,10 @@
 package ldevents
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -38,7 +33,6 @@ type flushPayload struct {
 }
 
 type sendEventsTask struct {
-	client    *http.Client
 	config    EventsConfiguration
 	formatter eventOutputFormatter
 }
@@ -61,17 +55,11 @@ type syncEventsMessage struct {
 }
 
 const (
-	maxFlushWorkers    = 5
-	eventSchemaHeader  = "X-LaunchDarkly-Event-Schema"
-	payloadIDHeader    = "X-LaunchDarkly-Payload-ID"
-	currentEventSchema = "3"
+	maxFlushWorkers = 5
 )
 
 // NewDefaultEventProcessor creates an instance of the default implementation of analytics event processing.
 func NewDefaultEventProcessor(config EventsConfiguration) EventProcessor {
-	if config.HTTPClient == nil {
-		config.HTTPClient = http.DefaultClient
-	}
 	inboxCh := make(chan eventDispatcherMessage, config.Capacity)
 	startEventDispatcher(config, inboxCh)
 	return &defaultEventProcessor{
@@ -130,8 +118,7 @@ func startEventDispatcher(
 	flushCh := make(chan *flushPayload, 1)
 	var workersGroup sync.WaitGroup
 	for i := 0; i < maxFlushWorkers; i++ {
-		startFlushTask(config, flushCh, &workersGroup,
-			func(r *http.Response) { ed.handleResponse(r) })
+		startFlushTask(config, flushCh, &workersGroup, ed.handleResult)
 	}
 	if config.DiagnosticsManager != nil {
 		event := config.DiagnosticsManager.CreateInitEvent()
@@ -169,8 +156,16 @@ func (ed *eventDispatcher) runMainLoop(
 	diagnosticsManager := ed.config.DiagnosticsManager
 	if diagnosticsManager != nil {
 		interval := ed.config.DiagnosticRecordingInterval
-		if interval <= 0 {
-			interval = DefaultDiagnosticRecordingInterval
+		if interval > 0 {
+			if interval < MinimumDiagnosticRecordingInterval {
+				interval = DefaultDiagnosticRecordingInterval
+			}
+		} else {
+			if ed.config.forceDiagnosticRecordingInterval > 0 {
+				interval = ed.config.forceDiagnosticRecordingInterval
+			} else {
+				interval = DefaultDiagnosticRecordingInterval
+			}
 		}
 		diagnosticsTicker = time.NewTicker(interval)
 		diagnosticsTickerCh = diagnosticsTicker.C
@@ -326,21 +321,15 @@ func (ed *eventDispatcher) isDisabled() bool {
 	return ed.disabled
 }
 
-func (ed *eventDispatcher) handleResponse(resp *http.Response) {
-	if err := checkForHttpError(resp.StatusCode, resp.Request.URL.String()); err != nil {
-		ed.config.Loggers.Error(httpErrorMessage(resp.StatusCode, "posting events", "some events were dropped"))
-		if !isHTTPErrorRecoverable(resp.StatusCode) {
-			ed.stateLock.Lock()
-			defer ed.stateLock.Unlock()
-			ed.disabled = true
-		}
-	} else {
-		dt, err := http.ParseTime(resp.Header.Get("Date"))
-		if err == nil {
-			ed.stateLock.Lock()
-			defer ed.stateLock.Unlock()
-			ed.lastKnownPastTime = toUnixMillis(dt)
-		}
+func (ed *eventDispatcher) handleResult(result EventSenderResult) {
+	if result.MustShutDown {
+		ed.stateLock.Lock()
+		defer ed.stateLock.Unlock()
+		ed.disabled = true
+	} else if !result.TimeFromServer.IsZero() {
+		ed.stateLock.Lock()
+		defer ed.stateLock.Unlock()
+		ed.lastKnownPastTime = toUnixMillis(result.TimeFromServer)
 	}
 }
 
@@ -365,20 +354,19 @@ func (ed *eventDispatcher) sendDiagnosticsEvent(
 }
 
 func startFlushTask(config EventsConfiguration, flushCh <-chan *flushPayload,
-	workersGroup *sync.WaitGroup, responseFn func(*http.Response)) {
+	workersGroup *sync.WaitGroup, resultFn func(EventSenderResult)) {
 	ef := eventOutputFormatter{
 		userFilter: newUserFilter(config),
 		config:     config,
 	}
 	t := sendEventsTask{
-		client:    config.HTTPClient,
 		config:    config,
 		formatter: ef,
 	}
-	go t.run(flushCh, responseFn, workersGroup)
+	go t.run(flushCh, resultFn, workersGroup)
 }
 
-func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http.Response),
+func (t *sendEventsTask) run(flushCh <-chan *flushPayload, resultFn func(EventSenderResult),
 	workersGroup *sync.WaitGroup) {
 	for {
 		payload, more := <-flushCh
@@ -387,69 +375,24 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, responseFn func(*http
 			break
 		}
 		if !payload.diagnosticEvent.IsNull() {
-			t.postEvents(t.config.DiagnosticURI, payload.diagnosticEvent, "diagnostic event") //nolint:bodyclose // already closed by postEvents
+			bytes, err := json.Marshal(payload.diagnosticEvent)
+			if err != nil {
+				t.config.Loggers.Errorf("Unexpected error marshalling diagnostic event: %+v", err)
+			} else {
+				_ = t.config.EventSender.SendEventData(DiagnosticEventDataKind, bytes, 1)
+			}
 		} else {
 			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
-				resp := t.postEvents(t.config.EventsURI, outputEvents, fmt.Sprintf("%d events", len(outputEvents))) //nolint:bodyclose // already closed by postEvents
-				if resp != nil {
-					responseFn(resp)
+				bytes, err := json.Marshal(outputEvents)
+				if err != nil {
+					t.config.Loggers.Errorf("Unexpected error marshalling event JSON: %+v", err)
+				} else {
+					result := t.config.EventSender.SendEventData(AnalyticsEventDataKind, bytes, len(outputEvents))
+					resultFn(result)
 				}
 			}
 		}
 		workersGroup.Done() // Decrement the count of in-progress flushes
 	}
-}
-
-func (t *sendEventsTask) postEvents(uri string, outputData interface{}, description string) *http.Response {
-	jsonPayload, marshalErr := json.Marshal(outputData)
-	if marshalErr != nil {
-		t.config.Loggers.Errorf("Unexpected error marshalling event json: %+v", marshalErr)
-		return nil
-	}
-	payloadUUID, _ := uuid.NewRandom()
-	payloadID := payloadUUID.String() // if NewRandom somehow failed, we'll just proceed with an empty string
-
-	t.config.Loggers.Debugf("Sending %s: %s", description, jsonPayload)
-
-	var resp *http.Response
-	var respErr error
-	for attempt := 0; attempt < 2; attempt++ {
-		if attempt > 0 {
-			t.config.Loggers.Warn("Will retry posting events after 1 second")
-			time.Sleep(1 * time.Second)
-		}
-		req, reqErr := http.NewRequest("POST", uri, bytes.NewReader(jsonPayload))
-		if reqErr != nil {
-			t.config.Loggers.Errorf("Unexpected error while creating event request: %+v", reqErr)
-			return nil
-		}
-
-		for k, vv := range t.config.Headers {
-			for _, v := range vv {
-				req.Header.Add(k, v)
-			}
-		}
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add(eventSchemaHeader, currentEventSchema)
-		req.Header.Add(payloadIDHeader, payloadID)
-
-		resp, respErr = t.client.Do(req)
-
-		if resp != nil && resp.Body != nil {
-			_, _ = ioutil.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-		}
-
-		if respErr != nil {
-			t.config.Loggers.Warnf("Unexpected error while sending events: %+v", respErr)
-			continue
-		} else if resp.StatusCode >= 400 && isHTTPErrorRecoverable(resp.StatusCode) {
-			t.config.Loggers.Warnf("Received error status %d when sending events", resp.StatusCode)
-			continue
-		} else {
-			break
-		}
-	}
-	return resp
 }

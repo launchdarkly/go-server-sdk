@@ -2,38 +2,7 @@ package ldevents
 
 import (
 	"fmt"
-	"net/http"
 )
-
-type httpStatusError struct {
-	Message string
-	Code    int
-}
-
-func (e httpStatusError) Error() string {
-	return e.Message
-}
-
-func checkForHttpError(statusCode int, url string) error {
-	if statusCode == http.StatusUnauthorized {
-		return httpStatusError{
-			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
-			Code:    statusCode}
-	}
-
-	if statusCode == http.StatusNotFound {
-		return httpStatusError{
-			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
-			Code:    statusCode}
-	}
-
-	if statusCode/100 != 2 {
-		return httpStatusError{
-			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
-			Code:    statusCode}
-	}
-	return nil
-}
 
 func describeUserForErrorLog(key string, logUserKeyInErrors bool) string {
 	if logUserKeyInErrors {
