@@ -2,7 +2,6 @@ package ldevents
 
 import (
 	"encoding/json"
-	"net/http"
 	"sync"
 	"time"
 
@@ -38,7 +37,6 @@ type flushPayload struct {
 }
 
 type sendEventsTask struct {
-	client    *http.Client
 	config    EventsConfiguration
 	formatter eventOutputFormatter
 }
