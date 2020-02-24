@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 

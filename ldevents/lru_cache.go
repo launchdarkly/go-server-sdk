@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"container/list"

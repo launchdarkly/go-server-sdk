@@ -9,6 +9,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -45,10 +46,10 @@ func dataSourceFactory(u interfaces.DataSource) func(string, Config) (interfaces
 }
 
 type testEventProcessor struct {
-	events []Event
+	events []ldevents.Event
 }
 
-func (t *testEventProcessor) SendEvent(e Event) {
+func (t *testEventProcessor) SendEvent(e ldevents.Event) {
 	t.events = append(t.events, e)
 }
 
@@ -81,7 +82,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(IdentifyEvent)
+	e := events[0].(ldevents.IdentifyEvent)
 	assert.Equal(t, user, e.User)
 }
 
@@ -107,7 +108,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
+	e := events[0].(ldevents.CustomEvent)
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, ldvalue.Null(), e.Data)
@@ -126,7 +127,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
+	e := events[0].(ldevents.CustomEvent)
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
@@ -146,7 +147,7 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
+	e := events[0].(ldevents.CustomEvent)
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)

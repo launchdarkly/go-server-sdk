@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"encoding/json"
@@ -35,7 +35,7 @@ type userFilter struct {
 	logUserKeyInErrors      bool
 }
 
-func newUserFilter(config Config) userFilter {
+func newUserFilter(config EventsConfiguration) userFilter {
 	return userFilter{
 		allAttributesPrivate:    config.AllAttributesPrivate,
 		globalPrivateAttributes: config.PrivateAttributeNames,

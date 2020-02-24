@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ func TestSummarizeEventDoesNothingForCustomEvent(t *testing.T) {
 	es := newEventSummarizer()
 	snapshot := es.snapshot()
 
-	event := newCustomEvent("whatever", user, ldvalue.Null(), false, 0)
+	event := NewCustomEvent("whatever", user, ldvalue.Null(), false, 0)
 	es.summarizeEvent(event)
 
 	assert.Equal(t, snapshot, es.snapshot())
@@ -37,9 +37,9 @@ func TestSummarizeEventSetsStartAndEndDates(t *testing.T) {
 	flag := ldeval.FeatureFlag{
 		Key: "key",
 	}
-	event1 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	event1 := NewSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	event2 := NewSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	event3 := NewSuccessfulEvalEvent(&flag, user, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	event1.BaseEvent.CreationDate = 2000
 	event2.BaseEvent.CreationDate = 1000
 	event3.BaseEvent.CreationDate = 1500
@@ -64,15 +64,15 @@ func TestSummarizeEventIncrementsCounters(t *testing.T) {
 	unknownFlagKey := "badkey"
 	variation1 := 1
 	variation2 := 2
-	event1 := newSuccessfulEvalEvent(&flag1, user, variation1, ldvalue.String("value1"),
+	event1 := NewSuccessfulEvalEvent(&flag1, user, variation1, ldvalue.String("value1"),
 		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag1, user, variation2, ldvalue.String("value2"),
+	event2 := NewSuccessfulEvalEvent(&flag1, user, variation2, ldvalue.String("value2"),
 		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag2, user, variation1, ldvalue.String("value99"),
+	event3 := NewSuccessfulEvalEvent(&flag2, user, variation1, ldvalue.String("value99"),
 		ldvalue.String("default2"), ldreason.EvaluationReason{}, false, nil)
-	event4 := newSuccessfulEvalEvent(&flag1, user, variation1, ldvalue.String("value1"),
+	event4 := NewSuccessfulEvalEvent(&flag1, user, variation1, ldvalue.String("value1"),
 		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
-	event5 := newUnknownFlagEvent(unknownFlagKey, user, ldvalue.String("default3"), ldreason.EvaluationReason{}, false)
+	event5 := NewUnknownFlagEvent(unknownFlagKey, user, ldvalue.String("default3"), ldreason.EvaluationReason{}, false)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)
 	es.summarizeEvent(event3)
@@ -97,11 +97,11 @@ func TestCounterForNilVariationIsDistinctFromOthers(t *testing.T) {
 	}
 	variation1 := 1
 	variation2 := 2
-	event1 := newSuccessfulEvalEvent(&flag, user, variation1, ldvalue.String("value1"),
+	event1 := NewSuccessfulEvalEvent(&flag, user, variation1, ldvalue.String("value1"),
 		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
-	event2 := newSuccessfulEvalEvent(&flag, user, variation2, ldvalue.String("value2"),
+	event2 := NewSuccessfulEvalEvent(&flag, user, variation2, ldvalue.String("value2"),
 		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
-	event3 := newSuccessfulEvalEvent(&flag, user, -1, ldvalue.String("default1"),
+	event3 := NewSuccessfulEvalEvent(&flag, user, -1, ldvalue.String("default1"),
 		ldvalue.String("default1"), ldreason.EvaluationReason{}, false, nil)
 	es.summarizeEvent(event1)
 	es.summarizeEvent(event2)

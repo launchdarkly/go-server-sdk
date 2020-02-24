@@ -241,7 +241,7 @@ func newStreamProcessor(sdkKey string, config Config, requestor *requestor) *str
 func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	for {
 		req, _ := http.NewRequest("GET", sp.config.StreamUri+"/all", nil)
-		addBaseHeaders(req, sp.sdkKey, sp.config)
+		addBaseHeaders(req.Header, sp.sdkKey, sp.config)
 		sp.config.Loggers.Info("Connecting to LaunchDarkly stream")
 
 		sp.logConnectionStarted()
@@ -294,7 +294,7 @@ func (sp *streamProcessor) logConnectionResult(success bool) {
 	if sp.connectionAttemptStartTime > 0 && sp.config.diagnosticsManager != nil {
 		timestamp := now()
 		sp.config.diagnosticsManager.RecordStreamInit(timestamp, !success,
-			milliseconds(timestamp-sp.connectionAttemptStartTime))
+			timestamp-sp.connectionAttemptStartTime)
 	}
 	sp.connectionAttemptStartTime = 0
 }

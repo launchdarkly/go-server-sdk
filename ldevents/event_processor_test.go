@@ -1,17 +1,15 @@
-package ldclient
+package ldevents
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -29,8 +27,7 @@ var BuiltinAttributes = []string{
 	"secondary",
 }
 
-var epDefaultConfig = Config{
-	SendEvents:            true,
+var epDefaultConfig = EventsConfiguration{
 	Capacity:              1000,
 	FlushInterval:         1 * time.Hour,
 	UserKeysCapacity:      1000,
@@ -96,7 +93,7 @@ func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
 		Version: 11,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -116,7 +113,7 @@ func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -139,7 +136,7 @@ func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -162,7 +159,7 @@ func TestFeatureEventCanContainInlineUser(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -185,7 +182,7 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -207,7 +204,7 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	fe.Reason = ldreason.NewEvalReasonFallthrough()
 	ep.SendEvent(fe)
 
@@ -230,7 +227,7 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 		TrackEvents: false,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -252,7 +249,7 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 		DebugEventsUntilDate: &futureTime,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -275,7 +272,7 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 		DebugEventsUntilDate: &futureTime,
 	}
 	value := ldvalue.String("value")
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -287,7 +284,7 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 	}
 }
 
-func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
+func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 	ep, st := createEventProcessor(epDefaultConfig)
 	defer ep.Close()
 
@@ -311,7 +308,7 @@ func TestDebugModeExpiresBasedOnClientTimeIfClienttTimeIsLater(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &debugUntil,
 	}
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -346,7 +343,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 		TrackEvents:          false,
 		DebugEventsUntilDate: &debugUntil,
 	}
-	fe := newSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe := NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe)
 
 	output := flushAndGetEvents(ep, st)
@@ -372,8 +369,8 @@ func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
 		TrackEvents: true,
 	}
 	value := ldvalue.String("value")
-	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
-	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe1 := NewSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe2 := NewSuccessfulEvalEvent(&flag2, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 
@@ -402,9 +399,9 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 		TrackEvents: false,
 	}
 	value := ldvalue.String("value")
-	fe1 := newSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
-	fe2 := newSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
-	fe3 := newSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe1 := NewSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe2 := NewSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
+	fe3 := NewSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), ldreason.EvaluationReason{}, false, nil)
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 	ep.SendEvent(fe3)
@@ -426,7 +423,7 @@ func TestCustomEventIsQueuedWithUser(t *testing.T) {
 	defer ep.Close()
 
 	data := ldvalue.ObjectBuild().Set("thing", ldvalue.String("stuff")).Build()
-	ce := newCustomEvent("eventkey", epDefaultUser, data, false, 0)
+	ce := NewCustomEvent("eventkey", epDefaultUser, data, false, 0)
 	ep.SendEvent(ce)
 
 	output := flushAndGetEvents(ep, st)
@@ -452,7 +449,7 @@ func TestCustomEventCanContainInlineUser(t *testing.T) {
 	defer ep.Close()
 
 	data := ldvalue.ObjectBuild().Set("thing", ldvalue.String("stuff")).Build()
-	ce := newCustomEvent("eventkey", epDefaultUser, data, false, 0)
+	ce := NewCustomEvent("eventkey", epDefaultUser, data, false, 0)
 	ep.SendEvent(ce)
 
 	output := flushAndGetEvents(ep, st)
@@ -494,22 +491,11 @@ func TestNothingIsSentIfThereAreNoEvents(t *testing.T) {
 	assert.Nil(t, msg)
 }
 
-func TestSdkKeyIsSent(t *testing.T) {
-	ep, st := createEventProcessor(epDefaultConfig)
-	defer ep.Close()
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg := st.getNextRequest()
-	assert.Equal(t, sdkKey, msg.Header.Get("Authorization"))
-}
-
-func TestUserAgentIsSent(t *testing.T) {
+func TestBaseHeadersAreSent(t *testing.T) {
+	ua := "SecretAgent"
 	config := epDefaultConfig
-	config.UserAgent = "SecretAgent"
+	config.Headers = make(http.Header)
+	config.Headers.Add("User-Agent", ua)
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
 
@@ -519,7 +505,7 @@ func TestUserAgentIsSent(t *testing.T) {
 	ep.waitUntilInactive()
 
 	msg := st.getNextRequest()
-	assert.Equal(t, config.UserAgent, msg.Header.Get("User-Agent"))
+	assert.Equal(t, ua, msg.Header.Get("User-Agent"))
 }
 
 func TestUniquePayloadIDIsSent(t *testing.T) {
@@ -541,51 +527,6 @@ func TestUniquePayloadIDIsSent(t *testing.T) {
 	assert.NotEqual(t, "", id0)
 	assert.NotEqual(t, "", id1)
 	assert.NotEqual(t, id0, id1)
-}
-
-func TestDefaultPathIsAddedToEventsUri(t *testing.T) {
-	config := epDefaultConfig
-	config.EventsUri = "http://fake/"
-	ep, st := createEventProcessor(config)
-	defer ep.Close()
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg := st.getNextRequest()
-	assert.Equal(t, "http://fake/bulk", msg.URL.String())
-}
-
-func TestTrailingSlashIsOptionalForEventsUri(t *testing.T) {
-	config := epDefaultConfig
-	config.EventsUri = "http://fake"
-	ep, st := createEventProcessor(config)
-	defer ep.Close()
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg := st.getNextRequest()
-	assert.Equal(t, "http://fake/bulk", msg.URL.String())
-}
-
-func TestDefaultPathIsNotAddedToCustomEndpoint(t *testing.T) {
-	config := epDefaultConfig
-	config.EventsEndpointUri = "http://fake/"
-	ep, st := createEventProcessor(config)
-	defer ep.Close()
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-	ep.waitUntilInactive()
-
-	msg := st.getNextRequest()
-	assert.Equal(t, "http://fake/", msg.URL.String())
 }
 
 var httpErrorTests = []struct {
@@ -640,41 +581,13 @@ func TestHTTPErrorHandling(t *testing.T) {
 	}
 }
 
-func TestEventPostingUsesHTTPClientFactory(t *testing.T) {
-	postedURLs := make(chan string, 1)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		postedURLs <- r.URL.Path
-		w.WriteHeader(200)
-	}))
-	defer ts.Close()
-	defer ts.CloseClientConnections()
-
-	cfg := Config{
-		Loggers:           ldlog.NewDisabledLoggers(),
-		EventsUri:         ts.URL,
-		Capacity:          1000,
-		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
-	}
-
-	ep := NewDefaultEventProcessor(sdkKey, cfg, nil)
-	defer ep.Close()
-
-	ie := NewIdentifyEvent(epDefaultUser)
-	ep.SendEvent(ie)
-	ep.Flush()
-
-	postedURL := <-postedURLs
-
-	assert.Equal(t, "/bulk/transformed", postedURL)
-}
-
 func TestDiagnosticInitEventIsSent(t *testing.T) {
-	id := newDiagnosticId("sdkkey")
+	id := NewDiagnosticID("sdkkey")
 	startTime := time.Now()
-	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
+	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), startTime, nil)
 	config := epDefaultConfig
-	config.diagnosticsManager = diagnosticsManager
+	config.DiagnosticsManager = diagnosticsManager
+	config.DiagnosticURI = "http://fake/diagnostic"
 
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
@@ -688,12 +601,13 @@ func TestDiagnosticInitEventIsSent(t *testing.T) {
 }
 
 func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
-	id := newDiagnosticId("sdkkey")
+	id := NewDiagnosticID("sdkkey")
 	startTime := time.Now()
-	diagnosticsManager := newDiagnosticsManager(id, DefaultConfig, time.Second, startTime, nil)
+	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), startTime, nil)
 	config := epDefaultConfig
-	config.diagnosticsManager = diagnosticsManager
+	config.DiagnosticsManager = diagnosticsManager
 	config.DiagnosticRecordingInterval = 100 * time.Millisecond
+	config.DiagnosticURI = "http://fake/diagnostic"
 
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
@@ -723,14 +637,16 @@ func TestDiagnosticPeriodicEventsAreSent(t *testing.T) {
 }
 
 func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
-	id := newDiagnosticId("sdkkey")
-	config := DefaultConfig
+	id := NewDiagnosticID("sdkkey")
+	config := epDefaultConfig
 	config.Capacity = 3
 	config.DiagnosticRecordingInterval = 100 * time.Millisecond
+	config.DiagnosticURI = "http://fake/diagnostic"
+	config.EventsURI = "http://fake/bulk"
 	periodicEventGate := make(chan struct{})
 
-	diagnosticsManager := newDiagnosticsManager(id, config, time.Second, time.Now(), periodicEventGate)
-	config.diagnosticsManager = diagnosticsManager
+	diagnosticsManager := NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), periodicEventGate)
+	config.DiagnosticsManager = diagnosticsManager
 
 	ep, st := createEventProcessor(config)
 	defer ep.Close()
@@ -738,9 +654,9 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	req1, _ := st.awaitRequest() // diagnostic init event
 	assert.Equal(t, "/diagnostic", req1.URL.Path)
 
-	ep.SendEvent(newCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
-	ep.SendEvent(newCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
-	ep.SendEvent(newCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
+	ep.SendEvent(NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
 	ep.Flush()
 
 	req2, _ := st.awaitRequest() // flushed events
@@ -774,7 +690,7 @@ func jsonMap(o interface{}) map[string]interface{} {
 }
 
 func userJsonMap(u lduser.User) map[string]interface{} {
-	filter := newUserFilter(DefaultConfig)
+	filter := newUserFilter(epDefaultConfig)
 	fu := filter.scrubUser(u).filteredUser
 	return jsonMap(fu)
 }
@@ -852,15 +768,15 @@ func assertSummaryEventHasCounter(t *testing.T, flag ldeval.FeatureFlag, variati
 	}
 }
 
-func createEventProcessor(config Config) (*defaultEventProcessor, *stubTransport) {
+func createEventProcessor(config EventsConfiguration) (*defaultEventProcessor, *stubTransport) {
 	transport := &stubTransport{
 		statusCode:  200,
 		messageSent: make(chan *http.Request, 100),
 	}
-	client := &http.Client{
+	config.HTTPClient = &http.Client{
 		Transport: transport,
 	}
-	ep := NewDefaultEventProcessor(sdkKey, config, client)
+	ep := NewDefaultEventProcessor(config)
 	return ep.(*defaultEventProcessor), transport
 }
 

@@ -1,4 +1,4 @@
-package ldclient
+package ldevents
 
 import (
 	"time"
@@ -55,7 +55,8 @@ type IndexEvent struct {
 	BaseEvent
 }
 
-func newUnknownFlagEvent(key string, user lduser.User, defaultVal ldvalue.Value, reason ldreason.EvaluationReason,
+// NewUnknownFlagEvent creates an evaluation event for a missing flag.
+func NewUnknownFlagEvent(key string, user lduser.User, defaultVal ldvalue.Value, reason ldreason.EvaluationReason,
 	includeReason bool) FeatureRequestEvent {
 	fre := FeatureRequestEvent{
 		BaseEvent: BaseEvent{
@@ -72,7 +73,8 @@ func newUnknownFlagEvent(key string, user lduser.User, defaultVal ldvalue.Value,
 	return fre
 }
 
-func newSuccessfulEvalEvent(flag *ldeval.FeatureFlag, user lduser.User, variation int, value, defaultVal ldvalue.Value,
+// NewSuccessfulEvalEvent creates an evaluation event.
+func NewSuccessfulEvalEvent(flag *ldeval.FeatureFlag, user lduser.User, variation int, value, defaultVal ldvalue.Value,
 	reason ldreason.EvaluationReason, includeReason bool, prereqOf *string) FeatureRequestEvent {
 	requireExperimentData := ldeval.IsExperimentationEnabled(*flag, reason)
 	fre := FeatureRequestEvent{
@@ -102,7 +104,8 @@ func (evt FeatureRequestEvent) GetBase() BaseEvent {
 	return evt.BaseEvent
 }
 
-func newCustomEvent(key string, user lduser.User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
+// NewCustomEvent creates a new custom event.
+func NewCustomEvent(key string, user lduser.User, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
 	ce := CustomEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: now(),
