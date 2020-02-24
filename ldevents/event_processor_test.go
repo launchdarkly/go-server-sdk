@@ -2,6 +2,7 @@ package ldevents
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -302,7 +303,7 @@ func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 	ep.waitUntilInactive()
 
 	if assert.Equal(t, 2, len(es.events)) {
-		assert.Equal(t, expectedIdentifyEvent(fe, userJson), es.events[0])
+		assert.Equal(t, expectedIdentifyEvent(ie, userJson), es.events[0])
 		// should get a summary event only, not a debug event
 		assertSummaryEventHasCounter(t, flag, -1, ldvalue.Null(), 1, es.events[1])
 	}
@@ -337,7 +338,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	ep.waitUntilInactive()
 
 	if assert.Equal(t, 2, len(es.events)) {
-		assert.Equal(t, expectedIdentifyEvent(fe, userJson), es.events[0])
+		assert.Equal(t, expectedIdentifyEvent(ie, userJson), es.events[0])
 		// should get a summary event only, not a debug event
 		assertSummaryEventHasCounter(t, flag, -1, ldvalue.Null(), 1, es.events[1])
 	}
@@ -680,6 +681,7 @@ type mockEventSender struct {
 	eventsCh           chan ldvalue.Value
 	diagnosticEventsCh chan ldvalue.Value
 	result             EventSenderResult
+	lock               sync.Mutex
 }
 
 func newMockEventSender() *mockEventSender {
@@ -696,6 +698,8 @@ func (ms *mockEventSender) SendEventData(kind EventDataKind, data []byte, eventC
 	if err != nil {
 		panic(err)
 	}
+	ms.lock.Lock()
+	defer ms.lock.Unlock()
 	if kind == DiagnosticEventDataKind {
 		ms.diagnosticEvents = append(ms.diagnosticEvents, jsonData)
 		ms.diagnosticEventsCh <- jsonData

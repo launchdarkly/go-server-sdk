@@ -28,6 +28,15 @@ type defaultEventSender struct {
 	retryDelay    time.Duration
 }
 
+// NewDefaultEventSender creates the default implementation of EventSender.
+func NewDefaultEventSender(httpClient *http.Client, eventsURI string, diagnosticURI string, headers http.Header, loggers ldlog.Loggers) EventSender {
+	return &defaultEventSender{httpClient, eventsURI, diagnosticURI, headers, loggers, 0}
+}
+
+// NewServerSideEventSender creates the standard implementation of EventSender for server-side SDKs.
+//
+// This is a convenience function for calling NewDefaultEventSender with the standard event endpoint URIs and the
+// Authorization header.
 func NewServerSideEventSender(httpClient *http.Client, sdkKey string, eventsURI string, headers http.Header, loggers ldlog.Loggers) EventSender {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
