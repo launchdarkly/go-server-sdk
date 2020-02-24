@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 var user = lduser.NewUser("key")
 
-func makeEvalEvent(creationDate uint64, flagKey string, flagVersion int, variation int, value, defaultValue string) FeatureRequestEvent {
+func makeEvalEvent(creationDate ldtime.UnixMillisecondTime, flagKey string, flagVersion int, variation int, value, defaultValue string) FeatureRequestEvent {
 	return FeatureRequestEvent{
 		BaseEvent: BaseEvent{CreationDate: creationDate, User: user},
 		Key:       flagKey,
@@ -52,8 +53,8 @@ func TestSummarizeEventSetsStartAndEndDates(t *testing.T) {
 	es.summarizeEvent(event3)
 	data := es.snapshot()
 
-	assert.Equal(t, uint64(1000), data.startDate)
-	assert.Equal(t, uint64(2000), data.endDate)
+	assert.Equal(t, ldtime.UnixMillisecondTime(1000), data.startDate)
+	assert.Equal(t, ldtime.UnixMillisecondTime(2000), data.endDate)
 }
 
 func TestSummarizeEventIncrementsCounters(t *testing.T) {

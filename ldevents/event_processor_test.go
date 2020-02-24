@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
@@ -226,9 +227,9 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 }
 
 func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
-	fakeTimeNow := uint64(1000000)
+	fakeTimeNow := ldtime.UnixMillisecondTime(1000000)
 	config := epDefaultConfig
-	config.currentTimeProvider = func() uint64 { return fakeTimeNow }
+	config.currentTimeProvider = func() ldtime.UnixMillisecondTime { return fakeTimeNow }
 	eventFactory := NewEventFactory(false, config.currentTimeProvider)
 
 	ep, es := createEventProcessorAndSender(config)
@@ -255,9 +256,9 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 }
 
 func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
-	fakeTimeNow := uint64(1000000)
+	fakeTimeNow := ldtime.UnixMillisecondTime(1000000)
 	config := epDefaultConfig
-	config.currentTimeProvider = func() uint64 { return fakeTimeNow }
+	config.currentTimeProvider = func() ldtime.UnixMillisecondTime { return fakeTimeNow }
 	eventFactory := NewEventFactory(false, config.currentTimeProvider)
 
 	ep, es := createEventProcessorAndSender(config)
@@ -285,9 +286,9 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 }
 
 func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
-	fakeTimeNow := uint64(1000000)
+	fakeTimeNow := ldtime.UnixMillisecondTime(1000000)
 	config := epDefaultConfig
-	config.currentTimeProvider = func() uint64 { return fakeTimeNow }
+	config.currentTimeProvider = func() ldtime.UnixMillisecondTime { return fakeTimeNow }
 	eventFactory := NewEventFactory(false, config.currentTimeProvider)
 
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
@@ -325,9 +326,9 @@ func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 }
 
 func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
-	fakeTimeNow := uint64(1000000)
+	fakeTimeNow := ldtime.UnixMillisecondTime(1000000)
 	config := epDefaultConfig
-	config.currentTimeProvider = func() uint64 { return fakeTimeNow }
+	config.currentTimeProvider = func() ldtime.UnixMillisecondTime { return fakeTimeNow }
 	eventFactory := NewEventFactory(false, config.currentTimeProvider)
 
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
@@ -535,7 +536,7 @@ func TestDiagnosticInitEventIsSent(t *testing.T) {
 	if assert.Equal(t, 1, len(es.diagnosticEvents)) {
 		event := es.diagnosticEvents[0]
 		assert.Equal(t, "diagnostic-init", event.GetByKey("kind").StringValue())
-		assert.Equal(t, float64(toUnixMillis(startTime)), event.GetByKey("creationDate").Float64Value())
+		assert.Equal(t, float64(ldtime.UnixMillisFromTime(startTime)), event.GetByKey("creationDate").Float64Value())
 	}
 }
 

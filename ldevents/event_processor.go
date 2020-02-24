@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
@@ -22,11 +23,11 @@ type eventDispatcher struct {
 	flushCh            chan *flushPayload
 	workersGroup       *sync.WaitGroup
 	userKeys           lruCache
-	lastKnownPastTime  uint64
+	lastKnownPastTime  ldtime.UnixMillisecondTime
 	deduplicatedUsers  int
 	eventsInLastBatch  int
 	disabled           bool
-	currentTimestampFn func() uint64
+	currentTimestampFn func() ldtime.UnixMillisecondTime
 	stateLock          sync.Mutex
 }
 
@@ -34,11 +35,6 @@ type flushPayload struct {
 	diagnosticEvent ldvalue.Value
 	events          []Event
 	summary         eventSummary
-}
-
-type sendEventsTask struct {
-	config    EventsConfiguration
-	formatter eventOutputFormatter
 }
 
 // Payload of the inboxCh channel.
@@ -123,7 +119,7 @@ func startEventDispatcher(
 	}
 
 	if ed.currentTimestampFn == nil {
-		ed.currentTimestampFn = now
+		ed.currentTimestampFn = ldtime.UnixMillisNow
 	}
 
 	// Start a fixed-size pool of workers that wait on flushTriggerCh. This is the
@@ -266,7 +262,7 @@ func (ed *eventDispatcher) processEvent(evt Event) {
 }
 
 func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
-	if evt.DebugEventsUntilDate <= 0 {
+	if evt.DebugEventsUntilDate == 0 {
 		return false
 	}
 	// The "last known past time" comes from the last HTTP response we got from the server.

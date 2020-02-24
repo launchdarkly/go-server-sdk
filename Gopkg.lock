@@ -242,7 +242,7 @@
     "ldvalue",
   ]
   pruneopts = "NUT"
-  revision = "08c2cf552141855a4c6a8676ba935ebede167278"
+  revision = "9ce753be70a2902c298274e695450f8b4a573a25"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]

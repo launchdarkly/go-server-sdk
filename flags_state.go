@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
@@ -91,7 +93,7 @@ func (s *FeatureFlagsState) addFlag(flag ldeval.FeatureFlag, value ldvalue.Value
 	}
 	includeDetail := !detailsOnlyIfTracked || flag.TrackEvents
 	if !includeDetail && flag.DebugEventsUntilDate != nil {
-		includeDetail = *flag.DebugEventsUntilDate > now()
+		includeDetail = *flag.DebugEventsUntilDate > uint64(ldtime.UnixMillisNow())
 	}
 	if includeDetail {
 		meta.Version = &flag.Version

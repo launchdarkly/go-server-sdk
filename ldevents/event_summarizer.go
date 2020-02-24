@@ -1,6 +1,7 @@
 package ldevents
 
 import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
@@ -14,8 +15,8 @@ type eventSummarizer struct {
 
 type eventSummary struct {
 	counters  map[counterKey]*counterValue
-	startDate uint64
-	endDate   uint64
+	startDate ldtime.UnixMillisecondTime
+	endDate   ldtime.UnixMillisecondTime
 }
 
 type counterKey struct {

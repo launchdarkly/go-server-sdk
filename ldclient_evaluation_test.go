@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
@@ -735,7 +737,7 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	futureTime := now() + 100000
+	futureTime := uint64(ldtime.UnixMillisNow() + 100000)
 	futureTimeStr := strconv.FormatInt(int64(futureTime), 10)
 	flag1 := ldeval.FeatureFlag{
 		Key:          "key1",

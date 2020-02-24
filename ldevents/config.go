@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 )
 
 // DefaultDiagnosticRecordingInterval is the default value for EventsConfiguration.DiagnosticRecordingInterval.
@@ -51,7 +52,7 @@ type EventsConfiguration struct {
 	// The interval at which the event processor will reset its set of known user keys.
 	UserKeysFlushInterval time.Duration
 	// Used in testing to instrument the current time.
-	currentTimeProvider func() uint64
+	currentTimeProvider func() ldtime.UnixMillisecondTime
 	// Used in testing to set a DiagnosticRecordingInterval that is less than the minimum.
 	forceDiagnosticRecordingInterval time.Duration
 }
