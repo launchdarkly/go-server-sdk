@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
@@ -19,12 +18,17 @@ type defaultEventProcessor struct {
 }
 
 type eventDispatcher struct {
-	config            EventsConfiguration
-	lastKnownPastTime uint64
-	deduplicatedUsers int
-	eventsInLastBatch int
-	disabled          bool
-	stateLock         sync.Mutex
+	config             EventsConfiguration
+	outbox             *eventsOutbox
+	flushCh            chan *flushPayload
+	workersGroup       *sync.WaitGroup
+	userKeys           lruCache
+	lastKnownPastTime  uint64
+	deduplicatedUsers  int
+	eventsInLastBatch  int
+	disabled           bool
+	currentTimestampFn func() uint64
+	stateLock          sync.Mutex
 }
 
 type flushPayload struct {
@@ -112,35 +116,36 @@ func startEventDispatcher(
 	inboxCh <-chan eventDispatcherMessage,
 ) {
 	ed := &eventDispatcher{
-		config: config,
+		config:             config,
+		outbox:             newEventsOutbox(config.Capacity, config.Loggers),
+		flushCh:            make(chan *flushPayload, 1),
+		workersGroup:       &sync.WaitGroup{},
+		userKeys:           newLruCache(config.UserKeysCapacity),
+		currentTimestampFn: config.currentTimeProvider,
+	}
+
+	if ed.currentTimestampFn == nil {
+		ed.currentTimestampFn = now
 	}
 
 	// Start a fixed-size pool of workers that wait on flushTriggerCh. This is the
 	// maximum number of flushes we can do concurrently.
-	flushCh := make(chan *flushPayload, 1)
-	var workersGroup sync.WaitGroup
 	for i := 0; i < maxFlushWorkers; i++ {
-		startFlushTask(config, flushCh, &workersGroup, ed.handleResult)
+		go runFlushTask(config, ed.flushCh, ed.workersGroup, ed.handleResult)
 	}
 	if config.DiagnosticsManager != nil {
 		event := config.DiagnosticsManager.CreateInitEvent()
-		ed.sendDiagnosticsEvent(event, flushCh, &workersGroup)
+		ed.sendDiagnosticsEvent(event)
 	}
-	go ed.runMainLoop(inboxCh, flushCh, &workersGroup)
+	go ed.runMainLoop(inboxCh)
 }
 
 func (ed *eventDispatcher) runMainLoop(
 	inboxCh <-chan eventDispatcherMessage,
-	flushCh chan<- *flushPayload,
-	workersGroup *sync.WaitGroup,
 ) {
 	if err := recover(); err != nil {
 		ed.config.Loggers.Errorf("Unexpected panic in event processing thread: %+v", err)
 	}
-
-	outbox := newEventsOutbox(ed.config.Capacity, ed.config.Loggers)
-
-	userKeys := newLruCache(ed.config.UserKeysCapacity)
 
 	flushInterval := ed.config.FlushInterval
 	if flushInterval <= 0 {
@@ -180,11 +185,11 @@ func (ed *eventDispatcher) runMainLoop(
 		case message := <-inboxCh:
 			switch m := message.(type) {
 			case sendEventMessage:
-				ed.processEvent(m.event, outbox, &userKeys)
+				ed.processEvent(m.event)
 			case flushEventsMessage:
-				ed.triggerFlush(outbox, flushCh, workersGroup)
+				ed.triggerFlush()
 			case syncEventsMessage:
-				workersGroup.Wait()
+				ed.workersGroup.Wait()
 				m.replyCh <- struct{}{}
 			case shutdownEventsMessage:
 				flushTicker.Stop()
@@ -192,40 +197,41 @@ func (ed *eventDispatcher) runMainLoop(
 				if diagnosticsTicker != nil {
 					diagnosticsTicker.Stop()
 				}
-				workersGroup.Wait() // Wait for all in-progress flushes to complete
-				close(flushCh)      // Causes all idle flush workers to terminate
+				ed.workersGroup.Wait() // Wait for all in-progress flushes to complete
+				close(ed.flushCh)      // Causes all idle flush workers to terminate
 				m.replyCh <- struct{}{}
 				return
 			}
 		case <-flushTicker.C:
-			ed.triggerFlush(outbox, flushCh, workersGroup)
+			ed.triggerFlush()
 		case <-usersResetTicker.C:
-			userKeys.clear()
+			ed.userKeys.clear()
 		case <-diagnosticsTickerCh:
 			if diagnosticsManager == nil || !diagnosticsManager.CanSendStatsEvent() {
 				break
 			}
 			event := diagnosticsManager.CreateStatsEventAndReset(
-				outbox.droppedEvents,
+				ed.outbox.droppedEvents,
 				ed.deduplicatedUsers,
 				ed.eventsInLastBatch,
 			)
-			outbox.droppedEvents = 0
+			ed.outbox.droppedEvents = 0
 			ed.deduplicatedUsers = 0
 			ed.eventsInLastBatch = 0
-			ed.sendDiagnosticsEvent(event, flushCh, workersGroup)
+			ed.sendDiagnosticsEvent(event)
 		}
 	}
 }
 
-func (ed *eventDispatcher) processEvent(evt Event, outbox *eventsOutbox, userKeys *lruCache) {
+func (ed *eventDispatcher) processEvent(evt Event) {
 	// Always record the event in the summarizer.
-	outbox.addToSummary(evt)
+	ed.outbox.addToSummary(evt)
 
 	// Decide whether to add the event to the payload. Feature events may be added twice, once for
 	// the event (if tracked) and once for debugging.
-	willAddFullEvent := false
+	willAddFullEvent := true
 	var debugEvent Event
+	inlinedUser := ed.config.InlineUsersInEvents
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
 		willAddFullEvent = evt.TrackEvents
@@ -234,44 +240,35 @@ func (ed *eventDispatcher) processEvent(evt Event, outbox *eventsOutbox, userKey
 			de.Debug = true
 			debugEvent = de
 		}
-	default:
-		willAddFullEvent = true
+	case IdentifyEvent:
+		inlinedUser = true
 	}
 
-	// For each user we haven't seen before, we add an index event - unless this is already
-	// an identify event for that user. This should be added before the event that referenced
-	// the user, and can be omitted if that event will contain an inline user.
-	if !(willAddFullEvent && ed.config.InlineUsersInEvents) {
-		user := evt.GetBase().User
-		if noticeUser(userKeys, &user) {
+	// For each user we haven't seen before, we add an index event before the event that referenced
+	// the user - unless the event must contain an inline user (i.e. if InlineUsersInEvents is true,
+	// or if it is an identify event).
+	user := evt.GetBase().User
+	alreadySeenUser := ed.userKeys.add(user.GetKey())
+	if !(willAddFullEvent && inlinedUser) {
+		if alreadySeenUser {
 			ed.deduplicatedUsers++
 		} else {
-			if _, ok := evt.(IdentifyEvent); !ok {
-				indexEvent := IndexEvent{
-					BaseEvent{CreationDate: evt.GetBase().CreationDate, User: user},
-				}
-				outbox.addEvent(indexEvent)
+			indexEvent := IndexEvent{
+				BaseEvent{CreationDate: evt.GetBase().CreationDate, User: user},
 			}
+			ed.outbox.addEvent(indexEvent)
 		}
 	}
 	if willAddFullEvent {
-		outbox.addEvent(evt)
+		ed.outbox.addEvent(evt)
 	}
 	if debugEvent != nil {
-		outbox.addEvent(debugEvent)
+		ed.outbox.addEvent(debugEvent)
 	}
-}
-
-// Add to the set of users we've noticed, and return true if the user was already known to us.
-func noticeUser(userKeys *lruCache, user *lduser.User) bool {
-	if user == nil {
-		return true
-	}
-	return userKeys.add(user.GetKey())
 }
 
 func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
-	if evt.DebugEventsUntilDate == nil {
+	if evt.DebugEventsUntilDate <= 0 {
 		return false
 	}
 	// The "last known past time" comes from the last HTTP response we got from the server.
@@ -280,19 +277,18 @@ func (ed *eventDispatcher) shouldDebugEvent(evt *FeatureRequestEvent) bool {
 	// want to err on the side of cutting off event debugging sooner.
 	ed.stateLock.Lock() // This should be done infrequently since it's only for debug events
 	defer ed.stateLock.Unlock()
-	return *evt.DebugEventsUntilDate > ed.lastKnownPastTime &&
-		*evt.DebugEventsUntilDate > now()
+	return evt.DebugEventsUntilDate > ed.lastKnownPastTime &&
+		evt.DebugEventsUntilDate > ed.currentTimestampFn()
 }
 
 // Signal that we would like to do a flush as soon as possible.
-func (ed *eventDispatcher) triggerFlush(outbox *eventsOutbox, flushCh chan<- *flushPayload,
-	workersGroup *sync.WaitGroup) {
+func (ed *eventDispatcher) triggerFlush() {
 	if ed.isDisabled() {
-		outbox.clear()
+		ed.outbox.clear()
 		return
 	}
 	// Is there anything to flush?
-	payload := outbox.getPayload()
+	payload := ed.outbox.getPayload()
 	totalEventCount := len(payload.events)
 	if len(payload.summary.counters) > 0 {
 		totalEventCount++
@@ -301,18 +297,18 @@ func (ed *eventDispatcher) triggerFlush(outbox *eventsOutbox, flushCh chan<- *fl
 		ed.eventsInLastBatch = 0
 		return
 	}
-	workersGroup.Add(1) // Increment the count of active flushes
+	ed.workersGroup.Add(1) // Increment the count of active flushes
 	select {
-	case flushCh <- &payload:
+	case ed.flushCh <- &payload:
 		// If the channel wasn't full, then there is a worker available who will pick up
 		// this flush payload and send it. The event outbox and summary state can now be
 		// cleared from the main goroutine.
 		ed.eventsInLastBatch = totalEventCount
-		outbox.clear()
+		ed.outbox.clear()
 	default:
 		// We can't start a flush right now because we're waiting for one of the workers
 		// to pick up the last one.  Do not reset the event outbox or summary state.
-		workersGroup.Done()
+		ed.workersGroup.Done()
 	}
 }
 
@@ -328,22 +324,20 @@ func (ed *eventDispatcher) handleResult(result EventSenderResult) {
 		ed.stateLock.Lock()
 		defer ed.stateLock.Unlock()
 		ed.disabled = true
-	} else if !result.TimeFromServer.IsZero() {
+	} else if result.TimeFromServer > 0 {
 		ed.stateLock.Lock()
 		defer ed.stateLock.Unlock()
-		ed.lastKnownPastTime = toUnixMillis(result.TimeFromServer)
+		ed.lastKnownPastTime = result.TimeFromServer
 	}
 }
 
 func (ed *eventDispatcher) sendDiagnosticsEvent(
 	event ldvalue.Value,
-	flushCh chan<- *flushPayload,
-	workersGroup *sync.WaitGroup,
 ) {
 	payload := flushPayload{diagnosticEvent: event}
-	workersGroup.Add(1) // Increment the count of active flushes
+	ed.workersGroup.Add(1) // Increment the count of active flushes
 	select {
-	case flushCh <- &payload:
+	case ed.flushCh <- &payload:
 		// If the channel wasn't full, then there is a worker available who will pick up
 		// this flush payload and send it.
 	default:
@@ -351,25 +345,16 @@ func (ed *eventDispatcher) sendDiagnosticsEvent(
 		// to pick up the last one. We'll just discard this diagnostic event - presumably
 		// we'll send another one later anyway, and we don't want this kind of nonessential
 		// data to cause any kind of back-pressure.
-		workersGroup.Done()
+		ed.workersGroup.Done()
 	}
 }
 
-func startFlushTask(config EventsConfiguration, flushCh <-chan *flushPayload,
+func runFlushTask(config EventsConfiguration, flushCh <-chan *flushPayload,
 	workersGroup *sync.WaitGroup, resultFn func(EventSenderResult)) {
-	ef := eventOutputFormatter{
+	formatter := eventOutputFormatter{
 		userFilter: newUserFilter(config),
 		config:     config,
 	}
-	t := sendEventsTask{
-		config:    config,
-		formatter: ef,
-	}
-	go t.run(flushCh, resultFn, workersGroup)
-}
-
-func (t *sendEventsTask) run(flushCh <-chan *flushPayload, resultFn func(EventSenderResult),
-	workersGroup *sync.WaitGroup) {
 	for {
 		payload, more := <-flushCh
 		if !more {
@@ -379,18 +364,18 @@ func (t *sendEventsTask) run(flushCh <-chan *flushPayload, resultFn func(EventSe
 		if !payload.diagnosticEvent.IsNull() {
 			bytes, err := json.Marshal(payload.diagnosticEvent)
 			if err != nil {
-				t.config.Loggers.Errorf("Unexpected error marshalling diagnostic event: %+v", err)
+				config.Loggers.Errorf("Unexpected error marshalling diagnostic event: %+v", err)
 			} else {
-				_ = t.config.EventSender.SendEventData(DiagnosticEventDataKind, bytes, 1)
+				_ = config.EventSender.SendEventData(DiagnosticEventDataKind, bytes, 1)
 			}
 		} else {
-			outputEvents := t.formatter.makeOutputEvents(payload.events, payload.summary)
+			outputEvents := formatter.makeOutputEvents(payload.events, payload.summary)
 			if len(outputEvents) > 0 {
 				bytes, err := json.Marshal(outputEvents)
 				if err != nil {
-					t.config.Loggers.Errorf("Unexpected error marshalling event JSON: %+v", err)
+					config.Loggers.Errorf("Unexpected error marshalling event JSON: %+v", err)
 				} else {
-					result := t.config.EventSender.SendEventData(AnalyticsEventDataKind, bytes, len(outputEvents))
+					result := config.EventSender.SendEventData(AnalyticsEventDataKind, bytes, len(outputEvents))
 					resultFn(result)
 				}
 			}

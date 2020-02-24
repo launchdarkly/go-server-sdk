@@ -50,6 +50,8 @@ type EventsConfiguration struct {
 	UserKeysCapacity int
 	// The interval at which the event processor will reset its set of known user keys.
 	UserKeysFlushInterval time.Duration
-	// Used internally in testing to set a DiagnosticRecordingInterval that is less than the minimum.
+	// Used in testing to instrument the current time.
+	currentTimeProvider func() uint64
+	// Used in testing to set a DiagnosticRecordingInterval that is less than the minimum.
 	forceDiagnosticRecordingInterval time.Duration
 }

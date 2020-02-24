@@ -86,17 +86,19 @@ func (c *clientEvaluatorDataProvider) GetSegment(key string) (ldeval.Segment, bo
 
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
 type clientEvaluatorEventSink struct {
-	user                *lduser.User
-	events              []ldevents.FeatureRequestEvent
-	sendReasonsInEvents bool
+	user         *lduser.User
+	events       []ldevents.FeatureRequestEvent
+	eventFactory ldevents.EventFactory
 }
 
 func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.PrerequisiteFlagEvent) {
-	event := ldevents.NewSuccessfulEvalEvent(&params.PrerequisiteFlag, *c.user, params.PrerequisiteResult.VariationIndex,
-		params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, c.sendReasonsInEvents,
-		&params.TargetFlagKey)
+	event := c.eventFactory.NewSuccessfulEvalEvent(&params.PrerequisiteFlag, *c.user, params.PrerequisiteResult.VariationIndex,
+		params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, params.TargetFlagKey)
 	c.events = append(c.events, event)
 }
+
+// Standard event factory when evaluation reasons are not an issue
+var defaultEventFactory = ldevents.NewEventFactory(false, nil)
 
 // Initialization errors
 var (
@@ -245,7 +247,7 @@ func (client *LDClient) Identify(user lduser.User) error {
 		client.config.Loggers.Warn("Identify called with empty user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := ldevents.NewIdentifyEvent(user)
+	evt := defaultEventFactory.NewIdentifyEvent(user)
 	client.eventProcessor.SendEvent(evt)
 	return nil
 }
@@ -274,7 +276,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(ldevents.NewCustomEvent(eventName, user, data, false, 0))
+	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, user, data, false, 0))
 	return nil
 }
 
@@ -293,7 +295,7 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(ldevents.NewCustomEvent(eventName, user, data, true, metricValue))
+	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, user, data, true, metricValue))
 	return nil
 }
 
@@ -501,7 +503,8 @@ func (client *LDClient) variation(
 	if client.IsOffline() {
 		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
 	}
-	result, flag, err := client.evaluateInternal(key, user, defaultVal, sendReasonsInEvents)
+	eventFactory := ldevents.NewEventFactory(sendReasonsInEvents, nil)
+	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventFactory)
 	if err != nil {
 		result.Value = defaultVal
 		result.VariationIndex = -1
@@ -513,10 +516,10 @@ func (client *LDClient) variation(
 
 	var evt ldevents.FeatureRequestEvent
 	if flag == nil {
-		evt = ldevents.NewUnknownFlagEvent(key, user, defaultVal, result.Reason, sendReasonsInEvents) //nolint
+		evt = eventFactory.NewUnknownFlagEvent(key, user, defaultVal, result.Reason) //nolint
 	} else {
-		evt = ldevents.NewSuccessfulEvalEvent(flag, user, result.VariationIndex, result.Value, defaultVal,
-			result.Reason, sendReasonsInEvents, nil)
+		evt = eventFactory.NewSuccessfulEvalEvent(flag, user, result.VariationIndex, result.Value, defaultVal,
+			result.Reason, "")
 	}
 	client.eventProcessor.SendEvent(evt)
 
@@ -529,7 +532,7 @@ func (client *LDClient) evaluateInternal(
 	key string,
 	user lduser.User,
 	defaultVal ldvalue.Value,
-	sendReasonsInEvents bool,
+	eventFactory ldevents.EventFactory,
 ) (ldreason.EvaluationDetail, *ldeval.FeatureFlag, error) {
 	if user.GetKey() == "" {
 		client.config.Loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
@@ -574,7 +577,7 @@ func (client *LDClient) evaluateInternal(
 			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 
-	eventSink := clientEvaluatorEventSink{user: &user, sendReasonsInEvents: sendReasonsInEvents}
+	eventSink := clientEvaluatorEventSink{user: &user, eventFactory: eventFactory}
 	detail := client.evaluator.Evaluate(*feature, user, eventSink.recordPrerequisiteEvent)
 	if detail.Reason.GetKind() == ldreason.EvalReasonError && client.config.LogEvaluationErrors {
 		client.config.Loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",

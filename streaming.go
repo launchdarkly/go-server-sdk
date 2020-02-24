@@ -294,7 +294,7 @@ func (sp *streamProcessor) logConnectionResult(success bool) {
 	if sp.connectionAttemptStartTime > 0 && sp.config.diagnosticsManager != nil {
 		timestamp := now()
 		sp.config.diagnosticsManager.RecordStreamInit(timestamp, !success,
-			timestamp-sp.connectionAttemptStartTime)
+			uint64(timestamp-sp.connectionAttemptStartTime))
 	}
 	sp.connectionAttemptStartTime = 0
 }

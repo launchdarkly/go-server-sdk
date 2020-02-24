@@ -95,7 +95,7 @@ func TestDiagnosticEventsDoNotHaveSchemaOrPayloadID(t *testing.T) {
 }
 
 func TestEventSenderParsesTimeFromServer(t *testing.T) {
-	expectedTime := time.Date(1940, time.February, 15, 12, 13, 14, 0, time.UTC)
+	expectedTime := toUnixMillis(time.Date(1940, time.February, 15, 12, 13, 14, 0, time.UTC))
 	client := newHTTPClientWithHandler(func(request *http.Request) (*http.Response, error) {
 		headers := make(http.Header)
 		headers.Set("Date", "Thu, 15 Feb 1940 12:13:14 GMT")

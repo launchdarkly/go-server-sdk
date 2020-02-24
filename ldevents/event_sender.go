@@ -108,7 +108,7 @@ func (s *defaultEventSender) SendEventData(kind EventDataKind, data []byte, even
 			result := EventSenderResult{Success: true}
 			t, err := http.ParseTime(resp.Header.Get("Date"))
 			if err == nil {
-				result.TimeFromServer = t
+				result.TimeFromServer = toUnixMillis(t)
 			}
 			return result
 		}

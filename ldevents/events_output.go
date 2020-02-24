@@ -1,6 +1,8 @@
 package ldevents
 
 import (
+	"encoding/json"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
@@ -88,8 +90,8 @@ type eventOutputFormatter struct {
 	config     EventsConfiguration
 }
 
-func (ef eventOutputFormatter) makeOutputEvents(events []Event, summary eventSummary) []interface{} {
-	out := make([]interface{}, 0, len(events)+1) // leave room for summary, if any
+func (ef eventOutputFormatter) makeOutputEvents(events []Event, summary eventSummary) []json.RawMessage {
+	out := make([]json.RawMessage, 0, len(events)+1) // leave room for summary, if any
 	for _, e := range events {
 		oe := ef.makeOutputEvent(e)
 		if oe != nil {
@@ -102,18 +104,23 @@ func (ef eventOutputFormatter) makeOutputEvents(events []Event, summary eventSum
 	return out
 }
 
-func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
+func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) json.RawMessage {
+	var outputEvent interface{}
 	switch evt := evt.(type) {
 	case FeatureRequestEvent:
 		fe := featureRequestEventOutput{
 			CreationDate: evt.BaseEvent.CreationDate,
 			Key:          evt.Key,
-			Variation:    evt.Variation,
 			Value:        evt.Value,
 			Default:      evt.Default,
-			Version:      evt.Version,
-			PrereqOf:     evt.PrereqOf,
+			PrereqOf:     evt.PrereqOf.AsPointer(),
 			Reason:       evt.Reason,
+		}
+		if evt.Variation != NoVariation {
+			fe.Variation = &evt.Variation
+		}
+		if evt.Version != NoVersion {
+			fe.Version = &evt.Version
 		}
 		if ef.config.InlineUsersInEvents || evt.Debug {
 			fe.User = ef.userFilter.scrubUser(evt.User)
@@ -126,14 +133,13 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 		} else {
 			fe.Kind = FeatureRequestEventKind
 		}
-		return fe
+		outputEvent = fe
 	case CustomEvent:
 		ce := customEventOutput{
 			Kind:         CustomEventKind,
 			CreationDate: evt.BaseEvent.CreationDate,
 			Key:          evt.Key,
 			Data:         evt.Data,
-			MetricValue:  evt.MetricValue,
 		}
 		if ef.config.InlineUsersInEvents {
 			ce.User = ef.userFilter.scrubUser(evt.User)
@@ -141,16 +147,19 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 			key := evt.User.GetKey()
 			ce.UserKey = &key
 		}
-		return ce
+		if evt.HasMetric {
+			ce.MetricValue = &evt.MetricValue
+		}
+		outputEvent = ce
 	case IdentifyEvent:
-		return identifyEventOutput{
+		outputEvent = identifyEventOutput{
 			Kind:         IdentifyEventKind,
 			CreationDate: evt.BaseEvent.CreationDate,
 			Key:          evt.User.GetKey(),
 			User:         ef.userFilter.scrubUser(evt.User),
 		}
 	case IndexEvent:
-		return indexEventOutput{
+		outputEvent = indexEventOutput{
 			Kind:         IndexEventKind,
 			CreationDate: evt.BaseEvent.CreationDate,
 			User:         ef.userFilter.scrubUser(evt.User),
@@ -158,10 +167,12 @@ func (ef eventOutputFormatter) makeOutputEvent(evt interface{}) interface{} {
 	default:
 		return nil
 	}
+	bytes, _ := json.Marshal(outputEvent)
+	return json.RawMessage(bytes)
 }
 
 // Transforms the summary data into the format used for event sending.
-func (ef eventOutputFormatter) makeSummaryEvent(snapshot eventSummary) summaryEventOutput {
+func (ef eventOutputFormatter) makeSummaryEvent(snapshot eventSummary) json.RawMessage {
 	features := make(map[string]flagSummaryData, len(snapshot.counters))
 	for key, value := range snapshot.counters {
 		var flagData flagSummaryData
@@ -176,11 +187,11 @@ func (ef eventOutputFormatter) makeSummaryEvent(snapshot eventSummary) summaryEv
 			Value: value.flagValue,
 			Count: value.count,
 		}
-		if key.variation != nilVariation {
+		if key.variation != NoVariation {
 			v := key.variation
 			data.Variation = &v
 		}
-		if key.version == 0 {
+		if key.version == NoVersion {
 			unknown := true
 			data.Unknown = &unknown
 		} else {
@@ -191,10 +202,12 @@ func (ef eventOutputFormatter) makeSummaryEvent(snapshot eventSummary) summaryEv
 		features[key.key] = flagData
 	}
 
-	return summaryEventOutput{
+	outputEvent := summaryEventOutput{
 		Kind:      SummaryEventKind,
 		StartDate: snapshot.startDate,
 		EndDate:   snapshot.endDate,
 		Features:  features,
 	}
+	bytes, _ := json.Marshal(outputEvent)
+	return json.RawMessage(bytes)
 }

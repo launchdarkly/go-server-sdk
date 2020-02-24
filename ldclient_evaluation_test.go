@@ -64,9 +64,9 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag *ldeval.FeatureFlag, u
 			User:         user,
 		},
 		Key:       flag.Key,
-		Version:   &flag.Version,
+		Version:   flag.Version,
 		Value:     value,
-		Variation: intPtr(variation),
+		Variation: variation,
 		Default:   defaultVal,
 		Reason:    reason,
 	}
@@ -558,11 +558,10 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 			User:         evalTestUser,
 		},
 		Key:       "flagKey",
-		Version:   nil,
+		Version:   ldevents.NoVersion,
 		Value:     ldvalue.String("x"),
-		Variation: nil,
+		Variation: ldevents.NoVariation,
 		Default:   ldvalue.String("x"),
-		PrereqOf:  nil,
 	}
 	assert.Equal(t, expectedEvent, e)
 }
@@ -593,11 +592,11 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 			User:         user,
 		},
 		Key:       flag1.Key,
-		Version:   &flag1.Version,
+		Version:   flag1.Version,
 		Value:     ldvalue.String("d"),
-		Variation: intPtr(1),
+		Variation: 1,
 		Default:   ldvalue.Null(),
-		PrereqOf:  &flag0.Key,
+		PrereqOf:  ldvalue.NewOptionalString(flag0.Key),
 	}
 	assert.Equal(t, expected0, e0)
 
@@ -608,11 +607,10 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 			User:         user,
 		},
 		Key:       flag0.Key,
-		Version:   &flag0.Version,
+		Version:   flag0.Version,
 		Value:     ldvalue.String("b"),
-		Variation: intPtr(1),
+		Variation: 1,
 		Default:   ldvalue.String("x"),
-		PrereqOf:  nil,
 	}
 	assert.Equal(t, expected1, e1)
 }

@@ -1,7 +1,5 @@
 package ldevents
 
-import "time"
-
 // EventProcessor defines the interface for dispatching analytics events.
 type EventProcessor interface {
 	// SendEvent records an event asynchronously.
@@ -29,5 +27,5 @@ const (
 type EventSenderResult struct {
 	Success        bool
 	MustShutDown   bool
-	TimeFromServer time.Time
+	TimeFromServer uint64
 }
