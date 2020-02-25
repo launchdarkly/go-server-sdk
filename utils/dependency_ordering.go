@@ -58,7 +58,7 @@ func addWithDependenciesFirst(startItem interfaces.VersionedData, remainingItems
 func getDependencyKeys(item interfaces.VersionedData) []string {
 	var ret []string
 	switch i := item.(type) {
-	case *ldmodel.FeatureFlag: //nolint:megacheck // allow deprecated usage
+	case *ldmodel.FeatureFlag:
 		for _, p := range i.Prerequisites {
 			ret = append(ret, p.Key)
 		}
