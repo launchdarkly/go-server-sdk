@@ -44,13 +44,13 @@ func makeAllVersionedDataMap(
 	segments map[string]*ldmodel.Segment) map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData {
 
 	allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData)
-	allData[Features] = make(map[string]interfaces.VersionedData)
-	allData[Segments] = make(map[string]interfaces.VersionedData)
+	allData[interfaces.DataKindFeatures()] = make(map[string]interfaces.VersionedData)
+	allData[interfaces.DataKindSegments()] = make(map[string]interfaces.VersionedData)
 	for k, v := range features {
-		allData[Features][k] = v
+		allData[interfaces.DataKindFeatures()][k] = v
 	}
 	for k, v := range segments {
-		allData[Segments][k] = v
+		allData[interfaces.DataKindSegments()][k] = v
 	}
 	return allData
 }

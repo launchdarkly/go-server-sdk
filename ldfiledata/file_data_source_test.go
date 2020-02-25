@@ -50,7 +50,7 @@ segments:
 	dataSource.Start(closeWhenReady)
 	<-closeWhenReady
 	require.True(t, dataSource.Initialized())
-	flag, err := store.Get(ld.Features, "my-flag")
+	flag, err := store.Get(interfaces.DataKindFeatures(), "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
 	assert.True(t, flag.(*ldmodel.FeatureFlag).On)
@@ -74,7 +74,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	dataSource.Start(closeWhenReady)
 	<-closeWhenReady
 	require.True(t, dataSource.Initialized())
-	flag, err := store.Get(ld.Features, "my-flag")
+	flag, err := store.Get(interfaces.DataKindFeatures(), "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
 	assert.True(t, flag.(*ldmodel.FeatureFlag).On)
@@ -96,12 +96,12 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	<-closeWhenReady
 	require.True(t, dataSource.Initialized())
 
-	flag1, err := store.Get(ld.Features, "my-flag1")
+	flag1, err := store.Get(interfaces.DataKindFeatures(), "my-flag1")
 	require.NoError(t, err)
 	require.NotNil(t, flag1)
 	assert.True(t, flag1.(*ldmodel.FeatureFlag).On)
 
-	flag2, err := store.Get(ld.Features, "my-flag2")
+	flag2, err := store.Get(interfaces.DataKindFeatures(), "my-flag2")
 	require.NoError(t, err)
 	require.NotNil(t, flag2)
 	assert.True(t, flag2.(*ldmodel.FeatureFlag).On)
@@ -171,7 +171,7 @@ flagValues:
 	dataSource.Start(closeWhenReady)
 	<-closeWhenReady
 	require.True(t, dataSource.Initialized())
-	flag, err := store.Get(ld.Features, "my-flag")
+	flag, err := store.Get(interfaces.DataKindFeatures(), "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
 	assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flag.(*ldmodel.FeatureFlag).Variations)

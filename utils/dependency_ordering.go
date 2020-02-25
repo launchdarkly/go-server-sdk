@@ -28,7 +28,7 @@ func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKin
 }
 
 func doesDataKindSupportDependencies(kind interfaces.VersionedDataKind) bool {
-	return kind == ld.Features //nolint:megacheck
+	return kind == interfaces.DataKindFeatures() //nolint:megacheck
 }
 
 func addItemsInDependencyOrder(itemsMap map[string]interfaces.VersionedData, out *[]interfaces.VersionedData) {
@@ -73,7 +73,7 @@ func dataKindPriority(kind interfaces.VersionedDataKind) int {
 	switch kind {
 	case ld.Segments: //nolint:megacheck // allow deprecated usage
 		return 0
-	case ld.Features: //nolint:megacheck // allow deprecated usage
+	case interfaces.DataKindFeatures(): //nolint:megacheck // allow deprecated usage
 		return 1
 	default:
 		return len(kind.GetNamespace()) + 2

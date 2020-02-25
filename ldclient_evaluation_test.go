@@ -14,6 +14,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
 
@@ -78,7 +79,7 @@ func TestBoolVariation(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, err := client.BoolVariation(flag.Key, evalTestUser, defaultVal)
 
@@ -95,7 +96,7 @@ func TestBoolVariationDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, detail, err := client.BoolVariationDetail(flag.Key, evalTestUser, defaultVal)
 
@@ -115,7 +116,7 @@ func TestIntVariation(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, err := client.IntVariation(flag.Key, evalTestUser, defaultVal)
 
@@ -133,10 +134,10 @@ func TestIntVariationRoundsFloatTowardZero(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag1)
-	client.store.Upsert(Features, &flag2)
-	client.store.Upsert(Features, &flag3)
-	client.store.Upsert(Features, &flag4)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag1)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag2)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag3)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag4)
 
 	actual, err := client.IntVariation(flag1.Key, evalTestUser, 0)
 	assert.NoError(t, err)
@@ -162,7 +163,7 @@ func TestIntVariationDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, detail, err := client.IntVariationDetail(flag.Key, evalTestUser, defaultVal)
 
@@ -182,7 +183,7 @@ func TestFloat64Variation(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, err := client.Float64Variation(flag.Key, evalTestUser, defaultVal)
 
@@ -199,7 +200,7 @@ func TestFloat64VariationDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, detail, err := client.Float64VariationDetail(flag.Key, evalTestUser, defaultVal)
 
@@ -219,7 +220,7 @@ func TestStringVariation(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, err := client.StringVariation(flag.Key, evalTestUser, defaultVal)
 
@@ -236,7 +237,7 @@ func TestStringVariationDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	actual, detail, err := client.StringVariationDetail(flag.Key, evalTestUser, defaultVal)
 
@@ -257,7 +258,7 @@ func TestJSONRawVariation(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
 	actual, err := client.JSONVariation(flag.Key, evalTestUser, ldvalue.Raw(defaultVal))
@@ -278,7 +279,7 @@ func TestJSONRawVariationDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
 	actual, detail, err := client.JSONVariationDetail(flag.Key, evalTestUser, ldvalue.Raw(defaultVal))
@@ -300,7 +301,7 @@ func TestJSONVariation(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	defaultVal := ldvalue.String("no")
 	actual, err := client.JSONVariation(flag.Key, evalTestUser, defaultVal)
@@ -318,7 +319,7 @@ func TestJSONVariationDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	defaultVal := ldvalue.String("no")
 	actual, detail, err := client.JSONVariationDetail(flag.Key, evalTestUser, defaultVal)
@@ -358,7 +359,7 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNil(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -370,7 +371,7 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNilWithDetail(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	_, detail, err := client.StringVariationDetail(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -393,7 +394,7 @@ func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -425,7 +426,7 @@ func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *test
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -450,7 +451,7 @@ func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -474,7 +475,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testi
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -500,7 +501,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 
 	client := makeTestClient()
 	defer client.Close()
-	client.store.Upsert(Features, &flag)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag)
 
 	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
 	assert.NoError(t, err)
@@ -554,8 +555,8 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 		FallthroughVariation(1).
 		Variations(ldvalue.String("c"), ldvalue.String("d")).
 		Build()
-	client.store.Upsert(Features, &flag0)
-	client.store.Upsert(Features, &flag1)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag0)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag1)
 
 	user := lduser.NewUser("userKey")
 	_, err := client.StringVariation(flag0.Key, user, "x")
@@ -601,8 +602,8 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
 	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
 		TrackEvents(true).DebugEventsUntilDate(1000).Build()
-	client.store.Upsert(Features, &flag1)
-	client.store.Upsert(Features, &flag2)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag1)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag2)
 
 	state := client.AllFlagsState(lduser.NewUser("userkey"))
 	assert.True(t, state.IsValid())
@@ -633,10 +634,10 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 	flag2 := ldbuilders.NewFlagBuilder("server-side-2").Build()
 	flag3 := ldbuilders.NewFlagBuilder("client-side-1").SingleVariation(ldvalue.String("value1")).ClientSide(true).Build()
 	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).ClientSide(true).Build()
-	client.store.Upsert(Features, &flag1)
-	client.store.Upsert(Features, &flag2)
-	client.store.Upsert(Features, &flag3)
-	client.store.Upsert(Features, &flag4)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag1)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag2)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag3)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag4)
 
 	state := client.AllFlagsState(lduser.NewUser("userkey"), ClientSideOnly)
 	assert.True(t, state.IsValid())
@@ -652,8 +653,8 @@ func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
 	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
 		TrackEvents(true).DebugEventsUntilDate(1000).Build()
-	client.store.Upsert(Features, &flag1)
-	client.store.Upsert(Features, &flag2)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag1)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag2)
 
 	state := client.AllFlagsState(lduser.NewUser("userkey"), WithReasons)
 	assert.True(t, state.IsValid())
@@ -687,9 +688,9 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 		TrackEvents(true).Build()
 	flag3 := ldbuilders.NewFlagBuilder("key3").Version(300).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value3")).
 		TrackEvents(false).DebugEventsUntilDate(futureTime).Build()
-	client.store.Upsert(Features, &flag1)
-	client.store.Upsert(Features, &flag2)
-	client.store.Upsert(Features, &flag3)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag1)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag2)
+	client.store.Upsert(interfaces.DataKindFeatures(), &flag3)
 
 	state := client.AllFlagsState(lduser.NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
 	assert.True(t, state.IsValid())
@@ -735,7 +736,7 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 		})
 		defer client.Close()
 		if flag != nil {
-			client.store.Upsert(Features, flag)
+			client.store.Upsert(interfaces.DataKindFeatures(), flag)
 			key = flag.Key
 		}
 

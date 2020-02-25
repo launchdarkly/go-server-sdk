@@ -52,7 +52,7 @@ func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() 
 }
 
 func hasFlag(t *testing.T, store interfaces.DataStore, key string, test func(ldmodel.FeatureFlag) bool) bool {
-	flag, err := store.Get(ld.Features, key)
+	flag, err := store.Get(interfaces.DataKindFeatures(), key)
 	if assert.NoError(t, err) && flag != nil {
 		return test(*(flag.(*ldmodel.FeatureFlag)))
 	}

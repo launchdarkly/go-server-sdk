@@ -95,7 +95,7 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("initial put", func(t *testing.T) {
 		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store interfaces.DataStore) {
-			waitForVersion(t, store, Features, "my-flag", 2)
+			waitForVersion(t, store, interfaces.DataKindFeatures(), "my-flag", 2)
 		})
 	})
 
@@ -106,7 +106,7 @@ func TestStreamProcessor(t *testing.T) {
 				data:  `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`,
 			}
 
-			waitForVersion(t, store, Features, "my-flag", 3)
+			waitForVersion(t, store, interfaces.DataKindFeatures(), "my-flag", 3)
 		})
 	})
 
@@ -117,7 +117,7 @@ func TestStreamProcessor(t *testing.T) {
 				data:  `{"path": "/flags/my-flag", "version": 4}`,
 			}
 
-			waitForDelete(t, store, Segments, "my-flag")
+			waitForDelete(t, store, interfaces.DataKindSegments(), "my-flag")
 		})
 	})
 
@@ -128,7 +128,7 @@ func TestStreamProcessor(t *testing.T) {
 				data:  `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`,
 			}
 
-			waitForVersion(t, store, Segments, "my-segment", 7)
+			waitForVersion(t, store, interfaces.DataKindSegments(), "my-segment", 7)
 		})
 	})
 
@@ -139,7 +139,7 @@ func TestStreamProcessor(t *testing.T) {
 				data:  `{"path": "/segments/my-segment", "version": 8}`,
 			}
 
-			waitForDelete(t, store, Segments, "my-segment")
+			waitForDelete(t, store, interfaces.DataKindSegments(), "my-segment")
 		})
 	})
 
@@ -150,7 +150,7 @@ func TestStreamProcessor(t *testing.T) {
 				data:  "/flags/my-flag",
 			}
 
-			waitForVersion(t, store, Features, "my-flag", 5)
+			waitForVersion(t, store, interfaces.DataKindFeatures(), "my-flag", 5)
 		})
 	})
 
@@ -385,7 +385,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	// Wait until the stream has received data and put it in the store
 	receivedInitialData := <-store.inits
-	assert.Equal(t, 1, receivedInitialData[Features]["my-flag"].GetVersion())
+	assert.Equal(t, 1, receivedInitialData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
 
 	// Change the stream's initialEvent so we'll get different data the next time it restarts
 	testRepo.initialEvent = &testEvent{
@@ -402,7 +402,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	// When the stream restarts, it'll call Init with the refreshed data
 	receivedNewData := <-store.inits
-	assert.Equal(t, 2, receivedNewData[Features]["my-flag"].GetVersion())
+	assert.Equal(t, 2, receivedNewData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
 }
 
 type testDataStoreWithStatus struct {

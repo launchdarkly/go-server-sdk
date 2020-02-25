@@ -70,14 +70,14 @@ type mockCoreWithInstrumentedQueries struct {
 func newCore(ttl time.Duration) *mockCore {
 	return &mockCore{
 		cacheTTL: ttl,
-		data:     map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}, ld.Segments: {}},
+		data:     map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, ld.Segments: {}},
 	}
 }
 
 func newCoreWithInstrumentedQueries(ttl time.Duration) *mockCoreWithInstrumentedQueries {
 	return &mockCoreWithInstrumentedQueries{
 		cacheTTL:       ttl,
-		data:           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}, ld.Segments: {}},
+		data:           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, ld.Segments: {}},
 		queryDelay:     200 * time.Millisecond,
 		queryStartedCh: make(chan struct{}, 2),
 	}
@@ -222,13 +222,13 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
 
-		core.forceSet(ld.Features, &flagv1)
-		item, err := w.Get(ld.Features, flagv1.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv1)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv1, item)
 
-		core.forceSet(ld.Features, &flagv2)
-		item, err = w.Get(ld.Features, flagv1.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv2)
+		item, err = w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
 			require.Equal(t, &flagv1, item) // returns cached value, does not call getter
@@ -243,13 +243,13 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Deleted(true).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
 
-		core.forceSet(ld.Features, &flagv1)
-		item, err := w.Get(ld.Features, flagv1.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv1)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		require.Nil(t, item) // item is filtered out because Deleted is true
 
-		core.forceSet(ld.Features, &flagv2)
-		item, err = w.Get(ld.Features, flagv1.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv2)
+		item, err = w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
 			require.Nil(t, item) // it used the cached deleted item rather than calling the getter
@@ -264,14 +264,14 @@ func TestDataStoreWrapper(t *testing.T) {
 		defer w.Close()
 		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 
-		item, err := w.Get(ld.Features, flag.Key)
+		item, err := w.Get(interfaces.DataKindFeatures(), flag.Key)
 		require.NoError(t, err)
 		require.Nil(t, item)
 
 		assert.Nil(t, mockLog.Output[ldlog.Error]) // missing item should *not* be logged as an error by this component
 
-		core.forceSet(ld.Features, &flag)
-		item, err = w.Get(ld.Features, flag.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flag)
+		item, err = w.Get(interfaces.DataKindFeatures(), flag.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
 			require.Nil(t, item) // the cache retains a nil result
@@ -288,14 +288,14 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv2 := ldbuilders.NewFlagBuilder("flag").Version(2).Build()
 
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flagv1.Key: &flagv1},
+			interfaces.DataKindFeatures(): {flagv1.Key: &flagv1},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 		require.Equal(t, core.data, allData)
 
-		core.forceSet(ld.Features, &flagv2)
-		item, err := w.Get(ld.Features, flagv1.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv2)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv1, item) // it used the cached item rather than calling the getter
 	}, testCached, testCachedIndefinitely)
@@ -306,14 +306,14 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
 		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
 
-		core.forceSet(ld.Features, &flag1)
-		core.forceSet(ld.Features, &flag2)
-		items, err := w.All(ld.Features)
+		core.forceSet(interfaces.DataKindFeatures(), &flag1)
+		core.forceSet(interfaces.DataKindFeatures(), &flag2)
+		items, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
 		require.Equal(t, 2, len(items))
 
-		core.forceRemove(ld.Features, flag2.Key)
-		items, err = w.All(ld.Features)
+		core.forceRemove(interfaces.DataKindFeatures(), flag2.Key)
+		items, err = w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
 		if mode.isCached() {
 			require.Equal(t, 2, len(items))
@@ -330,14 +330,14 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
 
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flag1.Key: &flag1, flag2.Key: &flag2},
+			interfaces.DataKindFeatures(): {flag1.Key: &flag1, flag2.Key: &flag2},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 		require.Equal(t, allData, core.data)
 
-		core.forceRemove(ld.Features, flag2.Key)
-		items, err := w.All(ld.Features)
+		core.forceRemove(interfaces.DataKindFeatures(), flag2.Key)
+		items, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
 		require.Equal(t, 2, len(items))
 	}, testCached, testCachedIndefinitely)
@@ -352,21 +352,21 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag2v2 := ldbuilders.NewFlagBuilder("flag2").Version(2).Build()
 
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flag1.Key: &flag1, flag2.Key: &flag2},
+			interfaces.DataKindFeatures(): {flag1.Key: &flag1, flag2.Key: &flag2},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 		require.Equal(t, allData, core.data)
 
 		// make a change to flag1 using the wrapper - this should flush the cache
-		err = w.Upsert(ld.Features, &flag1v2)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flag1v2)
 		require.NoError(t, err)
 
 		// make a change to flag2 that bypasses the cache
-		core.forceSet(ld.Features, &flag2v2)
+		core.forceSet(interfaces.DataKindFeatures(), &flag2v2)
 
 		// we should now see both changes since the cache was flushed
-		items, err := w.All(ld.Features)
+		items, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
 		require.Equal(t, 2, items[flag2.Key].GetVersion())
 	}, testCached)
@@ -378,22 +378,22 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
 
-		err := w.Upsert(ld.Features, &flagv1)
+		err := w.Upsert(interfaces.DataKindFeatures(), &flagv1)
 		require.NoError(t, err)
-		require.Equal(t, &flagv1, core.data[ld.Features][flagv1.Key])
+		require.Equal(t, &flagv1, core.data[interfaces.DataKindFeatures()][flagv1.Key])
 
-		err = w.Upsert(ld.Features, &flagv2)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flagv2)
 		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key])
+		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key])
 
 		// if we have a cache, verify that the new item is now cached by writing a different value
 		// to the underlying data - Get should still return the cached item
 		if mode.isCached() {
 			flagv3 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(3).Build()
-			core.forceSet(ld.Features, &flagv3)
+			core.forceSet(interfaces.DataKindFeatures(), &flagv3)
 		}
 
-		item, err := w.Get(ld.Features, flagv1.Key)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv2, item)
 	}, testUncached, testCached, testCachedIndefinitely)
@@ -409,18 +409,18 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
 
-		err := w.Upsert(ld.Features, &flagv2)
+		err := w.Upsert(interfaces.DataKindFeatures(), &flagv2)
 		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key])
+		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key])
 
-		err = w.Upsert(ld.Features, &flagv1)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flagv1)
 		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key]) // value in store remains the same
+		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key]) // value in store remains the same
 
 		flagv3 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(3).Build()
-		core.forceSet(ld.Features, &flagv3) // bypasses cache so we can verify that flagv2 is in the cache
+		core.forceSet(interfaces.DataKindFeatures(), &flagv3) // bypasses cache so we can verify that flagv2 is in the cache
 
-		item, err := w.Get(ld.Features, flagv1.Key)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv2, item)
 	}, testCached, testCachedIndefinitely)
@@ -433,19 +433,19 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Deleted(true).Build()
 		flagv3 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(3).Build()
 
-		core.forceSet(ld.Features, &flagv1)
-		item, err := w.Get(ld.Features, flagv1.Key)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv1)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv1, item)
 
-		err = w.Delete(ld.Features, flagv1.Key, 2)
+		err = w.Delete(interfaces.DataKindFeatures(), flagv1.Key, 2)
 		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[ld.Features][flagv1.Key])
+		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key])
 
 		// make a change to the flag that bypasses the cache
-		core.forceSet(ld.Features, &flagv3)
+		core.forceSet(interfaces.DataKindFeatures(), &flagv3)
 
-		item, err = w.Get(ld.Features, flagv1.Key)
+		item, err = w.Get(interfaces.DataKindFeatures(), flagv1.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
 			require.Nil(t, item)
@@ -479,7 +479,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		assert.False(t, w.Initialized())
 		assert.Equal(t, 1, core.initQueriedCount)
 
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{ld.Features: {}}
+		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}}
 		err := w.Init(allData)
 		require.NoError(t, err)
 
@@ -510,11 +510,11 @@ func TestDataStoreWrapper(t *testing.T) {
 		defer w.Close()
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(9).Build()
-		core.forceSet(ld.Features, &flag)
+		core.forceSet(interfaces.DataKindFeatures(), &flag)
 
 		resultCh := make(chan int, 2)
 		go func() {
-			result, _ := w.Get(ld.Features, flag.Key)
+			result, _ := w.Get(interfaces.DataKindFeatures(), flag.Key)
 			resultCh <- result.GetVersion()
 		}()
 		// We can't actually *guarantee* that our second query will start while the first one is still
@@ -522,7 +522,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		// mockCoreWithInstrumentedQueries should make it extremely likely.
 		<-core.queryStartedCh
 		go func() {
-			result, _ := w.Get(ld.Features, flag.Key)
+			result, _ := w.Get(interfaces.DataKindFeatures(), flag.Key)
 			resultCh <- result.GetVersion()
 		}()
 
@@ -541,17 +541,17 @@ func TestDataStoreWrapper(t *testing.T) {
 
 		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(8).Build()
 		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(9).Build()
-		core.forceSet(ld.Features, &flag1)
-		core.forceSet(ld.Features, &flag2)
+		core.forceSet(interfaces.DataKindFeatures(), &flag1)
+		core.forceSet(interfaces.DataKindFeatures(), &flag2)
 
 		resultCh := make(chan int, 2)
 		go func() {
-			result, _ := w.Get(ld.Features, flag1.Key)
+			result, _ := w.Get(interfaces.DataKindFeatures(), flag1.Key)
 			resultCh <- result.GetVersion()
 		}()
 		<-core.queryStartedCh
 		go func() {
-			result, _ := w.Get(ld.Features, flag2.Key)
+			result, _ := w.Get(interfaces.DataKindFeatures(), flag2.Key)
 			resultCh <- result.GetVersion()
 		}()
 
@@ -569,16 +569,16 @@ func TestDataStoreWrapper(t *testing.T) {
 		defer w.Close()
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(9).Build()
-		core.forceSet(ld.Features, &flag)
+		core.forceSet(interfaces.DataKindFeatures(), &flag)
 
 		resultCh := make(chan int, 2)
 		go func() {
-			result, _ := w.All(ld.Features)
+			result, _ := w.All(interfaces.DataKindFeatures())
 			resultCh <- len(result)
 		}()
 		<-core.queryStartedCh
 		go func() {
-			result, _ := w.All(ld.Features)
+			result, _ := w.All(interfaces.DataKindFeatures())
 			resultCh <- len(result)
 		}()
 
@@ -598,18 +598,18 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flagv1.Key: &flagv1},
+			interfaces.DataKindFeatures(): {flagv1.Key: &flagv1},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 		require.Equal(t, core.data, allData)
 
 		core.fakeError = errors.New("sorry")
-		err = w.Upsert(ld.Features, &flagv2)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flagv2)
 		require.Equal(t, core.fakeError, err)
 
 		core.fakeError = nil
-		item, err := w.Get(ld.Features, flagv2.Key)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv2.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv1, item) // cache still has old item, same as underlying store
 	})
@@ -622,18 +622,18 @@ func TestDataStoreWrapper(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flagv1.Key: &flagv1},
+			interfaces.DataKindFeatures(): {flagv1.Key: &flagv1},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 		require.Equal(t, core.data, allData)
 
 		core.fakeError = errors.New("sorry")
-		err = w.Upsert(ld.Features, &flagv2)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flagv2)
 		require.Equal(t, core.fakeError, err)
 
 		core.fakeError = nil
-		item, err := w.Get(ld.Features, flagv2.Key)
+		item, err := w.Get(interfaces.DataKindFeatures(), flagv2.Key)
 		require.NoError(t, err)
 		require.Equal(t, &flagv2, item) // underlying store has old item but cache has new item
 	})
@@ -645,14 +645,14 @@ func TestDataStoreWrapper(t *testing.T) {
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flag.Key: &flag},
+			interfaces.DataKindFeatures(): {flag.Key: &flag},
 		}
 		core.fakeError = errors.New("sorry")
 		err := w.Init(allData)
 		require.Equal(t, core.fakeError, err)
 
 		core.fakeError = nil
-		data, err := w.All(ld.Features)
+		data, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
 		require.Equal(t, map[string]interfaces.VersionedData{}, data)
 	})
@@ -664,16 +664,16 @@ func TestDataStoreWrapper(t *testing.T) {
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flag.Key: &flag},
+			interfaces.DataKindFeatures(): {flag.Key: &flag},
 		}
 		core.fakeError = errors.New("sorry")
 		err := w.Init(allData)
 		require.Equal(t, core.fakeError, err)
 
 		core.fakeError = nil
-		data, err := w.All(ld.Features)
+		data, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
-		require.Equal(t, allData[ld.Features], data)
+		require.Equal(t, allData[interfaces.DataKindFeatures()], data)
 	})
 
 	t.Run("Cached store with finite TTL removes cached All data if a single item is updated", func(t *testing.T) {
@@ -686,27 +686,27 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag2v1 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
 		flag2v2 := ldbuilders.NewFlagBuilder(flag2v1.Key).Version(2).Build()
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
+			interfaces.DataKindFeatures(): {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 
-		data, err := w.All(ld.Features)
+		data, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
-		require.Equal(t, allData[ld.Features], data)
+		require.Equal(t, allData[interfaces.DataKindFeatures()], data)
 		// now the All data is cached
 
 		// do an Upsert for flag1 - this should drop the previous All data from the cache
-		err = w.Upsert(ld.Features, &flag1v2)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flag1v2)
 
 		// modify flag2 directly in the underlying data
-		core.forceSet(ld.Features, &flag2v2)
+		core.forceSet(interfaces.DataKindFeatures(), &flag2v2)
 
 		// now, All should reread the underlying data so we see both changes
-		data, err = w.All(ld.Features)
+		data, err = w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
-		assert.Equal(t, &flag1v2, allData[ld.Features][flag1v1.Key])
-		assert.Equal(t, &flag2v2, allData[ld.Features][flag2v1.Key])
+		assert.Equal(t, &flag1v2, allData[interfaces.DataKindFeatures()][flag1v1.Key])
+		assert.Equal(t, &flag2v2, allData[interfaces.DataKindFeatures()][flag2v1.Key])
 	})
 
 	t.Run("Cached store with infinite TTL updates cached All data if a single item is updated", func(t *testing.T) {
@@ -719,24 +719,24 @@ func TestDataStoreWrapper(t *testing.T) {
 		flag2v1 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
 		flag2v2 := ldbuilders.NewFlagBuilder(flag2v1.Key).Version(2).Build()
 		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			ld.Features: {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
+			interfaces.DataKindFeatures(): {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
 		}
 		err := w.Init(allData)
 		require.NoError(t, err)
 
-		data, err := w.All(ld.Features)
+		data, err := w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
-		require.Equal(t, allData[ld.Features], data)
+		require.Equal(t, allData[interfaces.DataKindFeatures()], data)
 		// now the All data is cached
 
 		// do an Upsert for flag1 - this should update the underlying data *and* the cached All data
-		err = w.Upsert(ld.Features, &flag1v2)
+		err = w.Upsert(interfaces.DataKindFeatures(), &flag1v2)
 
 		// modify flag2 directly in the underlying data
-		core.forceSet(ld.Features, &flag2v2)
+		core.forceSet(interfaces.DataKindFeatures(), &flag2v2)
 
 		// now, All should *not* reread the underlying data - we should only see the change to flag1
-		data, err = w.All(ld.Features)
+		data, err = w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
 		assert.Equal(t, &flag1v2, data[flag1v1.Key])
 		assert.Equal(t, &flag2v1, data[flag2v1.Key])
@@ -752,8 +752,8 @@ func TestDataStoreWrapper(t *testing.T) {
 		assert.Equal(t, 2, len(receivedData))
 		assert.Equal(t, ld.Segments, receivedData[0].Kind) // Segments should always be first
 		assert.Equal(t, len(dependencyOrderingTestData[ld.Segments]), len(receivedData[0].Items))
-		assert.Equal(t, ld.Features, receivedData[1].Kind)
-		assert.Equal(t, len(dependencyOrderingTestData[ld.Features]), len(receivedData[1].Items))
+		assert.Equal(t, interfaces.DataKindFeatures(), receivedData[1].Kind)
+		assert.Equal(t, len(dependencyOrderingTestData[interfaces.DataKindFeatures()]), len(receivedData[1].Items))
 
 		flags := receivedData[1].Items
 		findFlagIndex := func(key string) int {
@@ -765,7 +765,7 @@ func TestDataStoreWrapper(t *testing.T) {
 			return -1
 		}
 
-		for _, item := range dependencyOrderingTestData[ld.Features] {
+		for _, item := range dependencyOrderingTestData[interfaces.DataKindFeatures()] {
 			if flag, ok := item.(*ldmodel.FeatureFlag); ok {
 				flagIndex := findFlagIndex(flag.Key)
 				for _, prereq := range flag.Prerequisites {
@@ -785,7 +785,7 @@ func TestDataStoreWrapper(t *testing.T) {
 }
 
 var dependencyOrderingTestData = map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-	ld.Features: {
+	interfaces.DataKindFeatures(): {
 		"a": parseFlag(`{"key":"a","prerequisites":[{"key":"b"},{"key":"c"}]}`),
 		"b": parseFlag(`{"key":"b","prerequisites":[{"key":"c"},{"key":"e"}]}`),
 		"c": parseFlag(`{"key":"c"}`),

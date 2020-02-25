@@ -81,10 +81,10 @@ type parsedPath struct {
 func parsePath(path string) (parsedPath, error) {
 	parsedPath := parsedPath{}
 	if strings.HasPrefix(path, "/segments/") {
-		parsedPath.kind = Segments
+		parsedPath.kind = interfaces.DataKindSegments()
 		parsedPath.key = strings.TrimPrefix(path, "/segments/")
 	} else if strings.HasPrefix(path, "/flags/") {
-		parsedPath.kind = Features
+		parsedPath.kind = interfaces.DataKindFeatures()
 		parsedPath.key = strings.TrimPrefix(path, "/flags/")
 	} else {
 		return parsedPath, fmt.Errorf("unrecognized path %s", path)

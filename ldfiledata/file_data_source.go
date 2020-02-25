@@ -310,14 +310,14 @@ func detectJSON(rawData []byte) bool {
 
 func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, error) {
 	all := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-		ld.Features: {}, //nolint:megacheck // allow deprecated usage
+		interfaces.DataKindFeatures(): {}, //nolint:megacheck // allow deprecated usage
 		ld.Segments: {}, //nolint:megacheck // allow deprecated usage
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				data := f
-				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, interfaces.DataKindFeatures(), key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -328,7 +328,7 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 				if err != nil {
 					return nil, err
 				}
-				if err := insertData(all, ld.Features, key, flag); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, interfaces.DataKindFeatures(), key, flag); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
