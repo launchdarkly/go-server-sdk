@@ -1,7 +1,7 @@
 package ldclient
 
 import (
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -27,12 +27,12 @@ func (fk featureFlagVersionedDataKind) String() string {
 
 // GetDefaultItem returns a default feature flag representation
 func (fk featureFlagVersionedDataKind) GetDefaultItem() interface{} {
-	return &ldeval.FeatureFlag{}
+	return &ldmodel.FeatureFlag{}
 }
 
 // MakeDeletedItem returns representation of a deleted flag
 func (fk featureFlagVersionedDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
-	return &ldeval.FeatureFlag{Key: key, Version: version, Deleted: true}
+	return &ldmodel.FeatureFlag{Key: key, Version: version, Deleted: true}
 }
 
 // Features is a convenience variable to access an instance of VersionedDataKind.
@@ -55,12 +55,12 @@ func (sk segmentVersionedDataKind) String() string {
 
 // GetDefaultItem returns a default segment representation
 func (sk segmentVersionedDataKind) GetDefaultItem() interface{} {
-	return &ldeval.Segment{}
+	return &ldmodel.Segment{}
 }
 
 // MakeDeletedItem returns representation of a deleted segment
 func (sk segmentVersionedDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
-	return &ldeval.Segment{Key: key, Version: version, Deleted: true}
+	return &ldmodel.Segment{Key: key, Version: version, Deleted: true}
 }
 
 // Segments is a convenience variable to access an instance of VersionedDataKind.

@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
 // FeatureFlagsState is a snapshot of the state of all feature flags with regard to a
@@ -22,11 +22,11 @@ type FeatureFlagsState struct {
 }
 
 type flagMetadata struct {
-	Variation            *int                       `json:"variation,omitempty"`
-	Version              *int                       `json:"version,omitempty"`
-	Reason               *ldreason.EvaluationReason `json:"reason,omitempty"`
-	TrackEvents          *bool                      `json:"trackEvents,omitempty"`
-	DebugEventsUntilDate *uint64                    `json:"debugEventsUntilDate,omitempty"`
+	Variation            *int                        `json:"variation,omitempty"`
+	Version              *int                        `json:"version,omitempty"`
+	Reason               *ldreason.EvaluationReason  `json:"reason,omitempty"`
+	TrackEvents          *bool                       `json:"trackEvents,omitempty"`
+	DebugEventsUntilDate *ldtime.UnixMillisecondTime `json:"debugEventsUntilDate,omitempty"`
 }
 
 // FlagsStateOption is the type of optional parameters that can be passed to LDClient.AllFlagsState.
@@ -85,7 +85,7 @@ func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) boo
 	return false
 }
 
-func (s *FeatureFlagsState) addFlag(flag ldeval.FeatureFlag, value ldvalue.Value, variation int,
+func (s *FeatureFlagsState) addFlag(flag ldmodel.FeatureFlag, value ldvalue.Value, variation int,
 	reason ldreason.EvaluationReason, detailsOnlyIfTracked bool) {
 	meta := flagMetadata{DebugEventsUntilDate: flag.DebugEventsUntilDate}
 	if variation >= 0 {
@@ -93,7 +93,7 @@ func (s *FeatureFlagsState) addFlag(flag ldeval.FeatureFlag, value ldvalue.Value
 	}
 	includeDetail := !detailsOnlyIfTracked || flag.TrackEvents
 	if !includeDetail && flag.DebugEventsUntilDate != nil {
-		includeDetail = *flag.DebugEventsUntilDate > uint64(ldtime.UnixMillisNow())
+		includeDetail = *flag.DebugEventsUntilDate > ldtime.UnixMillisNow()
 	}
 	if includeDetail {
 		meta.Version = &flag.Version

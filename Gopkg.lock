@@ -248,10 +248,11 @@
 
 [[projects]]
   branch = "v1"
-  digest = "1:dd2a64f46684cb5fd619d313cfba2271fef4a97c4f79fe4264c327383e9b148c"
+  digest = "1:6267d39d7157928a574adc93271ae6141df0219b0e13e1dd103c89935fd70041"
   name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
   packages = [
     ".",
+    "ldbuilders",
     "ldmodel",
   ]
   pruneopts = "NUT"
@@ -294,6 +295,8 @@
     "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
     "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1",
+    "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders",
+    "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

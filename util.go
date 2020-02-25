@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -40,8 +40,8 @@ func checkForHttpError(statusCode int, url string) error {
 
 // makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a data store
 func makeAllVersionedDataMap(
-	features map[string]*ldeval.FeatureFlag,
-	segments map[string]*ldeval.Segment) map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData {
+	features map[string]*ldmodel.FeatureFlag,
+	segments map[string]*ldmodel.Segment) map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData {
 
 	allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData)
 	allData[Features] = make(map[string]interfaces.VersionedData)

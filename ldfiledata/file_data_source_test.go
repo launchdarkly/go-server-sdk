@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ segments:
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory("", ld.Config{DataStore: store, Loggers: ldlog.NewDisabledLoggers()})
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -52,12 +53,12 @@ segments:
 	flag, err := store.Get(ld.Features, "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
-	assert.True(t, flag.(*ldeval.FeatureFlag).On)
+	assert.True(t, flag.(*ldmodel.FeatureFlag).On)
 
 	segment, err := store.Get(ld.Segments, "my-segment")
 	require.NoError(t, err)
 	require.NotNil(t, segment)
-	assert.Empty(t, segment.(*ldeval.Segment).Rules)
+	assert.Empty(t, segment.(*ldmodel.Segment).Rules)
 }
 
 func TestNewFileDataSourceJson(t *testing.T) {
@@ -76,7 +77,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	flag, err := store.Get(ld.Features, "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
-	assert.True(t, flag.(*ldeval.FeatureFlag).On)
+	assert.True(t, flag.(*ldmodel.FeatureFlag).On)
 }
 
 func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
@@ -98,12 +99,12 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	flag1, err := store.Get(ld.Features, "my-flag1")
 	require.NoError(t, err)
 	require.NotNil(t, flag1)
-	assert.True(t, flag1.(*ldeval.FeatureFlag).On)
+	assert.True(t, flag1.(*ldmodel.FeatureFlag).On)
 
 	flag2, err := store.Get(ld.Features, "my-flag2")
 	require.NoError(t, err)
 	require.NotNil(t, flag2)
-	assert.True(t, flag2.(*ldeval.FeatureFlag).On)
+	assert.True(t, flag2.(*ldmodel.FeatureFlag).On)
 }
 
 func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
@@ -173,7 +174,5 @@ flagValues:
 	flag, err := store.Get(ld.Features, "my-flag")
 	require.NoError(t, err)
 	require.NotNil(t, flag)
-	require.NotNil(t, flag.(*ldeval.FeatureFlag).Fallthrough.Variation)
-	require.True(t, flag.(*ldeval.FeatureFlag).On)
-	assert.Equal(t, 0, *flag.(*ldeval.FeatureFlag).Fallthrough.Variation)
+	assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flag.(*ldmodel.FeatureFlag).Variations)
 }

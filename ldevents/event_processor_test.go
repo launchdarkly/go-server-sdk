@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
 var epDefaultConfig = EventsConfiguration{
@@ -70,10 +72,7 @@ func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:     "flagkey",
-		Version: 11,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -90,11 +89,7 @@ func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:         "flagkey",
-		Version:     11,
-		TrackEvents: true,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -114,11 +109,7 @@ func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:         "flagkey",
-		Version:     11,
-		TrackEvents: true,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -138,11 +129,7 @@ func TestFeatureEventCanContainInlineUser(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:         "flagkey",
-		Version:     11,
-		TrackEvents: true,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -162,11 +149,7 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:         "flagkey",
-		Version:     11,
-		TrackEvents: true,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -185,11 +168,7 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:         "flagkey",
-		Version:     11,
-		TrackEvents: true,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	fe.Reason = ldreason.NewEvalReasonFallthrough()
@@ -209,11 +188,7 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldeval.FeatureFlag{
-		Key:         "flagkey",
-		Version:     11,
-		TrackEvents: false,
-	}
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -235,13 +210,8 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	futureTime := uint64(fakeTimeNow + 100)
-	flag := ldeval.FeatureFlag{
-		Key:                  "flagkey",
-		Version:              11,
-		TrackEvents:          false,
-		DebugEventsUntilDate: &futureTime,
-	}
+	futureTime := fakeTimeNow + 100
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).DebugEventsUntilDate(futureTime).Build()
 	value := ldvalue.String("value")
 	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -264,13 +234,8 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	futureTime := uint64(fakeTimeNow + 100)
-	flag := ldeval.FeatureFlag{
-		Key:                  "flagkey",
-		Version:              11,
-		TrackEvents:          true,
-		DebugEventsUntilDate: &futureTime,
-	}
+	futureTime := fakeTimeNow + 100
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).DebugEventsUntilDate(futureTime).Build()
 	value := ldvalue.String("value")
 	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -306,13 +271,8 @@ func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the server time, but in the past compared to the client.
-	debugUntil := uint64(serverTime + 1000)
-	flag := ldeval.FeatureFlag{
-		Key:                  "flagkey",
-		Version:              11,
-		TrackEvents:          false,
-		DebugEventsUntilDate: &debugUntil,
-	}
+	debugUntil := serverTime + 1000
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).DebugEventsUntilDate(debugUntil).Build()
 	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
@@ -346,13 +306,8 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the client time, but in the past compared to the server.
-	debugUntil := uint64(serverTime - 1000)
-	flag := ldeval.FeatureFlag{
-		Key:                  "flagkey",
-		Version:              11,
-		TrackEvents:          false,
-		DebugEventsUntilDate: &debugUntil,
-	}
+	debugUntil := serverTime - 1000
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).DebugEventsUntilDate(debugUntil).Build()
 	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
@@ -369,16 +324,8 @@ func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag1 := ldeval.FeatureFlag{
-		Key:         "flagkey1",
-		Version:     11,
-		TrackEvents: true,
-	}
-	flag2 := ldeval.FeatureFlag{
-		Key:         "flagkey2",
-		Version:     22,
-		TrackEvents: true,
-	}
+	flag1 := ldbuilders.NewFlagBuilder("flagkey1").Version(11).TrackEvents(true).Build()
+	flag2 := ldbuilders.NewFlagBuilder("flagkey2").Version(22).TrackEvents(true).Build()
 	value := ldvalue.String("value")
 	fe1 := defaultEventFactory.NewSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	fe2 := defaultEventFactory.NewSuccessfulEvalEvent(&flag2, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
@@ -400,16 +347,8 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag1 := ldeval.FeatureFlag{
-		Key:         "flagkey1",
-		Version:     11,
-		TrackEvents: false,
-	}
-	flag2 := ldeval.FeatureFlag{
-		Key:         "flagkey2",
-		Version:     22,
-		TrackEvents: false,
-	}
+	flag1 := ldbuilders.NewFlagBuilder("flagkey1").Version(11).Build()
+	flag2 := ldbuilders.NewFlagBuilder("flagkey2").Version(22).Build()
 	value := ldvalue.String("value")
 	fe1 := defaultEventFactory.NewSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	fe2 := defaultEventFactory.NewSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), noReason, "")
@@ -635,7 +574,7 @@ func expectedIndexEvent(sourceEvent Event, encodedUser ldvalue.Value) ldvalue.Va
 		Build()
 }
 
-func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldeval.FeatureFlag,
+func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldmodel.FeatureFlag,
 	value ldvalue.Value, debug bool, inlineUser *ldvalue.Value) ldvalue.Value {
 	kind := "feature"
 	if debug {
@@ -664,7 +603,7 @@ func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldeval.FeatureFl
 	return expected.Build()
 }
 
-func assertSummaryEventHasFlag(t *testing.T, flag ldeval.FeatureFlag, output ldvalue.Value) bool {
+func assertSummaryEventHasFlag(t *testing.T, flag ldmodel.FeatureFlag, output ldvalue.Value) bool {
 	if assert.Equal(t, "summary", output.GetByKey("kind").StringValue()) {
 		flags := output.GetByKey("features")
 		return !flags.GetByKey(flag.Key).IsNull()
@@ -672,7 +611,7 @@ func assertSummaryEventHasFlag(t *testing.T, flag ldeval.FeatureFlag, output ldv
 	return false
 }
 
-func assertSummaryEventHasCounter(t *testing.T, flag ldeval.FeatureFlag, variation int, value ldvalue.Value, count int, output ldvalue.Value) {
+func assertSummaryEventHasCounter(t *testing.T, flag ldmodel.FeatureFlag, variation int, value ldvalue.Value, count int, output ldvalue.Value) {
 	if assertSummaryEventHasFlag(t, flag, output) {
 		f := output.GetByKey("features").GetByKey(flag.Key)
 		assert.Equal(t, ldvalue.ObjectType, f.Type())

@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 )
 
 func TestFlagsStateCanGetFlagValue(t *testing.T) {
-	flag := ldeval.FeatureFlag{Key: "key"}
+	flag := ldbuilders.NewFlagBuilder("key").Build()
 	state := newFeatureFlagsState()
 	state.addFlag(flag, ldvalue.String("value"), 1, ldreason.EvaluationReason{}, false)
 
@@ -25,7 +27,7 @@ func TestFlagsStateUnknownFlagReturnsNilValue(t *testing.T) {
 }
 
 func TestFlagsStateCanGetFlagReason(t *testing.T) {
-	flag := ldeval.FeatureFlag{Key: "key"}
+	flag := ldbuilders.NewFlagBuilder("key").Build()
 	state := newFeatureFlagsState()
 	state.addFlag(flag, ldvalue.String("value"), 1, ldreason.NewEvalReasonOff(), false)
 
@@ -39,7 +41,7 @@ func TestFlagsStateUnknownFlagReturnsEmptyReason(t *testing.T) {
 }
 
 func TestFlagsStateReturnsEmptyReasonIfReasonsWereNotRecorded(t *testing.T) {
-	flag := ldeval.FeatureFlag{Key: "key"}
+	flag := ldbuilders.NewFlagBuilder("key").Build()
 	state := newFeatureFlagsState()
 	state.addFlag(flag, ldvalue.String("value"), 1, ldreason.EvaluationReason{}, false)
 
@@ -47,8 +49,8 @@ func TestFlagsStateReturnsEmptyReasonIfReasonsWereNotRecorded(t *testing.T) {
 }
 
 func TestFlagsStateToValuesMap(t *testing.T) {
-	flag1 := ldeval.FeatureFlag{Key: "key1"}
-	flag2 := ldeval.FeatureFlag{Key: "key2"}
+	flag1 := ldbuilders.NewFlagBuilder("key1").Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").Build()
 	state := newFeatureFlagsState()
 	state.addFlag(flag1, ldvalue.String("value1"), 0, ldreason.EvaluationReason{}, false)
 	state.addFlag(flag2, ldvalue.String("value2"), 1, ldreason.EvaluationReason{}, false)
@@ -58,9 +60,9 @@ func TestFlagsStateToValuesMap(t *testing.T) {
 }
 
 func TestFlagsStateToJSON(t *testing.T) {
-	date := uint64(1000)
-	flag1 := ldeval.FeatureFlag{Key: "key1", Version: 100, TrackEvents: false}
-	flag2 := ldeval.FeatureFlag{Key: "key2", Version: 200, TrackEvents: true, DebugEventsUntilDate: &date}
+	date := ldtime.UnixMillisecondTime(1000)
+	flag1 := ldbuilders.NewFlagBuilder("key").Version(100).Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).TrackEvents(true).DebugEventsUntilDate(date).Build()
 	state := newFeatureFlagsState()
 	state.addFlag(flag1, ldvalue.String("value1"), 0, ldreason.EvaluationReason{}, false)
 	state.addFlag(flag2, ldvalue.String("value2"), 1, ldreason.EvaluationReason{}, false)
