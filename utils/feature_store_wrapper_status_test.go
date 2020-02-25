@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
@@ -29,7 +28,7 @@ type mockCoreWithStatus struct {
 func newCoreWithStatus(ttl time.Duration) *mockCoreWithStatus {
 	return &mockCoreWithStatus{
 		cacheTTL:         ttl,
-		data:             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, ld.Segments: {}},
+		data:             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
 		fakeAvailability: true,
 	}
 }

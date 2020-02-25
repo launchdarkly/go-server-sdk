@@ -55,7 +55,7 @@ segments:
 	require.NotNil(t, flag)
 	assert.True(t, flag.(*ldmodel.FeatureFlag).On)
 
-	segment, err := store.Get(ld.Segments, "my-segment")
+	segment, err := store.Get(interfaces.DataKindSegments(), "my-segment")
 	require.NoError(t, err)
 	require.NotNil(t, segment)
 	assert.Empty(t, segment.(*ldmodel.Segment).Rules)

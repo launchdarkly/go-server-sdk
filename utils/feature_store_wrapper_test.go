@@ -70,14 +70,14 @@ type mockCoreWithInstrumentedQueries struct {
 func newCore(ttl time.Duration) *mockCore {
 	return &mockCore{
 		cacheTTL: ttl,
-		data:     map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, ld.Segments: {}},
+		data:     map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
 	}
 }
 
 func newCoreWithInstrumentedQueries(ttl time.Duration) *mockCoreWithInstrumentedQueries {
 	return &mockCoreWithInstrumentedQueries{
 		cacheTTL:       ttl,
-		data:           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, ld.Segments: {}},
+		data:           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
 		queryDelay:     200 * time.Millisecond,
 		queryStartedCh: make(chan struct{}, 2),
 	}
@@ -750,8 +750,8 @@ func TestDataStoreWrapper(t *testing.T) {
 
 		receivedData := core.data
 		assert.Equal(t, 2, len(receivedData))
-		assert.Equal(t, ld.Segments, receivedData[0].Kind) // Segments should always be first
-		assert.Equal(t, len(dependencyOrderingTestData[ld.Segments]), len(receivedData[0].Items))
+		assert.Equal(t, interfaces.DataKindSegments(), receivedData[0].Kind) // Segments should always be first
+		assert.Equal(t, len(dependencyOrderingTestData[interfaces.DataKindSegments()]), len(receivedData[0].Items))
 		assert.Equal(t, interfaces.DataKindFeatures(), receivedData[1].Kind)
 		assert.Equal(t, len(dependencyOrderingTestData[interfaces.DataKindFeatures()]), len(receivedData[1].Items))
 
@@ -793,7 +793,7 @@ var dependencyOrderingTestData = map[interfaces.VersionedDataKind]map[string]int
 		"e": parseFlag(`{"key":"e"}`),
 		"f": parseFlag(`{"key":"f"}`),
 	},
-	ld.Segments: {
+	interfaces.DataKindSegments(): {
 		"1": &ldmodel.Segment{Key: "1"},
 	},
 }
