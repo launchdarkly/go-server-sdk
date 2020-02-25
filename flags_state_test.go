@@ -61,7 +61,7 @@ func TestFlagsStateToValuesMap(t *testing.T) {
 
 func TestFlagsStateToJSON(t *testing.T) {
 	date := ldtime.UnixMillisecondTime(1000)
-	flag1 := ldbuilders.NewFlagBuilder("key").Version(100).Build()
+	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).Build()
 	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).TrackEvents(true).DebugEventsUntilDate(date).Build()
 	state := newFeatureFlagsState()
 	state.addFlag(flag1, ldvalue.String("value1"), 0, ldreason.EvaluationReason{}, false)

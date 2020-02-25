@@ -188,7 +188,7 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).Build()
 	value := ldvalue.String("value")
 	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
@@ -307,7 +307,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the client time, but in the past compared to the server.
 	debugUntil := serverTime - 1000
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).DebugEventsUntilDate(debugUntil).Build()
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).DebugEventsUntilDate(debugUntil).Build()
 	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
