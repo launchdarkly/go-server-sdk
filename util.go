@@ -3,7 +3,6 @@ package ldclient
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -97,14 +96,4 @@ func httpErrorMessage(statusCode int, context string, recoverableMessage string)
 	}
 	return fmt.Sprintf("Received HTTP error %d%s for %s - %s",
 		statusCode, statusDesc, context, resultMessage)
-}
-
-func now() uint64 {
-	return toUnixMillis(time.Now())
-}
-
-func toUnixMillis(t time.Time) uint64 {
-	ms := time.Duration(t.UnixNano()) / time.Millisecond
-
-	return uint64(ms)
 }

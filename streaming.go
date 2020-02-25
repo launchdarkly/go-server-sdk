@@ -11,6 +11,7 @@ import (
 
 	es "github.com/launchdarkly/eventsource"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
@@ -34,7 +35,7 @@ type streamProcessor struct {
 	isInitialized              bool
 	halt                       chan struct{}
 	storeStatusSub             internal.DataStoreStatusSubscription
-	connectionAttemptStartTime uint64
+	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	readyOnce                  sync.Once
 	closeOnce                  sync.Once
 }
@@ -287,14 +288,14 @@ func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
 }
 
 func (sp *streamProcessor) logConnectionStarted() {
-	sp.connectionAttemptStartTime = now()
+	sp.connectionAttemptStartTime = ldtime.UnixMillisNow()
 }
 
 func (sp *streamProcessor) logConnectionResult(success bool) {
 	if sp.connectionAttemptStartTime > 0 && sp.config.diagnosticsManager != nil {
-		timestamp := now()
+		timestamp := ldtime.UnixMillisNow()
 		sp.config.diagnosticsManager.RecordStreamInit(timestamp, !success,
-			timestamp-sp.connectionAttemptStartTime)
+			uint64(timestamp-sp.connectionAttemptStartTime))
 	}
 	sp.connectionAttemptStartTime = 0
 }

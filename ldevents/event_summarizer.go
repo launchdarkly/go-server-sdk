@@ -1,6 +1,9 @@
 package ldevents
 
-import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+)
 
 // Manages the state of summarizable information for the EventProcessor, including the
 // event counters and user deduplication. Note that the methods for this type are
@@ -12,8 +15,8 @@ type eventSummarizer struct {
 
 type eventSummary struct {
 	counters  map[counterKey]*counterValue
-	startDate uint64
-	endDate   uint64
+	startDate ldtime.UnixMillisecondTime
+	endDate   ldtime.UnixMillisecondTime
 }
 
 type counterKey struct {
@@ -21,10 +24,6 @@ type counterKey struct {
 	variation int
 	version   int
 }
-
-const (
-	nilVariation = -1
-)
 
 type counterValue struct {
 	count       int
@@ -50,15 +49,7 @@ func (s *eventSummarizer) summarizeEvent(evt Event) {
 		return
 	}
 
-	key := counterKey{key: fe.Key}
-	if fe.Variation != nil {
-		key.variation = *fe.Variation
-	} else {
-		key.variation = nilVariation
-	}
-	if fe.Version != nil {
-		key.version = *fe.Version
-	}
+	key := counterKey{key: fe.Key, variation: fe.Variation, version: fe.Version}
 
 	if value, ok := s.eventsState.counters[key]; ok {
 		value.count++

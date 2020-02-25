@@ -233,16 +233,17 @@
 
 [[projects]]
   branch = "v2"
-  digest = "1:a5d09471bfbe8763cf5b21a20510b025b1e27a4593f37d17770c640be586fe60"
+  digest = "1:843acf85cd9b3f31a19d08ab5d9b81dbfc62cec9fefc0ea58ecb6a419c373696"
   name = "gopkg.in/launchdarkly/go-sdk-common.v2"
   packages = [
     "ldlog",
     "ldreason",
+    "ldtime",
     "lduser",
     "ldvalue",
   ]
   pruneopts = "NUT"
-  revision = "08c2cf552141855a4c6a8676ba935ebede167278"
+  revision = "9ce753be70a2902c298274e695450f8b4a573a25"
   source = "github.com/launchdarkly/go-sdk-common-private"
 
 [[projects]]
@@ -286,6 +287,7 @@
     "gopkg.in/ghodss/yaml.v1",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldlog",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldreason",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldtime",
     "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
     "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1",

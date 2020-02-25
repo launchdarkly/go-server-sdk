@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
@@ -32,7 +34,7 @@ func TestDiagnosticInitEventBaseProperties(t *testing.T) {
 	event := m.CreateInitEvent()
 	assert.Equal(t, "diagnostic-init", event.GetByKey("kind").StringValue())
 	assert.Equal(t, id, event.GetByKey("id"))
-	assert.Equal(t, float64(toUnixMillis(startTime)), event.GetByKey("creationDate").Float64Value())
+	assert.Equal(t, float64(ldtime.UnixMillisFromTime(startTime)), event.GetByKey("creationDate").Float64Value())
 }
 
 func TestDiagnosticInitEventConfigData(t *testing.T) {

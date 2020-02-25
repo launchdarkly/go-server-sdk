@@ -1,6 +1,6 @@
 package ldevents
 
-import "time"
+import "gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
 // EventProcessor defines the interface for dispatching analytics events.
 type EventProcessor interface {
@@ -38,6 +38,6 @@ type EventSenderResult struct {
 	// MustShutDown is true if the server returned an error indicating that no further event data should be sent.
 	// This normally means that the SDK key is invalid.
 	MustShutDown bool
-	// TimeFromServer is the last known date/time reported by the server, if available.
-	TimeFromServer time.Time
+	// TimeFromServer is the last known date/time reported by the server, if available, otherwise zero.
+	TimeFromServer ldtime.UnixMillisecondTime
 }

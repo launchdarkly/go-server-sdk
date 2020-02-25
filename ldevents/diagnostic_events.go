@@ -5,12 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+
 	"github.com/google/uuid"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 type diagnosticStreamInitInfo struct {
-	timestamp      uint64
+	timestamp      ldtime.UnixMillisecondTime
 	failed         bool
 	durationMillis uint64
 }
@@ -22,8 +24,8 @@ type DiagnosticsManager struct {
 	id                ldvalue.Value
 	configData        ldvalue.Value
 	sdkData           ldvalue.Value
-	startTime         uint64
-	dataSinceTime     uint64
+	startTime         ldtime.UnixMillisecondTime
+	dataSinceTime     ldtime.UnixMillisecondTime
 	streamInits       []diagnosticStreamInitInfo
 	periodicEventGate <-chan struct{}
 	lock              sync.Mutex
@@ -49,7 +51,7 @@ func NewDiagnosticsManager(
 	startTime time.Time,
 	periodicEventGate <-chan struct{}, // periodicEventGate is test instrumentation - see CanSendStatsEvent
 ) *DiagnosticsManager {
-	timestamp := toUnixMillis(startTime)
+	timestamp := ldtime.UnixMillisFromTime(startTime)
 	m := &DiagnosticsManager{
 		id:                id,
 		configData:        configData,
@@ -62,7 +64,7 @@ func NewDiagnosticsManager(
 }
 
 // RecordStreamInit is called by the stream processor when a stream connection has either succeeded or failed.
-func (m *DiagnosticsManager) RecordStreamInit(timestamp uint64, failed bool, durationMillis uint64) {
+func (m *DiagnosticsManager) RecordStreamInit(timestamp ldtime.UnixMillisecondTime, failed bool, durationMillis uint64) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.streamInits = append(m.streamInits, diagnosticStreamInitInfo{
@@ -119,7 +121,7 @@ func (m *DiagnosticsManager) CreateStatsEventAndReset(
 ) ldvalue.Value {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	timestamp := now()
+	timestamp := ldtime.UnixMillisNow()
 	streamInitsBuilder := ldvalue.ArrayBuildWithCapacity(len(m.streamInits))
 	for _, si := range m.streamInits {
 		streamInitsBuilder.Add(ldvalue.ObjectBuild().

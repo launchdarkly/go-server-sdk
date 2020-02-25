@@ -15,6 +15,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
+const testSdkKey = "test-sdk-key"
+
 type mockDataSource struct {
 	IsInitialized bool
 	CloseFn       func() error
@@ -112,7 +114,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, ldvalue.Null(), e.Data)
-	assert.Nil(t, e.MetricValue)
+	assert.False(t, e.HasMetric)
 }
 
 func TestTrackDataSendsCustomEventWithData(t *testing.T) {
@@ -131,7 +133,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
-	assert.Nil(t, e.MetricValue)
+	assert.False(t, e.HasMetric)
 }
 
 func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
@@ -151,7 +153,8 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	assert.Equal(t, user, e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
-	assert.Equal(t, &metric, e.MetricValue)
+	assert.True(t, e.HasMetric)
+	assert.Equal(t, metric, e.MetricValue)
 }
 
 func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
@@ -214,7 +217,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	if modConfig != nil {
 		modConfig(&config)
 	}
-	client, _ := MakeCustomClient("sdkKey", config, time.Duration(0))
+	client, _ := MakeCustomClient(testSdkKey, config, time.Duration(0))
 	return client
 }
 
