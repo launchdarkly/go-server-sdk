@@ -4,7 +4,6 @@ import (
 	"sort"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -70,10 +69,10 @@ func getDependencyKeys(item interfaces.VersionedData) []string {
 // Logic for ensuring that segments are processed before features; if we get any other data types that
 // haven't been accounted for here, they'll come after those two in an arbitrary order.
 func dataKindPriority(kind interfaces.VersionedDataKind) int {
-	switch kind {
-	case ld.Segments: //nolint:megacheck // allow deprecated usage
+	switch kind.GetNamespace() {
+	case "segments":
 		return 0
-	case interfaces.DataKindFeatures(): //nolint:megacheck // allow deprecated usage
+	case "features":
 		return 1
 	default:
 		return len(kind.GetNamespace()) + 2

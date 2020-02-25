@@ -385,7 +385,7 @@ func (w *DataStoreWrapper) pollAvailabilityAfterOutage() bool {
 		// flag data (since presumably the data source has still been running) and we can just
 		// write the contents of the cache to the underlying data store.
 		allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, 2)
-		for _, kind := range ld.VersionedDataKinds {
+		for _, kind := range interfaces.VersionedDataKinds {
 			allCacheKey := dataStoreAllItemsCacheKey(kind)
 			if data, present := w.cache.Get(allCacheKey); present {
 				if items, ok := data.(map[string]interfaces.VersionedData); ok {
