@@ -4,11 +4,10 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
-// VersionedDataKinds is a list of supported VersionedDataKinds. Among other things, this list might
+// VersionedDataKinds returns a list of supported VersionedDataKinds. Among other things, this list might
 // be used by data stores to know what data (namespaces) to expect.
-var VersionedDataKinds = [...]VersionedDataKind{
-	dataKindFeatures,
-	dataKindSegments,
+func VersionedDataKinds() []VersionedDataKind {
+	return []VersionedDataKind{dataKindFeatures, dataKindSegments}
 }
 
 // featureFlagVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for flags.
