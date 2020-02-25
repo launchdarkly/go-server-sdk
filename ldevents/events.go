@@ -6,6 +6,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
 const (
@@ -100,7 +101,7 @@ func (f EventFactory) NewUnknownFlagEvent(key string, user lduser.User, defaultV
 }
 
 // NewSuccessfulEvalEvent creates an evaluation event.
-func (f EventFactory) NewSuccessfulEvalEvent(flag *ldeval.FeatureFlag, user lduser.User, variation int, value, defaultVal ldvalue.Value,
+func (f EventFactory) NewSuccessfulEvalEvent(flag *ldmodel.FeatureFlag, user lduser.User, variation int, value, defaultVal ldvalue.Value,
 	reason ldreason.EvaluationReason, prereqOf string) FeatureRequestEvent {
 	requireExperimentData := ldeval.IsExperimentationEnabled(*flag, reason)
 	fre := FeatureRequestEvent{
@@ -122,7 +123,7 @@ func (f EventFactory) NewSuccessfulEvalEvent(flag *ldeval.FeatureFlag, user ldus
 		fre.PrereqOf = ldvalue.NewOptionalString(prereqOf)
 	}
 	if flag.DebugEventsUntilDate != nil {
-		fre.DebugEventsUntilDate = ldtime.UnixMillisecondTime(*flag.DebugEventsUntilDate)
+		fre.DebugEventsUntilDate = *flag.DebugEventsUntilDate
 	}
 	return fre
 }

@@ -3,6 +3,7 @@ package evaluation
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
 // Evaluator is the engine for evaluating feature flags.
@@ -12,7 +13,7 @@ type Evaluator interface {
 	// The prerequisiteFlagEventRecorder parameter can be nil if you do not need to track
 	// prerequisite evaluations.
 	Evaluate(
-		flag FeatureFlag,
+		flag ldmodel.FeatureFlag,
 		user lduser.User,
 		prerequisiteFlagEventRecorder PrerequisiteFlagEventRecorder,
 	) ldreason.EvaluationDetail
@@ -27,7 +28,7 @@ type PrerequisiteFlagEvent struct {
 	// TargetFlagKey is the key of the feature flag that had a prerequisite.
 	TargetFlagKey string
 	// PrerequisiteFlag is the full configuration of the prerequisite flag.
-	PrerequisiteFlag FeatureFlag
+	PrerequisiteFlag ldmodel.FeatureFlag
 	// PrerequisiteResult is the result of evaluating the prerequisite flag.
 	PrerequisiteResult ldreason.EvaluationDetail
 }
@@ -44,7 +45,7 @@ type DataProvider interface {
 	// DataProvider should treat any deleted flag as "not found" even if the data store contains
 	// a deleted flag placeholder for it. If the second return value is false, the first return
 	// value is ignored and can be an empty FeatureFlag{}.
-	GetFeatureFlag(key string) (FeatureFlag, bool)
+	GetFeatureFlag(key string) (ldmodel.FeatureFlag, bool)
 	// GetSegment attempts to retrieve a user segment from the data store by key.
 	//
 	// The evaluator calls this method if a clause in a flag rule uses the OperatorSegmentMatch
@@ -54,5 +55,5 @@ type DataProvider interface {
 	// DataProvider should treat any deleted segment as "not found" even if the data store contains
 	// a deleted segment placeholder for it. If the second return value is false, the first return
 	// value is ignored and can be an empty Segment{}.
-	GetSegment(key string) (Segment, bool)
+	GetSegment(key string) (ldmodel.Segment, bool)
 }

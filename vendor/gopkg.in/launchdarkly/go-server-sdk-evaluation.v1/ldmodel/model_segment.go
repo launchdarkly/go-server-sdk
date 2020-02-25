@@ -1,4 +1,4 @@
-package evaluation
+package ldmodel
 
 import "gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 
