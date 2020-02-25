@@ -336,7 +336,7 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := s
-				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, interfaces.DataKindSegments(), key, &data); err != nil {
 					return nil, err
 				}
 			}
