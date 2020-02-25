@@ -310,8 +310,8 @@ func detectJSON(rawData []byte) bool {
 
 func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, error) {
 	all := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-		interfaces.DataKindFeatures(): {}, //nolint:megacheck // allow deprecated usage
-		ld.Segments: {}, //nolint:megacheck // allow deprecated usage
+		interfaces.DataKindFeatures(): {},
+		interfaces.DataKindSegments(): {},
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
