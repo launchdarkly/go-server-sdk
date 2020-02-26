@@ -31,10 +31,16 @@ type Config struct {
 	Loggers ldlog.Loggers
 	// The connection timeout to use when making polling requests to LaunchDarkly.
 	Timeout time.Duration
+	// Sets the implementation of DataSource for receiving feature flag updates.
+	//
+	// If nil, the default is ldcomponents.StreamingDataSource(). Other options include ldcomponents.PollingDataSource(),
+	// ldcomponents.ExternalUpdatesOnly(), the file data source in ldfiledata, or a custom implementation for testing.
+	DataSource interfaces.DataSourceFactory
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
-	// For available implementations, see the ldcomponents, redis, ldconsul, and lddynamodb packages.
+	// If nil, the default is ldcomponents.InMemoryDataStore(). Other available implementations include the
+	// database integrations in the redis, ldconsul, and lddynamodb packages.
 	DataStore interfaces.DataStoreFactory
 	// Sets whether to send analytics events back to LaunchDarkly. By default, the client will send events. This
 	// differs from Offline in that it only affects sending events, not streaming or polling for events from the
@@ -58,11 +64,6 @@ type Config struct {
 	// Sets whether log messages for errors related to a specific user can include the user key. By default, they
 	// will not, since the user key might be considered privileged information.
 	LogUserKeyInErrors bool
-	// Sets the implementation of DataSource for receiving feature flag updates.
-	//
-	// If nil, a default implementation will be used depending on the rest of the configuration
-	// (streaming, polling, etc.); a custom implementation can be substituted for testing.
-	DataSource interfaces.DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
 	EventProcessor ldevents.EventProcessor
