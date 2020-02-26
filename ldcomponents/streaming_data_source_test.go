@@ -309,11 +309,19 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 }
 
 func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
+	initialPutEvent := &testEvent{
+		event: putEvent,
+		data:  `{"path": "/", "data": {"flags":{}, "segments":{}}}`,
+	}
+	esserver := eventsource.NewServer()
+	esserver.ReplayAll = true
+	esserver.Register("test", &testRepo{initialEvent: initialPutEvent})
+
 	polls := make(chan struct{}, 10)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		polls <- struct{}{}
-		// Don't return a response because we don't want the stream to close and reconnect
+		esserver.Handler("test").ServeHTTP(w, r)
 	}))
 	defer ts.Close()
 	defer ts.CloseClientConnections()
@@ -324,7 +332,9 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 		return &c
 	}
 	store := makeInMemoryDataStore()
-	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
+	loggers := ldlog.NewDefaultLoggers()
+	loggers.SetMinLevel(ldlog.Debug)
+	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, loggers)
 
 	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
 		CreateDataSource(context, store)

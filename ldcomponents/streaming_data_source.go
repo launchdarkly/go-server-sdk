@@ -198,6 +198,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 				sp.loggers.Info("Event error stream closed")
 				return false // Otherwise we will spin in this loop
 			}
+			sp.loggers.Error(err)
 			if err != io.EOF {
 				sp.loggers.Errorf("Error encountered processing stream: %+v", err)
 				if sp.checkIfPermanentFailure(err) {

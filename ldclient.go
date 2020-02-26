@@ -109,8 +109,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
 	}
 
-	defaultHTTPClient := config.newHTTPClient()
-	clientContext := newClientContextImpl(sdkKey, config, defaultHTTPClient, diagnosticsManager)
+	clientContext := newClientContextImpl(sdkKey, config, config.newHTTPClient, diagnosticsManager)
 
 	store, err := getDataStoreFactory(config).CreateDataStore(clientContext)
 	if err != nil {
@@ -129,7 +128,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if config.EventProcessor != nil {
 		client.eventProcessor = config.EventProcessor
 	} else if config.SendEvents && !config.Offline {
-		client.eventProcessor = createDefaultEventProcessor(clientContext, config, defaultHTTPClient, diagnosticsManager)
+		client.eventProcessor = createDefaultEventProcessor(clientContext, config, config.newHTTPClient(), diagnosticsManager)
 	} else {
 		client.eventProcessor = ldevents.NewNullEventProcessor()
 	}

@@ -9,10 +9,10 @@ import (
 
 // Internal implementation of interfaces.ClientContext.
 type clientContextImpl struct {
-	sdkKey      string
-	loggers     ldlog.Loggers
-	httpHeaders http.Header
-	httpClient  *http.Client
+	sdkKey            string
+	loggers           ldlog.Loggers
+	httpHeaders       http.Header
+	httpClientFactory func() *http.Client
 	// Used internally to share a diagnosticsManager instance between components.
 	diagnosticsManager *ldevents.DiagnosticsManager
 }
@@ -30,10 +30,10 @@ func (c *clientContextImpl) GetDefaultHTTPHeaders() http.Header {
 }
 
 func (c *clientContextImpl) CreateHTTPClient() *http.Client {
-	if c.httpClient == nil {
+	if c.httpClientFactory == nil {
 		return DefaultConfig.newHTTPClient()
 	}
-	return c.httpClient
+	return c.httpClientFactory()
 }
 
 // This method is accessed by components like StreamProcessor by checking for a private interface.
@@ -41,7 +41,7 @@ func (c *clientContextImpl) GetDiagnosticsManager() *ldevents.DiagnosticsManager
 	return c.diagnosticsManager
 }
 
-func newClientContextImpl(sdkKey string, config Config, httpClient *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) *clientContextImpl {
+func newClientContextImpl(sdkKey string, config Config, httpClientFactory func() *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) *clientContextImpl {
 	headers := make(http.Header)
 	headers.Set("Authorization", sdkKey)
 	headers.Set("User-Agent", config.UserAgent)
@@ -56,7 +56,7 @@ func newClientContextImpl(sdkKey string, config Config, httpClient *http.Client,
 		sdkKey:             sdkKey,
 		loggers:            config.Loggers,
 		httpHeaders:        headers,
-		httpClient:         httpClient,
+		httpClientFactory:  httpClientFactory,
 		diagnosticsManager: diagnosticsManager,
 	}
 }
