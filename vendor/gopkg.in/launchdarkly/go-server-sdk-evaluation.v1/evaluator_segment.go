@@ -1,27 +1,30 @@
 package evaluation
 
-import "gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+)
 
 // SegmentExplanation describes a rule that determines whether a user was included in or excluded from a segment
 type SegmentExplanation struct {
 	Kind        string
-	MatchedRule *SegmentRule
+	MatchedRule *ldmodel.SegmentRule
 }
 
-func segmentContainsUser(s Segment, user *lduser.User) (bool, *SegmentExplanation) {
+func segmentContainsUser(s ldmodel.Segment, user *lduser.User) (bool, SegmentExplanation) {
 	userKey := user.GetKey()
 
 	// Check if the user is included in the segment by key
 	for _, key := range s.Included {
 		if userKey == key {
-			return true, &SegmentExplanation{Kind: "included"}
+			return true, SegmentExplanation{Kind: "included"}
 		}
 	}
 
 	// Check if the user is excluded from the segment by key
 	for _, key := range s.Excluded {
 		if userKey == key {
-			return false, &SegmentExplanation{Kind: "excluded"}
+			return false, SegmentExplanation{Kind: "excluded"}
 		}
 	}
 
@@ -29,14 +32,14 @@ func segmentContainsUser(s Segment, user *lduser.User) (bool, *SegmentExplanatio
 	for _, rule := range s.Rules {
 		if segmentRuleMatchesUser(rule, user, s.Key, s.Salt) {
 			reason := rule
-			return true, &SegmentExplanation{Kind: "rule", MatchedRule: &reason}
+			return true, SegmentExplanation{Kind: "rule", MatchedRule: &reason}
 		}
 	}
 
-	return false, nil
+	return false, SegmentExplanation{}
 }
 
-func segmentRuleMatchesUser(r SegmentRule, user *lduser.User, key, salt string) bool {
+func segmentRuleMatchesUser(r ldmodel.SegmentRule, user *lduser.User, key, salt string) bool {
 	for _, clause := range r.Clauses {
 		c := clause
 		if !clauseMatchesUserNoSegments(&c, user) {

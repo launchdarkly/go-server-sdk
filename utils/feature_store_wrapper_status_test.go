@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
@@ -187,12 +188,12 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		require.Equal(t, internal.DataStoreStatus{Available: false}, updatedStatus)
 
 		// While the store is still down, try to update it - the update goes into the cache
-		flag := &ldeval.FeatureFlag{Key: "flag", Version: 1}
-		err = w.Upsert(ld.Features, flag)
+		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
+		err = w.Upsert(ld.Features, &flag)
 		assert.Equal(t, core.fakeError, err)
 		cachedFlag, err := w.Get(ld.Features, flag.Key)
 		assert.NoError(t, err)
-		assert.Equal(t, flag, cachedFlag)
+		assert.Equal(t, &flag, cachedFlag)
 
 		// Verify that this update did not go into the underlying data yet
 		assert.Nil(t, core.data[ld.Features][flag.Key])
@@ -206,6 +207,6 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		assert.Equal(t, internal.DataStoreStatus{Available: true}, updatedStatus)
 
 		// Once that has happened, the cache should have been written to the store
-		assert.Equal(t, flag, core.data[ld.Features][flag.Key])
+		assert.Equal(t, &flag, core.data[ld.Features][flag.Key])
 	})
 }

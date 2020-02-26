@@ -1,12 +1,9 @@
-package evaluation
+package ldmodel
 
 import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-)
-
-const (
-	longScale = float32(0xFFFFFFFFFFFFFFF)
 )
 
 // FeatureFlag describes an individual feature flag.
@@ -80,7 +77,7 @@ type FeatureFlag struct {
 	//
 	// The go-server-sdk-evaluation package does not implement that behavior; it is only in the data
 	// model for use by the SDK.
-	DebugEventsUntilDate *uint64 `json:"debugEventsUntilDate" bson:"debugEventsUntilDate"`
+	DebugEventsUntilDate *ldtime.UnixMillisecondTime `json:"debugEventsUntilDate" bson:"debugEventsUntilDate"`
 	// Version is an integer that is incremented by LaunchDarkly every time the configuration of the flag is
 	// changed.
 	Version int `json:"version" bson:"version"`

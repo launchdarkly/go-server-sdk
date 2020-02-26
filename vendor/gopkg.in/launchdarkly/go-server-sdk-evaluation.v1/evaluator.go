@@ -4,6 +4,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
 type evaluator struct {
@@ -17,7 +18,7 @@ func NewEvaluator(dataProvider DataProvider) Evaluator {
 }
 
 func (e *evaluator) Evaluate(
-	flag FeatureFlag,
+	flag ldmodel.FeatureFlag,
 	user lduser.User,
 	prerequisiteFlagEventRecorder PrerequisiteFlagEventRecorder,
 ) ldreason.EvaluationDetail {
@@ -63,7 +64,7 @@ func (e *evaluator) Evaluate(
 
 // Returns an empty reason if all prerequisites are OK, otherwise constructs an error reason that describes the failure
 func (e *evaluator) checkPrerequisites(
-	f *FeatureFlag,
+	f *ldmodel.FeatureFlag,
 	user *lduser.User,
 	prerequisiteFlagEventRecorder PrerequisiteFlagEventRecorder,
 ) (ldreason.EvaluationReason, bool) {
@@ -97,14 +98,14 @@ func (e *evaluator) checkPrerequisites(
 	return ldreason.EvaluationReason{}, true
 }
 
-func getVariation(f *FeatureFlag, index int, reason ldreason.EvaluationReason) ldreason.EvaluationDetail {
+func getVariation(f *ldmodel.FeatureFlag, index int, reason ldreason.EvaluationReason) ldreason.EvaluationDetail {
 	if index < 0 || index >= len(f.Variations) {
 		return ldreason.NewEvaluationDetailForError(ldreason.EvalErrorMalformedFlag, ldvalue.Null())
 	}
 	return ldreason.NewEvaluationDetail(f.Variations[index], index, reason)
 }
 
-func getOffValue(f *FeatureFlag, reason ldreason.EvaluationReason) ldreason.EvaluationDetail {
+func getOffValue(f *ldmodel.FeatureFlag, reason ldreason.EvaluationReason) ldreason.EvaluationDetail {
 	if f.OffVariation == nil {
 		return ldreason.NewEvaluationDetail(ldvalue.Null(), -1, reason)
 	}
@@ -112,8 +113,8 @@ func getOffValue(f *FeatureFlag, reason ldreason.EvaluationReason) ldreason.Eval
 }
 
 func getValueForVariationOrRollout(
-	f *FeatureFlag,
-	vr VariationOrRollout,
+	f *ldmodel.FeatureFlag,
+	vr ldmodel.VariationOrRollout,
 	user *lduser.User,
 	reason ldreason.EvaluationReason,
 ) ldreason.EvaluationDetail {
@@ -124,7 +125,7 @@ func getValueForVariationOrRollout(
 	return getVariation(f, *index, reason)
 }
 
-func (e *evaluator) ruleMatchesUser(rule *FlagRule, user *lduser.User) bool {
+func (e *evaluator) ruleMatchesUser(rule *ldmodel.FlagRule, user *lduser.User) bool {
 	for _, clause := range rule.Clauses {
 		c := clause
 		if !e.clauseMatchesUser(&c, user) {
@@ -134,7 +135,7 @@ func (e *evaluator) ruleMatchesUser(rule *FlagRule, user *lduser.User) bool {
 	return true
 }
 
-func clauseMatchesUserNoSegments(clause *Clause, user *lduser.User) bool {
+func clauseMatchesUserNoSegments(clause *ldmodel.Clause, user *lduser.User) bool {
 	uValue := user.GetAttribute(clause.Attribute)
 	if uValue.IsNull() {
 		return false
@@ -154,10 +155,10 @@ func clauseMatchesUserNoSegments(clause *Clause, user *lduser.User) bool {
 	return maybeNegate(clause, matchAny(matchFn, uValue, clause.Values))
 }
 
-func (e *evaluator) clauseMatchesUser(clause *Clause, user *lduser.User) bool {
+func (e *evaluator) clauseMatchesUser(clause *ldmodel.Clause, user *lduser.User) bool {
 	// In the case of a segment match operator, we check if the user is in any of the segments,
 	// and possibly negate
-	if clause.Op == OperatorSegmentMatch {
+	if clause.Op == ldmodel.OperatorSegmentMatch {
 		for _, value := range clause.Values {
 			if value.Type() == ldvalue.StringType {
 				if segment, segmentOk := e.dataProvider.GetSegment(value.StringValue()); segmentOk {
@@ -173,7 +174,7 @@ func (e *evaluator) clauseMatchesUser(clause *Clause, user *lduser.User) bool {
 	return clauseMatchesUserNoSegments(clause, user)
 }
 
-func maybeNegate(clause *Clause, b bool) bool {
+func maybeNegate(clause *ldmodel.Clause, b bool) bool {
 	if clause.Negate {
 		return !b
 	}
@@ -189,7 +190,7 @@ func matchAny(fn opFn, value ldvalue.Value, values []ldvalue.Value) bool {
 	return false
 }
 
-func variationIndexForUser(r VariationOrRollout, user *lduser.User, key, salt string) *int {
+func variationIndexForUser(r ldmodel.VariationOrRollout, user *lduser.User, key, salt string) *int {
 	if r.Variation != nil {
 		return r.Variation
 	}

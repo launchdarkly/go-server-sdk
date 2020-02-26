@@ -14,7 +14,8 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -270,9 +271,9 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ldeval.FeatureFlag //nolint:megacheck // allow deprecated usage
+	Flags      *map[string]ldmodel.FeatureFlag //nolint:megacheck // allow deprecated usage
 	FlagValues *map[string]ldvalue.Value
-	Segments   *map[string]ldeval.Segment //nolint:megacheck // allow deprecated usage
+	Segments   *map[string]ldmodel.Segment //nolint:megacheck // allow deprecated usage
 }
 
 func insertData(all map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, kind interfaces.VersionedDataKind, key string,
@@ -335,7 +336,7 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := s
-				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:staticcheck // allow deprecated usage)
+				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -344,23 +345,9 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 	return all, nil
 }
 
-func makeFlagWithValue(key string, v interface{}) (*ldeval.FeatureFlag, error) { //nolint:staticcheck // allow deprecated usage)
-	props := map[string]interface{}{
-		"key":         key,
-		"on":          true,
-		"variations":  []interface{}{v},
-		"fallthrough": map[string]interface{}{"variation": 0},
-	}
-	bytes, err := json.Marshal(props)
-	if err != nil {
-		return nil, err
-	}
-	var f ldeval.FeatureFlag //nolint:staticcheck // allow deprecated usage
-	err = json.Unmarshal(bytes, &f)
-	if err != nil {
-		return nil, err
-	}
-	return &f, nil
+func makeFlagWithValue(key string, v interface{}) (*ldmodel.FeatureFlag, error) {
+	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(ldvalue.CopyArbitraryValue(v)).Build()
+	return &flag, nil
 }
 
 // Close is called automatically when the client is closed.

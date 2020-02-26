@@ -20,6 +20,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
@@ -64,24 +65,24 @@ type clientEvaluatorDataProvider struct {
 	store interfaces.DataStore
 }
 
-func (c *clientEvaluatorDataProvider) GetFeatureFlag(key string) (ldeval.FeatureFlag, bool) {
+func (c *clientEvaluatorDataProvider) GetFeatureFlag(key string) (ldmodel.FeatureFlag, bool) {
 	data, err := c.store.Get(Features, key)
 	if data != nil && err == nil {
-		if flag, ok := data.(*ldeval.FeatureFlag); ok {
+		if flag, ok := data.(*ldmodel.FeatureFlag); ok {
 			return *flag, true
 		}
 	}
-	return ldeval.FeatureFlag{}, false
+	return ldmodel.FeatureFlag{}, false
 }
 
-func (c *clientEvaluatorDataProvider) GetSegment(key string) (ldeval.Segment, bool) {
+func (c *clientEvaluatorDataProvider) GetSegment(key string) (ldmodel.Segment, bool) {
 	data, err := c.store.Get(Segments, key)
 	if data != nil && err == nil {
-		if segment, ok := data.(*ldeval.Segment); ok {
+		if segment, ok := data.(*ldmodel.Segment); ok {
 			return *segment, true
 		}
 	}
-	return ldeval.Segment{}, false
+	return ldmodel.Segment{}, false
 }
 
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
@@ -377,7 +378,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 	withReasons := hasFlagsStateOption(options, WithReasons)
 	detailsOnlyIfTracked := hasFlagsStateOption(options, DetailsOnlyForTrackedFlags)
 	for _, item := range items {
-		if flag, ok := item.(*ldeval.FeatureFlag); ok {
+		if flag, ok := item.(*ldmodel.FeatureFlag); ok {
 			if clientSideOnly && !flag.ClientSide {
 				continue
 			}
@@ -533,16 +534,16 @@ func (client *LDClient) evaluateInternal(
 	user lduser.User,
 	defaultVal ldvalue.Value,
 	eventFactory ldevents.EventFactory,
-) (ldreason.EvaluationDetail, *ldeval.FeatureFlag, error) {
+) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 	if user.GetKey() == "" {
 		client.config.Loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
 	}
 
-	var feature *ldeval.FeatureFlag
+	var feature *ldmodel.FeatureFlag
 	var storeErr error
 	var ok bool
 
-	evalErrorResult := func(errKind ldreason.EvalErrorKind, flag *ldeval.FeatureFlag, err error) (ldreason.EvaluationDetail, *ldeval.FeatureFlag, error) {
+	evalErrorResult := func(errKind ldreason.EvalErrorKind, flag *ldmodel.FeatureFlag, err error) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 		detail := newEvaluationError(defaultVal, errKind)
 		if client.config.LogEvaluationErrors {
 			client.config.Loggers.Warn(err)
@@ -567,7 +568,7 @@ func (client *LDClient) evaluateInternal(
 	}
 
 	if data != nil {
-		feature, ok = data.(*ldeval.FeatureFlag)
+		feature, ok = data.(*ldmodel.FeatureFlag)
 		if !ok {
 			return evalErrorResult(ldreason.EvalErrorException, nil,
 				fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", data, key))

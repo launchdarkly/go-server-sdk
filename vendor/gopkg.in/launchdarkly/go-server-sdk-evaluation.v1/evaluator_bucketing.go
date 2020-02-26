@@ -10,6 +10,10 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
+const (
+	longScale = float32(0xFFFFFFFFFFFFFFF)
+)
+
 func bucketUser(user *lduser.User, key string, attr lduser.UserAttribute, salt string) float32 {
 	uValue := user.GetAttribute(attr)
 	idHash, ok := bucketableStringValue(uValue)

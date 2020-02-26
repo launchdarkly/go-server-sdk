@@ -3,7 +3,7 @@ package utils
 import (
 	"sort"
 
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -59,7 +59,7 @@ func addWithDependenciesFirst(startItem interfaces.VersionedData, remainingItems
 func getDependencyKeys(item interfaces.VersionedData) []string {
 	var ret []string
 	switch i := item.(type) {
-	case *ldeval.FeatureFlag: //nolint:megacheck // allow deprecated usage
+	case *ldmodel.FeatureFlag: //nolint:megacheck // allow deprecated usage
 		for _, p := range i.Prerequisites {
 			ret = append(ret, p.Key)
 		}
