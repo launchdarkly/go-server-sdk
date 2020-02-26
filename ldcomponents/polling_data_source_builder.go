@@ -72,7 +72,7 @@ func (b *PollingDataSourceBuilder) PollInterval(pollInterval time.Duration) *Pol
 }
 
 // Used in tests to skip parameter validation.
-func (b *PollingDataSourceBuilder) forcePollInterval(pollInterval time.Duration) *PollingDataSourceBuilder {
+func (b *PollingDataSourceBuilder) forcePollInterval(pollInterval time.Duration) *PollingDataSourceBuilder { //nolint:unused // it is used in tests
 	b.pollInterval = pollInterval
 	return b
 }

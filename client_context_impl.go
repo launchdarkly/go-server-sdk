@@ -17,11 +17,6 @@ type clientContextImpl struct {
 	diagnosticsManager *ldevents.DiagnosticsManager
 }
 
-// Components that can use a DiagnosticsManager should check if the context implements this interface
-type hasDiagnosticsManager interface {
-	GetDiagnosticsManager() *ldevents.DiagnosticsManager
-}
-
 func (c *clientContextImpl) GetSDKKey() string {
 	return c.sdkKey
 }
@@ -41,6 +36,7 @@ func (c *clientContextImpl) CreateHTTPClient() *http.Client {
 	return c.httpClient
 }
 
+// This method is accessed by components like StreamProcessor by checking for a private interface.
 func (c *clientContextImpl) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
 	return c.diagnosticsManager
 }
