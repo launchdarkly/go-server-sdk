@@ -1,4 +1,4 @@
-package ldclient
+package ldcomponents
 
 import (
 	"sync"
@@ -7,40 +7,40 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-// DataStoreFactory is a factory function that produces a DataStore implementation. It receives
-// a copy of the Config so that it can use the same logging configuration as the rest of the SDK; it
-// can assume that config.Loggers has been initialized so it can write to any log level.
-type DataStoreFactory func(config Config) (interfaces.DataStore, error)
-
-// InMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.
-type InMemoryDataStore struct {
+// inMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.
+type inMemoryDataStore struct {
 	allData       map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
 	isInitialized bool
 	sync.RWMutex
 	loggers ldlog.Loggers
 }
 
-// NewInMemoryDataStoreFactory returns a factory function to create an in-memory DataStore.
-// Setting the DataStoreFactory option in Config to this function ensures that it will use the
-// same logging configuration as the other SDK components.
-func NewInMemoryDataStoreFactory() DataStoreFactory {
-	return func(config Config) (interfaces.DataStore, error) {
-		return newInMemoryDataStoreInternal(config), nil
-	}
-}
+type inMemoryDataStoreFactory struct{}
 
-func newInMemoryDataStoreInternal(config Config) *InMemoryDataStore {
-	loggers := config.Loggers
+// DataStoreFactory implementation
+func (f inMemoryDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+	loggers := context.GetLoggers()
 	loggers.SetPrefix("InMemoryDataStore:")
-	return &InMemoryDataStore{
+	store := &inMemoryDataStore{
 		allData:       make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
 		isInitialized: false,
 		loggers:       loggers,
 	}
+	return store, nil
+}
+
+// diagnosticsComponentDescriptor implementation
+func (f inMemoryDataStoreFactory) GetDiagnosticsComponentTypeName() string {
+	return "memory"
+}
+
+// InMemoryDataStore returns the default in-memory DataStore implementation factory.
+func InMemoryDataStore() interfaces.DataStoreFactory {
+	return inMemoryDataStoreFactory{}
 }
 
 // Get returns an individual object of a given type from the store
-func (store *InMemoryDataStore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (store *inMemoryDataStore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	store.RLock()
 	defer store.RUnlock()
 	if store.allData[kind] == nil {
@@ -60,7 +60,7 @@ func (store *InMemoryDataStore) Get(kind interfaces.VersionedDataKind, key strin
 }
 
 // All returns all the objects of a given kind from the store
-func (store *InMemoryDataStore) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+func (store *inMemoryDataStore) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	store.RLock()
 	defer store.RUnlock()
 	ret := make(map[string]interfaces.VersionedData)
@@ -74,7 +74,7 @@ func (store *InMemoryDataStore) All(kind interfaces.VersionedDataKind) (map[stri
 }
 
 // Delete removes an item of a given kind from the store
-func (store *InMemoryDataStore) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
+func (store *inMemoryDataStore) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	store.Lock()
 	defer store.Unlock()
 	if store.allData[kind] == nil {
@@ -90,7 +90,7 @@ func (store *InMemoryDataStore) Delete(kind interfaces.VersionedDataKind, key st
 }
 
 // Init populates the store with a complete set of versioned data
-func (store *InMemoryDataStore) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
+func (store *inMemoryDataStore) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	store.Lock()
 	defer store.Unlock()
 
@@ -109,7 +109,7 @@ func (store *InMemoryDataStore) Init(allData map[interfaces.VersionedDataKind]ma
 }
 
 // Upsert inserts or replaces an item in the store unless there it already contains an item with an equal or larger version
-func (store *InMemoryDataStore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
+func (store *inMemoryDataStore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
 	store.Lock()
 	defer store.Unlock()
 	if store.allData[kind] == nil {
@@ -125,13 +125,8 @@ func (store *InMemoryDataStore) Upsert(kind interfaces.VersionedDataKind, item i
 }
 
 // Initialized returns whether the store has been initialized with data
-func (store *InMemoryDataStore) Initialized() bool {
+func (store *inMemoryDataStore) Initialized() bool {
 	store.RLock()
 	defer store.RUnlock()
 	return store.isInitialized
-}
-
-// Used internally to describe this component in diagnostic data.
-func (store *InMemoryDataStore) GetDiagnosticsComponentTypeName() string {
-	return "memory"
 }

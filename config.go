@@ -41,13 +41,8 @@ type Config struct {
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
-	// Except for testing purposes, you should not set this property directly but instead use
-	// DataStoreFactory, which ensures that the DataStore component will use the same logging
-	// configuration as the rest of the SDK.
-	DataStore interfaces.DataStore
-	// Sets the implementation of DataStore for holding feature flags and related data received from
-	// LaunchDarkly. See NewInMemoryDataStoreFactory (the default) and the redis, ldconsul, and lddynamodb packages.
-	DataStoreFactory DataStoreFactory
+	// For available implementations, see the ldcomponents, redis, ldconsul, and lddynamodb packages.
+	DataStore interfaces.DataStoreFactory
 	// Sets whether streaming mode should be enabled. By default, streaming is enabled. It should only be
 	// disabled on the advice of LaunchDarkly support.
 	Stream bool
@@ -77,10 +72,11 @@ type Config struct {
 	// Sets whether log messages for errors related to a specific user can include the user key. By default, they
 	// will not, since the user key might be considered privileged information.
 	LogUserKeyInErrors bool
-	// Factory to create an object that is responsible for receiving feature flag updates from LaunchDarkly.
+	// Sets the implementation of DataSource for receiving feature flag updates.
+	//
 	// If nil, a default implementation will be used depending on the rest of the configuration
 	// (streaming, polling, etc.); a custom implementation can be substituted for testing.
-	DataSourceFactory DataSourceFactory
+	DataSource interfaces.DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
 	EventProcessor ldevents.EventProcessor
@@ -124,8 +120,6 @@ type Config struct {
 	//     config := ld.DefaultConfig
 	//     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyURL(myProxyURL))
 	HTTPClientFactory HTTPClientFactory
-	// Used internally to share a diagnosticsManager instance between components.
-	diagnosticsManager *ldevents.DiagnosticsManager
 }
 
 // HTTPClientFactory is a function that creates a custom HTTP client.

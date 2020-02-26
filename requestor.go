@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gregjones/httpcache"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -20,15 +21,17 @@ const (
 type requestor struct {
 	sdkKey     string
 	httpClient *http.Client
-	config     Config
+	baseURI    string
+	headers    http.Header
+	loggers    ldlog.Loggers
 }
 
-func newRequestor(sdkKey string, config Config, httpClient *http.Client) *requestor {
+func newRequestor(context interfaces.ClientContext, httpClient *http.Client, baseURI string) *requestor {
 	var decoratedClient http.Client
 	if httpClient != nil {
 		decoratedClient = *httpClient
 	} else {
-		decoratedClient = *config.newHTTPClient()
+		decoratedClient = *context.CreateHTTPClient()
 	}
 	decoratedClient.Transport = &httpcache.Transport{
 		Cache:               httpcache.NewMemoryCache(),
@@ -37,9 +40,10 @@ func newRequestor(sdkKey string, config Config, httpClient *http.Client) *reques
 	}
 
 	httpRequestor := requestor{
-		sdkKey:     sdkKey,
+		sdkKey:     context.GetSDKKey(),
 		httpClient: &decoratedClient,
-		config:     config,
+		baseURI:    baseURI,
+		loggers:    context.GetLoggers(),
 	}
 
 	return &httpRequestor
@@ -85,15 +89,16 @@ func (r *requestor) requestResource(kind interfaces.VersionedDataKind, key strin
 }
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
-	r.config.Loggers.Debug("Polling LaunchDarkly for feature flag updates")
-	req, reqErr := http.NewRequest("GET", r.config.BaseUri+resource, nil)
+	r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
+	req, reqErr := http.NewRequest("GET", r.baseURI+resource, nil)
 	if reqErr != nil {
 		return nil, false, reqErr
 	}
 	url := req.URL.String()
 
-	req.Header.Add("Authorization", r.sdkKey)
-	req.Header.Add("User-Agent", r.config.UserAgent)
+	for k, vv := range r.headers {
+		req.Header[k] = vv
+	}
 
 	res, resErr := r.httpClient.Do(req)
 

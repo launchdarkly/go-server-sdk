@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	r "github.com/garyburd/redigo/redis"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	ldtest "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
@@ -30,7 +30,7 @@ func TestRedisDataStoreCached(t *testing.T) {
 
 func TestRedisDataStorePrefixes(t *testing.T) {
 	ldtest.RunDataStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.DataStoreFactory, error) {
+		func(prefix string) (interfaces.DataStoreFactory, error) {
 			return NewRedisDataStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
@@ -39,11 +39,14 @@ func TestRedisDataStoreConcurrentModification(t *testing.T) {
 	opts, err := validateOptions()
 	require.NoError(t, err)
 	var core1 *redisDataStoreCore
-	factory1 := func(config ld.Config) (interfaces.DataStore, error) {
-		core1 = newRedisDataStoreInternal(opts, config) // use the internal object so we can set testTxHook
-		return utils.NewDataStoreWrapperWithConfig(core1, config), nil
+	factory1 := func() (interfaces.DataStore, error) {
+		core1 = newRedisDataStoreInternal(opts, ldlog.NewDisabledLoggers()) // use the internal object so we can set testTxHook
+		return utils.NewDataStoreWrapperWithConfig(core1, ldlog.NewDisabledLoggers()), nil
 	}
-	factory2, err := NewRedisDataStoreFactory()
+	factory2 := func() (interfaces.DataStore, error) {
+		f, _ := NewRedisDataStoreFactory()
+		return f.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
+	}
 	require.NoError(t, err)
 	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		core1.testTxHook = hook
@@ -52,8 +55,7 @@ func TestRedisDataStoreConcurrentModification(t *testing.T) {
 
 func TestRedisStoreComponentTypeName(t *testing.T) {
 	f, _ := NewRedisDataStoreFactory()
-	store, _ := f(ld.DefaultConfig)
-	assert.Equal(t, "Redis", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "Redis", (f.(redisDataStoreFactory)).GetDiagnosticsComponentTypeName())
 }
 
 func clearExistingData() error {

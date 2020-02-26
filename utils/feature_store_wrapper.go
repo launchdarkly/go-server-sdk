@@ -13,7 +13,6 @@ import (
 
 	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
@@ -63,8 +62,8 @@ const initCheckedKey = "$initChecked"
 // NewDataStoreWrapperWithConfig creates an instance of DataStoreWrapper that wraps an instance
 // of DataStoreCore. It takes a Config parameter so that it can use the same logging configuration
 // as the SDK.
-func NewDataStoreWrapperWithConfig(core interfaces.DataStoreCore, config ld.Config) *DataStoreWrapper {
-	w := newBaseWrapper(core, config)
+func NewDataStoreWrapperWithConfig(core interfaces.DataStoreCore, loggers ldlog.Loggers) *DataStoreWrapper {
+	w := newBaseWrapper(core, loggers)
 	w.coreAtomic = core
 	return w
 }
@@ -72,19 +71,13 @@ func NewDataStoreWrapperWithConfig(core interfaces.DataStoreCore, config ld.Conf
 // NewNonAtomicDataStoreWrapperWithConfig creates an instance of DataStoreWrapper that wraps an
 // instance of NonAtomicDataStoreCore. It takes a Config parameter so that it can use the same logging configuration
 // as the SDK.
-func NewNonAtomicDataStoreWrapperWithConfig(core interfaces.NonAtomicDataStoreCore, config ld.Config) *DataStoreWrapper {
-	w := newBaseWrapper(core, config)
+func NewNonAtomicDataStoreWrapperWithConfig(core interfaces.NonAtomicDataStoreCore, loggers ldlog.Loggers) *DataStoreWrapper {
+	w := newBaseWrapper(core, loggers)
 	w.coreNonAtomic = core
 	return w
 }
 
-// NewNonAtomicDataStoreWrapper creates an instance of DataStoreWrapper that wraps an
-// instance of NonAtomicDataStoreCore.
-func NewNonAtomicDataStoreWrapper(core interfaces.NonAtomicDataStoreCore) *DataStoreWrapper {
-	return NewNonAtomicDataStoreWrapperWithConfig(core, ld.Config{})
-}
-
-func newBaseWrapper(core interfaces.DataStoreCoreBase, config ld.Config) *DataStoreWrapper {
+func newBaseWrapper(core interfaces.DataStoreCoreBase, loggers ldlog.Loggers) *DataStoreWrapper {
 	cacheTTL := core.GetCacheTTL()
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
@@ -96,7 +89,7 @@ func newBaseWrapper(core interfaces.DataStoreCoreBase, config ld.Config) *DataSt
 	w := &DataStoreWrapper{
 		core:    core,
 		cache:   myCache,
-		loggers: config.Loggers,
+		loggers: loggers,
 	}
 	if cs, ok := core.(interfaces.DataStoreCoreStatus); ok {
 		w.coreStatus = cs
@@ -105,7 +98,7 @@ func newBaseWrapper(core interfaces.DataStoreCoreBase, config ld.Config) *DataSt
 		true,
 		w.pollAvailabilityAfterOutage,
 		myCache == nil || core.GetCacheTTL() > 0, // needsRefresh=true unless we're in infinite cache mode
-		config.Loggers,
+		loggers,
 	)
 
 	return w

@@ -4,6 +4,7 @@
 package ldtest
 
 import (
+	"net/http"
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
@@ -11,9 +12,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
+
+type stubClientContext struct{}
+
+func (c stubClientContext) GetSDKKey() string {
+	return "test-sdk-key"
+}
+
+func (c stubClientContext) GetDefaultHTTPHeaders() http.Header {
+	return nil
+}
+
+func (c stubClientContext) CreateHTTPClient() *http.Client {
+	return http.DefaultClient
+}
+
+func (c stubClientContext) GetLoggers() ldlog.Loggers {
+	return ldlog.NewDisabledLoggers()
+}
 
 // RunDataStoreTests runs a suite of tests on a data store.
 // - makeStore: Creates a new data store instance, but does not call Init on it.
@@ -21,9 +38,9 @@ import (
 //   that the store instances may be sharing. If this is nil, it means store instances do not share any
 //   common storage.
 // - isCached: True if the instances returned by makeStore have caching enabled.
-func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExistingData func() error, isCached bool) {
+func RunDataStoreTests(t *testing.T, storeFactory interfaces.DataStoreFactory, clearExistingData func() error, isCached bool) {
 	makeStore := func(t *testing.T) interfaces.DataStore {
-		store, err := storeFactory(ld.Config{})
+		store, err := storeFactory.CreateDataStore(stubClientContext{})
 		require.NoError(t, err)
 		return store
 	}
@@ -242,7 +259,7 @@ func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExis
 //
 // clearExistingData: Removes all data from the underlying store.
 func RunDataStorePrefixIndependenceTests(t *testing.T,
-	makeStoreWithPrefix func(string) (ld.DataStoreFactory, error),
+	makeStoreWithPrefix func(string) (interfaces.DataStoreFactory, error),
 	clearExistingData func() error) {
 
 	runWithPrefixes := func(t *testing.T, name string, test func(*testing.T, interfaces.DataStore, interfaces.DataStore)) {
@@ -250,11 +267,12 @@ func RunDataStorePrefixIndependenceTests(t *testing.T,
 		require.NoError(t, err)
 		factory1, err := makeStoreWithPrefix("aaa")
 		require.NoError(t, err)
-		store1, err := factory1(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+		context := interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers())
+		store1, err := factory1.CreateDataStore(context)
 		require.NoError(t, err)
 		factory2, err := makeStoreWithPrefix("bbb")
 		require.NoError(t, err)
-		store2, err := factory2(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+		store2, err := factory2.CreateDataStore(context)
 		require.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
 			test(t, store1, store2)
@@ -352,13 +370,12 @@ func RunDataStorePrefixIndependenceTests(t *testing.T,
 // setStore1UpdateHook: A function which, when called with another function as a parameter,
 // will modify store1 so that it will call the latter function synchronously during each Upsert
 // operation - after the old value has been read, but before the new one has been written.
-func RunDataStoreConcurrentModificationTests(t *testing.T, factory1 ld.DataStoreFactory, factory2 ld.DataStoreFactory,
+func RunDataStoreConcurrentModificationTests(t *testing.T, factory1 func() (interfaces.DataStore, error), factory2 func() (interfaces.DataStore, error),
 	setStore1UpdateHook func(func())) {
 
-	config := ld.Config{Loggers: ldlog.NewDisabledLoggers()}
-	store1, err := factory1(config)
+	store1, err := factory1()
 	require.NoError(t, err)
-	store2, err := factory2(config)
+	store2, err := factory2()
 	require.NoError(t, err)
 
 	key := "foo"

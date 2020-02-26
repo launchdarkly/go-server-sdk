@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
@@ -39,7 +39,7 @@ func TestDynamoDBDataStoreCached(t *testing.T) {
 
 func TestDynamoDBDataStorePrefixes(t *testing.T) {
 	ldtest.RunDataStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.DataStoreFactory, error) {
+		func(prefix string) (interfaces.DataStoreFactory, error) {
 			return NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()),
 				Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
@@ -47,13 +47,15 @@ func TestDynamoDBDataStorePrefixes(t *testing.T) {
 
 func TestDynamoDBDataStoreConcurrentModification(t *testing.T) {
 	var store1Internal *dynamoDBDataStore
-	factory1 := func(config ld.Config) (interfaces.DataStore, error) {
+	factory1 := func() (interfaces.DataStore, error) {
 		opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
-		store1Internal, _ = newDynamoDBDataStoreInternal(opts, config)
-		return utils.NewNonAtomicDataStoreWrapper(store1Internal), nil
+		store1Internal, _ = newDynamoDBDataStoreInternal(opts, ldlog.NewDisabledLoggers())
+		return utils.NewNonAtomicDataStoreWrapperWithConfig(store1Internal, ldlog.NewDisabledLoggers()), nil
 	}
-	factory2, err := NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()))
-	require.NoError(t, err)
+	factory2 := func() (interfaces.DataStore, error) {
+		f, _ := NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()))
+		return f.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
+	}
 	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Internal.testUpdateHook = hook
 	})
@@ -61,11 +63,10 @@ func TestDynamoDBDataStoreConcurrentModification(t *testing.T) {
 
 func TestDynamoDBStoreComponentTypeName(t *testing.T) {
 	factory, _ := NewDynamoDBDataStoreFactory("table")
-	store, _ := factory(ld.DefaultConfig)
-	assert.Equal(t, "DynamoDB", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "DynamoDB", (factory.(dynamoDBDataStoreFactory)).GetDiagnosticsComponentTypeName())
 }
 
-func makeStoreWithCacheTTL(ttl time.Duration) ld.DataStoreFactory {
+func makeStoreWithCacheTTL(ttl time.Duration) interfaces.DataStoreFactory {
 	f, _ := NewDynamoDBDataStoreFactory(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
 	return f
 }
