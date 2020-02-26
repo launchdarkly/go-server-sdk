@@ -9,11 +9,10 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
 func makeTempFile(t *testing.T, initialText string) string {
@@ -24,8 +23,12 @@ func makeTempFile(t *testing.T, initialText string) string {
 	return f.Name()
 }
 
+func testContext() interfaces.ClientContext {
+	return interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers())
+}
+
 func makeDataStore() interfaces.DataStore {
-	store, _ := ld.NewInMemoryDataStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext())
 	return store
 }
 
@@ -44,7 +47,7 @@ segments:
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{DataStore: store, Loggers: ldlog.NewDisabledLoggers()})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -68,7 +71,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -89,7 +92,7 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -116,7 +119,7 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -131,7 +134,7 @@ func TestNewFileDataSourceBadData(t *testing.T) {
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -146,7 +149,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)
@@ -165,7 +168,7 @@ flagValues:
 	store := makeDataStore()
 
 	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	closeWhenReady := make(chan struct{})
 	dataSource.Start(closeWhenReady)

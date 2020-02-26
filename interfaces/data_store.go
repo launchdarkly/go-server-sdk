@@ -2,6 +2,11 @@ package interfaces
 
 import "time"
 
+// DataStoreFactory is a factory that creates some implementation of DataStore.
+type DataStoreFactory interface {
+	CreateDataStore(context ClientContext) (DataStore, error)
+}
+
 // DataStore is an interface describing a structure that maintains the live collection of features
 // and related objects. Whenever the SDK retrieves feature flag data from LaunchDarkly, via streaming
 // or polling, it puts the data into the DataStore; then it queries the store whenever a flag needs

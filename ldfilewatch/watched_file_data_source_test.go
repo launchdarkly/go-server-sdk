@@ -12,8 +12,8 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
 )
 
@@ -25,8 +25,12 @@ func makeTempFile(t *testing.T, initialText string) string {
 	return f.Name()
 }
 
+func testContext() interfaces.ClientContext {
+	return interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers())
+}
+
 func makeDataStore() interfaces.DataStore {
-	store, _ := ld.NewInMemoryDataStoreFactory()(ld.Config{Loggers: ldlog.NewDisabledLoggers()})
+	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext())
 	return store
 }
 
@@ -71,7 +75,7 @@ flags: bad
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	defer dataSource.Close()
 
@@ -123,7 +127,7 @@ func TestNewWatchedFileMissing(t *testing.T) {
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	defer dataSource.Close()
 
 	require.NoError(t, err)
@@ -161,7 +165,7 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filePath),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory("", ld.Config{DataStore: store})
+	dataSource, err := factory.CreateDataSource(testContext(), store)
 	require.NoError(t, err)
 	defer dataSource.Close()
 

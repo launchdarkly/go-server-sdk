@@ -17,9 +17,9 @@ type pollingProcessor struct {
 	closeOnce          sync.Once
 }
 
-func newPollingProcessor(config Config, requestor *requestor) *pollingProcessor {
+func newPollingProcessor(config Config, store interfaces.DataStore, requestor *requestor) *pollingProcessor {
 	pp := &pollingProcessor{
-		store:     config.DataStore,
+		store:     store,
 		requestor: requestor,
 		config:    config,
 		quit:      make(chan struct{}),

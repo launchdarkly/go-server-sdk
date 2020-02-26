@@ -19,12 +19,11 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	server := httptest.NewServer(nullHandler)
 	defer server.Close()
 	cfg := Config{
-		Loggers:      ldlog.NewDisabledLoggers(),
 		PollInterval: time.Minute,
 		BaseUri:      server.URL,
 	}
-	req := newRequestor("fake", cfg, nil)
-	p := newPollingProcessor(cfg, req)
+	req := newRequestor(basicClientContext(), nil, server.URL)
+	p := newPollingProcessor(cfg, makeInMemoryDataStore(), req)
 
 	p.Close()
 
@@ -53,14 +52,12 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Loggers:      ldlog.NewDisabledLoggers(),
 		PollInterval: time.Millisecond,
 		BaseUri:      ts.URL,
 	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
-	req := newRequestor("fake", cfg, nil)
-	p := newPollingProcessor(cfg, req)
+	store := makeInMemoryDataStore()
+	req := newRequestor(basicClientContext(), nil, ts.URL)
+	p := newPollingProcessor(cfg, store, req)
 
 	closeWhenReady := make(chan struct{})
 	p.Start(closeWhenReady)
@@ -125,8 +122,9 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 				PollInterval: time.Millisecond * 10,
 				BaseUri:      ts.URL,
 			}
-			req := newRequestor("fake", cfg, nil)
-			p := newPollingProcessor(cfg, req)
+			store := makeInMemoryDataStore()
+			req := newRequestor(basicClientContext(), nil, ts.URL)
+			p := newPollingProcessor(cfg, store, req)
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)
 
@@ -173,11 +171,11 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 		BaseUri:           ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
-	req := newRequestor("fake", cfg, nil)
+	store := makeInMemoryDataStore()
+	context := newClientContextImpl(testSdkKey, cfg, nil)
+	req := newRequestor(context, nil, ts.URL)
 
-	p := newPollingProcessor(cfg, req)
+	p := newPollingProcessor(cfg, store, req)
 	defer p.Close()
 	closeWhenReady := make(chan struct{})
 	p.Start(closeWhenReady)

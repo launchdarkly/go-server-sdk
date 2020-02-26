@@ -57,16 +57,10 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 	defer sdkServer.Close()
 	defer esserver.Close()
 
-	cfg := Config{
-		StreamUri: streamServer.URL,
-		BaseUri:   sdkServer.URL,
-		Loggers:   ldlog.NewDisabledLoggers(),
-	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
+	store := makeInMemoryDataStore()
+	requestor := newRequestor(basicClientContext(), nil, sdkServer.URL)
 
-	requestor := newRequestor("sdkKey", cfg, nil)
-	sp := newStreamProcessor("sdkKey", cfg, requestor)
+	sp := newStreamProcessor(basicClientContext(), store, streamServer.URL, requestor)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
@@ -210,17 +204,13 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
-	id := ldevents.NewDiagnosticID("sdkKey")
+	id := ldevents.NewDiagnosticID(testSdkKey)
 	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-	cfg := Config{
-		StreamUri:          ts.URL,
-		Loggers:            ldlog.NewDisabledLoggers(),
-		diagnosticsManager: diagnosticsManager,
-	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
+	store := makeInMemoryDataStore()
+	cfg := Config{Loggers: ldlog.NewDisabledLoggers()}
+	context := newClientContextImpl(testSdkKey, cfg, diagnosticsManager)
 
-	sp := newStreamProcessor("sdkKey", cfg, nil)
+	sp := newStreamProcessor(context, store, ts.URL, nil)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
@@ -262,17 +252,13 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	}))
 	defer ts.Close()
 
-	id := ldevents.NewDiagnosticID("sdkKey")
+	id := ldevents.NewDiagnosticID(testSdkKey)
 	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-	cfg := Config{
-		StreamUri:          ts.URL,
-		Loggers:            ldlog.NewDisabledLoggers(),
-		diagnosticsManager: diagnosticsManager,
-	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
+	store := makeInMemoryDataStore()
+	cfg := Config{Loggers: ldlog.NewDisabledLoggers()}
+	context := newClientContextImpl(testSdkKey, cfg, diagnosticsManager)
 
-	sp := newStreamProcessor("sdkKey", cfg, nil)
+	sp := newStreamProcessor(context, store, ts.URL, nil)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
@@ -302,14 +288,13 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Loggers:           ldlog.NewDisabledLoggers(),
-		StreamUri:         ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
+		Loggers:           ldlog.NewDisabledLoggers(),
 	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
+	store := makeInMemoryDataStore()
+	context := newClientContextImpl(testSdkKey, cfg, nil)
 
-	sp := newStreamProcessor("sdkKey", cfg, nil)
+	sp := newStreamProcessor(context, store, ts.URL, nil)
 	defer sp.Close()
 	closeWhenReady := make(chan struct{})
 	sp.Start(closeWhenReady)
@@ -330,14 +315,13 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Loggers:   ldlog.NewDisabledLoggers(),
-		StreamUri: ts.URL,
-		Timeout:   200 * time.Millisecond,
+		Timeout: 200 * time.Millisecond,
+		Loggers: ldlog.NewDisabledLoggers(),
 	}
-	store, _ := NewInMemoryDataStoreFactory()(cfg)
-	cfg.DataStore = store
+	store := makeInMemoryDataStore()
+	context := newClientContextImpl(testSdkKey, cfg, nil)
 
-	sp := newStreamProcessor("sdkKey", cfg, nil)
+	sp := newStreamProcessor(context, store, ts.URL, nil)
 	defer sp.Close()
 	closeWhenReady := make(chan struct{})
 	sp.Start(closeWhenReady)
@@ -371,13 +355,8 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	store := &testDataStoreWithStatus{
 		inits: make(chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
 	}
-	cfg := Config{
-		StreamUri: ts.URL,
-		DataStore: store,
-		Loggers:   ldlog.NewDisabledLoggers(),
-	}
 
-	sp := newStreamProcessor("sdkKey", cfg, nil)
+	sp := newStreamProcessor(basicClientContext(), store, ts.URL, nil)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})

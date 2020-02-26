@@ -257,18 +257,31 @@ func Logger(logger ld.Logger) DataStoreOption {
 // as a factory function, the Consul client is not actually created until you create the SDK client.
 // This also allows it to use the same logging configuration as the SDK, so you do not have to
 // specify the Logger option separately.
-func NewDynamoDBDataStoreFactory(table string, options ...DataStoreOption) (ld.DataStoreFactory, error) {
-	configuredOptions, err := validateOptions(table, options...)
+func NewDynamoDBDataStoreFactory(table string, options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
+	return dynamoDBDataStoreFactory{table, options}, nil
+}
+
+type dynamoDBDataStoreFactory struct {
+	table   string
+	options []DataStoreOption
+}
+
+// DataStoreFactory implementation
+func (f dynamoDBDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+	configuredOptions, err := validateOptions(f.table, f.options...)
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (interfaces.DataStore, error) {
-		store, err := newDynamoDBDataStoreInternal(configuredOptions, ldConfig)
-		if err != nil {
-			return nil, err
-		}
-		return utils.NewNonAtomicDataStoreWrapperWithConfig(store, ldConfig), nil
-	}, nil
+	core, err := newDynamoDBDataStoreInternal(configuredOptions, context.GetLoggers())
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
+}
+
+// diagnosticsComponentDescriptor implementation
+func (f dynamoDBDataStoreFactory) GetDiagnosticsComponentTypeName() string {
+	return "DynamoDB"
 }
 
 func validateOptions(table string, options ...DataStoreOption) (dataStoreOptions, error) {
@@ -288,11 +301,11 @@ func validateOptions(table string, options ...DataStoreOption) (dataStoreOptions
 	return ret, nil
 }
 
-func newDynamoDBDataStoreInternal(configuredOptions dataStoreOptions, ldConfig ld.Config) (*dynamoDBDataStore, error) {
+func newDynamoDBDataStoreInternal(configuredOptions dataStoreOptions, loggers ldlog.Loggers) (*dynamoDBDataStore, error) {
 	store := dynamoDBDataStore{
 		options: configuredOptions,
 		client:  configuredOptions.client,
-		loggers: ldConfig.Loggers, // copied by value so we can modify it
+		loggers: loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	store.loggers.SetPrefix("DynamoDBDataStore:")
@@ -489,11 +502,6 @@ func (store *dynamoDBDataStore) IsStoreAvailable() bool {
 		},
 	})
 	return err == nil
-}
-
-// Used internally to describe this component in diagnostic data.
-func (store *dynamoDBDataStore) GetDiagnosticsComponentTypeName() string {
-	return "DynamoDB"
 }
 
 func (store *dynamoDBDataStore) prefixedNamespace(baseNamespace string) string {

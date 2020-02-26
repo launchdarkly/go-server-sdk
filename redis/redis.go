@@ -268,15 +268,27 @@ const initedKey = "$inited"
 // as a factory function, the Redis client is not actually created until you create the SDK client.
 // This also allows it to use the same logging configuration as the SDK, so you do not have to
 // specify the Logger option separately.
-func NewRedisDataStoreFactory(options ...DataStoreOption) (ld.DataStoreFactory, error) {
-	configuredOptions, err := validateOptions(options...)
+func NewRedisDataStoreFactory(options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
+	return redisDataStoreFactory{options}, nil
+}
+
+type redisDataStoreFactory struct {
+	options []DataStoreOption
+}
+
+// DataStoreFactory implementation
+func (f redisDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+	configuredOptions, err := validateOptions(f.options...)
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (interfaces.DataStore, error) {
-		core := newRedisDataStoreInternal(configuredOptions, ldConfig)
-		return utils.NewDataStoreWrapperWithConfig(core, ldConfig), nil
-	}, nil
+	core := newRedisDataStoreInternal(configuredOptions, context.GetLoggers())
+	return utils.NewDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
+}
+
+// diagnosticsComponentDescriptor implementation
+func (f redisDataStoreFactory) GetDiagnosticsComponentTypeName() string {
+	return "Redis"
 }
 
 func validateOptions(options ...DataStoreOption) (redisDataStoreOptions, error) {
@@ -294,11 +306,11 @@ func validateOptions(options ...DataStoreOption) (redisDataStoreOptions, error) 
 	return ret, nil
 }
 
-func newRedisDataStoreInternal(configuredOptions redisDataStoreOptions, ldConfig ld.Config) *redisDataStoreCore {
+func newRedisDataStoreInternal(configuredOptions redisDataStoreOptions, loggers ldlog.Loggers) *redisDataStoreCore {
 	core := &redisDataStoreCore{
 		options: configuredOptions,
 		pool:    configuredOptions.pool,
-		loggers: ldConfig.Loggers, // copied by value so we can modify it
+		loggers: loggers, // copied by value so we can modify it
 	}
 	core.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	core.loggers.SetPrefix("RedisDataStore:")
@@ -492,11 +504,6 @@ func (store *redisDataStoreCore) IsStoreAvailable() bool {
 	defer c.Close() // nolint:errcheck
 	_, err := r.Bool(c.Do("EXISTS", store.initedKey()))
 	return err == nil
-}
-
-// Used internally to describe this component in diagnostic data.
-func (store *redisDataStoreCore) GetDiagnosticsComponentTypeName() string {
-	return "Redis"
 }
 
 func (store *redisDataStoreCore) featuresKey(kind interfaces.VersionedDataKind) string {

@@ -11,18 +11,17 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
 
 const retryDuration = time.Second
 
 type fileWatcher struct {
-	watcher     *fsnotify.Watcher
-	errorLogger ld.Logger
-	reload      func()
-	paths       []string
-	absPaths    map[string]bool
+	watcher  *fsnotify.Watcher
+	loggers  ldlog.Loggers
+	reload   func()
+	paths    []string
+	absPaths map[string]bool
 }
 
 // WatchFiles sets up a mechanism for the file data source to reload its source files whenever one of them has
@@ -31,17 +30,17 @@ type fileWatcher struct {
 //     factory := ldfiledata.NewFileDataSourceFactory(
 //         ldfiledata.FilePaths("./test-data/my-flags.json"),
 //         ldfiledata.UseReloader(ldfilewatch.WatchFiles))
-func WatchFiles(paths []string, errorLogger ld.Logger, reload func(), closeCh <-chan struct{}) error {
+func WatchFiles(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("unable to create file watcher: %s", err)
 	}
 	fw := &fileWatcher{
-		watcher:     watcher,
-		errorLogger: errorLogger,
-		reload:      reload,
-		paths:       paths,
-		absPaths:    make(map[string]bool),
+		watcher:  watcher,
+		loggers:  loggers,
+		reload:   reload,
+		paths:    paths,
+		absPaths: make(map[string]bool),
 	}
 	go fw.run(closeCh)
 	return nil
@@ -59,7 +58,7 @@ func (fw *fileWatcher) run(closeCh <-chan struct{}) {
 	}
 	for {
 		if err := fw.setupWatches(); err != nil {
-			fw.errorLogger.Println(err)
+			fw.loggers.Error(err)
 			scheduleRetry()
 		}
 
@@ -101,7 +100,7 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 		case <-closeCh:
 			err := fw.watcher.Close()
 			if err != nil {
-				fw.errorLogger.Printf("Error closing Watcher: %s", err)
+				fw.loggers.Errorf("Error closing Watcher: %s", err)
 			}
 			return true
 		case event := <-fw.watcher.Events:
@@ -111,7 +110,7 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 			fw.consumeExtraEvents()
 			return false
 		case err := <-fw.watcher.Errors:
-			fw.errorLogger.Println(err)
+			fw.loggers.Error(err)
 		case <-retryCh:
 			consumeExtraRetries(retryCh)
 			return false

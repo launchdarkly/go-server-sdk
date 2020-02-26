@@ -1,8 +1,11 @@
 package ldclient
 
 import (
+	"errors"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -44,13 +47,12 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		{func(c *Config) { c.EventsUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) }},
 		{func(c *Config) { c.StreamUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customStreamURI", ldvalue.Bool(true)) }},
 		{func(c *Config) {
-			f := NewInMemoryDataStoreFactory()
-			c.DataStore, _ = f(DefaultConfig)
+			c.DataStore = ldcomponents.InMemoryDataStore()
 		},
 			func(b ldvalue.ObjectBuilder) {
 				b.Set("dataStoreType", ldvalue.String("memory"))
 			}},
-		{func(c *Config) { c.DataStore = customStoreForDiagnostics{name: "Foo"} },
+		{func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
 			func(b ldvalue.ObjectBuilder) {
 				b.Set("dataStoreType", ldvalue.String("Foo"))
 			}},
@@ -74,7 +76,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		config := DefaultConfig
-		config.DataStore, _ = NewInMemoryDataStoreFactory()(DefaultConfig)
 		test.setConfig(&config)
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		test.setExpected(expected)
@@ -84,34 +85,14 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	}
 }
 
-type customStoreForDiagnostics struct {
+type customStoreFactoryForDiagnostics struct {
 	name string
 }
 
-func (c customStoreForDiagnostics) GetDiagnosticsComponentTypeName() string {
+func (c customStoreFactoryForDiagnostics) GetDiagnosticsComponentTypeName() string {
 	return c.name
 }
 
-func (c customStoreForDiagnostics) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	return nil, nil
-}
-
-func (c customStoreForDiagnostics) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	return nil, nil
-}
-
-func (c customStoreForDiagnostics) Init(data map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
-	return nil
-}
-
-func (c customStoreForDiagnostics) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
-	return nil
-}
-
-func (c customStoreForDiagnostics) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
-	return nil
-}
-
-func (c customStoreForDiagnostics) Initialized() bool {
-	return false
+func (c customStoreFactoryForDiagnostics) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+	return nil, errors.New("not implemented")
 }

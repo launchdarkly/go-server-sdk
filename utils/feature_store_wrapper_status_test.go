@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
@@ -124,13 +125,13 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 	}
 
 	runTests(t, "Status is OK initially", func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus) {
-		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
 		defer w.Close()
 		assert.Equal(t, internal.DataStoreStatus{Available: true}, w.GetStoreStatus())
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Status is unavailable after error", func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus) {
-		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		core.fakeError = errors.New("sorry")
@@ -141,7 +142,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Error listener is notified on failure and recovery", func(t *testing.T, mode testCacheMode, core *mockCoreWithStatus) {
-		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
 		defer w.Close()
 		sub := w.StatusSubscribe()
 		require.NotNil(t, sub)
@@ -172,7 +173,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 	t.Run("Cache is written to store after recovery if TTL is infinite", func(t *testing.T) {
 		core := newCoreWithStatus(-1)
-		w := NewDataStoreWrapperWithConfig(core, configWithoutLogging)
+		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
 		defer w.Close()
 		sub := w.StatusSubscribe()
 		require.NotNil(t, sub)

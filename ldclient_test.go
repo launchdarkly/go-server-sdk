@@ -8,58 +8,12 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
-
-const testSdkKey = "test-sdk-key"
-
-type mockDataSource struct {
-	IsInitialized bool
-	CloseFn       func() error
-	StartFn       func(chan<- struct{})
-}
-
-func (u mockDataSource) Initialized() bool {
-	return u.IsInitialized
-}
-
-func (u mockDataSource) Close() error {
-	if u.CloseFn == nil {
-		return nil
-	}
-	return u.CloseFn()
-}
-
-func (u mockDataSource) Start(closeWhenReady chan<- struct{}) {
-	if u.StartFn == nil {
-		return
-	}
-	u.StartFn(closeWhenReady)
-}
-
-func dataSourceFactory(u interfaces.DataSource) func(string, Config) (interfaces.DataSource, error) {
-	return func(key string, c Config) (interfaces.DataSource, error) {
-		return u, nil
-	}
-}
-
-type testEventProcessor struct {
-	events []ldevents.Event
-}
-
-func (t *testEventProcessor) SendEvent(e ldevents.Event) {
-	t.events = append(t.events, e)
-}
-
-func (t *testEventProcessor) Flush() {}
-
-func (t *testEventProcessor) Close() error {
-	return nil
-}
 
 func TestSecureModeHash(t *testing.T) {
 	expected := "aa747c502a898200f9e4fa21bac68136f886a0e27aec70ba06daf2e2a5cb5597"
@@ -187,9 +141,9 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 		},
 	}
 
-	client, err := MakeCustomClient("sdkKey", Config{
+	client, err := MakeCustomClient(testSdkKey, Config{
 		Loggers:               ldlog.NewDisabledLoggers(),
-		DataSourceFactory:     dataSourceFactory(dataSource),
+		DataSource:            singleDataSourceFactory{dataSource},
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}, time.Second)
@@ -204,12 +158,10 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Offline:          false,
-		SendEvents:       true,
-		DataStoreFactory: NewInMemoryDataStoreFactory(),
-		DataSourceFactory: dataSourceFactory(mockDataSource{
-			IsInitialized: true,
-		}),
+		Offline:               false,
+		SendEvents:            true,
+		DataStore:             ldcomponents.InMemoryDataStore(),
+		DataSource:            singleDataSourceFactory{mockDataSource{IsInitialized: true}},
 		EventProcessor:        &testEventProcessor{},
 		UserKeysFlushInterval: 30 * time.Second,
 	}

@@ -6,8 +6,7 @@ import (
 
 	c "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
@@ -23,7 +22,7 @@ func TestConsulDataStoreCached(t *testing.T) {
 
 func TestConsulDataStorePrefixes(t *testing.T) {
 	ldtest.RunDataStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.DataStoreFactory, error) {
+		func(prefix string) (interfaces.DataStoreFactory, error) {
 			return NewConsulDataStoreFactory(Prefix(prefix), CacheTTL(0))
 		}, clearExistingData)
 }
@@ -31,12 +30,14 @@ func TestConsulDataStorePrefixes(t *testing.T) {
 func TestConsulDataStoreConcurrentModification(t *testing.T) {
 	options, _ := validateOptions()
 	var store1Core *dataStore
-	factory1 := func(config ld.Config) (interfaces.DataStore, error) {
-		store1Core, _ = newConsulDataStoreInternal(options, config) // we need the underlying implementation object so we can set testTxHook
-		return utils.NewNonAtomicDataStoreWrapper(store1Core), nil
+	factory1 := func() (interfaces.DataStore, error) {
+		store1Core, _ = newConsulDataStoreInternal(options, ldlog.NewDisabledLoggers()) // we need the underlying implementation object so we can set testTxHook
+		return utils.NewNonAtomicDataStoreWrapperWithConfig(store1Core, ldlog.NewDisabledLoggers()), nil
 	}
-	factory2, err := NewConsulDataStoreFactory()
-	require.NoError(t, err)
+	factory2 := func() (interfaces.DataStore, error) {
+		f, _ := NewConsulDataStoreFactory()
+		return f.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
+	}
 	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
 		store1Core.testTxHook = hook
 	})
@@ -44,11 +45,11 @@ func TestConsulDataStoreConcurrentModification(t *testing.T) {
 
 func TestConsulStoreComponentTypeName(t *testing.T) {
 	factory, _ := NewConsulDataStoreFactory()
-	store, _ := factory(ld.DefaultConfig)
+	store, _ := factory.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
 	assert.Equal(t, "Consul", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
 }
 
-func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.DataStoreFactory {
+func makeConsulStoreWithCacheTTL(ttl time.Duration) interfaces.DataStoreFactory {
 	f, _ := NewConsulDataStoreFactory(CacheTTL(ttl))
 	return f
 }

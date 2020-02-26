@@ -187,18 +187,30 @@ func Logger(logger ld.Logger) DataStoreOption {
 // as a factory function, the Consul client is not actually created until you create the SDK client.
 // This also allows it to use the same logging configuration as the SDK, so you do not have to
 // specify the Logger option separately.
-func NewConsulDataStoreFactory(options ...DataStoreOption) (ld.DataStoreFactory, error) {
-	configuredOptions, err := validateOptions(options...)
+func NewConsulDataStoreFactory(options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
+	return consulDataStoreFactory{options}, nil
+}
+
+type consulDataStoreFactory struct {
+	options []DataStoreOption
+}
+
+// DataStoreFactory implementation
+func (f consulDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+	configuredOptions, err := validateOptions(f.options...)
 	if err != nil {
 		return nil, err
 	}
-	return func(ldConfig ld.Config) (interfaces.DataStore, error) {
-		store, err := newConsulDataStoreInternal(configuredOptions, ldConfig)
-		if err != nil {
-			return nil, err
-		}
-		return utils.NewNonAtomicDataStoreWrapperWithConfig(store, ldConfig), nil
-	}, nil
+	core, err := newConsulDataStoreInternal(configuredOptions, context.GetLoggers())
+	if err != nil {
+		return nil, err
+	}
+	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
+}
+
+// diagnosticsComponentDescriptor implementation
+func (f consulDataStoreFactory) GetDiagnosticsComponentTypeName() string {
+	return "Consul"
 }
 
 func validateOptions(options ...DataStoreOption) (dataStoreOptions, error) {
@@ -215,10 +227,10 @@ func validateOptions(options ...DataStoreOption) (dataStoreOptions, error) {
 	return ret, nil
 }
 
-func newConsulDataStoreInternal(configuredOptions dataStoreOptions, ldConfig ld.Config) (*dataStore, error) {
+func newConsulDataStoreInternal(configuredOptions dataStoreOptions, loggers ldlog.Loggers) (*dataStore, error) {
 	store := &dataStore{
 		options: configuredOptions,
-		loggers: ldConfig.Loggers, // copied by value so we can modify it
+		loggers: loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	store.loggers.SetPrefix("ConsulDataStore:")
@@ -379,11 +391,6 @@ func (store *dataStore) IsStoreAvailable() bool {
 	kv := store.client.KV()
 	_, _, err := kv.Get(store.initedKey(), nil)
 	return err == nil
-}
-
-// Used internally to describe this component in diagnostic data.
-func (store *dataStore) GetDiagnosticsComponentTypeName() string {
-	return "Consul"
 }
 
 func (store *dataStore) getEvenIfDeleted(kind interfaces.VersionedDataKind, key string) (retrievedItem interfaces.VersionedData,

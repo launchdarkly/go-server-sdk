@@ -22,6 +22,7 @@ import (
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
 
@@ -105,47 +106,46 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	config.Loggers.Init()
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
-	if config.DataStore == nil {
-		factory := config.DataStoreFactory
-		if factory == nil {
-			factory = NewInMemoryDataStoreFactory()
-		}
-		store, err := factory(config)
-		if err != nil {
-			return nil, err
-		}
-		config.DataStore = store
+	var diagnosticsManager *ldevents.DiagnosticsManager
+	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
+		diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
 	}
 
-	evaluator := ldeval.NewEvaluator(interfaces.NewDataStoreEvaluatorDataProvider(config.DataStore))
+	clientContext := newClientContextImpl(sdkKey, config, diagnosticsManager)
+
+	storeFactory := config.DataStore
+	if storeFactory == nil {
+		storeFactory = ldcomponents.InMemoryDataStore()
+	}
+	store, err := storeFactory.CreateDataStore(clientContext)
+	if err != nil {
+		return nil, err
+	}
+
+	evaluator := ldeval.NewEvaluator(interfaces.NewDataStoreEvaluatorDataProvider(store))
 
 	defaultHTTPClient := config.newHTTPClient()
 
 	client := LDClient{
 		sdkKey:    sdkKey,
 		config:    config,
-		store:     config.DataStore,
+		store:     store,
 		evaluator: evaluator,
-	}
-
-	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
-		config.diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
 	}
 
 	if config.EventProcessor != nil {
 		client.eventProcessor = config.EventProcessor
 	} else if config.SendEvents && !config.Offline {
-		client.eventProcessor = createDefaultEventProcessor(sdkKey, config, defaultHTTPClient, config.diagnosticsManager)
+		client.eventProcessor = createDefaultEventProcessor(sdkKey, config, defaultHTTPClient, diagnosticsManager)
 	} else {
 		client.eventProcessor = ldevents.NewNullEventProcessor()
 	}
 
-	factory := config.DataSourceFactory
-	if factory == nil {
-		factory = createDefaultDataSource(defaultHTTPClient)
+	dataSourceFactory := config.DataSource
+	if dataSourceFactory == nil {
+		dataSourceFactory = defaultDataSourceFactory{config, defaultHTTPClient}
 	}
-	var err error
-	client.dataSource, err = factory(sdkKey, config)
+	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, store)
 	if err != nil {
 		return nil, err
 	}
@@ -177,23 +177,26 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 }
 
-func createDefaultDataSource(httpClient *http.Client) func(string, Config) (interfaces.DataSource, error) {
-	return func(sdkKey string, config Config) (interfaces.DataSource, error) {
-		if config.Offline {
-			config.Loggers.Info("Started LaunchDarkly client in offline mode")
-			return nullDataSource{}, nil
-		}
-		if config.UseLdd {
-			config.Loggers.Info("Started LaunchDarkly client in LDD mode")
-			return nullDataSource{}, nil
-		}
-		requestor := newRequestor(sdkKey, config, httpClient)
-		if config.Stream {
-			return newStreamProcessor(sdkKey, config, requestor), nil
-		}
-		config.Loggers.Warn("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
-		return newPollingProcessor(config, requestor), nil
+type defaultDataSourceFactory struct {
+	config     Config
+	httpClient *http.Client
+}
+
+func (f defaultDataSourceFactory) CreateDataSource(context interfaces.ClientContext, store interfaces.DataStore) (interfaces.DataSource, error) {
+	if f.config.Offline {
+		context.GetLoggers().Info("Started LaunchDarkly client in offline mode")
+		return nullDataSource{}, nil
 	}
+	if f.config.UseLdd {
+		context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
+		return nullDataSource{}, nil
+	}
+	requestor := newRequestor(context, f.httpClient, f.config.BaseUri)
+	if f.config.Stream {
+		return newStreamProcessor(context, store, f.config.StreamUri, requestor), nil
+	}
+	context.GetLoggers().Warn("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
+	return newPollingProcessor(f.config, store, requestor), nil
 }
 
 func createDefaultEventProcessor(sdkKey string, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {

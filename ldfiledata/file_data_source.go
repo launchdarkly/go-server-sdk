@@ -16,14 +16,13 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 type fileDataSourceOptions struct {
 	absFilePaths    []string
 	reloaderFactory ReloaderFactory
-	logger          ld.Logger
+	loggers         ldlog.Loggers
 }
 
 // FileDataSourceOption is the interface for optional configuration parameters that can be
@@ -51,25 +50,25 @@ func FilePaths(paths ...string) FileDataSourceOption {
 	return filePathsOption{paths}
 }
 
-type loggerOption struct {
-	logger ld.Logger
+type loggersOption struct {
+	loggers ldlog.Loggers
 }
 
-func (o loggerOption) apply(opts *fileDataSourceOptions) error {
-	opts.logger = o.logger
+func (o loggersOption) apply(opts *fileDataSourceOptions) error {
+	opts.loggers = o.loggers
 	return nil
 }
 
-// UseLogger creates an option for NewFileDataSourceFactory, to specify where to send
+// UseLoggers creates an option for NewFileDataSourceFactory, to specify where to send
 // log output. If not specified, it defaults to using the same logging options as the
 // rest of the SDK.
-func UseLogger(logger ld.Logger) FileDataSourceOption {
-	return loggerOption{logger}
+func UseLoggers(loggers ldlog.Loggers) FileDataSourceOption {
+	return loggersOption{loggers}
 }
 
 // ReloaderFactory is a function type used with UseReloader, to specify a mechanism for detecting when
 // data files should be reloaded. Its standard implementation is in the ldfilewatch package.
-type ReloaderFactory func(paths []string, loggers ld.Logger, reload func(), closeCh <-chan struct{}) error
+type ReloaderFactory func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error
 
 type reloaderOption struct {
 	reloaderFactory ReloaderFactory
@@ -173,29 +172,36 @@ type fileDataSource struct {
 //
 // If the data source encounters any error in any file-- malformed content, a missing file, or a
 // duplicate key-- it will not load flags from any of the files.
-func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.DataSourceFactory {
-	return func(sdkKey string, config ld.Config) (interfaces.DataSource, error) {
-		return newFileDataSource(config, options...)
-	}
+func NewFileDataSourceFactory(options ...FileDataSourceOption) interfaces.DataSourceFactory {
+	return fileDataSourceFactory{options}
 }
 
-func newFileDataSource(ldConfig ld.Config, options ...FileDataSourceOption) (*fileDataSource, error) {
-	if ldConfig.DataStore == nil {
-		return nil, fmt.Errorf("deatureStore must not be nil")
+type fileDataSourceFactory struct {
+	options []FileDataSourceOption
+}
+
+// DataSourceFactory implementation
+func (f fileDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
+	if dataStore == nil {
+		return nil, fmt.Errorf("dataStore must not be nil")
 	}
 	fs := &fileDataSource{
-		store:   ldConfig.DataStore,
-		loggers: ldConfig.Loggers,
+		store:   dataStore,
+		loggers: context.GetLoggers(),
 	}
-	for _, o := range options {
+	for _, o := range f.options {
 		err := o.apply(&fs.options)
 		if err != nil {
 			return nil, err
 		}
 	}
-	fs.loggers.SetBaseLogger(fs.options.logger) // has no effect if it is nil
 	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil
+}
+
+// diagnosticsComponentDescriptor implementation
+func (f fileDataSourceFactory) GetDiagnosticsComponentTypeName() string {
+	return "file"
 }
 
 // Initialized is used internally by the LaunchDarkly client.
@@ -218,8 +224,7 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
 	// readiness signal will happen the first time we do get valid data (in reload).
 	fs.closeReloaderCh = make(chan struct{})
-	err := fs.options.reloaderFactory(fs.options.absFilePaths, fs.loggers.ForLevel(ldlog.Error),
-		fs.reload, fs.closeReloaderCh)
+	err := fs.options.reloaderFactory(fs.options.absFilePaths, fs.loggers, fs.reload, fs.closeReloaderCh)
 	if err != nil {
 		fs.loggers.Errorf("Unable to start reloader: %s\n", err)
 	}
