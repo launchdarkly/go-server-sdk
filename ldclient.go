@@ -93,7 +93,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
 	}
 
-	clientContext := newClientContextImpl(sdkKey, config, diagnosticsManager)
+	defaultHTTPClient := config.newHTTPClient()
+	clientContext := newClientContextImpl(sdkKey, config, defaultHTTPClient, diagnosticsManager)
 
 	store, err := getDataStoreFactory(config).CreateDataStore(clientContext)
 	if err != nil {
@@ -101,8 +102,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	evaluator := ldeval.NewEvaluator(interfaces.NewDataStoreEvaluatorDataProvider(store))
-
-	defaultHTTPClient := config.newHTTPClient()
 
 	client := LDClient{
 		sdkKey:    sdkKey,
@@ -114,7 +113,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if config.EventProcessor != nil {
 		client.eventProcessor = config.EventProcessor
 	} else if config.SendEvents && !config.Offline {
-		client.eventProcessor = createDefaultEventProcessor(sdkKey, config, defaultHTTPClient, diagnosticsManager)
+		client.eventProcessor = createDefaultEventProcessor(clientContext, config, defaultHTTPClient, diagnosticsManager)
 	} else {
 		client.eventProcessor = ldevents.NewNullEventProcessor()
 	}
@@ -195,7 +194,7 @@ func (o offlineDataSource) Start(closeWhenReady chan<- struct{}) {
 }
 
 func createDefaultEventProcessor(context interfaces.ClientContext, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {
-	eventSender := ldevents.NewServerSideEventSender(client, context.getSDKKey(), config.EventsUri, context.GetDefaultHTTPHeaders(), context.GetLoggers())
+	eventSender := ldevents.NewServerSideEventSender(client, context.GetSDKKey(), config.EventsUri, context.GetDefaultHTTPHeaders(), context.GetLoggers())
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        config.AllAttributesPrivate,
 		Capacity:                    config.Capacity,
