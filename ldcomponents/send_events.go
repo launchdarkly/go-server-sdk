@@ -12,34 +12,36 @@ import (
 )
 
 const (
-	// The default value for EventProcessorBuilder.BaseURI.
+	// DefaultEventsBaseURI is tghe default value for EventProcessorBuilder.BaseURI.
 	DefaultEventsBaseURI = "https://events.launchdarkly.com"
-	// The default value for EventProcessorBuilder.Capacity.
+	// DefaultEventsCapacity is the default value for EventProcessorBuilder.Capacity.
 	DefaultEventsCapacity = 10000
-	// The default value for EventProcessorBuilder.DiagnosticRecordingInterval.
+	// DefaultDiagnosticRecordingInterval is the default value for EventProcessorBuilder.DiagnosticRecordingInterval.
 	DefaultDiagnosticRecordingInterval = 15 * time.Minute
-	// The default value for EventProcessorBuilder.FlushInterval.
+	// DefaultFlushInterval is the default value for EventProcessorBuilder.FlushInterval.
 	DefaultFlushInterval = 5 * time.Second
-	// The default value for EventProcessorBuilder.UserKeysCapacity.
+	// DefaultUserKeysCapacity is the default value for EventProcessorBuilder.UserKeysCapacity.
 	DefaultUserKeysCapacity = 1000
-	// The default value for EventProcessorBuilder.UserKeysFlushInterval.
+	// DefaultUserKeysFlushInterval is the default value for EventProcessorBuilder.UserKeysFlushInterval.
 	DefaultUserKeysFlushInterval = 5 * time.Minute
-	// The minimum value for EventProcessorBuilder.DiagnosticRecordingInterval.
+	// MinimumDiagnosticRecordingInterval is the minimum value for EventProcessorBuilder.DiagnosticRecordingInterval.
 	MinimumDiagnosticRecordingInterval = 60 * time.Second
 )
 
+// EventProcessorBuilder provides methods for configuring analytics event behavior.
+//
+// See SendEvents for usage.
 type EventProcessorBuilder struct {
-	allAttributesPrivate               bool
-	baseURI                            string
-	capacity                           int
-	diagnosticRecordingInterval        time.Duration
-	flushInterval                      time.Duration
-	inlineUsersInEvents                bool
-	logUserKeyInErrors                 bool
-	privateAttributeNames              []lduser.UserAttribute
-	userKeysCapacity                   int
-	userKeysFlushInterval              time.Duration
-	minimumDiagnosticRecordingInterval time.Duration
+	allAttributesPrivate        bool
+	baseURI                     string
+	capacity                    int
+	diagnosticRecordingInterval time.Duration
+	flushInterval               time.Duration
+	inlineUsersInEvents         bool
+	logUserKeyInErrors          bool
+	privateAttributeNames       []lduser.UserAttribute
+	userKeysCapacity            int
+	userKeysFlushInterval       time.Duration
 }
 
 // SendEvents returns a configuration builder for analytics event delivery.
@@ -51,6 +53,8 @@ type EventProcessorBuilder struct {
 //     config := ld.Config{
 //         Events: ldcomponents.SendEvents().Capacity(5000).FlushInterval(2 * time.Second),
 //     }
+//
+// To disable analytics events, use NoEvents instead of SendEvents.
 func SendEvents() *EventProcessorBuilder {
 	return &EventProcessorBuilder{
 		baseURI:                     DefaultEventsBaseURI,
@@ -66,7 +70,7 @@ func SendEvents() *EventProcessorBuilder {
 func (b *EventProcessorBuilder) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
 	eventSender := ldevents.NewServerSideEventSender(context.CreateHTTPClient(), context.GetSDKKey(), b.baseURI,
 		context.GetDefaultHTTPHeaders(), context.GetLoggers())
-	// TODO: change EventsConfiguration to use the UserAttribute type for PrivateAttributeNames
+	// eventually we will change EventsConfiguration to use the UserAttribute type for PrivateAttributeNames
 	privateAttrs := make([]string, len(b.privateAttributeNames))
 	for i, a := range b.privateAttributeNames {
 		privateAttrs[i] = string(a)
