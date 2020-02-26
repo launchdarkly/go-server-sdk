@@ -63,8 +63,7 @@ func TestDynamoDBDataStoreConcurrentModification(t *testing.T) {
 
 func TestDynamoDBStoreComponentTypeName(t *testing.T) {
 	factory, _ := NewDynamoDBDataStoreFactory("table")
-	store, _ := factory.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
-	assert.Equal(t, "DynamoDB", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "DynamoDB", (factory.(dynamoDBDataStoreFactory)).GetDiagnosticsComponentTypeName())
 }
 
 func makeStoreWithCacheTTL(ttl time.Duration) interfaces.DataStoreFactory {

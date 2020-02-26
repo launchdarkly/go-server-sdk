@@ -45,8 +45,7 @@ func TestConsulDataStoreConcurrentModification(t *testing.T) {
 
 func TestConsulStoreComponentTypeName(t *testing.T) {
 	factory, _ := NewConsulDataStoreFactory()
-	store, _ := factory.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
-	assert.Equal(t, "Consul", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "Consul", (factory.(consulDataStoreFactory)).GetDiagnosticsComponentTypeName())
 }
 
 func makeConsulStoreWithCacheTTL(ttl time.Duration) interfaces.DataStoreFactory {

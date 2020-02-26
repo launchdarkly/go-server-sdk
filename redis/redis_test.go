@@ -55,8 +55,7 @@ func TestRedisDataStoreConcurrentModification(t *testing.T) {
 
 func TestRedisStoreComponentTypeName(t *testing.T) {
 	f, _ := NewRedisDataStoreFactory()
-	store, _ := f.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
-	assert.Equal(t, "Redis", (store.(*utils.DataStoreWrapper)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, "Redis", (f.(redisDataStoreFactory)).GetDiagnosticsComponentTypeName())
 }
 
 func clearExistingData() error {
