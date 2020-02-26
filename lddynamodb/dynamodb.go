@@ -105,7 +105,6 @@ type dataStoreOptions struct {
 	cacheTTL       time.Duration
 	configs        []*aws.Config
 	sessionOptions session.Options
-	loggers        ldlog.Loggers
 }
 
 // Internal type for our DynamoDB implementation of the ld.DataStore interface.
@@ -117,8 +116,7 @@ type dynamoDBDataStore struct {
 }
 
 // DataStoreOption is the interface for optional configuration parameters that can be
-// passed to NewDynamoDBDataStoreFactory. These include SessionOptions, CacheTTL, DynamoClient,
-// and Logger.
+// passed to NewDynamoDBDataStoreFactory. These include SessionOptions, CacheTTL, and DynamoClient.
 type DataStoreOption interface {
 	apply(opts *dataStoreOptions) error
 }
@@ -224,25 +222,6 @@ func SessionOptions(options session.Options) DataStoreOption {
 	return sessionOptionsOption{options}
 }
 
-type loggersOption struct {
-	loggers ldlog.Loggers
-}
-
-func (o loggersOption) apply(opts *dataStoreOptions) error {
-	opts.loggers = o.loggers
-	return nil
-}
-
-// Loggers creates an option for NewDynamoDBDataStore, to specify where to send log output.
-//
-// You normally do not need to specify a logger because it will use the same logging configuration as
-// the SDK client.
-//
-//     store, err := lddynamodb.NewDynamoDBDataStore("my-table-name", lddynamodb.Loggers(myLoggers))
-func Loggers(loggers ldlog.Loggers) DataStoreOption {
-	return loggersOption{loggers}
-}
-
 // NewDynamoDBDataStoreFactory returns a factory function for a DynamoDB-backed data store with an
 // optional memory cache. You may customize its behavior with DataStoreOption values, such as
 // CacheTTL and SessionOptions.
@@ -252,10 +231,8 @@ func Loggers(loggers ldlog.Loggers) DataStoreOption {
 // as AWS environment variables. You can also override the default configuration with the SessionOptions
 // option, or use an already-configured DynamoDB client instance with the DynamoClient option.
 //
-// Set the DataStoreFactory field in your Config to the returned value. Because this is specified
-// as a factory function, the Consul client is not actually created until you create the SDK client.
-// This also allows it to use the same logging configuration as the SDK, so you do not have to
-// specify the Logger option separately.
+// Set the DataStore field in your Config to the returned value. Because this is specified as a factory
+// object, the Consul client is not actually created until you create the SDK client.
 func NewDynamoDBDataStoreFactory(table string, options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
 	return dynamoDBDataStoreFactory{table, options}, nil
 }
@@ -275,7 +252,7 @@ func (f dynamoDBDataStoreFactory) CreateDataStore(context interfaces.ClientConte
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, configuredOptions.loggers), nil
+	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
 }
 
 // DiagnosticDescription implementation

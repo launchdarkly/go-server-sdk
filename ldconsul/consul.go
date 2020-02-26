@@ -161,12 +161,10 @@ func CacheTTL(ttl time.Duration) DataStoreOption {
 
 // NewConsulDataStoreFactory returns a factory function for a Consul-backed data store with an
 // optional memory cache. You may customize its behavior with any number of DataStoreOption values,
-// such as Config, Address, Prefix, CacheTTL, and Logger.
+// such as Config, Address, Prefix, and CacheTTL.
 //
-// Set the DataStoreFactory field in your Config to the returned value. Because this is specified
-// as a factory function, the Consul client is not actually created until you create the SDK client.
-// This also allows it to use the same logging configuration as the SDK, so you do not have to
-// specify the Logger option separately.
+// Set the DataStore field in your Config to the returned value. Because this is specified as a
+// factory object, the Consul client is not actually created until you create the SDK client.
 func NewConsulDataStoreFactory(options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
 	return consulDataStoreFactory{options}, nil
 }

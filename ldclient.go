@@ -41,12 +41,6 @@ type LDClient struct {
 	evaluator      ldeval.Evaluator
 }
 
-// Logger is a generic logger interface.
-type Logger interface {
-	Println(...interface{})
-	Printf(string, ...interface{})
-}
-
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
 type clientEvaluatorEventSink struct {
 	user         *lduser.User
@@ -62,6 +56,28 @@ func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.Prerequ
 
 // Standard event factory when evaluation reasons are not an issue
 var defaultEventFactory = ldevents.NewEventFactory(false, nil)
+
+// offlineDataSourceFactory is a stub identical to ldcomponents.ExternalUpdatesOnly(), except that it does not
+// log the "daemon mode" message.
+type offlineDataSourceFactory struct{}
+type offlineDataSource struct{}
+
+func (f offlineDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
+	context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
+	return offlineDataSource{}, nil
+}
+
+func (o offlineDataSource) Initialized() bool {
+	return true
+}
+
+func (o offlineDataSource) Close() error {
+	return nil
+}
+
+func (o offlineDataSource) Start(closeWhenReady chan<- struct{}) {
+	close(closeWhenReady)
+}
 
 // Initialization errors
 var (
@@ -169,28 +185,6 @@ func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
 		return ldcomponents.StreamingDataSource()
 	}
 	return config.DataSource
-}
-
-// offlineDataSourceFactory is a stub identical to ldcomponents.ExternalUpdatesOnly(), except that it does not
-// log the "daemon mode" message.
-type offlineDataSourceFactory struct{}
-type offlineDataSource struct{}
-
-func (f offlineDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
-	context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
-	return offlineDataSource{}, nil
-}
-
-func (o offlineDataSource) Initialized() bool {
-	return true
-}
-
-func (o offlineDataSource) Close() error {
-	return nil
-}
-
-func (o offlineDataSource) Start(closeWhenReady chan<- struct{}) {
-	close(closeWhenReady)
 }
 
 func createDefaultEventProcessor(context interfaces.ClientContext, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {

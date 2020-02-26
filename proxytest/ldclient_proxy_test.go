@@ -69,9 +69,8 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 	config := ld.DefaultConfig
 	config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
 	config.Loggers = ldlog.NewDisabledLoggers()
-	config.BaseUri = fakeBaseURL
+	config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
 	config.SendEvents = false
-	config.Stream = false
 
 	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 	require.NoError(t, err)

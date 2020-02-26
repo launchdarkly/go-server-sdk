@@ -242,12 +242,10 @@ const initedKey = "$inited"
 // DefaultCacheTTL as the duration for in-memory caching, no authentication and a default connection
 // pool configuration (see package description for details). You may override any of these with
 // DataStoreOption values created with RedisURL, RedisHostAndPort, RedisPool, Prefix, CacheTTL,
-// Logger, or Auth.
+// or Auth.
 //
-// Set the DataStoreFactory field in your Config to the returned value. Because this is specified
-// as a factory function, the Redis client is not actually created until you create the SDK client.
-// This also allows it to use the same logging configuration as the SDK, so you do not have to
-// specify the Logger option separately.
+// Set the DataStore field in your Config to the returned value. Because this is specified as a
+// factory object, the Redis client is not actually created until you create the SDK client.
 func NewRedisDataStoreFactory(options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
 	return redisDataStoreFactory{options}, nil
 }
