@@ -1,7 +1,6 @@
 package ldclient
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -67,10 +66,8 @@ func mergeComponentProperties(builder ldvalue.ObjectBuilder, component interface
 		}
 		component = defaultComponent
 	}
-	fmt.Printf("*** for component %T ...\n", component)
 	if dd, ok := component.(interfaces.DiagnosticDescription); ok {
 		componentDesc := dd.DescribeConfiguration()
-		fmt.Printf("***** desc is %s\n", componentDesc)
 		if !componentDesc.IsNull() {
 			if componentDesc.Type() == ldvalue.StringType && defaultPropertyName != "" {
 				builder.Set(defaultPropertyName, componentDesc)
