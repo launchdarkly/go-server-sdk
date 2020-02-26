@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -29,9 +30,9 @@ func (f inMemoryDataStoreFactory) CreateDataStore(context interfaces.ClientConte
 	return store, nil
 }
 
-// diagnosticsComponentDescriptor implementation
-func (f inMemoryDataStoreFactory) GetDiagnosticsComponentTypeName() string {
-	return "memory"
+// DiagnosticDescription implementation
+func (f inMemoryDataStoreFactory) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String("memory")
 }
 
 // InMemoryDataStore returns the default in-memory DataStore implementation factory.

@@ -47,20 +47,6 @@ type Logger interface {
 	Printf(string, ...interface{})
 }
 
-type nullDataSource struct{}
-
-func (n nullDataSource) Initialized() bool {
-	return true
-}
-
-func (n nullDataSource) Close() error {
-	return nil
-}
-
-func (n nullDataSource) Start(closeWhenReady chan<- struct{}) {
-	close(closeWhenReady)
-}
-
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
 type clientEvaluatorEventSink struct {
 	user         *lduser.User
@@ -96,11 +82,7 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	closeWhenReady := make(chan struct{})
 
-	config.BaseUri = strings.TrimRight(config.BaseUri, "/")
 	config.EventsUri = strings.TrimRight(config.EventsUri, "/")
-	if config.PollInterval < MinimumPollInterval {
-		config.PollInterval = MinimumPollInterval
-	}
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
 	config.Loggers.Init()
@@ -113,11 +95,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	clientContext := newClientContextImpl(sdkKey, config, diagnosticsManager)
 
-	storeFactory := config.DataStore
-	if storeFactory == nil {
-		storeFactory = ldcomponents.InMemoryDataStore()
-	}
-	store, err := storeFactory.CreateDataStore(clientContext)
+	store, err := getDataStoreFactory(config).CreateDataStore(clientContext)
 	if err != nil {
 		return nil, err
 	}
@@ -141,18 +119,18 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventProcessor = ldevents.NewNullEventProcessor()
 	}
 
-	dataSourceFactory := config.DataSource
-	if dataSourceFactory == nil {
-		dataSourceFactory = defaultDataSourceFactory{config, defaultHTTPClient}
-	}
-	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, store)
+	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, store)
 	if err != nil {
 		return nil, err
 	}
 	client.dataSource.Start(closeWhenReady)
-	if waitFor > 0 && !config.Offline && !config.UseLdd {
-		config.Loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
-			waitFor/time.Millisecond)
+	if config.Offline {
+		config.Loggers.Info("Started LaunchDarkly client in offline mode")
+	} else {
+		if waitFor > 0 {
+			config.Loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
+				waitFor/time.Millisecond)
+		}
 	}
 	timeout := time.After(waitFor)
 	for {
@@ -177,32 +155,47 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 }
 
-type defaultDataSourceFactory struct {
-	config     Config
-	httpClient *http.Client
+func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
+	if config.DataStore == nil {
+		return ldcomponents.InMemoryDataStore()
+	}
+	return config.DataStore
 }
 
-func (f defaultDataSourceFactory) CreateDataSource(context interfaces.ClientContext, store interfaces.DataStore) (interfaces.DataSource, error) {
-	if f.config.Offline {
-		context.GetLoggers().Info("Started LaunchDarkly client in offline mode")
-		return nullDataSource{}, nil
+func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
+	if config.Offline {
+		return offlineDataSourceFactory{}
 	}
-	if f.config.UseLdd {
-		context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
-		return nullDataSource{}, nil
+	if config.DataSource == nil {
+		return ldcomponents.StreamingDataSource()
 	}
-	requestor := newRequestor(context, f.httpClient, f.config.BaseUri)
-	if f.config.Stream {
-		return newStreamProcessor(context, store, f.config.StreamUri, requestor), nil
-	}
-	context.GetLoggers().Warn("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
-	return newPollingProcessor(f.config, store, requestor), nil
+	return config.DataSource
 }
 
-func createDefaultEventProcessor(sdkKey string, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {
-	headers := make(http.Header)
-	addBaseHeaders(headers, sdkKey, config)
-	eventSender := ldevents.NewServerSideEventSender(client, sdkKey, config.EventsUri, headers, config.Loggers)
+// offlineDataSourceFactory is a stub identical to ldcomponents.ExternalUpdatesOnly(), except that it does not
+// log the "daemon mode" message.
+type offlineDataSourceFactory struct{}
+type offlineDataSource struct{}
+
+func (f offlineDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
+	context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
+	return offlineDataSource{}, nil
+}
+
+func (o offlineDataSource) Initialized() bool {
+	return true
+}
+
+func (o offlineDataSource) Close() error {
+	return nil
+}
+
+func (o offlineDataSource) Start(closeWhenReady chan<- struct{}) {
+	close(closeWhenReady)
+}
+
+func createDefaultEventProcessor(context interfaces.ClientContext, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {
+	eventSender := ldevents.NewServerSideEventSender(client, context.getSDKKey(), config.EventsUri, context.GetDefaultHTTPHeaders(), context.GetLoggers())
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        config.AllAttributesPrivate,
 		Capacity:                    config.Capacity,
@@ -294,7 +287,7 @@ func (client *LDClient) SecureModeHash(user lduser.User) string {
 
 // Initialized returns whether the LaunchDarkly client is initialized.
 func (client *LDClient) Initialized() bool {
-	return client.IsOffline() || client.config.UseLdd || client.dataSource.Initialized()
+	return client.dataSource.Initialized()
 }
 
 // Close shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client

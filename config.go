@@ -12,10 +12,6 @@ import (
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
 type Config struct {
-	// The base URI of the main LaunchDarkly service. This should not normally be changed except for testing.
-	BaseUri string
-	// The base URI of the LaunchDarkly streaming service. This should not normally be changed except for testing.
-	StreamUri string
 	// The base URI of the LaunchDarkly service that accepts analytics events. This should not normally be
 	// changed except for testing.
 	EventsUri string
@@ -29,9 +25,6 @@ type Config struct {
 	// The time between flushes of the event buffer. Decreasing the flush interval means that the event buffer
 	// is less likely to reach capacity.
 	FlushInterval time.Duration
-	// The polling interval (when streaming is disabled). Values less than the default of MinimumPollInterval
-	// will be set to the default.
-	PollInterval time.Duration
 	// Configures the SDK's logging behavior. You may call its SetBaseLogger() method to specify the
 	// output destination (the default is standard error), and SetMinLevel() to specify the minimum level
 	// of messages to be logged (the default is ldlog.Info).
@@ -43,13 +36,6 @@ type Config struct {
 	//
 	// For available implementations, see the ldcomponents, redis, ldconsul, and lddynamodb packages.
 	DataStore interfaces.DataStoreFactory
-	// Sets whether streaming mode should be enabled. By default, streaming is enabled. It should only be
-	// disabled on the advice of LaunchDarkly support.
-	Stream bool
-	// Sets whether this client should use the LaunchDarkly relay in daemon mode. In this mode, the client does
-	// not subscribe to the streaming or polling API, but reads data only from the data store. See:
-	// https://docs.launchdarkly.com/docs/the-relay-proxy
-	UseLdd bool
 	// Sets whether to send analytics events back to LaunchDarkly. By default, the client will send events. This
 	// differs from Offline in that it only affects sending events, not streaming or polling for events from the
 	// server.
@@ -169,16 +155,11 @@ func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
 //     var config = DefaultConfig
 //     config.Capacity = 2000
 var DefaultConfig = Config{
-	BaseUri:                     "https://app.launchdarkly.com",
-	StreamUri:                   "https://stream.launchdarkly.com",
 	EventsUri:                   "https://events.launchdarkly.com",
 	Capacity:                    10000,
 	FlushInterval:               5 * time.Second,
-	PollInterval:                MinimumPollInterval,
 	Timeout:                     3000 * time.Millisecond,
-	Stream:                      true,
 	DataStore:                   nil,
-	UseLdd:                      false,
 	SendEvents:                  true,
 	Offline:                     false,
 	UserKeysCapacity:            1000,

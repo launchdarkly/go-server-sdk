@@ -1,4 +1,4 @@
-package ldclient
+package ldcomponents
 
 import (
 	"fmt"
@@ -8,6 +8,11 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
+type allData struct {
+	Flags    map[string]*ldmodel.FeatureFlag `json:"flags"`
+	Segments map[string]*ldmodel.Segment     `json:"segments"`
+}
+
 type httpStatusError struct {
 	Message string
 	Code    int
@@ -15,6 +20,37 @@ type httpStatusError struct {
 
 func (e httpStatusError) Error() string {
 	return e.Message
+}
+
+// Tests whether an HTTP error status represents a condition that might resolve on its own if we retry,
+// or at least should not make us permanently stop sending requests.
+func isHTTPErrorRecoverable(statusCode int) bool {
+	if statusCode >= 400 && statusCode < 500 {
+		switch statusCode {
+		case 400: // bad request
+			return true
+		case 408: // request timeout
+			return true
+		case 429: // too many requests
+			return true
+		default:
+			return false // all other 4xx errors are unrecoverable
+		}
+	}
+	return true
+}
+
+func httpErrorMessage(statusCode int, context string, recoverableMessage string) string {
+	statusDesc := ""
+	if statusCode == 401 {
+		statusDesc = " (invalid SDK key)"
+	}
+	resultMessage := recoverableMessage
+	if !isHTTPErrorRecoverable(statusCode) {
+		resultMessage = "giving up permanently"
+	}
+	return fmt.Sprintf("Received HTTP error %d%s for %s - %s",
+		statusCode, statusDesc, context, resultMessage)
 }
 
 func checkForHttpError(statusCode int, url string) error {
@@ -53,47 +89,4 @@ func makeAllVersionedDataMap(
 		allData[interfaces.DataKindSegments()][k] = v
 	}
 	return allData
-}
-
-func addBaseHeaders(h http.Header, sdkKey string, config Config) {
-	h.Add("Authorization", sdkKey)
-	h.Add("User-Agent", config.UserAgent)
-	if config.WrapperName != "" {
-		w := config.WrapperName
-		if config.WrapperVersion != "" {
-			w = w + "/" + config.WrapperVersion
-		}
-		h.Add("X-LaunchDarkly-Wrapper", w)
-	}
-}
-
-// Tests whether an HTTP error status represents a condition that might resolve on its own if we retry,
-// or at least should not make us permanently stop sending requests.
-func isHTTPErrorRecoverable(statusCode int) bool {
-	if statusCode >= 400 && statusCode < 500 {
-		switch statusCode {
-		case 400: // bad request
-			return true
-		case 408: // request timeout
-			return true
-		case 429: // too many requests
-			return true
-		default:
-			return false // all other 4xx errors are unrecoverable
-		}
-	}
-	return true
-}
-
-func httpErrorMessage(statusCode int, context string, recoverableMessage string) string {
-	statusDesc := ""
-	if statusCode == 401 {
-		statusDesc = " (invalid SDK key)"
-	}
-	resultMessage := recoverableMessage
-	if !isHTTPErrorRecoverable(statusCode) {
-		resultMessage = "giving up permanently"
-	}
-	return fmt.Sprintf("Received HTTP error %d%s for %s - %s",
-		statusCode, statusDesc, context, resultMessage)
 }

@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/redis"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -24,9 +27,7 @@ func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 		Set("connectTimeoutMillis", durationToMillis(DefaultConfig.Timeout)).
 		Set("socketTimeoutMillis", durationToMillis(DefaultConfig.Timeout)).
 		Set("eventsFlushIntervalMillis", durationToMillis(DefaultConfig.FlushInterval)).
-		Set("pollingIntervalMillis", durationToMillis(DefaultConfig.PollInterval)).
 		Set("startWaitMillis", durationToMillis(testStartWaitMillis)).
-		Set("reconnectTimeMillis", ldvalue.Int(3000)).
 		Set("streamingDisabled", ldvalue.Bool(false)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Set("allAttributesPrivate", ldvalue.Bool(false)).
@@ -38,59 +39,83 @@ func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 }
 
 func TestDiagnosticEventCustomConfig(t *testing.T) {
-	tests := []struct {
-		setConfig   func(*Config)
-		setExpected func(ldvalue.ObjectBuilder)
-	}{
-		{func(c *Config) {}, func(b ldvalue.ObjectBuilder) {}},
-		{func(c *Config) { c.BaseUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customBaseURI", ldvalue.Bool(true)) }},
-		{func(c *Config) { c.EventsUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) }},
-		{func(c *Config) { c.StreamUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customStreamURI", ldvalue.Bool(true)) }},
-		{func(c *Config) {
-			c.DataStore = ldcomponents.InMemoryDataStore()
-		},
-			func(b ldvalue.ObjectBuilder) {
-				b.Set("dataStoreType", ldvalue.String("memory"))
-			}},
-		{func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
-			func(b ldvalue.ObjectBuilder) {
-				b.Set("dataStoreType", ldvalue.String("Foo"))
-			}},
-		// Can't use our actual persistent store implementations (Redis, etc.) in this test because it'd be
-		// a circular package reference. There are tests in each of those packages to verify that they
-		// return the expected component type names.
-		{func(c *Config) { c.Capacity = 99 }, func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) }},
-		{func(c *Config) { c.Timeout = time.Second }, func(b ldvalue.ObjectBuilder) {
-			b.Set("connectTimeoutMillis", ldvalue.Int(1000))
-			b.Set("socketTimeoutMillis", ldvalue.Int(1000))
-		}},
-		{func(c *Config) { c.FlushInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) }},
-		{func(c *Config) { c.PollInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("pollingIntervalMillis", ldvalue.Int(1000)) }},
-		{func(c *Config) { c.Stream = false }, func(b ldvalue.ObjectBuilder) { b.Set("streamingDisabled", ldvalue.Bool(true)) }},
-		{func(c *Config) { c.UseLdd = true }, func(b ldvalue.ObjectBuilder) { b.Set("usingRelayDaemon", ldvalue.Bool(true)) }},
-		{func(c *Config) { c.AllAttributesPrivate = true }, func(b ldvalue.ObjectBuilder) { b.Set("allAttributesPrivate", ldvalue.Bool(true)) }},
-		{func(c *Config) { c.InlineUsersInEvents = true }, func(b ldvalue.ObjectBuilder) { b.Set("inlineUsersInEvents", ldvalue.Bool(true)) }},
-		{func(c *Config) { c.UserKeysCapacity = 2 }, func(b ldvalue.ObjectBuilder) { b.Set("userKeysCapacity", ldvalue.Int(2)) }},
-		{func(c *Config) { c.UserKeysFlushInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) }},
-		{func(c *Config) { c.DiagnosticRecordingInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("diagnosticRecordingIntervalMillis", ldvalue.Int(1000)) }},
-	}
-	for _, test := range tests {
+	timeMillis := func(t time.Duration) ldvalue.Value { return ldvalue.Int(int(t / time.Millisecond)) }
+	doTestWithoutStreamingDefaults := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
 		config := DefaultConfig
-		test.setConfig(&config)
+		setConfig(&config)
 		expected := expectedDiagnosticConfigForDefaultConfig()
-		test.setExpected(expected)
-
+		setExpected(expected)
 		actual := makeDiagnosticConfigData(config, testStartWaitMillis)
 		assert.Equal(t, expected.Build(), actual)
 	}
+	doTest := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
+		doTestWithoutStreamingDefaults(setConfig, func(b ldvalue.ObjectBuilder) {
+			b.Set("reconnectTimeMillis", timeMillis(ldcomponents.DefaultInitialReconnectDelay))
+			setExpected(b)
+		})
+	}
+
+	doTest(func(c *Config) {}, func(b ldvalue.ObjectBuilder) {})
+
+	// data store configuration
+	doTest(func(c *Config) { c.DataStore = ldcomponents.InMemoryDataStore() }, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
+		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })
+	doTest(func(c *Config) { c.DataStore, _ = ldconsul.NewConsulDataStoreFactory() },
+		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Consul")) })
+	doTest(func(c *Config) { c.DataStore, _ = lddynamodb.NewDynamoDBDataStoreFactory("table-name") },
+		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("DynamoDB")) })
+	doTest(func(c *Config) { c.DataStore, _ = redis.NewRedisDataStoreFactory() },
+		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Redis")) })
+
+	// data source configuration
+	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource() }, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) {
+		c.DataSource = ldcomponents.StreamingDataSource().BaseURI("custom")
+	}, func(b ldvalue.ObjectBuilder) {
+		b.Set("customBaseURI", ldvalue.Bool(true))
+		b.Set("customStreamURI", ldvalue.Bool(true))
+	})
+	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Minute) },
+		func(b ldvalue.ObjectBuilder) { b.Set("reconnectTimeMillis", ldvalue.Int(60000)) })
+	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.PollingDataSource() }, func(b ldvalue.ObjectBuilder) {
+		b.Set("streamingDisabled", ldvalue.Bool(true))
+		b.Set("pollingIntervalMillis", timeMillis(ldcomponents.DefaultPollInterval))
+	})
+	doTestWithoutStreamingDefaults(func(c *Config) {
+		c.DataSource = ldcomponents.PollingDataSource().BaseURI("custom").PollInterval(time.Minute * 99)
+	}, func(b ldvalue.ObjectBuilder) {
+		b.Set("streamingDisabled", ldvalue.Bool(true))
+		b.Set("customBaseURI", ldvalue.Bool(true))
+		b.Set("pollingIntervalMillis", timeMillis(time.Minute*99))
+	})
+	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.ExternalUpdatesOnly() },
+		func(b ldvalue.ObjectBuilder) { b.Set("usingRelayDaemon", ldvalue.Bool(true)) })
+
+	// events configuration
+	doTest(func(c *Config) { c.AllAttributesPrivate = true }, func(b ldvalue.ObjectBuilder) { b.Set("allAttributesPrivate", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.Capacity = 99 }, func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) })
+	doTest(func(c *Config) { c.EventsUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.FlushInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) })
+	doTest(func(c *Config) { c.InlineUsersInEvents = true }, func(b ldvalue.ObjectBuilder) { b.Set("inlineUsersInEvents", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.UserKeysCapacity = 2 }, func(b ldvalue.ObjectBuilder) { b.Set("userKeysCapacity", ldvalue.Int(2)) })
+	doTest(func(c *Config) { c.UserKeysFlushInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
+
+	// miscellaneous properties
+	doTest(func(c *Config) { c.DiagnosticRecordingInterval = time.Second },
+		func(b ldvalue.ObjectBuilder) { b.Set("diagnosticRecordingIntervalMillis", ldvalue.Int(1000)) })
+	doTest(func(c *Config) { c.Timeout = time.Second }, func(b ldvalue.ObjectBuilder) {
+		b.Set("connectTimeoutMillis", ldvalue.Int(1000))
+		b.Set("socketTimeoutMillis", ldvalue.Int(1000))
+	})
 }
 
 type customStoreFactoryForDiagnostics struct {
 	name string
 }
 
-func (c customStoreFactoryForDiagnostics) GetDiagnosticsComponentTypeName() string {
-	return c.name
+func (c customStoreFactoryForDiagnostics) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String(c.name)
 }
 
 func (c customStoreFactoryForDiagnostics) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {

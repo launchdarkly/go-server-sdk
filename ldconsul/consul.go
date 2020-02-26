@@ -29,7 +29,7 @@ import (
 
 	c "github.com/hashicorp/consul/api"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -66,7 +66,6 @@ type dataStoreOptions struct {
 	consulConfig c.Config
 	prefix       string
 	cacheTTL     time.Duration
-	logger       ld.Logger
 }
 
 // Internal implementation of the Consul-backed data store. We don't export this - we just
@@ -160,25 +159,6 @@ func CacheTTL(ttl time.Duration) DataStoreOption {
 	return cacheTTLOption{ttl}
 }
 
-type loggerOption struct {
-	logger ld.Logger
-}
-
-func (o loggerOption) apply(opts *dataStoreOptions) error {
-	opts.logger = o.logger
-	return nil
-}
-
-// Logger creates an option for NewConsulDataStore, to specify where to send log output.
-//
-// You normally do not need to specify a logger because it will use the same logging configuration as
-// the SDK client.
-//
-//     store, err := ldconsul.NewConsulDataStore(ldconsul.Logger(myLogger))
-func Logger(logger ld.Logger) DataStoreOption {
-	return loggerOption{logger}
-}
-
 // NewConsulDataStoreFactory returns a factory function for a Consul-backed data store with an
 // optional memory cache. You may customize its behavior with any number of DataStoreOption values,
 // such as Config, Address, Prefix, CacheTTL, and Logger.
@@ -208,9 +188,9 @@ func (f consulDataStoreFactory) CreateDataStore(context interfaces.ClientContext
 	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
 }
 
-// diagnosticsComponentDescriptor implementation
-func (f consulDataStoreFactory) GetDiagnosticsComponentTypeName() string {
-	return "Consul"
+// DiagnosticDescription implementation
+func (f consulDataStoreFactory) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String("Consul")
 }
 
 func validateOptions(options ...DataStoreOption) (dataStoreOptions, error) {
@@ -232,7 +212,6 @@ func newConsulDataStoreInternal(configuredOptions dataStoreOptions, loggers ldlo
 		options: configuredOptions,
 		loggers: loggers, // copied by value so we can modify it
 	}
-	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	store.loggers.SetPrefix("ConsulDataStore:")
 
 	if store.options.prefix == "" {

@@ -41,7 +41,7 @@ import (
 	r "github.com/garyburd/redigo/redis"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -68,7 +68,6 @@ type redisDataStoreOptions struct {
 	redisURL    string
 	dialOptions []r.DialOption
 	cacheTTL    time.Duration
-	logger      ld.Logger
 }
 
 // DataStoreOption is the interface for optional configuration parameters that can be
@@ -176,25 +175,6 @@ func CacheTTL(ttl time.Duration) DataStoreOption {
 	return cacheTTLOption{ttl}
 }
 
-type loggerOption struct {
-	logger ld.Logger
-}
-
-func (o loggerOption) apply(opts *redisDataStoreOptions) error {
-	opts.logger = o.logger
-	return nil
-}
-
-// Logger creates an option for NewRedisDataStore, to specify where to send log output.
-//
-// You do not normally need to specify a logger because it will use the same logging configuration as
-// the SDK client.
-//
-//     store, err := redis.NewRedisDataStore(redis.Logger(myLogger))
-func Logger(logger ld.Logger) DataStoreOption {
-	return loggerOption{logger}
-}
-
 type redisDialOptionsOption struct {
 	options []r.DialOption
 }
@@ -286,9 +266,9 @@ func (f redisDataStoreFactory) CreateDataStore(context interfaces.ClientContext)
 	return utils.NewDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
 }
 
-// diagnosticsComponentDescriptor implementation
-func (f redisDataStoreFactory) GetDiagnosticsComponentTypeName() string {
-	return "Redis"
+// DiagnosticDescription implementation
+func (f redisDataStoreFactory) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String("Redis")
 }
 
 func validateOptions(options ...DataStoreOption) (redisDataStoreOptions, error) {
@@ -310,9 +290,8 @@ func newRedisDataStoreInternal(configuredOptions redisDataStoreOptions, loggers 
 	core := &redisDataStoreCore{
 		options: configuredOptions,
 		pool:    configuredOptions.pool,
-		loggers: loggers, // copied by value so we can modify it
+		loggers: loggers,
 	}
-	core.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	core.loggers.SetPrefix("RedisDataStore:")
 
 	if core.pool == nil {

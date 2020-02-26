@@ -1,37 +1,40 @@
-package ldclient
+package ldcomponents
 
 import (
 	"sync"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 type pollingProcessor struct {
 	store              interfaces.DataStore
 	requestor          *requestor
-	config             Config
+	pollInterval       time.Duration
+	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
 	isInitialized      bool
 	quit               chan struct{}
 	closeOnce          sync.Once
 }
 
-func newPollingProcessor(config Config, store interfaces.DataStore, requestor *requestor) *pollingProcessor {
+func newPollingProcessor(context interfaces.ClientContext, store interfaces.DataStore, requestor *requestor, pollInterval time.Duration) *pollingProcessor {
 	pp := &pollingProcessor{
-		store:     store,
-		requestor: requestor,
-		config:    config,
-		quit:      make(chan struct{}),
+		store:        store,
+		requestor:    requestor,
+		pollInterval: pollInterval,
+		loggers:      context.GetLoggers(),
+		quit:         make(chan struct{}),
 	}
 
 	return pp
 }
 
 func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
-	pp.config.Loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.config.PollInterval)
+	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
-	ticker := newTickerWithInitialTick(pp.config.PollInterval)
+	ticker := newTickerWithInitialTick(pp.pollInterval)
 
 	go func() {
 		defer ticker.Stop()
@@ -48,13 +51,13 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 		for {
 			select {
 			case <-pp.quit:
-				pp.config.Loggers.Info("Polling has been shut down")
+				pp.loggers.Info("Polling has been shut down")
 				return
 			case <-ticker.C:
 				if err := pp.poll(); err != nil {
-					pp.config.Loggers.Errorf("Error when requesting feature updates: %+v", err)
+					pp.loggers.Errorf("Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(httpStatusError); ok {
-						pp.config.Loggers.Error(httpErrorMessage(hse.Code, "polling request", "will retry"))
+						pp.loggers.Error(httpErrorMessage(hse.Code, "polling request", "will retry"))
 						if !isHTTPErrorRecoverable(hse.Code) {
 							notifyReady()
 							return
@@ -64,7 +67,7 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				}
 				pp.setInitializedOnce.Do(func() {
 					pp.isInitialized = true
-					pp.config.Loggers.Info("First polling request successful")
+					pp.loggers.Info("First polling request successful")
 					notifyReady()
 				})
 			}

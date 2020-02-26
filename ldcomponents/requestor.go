@@ -1,4 +1,4 @@
-package ldclient
+package ldcomponents
 
 import (
 	"encoding/json"

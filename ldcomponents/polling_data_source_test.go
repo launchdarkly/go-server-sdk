@@ -1,4 +1,4 @@
-package ldclient
+package ldcomponents
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var nullHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
@@ -18,12 +19,8 @@ var nullHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	server := httptest.NewServer(nullHandler)
 	defer server.Close()
-	cfg := Config{
-		PollInterval: time.Minute,
-		BaseUri:      server.URL,
-	}
 	req := newRequestor(basicClientContext(), nil, server.URL)
-	p := newPollingProcessor(cfg, makeInMemoryDataStore(), req)
+	p := newPollingProcessor(basicClientContext(), makeInMemoryDataStore(), req, time.Minute)
 
 	p.Close()
 
@@ -51,13 +48,9 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	cfg := Config{
-		PollInterval: time.Millisecond,
-		BaseUri:      ts.URL,
-	}
 	store := makeInMemoryDataStore()
-	req := newRequestor(basicClientContext(), nil, ts.URL)
-	p := newPollingProcessor(cfg, store, req)
+	p, err := PollingDataSource().BaseURI(ts.URL).forcePollInterval(time.Millisecond*10).CreateDataSource(basicClientContext(), store)
+	require.NoError(t, err)
 
 	closeWhenReady := make(chan struct{})
 	p.Start(closeWhenReady)
@@ -83,7 +76,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		select {
 		case <-polls:
 		case <-time.After(time.Second):
-			assert.Fail(t, "Expected 2 polls but only got %d", i)
+			assert.Fail(t, "Expected 2 polls", "but only got %d", i)
 			return
 		}
 	}
@@ -117,14 +110,8 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 			defer ts.Close()
 			defer ts.CloseClientConnections()
 
-			cfg := Config{
-				Loggers:      ldlog.NewDisabledLoggers(),
-				PollInterval: time.Millisecond * 10,
-				BaseUri:      ts.URL,
-			}
-			store := makeInMemoryDataStore()
 			req := newRequestor(basicClientContext(), nil, ts.URL)
-			p := newPollingProcessor(cfg, store, req)
+			p := newPollingProcessor(basicClientContext(), makeInMemoryDataStore(), req, time.Millisecond*10)
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)
 
@@ -165,17 +152,11 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	cfg := Config{
-		Loggers:           ldlog.NewDisabledLoggers(),
-		PollInterval:      time.Minute * 30,
-		BaseUri:           ts.URL,
-		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
-	}
-	store := makeInMemoryDataStore()
-	context := newClientContextImpl(testSdkKey, cfg, nil)
+	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
+	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
 	req := newRequestor(context, nil, ts.URL)
 
-	p := newPollingProcessor(cfg, store, req)
+	p := newPollingProcessor(context, makeInMemoryDataStore(), req, time.Minute*30)
 	defer p.Close()
 	closeWhenReady := make(chan struct{})
 	p.Start(closeWhenReady)
