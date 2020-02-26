@@ -271,9 +271,9 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ldmodel.FeatureFlag //nolint:megacheck // allow deprecated usage
+	Flags      *map[string]ldmodel.FeatureFlag
 	FlagValues *map[string]ldvalue.Value
-	Segments   *map[string]ldmodel.Segment //nolint:megacheck // allow deprecated usage
+	Segments   *map[string]ldmodel.Segment
 }
 
 func insertData(all map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, kind interfaces.VersionedDataKind, key string,
@@ -310,14 +310,14 @@ func detectJSON(rawData []byte) bool {
 
 func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, error) {
 	all := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-		ld.Features: {}, //nolint:megacheck // allow deprecated usage
-		ld.Segments: {}, //nolint:megacheck // allow deprecated usage
+		interfaces.DataKindFeatures(): {},
+		interfaces.DataKindSegments(): {},
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				data := f
-				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, interfaces.DataKindFeatures(), key, &data); err != nil {
 					return nil, err
 				}
 			}
@@ -328,7 +328,7 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 				if err != nil {
 					return nil, err
 				}
-				if err := insertData(all, ld.Features, key, flag); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, interfaces.DataKindFeatures(), key, flag); err != nil {
 					return nil, err
 				}
 			}
@@ -336,7 +336,7 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := s
-				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
+				if err := insertData(all, interfaces.DataKindSegments(), key, &data); err != nil {
 					return nil, err
 				}
 			}

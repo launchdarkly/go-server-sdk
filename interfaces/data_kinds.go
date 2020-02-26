@@ -1,15 +1,13 @@
-package ldclient
+package interfaces
 
 import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-// VersionedDataKinds is a list of supported VersionedDataKind's. Among other things, this list might
+// VersionedDataKinds returns a list of supported VersionedDataKinds. Among other things, this list might
 // be used by data stores to know what data (namespaces) to expect.
-var VersionedDataKinds = [...]interfaces.VersionedDataKind{
-	Features,
-	Segments,
+func VersionedDataKinds() []VersionedDataKind {
+	return []VersionedDataKind{dataKindFeatures, dataKindSegments}
 }
 
 // featureFlagVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for flags.
@@ -31,14 +29,16 @@ func (fk featureFlagVersionedDataKind) GetDefaultItem() interface{} {
 }
 
 // MakeDeletedItem returns representation of a deleted flag
-func (fk featureFlagVersionedDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
+func (fk featureFlagVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
 	return &ldmodel.FeatureFlag{Key: key, Version: version, Deleted: true}
 }
 
-// Features is a convenience variable to access an instance of VersionedDataKind.
-//
-// Deprecated: this variable is for internal use and will be removed in a future version.
-var Features interfaces.VersionedDataKind = featureFlagVersionedDataKind{}
+var dataKindFeatures VersionedDataKind = featureFlagVersionedDataKind{}
+
+// DataKindFeatures returns the VersionedDataKind instance corresponding to feature flag data.
+func DataKindFeatures() VersionedDataKind {
+	return dataKindFeatures
+}
 
 // segmentVersionedDataKind implements VersionedDataKind and provides methods to build storage engine for segments.
 type segmentVersionedDataKind struct{}
@@ -59,11 +59,13 @@ func (sk segmentVersionedDataKind) GetDefaultItem() interface{} {
 }
 
 // MakeDeletedItem returns representation of a deleted segment
-func (sk segmentVersionedDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
+func (sk segmentVersionedDataKind) MakeDeletedItem(key string, version int) VersionedData {
 	return &ldmodel.Segment{Key: key, Version: version, Deleted: true}
 }
 
-// Segments is a convenience variable to access an instance of VersionedDataKind.
-//
-// Deprecated: this variable is for internal use and will be moved to another package in a future version.
-var Segments interfaces.VersionedDataKind = segmentVersionedDataKind{}
+var dataKindSegments VersionedDataKind = segmentVersionedDataKind{}
+
+// DataKindSegments returns the VersionedDataKind instance corresponding to user segment data.
+func DataKindSegments() VersionedDataKind {
+	return dataKindSegments
+}

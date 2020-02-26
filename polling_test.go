@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -71,12 +72,12 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		return
 	}
 
-	flag, err := store.Get(Features, "my-flag")
+	flag, err := store.Get(interfaces.DataKindFeatures(), "my-flag")
 	if assert.NoError(t, err) {
 		assert.Equal(t, 2, flag.GetVersion())
 	}
 
-	segment, err := store.Get(Segments, "my-segment")
+	segment, err := store.Get(interfaces.DataKindSegments(), "my-segment")
 	if assert.NoError(t, err) {
 		assert.Equal(t, 3, segment.GetVersion())
 	}

@@ -60,31 +60,6 @@ func (n nullDataSource) Start(closeWhenReady chan<- struct{}) {
 	close(closeWhenReady)
 }
 
-// Implementation of ldeval.DataProvider
-type clientEvaluatorDataProvider struct {
-	store interfaces.DataStore
-}
-
-func (c *clientEvaluatorDataProvider) GetFeatureFlag(key string) (ldmodel.FeatureFlag, bool) {
-	data, err := c.store.Get(Features, key)
-	if data != nil && err == nil {
-		if flag, ok := data.(*ldmodel.FeatureFlag); ok {
-			return *flag, true
-		}
-	}
-	return ldmodel.FeatureFlag{}, false
-}
-
-func (c *clientEvaluatorDataProvider) GetSegment(key string) (ldmodel.Segment, bool) {
-	data, err := c.store.Get(Segments, key)
-	if data != nil && err == nil {
-		if segment, ok := data.(*ldmodel.Segment); ok {
-			return *segment, true
-		}
-	}
-	return ldmodel.Segment{}, false
-}
-
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
 type clientEvaluatorEventSink struct {
 	user         *lduser.User
@@ -142,7 +117,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		config.DataStore = store
 	}
 
-	evaluator := ldeval.NewEvaluator(&clientEvaluatorDataProvider{config.DataStore})
+	evaluator := ldeval.NewEvaluator(interfaces.NewDataStoreEvaluatorDataProvider(config.DataStore))
 
 	defaultHTTPClient := config.newHTTPClient()
 
@@ -367,7 +342,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		return FeatureFlagsState{valid: false}
 	}
 
-	items, err := client.store.All(Features)
+	items, err := client.store.All(interfaces.DataKindFeatures())
 	if err != nil {
 		client.config.Loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
@@ -559,7 +534,7 @@ func (client *LDClient) evaluateInternal(
 		}
 	}
 
-	data, storeErr := client.store.Get(Features, key)
+	data, storeErr := client.store.Get(interfaces.DataKindFeatures(), key)
 
 	if storeErr != nil {
 		client.config.Loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)

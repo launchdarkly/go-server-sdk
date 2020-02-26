@@ -111,7 +111,7 @@ func RunDataStoreTests(t *testing.T, storeFactory ld.DataStoreFactory, clearExis
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		result, err := store.Get(MockData, "no") //nolint:megacheck // allow deprecated usage
+		result, err := store.Get(MockData, "no")
 		assert.Nil(t, result)
 		assert.NoError(t, err)
 	})
