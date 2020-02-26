@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 
@@ -42,9 +44,8 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 
 	config := ld.DefaultConfig
 	config.Loggers = ldlog.NewDisabledLoggers()
-	config.BaseUri = fakeBaseURL
+	config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
 	config.SendEvents = false
-	config.Stream = false
 
 	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 	require.NoError(t, err)
