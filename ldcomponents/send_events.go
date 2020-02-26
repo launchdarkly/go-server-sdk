@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// DefaultEventsBaseURI is tghe default value for EventProcessorBuilder.BaseURI.
+	// DefaultEventsBaseURI is the default value for EventProcessorBuilder.BaseURI.
 	DefaultEventsBaseURI = "https://events.launchdarkly.com"
 	// DefaultEventsCapacity is the default value for EventProcessorBuilder.Capacity.
 	DefaultEventsCapacity = 10000
