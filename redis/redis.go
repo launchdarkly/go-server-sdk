@@ -8,8 +8,9 @@
 //     factory, err := redis.NewRedisDataStoreFactory()
 //     if err != nil { ... }
 //
-//     config := ld.DefaultConfig
-//     config.DataStoreFactory = factory
+//     config := ld.Config{
+//         DataStore: factory,
+//     }
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // The default Redis pool configuration uses an address of localhost:6379, a maximum of 16

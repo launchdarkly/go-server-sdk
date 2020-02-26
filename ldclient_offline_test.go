@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
@@ -10,12 +9,7 @@ import (
 )
 
 func makeOfflineClient() *LDClient {
-	config := Config{
-		Capacity:      1000,
-		FlushInterval: 5 * time.Second,
-		Timeout:       1500 * time.Millisecond,
-		Offline:       true,
-	}
+	config := Config{Offline: true}
 	client, _ := MakeCustomClient("api_key", config, 0)
 	return client
 }

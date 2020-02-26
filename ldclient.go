@@ -12,7 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -86,27 +86,46 @@ var (
 	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed")
 )
 
-// MakeClient creates a new client instance that connects to LaunchDarkly with the default configuration. In most
-// cases, you should use this method to instantiate your client. The optional duration parameter allows callers to
-// block until the client has connected to LaunchDarkly and is properly initialized.
+// MakeClient creates a new client instance that connects to LaunchDarkly with the default configuration.
+//
+// The optional duration parameter allows callers to block until the client has connected to LaunchDarkly and is
+// properly initialized.
+//
+// For advanced configuration options, use MakeCustomClient.
 func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
-	return MakeCustomClient(sdkKey, DefaultConfig, waitFor)
+	return MakeCustomClient(sdkKey, Config{}, waitFor)
 }
 
-// MakeCustomClient creates a new client instance that connects to LaunchDarkly with a custom configuration. The optional duration parameter allows callers to
-// block until the client has connected to LaunchDarkly and is properly initialized.
+// MakeCustomClient creates a new client instance that connects to LaunchDarkly with a custom configuration.
+//
+// The config parameter allows customization of all SDK properties; some of these are represented directly as fields in
+// Config, while others are set by builder methods on a more specific configuration object. For instance, to use polling
+// mode instead of streaming, configure the polling interval, and use a non-default HTTP timeout for all HTTP requests:
+//
+//     config := ld.Config{
+//         DataSource: ldcomponents.PollingDataSource().PollInterval(45 * time.Minute),
+//         Timeout: 4 * time.Second,
+//     }
+//     client, err := ld.MakeCustomClient(sdkKey, config, 5 * time.Second)
+//
+// The optional duration parameter allows callers to block until the client has connected to LaunchDarkly and is
+// properly initialized.
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	closeWhenReady := make(chan struct{})
 
-	config.EventsUri = strings.TrimRight(config.EventsUri, "/")
 	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
 
 	config.Loggers.Init()
 	config.Loggers.Infof("Starting LaunchDarkly client %s", Version)
 
+	eventProcessorFactory := getEventProcessorFactory(config)
+
+	// Do not create a diagnostics manager if diagnostics are disabled, or if we're not using the standard event processor.
 	var diagnosticsManager *ldevents.DiagnosticsManager
-	if !config.DiagnosticOptOut && config.SendEvents && !config.Offline {
-		diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
+	if !config.DiagnosticOptOut {
+		if reflect.TypeOf(eventProcessorFactory) == reflect.TypeOf(ldcomponents.SendEvents()) {
+			diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
+		}
 	}
 
 	clientContext := newClientContextImpl(sdkKey, config, config.newHTTPClient, diagnosticsManager)
@@ -125,12 +144,9 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		evaluator: evaluator,
 	}
 
-	if config.EventProcessor != nil {
-		client.eventProcessor = config.EventProcessor
-	} else if config.SendEvents && !config.Offline {
-		client.eventProcessor = createDefaultEventProcessor(clientContext, config, config.newHTTPClient(), diagnosticsManager)
-	} else {
-		client.eventProcessor = ldevents.NewNullEventProcessor()
+	client.eventProcessor, err = eventProcessorFactory.CreateEventProcessor(clientContext)
+	if err != nil {
+		return nil, err
 	}
 
 	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, store)
@@ -186,23 +202,14 @@ func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
 	return config.DataSource
 }
 
-func createDefaultEventProcessor(context interfaces.ClientContext, config Config, client *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) ldevents.EventProcessor {
-	eventSender := ldevents.NewServerSideEventSender(client, context.GetSDKKey(), config.EventsUri, context.GetDefaultHTTPHeaders(), context.GetLoggers())
-	eventsConfig := ldevents.EventsConfiguration{
-		AllAttributesPrivate:        config.AllAttributesPrivate,
-		Capacity:                    config.Capacity,
-		DiagnosticRecordingInterval: config.DiagnosticRecordingInterval,
-		DiagnosticsManager:          diagnosticsManager,
-		EventSender:                 eventSender,
-		FlushInterval:               config.FlushInterval,
-		InlineUsersInEvents:         config.InlineUsersInEvents,
-		Loggers:                     config.Loggers,
-		LogUserKeyInErrors:          config.LogUserKeyInErrors,
-		PrivateAttributeNames:       config.PrivateAttributeNames,
-		UserKeysCapacity:            config.UserKeysCapacity,
-		UserKeysFlushInterval:       config.UserKeysFlushInterval,
+func getEventProcessorFactory(config Config) interfaces.EventProcessorFactory {
+	if config.Offline {
+		return ldcomponents.NoEvents()
 	}
-	return ldevents.NewDefaultEventProcessor(eventsConfig)
+	if config.Events == nil {
+		return ldcomponents.SendEvents()
+	}
+	return config.Events
 }
 
 // Identify reports details about a a user.

@@ -29,7 +29,7 @@ func (t urlAppendingHTTPTransport) RoundTrip(r *http.Request) (*http.Response, e
 
 func TestNewHTTPClientFactorySetsDefaults(t *testing.T) {
 	cf := NewHTTPClientFactory()
-	config := DefaultConfig
+	config := Config{}
 	config.Timeout = 45 * time.Second
 	client := cf(config)
 	assert.Equal(t, config.Timeout, client.Timeout)
@@ -48,7 +48,7 @@ func TestNewHTTPClientFactoryCanSetProxyURL(t *testing.T) {
 	url, err := url.Parse("https://fake-proxy")
 	require.NoError(t, err)
 	cf := NewHTTPClientFactory(ldhttp.ProxyOption(*url))
-	client := cf(DefaultConfig)
+	client := cf(Config{})
 
 	require.NotNil(t, client.Transport)
 	transport := client.Transport.(*http.Transport)

@@ -9,8 +9,9 @@
 //     if err != nil {
 //         // there's some configuration problem such as an invalid proxy URL
 //     }
-//     config := ld.DefaultConfig
-//     config.HTTPClientFactory = clientFactory
+//     config := ld.Config{
+//         HTTPClientFactory: clientFactory,
+//     }
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // You can also specify TLS configuration options from the ldhttp package:

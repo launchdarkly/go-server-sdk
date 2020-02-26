@@ -31,7 +31,7 @@ func (c *clientContextImpl) GetDefaultHTTPHeaders() http.Header {
 
 func (c *clientContextImpl) CreateHTTPClient() *http.Client {
 	if c.httpClientFactory == nil {
-		return DefaultConfig.newHTTPClient()
+		return Config{}.newHTTPClient()
 	}
 	return c.httpClientFactory()
 }

@@ -8,8 +8,9 @@
 //     factory, err := lddynamodb.NewDynamoDBDataStoreFactory("my-table-name")
 //     if err != nil { ... }
 //
-//     config := ld.DefaultConfig
-//     config.DataStoreFactory = factory
+//     config := ld.Config {
+//         DataStore: factory,
+//     }
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // Note that the specified table must already exist in DynamoDB. It must have a
