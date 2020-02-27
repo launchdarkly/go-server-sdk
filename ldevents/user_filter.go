@@ -30,7 +30,7 @@ type serializableUser struct {
 
 type userFilter struct {
 	allAttributesPrivate    bool
-	globalPrivateAttributes []string
+	globalPrivateAttributes []lduser.UserAttribute
 	loggers                 ldlog.Loggers
 	logUserKeyInErrors      bool
 }
@@ -83,8 +83,8 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 	}
 
 	privateAttrs := []string{}
-	isPrivate := func(attrName string) bool {
-		if uf.allAttributesPrivate || user.IsPrivateAttribute(lduser.UserAttribute(attrName)) {
+	isPrivate := func(attrName lduser.UserAttribute) bool {
+		if uf.allAttributesPrivate || user.IsPrivateAttribute(attrName) {
 			return true
 		}
 		for _, a := range uf.globalPrivateAttributes {
@@ -97,7 +97,7 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 	maybeFilter := func(attr lduser.UserAttribute, getter func(lduser.User) ldvalue.OptionalString) *string {
 		value := getter(user)
 		if value.IsDefined() {
-			if isPrivate(string(attr)) {
+			if isPrivate(attr) {
 				privateAttrs = append(privateAttrs, string(attr))
 				return nil
 			}
@@ -126,7 +126,7 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 			}
 		}()
 		filteredCustom := user.GetAllCustom().Transform(func(i int, key string, v ldvalue.Value) (ldvalue.Value, bool) {
-			if isPrivate(key) {
+			if isPrivate(lduser.UserAttribute(key)) {
 				privateAttrs = append(privateAttrs, key)
 				return ldvalue.Null(), false
 			}

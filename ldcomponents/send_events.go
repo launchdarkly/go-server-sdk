@@ -70,11 +70,6 @@ func SendEvents() *EventProcessorBuilder {
 func (b *EventProcessorBuilder) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
 	eventSender := ldevents.NewServerSideEventSender(context.CreateHTTPClient(), context.GetSDKKey(), b.baseURI,
 		context.GetDefaultHTTPHeaders(), context.GetLoggers())
-	// eventually we will change EventsConfiguration to use the UserAttribute type for PrivateAttributeNames
-	privateAttrs := make([]string, len(b.privateAttributeNames))
-	for i, a := range b.privateAttributeNames {
-		privateAttrs[i] = string(a)
-	}
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,
@@ -84,7 +79,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(context interfaces.ClientCo
 		InlineUsersInEvents:         b.inlineUsersInEvents,
 		Loggers:                     context.GetLoggers(),
 		LogUserKeyInErrors:          b.logUserKeyInErrors,
-		PrivateAttributeNames:       privateAttrs,
+		PrivateAttributeNames:       b.privateAttributeNames,
 		UserKeysCapacity:            b.userKeysCapacity,
 		UserKeysFlushInterval:       b.userKeysFlushInterval,
 	}
