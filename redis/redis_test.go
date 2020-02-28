@@ -9,6 +9,7 @@ import (
 
 	r "github.com/garyburd/redigo/redis"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	ldtest "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
@@ -55,7 +56,7 @@ func TestRedisDataStoreConcurrentModification(t *testing.T) {
 
 func TestRedisStoreComponentTypeName(t *testing.T) {
 	f, _ := NewRedisDataStoreFactory()
-	assert.Equal(t, "Redis", (f.(redisDataStoreFactory)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, ldvalue.String("Redis"), (f.(redisDataStoreFactory)).DescribeConfiguration())
 }
 
 func clearExistingData() error {

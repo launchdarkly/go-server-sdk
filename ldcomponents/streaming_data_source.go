@@ -1,4 +1,4 @@
-package ldclient
+package ldcomponents
 
 import (
 	"encoding/json"
@@ -12,7 +12,6 @@ import (
 	es "github.com/launchdarkly/eventsource"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
@@ -29,6 +28,7 @@ const (
 type streamProcessor struct {
 	store                      interfaces.DataStore
 	streamURI                  string
+	initialReconnectDelay      time.Duration
 	client                     *http.Client
 	requestor                  *requestor
 	headers                    http.Header
@@ -48,11 +48,6 @@ type putData struct {
 	Data allData `json:"data"`
 }
 
-type allData struct {
-	Flags    map[string]*ldmodel.FeatureFlag `json:"flags"`
-	Segments map[string]*ldmodel.Segment     `json:"segments"`
-}
-
 type patchData struct {
 	Path string `json:"path"`
 	// This could be a flag or a segment, or something else, depending on the path
@@ -62,6 +57,11 @@ type patchData struct {
 type deleteData struct {
 	Path    string `json:"path"`
 	Version int    `json:"version"`
+}
+
+// This interface is implemented only by the SDK's own ClientContext implementation.
+type hasDiagnosticsManager interface {
+	GetDiagnosticsManager() *ldevents.DiagnosticsManager
 }
 
 func (sp *streamProcessor) Initialized() bool {
@@ -198,6 +198,7 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 				sp.loggers.Info("Event error stream closed")
 				return false // Otherwise we will spin in this loop
 			}
+			sp.loggers.Error(err)
 			if err != io.EOF {
 				sp.loggers.Errorf("Error encountered processing stream: %+v", err)
 				if sp.checkIfPermanentFailure(err) {
@@ -227,15 +228,17 @@ func newStreamProcessor(
 	context interfaces.ClientContext,
 	store interfaces.DataStore,
 	streamURI string,
+	initialReconnectDelay time.Duration,
 	requestor *requestor,
 ) *streamProcessor {
 	sp := &streamProcessor{
-		store:     store,
-		streamURI: streamURI,
-		requestor: requestor,
-		headers:   context.GetDefaultHTTPHeaders(),
-		loggers:   context.GetLoggers(),
-		halt:      make(chan struct{}),
+		store:                 store,
+		streamURI:             streamURI,
+		initialReconnectDelay: initialReconnectDelay,
+		requestor:             requestor,
+		headers:               context.GetDefaultHTTPHeaders(),
+		loggers:               context.GetLoggers(),
+		halt:                  make(chan struct{}),
 	}
 	if hdm, ok := context.(hasDiagnosticsManager); ok {
 		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
@@ -264,6 +267,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		if stream, err := es.SubscribeWithRequestAndOptions(req,
 			es.StreamOptionHTTPClient(sp.client),
 			es.StreamOptionReadTimeout(streamReadTimeout),
+			es.StreamOptionInitialRetry(sp.initialReconnectDelay),
 			es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info))); err != nil {
 
 			sp.loggers.Warnf("Unable to establish streaming connection: %+v", err)

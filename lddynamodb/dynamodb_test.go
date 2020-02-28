@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
@@ -63,7 +64,7 @@ func TestDynamoDBDataStoreConcurrentModification(t *testing.T) {
 
 func TestDynamoDBStoreComponentTypeName(t *testing.T) {
 	factory, _ := NewDynamoDBDataStoreFactory("table")
-	assert.Equal(t, "DynamoDB", (factory.(dynamoDBDataStoreFactory)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, ldvalue.String("DynamoDB"), (factory.(dynamoDBDataStoreFactory)).DescribeConfiguration())
 }
 
 func makeStoreWithCacheTTL(ttl time.Duration) interfaces.DataStoreFactory {

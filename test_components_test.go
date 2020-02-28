@@ -10,7 +10,7 @@ import (
 const testSdkKey = "test-sdk-key"
 
 func basicClientContext() interfaces.ClientContext {
-	return newClientContextImpl(testSdkKey, Config{Loggers: ldlog.NewDisabledLoggers()}, nil)
+	return newClientContextImpl(testSdkKey, Config{Loggers: ldlog.NewDisabledLoggers()}, nil, nil)
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {

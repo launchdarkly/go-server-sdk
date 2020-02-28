@@ -1,4 +1,4 @@
-package ldclient
+package ldcomponents
 
 import (
 	"net/http"
@@ -13,8 +13,11 @@ import (
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
+
+const briefDelay = time.Millisecond * 50
 
 type testEvent struct {
 	id, event, data string
@@ -58,9 +61,9 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 	defer esserver.Close()
 
 	store := makeInMemoryDataStore()
-	requestor := newRequestor(basicClientContext(), nil, sdkServer.URL)
-
-	sp := newStreamProcessor(basicClientContext(), store, streamServer.URL, requestor)
+	sp, err := StreamingDataSource().BaseURI(streamServer.URL).PollingBaseURI(sdkServer.URL).InitialReconnectDelay(briefDelay).
+		CreateDataSource(basicClientContext(), store)
+	require.NoError(t, err)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
@@ -207,10 +210,11 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	id := ldevents.NewDiagnosticID(testSdkKey)
 	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 	store := makeInMemoryDataStore()
-	cfg := Config{Loggers: ldlog.NewDisabledLoggers()}
-	context := newClientContextImpl(testSdkKey, cfg, diagnosticsManager)
+	context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
 
-	sp := newStreamProcessor(context, store, ts.URL, nil)
+	sp, err := StreamingDataSource().BaseURI(ts.URL).
+		CreateDataSource(context, store)
+	require.NoError(t, err)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
@@ -255,10 +259,11 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	id := ldevents.NewDiagnosticID(testSdkKey)
 	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 	store := makeInMemoryDataStore()
-	cfg := Config{Loggers: ldlog.NewDisabledLoggers()}
-	context := newClientContextImpl(testSdkKey, cfg, diagnosticsManager)
+	context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
 
-	sp := newStreamProcessor(context, store, ts.URL, nil)
+	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+		CreateDataSource(context, store)
+	require.NoError(t, err)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})
@@ -287,14 +292,13 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	cfg := Config{
-		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
-		Loggers:           ldlog.NewDisabledLoggers(),
-	}
+	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 	store := makeInMemoryDataStore()
-	context := newClientContextImpl(testSdkKey, cfg, nil)
+	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
 
-	sp := newStreamProcessor(context, store, ts.URL, nil)
+	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+		CreateDataSource(context, store)
+	require.NoError(t, err)
 	defer sp.Close()
 	closeWhenReady := make(chan struct{})
 	sp.Start(closeWhenReady)
@@ -305,23 +309,36 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 }
 
 func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
+	initialPutEvent := &testEvent{
+		event: putEvent,
+		data:  `{"path": "/", "data": {"flags":{}, "segments":{}}}`,
+	}
+	esserver := eventsource.NewServer()
+	esserver.ReplayAll = true
+	esserver.Register("test", &testRepo{initialEvent: initialPutEvent})
+
 	polls := make(chan struct{}, 10)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		polls <- struct{}{}
-		// Don't return a response because we don't want the stream to close and reconnect
+		esserver.Handler("test").ServeHTTP(w, r)
 	}))
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
-	cfg := Config{
-		Timeout: 200 * time.Millisecond,
-		Loggers: ldlog.NewDisabledLoggers(),
+	httpClientFactory := func() *http.Client {
+		c := *http.DefaultClient
+		c.Timeout = 200 * time.Millisecond
+		return &c
 	}
 	store := makeInMemoryDataStore()
-	context := newClientContextImpl(testSdkKey, cfg, nil)
+	loggers := ldlog.NewDefaultLoggers()
+	loggers.SetMinLevel(ldlog.Debug)
+	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, loggers)
 
-	sp := newStreamProcessor(context, store, ts.URL, nil)
+	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+		CreateDataSource(context, store)
+	require.NoError(t, err)
 	defer sp.Close()
 	closeWhenReady := make(chan struct{})
 	sp.Start(closeWhenReady)
@@ -356,7 +373,9 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 		inits: make(chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
 	}
 
-	sp := newStreamProcessor(basicClientContext(), store, ts.URL, nil)
+	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+		CreateDataSource(basicClientContext(), store)
+	require.NoError(t, err)
 	defer sp.Close()
 
 	closeWhenReady := make(chan struct{})

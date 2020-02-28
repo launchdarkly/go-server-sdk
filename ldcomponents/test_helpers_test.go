@@ -1,0 +1,68 @@
+package ldcomponents
+
+import (
+	"net/http"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
+)
+
+const testSdkKey = "test-sdk-key"
+
+func basicClientContext() interfaces.ClientContext {
+	return interfaces.NewClientContext(testSdkKey, nil, nil, ldlog.NewDisabledLoggers())
+}
+
+type contextWithDiagnostics struct {
+	sdkKey             string
+	headers            http.Header
+	httpClientFactory  func() *http.Client
+	diagnosticsManager *ldevents.DiagnosticsManager
+}
+
+func (c *contextWithDiagnostics) GetSDKKey() string {
+	return c.sdkKey
+}
+
+func (c *contextWithDiagnostics) GetLoggers() ldlog.Loggers {
+	return ldlog.NewDisabledLoggers()
+}
+
+func (c *contextWithDiagnostics) GetDefaultHTTPHeaders() http.Header {
+	return c.headers
+}
+
+func (c *contextWithDiagnostics) CreateHTTPClient() *http.Client {
+	if c.httpClientFactory == nil {
+		return http.DefaultClient
+	}
+	return c.httpClientFactory()
+}
+
+func (c *contextWithDiagnostics) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
+	return c.diagnosticsManager
+}
+
+func newClientContextWithDiagnostics(sdkKey string, headers http.Header, httpClientFactory func() *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) interfaces.ClientContext {
+	return &contextWithDiagnostics{sdkKey, headers, httpClientFactory, diagnosticsManager}
+}
+
+func makeInMemoryDataStore() interfaces.DataStore {
+	store, _ := InMemoryDataStore().CreateDataStore(basicClientContext())
+	return store
+}
+
+type urlAppendingHTTPTransport string
+
+func urlAppendingHTTPClientFactory(suffix string) func() *http.Client {
+	return func() *http.Client {
+		return &http.Client{Transport: urlAppendingHTTPTransport(suffix)}
+	}
+}
+
+func (t urlAppendingHTTPTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	req := *r
+	req.URL.Path = req.URL.Path + string(t)
+	return http.DefaultTransport.RoundTrip(&req)
+}

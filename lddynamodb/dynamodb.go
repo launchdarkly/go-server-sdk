@@ -74,7 +74,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
@@ -105,7 +105,6 @@ type dataStoreOptions struct {
 	cacheTTL       time.Duration
 	configs        []*aws.Config
 	sessionOptions session.Options
-	logger         ld.Logger
 }
 
 // Internal type for our DynamoDB implementation of the ld.DataStore interface.
@@ -117,8 +116,7 @@ type dynamoDBDataStore struct {
 }
 
 // DataStoreOption is the interface for optional configuration parameters that can be
-// passed to NewDynamoDBDataStoreFactory. These include SessionOptions, CacheTTL, DynamoClient,
-// and Logger.
+// passed to NewDynamoDBDataStoreFactory. These include SessionOptions, CacheTTL, and DynamoClient.
 type DataStoreOption interface {
 	apply(opts *dataStoreOptions) error
 }
@@ -224,26 +222,6 @@ func SessionOptions(options session.Options) DataStoreOption {
 	return sessionOptionsOption{options}
 }
 
-type loggerOption struct {
-	logger ld.Logger
-}
-
-func (o loggerOption) apply(opts *dataStoreOptions) error {
-	opts.logger = o.logger
-	return nil
-}
-
-// Logger creates an option for NewDynamoDBDataStore, to specify where to send log output.
-// If not specified, a log.Logger is used.
-//
-// You normally do not need to specify a logger because it will use the same logging configuration as
-// the SDK client.
-//
-//     store, err := lddynamodb.NewDynamoDBDataStore("my-table-name", lddynamodb.Logger(myLogger))
-func Logger(logger ld.Logger) DataStoreOption {
-	return loggerOption{logger}
-}
-
 // NewDynamoDBDataStoreFactory returns a factory function for a DynamoDB-backed data store with an
 // optional memory cache. You may customize its behavior with DataStoreOption values, such as
 // CacheTTL and SessionOptions.
@@ -253,10 +231,8 @@ func Logger(logger ld.Logger) DataStoreOption {
 // as AWS environment variables. You can also override the default configuration with the SessionOptions
 // option, or use an already-configured DynamoDB client instance with the DynamoClient option.
 //
-// Set the DataStoreFactory field in your Config to the returned value. Because this is specified
-// as a factory function, the Consul client is not actually created until you create the SDK client.
-// This also allows it to use the same logging configuration as the SDK, so you do not have to
-// specify the Logger option separately.
+// Set the DataStore field in your Config to the returned value. Because this is specified as a factory
+// object, the Consul client is not actually created until you create the SDK client.
 func NewDynamoDBDataStoreFactory(table string, options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
 	return dynamoDBDataStoreFactory{table, options}, nil
 }
@@ -279,9 +255,9 @@ func (f dynamoDBDataStoreFactory) CreateDataStore(context interfaces.ClientConte
 	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
 }
 
-// diagnosticsComponentDescriptor implementation
-func (f dynamoDBDataStoreFactory) GetDiagnosticsComponentTypeName() string {
-	return "DynamoDB"
+// DiagnosticDescription implementation
+func (f dynamoDBDataStoreFactory) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String("DynamoDB")
 }
 
 func validateOptions(table string, options ...DataStoreOption) (dataStoreOptions, error) {
@@ -307,7 +283,6 @@ func newDynamoDBDataStoreInternal(configuredOptions dataStoreOptions, loggers ld
 		client:  configuredOptions.client,
 		loggers: loggers, // copied by value so we can modify it
 	}
-	store.loggers.SetBaseLogger(configuredOptions.logger) // has no effect if it is nil
 	store.loggers.SetPrefix("DynamoDBDataStore:")
 	store.loggers.Infof(`Using DynamoDB table %s`, configuredOptions.table)
 

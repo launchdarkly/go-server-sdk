@@ -7,6 +7,7 @@ import (
 	c "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
@@ -45,7 +46,7 @@ func TestConsulDataStoreConcurrentModification(t *testing.T) {
 
 func TestConsulStoreComponentTypeName(t *testing.T) {
 	factory, _ := NewConsulDataStoreFactory()
-	assert.Equal(t, "Consul", (factory.(consulDataStoreFactory)).GetDiagnosticsComponentTypeName())
+	assert.Equal(t, ldvalue.String("Consul"), (factory.(consulDataStoreFactory)).DescribeConfiguration())
 }
 
 func makeConsulStoreWithCacheTTL(ttl time.Duration) interfaces.DataStoreFactory {

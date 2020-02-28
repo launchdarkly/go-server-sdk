@@ -11,11 +11,9 @@ import (
 
 func makeOfflineClient() *LDClient {
 	config := Config{
-		BaseUri:       "https://localhost:3000",
 		Capacity:      1000,
 		FlushInterval: 5 * time.Second,
 		Timeout:       1500 * time.Millisecond,
-		Stream:        true,
 		Offline:       true,
 	}
 	client, _ := MakeCustomClient("api_key", config, 0)

@@ -199,9 +199,9 @@ func (f fileDataSourceFactory) CreateDataSource(context interfaces.ClientContext
 	return fs, nil
 }
 
-// diagnosticsComponentDescriptor implementation
-func (f fileDataSourceFactory) GetDiagnosticsComponentTypeName() string {
-	return "file"
+// DiagnosticDescription implementation
+func (f fileDataSourceFactory) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String("file")
 }
 
 // Initialized is used internally by the LaunchDarkly client.

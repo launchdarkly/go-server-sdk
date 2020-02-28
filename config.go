@@ -12,10 +12,6 @@ import (
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
 type Config struct {
-	// The base URI of the main LaunchDarkly service. This should not normally be changed except for testing.
-	BaseUri string
-	// The base URI of the LaunchDarkly streaming service. This should not normally be changed except for testing.
-	StreamUri string
 	// The base URI of the LaunchDarkly service that accepts analytics events. This should not normally be
 	// changed except for testing.
 	EventsUri string
@@ -29,27 +25,23 @@ type Config struct {
 	// The time between flushes of the event buffer. Decreasing the flush interval means that the event buffer
 	// is less likely to reach capacity.
 	FlushInterval time.Duration
-	// The polling interval (when streaming is disabled). Values less than the default of MinimumPollInterval
-	// will be set to the default.
-	PollInterval time.Duration
 	// Configures the SDK's logging behavior. You may call its SetBaseLogger() method to specify the
 	// output destination (the default is standard error), and SetMinLevel() to specify the minimum level
 	// of messages to be logged (the default is ldlog.Info).
 	Loggers ldlog.Loggers
 	// The connection timeout to use when making polling requests to LaunchDarkly.
 	Timeout time.Duration
+	// Sets the implementation of DataSource for receiving feature flag updates.
+	//
+	// If nil, the default is ldcomponents.StreamingDataSource(). Other options include ldcomponents.PollingDataSource(),
+	// ldcomponents.ExternalUpdatesOnly(), the file data source in ldfiledata, or a custom implementation for testing.
+	DataSource interfaces.DataSourceFactory
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
-	// For available implementations, see the ldcomponents, redis, ldconsul, and lddynamodb packages.
+	// If nil, the default is ldcomponents.InMemoryDataStore(). Other available implementations include the
+	// database integrations in the redis, ldconsul, and lddynamodb packages.
 	DataStore interfaces.DataStoreFactory
-	// Sets whether streaming mode should be enabled. By default, streaming is enabled. It should only be
-	// disabled on the advice of LaunchDarkly support.
-	Stream bool
-	// Sets whether this client should use the LaunchDarkly relay in daemon mode. In this mode, the client does
-	// not subscribe to the streaming or polling API, but reads data only from the data store. See:
-	// https://docs.launchdarkly.com/docs/the-relay-proxy
-	UseLdd bool
 	// Sets whether to send analytics events back to LaunchDarkly. By default, the client will send events. This
 	// differs from Offline in that it only affects sending events, not streaming or polling for events from the
 	// server.
@@ -72,11 +64,6 @@ type Config struct {
 	// Sets whether log messages for errors related to a specific user can include the user key. By default, they
 	// will not, since the user key might be considered privileged information.
 	LogUserKeyInErrors bool
-	// Sets the implementation of DataSource for receiving feature flag updates.
-	//
-	// If nil, a default implementation will be used depending on the rest of the configuration
-	// (streaming, polling, etc.); a custom implementation can be substituted for testing.
-	DataSource interfaces.DataSourceFactory
 	// An object that is responsible for recording or sending analytics events. If nil, a
 	// default implementation will be used; a custom implementation can be substituted for testing.
 	EventProcessor ldevents.EventProcessor
@@ -169,16 +156,11 @@ func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
 //     var config = DefaultConfig
 //     config.Capacity = 2000
 var DefaultConfig = Config{
-	BaseUri:                     "https://app.launchdarkly.com",
-	StreamUri:                   "https://stream.launchdarkly.com",
 	EventsUri:                   "https://events.launchdarkly.com",
 	Capacity:                    10000,
 	FlushInterval:               5 * time.Second,
-	PollInterval:                MinimumPollInterval,
 	Timeout:                     3000 * time.Millisecond,
-	Stream:                      true,
 	DataStore:                   nil,
-	UseLdd:                      false,
 	SendEvents:                  true,
 	Offline:                     false,
 	UserKeysCapacity:            1000,
