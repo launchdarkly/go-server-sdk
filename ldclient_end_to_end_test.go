@@ -2,7 +2,6 @@ package ldclient
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -150,7 +149,6 @@ func TestClientStartsInPollingMode(t *testing.T) {
 	config.Loggers = logCapture.Loggers
 
 	client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-	fmt.Println(logCapture.AllOutput)
 	require.NoError(t, err)
 	defer client.Close()
 
