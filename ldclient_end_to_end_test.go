@@ -43,11 +43,7 @@ func makeFlagsData(flags ...*FeatureFlag) *shared.SDKData {
 }
 
 func assertNoMoreRequests(t *testing.T, requestsCh <-chan shared.HTTPRequestInfo) {
-	select {
-	case <-requestsCh:
-		assert.Fail(t, "should not have made a second request")
-	default:
-	}
+	assert.Equal(t, 0, len(requestsCh))
 }
 
 func TestClientStartsInStreamingMode(t *testing.T) {
