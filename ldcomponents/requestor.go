@@ -43,6 +43,7 @@ func newRequestor(context interfaces.ClientContext, httpClient *http.Client, bas
 		sdkKey:     context.GetSDKKey(),
 		httpClient: &decoratedClient,
 		baseURI:    baseURI,
+		headers:    context.GetDefaultHTTPHeaders(),
 		loggers:    context.GetLoggers(),
 	}
 
