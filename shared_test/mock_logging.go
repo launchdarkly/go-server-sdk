@@ -8,6 +8,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
+// MockLogItem represents a log message captured by MockLoggers.
 type MockLogItem struct {
 	level   ldlog.LogLevel
 	message string
