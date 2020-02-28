@@ -5,6 +5,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 )
 
 // DefaultDiagnosticRecordingInterval is the default value for EventsConfiguration.DiagnosticRecordingInterval.
@@ -45,7 +46,7 @@ type EventsConfiguration struct {
 	LogUserKeyInErrors bool
 	// Marks a set of user attribute names private. Any users sent to LaunchDarkly with this configuration
 	// active will have attributes with these names removed.
-	PrivateAttributeNames []string
+	PrivateAttributeNames []lduser.UserAttribute
 	// The number of user keys that the event processor can remember at any one time, so that
 	// duplicate user details will not be sent in analytics events.
 	UserKeysCapacity int

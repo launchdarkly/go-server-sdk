@@ -18,8 +18,7 @@ import (
 func TestSecureModeHash(t *testing.T) {
 	expected := "aa747c502a898200f9e4fa21bac68136f886a0e27aec70ba06daf2e2a5cb5597"
 	key := "Message"
-	config := DefaultConfig
-	config.Offline = true
+	config := Config{Offline: true}
 
 	client, _ := MakeCustomClient("secret", config, 0*time.Second)
 
@@ -142,10 +141,9 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient(testSdkKey, Config{
-		Loggers:               ldlog.NewDisabledLoggers(),
-		DataSource:            singleDataSourceFactory{dataSource},
-		EventProcessor:        &testEventProcessor{},
-		UserKeysFlushInterval: 30 * time.Second,
+		Loggers:    ldlog.NewDisabledLoggers(),
+		DataSource: singleDataSourceFactory{dataSource},
+		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
 
 	assert.NotNil(t, client)
@@ -158,12 +156,10 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Offline:               false,
-		SendEvents:            true,
-		DataStore:             ldcomponents.InMemoryDataStore(),
-		DataSource:            singleDataSourceFactory{mockDataSource{IsInitialized: true}},
-		EventProcessor:        &testEventProcessor{},
-		UserKeysFlushInterval: 30 * time.Second,
+		Offline:    false,
+		DataStore:  ldcomponents.InMemoryDataStore(),
+		DataSource: singleDataSourceFactory{mockDataSource{IsInitialized: true}},
+		Events:     singleEventProcessorFactory{&testEventProcessor{}},
 	}
 	config.Loggers.SetBaseLogger(newMockLogger(""))
 	if modConfig != nil {

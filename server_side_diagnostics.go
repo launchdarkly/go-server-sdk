@@ -22,35 +22,39 @@ func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Valu
 	//   detecting is the HTTP_PROXY environment variable; programmatic approaches involve using a custom
 	//   transport, which we have no way of distinguishing from other kinds of custom transports (for the
 	//   same reason, we cannot detect if proxy authentication is being used).
+	timeout := config.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
 	builder := ldvalue.ObjectBuild().
-		Set("customEventsURI", ldvalue.Bool(config.EventsUri != DefaultConfig.EventsUri)).
-		Set("dataStoreType", ldvalue.String(getComponentTypeName(config.DataStore).OrElse("memory"))).
-		Set("eventsCapacity", ldvalue.Int(config.Capacity)).
-		Set("connectTimeoutMillis", durationToMillis(config.Timeout)).
-		Set("socketTimeoutMillis", durationToMillis(config.Timeout)).
-		Set("eventsFlushIntervalMillis", durationToMillis(config.FlushInterval)).
+		Set("connectTimeoutMillis", durationToMillis(timeout)).
+		Set("socketTimeoutMillis", durationToMillis(timeout)).
 		Set("startWaitMillis", durationToMillis(waitFor)).
-		Set("allAttributesPrivate", ldvalue.Bool(config.AllAttributesPrivate)).
-		Set("inlineUsersInEvents", ldvalue.Bool(config.InlineUsersInEvents)).
-		Set("userKeysCapacity", ldvalue.Int(config.UserKeysCapacity)).
-		Set("userKeysFlushIntervalMillis", durationToMillis(config.UserKeysFlushInterval)).
-		Set("usingProxy", ldvalue.Bool(os.Getenv("HTTP_PROXY") != "")).
-		Set("diagnosticRecordingIntervalMillis", durationToMillis(config.DiagnosticRecordingInterval))
+		Set("usingProxy", ldvalue.Bool(os.Getenv("HTTP_PROXY") != ""))
 
 	// Allow each pluggable component to describe its own relevant properties.
 	mergeComponentProperties(builder, config.DataSource, ldcomponents.StreamingDataSource(), "")
 	mergeComponentProperties(builder, config.DataStore, ldcomponents.InMemoryDataStore(), "dataStoreType")
+	mergeComponentProperties(builder, config.Events, ldcomponents.SendEvents(), "")
 
 	return builder.Build()
 }
 
 var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{
-	"customBaseURI":         ldvalue.BoolType,
-	"customStreamURI":       ldvalue.BoolType,
-	"pollingIntervalMillis": ldvalue.NumberType,
-	"reconnectTimeMillis":   ldvalue.NumberType,
-	"streamingDisabled":     ldvalue.BoolType,
-	"usingRelayDaemon":      ldvalue.BoolType,
+	"allAttributesPrivate":              ldvalue.BoolType,
+	"customBaseURI":                     ldvalue.BoolType,
+	"customEventsURI":                   ldvalue.BoolType,
+	"customStreamURI":                   ldvalue.BoolType,
+	"diagnosticRecordingIntervalMillis": ldvalue.NumberType,
+	"eventsCapacity":                    ldvalue.NumberType,
+	"eventsFlushIntervalMillis":         ldvalue.NumberType,
+	"inlineUsersInEvents":               ldvalue.BoolType,
+	"pollingIntervalMillis":             ldvalue.NumberType,
+	"reconnectTimeMillis":               ldvalue.NumberType,
+	"streamingDisabled":                 ldvalue.BoolType,
+	"userKeysCapacity":                  ldvalue.NumberType,
+	"userKeysFlushIntervalMillis":       ldvalue.NumberType,
+	"usingRelayDaemon":                  ldvalue.BoolType,
 }
 
 // Attempts to add relevant configuration properties, if any, from a customizable component:
@@ -98,17 +102,4 @@ func makeDiagnosticSDKData() ldvalue.Value {
 
 func durationToMillis(d time.Duration) ldvalue.Value {
 	return ldvalue.Float64(float64(uint64(d / time.Millisecond)))
-}
-
-func getComponentTypeName(component interface{}) ldvalue.OptionalString {
-	if component != nil {
-		if dd, ok := component.(interfaces.DiagnosticDescription); ok {
-			desc := dd.DescribeConfiguration()
-			if desc.Type() == ldvalue.StringType {
-				return ldvalue.NewOptionalString(desc.StringValue())
-			}
-		}
-		return ldvalue.NewOptionalString("custom")
-	}
-	return ldvalue.OptionalString{}
 }

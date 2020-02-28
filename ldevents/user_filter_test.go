@@ -118,7 +118,7 @@ func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 	for attr, _ := range optionalStringSetters {
 		t.Run(string(attr), func(t *testing.T) {
 			config := epDefaultConfig
-			config.PrivateAttributeNames = []string{string(attr)}
+			config.PrivateAttributeNames = []lduser.UserAttribute{attr}
 			filter1 := newUserFilter(config)
 			fu1 := filter1.scrubUser(u).filteredUser
 			assert.Equal(t, []string{string(attr)}, fu1.PrivateAttrs)
@@ -128,7 +128,7 @@ func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 	}
 	t.Run("custom", func(t *testing.T) {
 		config := epDefaultConfig
-		config.PrivateAttributeNames = []string{customAttrName1}
+		config.PrivateAttributeNames = []lduser.UserAttribute{lduser.UserAttribute(customAttrName1)}
 		filter1 := newUserFilter(config)
 		fu1 := filter1.scrubUser(u).filteredUser
 		assert.Equal(t, []string{customAttrName1}, fu1.PrivateAttrs)

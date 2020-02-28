@@ -59,11 +59,6 @@ type deleteData struct {
 	Version int    `json:"version"`
 }
 
-// This interface is implemented only by the SDK's own ClientContext implementation.
-type hasDiagnosticsManager interface {
-	GetDiagnosticsManager() *ldevents.DiagnosticsManager
-}
-
 func (sp *streamProcessor) Initialized() bool {
 	return sp.isInitialized
 }

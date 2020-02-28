@@ -34,6 +34,14 @@ func (f singleDataSourceFactory) CreateDataSource(context interfaces.ClientConte
 	return f.dataSource, nil
 }
 
+type singleEventProcessorFactory struct {
+	eventProcessor ldevents.EventProcessor
+}
+
+func (f singleEventProcessorFactory) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+	return f.eventProcessor, nil
+}
+
 type mockDataSource struct {
 	IsInitialized bool
 	CloseFn       func() error

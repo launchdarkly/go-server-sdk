@@ -104,8 +104,9 @@ type fileDataSource struct {
 //
 //     fileSource, err := ldfiledata.NewFileDataSourceFactory(
 //         ldfiledata.FilePaths("./test-data/my-flags.json"))
-//     ldConfig := ld.DefaultConfig
-//     ldConfig.DataSourceFactory = fileSource
+//     ldConfig := ld.Config {
+//         DataSource: fileSource,
+//     }
 //     ldClient := ld.MakeCustomClient(mySdkKey, ldConfig, 5*time.Second)
 //
 // Use FilePaths to specify any number of file paths. The files are not actually loaded until the

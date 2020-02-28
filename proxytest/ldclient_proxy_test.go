@@ -42,10 +42,10 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	// same mechanism, so it's simpler to just test against an insecure proxy.
 	os.Setenv("HTTP_PROXY", proxy.URL)
 
-	config := ld.DefaultConfig
+	config := ld.Config{}
 	config.Loggers = ldlog.NewDisabledLoggers()
 	config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
-	config.SendEvents = false
+	config.Events = ldcomponents.NoEvents()
 
 	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 	require.NoError(t, err)
@@ -66,11 +66,11 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 	proxyURL, err := url.Parse(proxy.URL)
 	require.NoError(t, err)
 
-	config := ld.DefaultConfig
+	config := ld.Config{}
 	config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
 	config.Loggers = ldlog.NewDisabledLoggers()
 	config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
-	config.SendEvents = false
+	config.Events = ldcomponents.NoEvents()
 
 	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 	require.NoError(t, err)

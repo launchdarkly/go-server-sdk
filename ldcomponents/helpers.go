@@ -3,10 +3,22 @@ package ldcomponents
 import (
 	"fmt"
 	"net/http"
+	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
+
+// This interface is implemented only by the SDK's own ClientContext implementation.
+type hasDiagnosticsManager interface {
+	GetDiagnosticsManager() *ldevents.DiagnosticsManager
+}
+
+func durationToMillisValue(d time.Duration) ldvalue.Value {
+	return ldvalue.Float64(float64(uint64(d / time.Millisecond)))
+}
 
 type allData struct {
 	Flags    map[string]*ldmodel.FeatureFlag `json:"flags"`

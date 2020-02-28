@@ -38,7 +38,7 @@ func TestCanConnectToNTLMProxyServer(t *testing.T) {
 
 	factory, err := NewNTLMProxyHTTPClientFactory(server.URL, username, password, domain)
 	require.NoError(t, err)
-	client := factory(ld.DefaultConfig)
+	client := factory(ld.Config{})
 
 	resp, err := client.Get(targetURL)
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestCanConnectSecurelyToNTLMProxyServerWithSelfSignedCert(t *testing.T) {
 			factory, err := NewNTLMProxyHTTPClientFactory(server.URL, username, password, domain,
 				ldhttp.CACertFileOption(certFile))
 			require.NoError(t, err)
-			client := factory(ld.DefaultConfig)
+			client := factory(ld.Config{})
 
 			resp, err := client.Get(targetURL)
 			require.NoError(t, err)

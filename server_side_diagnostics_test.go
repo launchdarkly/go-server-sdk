@@ -23,25 +23,25 @@ func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 		Set("customEventsURI", ldvalue.Bool(false)).
 		Set("customStreamURI", ldvalue.Bool(false)).
 		Set("dataStoreType", ldvalue.String("memory")).
-		Set("eventsCapacity", ldvalue.Int(DefaultConfig.Capacity)).
-		Set("connectTimeoutMillis", durationToMillis(DefaultConfig.Timeout)).
-		Set("socketTimeoutMillis", durationToMillis(DefaultConfig.Timeout)).
-		Set("eventsFlushIntervalMillis", durationToMillis(DefaultConfig.FlushInterval)).
+		Set("eventsCapacity", ldvalue.Int(ldcomponents.DefaultEventsCapacity)).
+		Set("connectTimeoutMillis", durationToMillis(DefaultTimeout)).
+		Set("socketTimeoutMillis", durationToMillis(DefaultTimeout)).
+		Set("eventsFlushIntervalMillis", durationToMillis(ldcomponents.DefaultFlushInterval)).
 		Set("startWaitMillis", durationToMillis(testStartWaitMillis)).
 		Set("streamingDisabled", ldvalue.Bool(false)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Set("allAttributesPrivate", ldvalue.Bool(false)).
 		Set("inlineUsersInEvents", ldvalue.Bool(false)).
-		Set("userKeysCapacity", ldvalue.Int(DefaultConfig.UserKeysCapacity)).
-		Set("userKeysFlushIntervalMillis", durationToMillis(DefaultConfig.UserKeysFlushInterval)).
+		Set("userKeysCapacity", ldvalue.Int(ldcomponents.DefaultUserKeysCapacity)).
+		Set("userKeysFlushIntervalMillis", durationToMillis(ldcomponents.DefaultUserKeysFlushInterval)).
 		Set("usingProxy", ldvalue.Bool(false)).
-		Set("diagnosticRecordingIntervalMillis", durationToMillis(DefaultConfig.DiagnosticRecordingInterval))
+		Set("diagnosticRecordingIntervalMillis", durationToMillis(ldcomponents.DefaultDiagnosticRecordingInterval))
 }
 
 func TestDiagnosticEventCustomConfig(t *testing.T) {
 	timeMillis := func(t time.Duration) ldvalue.Value { return ldvalue.Int(int(t / time.Millisecond)) }
 	doTestWithoutStreamingDefaults := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
-		config := DefaultConfig
+		config := Config{}
 		setConfig(&config)
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		setExpected(expected)
@@ -93,17 +93,25 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b ldvalue.ObjectBuilder) { b.Set("usingRelayDaemon", ldvalue.Bool(true)) })
 
 	// events configuration
-	doTest(func(c *Config) { c.AllAttributesPrivate = true }, func(b ldvalue.ObjectBuilder) { b.Set("allAttributesPrivate", ldvalue.Bool(true)) })
-	doTest(func(c *Config) { c.Capacity = 99 }, func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) })
-	doTest(func(c *Config) { c.EventsUri = "custom" }, func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
-	doTest(func(c *Config) { c.FlushInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) })
-	doTest(func(c *Config) { c.InlineUsersInEvents = true }, func(b ldvalue.ObjectBuilder) { b.Set("inlineUsersInEvents", ldvalue.Bool(true)) })
-	doTest(func(c *Config) { c.UserKeysCapacity = 2 }, func(b ldvalue.ObjectBuilder) { b.Set("userKeysCapacity", ldvalue.Int(2)) })
-	doTest(func(c *Config) { c.UserKeysFlushInterval = time.Second }, func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents() }, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().AllAttributesPrivate(true) },
+		func(b ldvalue.ObjectBuilder) { b.Set("allAttributesPrivate", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().DiagnosticRecordingInterval(time.Second * 99) },
+		func(b ldvalue.ObjectBuilder) { b.Set("diagnosticRecordingIntervalMillis", ldvalue.Int(99000)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().Capacity(99) },
+		func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().BaseURI("custom") },
+		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().FlushInterval(time.Second) },
+		func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().InlineUsersInEvents(true) },
+		func(b ldvalue.ObjectBuilder) { b.Set("inlineUsersInEvents", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().UserKeysCapacity(2) },
+		func(b ldvalue.ObjectBuilder) { b.Set("userKeysCapacity", ldvalue.Int(2)) })
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().UserKeysFlushInterval(time.Second) },
+		func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
 
 	// miscellaneous properties
-	doTest(func(c *Config) { c.DiagnosticRecordingInterval = time.Second },
-		func(b ldvalue.ObjectBuilder) { b.Set("diagnosticRecordingIntervalMillis", ldvalue.Int(1000)) })
 	doTest(func(c *Config) { c.Timeout = time.Second }, func(b ldvalue.ObjectBuilder) {
 		b.Set("connectTimeoutMillis", ldvalue.Int(1000))
 		b.Set("socketTimeoutMillis", ldvalue.Int(1000))
