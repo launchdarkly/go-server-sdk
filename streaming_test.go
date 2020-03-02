@@ -11,40 +11,14 @@ import (
 	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
-type testEvent struct {
-	id, event, data string
-}
-
-func (e *testEvent) Id() string    { return e.id }
-func (e *testEvent) Event() string { return e.event }
-func (e *testEvent) Data() string  { return e.data }
-
-type testRepo struct {
-	initialEvent eventsource.Event
-}
-
-func (r *testRepo) Replay(channel, id string) chan eventsource.Event {
-	c := make(chan eventsource.Event, 1)
-	c <- r.initialEvent
-	return c
-}
-
-func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(events chan<- eventsource.Event, store FeatureStore)) {
-	esserver := eventsource.NewServer()
-	esserver.ReplayAll = true
-	esserver.Register("test", &testRepo{initialEvent: initialEvent})
+func runStreamingTest(t *testing.T, initialData *shared.SDKData, test func(events chan<- eventsource.Event, store FeatureStore)) {
 	events := make(chan eventsource.Event, 1000)
-	streamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/all", r.URL.Path)
-		go func() {
-			for e := range events {
-				esserver.Publish([]string{"test"}, e)
-			}
-		}()
-		esserver.Handler("test").ServeHTTP(w, r)
-	}))
+	streamHandler := shared.NewStreamingServiceHandler(initialData, events)
+	streamServer := httptest.NewServer(streamHandler)
 	defer streamServer.Close()
 
 	sdkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +26,6 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 		w.Write([]byte(`{"key": "my-flag", "version": 5}`))
 	}))
 	defer sdkServer.Close()
-	defer esserver.Close()
 
 	store := NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0))
 
@@ -60,7 +33,7 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 		FeatureStore: store,
 		StreamUri:    streamServer.URL,
 		BaseUri:      sdkServer.URL,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      ldlog.NewDefaultLoggers(),
 	}
 
 	requestor := newRequestor("sdkKey", cfg, nil)
@@ -83,75 +56,56 @@ func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(ev
 
 func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
-	initialPutEvent := &testEvent{
-		event: putEvent,
-		data: `{"path": "/", "data": {
-"flags": {"my-flag": {"key": "my-flag", "version": 2}},
-"segments": {"my-segment": {"key": "my-segment", "version": 5}}
-}}`,
+	initialData := &shared.SDKData{
+		FlagsData:    []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`),
+		SegmentsData: []byte(`{"my-segment": {"key": "my-segment", "version": 2}}`),
 	}
 
 	t.Run("initial put", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store FeatureStore) {
 			waitForVersion(t, store, Features, "my-flag", 2)
 		})
 	})
 
 	t.Run("patch flag", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
-			events <- &testEvent{
-				event: patchEvent,
-				data:  `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`,
-			}
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store FeatureStore) {
+			events <- shared.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
 
 			waitForVersion(t, store, Features, "my-flag", 3)
 		})
 	})
 
 	t.Run("delete flag", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
-			events <- &testEvent{
-				event: deleteEvent,
-				data:  `{"path": "/flags/my-flag", "version": 4}`,
-			}
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store FeatureStore) {
+			events <- shared.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
 
 			waitForDelete(t, store, Segments, "my-flag")
 		})
 	})
 
 	t.Run("patch segment", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
-			events <- &testEvent{
-				event: patchEvent,
-				data:  `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`,
-			}
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store FeatureStore) {
+			events <- shared.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
 
 			waitForVersion(t, store, Segments, "my-segment", 7)
 		})
 	})
 
 	t.Run("delete segment", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
-			events <- &testEvent{
-				event: deleteEvent,
-				data:  `{"path": "/segments/my-segment", "version": 8}`,
-			}
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store FeatureStore) {
+			events <- shared.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
 
 			waitForDelete(t, store, Segments, "my-segment")
 		})
 	})
 
 	t.Run("indirect flag patch", func(t *testing.T) {
-		runStreamingTest(t, initialPutEvent, func(events chan<- eventsource.Event, store FeatureStore) {
-			events <- &testEvent{
-				event: indirectPatchEvent,
-				data:  "/flags/my-flag",
-			}
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store FeatureStore) {
+			events <- shared.NewSSEEvent("", indirectPatchEvent, "/flags/my-flag")
 
 			waitForVersion(t, store, Features, "my-flag", 5)
 		})
 	})
-
 }
 
 func waitForVersion(t *testing.T, store FeatureStore, kind VersionedDataKind, key string, version int) VersionedData {
@@ -160,7 +114,7 @@ func waitForVersion(t *testing.T, store FeatureStore, kind VersionedDataKind, ke
 	deadline := time.Now().Add(time.Second * 3)
 	for {
 		item, err = store.Get(kind, key)
-		if err != nil && item.GetVersion() == version || time.Now().After(deadline) {
+		if err == nil && item != nil && item.GetVersion() == version || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -177,7 +131,7 @@ func waitForDelete(t *testing.T, store FeatureStore, kind VersionedDataKind, key
 	deadline := time.Now().Add(time.Second * 3)
 	for {
 		item, err = store.Get(kind, key)
-		if err != nil && item == nil || time.Now().After(deadline) {
+		if item == nil || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -213,7 +167,7 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	cfg := Config{
 		StreamUri:          ts.URL,
 		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:             log.New(ioutil.Discard, "", 0),
+		Loggers:            shared.NullLoggers(),
 		diagnosticsManager: diagnosticsManager,
 	}
 
@@ -237,23 +191,15 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 }
 
 func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
-	initialPutEvent := &testEvent{
-		event: putEvent,
-		data: `{"path": "/", "data": {
-"flags": {"my-flag": {"key": "my-flag", "version": 2}}, 
-"segments": {"my-segment": {"key": "my-segment", "version": 5}}
-}}`,
-	}
-	esserver := eventsource.NewServer()
-	esserver.ReplayAll = true
-	esserver.Register("test", &testRepo{initialEvent: initialPutEvent})
+	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)}
+	streamHandler := shared.NewStreamingServiceHandler(initialData, nil)
 
 	attempt := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if attempt == 0 {
 			w.WriteHeader(statusCode)
 		} else {
-			esserver.Handler("test").ServeHTTP(w, r)
+			streamHandler.ServeHTTP(w, r)
 		}
 		attempt++
 	}))
@@ -264,7 +210,7 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	cfg := Config{
 		StreamUri:          ts.URL,
 		FeatureStore:       NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0)),
-		Logger:             log.New(ioutil.Discard, "", 0),
+		Loggers:            shared.NullLoggers(),
 		diagnosticsManager: diagnosticsManager,
 	}
 
@@ -288,17 +234,15 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 }
 
 func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
-	polledURLs := make(chan string, 1)
+	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)}
+	streamHandler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewStreamingServiceHandler(initialData, nil))
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		polledURLs <- r.URL.Path
-		// Don't return a response because we don't want the stream to close and reconnect
-	}))
+	ts := httptest.NewServer(streamHandler)
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:            log.New(ioutil.Discard, "", 0),
+		Loggers:           shared.NullLoggers(),
 		StreamUri:         ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
 	}
@@ -308,9 +252,9 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	closeWhenReady := make(chan struct{})
 	sp.Start(closeWhenReady)
 
-	polledURL := <-polledURLs
+	r := <-requestsCh
 
-	assert.Equal(t, "/all/transformed", polledURL)
+	assert.Equal(t, "/all/transformed", r.Request.URL.Path)
 }
 
 func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
@@ -324,7 +268,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	defer ts.CloseClientConnections()
 
 	cfg := Config{
-		Logger:    log.New(ioutil.Discard, "", 0),
+		Loggers:   shared.NullLoggers(),
 		StreamUri: ts.URL,
 		Timeout:   200 * time.Millisecond,
 	}
@@ -339,25 +283,10 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 }
 
 func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
-	testRepo := &testRepo{
-		initialEvent: &testEvent{
-			event: putEvent,
-			data: `{"path": "/", "data": {
-				"flags": {"my-flag": {"key": "my-flag", "version": 1}},
-				"segments": {}
-				}}`,
-		},
-	}
-	channel := "test"
-	esserver := eventsource.NewServer()
-	esserver.ReplayAll = true
-	esserver.Register(channel, testRepo)
+	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 1}}`)}
+	streamHandler := shared.NewStreamingServiceHandler(initialData, nil)
 
-	polls := make(chan struct{}, 10)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		esserver.Handler(channel).ServeHTTP(w, r)
-		polls <- struct{}{}
-	}))
+	ts := httptest.NewServer(streamHandler)
 	defer ts.Close()
 
 	store := &testFeatureStoreWithStatus{
@@ -366,9 +295,9 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	cfg := Config{
 		StreamUri:    ts.URL,
 		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      shared.NullLoggers(),
 	}
-
+	cfg.Loggers.SetMinLevel(ldlog.None)
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
 
@@ -380,13 +309,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	assert.Equal(t, 1, receivedInitialData[Features]["my-flag"].GetVersion())
 
 	// Change the stream's initialEvent so we'll get different data the next time it restarts
-	testRepo.initialEvent = &testEvent{
-		event: putEvent,
-		data: `{"path": "/", "data": {
-			"flags": {"my-flag": {"key": "my-flag", "version": 2}},
-			"segments": {}
-			}}`,
-	}
+	initialData.FlagsData = []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)
 
 	// Make the feature store simulate an outage and recovery with NeedsRefresh: true
 	store.publishStatus(internal.FeatureStoreStatus{Available: false})

@@ -2,14 +2,13 @@ package ldclient
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
 type mockUpdateProcessor struct {
@@ -274,7 +273,7 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient("sdkKey", Config{
-		Logger:                 log.New(ioutil.Discard, "", 0),
+		Loggers:                shared.NullLoggers(),
 		UpdateProcessorFactory: updateProcessorFactory(updateProcessor),
 		EventProcessor:         &testEventProcessor{},
 		UserKeysFlushInterval:  30 * time.Second,

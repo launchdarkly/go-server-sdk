@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
 var nullHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
@@ -18,7 +19,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	server := httptest.NewServer(nullHandler)
 	defer server.Close()
 	cfg := Config{
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      shared.NullLoggers(),
 		PollInterval: time.Minute,
 		BaseUri:      server.URL,
 	}
@@ -38,15 +39,12 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 }
 
 func TestPollingProcessorInitialization(t *testing.T) {
-	polls := make(chan struct{}, 2)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/sdk/latest-all", r.URL.Path)
-		w.Write([]byte(`{"flags": {"my-flag": {"key": "my-flag", "version": 2}}, "segments": {"my-segment": {"key": "my-segment", "version": 3}}}`))
-		if len(polls) < cap(polls) {
-			polls <- struct{}{}
-		}
-	}))
+	data := shared.SDKData{
+		FlagsData:    []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`),
+		SegmentsData: []byte(`{"my-segment": {"key": "my-segment", "version": 3}}`),
+	}
+	pollHandler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewPollingServiceHandler(data))
+	ts := httptest.NewServer(pollHandler)
 
 	defer ts.Close()
 	defer ts.CloseClientConnections()
@@ -55,7 +53,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 
 	cfg := Config{
 		FeatureStore: store,
-		Logger:       log.New(ioutil.Discard, "", 0),
+		Loggers:      shared.NullLoggers(),
 		PollInterval: time.Millisecond,
 		BaseUri:      ts.URL,
 	}
@@ -84,7 +82,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		select {
-		case <-polls:
+		case <-requestsCh:
 		case <-time.After(time.Second):
 			assert.Fail(t, "Expected 2 polls but only got %d", i)
 			return
@@ -108,20 +106,14 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 
 	for _, tt := range specs {
 		t.Run(fmt.Sprintf("status %d, recoverable %v", tt.statusCode, tt.recoverable), func(t *testing.T) {
-			polls := make(chan struct{}, 2)
-
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if len(polls) < cap(polls) {
-					polls <- struct{}{}
-				}
-				w.WriteHeader(tt.statusCode)
-			}))
+			handler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewHTTPHandlerReturningStatus(tt.statusCode))
+			ts := httptest.NewServer(handler)
 
 			defer ts.Close()
 			defer ts.CloseClientConnections()
 
 			cfg := Config{
-				Logger:       log.New(ioutil.Discard, "", 0),
+				Loggers:      shared.NullLoggers(),
 				PollInterval: time.Millisecond * 10,
 				BaseUri:      ts.URL,
 			}
@@ -134,7 +126,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 				// wait for two polls
 				for i := 0; i < 2; i++ {
 					select {
-					case <-polls:
+					case <-requestsCh:
 						t.Logf("Got poll attempt %d/2", i+1)
 					case <-closeWhenReady:
 						assert.Fail(t, "should not report ready")
@@ -147,7 +139,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 			} else {
 				select {
 				case <-closeWhenReady:
-					assert.Len(t, polls, 1) // should be ready after a single attempt
+					assert.Len(t, requestsCh, 1) // should be ready after a single attempt
 					assert.False(t, p.Initialized())
 				case <-time.After(time.Second):
 					assert.Fail(t, "channel was not closed immediately")
@@ -158,12 +150,11 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 }
 
 func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
-	polledURLs := make(chan string, 1)
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		polledURLs <- r.URL.Path
-		w.Write([]byte(`{"flags": {"my-flag": {"key": "my-flag", "version": 2}}, "segments": {}}`))
-	}))
+	data := shared.SDKData{
+		FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`),
+	}
+	pollHandler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewPollingServiceHandler(data))
+	ts := httptest.NewServer(pollHandler)
 	defer ts.Close()
 	defer ts.CloseClientConnections()
 
@@ -171,7 +162,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 
 	cfg := Config{
 		FeatureStore:      store,
-		Logger:            log.New(ioutil.Discard, "", 0),
+		Loggers:           shared.NullLoggers(),
 		PollInterval:      time.Minute * 30,
 		BaseUri:           ts.URL,
 		HTTPClientFactory: urlAppendingHTTPClientFactory("/transformed"),
@@ -183,7 +174,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	closeWhenReady := make(chan struct{})
 	p.Start(closeWhenReady)
 
-	polledURL := <-polledURLs
+	r := <-requestsCh
 
-	assert.Equal(t, "/sdk/latest-all/transformed", polledURL)
+	assert.Equal(t, "/sdk/latest-all/transformed", r.Request.URL.Path)
 }
