@@ -6,9 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
@@ -72,9 +69,9 @@ func TestFeatureEventIsSummarizedAndNotTrackedByDefault(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -89,9 +86,9 @@ func TestIndividualFeatureEventIsQueuedWhenTrackEventsIsTrue(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, TrackEvents: true}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -109,9 +106,9 @@ func TestUserDetailsAreScrubbedInIndexEvent(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, TrackEvents: true}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -129,9 +126,9 @@ func TestFeatureEventCanContainInlineUser(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, TrackEvents: true}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -149,9 +146,9 @@ func TestUserDetailsAreScrubbedInFeatureEvent(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, TrackEvents: true}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -168,9 +165,9 @@ func TestFeatureEventCanContainReason(t *testing.T) {
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, TrackEvents: true}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	fe.Reason = ldreason.NewEvalReasonFallthrough()
 	ep.SendEvent(fe)
 	ep.Flush()
@@ -188,9 +185,9 @@ func TestIndexEventIsGeneratedForNonTrackedFeatureEventEvenIfInliningIsOn(t *tes
 	ep, es := createEventProcessorAndSender(config)
 	defer ep.Close()
 
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11}
 	value := ldvalue.String("value")
-	fe := defaultEventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := defaultEventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -211,9 +208,9 @@ func TestDebugEventIsAddedIfFlagIsTemporarilyInDebugMode(t *testing.T) {
 	defer ep.Close()
 
 	futureTime := fakeTimeNow + 100
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).DebugEventsUntilDate(futureTime).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, DebugEventsUntilDate: futureTime}
 	value := ldvalue.String("value")
-	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := eventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -235,9 +232,9 @@ func TestEventCanBeBothTrackedAndDebugged(t *testing.T) {
 	defer ep.Close()
 
 	futureTime := fakeTimeNow + 100
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).TrackEvents(true).DebugEventsUntilDate(futureTime).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, TrackEvents: true, DebugEventsUntilDate: futureTime}
 	value := ldvalue.String("value")
-	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe := eventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -272,8 +269,8 @@ func TestDebugModeExpiresBasedOnClientTimeIfClientTimeIsLater(t *testing.T) {
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the server time, but in the past compared to the client.
 	debugUntil := serverTime + 1000
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).DebugEventsUntilDate(debugUntil).Build()
-	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), noReason, "")
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, DebugEventsUntilDate: debugUntil}
+	fe := eventFactory.NewSuccessfulEvalEvent(flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
 	ep.waitUntilInactive()
@@ -307,7 +304,7 @@ func TestDebugModeExpiresBasedOnServerTimeIfServerTimeIsLater(t *testing.T) {
 	// Now send an event with debug mode on, with a "debug until" time that is further in
 	// the future than the client time, but in the past compared to the server.
 	debugUntil := serverTime - 1000
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(11).DebugEventsUntilDate(debugUntil).Build()
+	flag := flagEventPropertiesImpl{Key: "flagkey", Version: 11, DebugEventsUntilDate: debugUntil}
 	fe := eventFactory.NewSuccessfulEvalEvent(&flag, epDefaultUser, -1, ldvalue.Null(), ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe)
 	ep.Flush()
@@ -324,11 +321,11 @@ func TestTwoFeatureEventsForSameUserGenerateOnlyOneIndexEvent(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag1 := ldbuilders.NewFlagBuilder("flagkey1").Version(11).TrackEvents(true).Build()
-	flag2 := ldbuilders.NewFlagBuilder("flagkey2").Version(22).TrackEvents(true).Build()
+	flag1 := flagEventPropertiesImpl{Key: "flagkey1", Version: 11, TrackEvents: true}
+	flag2 := flagEventPropertiesImpl{Key: "flagkey2", Version: 22, TrackEvents: true}
 	value := ldvalue.String("value")
-	fe1 := defaultEventFactory.NewSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
-	fe2 := defaultEventFactory.NewSuccessfulEvalEvent(&flag2, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe1 := defaultEventFactory.NewSuccessfulEvalEvent(flag1, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe2 := defaultEventFactory.NewSuccessfulEvalEvent(flag2, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 	ep.Flush()
@@ -347,12 +344,12 @@ func TestNonTrackedEventsAreSummarized(t *testing.T) {
 	ep, es := createEventProcessorAndSender(epDefaultConfig)
 	defer ep.Close()
 
-	flag1 := ldbuilders.NewFlagBuilder("flagkey1").Version(11).Build()
-	flag2 := ldbuilders.NewFlagBuilder("flagkey2").Version(22).Build()
+	flag1 := flagEventPropertiesImpl{Key: "flagkey1", Version: 11}
+	flag2 := flagEventPropertiesImpl{Key: "flagkey2", Version: 22}
 	value := ldvalue.String("value")
-	fe1 := defaultEventFactory.NewSuccessfulEvalEvent(&flag1, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
-	fe2 := defaultEventFactory.NewSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), noReason, "")
-	fe3 := defaultEventFactory.NewSuccessfulEvalEvent(&flag2, epDefaultUser, 3, value, ldvalue.Null(), noReason, "")
+	fe1 := defaultEventFactory.NewSuccessfulEvalEvent(flag1, epDefaultUser, 2, value, ldvalue.Null(), noReason, "")
+	fe2 := defaultEventFactory.NewSuccessfulEvalEvent(flag2, epDefaultUser, 3, value, ldvalue.Null(), noReason, "")
+	fe3 := defaultEventFactory.NewSuccessfulEvalEvent(flag2, epDefaultUser, 3, value, ldvalue.Null(), noReason, "")
 	ep.SendEvent(fe1)
 	ep.SendEvent(fe2)
 	ep.SendEvent(fe3)
@@ -574,7 +571,7 @@ func expectedIndexEvent(sourceEvent Event, encodedUser ldvalue.Value) ldvalue.Va
 		Build()
 }
 
-func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldmodel.FeatureFlag,
+func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag FlagEventProperties,
 	value ldvalue.Value, debug bool, inlineUser *ldvalue.Value) ldvalue.Value {
 	kind := "feature"
 	if debug {
@@ -582,9 +579,9 @@ func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldmodel.FeatureF
 	}
 	expected := ldvalue.ObjectBuild().
 		Set("kind", ldvalue.String(kind)).
-		Set("key", ldvalue.String(flag.Key)).
+		Set("key", ldvalue.String(flag.GetKey())).
 		Set("creationDate", ldvalue.Float64(float64(sourceEvent.GetBase().CreationDate))).
-		Set("version", ldvalue.Int(flag.Version)).
+		Set("version", ldvalue.Int(flag.GetVersion())).
 		Set("value", value).
 		Set("default", ldvalue.Null())
 	if sourceEvent.Variation != NoVariation {
@@ -603,19 +600,19 @@ func expectedFeatureEvent(sourceEvent FeatureRequestEvent, flag ldmodel.FeatureF
 	return expected.Build()
 }
 
-func assertSummaryEventHasFlag(t *testing.T, flag ldmodel.FeatureFlag, output ldvalue.Value) bool {
+func assertSummaryEventHasFlag(t *testing.T, flag FlagEventProperties, output ldvalue.Value) bool {
 	if assert.Equal(t, "summary", output.GetByKey("kind").StringValue()) {
 		flags := output.GetByKey("features")
-		return !flags.GetByKey(flag.Key).IsNull()
+		return !flags.GetByKey(flag.GetKey()).IsNull()
 	}
 	return false
 }
 
-func assertSummaryEventHasCounter(t *testing.T, flag ldmodel.FeatureFlag, variation int, value ldvalue.Value, count int, output ldvalue.Value) {
+func assertSummaryEventHasCounter(t *testing.T, flag flagEventPropertiesImpl, variation int, value ldvalue.Value, count int, output ldvalue.Value) {
 	if assertSummaryEventHasFlag(t, flag, output) {
-		f := output.GetByKey("features").GetByKey(flag.Key)
+		f := output.GetByKey("features").GetByKey(flag.GetKey())
 		assert.Equal(t, ldvalue.ObjectType, f.Type())
-		expected := ldvalue.ObjectBuild().Set("value", value).Set("count", ldvalue.Int(count)).Set("version", ldvalue.Int(flag.Version))
+		expected := ldvalue.ObjectBuild().Set("value", value).Set("count", ldvalue.Int(count)).Set("version", ldvalue.Int(flag.GetVersion()))
 		if variation >= 0 {
 			expected.Set("variation", ldvalue.Int(variation))
 		}

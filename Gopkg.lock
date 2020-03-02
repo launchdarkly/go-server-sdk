@@ -248,7 +248,7 @@
 
 [[projects]]
   branch = "v1"
-  digest = "1:6267d39d7157928a574adc93271ae6141df0219b0e13e1dd103c89935fd70041"
+  digest = "1:8361c5723795d5bd813862c1703712997dcbc66f82d520272595c2143ecdc9f3"
   name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
   packages = [
     ".",
@@ -256,7 +256,7 @@
     "ldmodel",
   ]
   pruneopts = "NUT"
-  revision = "01d6b12ea087990cc710e016e783c684d8fc928f"
+  revision = "8e317e363084f4a8e812734618542c640b66e664"
   source = "github.com/launchdarkly/go-server-sdk-evaluation-private"
 
 [[projects]]
