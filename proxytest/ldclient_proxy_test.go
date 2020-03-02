@@ -7,6 +7,7 @@
 package proxytest
 
 import (
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"testing"
@@ -28,13 +29,14 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	oldHttpProxy := os.Getenv("HTTP_PROXY")
 	defer os.Setenv("HTTP_PROXY", oldHttpProxy)
 
-	fakeBaseURL := "http://badhost/url"
+	fakeBaseURL := "http://badhost"
 	fakeEndpointURL := fakeBaseURL + "/sdk/latest-all"
 
 	// Create an extremely minimal fake proxy server that doesn't actually do any proxying, just to
 	// verify that we are connecting to it. If the HTTP_PROXY setting is ignored, then it will try
 	// to connect directly to the nonexistent host "badhost" instead and get an error.
-	proxy := shared.NewStubHTTPServer(shared.StubResponse{Code: 200, Body: "{}"})
+	handler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewPollingServiceHandler(shared.SDKData{}))
+	proxy := httptest.NewServer(handler)
 	defer proxy.Close()
 
 	// Note that in normal usage, we will be connecting to secure LaunchDarkly endpoints, so it's
@@ -51,17 +53,20 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	assert.Equal(t, []string{fakeEndpointURL}, proxy.RequestedURLs)
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, fakeEndpointURL, r.Request.URL.String())
 }
 
 func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
-	fakeBaseURL := "http://badhost/url"
+	fakeBaseURL := "http://badhost"
 	fakeEndpointURL := fakeBaseURL + "/sdk/latest-all"
 
 	// Create an extremely minimal fake proxy server that doesn't actually do any proxying, just to
 	// verify that we are connecting to it. If the HTTP_PROXY setting is ignored, then it will try
 	// to connect directly to the nonexistent host "badhost" instead and get an error.
-	proxy := shared.NewStubHTTPServer(shared.StubResponse{Code: 200, Body: "{}"})
+	handler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewPollingServiceHandler(shared.SDKData{}))
+	proxy := httptest.NewServer(handler)
 	defer proxy.Close()
 	proxyURL, err := url.Parse(proxy.URL)
 	require.NoError(t, err)
@@ -76,5 +81,7 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	assert.Equal(t, []string{fakeEndpointURL}, proxy.RequestedURLs)
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, fakeEndpointURL, r.Request.URL.String())
 }

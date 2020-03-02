@@ -1,13 +1,33 @@
 package ldclient
 
 import (
+	"encoding/json"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 const testSdkKey = "test-sdk-key"
+
+var testUser = lduser.NewUser("test-user-key")
+
+var alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
+
+func makeFlagsData(flags ...*ldmodel.FeatureFlag) *shared.SDKData {
+	flagsMap := make(map[string]*ldmodel.FeatureFlag, len(flags))
+	for _, f := range flags {
+		flagsMap[f.Key] = f
+	}
+	bytes, _ := json.Marshal(flagsMap)
+	return &shared.SDKData{FlagsData: bytes}
+}
 
 func basicClientContext() interfaces.ClientContext {
 	return newClientContextImpl(testSdkKey, Config{Loggers: ldlog.NewDisabledLoggers()}, nil, nil)
