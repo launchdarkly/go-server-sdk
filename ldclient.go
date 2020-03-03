@@ -49,7 +49,8 @@ type clientEvaluatorEventSink struct {
 }
 
 func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.PrerequisiteFlagEvent) {
-	event := c.eventFactory.NewSuccessfulEvalEvent(&params.PrerequisiteFlag, *c.user, params.PrerequisiteResult.VariationIndex,
+	flagProps := ldeval.FlagEventProperties(params.PrerequisiteFlag)
+	event := c.eventFactory.NewSuccessfulEvalEvent(flagProps, *c.user, params.PrerequisiteResult.VariationIndex,
 		params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, params.TargetFlagKey)
 	c.events = append(c.events, event)
 }
@@ -489,7 +490,8 @@ func (client *LDClient) variation(
 	if flag == nil {
 		evt = eventFactory.NewUnknownFlagEvent(key, user, defaultVal, result.Reason) //nolint
 	} else {
-		evt = eventFactory.NewSuccessfulEvalEvent(flag, user, result.VariationIndex, result.Value, defaultVal,
+		flagProps := ldeval.FlagEventProperties(*flag)
+		evt = eventFactory.NewSuccessfulEvalEvent(flagProps, user, result.VariationIndex, result.Value, defaultVal,
 			result.Reason, "")
 	}
 	client.eventProcessor.SendEvent(evt)

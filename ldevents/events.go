@@ -5,8 +5,6 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
 const (
@@ -74,6 +72,8 @@ type EventFactory struct {
 // The includeReasons parameter is true if evaluation events should always include the EvaluationReason (this is
 // used by the SDK when one of the "VariationDetail" methods is called). The timeFn parameter is normally nil but
 // can be used to instrument the EventFactory with a source of time data other than the standard clock.
+//
+// The isExperimentFn parameter is necessary to provide the additional experimentation behavior that is
 func NewEventFactory(includeReasons bool, timeFn func() ldtime.UnixMillisecondTime) EventFactory {
 	if timeFn == nil {
 		timeFn = ldtime.UnixMillisNow
@@ -101,29 +101,27 @@ func (f EventFactory) NewUnknownFlagEvent(key string, user lduser.User, defaultV
 }
 
 // NewSuccessfulEvalEvent creates an evaluation event.
-func (f EventFactory) NewSuccessfulEvalEvent(flag *ldmodel.FeatureFlag, user lduser.User, variation int, value, defaultVal ldvalue.Value,
+func (f EventFactory) NewSuccessfulEvalEvent(flagProps FlagEventProperties, user lduser.User, variation int, value, defaultVal ldvalue.Value,
 	reason ldreason.EvaluationReason, prereqOf string) FeatureRequestEvent {
-	requireExperimentData := ldeval.IsExperimentationEnabled(*flag, reason)
+	requireExperimentData := flagProps.IsExperimentationEnabled(reason)
 	fre := FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: f.timeFn(),
 			User:         user,
 		},
-		Key:         flag.Key,
-		Version:     flag.Version,
-		Variation:   variation,
-		Value:       value,
-		Default:     defaultVal,
-		TrackEvents: requireExperimentData || flag.TrackEvents,
+		Key:                  flagProps.GetKey(),
+		Version:              flagProps.GetVersion(),
+		Variation:            variation,
+		Value:                value,
+		Default:              defaultVal,
+		TrackEvents:          requireExperimentData || flagProps.IsFullEventTrackingEnabled(),
+		DebugEventsUntilDate: flagProps.GetDebugEventsUntilDate(),
 	}
 	if f.includeReasons || requireExperimentData {
 		fre.Reason = reason
 	}
 	if prereqOf != "" {
 		fre.PrereqOf = ldvalue.NewOptionalString(prereqOf)
-	}
-	if flag.DebugEventsUntilDate != nil {
-		fre.DebugEventsUntilDate = *flag.DebugEventsUntilDate
 	}
 	return fre
 }
