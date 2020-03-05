@@ -265,7 +265,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			es.StreamOptionInitialRetry(sp.initialReconnectDelay),
 			es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info))); err != nil {
 
-			sp.loggers.Warnf("Unable to establish streaming connection: %+v", err)
+			sp.loggers.Warnf("Unable to establish streaming connection: %s", err)
 			sp.logConnectionResult(false)
 
 			if sp.checkIfPermanentFailure(err) {

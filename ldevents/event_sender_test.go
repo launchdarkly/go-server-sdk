@@ -9,6 +9,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
+	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
@@ -27,6 +28,13 @@ type errorInfo struct {
 	err    error
 }
 
+func (ei errorInfo) Handler() http.Handler {
+	if ei.err == nil {
+		return httphelpers.HandlerWithStatus(ei.status)
+	}
+	return httphelpers.PanicHandler(ei.err)
+}
+
 func (ei errorInfo) String() string {
 	if ei.err == nil {
 		return fmt.Sprintf("error %d", ei.status)
@@ -35,68 +43,66 @@ func (ei errorInfo) String() string {
 }
 
 func TestDataIsSentToAnalyticsURI(t *testing.T) {
-	es, requests := makeEventSenderWithRequestSink()
+	es, requestsCh := makeEventSenderWithRequestSink()
 
 	result := es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 	assert.True(t, result.Success)
 
-	assert.Equal(t, 1, len(*requests))
-	request := (*requests)[0]
-	assert.Equal(t, fakeEventsURI, request.URL.String())
-	assert.Equal(t, fakeEventData, getBody(request))
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, fakeEventsURI, r.Request.URL.String())
+	assert.Equal(t, fakeEventData, r.Body)
 }
 
 func TestDataIsSentToDiagnosticURI(t *testing.T) {
-	es, requests := makeEventSenderWithRequestSink()
+	es, requestsCh := makeEventSenderWithRequestSink()
 
 	result := es.SendEventData(DiagnosticEventDataKind, fakeEventData, 1)
 	assert.True(t, result.Success)
 
-	assert.Equal(t, 1, len(*requests))
-	request := (*requests)[0]
-	assert.Equal(t, fakeDiagnosticURI, request.URL.String())
-	assert.Equal(t, fakeEventData, getBody(request))
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, fakeDiagnosticURI, r.Request.URL.String())
+	assert.Equal(t, fakeEventData, r.Body)
 }
 
 func TestAnalyticsEventsHaveSchemaAndPayloadIDHeaders(t *testing.T) {
-	es, requests := makeEventSenderWithRequestSink()
+	es, requestsCh := makeEventSenderWithRequestSink()
 
 	es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 	es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 
-	assert.Equal(t, 2, len(*requests))
-	request0 := (*requests)[0]
-	request1 := (*requests)[1]
+	assert.Equal(t, 2, len(requestsCh))
+	r0 := <-requestsCh
+	r1 := <-requestsCh
 
-	assert.Equal(t, currentEventSchema, request0.Header.Get(eventSchemaHeader))
-	assert.Equal(t, currentEventSchema, request1.Header.Get(eventSchemaHeader))
+	assert.Equal(t, currentEventSchema, r0.Request.Header.Get(eventSchemaHeader))
+	assert.Equal(t, currentEventSchema, r1.Request.Header.Get(eventSchemaHeader))
 
-	id0 := request0.Header.Get(payloadIDHeader)
-	id1 := request1.Header.Get(payloadIDHeader)
+	id0 := r0.Request.Header.Get(payloadIDHeader)
+	id1 := r1.Request.Header.Get(payloadIDHeader)
 	assert.NotEqual(t, "", id0)
 	assert.NotEqual(t, "", id1)
 	assert.NotEqual(t, id0, id1)
 }
 
 func TestDiagnosticEventsDoNotHaveSchemaOrPayloadID(t *testing.T) {
-	es, requests := makeEventSenderWithRequestSink()
+	es, requestsCh := makeEventSenderWithRequestSink()
 
 	es.SendEventData(DiagnosticEventDataKind, fakeEventData, 1)
 
-	assert.Equal(t, 1, len(*requests))
-	request := (*requests)[0]
-	assert.Equal(t, "", request.Header.Get(eventSchemaHeader))
-	assert.Equal(t, "", request.Header.Get(payloadIDHeader))
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, "", r.Request.Header.Get(eventSchemaHeader))
+	assert.Equal(t, "", r.Request.Header.Get(payloadIDHeader))
 }
 
 func TestEventSenderParsesTimeFromServer(t *testing.T) {
 	expectedTime := ldtime.UnixMillisFromTime(time.Date(1940, time.February, 15, 12, 13, 14, 0, time.UTC))
-	client := newHTTPClientWithHandler(func(request *http.Request) (*http.Response, error) {
-		headers := make(http.Header)
-		headers.Set("Date", "Thu, 15 Feb 1940 12:13:14 GMT")
-		return newHTTPResponse(request, 202, headers, nil), nil
-	})
-	es := makeEventSenderWithHTTPClient(client)
+	headers := make(http.Header)
+	headers.Set("Date", "Thu, 15 Feb 1940 12:13:14 GMT")
+	handler := httphelpers.HandlerWithResponse(202, headers, nil)
+	es := makeEventSenderWithHTTPClient(httphelpers.ClientFromHandler(handler))
 
 	result := es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 	assert.True(t, result.Success)
@@ -107,39 +113,52 @@ func TestEventSenderRetriesOnRecoverableError(t *testing.T) {
 	errs := []errorInfo{{400, nil}, {408, nil}, {429, nil}, {500, nil}, {503, nil}, {0, errors.New("fake network error")}}
 	for _, errorInfo := range errs {
 		t.Run(fmt.Sprintf("Retries once after %s", errorInfo), func(t *testing.T) {
-			var requests []*http.Request
-			client := newHTTPClientWithHandler(httpHandlerThatFailsTimes(1, errorInfo, 202, &requests))
-			es := makeEventSenderWithHTTPClient(client)
+			handler, requestsCh := httphelpers.RecordingHandler(
+				httphelpers.SequentialHandler(
+					errorInfo.Handler(),                // fails once
+					httphelpers.HandlerWithStatus(202), // then succeeds
+				),
+			)
+			es := makeEventSenderWithHTTPClient(httphelpers.ClientFromHandler(handler))
 
 			result := es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 
 			assert.True(t, result.Success)
 			assert.False(t, result.MustShutDown)
 
-			assert.Equal(t, 2, len(requests))
-			assert.Equal(t, fakeEventData, getBody(requests[0]))
-			assert.Equal(t, fakeEventData, getBody(requests[1]))
-			id0 := requests[0].Header.Get(payloadIDHeader)
+			assert.Equal(t, 2, len(requestsCh))
+			r0 := <-requestsCh
+			r1 := <-requestsCh
+			assert.Equal(t, fakeEventData, r0.Body)
+			assert.Equal(t, fakeEventData, r1.Body)
+			id0 := r0.Request.Header.Get(payloadIDHeader)
 			assert.NotEqual(t, "", id0)
-			assert.Equal(t, id0, requests[1].Header.Get(payloadIDHeader))
+			assert.Equal(t, id0, r1.Request.Header.Get(payloadIDHeader))
 		})
 
 		t.Run(fmt.Sprintf("Does not retry more than once after %s", errorInfo), func(t *testing.T) {
-			var requests []*http.Request
-			client := newHTTPClientWithHandler(httpHandlerThatFailsTimes(2, errorInfo, 202, &requests))
-			es := makeEventSenderWithHTTPClient(client)
+			handler, requestsCh := httphelpers.RecordingHandler(
+				httphelpers.SequentialHandler(
+					errorInfo.Handler(),                // fails once
+					errorInfo.Handler(),                // fails again
+					httphelpers.HandlerWithStatus(202), // then would succeed, if we did a 3rd request
+				),
+			)
+			es := makeEventSenderWithHTTPClient(httphelpers.ClientFromHandler(handler))
 
 			result := es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 
 			assert.False(t, result.Success)
 			assert.False(t, result.MustShutDown)
 
-			assert.Equal(t, 2, len(requests))
-			assert.Equal(t, fakeEventData, getBody(requests[0]))
-			assert.Equal(t, fakeEventData, getBody(requests[1]))
-			id0 := requests[0].Header.Get(payloadIDHeader)
+			assert.Equal(t, 2, len(requestsCh))
+			r0 := <-requestsCh
+			r1 := <-requestsCh
+			assert.Equal(t, fakeEventData, r0.Body)
+			assert.Equal(t, fakeEventData, r1.Body)
+			id0 := r0.Request.Header.Get(payloadIDHeader)
 			assert.NotEqual(t, "", id0)
-			assert.Equal(t, id0, requests[1].Header.Get(payloadIDHeader))
+			assert.Equal(t, id0, r1.Request.Header.Get(payloadIDHeader))
 		})
 	}
 }
@@ -148,61 +167,69 @@ func TestEventSenderFailsOnUnrecoverableError(t *testing.T) {
 	errs := []errorInfo{{401, nil}, {403, nil}}
 	for _, errorInfo := range errs {
 		t.Run(fmt.Sprintf("Fails permanently after %s", errorInfo), func(t *testing.T) {
-			var requests []*http.Request
-			client := newHTTPClientWithHandler(httpHandlerThatFailsTimes(1, errorInfo, 202, &requests))
-			es := makeEventSenderWithHTTPClient(client)
+			handler, requestsCh := httphelpers.RecordingHandler(
+				httphelpers.SequentialHandler(
+					errorInfo.Handler(),                // fails once
+					httphelpers.HandlerWithStatus(202), // then succeeds
+				),
+			)
+			es := makeEventSenderWithHTTPClient(httphelpers.ClientFromHandler(handler))
 
 			result := es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 
 			assert.False(t, result.Success)
 			assert.True(t, result.MustShutDown)
 
-			assert.Equal(t, 1, len(requests))
-			assert.Equal(t, fakeEventData, getBody(requests[0]))
+			assert.Equal(t, 1, len(requestsCh))
+			r := <-requestsCh
+			assert.Equal(t, fakeEventData, r.Body)
 		})
 	}
 }
 
 func TestServerSideSenderSetsURIsFromBase(t *testing.T) {
-	client, requests := newHTTPClientWithRequestSink(202)
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(202))
+	client := httphelpers.ClientFromHandler(handler)
 	es := NewServerSideEventSender(client, sdkKey, fakeBaseURI, nil, ldlog.NewDisabledLoggers())
 
 	es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 	es.SendEventData(DiagnosticEventDataKind, fakeEventData, 1)
 
-	assert.Equal(t, 2, len(*requests))
-	request0 := (*requests)[0]
-	request1 := (*requests)[1]
-	assert.Equal(t, fakeEventsURI, request0.URL.String())
-	assert.Equal(t, fakeDiagnosticURI, request1.URL.String())
+	assert.Equal(t, 2, len(requestsCh))
+	r0 := <-requestsCh
+	r1 := <-requestsCh
+	assert.Equal(t, fakeEventsURI, r0.Request.URL.String())
+	assert.Equal(t, fakeDiagnosticURI, r1.Request.URL.String())
 }
 
 func TestServerSideSenderHasDefaultBaseURI(t *testing.T) {
-	client, requests := newHTTPClientWithRequestSink(202)
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(202))
+	client := httphelpers.ClientFromHandler(handler)
 	es := NewServerSideEventSender(client, sdkKey, "", nil, ldlog.NewDisabledLoggers())
 
 	es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 	es.SendEventData(DiagnosticEventDataKind, fakeEventData, 1)
 
-	assert.Equal(t, 2, len(*requests))
-	request0 := (*requests)[0]
-	request1 := (*requests)[1]
-	assert.Equal(t, "https://events.launchdarkly.com/bulk", request0.URL.String())
-	assert.Equal(t, "https://events.launchdarkly.com/diagnostic", request1.URL.String())
+	assert.Equal(t, 2, len(requestsCh))
+	r0 := <-requestsCh
+	r1 := <-requestsCh
+	assert.Equal(t, "https://events.launchdarkly.com/bulk", r0.Request.URL.String())
+	assert.Equal(t, "https://events.launchdarkly.com/diagnostic", r1.Request.URL.String())
 }
 
 func TestServerSideSenderAddsAuthorizationHeader(t *testing.T) {
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(202))
+	client := httphelpers.ClientFromHandler(handler)
 	extraHeaders := make(http.Header)
 	extraHeaders.Set("my-header", "my-value")
-	client, requests := newHTTPClientWithRequestSink(202)
 	es := NewServerSideEventSender(client, sdkKey, fakeBaseURI, extraHeaders, ldlog.NewDisabledLoggers())
 
 	es.SendEventData(AnalyticsEventDataKind, fakeEventData, 1)
 
-	assert.Equal(t, 1, len(*requests))
-	request := (*requests)[0]
-	assert.Equal(t, sdkKey, request.Header.Get("Authorization"))
-	assert.Equal(t, "my-value", request.Header.Get("my-header"))
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, sdkKey, r.Request.Header.Get("Authorization"))
+	assert.Equal(t, "my-value", r.Request.Header.Get("my-header"))
 }
 
 func makeEventSenderWithHTTPClient(client *http.Client) EventSender {
@@ -215,20 +242,8 @@ func makeEventSenderWithHTTPClient(client *http.Client) EventSender {
 	}
 }
 
-func makeEventSenderWithRequestSink() (EventSender, *[]*http.Request) {
-	client, requests := newHTTPClientWithRequestSink(202)
-	return makeEventSenderWithHTTPClient(client), requests
-}
-
-func httpHandlerThatFailsTimes(times int, ei errorInfo, finalStatus int, requestsOut *[]*http.Request) func(*http.Request) (*http.Response, error) {
-	return func(req *http.Request) (*http.Response, error) {
-		*requestsOut = append(*requestsOut, req)
-		if len(*requestsOut) > times {
-			return newHTTPResponse(req, finalStatus, nil, nil), nil
-		}
-		if ei.err != nil {
-			return nil, ei.err
-		}
-		return newHTTPResponse(req, ei.status, nil, nil), nil
-	}
+func makeEventSenderWithRequestSink() (EventSender, <-chan httphelpers.HTTPRequestInfo) {
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerForMethod("POST", httphelpers.HandlerWithStatus(202), nil))
+	client := httphelpers.ClientFromHandler(handler)
+	return makeEventSenderWithHTTPClient(client), requestsCh
 }

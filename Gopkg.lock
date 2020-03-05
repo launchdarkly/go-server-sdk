@@ -157,6 +157,18 @@
   revision = "a22bdd33b2a45c81d5adce655962f79872df8fff"
 
 [[projects]]
+  branch = "v1"
+  digest = "1:e3ff03baa35c60d874c791d7fa072e21e6bcd938441d27316e799ca63fac5d43"
+  name = "github.com/launchdarkly/go-test-helpers"
+  packages = [
+    ".",
+    "httphelpers",
+    "ldservices",
+  ]
+  pruneopts = "NUT"
+  revision = "35c9898b35f1a96986cbfa997a77bc76a61e7d3e"
+
+[[projects]]
   digest = "1:a4df73029d2c42fabcb6b41e327d2f87e685284ec03edf76921c267d9cfc9c23"
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
@@ -284,6 +296,9 @@
     "github.com/hashicorp/consul/api",
     "github.com/launchdarkly/eventsource",
     "github.com/launchdarkly/go-ntlm-proxy-auth",
+    "github.com/launchdarkly/go-test-helpers",
+    "github.com/launchdarkly/go-test-helpers/httphelpers",
+    "github.com/launchdarkly/go-test-helpers/ldservices",
     "github.com/patrickmn/go-cache",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
