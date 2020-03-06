@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-test-helpers/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/ldservices"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
@@ -22,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 func TestClientUsesProxyEnvVars(t *testing.T) {
@@ -35,27 +37,26 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 	// Create an extremely minimal fake proxy server that doesn't actually do any proxying, just to
 	// verify that we are connecting to it. If the HTTP_PROXY setting is ignored, then it will try
 	// to connect directly to the nonexistent host "badhost" instead and get an error.
-	handler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewPollingServiceHandler(shared.SDKData{}))
-	proxy := httptest.NewServer(handler)
-	defer proxy.Close()
+	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData()))
+	httphelpers.WithServer(handler, func(proxy *httptest.Server) {
+		// Note that in normal usage, we will be connecting to secure LaunchDarkly endpoints, so it's
+		// really HTTPS_PROXY that is relevant. But support for HTTP_PROXY and HTTPS_PROXY comes from the
+		// same mechanism, so it's simpler to just test against an insecure proxy.
+		os.Setenv("HTTP_PROXY", proxy.URL)
 
-	// Note that in normal usage, we will be connecting to secure LaunchDarkly endpoints, so it's
-	// really HTTPS_PROXY that is relevant. But support for HTTP_PROXY and HTTPS_PROXY comes from the
-	// same mechanism, so it's simpler to just test against an insecure proxy.
-	os.Setenv("HTTP_PROXY", proxy.URL)
+		config := ld.Config{}
+		config.Loggers = ldlog.NewDisabledLoggers()
+		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
+		config.Events = ldcomponents.NoEvents()
 
-	config := ld.Config{}
-	config.Loggers = ldlog.NewDisabledLoggers()
-	config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
-	config.Events = ldcomponents.NoEvents()
+		client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
+		require.NoError(t, err)
+		defer client.Close()
 
-	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
-	require.NoError(t, err)
-	defer client.Close()
-
-	assert.Equal(t, 1, len(requestsCh))
-	r := <-requestsCh
-	assert.Equal(t, fakeEndpointURL, r.Request.URL.String())
+		assert.Equal(t, 1, len(requestsCh))
+		r := <-requestsCh
+		assert.Equal(t, fakeEndpointURL, r.Request.URL.String())
+	})
 }
 
 func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
@@ -65,23 +66,23 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 	// Create an extremely minimal fake proxy server that doesn't actually do any proxying, just to
 	// verify that we are connecting to it. If the HTTP_PROXY setting is ignored, then it will try
 	// to connect directly to the nonexistent host "badhost" instead and get an error.
-	handler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewPollingServiceHandler(shared.SDKData{}))
-	proxy := httptest.NewServer(handler)
-	defer proxy.Close()
-	proxyURL, err := url.Parse(proxy.URL)
-	require.NoError(t, err)
+	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData()))
+	httphelpers.WithServer(handler, func(proxy *httptest.Server) {
+		proxyURL, err := url.Parse(proxy.URL)
+		require.NoError(t, err)
 
-	config := ld.Config{}
-	config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
-	config.Loggers = ldlog.NewDisabledLoggers()
-	config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
-	config.Events = ldcomponents.NoEvents()
+		config := ld.Config{}
+		config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
+		config.Loggers = ldlog.NewDisabledLoggers()
+		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
+		config.Events = ldcomponents.NoEvents()
 
-	client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
-	require.NoError(t, err)
-	defer client.Close()
+		client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
+		require.NoError(t, err)
+		defer client.Close()
 
-	assert.Equal(t, 1, len(requestsCh))
-	r := <-requestsCh
-	assert.Equal(t, fakeEndpointURL, r.Request.URL.String())
+		assert.Equal(t, 1, len(requestsCh))
+		r := <-requestsCh
+		assert.Equal(t, fakeEndpointURL, r.Request.URL.String())
+	})
 }

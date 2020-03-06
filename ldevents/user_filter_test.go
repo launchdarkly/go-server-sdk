@@ -154,7 +154,3 @@ func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 			}, fu1)
 	})
 }
-
-func strPtr(s string) *string {
-	return &s
-}

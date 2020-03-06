@@ -59,14 +59,16 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 
 	// data store configuration
 	doTest(func(c *Config) { c.DataStore = ldcomponents.InMemoryDataStore() }, func(b ldvalue.ObjectBuilder) {})
-	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
-		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })
 	doTest(func(c *Config) { c.DataStore, _ = ldconsul.NewConsulDataStoreFactory() },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Consul")) })
 	doTest(func(c *Config) { c.DataStore, _ = lddynamodb.NewDynamoDBDataStoreFactory("table-name") },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("DynamoDB")) })
 	doTest(func(c *Config) { c.DataStore, _ = redis.NewRedisDataStoreFactory() },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Redis")) })
+	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
+		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })
+	doTest(func(c *Config) { c.DataStore = customStoreFactoryWithoutDiagnosticDescription{} },
+		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("custom")) })
 
 	// data source configuration
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource() }, func(b ldvalue.ObjectBuilder) {})
@@ -127,5 +129,11 @@ func (c customStoreFactoryForDiagnostics) DescribeConfiguration() ldvalue.Value 
 }
 
 func (c customStoreFactoryForDiagnostics) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+	return nil, errors.New("not implemented")
+}
+
+type customStoreFactoryWithoutDiagnosticDescription struct{}
+
+func (c customStoreFactoryWithoutDiagnosticDescription) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
 	return nil, errors.New("not implemented")
 }

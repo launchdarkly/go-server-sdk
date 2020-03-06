@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-test-helpers/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/ldservices"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -15,49 +18,45 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
 )
 
 const briefDelay = time.Millisecond * 50
 
-func runStreamingTest(t *testing.T, initialData *shared.SDKData, test func(events chan<- eventsource.Event, store interfaces.DataStore)) {
+func runStreamingTest(t *testing.T, initialEvent eventsource.Event, test func(events chan<- eventsource.Event, store interfaces.DataStore)) {
 	events := make(chan eventsource.Event, 1000)
-	streamHandler := shared.NewStreamingServiceHandler(initialData, events)
-	streamServer := httptest.NewServer(streamHandler)
-	defer streamServer.Close()
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialEvent, events)
+	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+		flagEndpointHandler := httphelpers.HandlerForPath(
+			"/sdk/latest-flags/my-flag",
+			httphelpers.HandlerWithJSONResponse(ldservices.FlagOrSegment("my-flag", 5), nil),
+			nil,
+		)
+		httphelpers.WithServer(flagEndpointHandler, func(sdkServer *httptest.Server) {
+			store := makeInMemoryDataStore()
+			sp, err := StreamingDataSource().BaseURI(streamServer.URL).PollingBaseURI(sdkServer.URL).InitialReconnectDelay(briefDelay).
+				CreateDataSource(basicClientContext(), store)
+			require.NoError(t, err)
+			defer sp.Close()
 
-	sdkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/sdk/latest-flags/my-flag", r.URL.Path)
-		w.Write([]byte(`{"key": "my-flag", "version": 5}`))
-	}))
-	defer sdkServer.Close()
+			closeWhenReady := make(chan struct{})
 
-	store := makeInMemoryDataStore()
-	sp, err := StreamingDataSource().BaseURI(streamServer.URL).PollingBaseURI(sdkServer.URL).InitialReconnectDelay(briefDelay).
-		CreateDataSource(basicClientContext(), store)
-	require.NoError(t, err)
-	defer sp.Close()
+			sp.Start(closeWhenReady)
 
-	closeWhenReady := make(chan struct{})
+			select {
+			case <-closeWhenReady:
+			case <-time.After(time.Second):
+				assert.Fail(t, "start timeout")
+				return
+			}
 
-	sp.Start(closeWhenReady)
-
-	select {
-	case <-closeWhenReady:
-	case <-time.After(time.Second):
-		assert.Fail(t, "start timeout")
-		return
-	}
-
-	test(events, store)
+			test(events, store)
+		})
+	})
 }
 
 func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
-	initialData := &shared.SDKData{
-		FlagsData:    []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`),
-		SegmentsData: []byte(`{"my-segment": {"key": "my-segment", "version": 2}}`),
-	}
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2)).Segments(ldservices.FlagOrSegment("my-segment", 2))
 
 	t.Run("initial put", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store interfaces.DataStore) {
@@ -67,7 +66,7 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("patch flag", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store interfaces.DataStore) {
-			events <- shared.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
+			events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
 
 			waitForVersion(t, store, interfaces.DataKindFeatures(), "my-flag", 3)
 		})
@@ -75,7 +74,7 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("delete flag", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store interfaces.DataStore) {
-			events <- shared.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
+			events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
 
 			waitForDelete(t, store, interfaces.DataKindSegments(), "my-flag")
 		})
@@ -83,7 +82,7 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("patch segment", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store interfaces.DataStore) {
-			events <- shared.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
+			events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
 
 			waitForVersion(t, store, interfaces.DataKindSegments(), "my-segment", 7)
 		})
@@ -91,7 +90,7 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("delete segment", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store interfaces.DataStore) {
-			events <- shared.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
+			events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
 
 			waitForDelete(t, store, interfaces.DataKindSegments(), "my-segment")
 		})
@@ -99,7 +98,7 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("indirect flag patch", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, store interfaces.DataStore) {
-			events <- shared.NewSSEEvent("", indirectPatchEvent, "/flags/my-flag")
+			events <- ldservices.NewSSEEvent("", indirectPatchEvent, "/flags/my-flag")
 
 			waitForVersion(t, store, interfaces.DataKindFeatures(), "my-flag", 5)
 		})
@@ -155,162 +154,147 @@ func TestStreamProcessorDoesNotFailImmediatelyOn500(t *testing.T) {
 }
 
 func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(statusCode)
-	}))
-	defer ts.Close()
+	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
+		id := ldevents.NewDiagnosticID(testSdkKey)
+		diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
+		store := makeInMemoryDataStore()
+		context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
 
-	id := ldevents.NewDiagnosticID(testSdkKey)
-	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-	store := makeInMemoryDataStore()
-	context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
+		sp, err := StreamingDataSource().BaseURI(ts.URL).
+			CreateDataSource(context, store)
+		require.NoError(t, err)
+		defer sp.Close()
 
-	sp, err := StreamingDataSource().BaseURI(ts.URL).
-		CreateDataSource(context, store)
-	require.NoError(t, err)
-	defer sp.Close()
+		closeWhenReady := make(chan struct{})
 
-	closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
 
-	sp.Start(closeWhenReady)
+		select {
+		case <-closeWhenReady:
+			assert.False(t, sp.Initialized())
+		case <-time.After(time.Second * 3):
+			assert.Fail(t, "Initialization shouldn't block after this error")
+		}
 
-	select {
-	case <-closeWhenReady:
-		assert.False(t, sp.Initialized())
-	case <-time.After(time.Second * 3):
-		assert.Fail(t, "Initialization shouldn't block after this error")
-	}
-
-	event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
-	assert.Equal(t, 1, event.GetByKey("streamInits").Count())
-	assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
+		event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
+		assert.Equal(t, 1, event.GetByKey("streamInits").Count())
+		assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
+	})
 }
 
 func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
-	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)}
-	streamHandler := shared.NewStreamingServiceHandler(initialData, nil)
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData, nil)
+	sequentialHandler := httphelpers.SequentialHandler(
+		httphelpers.HandlerWithStatus(statusCode), // fails the first time
+		streamHandler, // then gets a valid stream
+	)
+	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
+		id := ldevents.NewDiagnosticID(testSdkKey)
+		diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
+		store := makeInMemoryDataStore()
+		context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
 
-	attempt := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if attempt == 0 {
-			w.WriteHeader(statusCode)
-		} else {
-			streamHandler.ServeHTTP(w, r)
+		sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+			CreateDataSource(context, store)
+		require.NoError(t, err)
+		defer sp.Close()
+
+		closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
+
+		select {
+		case <-closeWhenReady:
+			assert.True(t, sp.Initialized())
+		case <-time.After(time.Second * 3):
+			assert.Fail(t, "Should have successfully retried before now")
 		}
-		attempt++
-	}))
-	defer ts.Close()
 
-	id := ldevents.NewDiagnosticID(testSdkKey)
-	diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-	store := makeInMemoryDataStore()
-	context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
-
-	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-		CreateDataSource(context, store)
-	require.NoError(t, err)
-	defer sp.Close()
-
-	closeWhenReady := make(chan struct{})
-	sp.Start(closeWhenReady)
-
-	select {
-	case <-closeWhenReady:
-		assert.True(t, sp.Initialized())
-	case <-time.After(time.Second * 3):
-		assert.Fail(t, "Should have successfully retried before now")
-	}
-
-	event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
-	assert.Equal(t, 2, event.GetByKey("streamInits").Count())
-	assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
-	assert.Equal(t, ldvalue.Bool(false), event.GetByKey("streamInits").GetByIndex(1).GetByKey("failed"))
+		event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
+		assert.Equal(t, 2, event.GetByKey("streamInits").Count())
+		assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
+		assert.Equal(t, ldvalue.Bool(false), event.GetByKey("streamInits").GetByIndex(1).GetByKey("failed"))
+	})
 }
 
 func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
-	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)}
-	streamHandler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewStreamingServiceHandler(initialData, nil))
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
 
-	ts := httptest.NewServer(streamHandler)
-	defer ts.Close()
-	defer ts.CloseClientConnections()
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
+		store := makeInMemoryDataStore()
+		context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
 
-	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-	store := makeInMemoryDataStore()
-	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
+		sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+			CreateDataSource(context, store)
+		require.NoError(t, err)
+		defer sp.Close()
+		closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
 
-	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-		CreateDataSource(context, store)
-	require.NoError(t, err)
-	defer sp.Close()
-	closeWhenReady := make(chan struct{})
-	sp.Start(closeWhenReady)
+		r := <-requestsCh
 
-	r := <-requestsCh
-
-	assert.Equal(t, "/all/transformed", r.Request.URL.Path)
+		assert.Equal(t, "/all/transformed", r.Request.URL.Path)
+	})
 }
 
 func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
-	initialData := &shared.SDKData{}
-	streamHandler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewStreamingServiceHandler(initialData, nil))
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(ldservices.NewServerSDKData(), nil)
+	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 
-	ts := httptest.NewServer(streamHandler)
-	defer ts.Close()
-	defer ts.CloseClientConnections()
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		httpClientFactory := func() *http.Client {
+			c := *http.DefaultClient
+			c.Timeout = 200 * time.Millisecond
+			return &c
+		}
+		store := makeInMemoryDataStore()
+		context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
 
-	httpClientFactory := func() *http.Client {
-		c := *http.DefaultClient
-		c.Timeout = 200 * time.Millisecond
-		return &c
-	}
-	store := makeInMemoryDataStore()
-	context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, ldlog.NewDisabledLoggers())
+		sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+			CreateDataSource(context, store)
+		require.NoError(t, err)
+		defer sp.Close()
+		closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
 
-	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-		CreateDataSource(context, store)
-	require.NoError(t, err)
-	defer sp.Close()
-	closeWhenReady := make(chan struct{})
-	sp.Start(closeWhenReady)
-
-	<-time.After(500 * time.Millisecond)
-	assert.Equal(t, 1, len(requestsCh))
+		<-time.After(500 * time.Millisecond)
+		assert.Equal(t, 1, len(requestsCh))
+	})
 }
 
 func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
-	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 1}}`)}
-	streamHandler := shared.NewStreamingServiceHandler(initialData, nil)
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 1))
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData, nil)
 
-	ts := httptest.NewServer(streamHandler)
-	defer ts.Close()
+	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
+		store := &testDataStoreWithStatus{
+			inits: make(chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
+		}
 
-	store := &testDataStoreWithStatus{
-		inits: make(chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
-	}
+		sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
+			CreateDataSource(basicClientContext(), store)
+		require.NoError(t, err)
+		defer sp.Close()
 
-	sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-		CreateDataSource(basicClientContext(), store)
-	require.NoError(t, err)
-	defer sp.Close()
+		closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
 
-	closeWhenReady := make(chan struct{})
-	sp.Start(closeWhenReady)
+		// Wait until the stream has received data and put it in the store
+		receivedInitialData := <-store.inits
+		assert.Equal(t, 1, receivedInitialData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
 
-	// Wait until the stream has received data and put it in the store
-	receivedInitialData := <-store.inits
-	assert.Equal(t, 1, receivedInitialData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
+		// Change the stream's initialData so we'll get different data the next time it restarts
+		initialData.Flags(ldservices.FlagOrSegment("my-flag", 2))
 
-	// Change the stream's initialEvent so we'll get different data the next time it restarts
-	initialData.FlagsData = []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)
+		// Make the data store simulate an outage and recovery with NeedsRefresh: true
+		store.publishStatus(internal.DataStoreStatus{Available: false})
+		store.publishStatus(internal.DataStoreStatus{Available: true, NeedsRefresh: true})
 
-	// Make the data store simulate an outage and recovery with NeedsRefresh: true
-	store.publishStatus(internal.DataStoreStatus{Available: false})
-	store.publishStatus(internal.DataStoreStatus{Available: true, NeedsRefresh: true})
-
-	// When the stream restarts, it'll call Init with the refreshed data
-	receivedNewData := <-store.inits
-	assert.Equal(t, 2, receivedNewData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
+		// When the stream restarts, it'll call Init with the refreshed data
+		receivedNewData := <-store.inits
+		assert.Equal(t, 2, receivedNewData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
+	})
 }
 
 type testDataStoreWithStatus struct {

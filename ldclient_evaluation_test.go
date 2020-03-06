@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
+	helpers "github.com/launchdarkly/go-test-helpers"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
@@ -37,7 +38,7 @@ func singleValueFlag(key string, value ldvalue.Value) ldmodel.FeatureFlag {
 }
 
 func makeMalformedFlag(key string) *ldmodel.FeatureFlag {
-	return &ldmodel.FeatureFlag{Key: key, On: false, OffVariation: intPtr(-1)}
+	return &ldmodel.FeatureFlag{Key: key, On: false, OffVariation: helpers.IntPtr(-1)}
 }
 
 func makeClauseToMatchUser(user lduser.User) ldmodel.Clause {
@@ -46,10 +47,6 @@ func makeClauseToMatchUser(user lduser.User) ldmodel.Clause {
 
 func makeClauseToNotMatchUser(user lduser.User) ldmodel.Clause {
 	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("not-"+user.GetKey()))
-}
-
-func intPtr(n int) *int {
-	return &n
 }
 
 func assertEvalEvent(t *testing.T, client *LDClient, flag ldmodel.FeatureFlag, user lduser.User, value ldvalue.Value,
