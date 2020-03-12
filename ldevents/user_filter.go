@@ -59,7 +59,7 @@ const userSerializationErrorMessage = "An error occurred while processing custom
 // here, or during JSON serialization), but we can at least recover from such an error and log the
 // problem. In that case, all of the custom attributes for the user will be lost (since we have no
 // way to know whether they are still correct after the concurrent modification).
-func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
+func (uf *userFilter) scrubUser(user EventUser) (ret *serializableUser) {
 	ret = &serializableUser{}
 	ret.filter = uf
 
@@ -68,7 +68,14 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 		ret.filteredUser.Anonymous = &anon
 	}
 
-	if !user.HasPrivateAttributes() && len(uf.globalPrivateAttributes) == 0 && !uf.allAttributesPrivate {
+	alreadyFiltered := user.AlreadyFilteredAttributes != nil
+	// If alreadyFiltered is true, it means this is user data that has already gone through the
+	// attribute filtering logic, so the private attribute values have already been removed and their
+	// names are in user.AlreadyFilteredAttributes. This happens when Relay receives event data from
+	// the PHP SDK. In this case, we do not need to repeat the filtering logic and we do not support
+	// re-filtering with a different private attribute configuration.
+
+	if alreadyFiltered || (!user.HasPrivateAttributes() && len(uf.globalPrivateAttributes) == 0 && !uf.allAttributesPrivate) {
 		// No need to filter the user attributes
 		ret.filteredUser.Secondary = user.GetSecondaryKey().AsPointer()
 		ret.filteredUser.IP = user.GetIP().AsPointer()
@@ -79,6 +86,9 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 		ret.filteredUser.Avatar = user.GetAvatar().AsPointer()
 		ret.filteredUser.Name = user.GetName().AsPointer()
 		ret.filteredUser.Custom = user.GetAllCustom().AsPointer()
+		if alreadyFiltered {
+			ret.filteredUser.PrivateAttrs = user.AlreadyFilteredAttributes
+		}
 		return
 	}
 
@@ -95,7 +105,7 @@ func (uf *userFilter) scrubUser(user lduser.User) (ret *serializableUser) {
 		return false
 	}
 	maybeFilter := func(attr lduser.UserAttribute, getter func(lduser.User) ldvalue.OptionalString) *string {
-		value := getter(user)
+		value := getter(user.User)
 		if value.IsDefined() {
 			if isPrivate(attr) {
 				privateAttrs = append(privateAttrs, string(attr))

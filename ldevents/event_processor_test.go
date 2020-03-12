@@ -20,7 +20,7 @@ var epDefaultConfig = EventsConfiguration{
 	UserKeysFlushInterval: 1 * time.Hour,
 }
 
-var epDefaultUser = lduser.NewUserBuilder("userKey").Name("Red").Build()
+var epDefaultUser = EventUser{lduser.NewUserBuilder("userKey").Name("Red").Build(), nil}
 
 var userJson = ldvalue.ObjectBuild().
 	Set("key", ldvalue.String("userKey")).
@@ -519,9 +519,10 @@ func TestDiagnosticPeriodicEventHasEventCounters(t *testing.T) {
 	initEvent := <-es.diagnosticEventsCh
 	assert.Equal(t, "diagnostic-init", initEvent.GetByKey("kind").StringValue())
 
-	ep.SendEvent(defaultEventFactory.NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
-	ep.SendEvent(defaultEventFactory.NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
-	ep.SendEvent(defaultEventFactory.NewCustomEvent("key", lduser.NewUser("userkey"), ldvalue.Null(), false, 0))
+	user := EventUser{lduser.NewUser("userkey"), nil}
+	ep.SendEvent(defaultEventFactory.NewCustomEvent("key", user, ldvalue.Null(), false, 0))
+	ep.SendEvent(defaultEventFactory.NewCustomEvent("key", user, ldvalue.Null(), false, 0))
+	ep.SendEvent(defaultEventFactory.NewCustomEvent("key", user, ldvalue.Null(), false, 0))
 	ep.Flush()
 
 	periodicEventGate <- struct{}{} // periodic event won't be sent until we do this
@@ -548,7 +549,7 @@ func jsonEncoding(o interface{}) ldvalue.Value {
 	return result
 }
 
-func userJsonEncoding(u lduser.User) ldvalue.Value {
+func userJsonEncoding(u EventUser) ldvalue.Value {
 	filter := newUserFilter(epDefaultConfig)
 	fu := filter.scrubUser(u).filteredUser
 	return jsonEncoding(fu)

@@ -57,7 +57,7 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag ldmodel.FeatureFlag, u
 	expectedEvent := ldevents.FeatureRequestEvent{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e.CreationDate,
-			User:         user,
+			User:         ldevents.User(user),
 		},
 		Key:       flag.Key,
 		Version:   flag.Version,
@@ -526,7 +526,7 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 	expectedEvent := ldevents.FeatureRequestEvent{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e.CreationDate,
-			User:         evalTestUser,
+			User:         ldevents.User(evalTestUser),
 		},
 		Key:       "flagKey",
 		Version:   ldevents.NoVersion,
@@ -566,7 +566,7 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	expected0 := ldevents.FeatureRequestEvent{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e0.CreationDate,
-			User:         user,
+			User:         ldevents.User(user),
 		},
 		Key:       flag1.Key,
 		Version:   flag1.Version,
@@ -581,7 +581,7 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	expected1 := ldevents.FeatureRequestEvent{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: e1.CreationDate,
-			User:         user,
+			User:         ldevents.User(user),
 		},
 		Key:       flag0.Key,
 		Version:   flag0.Version,

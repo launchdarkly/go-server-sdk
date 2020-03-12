@@ -28,7 +28,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEvent("event-key", lduser.NewUser("key"), ldvalue.Null(), false, 0)
+		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
 		ep.SendEvent(ce)
 		ep.Flush()
 
@@ -74,7 +74,7 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEvent(lduser.NewUserBuilder("user-key").Name("user-name").Build())
+		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
 		ep.SendEvent(ie)
 		ep.Flush()
 
@@ -100,7 +100,7 @@ func TestEventsCapacity(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEvent(lduser.NewUserBuilder("user-key").Name("user-name").Build())
+		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
 		ep.SendEvent(ie)
 		ep.SendEvent(ie) // 2nd event will be dropped
 		ep.Flush()
@@ -122,7 +122,7 @@ func TestEventsInlineUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEvent("event-key", lduser.NewUser("key"), ldvalue.Null(), false, 0)
+		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
 		ep.SendEvent(ce)
 		ep.Flush()
 
@@ -144,7 +144,7 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEvent(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build())
+		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build()))
 		ep.SendEvent(ie)
 		ep.Flush()
 

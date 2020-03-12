@@ -9,7 +9,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-var user = lduser.NewUser("key")
+var user = EventUser{lduser.NewUser("key"), nil}
 
 func makeEvalEvent(creationDate ldtime.UnixMillisecondTime, flagKey string, flagVersion int, variation int, value, defaultValue string) FeatureRequestEvent {
 	return FeatureRequestEvent{

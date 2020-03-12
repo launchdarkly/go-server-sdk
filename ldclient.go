@@ -50,7 +50,7 @@ type clientEvaluatorEventSink struct {
 
 func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.PrerequisiteFlagEvent) {
 	flagProps := ldeval.FlagEventProperties(params.PrerequisiteFlag)
-	event := c.eventFactory.NewSuccessfulEvalEvent(flagProps, *c.user, params.PrerequisiteResult.VariationIndex,
+	event := c.eventFactory.NewSuccessfulEvalEvent(flagProps, ldevents.User(*c.user), params.PrerequisiteResult.VariationIndex,
 		params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, params.TargetFlagKey)
 	c.events = append(c.events, event)
 }
@@ -219,7 +219,7 @@ func (client *LDClient) Identify(user lduser.User) error {
 		client.config.Loggers.Warn("Identify called with empty user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := defaultEventFactory.NewIdentifyEvent(user)
+	evt := defaultEventFactory.NewIdentifyEvent(ldevents.User(user))
 	client.eventProcessor.SendEvent(evt)
 	return nil
 }
@@ -248,7 +248,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, user, data, false, 0))
+	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, ldevents.User(user), data, false, 0))
 	return nil
 }
 
@@ -267,7 +267,7 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.config.Loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, user, data, true, metricValue))
+	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, ldevents.User(user), data, true, metricValue))
 	return nil
 }
 
@@ -488,10 +488,10 @@ func (client *LDClient) variation(
 
 	var evt ldevents.FeatureRequestEvent
 	if flag == nil {
-		evt = eventFactory.NewUnknownFlagEvent(key, user, defaultVal, result.Reason) //nolint
+		evt = eventFactory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
 	} else {
 		flagProps := ldeval.FlagEventProperties(*flag)
-		evt = eventFactory.NewSuccessfulEvalEvent(flagProps, user, result.VariationIndex, result.Value, defaultVal,
+		evt = eventFactory.NewSuccessfulEvalEvent(flagProps, ldevents.User(user), result.VariationIndex, result.Value, defaultVal,
 			result.Reason, "")
 	}
 	client.eventProcessor.SendEvent(evt)

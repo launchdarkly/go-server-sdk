@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	helpers "github.com/launchdarkly/go-test-helpers"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -53,7 +54,7 @@ func getAllPrivatableAttributeNames() []string {
 func TestScrubUserWithNoFiltering(t *testing.T) {
 	t.Run("user with no attributes", func(t *testing.T) {
 		filter := newUserFilter(epDefaultConfig)
-		u := lduser.NewUser("user-key")
+		u := EventUser{lduser.NewUser("user-key"), nil}
 		fu := filter.scrubUser(u).filteredUser
 		assert.Equal(t,
 			filteredUser{
@@ -62,9 +63,8 @@ func TestScrubUserWithNoFiltering(t *testing.T) {
 	})
 	t.Run("user with all attributes", func(t *testing.T) {
 		filter := newUserFilter(epDefaultConfig)
-		u := buildUserWithAllAttributes().Build()
+		u := EventUser{buildUserWithAllAttributes().Build(), nil}
 		fu := filter.scrubUser(u).filteredUser
-		tru := true
 		assert.Equal(t,
 			filteredUser{
 				Key:       u.GetKey(),
@@ -77,19 +77,19 @@ func TestScrubUserWithNoFiltering(t *testing.T) {
 				Email:     u.GetEmail().AsPointer(),
 				Secondary: u.GetSecondaryKey().AsPointer(),
 				Custom:    u.GetAllCustom().AsPointer(),
-				Anonymous: &tru,
+				Anonymous: helpers.BoolPtr(true),
 			}, fu)
 	})
 }
 
 func TestScrubUserWithPerUserPrivateAttributes(t *testing.T) {
 	filter := newUserFilter(epDefaultConfig)
-	fu0 := filter.scrubUser(buildUserWithAllAttributes().Build()).filteredUser
+	fu0 := filter.scrubUser(EventUser{buildUserWithAllAttributes().Build(), nil}).filteredUser
 	for attr, setter := range optionalStringSetters {
 		t.Run(string(attr), func(t *testing.T) {
 			builder := buildUserWithAllAttributes()
 			setter(builder, "private-value").AsPrivateAttribute()
-			u1 := builder.Build()
+			u1 := EventUser{builder.Build(), nil}
 			fu1 := filter.scrubUser(u1).filteredUser
 			assert.Equal(t, []string{string(attr)}, fu1.PrivateAttrs)
 			fu1.PrivateAttrs = nil
@@ -100,7 +100,7 @@ func TestScrubUserWithPerUserPrivateAttributes(t *testing.T) {
 		u1 := buildUserWithAllAttributes().
 			Custom(customAttrName1, customAttrValue1).AsPrivateAttribute().
 			Build()
-		fu1 := filter.scrubUser(u1).filteredUser
+		fu1 := filter.scrubUser(EventUser{u1, nil}).filteredUser
 		assert.Equal(t, []string{customAttrName1}, fu1.PrivateAttrs)
 		assert.Equal(t, ldvalue.ObjectBuild().Set(customAttrName2, customAttrValue2).Build().AsPointer(),
 			fu1.Custom)
@@ -113,7 +113,7 @@ func TestScrubUserWithPerUserPrivateAttributes(t *testing.T) {
 
 func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 	filter0 := newUserFilter(epDefaultConfig)
-	u := buildUserWithAllAttributes().Build()
+	u := EventUser{buildUserWithAllAttributes().Build(), nil}
 	fu0 := filter0.scrubUser(u).filteredUser
 	for attr, _ := range optionalStringSetters {
 		t.Run(string(attr), func(t *testing.T) {
@@ -145,12 +145,43 @@ func TestScrubUserWithGlobalPrivateAttributes(t *testing.T) {
 		filter1 := newUserFilter(config)
 		fu1 := filter1.scrubUser(u).filteredUser
 		sort.Strings(fu1.PrivateAttrs)
-		tru := true
 		assert.Equal(t,
 			filteredUser{
 				Key:          u.GetKey(),
-				Anonymous:    &tru,
+				Anonymous:    helpers.BoolPtr(true),
 				PrivateAttrs: getAllPrivatableAttributeNames(),
 			}, fu1)
 	})
+}
+
+func TestPrefilteredAttributesAreUsedUnchanged(t *testing.T) {
+	config := epDefaultConfig
+	config.AllAttributesPrivate = true // this should be ignored
+	user := lduser.NewUserBuilder("user-key").Name("me").Build()
+	eventUser := EventUser{User: user, AlreadyFilteredAttributes: []string{"firstName"}}
+	filter := newUserFilter(config)
+	fu := filter.scrubUser(eventUser).filteredUser
+	assert.Equal(t,
+		filteredUser{
+			Key:          user.GetKey(),
+			Name:         user.GetName().AsPointer(),
+			PrivateAttrs: []string{"firstName"},
+		}, fu)
+}
+
+func TestEmptyListOfPrefilteredAttributesIsUsedUnchanged(t *testing.T) {
+	// This tests that setting AlreadyFilteredAttributes to an empty slice, unlike leaving it nil, is treated as
+	// a sign that the user was already filtered and did not have any private attributes.
+	config := epDefaultConfig
+	config.AllAttributesPrivate = true // this should be ignored
+	user := lduser.NewUserBuilder("user-key").Name("me").Build()
+	eventUser := EventUser{User: user, AlreadyFilteredAttributes: []string{}}
+	filter := newUserFilter(config)
+	fu := filter.scrubUser(eventUser).filteredUser
+	assert.Equal(t,
+		filteredUser{
+			Key:          user.GetKey(),
+			Name:         user.GetName().AsPointer(),
+			PrivateAttrs: []string{},
+		}, fu)
 }
