@@ -176,24 +176,36 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		require.NotNil(t, sub)
 		defer sub.Close()
 
+		flag1v1 := &ld.FeatureFlag{Key: "flag1", Version: 1}
+		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
+			ld.Features: {flag1v1.Key: flag1v1},
+		}
+
 		core.fakeError = errors.New("sorry")
 		core.setAvailable(false)
-		_, err := w.All(ld.Features)
+		err := w.Init(allData)
 		require.Equal(t, core.fakeError, err)
 
 		updatedStatus := consumeStatusWithTimeout(t, sub.Channel(), statusUpdateTimeout)
 		require.Equal(t, internal.FeatureStoreStatus{Available: false}, updatedStatus)
 
-		// While the store is still down, try to update it - the update goes into the cache
-		flag := &ld.FeatureFlag{Key: "flag", Version: 1}
-		err = w.Upsert(ld.Features, flag)
+		// While the store is still down, try to update it - the updates go into the cache
+		flag1v2 := &ld.FeatureFlag{Key: flag1v1.Key, Version: 2}
+		flag2 := &ld.FeatureFlag{Key: "flag2", Version: 1}
+		err = w.Upsert(ld.Features, flag1v2)
 		assert.Equal(t, core.fakeError, err)
-		cachedFlag, err := w.Get(ld.Features, flag.Key)
+		cachedFlag1, err := w.Get(ld.Features, flag1v1.Key)
 		assert.NoError(t, err)
-		assert.Equal(t, flag, cachedFlag)
+		err = w.Upsert(ld.Features, flag2)
+		assert.Equal(t, core.fakeError, err)
+		assert.Equal(t, flag1v2, cachedFlag1)
+		cachedFlag2, err := w.Get(ld.Features, flag2.Key)
+		assert.NoError(t, err)
+		assert.Equal(t, flag2, cachedFlag2)
 
-		// Verify that this update did not go into the underlying data yet
-		assert.Nil(t, core.data[ld.Features][flag.Key])
+		// Verify that these updates did not go into the underlying data yet
+		assert.Nil(t, core.data[ld.Features][flag1v1.Key])
+		assert.Nil(t, core.data[ld.Features][flag2.Key])
 
 		// Now simulate the store coming back up
 		core.fakeError = nil
@@ -204,6 +216,8 @@ func TestFeatureStoreWrapperStatus(t *testing.T) {
 		assert.Equal(t, internal.FeatureStoreStatus{Available: true}, updatedStatus)
 
 		// Once that has happened, the cache should have been written to the store
-		assert.Equal(t, flag, core.data[ld.Features][flag.Key])
+		assert.Equal(t, flag1v2, core.data[ld.Features][flag1v1.Key])
+		assert.Equal(t, flag2, core.data[ld.Features][flag2.Key])
+		assert.True(t, w.Initialized())
 	})
 }

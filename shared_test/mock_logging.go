@@ -2,18 +2,34 @@ package shared_test
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
 
+// MockLogItem represents a log message captured by MockLoggers.
+type MockLogItem struct {
+	level   ldlog.LogLevel
+	message string
+}
+
 // MockLoggers provides the ability to capture log output.
 type MockLoggers struct {
 	// Loggers is the ldlog.Loggers instance to be used for tests.
 	Loggers ldlog.Loggers
-	// Output is a map containing all of the lines logged for each level.
+	// Output is a map containing all of the lines logged for each level. The level prefix is removed from the text.
 	Output map[ldlog.LogLevel][]string
-	lock   sync.Mutex
+	// AllOutput is a list of all the log output for any level in order. The level prefix is removed from the text.
+	AllOutput []MockLogItem
+	lock      sync.Mutex
+}
+
+// NullLoggers returns a Loggers instance that suppresses all output.
+func NullLoggers() ldlog.Loggers {
+	ret := ldlog.Loggers{}
+	ret.SetMinLevel(ldlog.None)
+	return ret
 }
 
 // NewMockLoggers creates a log-capturing object.
@@ -28,7 +44,9 @@ func NewMockLoggers() *MockLoggers {
 func (ml *MockLoggers) logLine(level ldlog.LogLevel, line string) {
 	ml.lock.Lock()
 	defer ml.lock.Unlock()
-	ml.Output[level] = append(ml.Output[level], line)
+	message := strings.TrimPrefix(line, strings.ToUpper(level.String())+": ")
+	ml.Output[level] = append(ml.Output[level], message)
+	ml.AllOutput = append(ml.AllOutput, MockLogItem{level, message})
 }
 
 type mockBaseLogger struct {
@@ -37,7 +55,7 @@ type mockBaseLogger struct {
 }
 
 func (l mockBaseLogger) Println(values ...interface{}) {
-	l.owner.logLine(l.level, fmt.Sprintln(values...))
+	l.owner.logLine(l.level, strings.TrimSuffix(fmt.Sprintln(values...), "\n"))
 }
 
 func (l mockBaseLogger) Printf(format string, values ...interface{}) {
