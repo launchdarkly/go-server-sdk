@@ -500,6 +500,8 @@ func (w *FeatureStoreWrapper) pollAvailabilityAfterOutage() bool {
 			w.loggers.Errorf("Tried to write cached data to persistent store after a store outage, but failed: %s", err)
 		} else {
 			w.loggers.Warn("Successfully updated persistent store from cached data")
+			// Note that w.inited should have already been set when InitInternal was originally called -
+			// in infinite cache mode, we set it even if the database update failed.
 		}
 	}
 	return true

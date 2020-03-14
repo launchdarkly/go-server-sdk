@@ -1,10 +1,12 @@
 package ldclient
 
 import (
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -297,7 +299,6 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 		FeatureStore: store,
 		Loggers:      shared.NullLoggers(),
 	}
-	cfg.Loggers.SetMinLevel(ldlog.None)
 	sp := newStreamProcessor("sdkKey", cfg, nil)
 	defer sp.Close()
 
@@ -320,9 +321,56 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	assert.Equal(t, 2, receivedNewData[Features]["my-flag"].GetVersion())
 }
 
+func TestStreamProcessorRestartsStreamIfStoreNeedsRefreshAfterInitFails(t *testing.T) {
+	// This is the same as TestStreamProcessorRestartsStreamIfStoreNeedsRefresh except that instead of
+	// the store having an outage after a successful initialization, it fails on the initialization itself.
+	// We had a bug where if the Init call failed, the stream would give up and never restart.
+
+	initialData := &shared.SDKData{FlagsData: []byte(`{"my-flag": {"key": "my-flag", "version": 1}}`)}
+	streamHandler, requestsCh := shared.NewRecordingHTTPHandler(shared.NewStreamingServiceHandler(initialData, nil))
+
+	ts := httptest.NewServer(streamHandler)
+	defer ts.Close()
+
+	store := &testFeatureStoreWithStatus{
+		inits: make(chan map[VersionedDataKind]map[string]VersionedData),
+	}
+	store.setInitError(errors.New("sorry"))
+	cfg := Config{
+		StreamUri:    ts.URL,
+		FeatureStore: store,
+		Loggers:      shared.NullLoggers(),
+	}
+	sp := newStreamProcessor("sdkKey", cfg, nil)
+	defer sp.Close()
+
+	closeWhenReady := make(chan struct{})
+	sp.Start(closeWhenReady)
+
+	// Wait until the stream has received data and tried to put it in the store (the store's Init will fail)
+	_ = <-requestsCh
+	receivedInitialData := <-store.inits
+	assert.Equal(t, 1, receivedInitialData[Features]["my-flag"].GetVersion())
+
+	// Change the stream's initialEvent so we'll get different data the next time it restarts
+	initialData.FlagsData = []byte(`{"my-flag": {"key": "my-flag", "version": 2}}`)
+
+	// Make the feature store simulate an outage and recovery with NeedsRefresh: true
+	store.setInitError(nil)
+	store.publishStatus(internal.FeatureStoreStatus{Available: false})
+	store.publishStatus(internal.FeatureStoreStatus{Available: true, NeedsRefresh: true})
+
+	// When the stream restarts, it'll call Init with the refreshed data
+	_ = <-requestsCh
+	receivedNewData := <-store.inits
+	assert.Equal(t, 2, receivedNewData[Features]["my-flag"].GetVersion())
+}
+
 type testFeatureStoreWithStatus struct {
 	inits     chan map[VersionedDataKind]map[string]VersionedData
 	statusSub *testStatusSubscription
+	initError error
+	lock      sync.Mutex
 }
 
 func (t *testFeatureStoreWithStatus) Get(kind VersionedDataKind, key string) (VersionedData, error) {
@@ -335,7 +383,9 @@ func (t *testFeatureStoreWithStatus) All(kind VersionedDataKind) (map[string]Ver
 
 func (t *testFeatureStoreWithStatus) Init(data map[VersionedDataKind]map[string]VersionedData) error {
 	t.inits <- data
-	return nil
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.initError
 }
 
 func (t *testFeatureStoreWithStatus) Delete(kind VersionedDataKind, key string, version int) error {
@@ -365,6 +415,12 @@ func (t *testFeatureStoreWithStatus) publishStatus(status internal.FeatureStoreS
 	if t.statusSub != nil {
 		t.statusSub.ch <- status
 	}
+}
+
+func (t *testFeatureStoreWithStatus) setInitError(err error) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	t.initError = err
 }
 
 type testStatusSubscription struct {
