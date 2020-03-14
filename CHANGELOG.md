@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.16.2] - 2020-03-13
+### Added:
+- CI tests now verify that the SDK supports Go 1.14.
+
+### Fixed:
+- In streaming mode, when using a persistent data store such as Redis, if the database was unavailable when the client initially started and made its first stream connection, a bug caused the SDK to give up on retrying and leave the client in a failed state. This has been fixed so that it will retry the stream connection once it detects that the database is available again (or, if using infinite caching mode, it will leave the same stream connection open and write the already-cached data to the database).
+
 ## [4.16.1] - 2020-02-10
 ### Changed:
 - Diagnostic events reported by this SDK now have an SDK name of `go-server-sdk` instead of `Go`.
