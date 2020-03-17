@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 )
 
 // Internal implementation of interfaces.ClientContext.

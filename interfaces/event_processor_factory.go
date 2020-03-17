@@ -1,6 +1,8 @@
 package interfaces
 
-import "gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
+import (
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+)
 
 // EventProcessorFactory is a factory that creates some implementation of EventProcessor.
 //

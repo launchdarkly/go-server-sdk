@@ -260,6 +260,15 @@
 
 [[projects]]
   branch = "v1"
+  digest = "1:1b4bd9b27121851677376ac0f0ee64a127610743304eb9772e7311d06d470e1c"
+  name = "gopkg.in/launchdarkly/go-sdk-events.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "f6c971eb836273e5a4f8072fe33d5bfbecf42da1"
+  source = "github.com/launchdarkly/go-sdk-events-private"
+
+[[projects]]
+  branch = "v1"
   digest = "1:8361c5723795d5bd813862c1703712997dcbc66f82d520272595c2143ecdc9f3"
   name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
   packages = [
@@ -291,7 +300,6 @@
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface",
     "github.com/fsnotify/fsnotify",
     "github.com/garyburd/redigo/redis",
-    "github.com/google/uuid",
     "github.com/gregjones/httpcache",
     "github.com/hashicorp/consul/api",
     "github.com/launchdarkly/eventsource",
@@ -309,6 +317,7 @@
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldtime",
     "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
     "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
+    "gopkg.in/launchdarkly/go-sdk-events.v1",
     "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1",
     "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders",
     "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel",
