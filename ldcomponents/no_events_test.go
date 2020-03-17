@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 )
 
 func TestNoEvents(t *testing.T) {

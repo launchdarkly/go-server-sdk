@@ -7,8 +7,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldevents"
 )
 
 const (
