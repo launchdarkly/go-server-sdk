@@ -20,7 +20,9 @@ var nullHandler = http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	handler := ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData())
 	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		store := NewInMemoryFeatureStore(log.New(ioutil.Discard, "", 0))
 		cfg := Config{
+			FeatureStore: store,
 			Loggers:      shared.NullLoggers(),
 			PollInterval: time.Minute,
 			BaseUri:      server.URL,
