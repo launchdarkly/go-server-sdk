@@ -1,4 +1,4 @@
-package shared_test
+package httphelpers
 
 import (
 	"crypto/ecdsa"
@@ -9,6 +9,9 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
+	"io/ioutil"
+	"log"
 	"math/big"
 	"net"
 	"net/http"
@@ -16,6 +19,54 @@ import (
 	"os"
 	"time"
 )
+
+// WithSelfSignedServer is a convenience function for starting a test HTTPS server with a self-signed
+// certificate, running the specified function, and then closing the server and cleaning up the
+// temporary certificate files. If for some reason creating the server fails, it panics. The action
+// function's second and third parameters provide the CA certificate for configuring the client,
+// and a preconfigured CertPool in case that is more convenient to use.
+func WithSelfSignedServer(handler http.Handler, action func(*httptest.Server, []byte, *x509.CertPool)) {
+	certFile, err := ioutil.TempFile("", "test")
+	if err != nil {
+		panic(fmt.Errorf("can't create temp file: %s", err))
+	}
+	_ = certFile.Close()
+	certFilePath := certFile.Name()
+	tryToDelete := func(path string) {
+		err := os.Remove(path)
+		if err != nil {
+			log.Printf("Unable to clean up temp file %s: %s", path, err)
+		}
+	}
+	defer tryToDelete(certFilePath)
+	keyFile, err := ioutil.TempFile("", "test")
+	if err != nil {
+		panic(fmt.Errorf("can't create temp file: %s", err))
+	}
+	_ = keyFile.Close()
+	keyFilePath := keyFile.Name()
+	defer tryToDelete(keyFilePath)
+	err = MakeSelfSignedCert(certFilePath, keyFilePath)
+	if err != nil {
+		panic(fmt.Errorf("can't create self-signed certificate: %s", err))
+	}
+	certData, err := ioutil.ReadFile(certFilePath) //nolint:gosec
+	if err != nil {
+		panic(fmt.Errorf("can't read self-signed certificate: %s", err))
+	}
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		certPool = x509.NewCertPool() // necessary in order to work on Windows
+	}
+	certPool.AppendCertsFromPEM(certData)
+	server, err := MakeServerWithCert(certFilePath, keyFilePath, handler)
+	if err != nil {
+		panic(fmt.Errorf("can't start HTTPS server: %s", err))
+	}
+	defer server.Close()
+	defer server.CloseClientConnections()
+	action(server, certData, certPool)
+}
 
 // MakeServerWithCert creates and starts a test HTTPS server using the specified certificate.
 func MakeServerWithCert(certFilePath, keyFilePath string, handler http.Handler) (*httptest.Server, error) {
@@ -27,7 +78,7 @@ func MakeServerWithCert(certFilePath, keyFilePath string, handler http.Handler) 
 	server.TLS = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
-	server.TLS.BuildNameToCertificate()
+	server.TLS.BuildNameToCertificate() //nolint:staticcheck // method is deprecated but we still need to support older Gos
 	server.StartTLS()
 	return server, nil
 }

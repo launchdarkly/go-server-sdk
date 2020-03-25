@@ -1,6 +1,7 @@
 package ldntlm
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -8,12 +9,12 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
 const (
@@ -49,27 +50,19 @@ func TestCanConnectToNTLMProxyServer(t *testing.T) {
 }
 
 func TestCanConnectSecurelyToNTLMProxyServerWithSelfSignedCert(t *testing.T) {
-	shared.WithTempFile(func(certFile string) {
-		shared.WithTempFile(func(keyFile string) {
-			err := shared.MakeSelfSignedCert(certFile, keyFile)
-			require.NoError(t, err)
+	handler := makeFakeNTLMProxyHandler()
+	httphelpers.WithSelfSignedServer(handler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
+		factory, err := NewNTLMProxyHTTPClientFactory(server.URL, username, password, domain,
+			ldhttp.CACertOption(certData))
+		require.NoError(t, err)
+		client := factory(ld.DefaultConfig)
 
-			server, err := shared.MakeServerWithCert(certFile, keyFile, makeFakeNTLMProxyHandler())
-			require.NoError(t, err)
-			defer server.Close()
-
-			factory, err := NewNTLMProxyHTTPClientFactory(server.URL, username, password, domain,
-				ldhttp.CACertFileOption(certFile))
-			require.NoError(t, err)
-			client := factory(ld.DefaultConfig)
-
-			resp, err := client.Get(targetURL)
-			require.NoError(t, err)
-			assert.Equal(t, 200, resp.StatusCode)
-			body, err := ioutil.ReadAll(resp.Body)
-			require.NoError(t, err)
-			assert.Equal(t, responseBody, string(body))
-		})
+		resp, err := client.Get(targetURL)
+		require.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, responseBody, string(body))
 	})
 }
 
