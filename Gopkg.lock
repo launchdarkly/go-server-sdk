@@ -133,12 +133,12 @@
   revision = "0b12d6b5"
 
 [[projects]]
-  digest = "1:2707a82b2087ece4d25759c77ab322c0e813adbd78cbc1ce14f018dc0a724111"
+  digest = "1:961f1161ad53193d4d317a4798ac3f85929279f48fedde7c1f14c4df9a203ac6"
   name = "github.com/launchdarkly/eventsource"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "c02d5a3fb1eec8ddf83fad96ccb58a2d53eb9905"
-  version = "v1.3.0"
+  revision = "1caf281ee5699165d5f4e8b9bd1e40e8736359c4"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"

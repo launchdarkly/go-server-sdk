@@ -118,7 +118,7 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 		assertNoMoreRequests(t, requestsCh)
 
 		assert.Equal(t, 1, len(logCapture.Output[ldlog.Error]))
-		assert.Equal(t, 1, len(logCapture.Output[ldlog.Warn]))
+		assert.Equal(t, 0, len(logCapture.Output[ldlog.Warn]))
 	})
 }
 
