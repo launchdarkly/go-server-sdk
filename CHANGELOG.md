@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.17.0] - 2020-03-30
+### Added:
+- `Config` field `StreamInitialReconnectDelay` specifies how long the SDK should initially wait before retrying the stream connection after a failure. The default is one second; previously it was three seconds.
+
+### Changed:
+- When the SDK retries the stream connection after a failure, the delay now increases using an exponential backoff (which is reset to the initial level if the stream remains active for at least a minute), and each delay also has a random jitter from 0 to -50%. Previously, every retry used a three-second delay.
+
 ## [4.16.2] - 2020-03-13
 ### Added:
 - CI tests now verify that the SDK supports Go 1.14.
