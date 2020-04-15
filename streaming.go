@@ -327,7 +327,7 @@ func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
 		sp.config.Loggers.Error(httpErrorMessage(se.Code, "streaming connection", "will retry"))
 		return !isHTTPErrorRecoverable(se.Code)
 	}
-	sp.config.Loggers.Error("Network error on streaming connection: %s", err.Error())
+	sp.config.Loggers.Errorf("Network error on streaming connection: %s", err.Error())
 	return false
 }
 
