@@ -2,6 +2,24 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.17.1] - 2020-04-16
+### Fixed:
+- In streaming mode, a bug introduced in version 4.17.0 could cause a panic if the stream connection was broken and remained unavailable for a fairly long time (over half an hour).
+
+## [4.17.0] - 2020-03-30
+### Added:
+- `Config` field `StreamInitialReconnectDelay` specifies how long the SDK should initially wait before retrying the stream connection after a failure. The default is one second; previously it was three seconds.
+
+### Changed:
+- When the SDK retries the stream connection after a failure, the delay now increases using an exponential backoff (which is reset to the initial level if the stream remains active for at least a minute), and each delay also has a random jitter from 0 to -50%. Previously, every retry used a three-second delay.
+
+## [4.16.2] - 2020-03-13
+### Added:
+- CI tests now verify that the SDK supports Go 1.14.
+
+### Fixed:
+- In streaming mode, when using a persistent data store such as Redis, if the database was unavailable when the client initially started and made its first stream connection, a bug caused the SDK to give up on retrying and leave the client in a failed state. This has been fixed so that it will retry the stream connection once it detects that the database is available again (or, if using infinite caching mode, it will leave the same stream connection open and write the already-cached data to the database).
+
 ## [4.16.1] - 2020-02-10
 ### Changed:
 - Diagnostic events reported by this SDK now have an SDK name of `go-server-sdk` instead of `Go`.

@@ -1,4 +1,4 @@
-// +build proxytest2
+//+build proxytest2
 
 // Note, the tests in this package must be run one at a time in separate "go test" invocations, because
 // (depending on the platform) Go may cache the value of HTTP_PROXY. Therefore, we have a separate build
@@ -21,6 +21,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 
+	"github.com/launchdarkly/go-test-helpers/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/ldservices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

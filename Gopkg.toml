@@ -50,7 +50,7 @@
 
 [[constraint]]
   name = "github.com/launchdarkly/eventsource"
-  version = "1.1.0"
+  version = "1.4.1"
 
 [[constraint]]
   name = "github.com/patrickmn/go-cache"
@@ -59,3 +59,7 @@
 [[constraint]]
   name = "github.com/stretchr/testify"
   version = "1.2.1"
+
+[[constraint]]
+  name = "github.com/launchdarkly/go-test-helpers"
+  version = "1.0.0"

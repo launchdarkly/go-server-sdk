@@ -12,7 +12,6 @@ import (
 
 	helpers "github.com/launchdarkly/go-test-helpers"
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

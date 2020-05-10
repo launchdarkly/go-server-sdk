@@ -6,6 +6,13 @@ orbs:
 workflows:
   workflow:
     jobs:
+      # Note that currently we are using a golangci-lint version that supports our oldest compatible
+      # version, 1.8. Because of how build tags are handled in golangci-lint, that version is not
+      # compatible with 1.12 and above. So, until a future version where we drop older versions, we
+      # won't run the linter in 1.12 and above.
+      - go-test:
+          name: Go 1.14
+          docker-image: circleci/golang:1.14
       - go-test:
           name: Go 1.13
           docker-image: circleci/golang:1.13

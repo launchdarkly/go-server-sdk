@@ -90,9 +90,8 @@ func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 		assertNoMoreRequests(t, requestsCh)
 
 		expectedError := "Received HTTP error 401 (invalid SDK key) for streaming connection - giving up permanently"
-		expectedWarning := "Unable to establish streaming connection: 401: "
 		assert.Equal(t, []string{expectedError}, logCapture.Output[ldlog.Error])
-		assert.Equal(t, []string{expectedWarning, initializationFailedErrorMessage}, logCapture.Output[ldlog.Warn])
+		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.Output[ldlog.Warn])
 	})
 }
 
@@ -124,9 +123,8 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 		assertNoMoreRequests(t, requestsCh)
 
 		expectedError := "Received HTTP error 503 for streaming connection - will retry"
-		expectedWarning := "Unable to establish streaming connection: 503: "
 		assert.Equal(t, []string{expectedError}, logCapture.Output[ldlog.Error])
-		assert.Equal(t, []string{expectedWarning}, logCapture.Output[ldlog.Warn])
+		assert.Equal(t, []string{}, logCapture.Output[ldlog.Warn])
 	})
 }
 

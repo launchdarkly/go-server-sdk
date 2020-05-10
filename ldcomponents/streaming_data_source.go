@@ -3,7 +3,6 @@ package ldcomponents
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,11 +17,15 @@ import (
 )
 
 const (
-	putEvent           = "put"
-	patchEvent         = "patch"
-	deleteEvent        = "delete"
-	indirectPatchEvent = "indirect/patch"
-	streamReadTimeout  = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
+	putEvent                 = "put"
+	patchEvent               = "patch"
+	deleteEvent              = "delete"
+	indirectPatchEvent       = "indirect/patch"
+	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
+	streamMaxRetryDelay      = 30 * time.Second
+	streamRetryResetInterval = 60 * time.Second
+	streamJitterRatio        = 0.5
+	defaultStreamRetryDelay  = 1 * time.Second
 )
 
 type streamProcessor struct {
@@ -39,6 +42,7 @@ type streamProcessor struct {
 	halt                       chan struct{}
 	storeStatusSub             internal.DataStoreStatusSubscription
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
+	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
 	closeOnce                  sync.Once
 }
@@ -90,21 +94,35 @@ func parsePath(path string) (parsedPath, error) {
 	return parsedPath, nil
 }
 
-// Returns true if we should recreate the stream and start over
-func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struct{}) bool {
-	notifyReady := func() {
-		sp.readyOnce.Do(func() {
-			close(closeWhenReady)
-		})
-	}
-	// Ensure we stop waiting for initialization if we exit, even if initialization fails
-	defer notifyReady()
-
+// Process events from the stream until it's time to close the stream.
+//
+// This returns true if we should recreate the stream and start over, or false if we should give up and never retry.
+//
+// Error handling works as follows:
+// 1. If any event is malformed, we must assume the stream is broken and we may have missed updates. Restart it.
+// 2. If we try to put updates into the data store and we get an error, we must assume something's wrong with the
+// data store.
+// 2a. If the data store supports status notifications (which all persistent stores normally do), then we can
+// assume it has entered a failed state and will notify us once it is working again. If and when it recovers, then
+// it will tell us whether we need to restart the stream (to ensure that we haven't missed any updates), or
+// whether it has already persisted all of the stream updates we received during the outage.
+// 2b. If the data store doesn't support status notifications (which is normally only true of the in-memory store)
+// then we don't know the significance of the error, but we must assume that updates have been lost, so we'll
+// restart the stream.
+// 3. If we receive an unrecoverable error like HTTP 401, we close the stream and don't retry. Any other HTTP
+// error or network error causes a retry with backoff.
+// 4. We close the closeWhenReady channel to tell the client initialization logic that initialization has either
+// succeeded (we got an initial payload and successfully stored it) or permanently failed (we got a 401, etc.).
+// Otherwise, the client initialization method may time out but we will still be retrying in the background, and
+// if we succeed then the client can detect that we're initialized now by calling our Initialized method.
+func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
 		for range stream.Events {
 		}
-		for range stream.Errors {
+		if stream.Errors != nil {
+			for range stream.Errors {
+			}
 		}
 	}()
 
@@ -118,64 +136,80 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 		case event, ok := <-stream.Events:
 			if !ok {
 				sp.loggers.Info("Event stream closed")
-				return false
+				return // The stream only gets closed without an error happening if we're being shut down externally
 			}
 			sp.logConnectionResult(true)
+
+			shouldRestart := false
+
+			gotMalformedEvent := func(event es.Event, err error) {
+				sp.loggers.Errorf("Received streaming \"%s\" event with malformed JSON data (%s); will restart stream", event.Event(), err)
+				shouldRestart = true // scenario 1 above
+			}
+
+			storeUpdateFailed := func(updateDesc string, err error) {
+				if sp.storeStatusSub != nil {
+					sp.loggers.Errorf("Failed to store %s in data store (%s); will try again once data store is working", updateDesc, err)
+					// scenario 2a above
+				} else {
+					sp.loggers.Errorf("Failed to store %s in data store (%s); will restart stream until successful", updateDesc, err)
+					shouldRestart = true // scenario 2b above
+				}
+			}
+
 			switch event.Event() {
 			case putEvent:
 				var put putData
 				if err := json.Unmarshal([]byte(event.Data()), &put); err != nil {
-					sp.loggers.Errorf("Unexpected error unmarshalling PUT json: %+v", err)
+					gotMalformedEvent(event, err)
 					break
 				}
 				err := sp.store.Init(makeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
-				if err != nil {
-					sp.loggers.Errorf("Error initializing store: %s", err)
-					return false
+				if err == nil {
+					sp.setInitializedAndNotifyClient(true, closeWhenReady)
+				} else {
+					storeUpdateFailed("initial streaming data", err)
 				}
-				sp.setInitializedOnce.Do(func() {
-					sp.loggers.Info("LaunchDarkly streaming is active")
-					sp.isInitialized = true
-					notifyReady()
-				})
+
 			case patchEvent:
 				var patch patchData
 				if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
-					sp.loggers.Errorf("Unexpected error unmarshalling PATCH json: %+v", err)
+					gotMalformedEvent(event, err)
 					break
 				}
 				path, err := parsePath(patch.Path)
 				if err != nil {
-					sp.loggers.Errorf("Unable to process event %s: %s", event.Event(), err)
+					gotMalformedEvent(event, err)
 					break
 				}
 				item := path.kind.GetDefaultItem().(interfaces.VersionedData)
 				if err = json.Unmarshal(patch.Data, item); err != nil {
-					sp.loggers.Errorf("Unexpected error unmarshalling JSON for %s item: %+v", path.kind, err)
+					gotMalformedEvent(event, err)
 					break
 				}
 				if err = sp.store.Upsert(path.kind, item); err != nil {
-					sp.loggers.Errorf("Unexpected error storing %s item: %+v", path.kind, err)
+					storeUpdateFailed("streaming update of "+path.key, err)
 				}
+
 			case deleteEvent:
 				var data deleteData
 				if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
-					sp.loggers.Errorf("Unexpected error unmarshalling DELETE json: %+v", err)
+					gotMalformedEvent(event, err)
 					break
 				}
 				path, err := parsePath(data.Path)
 				if err != nil {
-					sp.loggers.Errorf("Unable to process event %s: %s", event.Event(), err)
+					gotMalformedEvent(event, err)
 					break
 				}
 				if err = sp.store.Delete(path.kind, path.key, data.Version); err != nil {
-					sp.loggers.Errorf(`Unexpected error deleting %s item "%s": %s`, path.kind, path.key, err)
+					storeUpdateFailed("streaming deletion of "+path.key, err)
 				}
+
 			case indirectPatchEvent:
 				path, err := parsePath(event.Data())
 				if err != nil {
-					sp.loggers.Errorf("Unable to process event %s: %s", event.Event(), err)
-					break
+					gotMalformedEvent(event, err)
 				}
 				item, requestErr := sp.requestor.requestResource(path.kind, path.key)
 				if requestErr != nil {
@@ -183,38 +217,34 @@ func (sp *streamProcessor) events(stream *es.Stream, closeWhenReady chan<- struc
 					break
 				}
 				if err = sp.store.Upsert(path.kind, item); err != nil {
-					sp.loggers.Errorf(`Unexpected error store %s item "%s": %+v`, path.kind, path.key, err)
+					storeUpdateFailed("streaming update of "+path.key, err)
 				}
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
 			}
-		case err, ok := <-stream.Errors:
-			if !ok {
-				sp.loggers.Info("Event error stream closed")
-				return false // Otherwise we will spin in this loop
+
+			if shouldRestart {
+				stream.Restart()
 			}
-			sp.loggers.Error(err)
-			if err != io.EOF {
-				sp.loggers.Errorf("Error encountered processing stream: %+v", err)
-				if sp.checkIfPermanentFailure(err) {
-					sp.closeOnce.Do(func() {
-						sp.loggers.Info("Closing event stream")
-						stream.Close()
-					})
-					return false
-				}
-			}
+
 		case newStoreStatus := <-statusCh:
-			if newStoreStatus.Available && newStoreStatus.NeedsRefresh {
-				// The store has just transitioned from unavailable to available, and we can't guarantee that
-				// all of the latest data got cached, so let's restart the stream to refresh all the data.
-				sp.loggers.Warn("Restarting stream to refresh data after data store outage")
-				stream.Close()
-				return true // causes subscribe() to restart the connection
+			if newStoreStatus.Available {
+				// The store has just transitioned from unavailable to available (scenario 2a above)
+				if newStoreStatus.NeedsRefresh {
+					// The store is telling us that it can't guarantee that all of the latest data was cached.
+					// So we'll restart the stream to ensure a full refresh.
+					sp.loggers.Warn("Restarting stream to refresh data after feature store outage")
+					stream.Restart()
+				}
+				// All of the updates were cached and have been written to the store, so we don't need to
+				// restart the stream. We just need to make sure the client knows we're initialized now
+				// (in case the initial "put" was not stored).
+				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 			}
+
 		case <-sp.halt:
 			stream.Close()
-			return false
+			return
 		}
 	}
 }
@@ -250,67 +280,87 @@ func newStreamProcessor(
 }
 
 func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	for {
-		req, _ := http.NewRequest("GET", sp.streamURI+"/all", nil)
-		for k, vv := range sp.headers {
-			req.Header[k] = vv
-		}
-		sp.loggers.Info("Connecting to LaunchDarkly stream")
-
-		sp.logConnectionStarted()
-
-		if stream, err := es.SubscribeWithRequestAndOptions(req,
-			es.StreamOptionHTTPClient(sp.client),
-			es.StreamOptionReadTimeout(streamReadTimeout),
-			es.StreamOptionInitialRetry(sp.initialReconnectDelay),
-			es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info))); err != nil {
-
-			sp.loggers.Warnf("Unable to establish streaming connection: %s", err)
-			sp.logConnectionResult(false)
-
-			if sp.checkIfPermanentFailure(err) {
-				close(closeWhenReady)
-				return
-			}
-
-			// Halt immediately if we've been closed already
-			select {
-			case <-sp.halt:
-				close(closeWhenReady)
-				return
-			default:
-				time.Sleep(2 * time.Second)
-			}
-		} else {
-			if !sp.events(stream, closeWhenReady) {
-				return
-			}
-			// If events() returned true, we should continue the for loop
-		}
+	req, _ := http.NewRequest("GET", sp.streamURI+"/all", nil)
+	for k, vv := range sp.headers {
+		req.Header[k] = vv
 	}
+	sp.loggers.Info("Connecting to LaunchDarkly stream")
+
+	sp.logConnectionStarted()
+
+	initialRetryDelay := sp.initialReconnectDelay
+	if initialRetryDelay <= 0 {
+		initialRetryDelay = defaultStreamRetryDelay
+	}
+
+	errorHandler := func(err error) es.StreamErrorHandlerResult {
+		sp.logConnectionResult(false)
+		shouldStreamShutDown := sp.checkIfPermanentFailure(err) // this also logs the error
+		if !shouldStreamShutDown {
+			sp.logConnectionStarted()
+		}
+		return es.StreamErrorHandlerResult{CloseNow: shouldStreamShutDown}
+	}
+
+	stream, err := es.SubscribeWithRequestAndOptions(req,
+		es.StreamOptionHTTPClient(sp.client),
+		es.StreamOptionReadTimeout(streamReadTimeout),
+		es.StreamOptionInitialRetry(initialRetryDelay),
+		es.StreamOptionUseBackoff(streamMaxRetryDelay),
+		es.StreamOptionUseJitter(streamJitterRatio),
+		es.StreamOptionRetryResetInterval(streamRetryResetInterval),
+		es.StreamOptionErrorHandler(errorHandler),
+		es.StreamOptionCanRetryFirstConnection(-1),
+		es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info)),
+	)
+
+	if err != nil {
+		sp.logConnectionResult(false)
+
+		close(closeWhenReady)
+		return
+	}
+
+	sp.consumeStream(stream, closeWhenReady)
+}
+
+func (sp *streamProcessor) setInitializedAndNotifyClient(success bool, closeWhenReady chan<- struct{}) {
+	if success {
+		sp.setInitializedOnce.Do(func() {
+			sp.loggers.Info("LaunchDarkly streaming is active")
+			sp.isInitialized = true
+		})
+	}
+	sp.readyOnce.Do(func() {
+		close(closeWhenReady)
+	})
 }
 
 func (sp *streamProcessor) checkIfPermanentFailure(err error) bool {
 	if se, ok := err.(es.SubscriptionError); ok {
 		sp.loggers.Error(httpErrorMessage(se.Code, "streaming connection", "will retry"))
-		if !isHTTPErrorRecoverable(se.Code) {
-			return true
-		}
+		return !isHTTPErrorRecoverable(se.Code)
 	}
+	sp.loggers.Errorf("Network error on streaming connection: %s", err.Error())
 	return false
 }
 
 func (sp *streamProcessor) logConnectionStarted() {
+	sp.connectionAttemptLock.Lock()
+	defer sp.connectionAttemptLock.Unlock()
 	sp.connectionAttemptStartTime = ldtime.UnixMillisNow()
 }
 
 func (sp *streamProcessor) logConnectionResult(success bool) {
-	if sp.connectionAttemptStartTime > 0 && sp.diagnosticsManager != nil {
-		timestamp := ldtime.UnixMillisNow()
-		sp.diagnosticsManager.RecordStreamInit(timestamp, !success,
-			uint64(timestamp-sp.connectionAttemptStartTime))
-	}
+	sp.connectionAttemptLock.Lock()
+	startTimeWas := sp.connectionAttemptStartTime
 	sp.connectionAttemptStartTime = 0
+	sp.connectionAttemptLock.Unlock()
+
+	if startTimeWas > 0 && sp.diagnosticsManager != nil {
+		timestamp := ldtime.UnixMillisNow()
+		sp.diagnosticsManager.RecordStreamInit(timestamp, !success, uint64(timestamp-startTimeWas))
+	}
 }
 
 // Close instructs the processor to stop receiving updates

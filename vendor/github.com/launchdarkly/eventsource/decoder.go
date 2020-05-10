@@ -13,6 +13,7 @@ type publication struct {
 	retry           int64
 }
 
+//nolint: golint  // should be ID; retained for backward compatibility
 func (s *publication) Id() string    { return s.id }
 func (s *publication) Event() string { return s.event }
 func (s *publication) Data() string  { return s.data }
@@ -25,16 +26,43 @@ type Decoder struct {
 	readTimeout time.Duration
 }
 
-// NewDecoder returns a new Decoder instance that reads events
-// with the given io.Reader.
-func NewDecoder(r io.Reader, readTimeout time.Duration) *Decoder {
+// DecoderOption is a common interface for optional configuration parameters that can be
+// used in creating a Decoder.
+type DecoderOption interface {
+	apply(s *Decoder)
+}
+
+type readTimeoutDecoderOption time.Duration
+
+func (o readTimeoutDecoderOption) apply(d *Decoder) {
+	d.readTimeout = time.Duration(o)
+}
+
+// DecoderOptionReadTimeout returns an option that sets the read timeout interval for a
+// Decoder when the Decoder is created. If the Decoder does not receive new data within this
+// length of time, it will return an error. By default, there is no read timeout.
+func DecoderOptionReadTimeout(timeout time.Duration) DecoderOption {
+	return readTimeoutDecoderOption(timeout)
+}
+
+// NewDecoder returns a new Decoder instance that reads events with the given io.Reader.
+func NewDecoder(r io.Reader) *Decoder {
 	bufReader := bufio.NewReader(newNormaliser(r))
 	linesCh, errorCh := newLineStreamChannel(bufReader)
 	return &Decoder{
-		linesCh:     linesCh,
-		errorCh:     errorCh,
-		readTimeout: readTimeout,
+		linesCh: linesCh,
+		errorCh: errorCh,
 	}
+}
+
+// NewDecoderWithOptions returns a new Decoder instance that reads events with the given
+// io.Reader, with optional configuration parameters.
+func NewDecoderWithOptions(r io.Reader, options ...DecoderOption) *Decoder {
+	d := NewDecoder(r)
+	for _, o := range options {
+		o.apply(d)
+	}
+	return d
 }
 
 // Decode reads the next Event from a stream (and will block until one
@@ -87,6 +115,7 @@ ReadLoop:
 			case "id":
 				pub.id = value
 			case "retry":
+				//nolint:gosec
 				pub.retry, _ = strconv.ParseInt(value, 10, 64)
 			}
 		case err := <-dec.errorCh:
