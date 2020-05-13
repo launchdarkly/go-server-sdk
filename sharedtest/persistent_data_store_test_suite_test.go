@@ -9,10 +9,6 @@ import (
 // This verifies that the PersistentDataStoreTestSuite tests behave as expected as long as the
 // PersistentDataStore implementation behaves as expected, so we can distinguish between flaws in the
 // implementations and flaws in the test logic.
-//
-// PersistentDataStore implementations may be able to persist the version and deleted state as metadata
-// separate from the serialized item string; or they may not, in which case a little extra parsing is
-// necessary. MockPersistentDataStore is able to simulate both of these scenarios, and we test both here.
 
 type mockStoreFactory struct {
 	db     *mockDatabaseInstance
