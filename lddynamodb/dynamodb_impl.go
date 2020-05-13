@@ -1,35 +1,3 @@
-// Package lddynamodb provides a DynamoDB-backed data store for the LaunchDarkly Go SDK.
-//
-// For more details about how and why you can use a persistent data store, see:
-// https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store
-//
-// To use the DynamoDB data store with the LaunchDarkly client:
-//
-//     factory, err := lddynamodb.NewDynamoDBDataStoreFactory("my-table-name")
-//     if err != nil { ... }
-//
-//     config := ld.Config {
-//         DataStore: factory,
-//     }
-//     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
-//
-// Note that the specified table must already exist in DynamoDB. It must have a
-// partition key of "namespace", and a sort key of "key".
-//
-// By default, the data store uses a basic DynamoDB client configuration that is
-// equivalent to doing this:
-//
-//     dynamoClient := dynamodb.New(session.NewSession())
-//
-// This default configuration will only work if your AWS credentials and region are
-// available from AWS environment variables and/or configuration files. If you want to
-// set those programmatically or modify any other configuration settings, you can use
-// the SessionOptions function, or use an already-configured client via the DynamoClient
-// function.
-//
-// If you are using the same DynamoDB table as a data store for multiple LaunchDarkly
-// environments, use the Prefix option and choose a different prefix string for each, so
-// they will not interfere with each other's data.
 package lddynamodb
 
 // This is based on code from https://github.com/mlafeldt/launchdarkly-dynamo-store.
@@ -67,7 +35,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -75,15 +42,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
-)
-
-const (
-	// DefaultCacheTTL is the amount of time that recently read or updated items will be cached
-	// in memory, unless you specify otherwise with the CacheTTL option.
-	DefaultCacheTTL = 15 * time.Second
 )
 
 const (
@@ -99,210 +59,41 @@ type namespaceAndKey struct {
 	key       string
 }
 
-type dataStoreOptions struct {
+// Internal type for our DynamoDB implementation of the ld.DataStore interface.
+type dynamoDBDataStore struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
 	prefix         string
-	cacheTTL       time.Duration
-	configs        []*aws.Config
-	sessionOptions session.Options
-}
-
-// Internal type for our DynamoDB implementation of the ld.DataStore interface.
-type dynamoDBDataStore struct {
-	options        dataStoreOptions
-	client         dynamodbiface.DynamoDBAPI
 	loggers        ldlog.Loggers
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
 
-// DataStoreOption is the interface for optional configuration parameters that can be
-// passed to NewDynamoDBDataStoreFactory. These include SessionOptions, CacheTTL, and DynamoClient.
-type DataStoreOption interface {
-	apply(opts *dataStoreOptions) error
-}
-
-type prefixOption struct {
-	prefix string
-}
-
-func (o prefixOption) apply(opts *dataStoreOptions) error {
-	opts.prefix = o.prefix
-	return nil
-}
-
-// Prefix creates an option for NewDynamoDBDataStoreFactory to specify a string
-// that should be prepended to all partition keys used by the data store. A colon will be
-// added to this automatically. If this is unspecified, no prefix will be used.
-//
-//     factory, err := lddynamodb.NewDynamoDBDataStoreFactory(lddynamodb.Prefix("ld-data"))
-func Prefix(prefix string) DataStoreOption {
-	return prefixOption{prefix}
-}
-
-type cacheTTLOption struct {
-	cacheTTL time.Duration
-}
-
-func (o cacheTTLOption) apply(opts *dataStoreOptions) error {
-	opts.cacheTTL = o.cacheTTL
-	return nil
-}
-
-// CacheTTL creates an option for NewDynamoDBDataStoreFactory to set the amount of time
-// that recently read or updated items should remain in an in-memory cache. This reduces the
-// amount of database access if the same feature flags are being evaluated repeatedly.
-//
-// The default value is DefaultCacheTTL. A value of zero disables in-memory caching completely.
-// A negative value means data is cached forever (i.e. it will only be read again from the
-// database if the SDK is restarted). Use the "cached forever" mode with caution: it means
-// that in a scenario where multiple processes are sharing the database, and the current
-// process loses connectivity to LaunchDarkly while other processes are still receiving
-// updates and writing them to the database, the current process will have stale data.
-//
-//     factory, err := lddynamodb.NewDynamoDBDataStoreFactory("my-table-name",
-//         lddynamodb.CacheTTL(30*time.Second))
-func CacheTTL(ttl time.Duration) DataStoreOption {
-	return cacheTTLOption{ttl}
-}
-
-type clientConfigOption struct {
-	config *aws.Config
-}
-
-func (o clientConfigOption) apply(opts *dataStoreOptions) error {
-	opts.configs = append(opts.configs, o.config)
-	return nil
-}
-
-// ClientConfig creates an option for NewDynamoDBDataStoreFactory to add an AWS configuration
-// object for the DynamoDB client. This allows you to customize settings such as the
-// retry behavior.
-func ClientConfig(config *aws.Config) DataStoreOption {
-	return clientConfigOption{config}
-}
-
-type dynamoClientOption struct {
-	client dynamodbiface.DynamoDBAPI
-}
-
-func (o dynamoClientOption) apply(opts *dataStoreOptions) error {
-	opts.client = o.client
-	return nil
-}
-
-// DynamoClient creates an option for NewDynamoDBDataStoreFactory to specify an existing
-// DynamoDB client instance. Use this if you want to customize the client used by the
-// data store in ways that are not supported by other NewDynamoDBDataStoreFactory options.
-// If you specify this option, then any configurations specified with SessionOptions or
-// ClientConfig will be ignored.
-//
-//     factory, err := lddynamodb.NewDynamoDBDataStoreFactory("my-table-name",
-//         lddynamodb.DynamoClient(myDBClient))
-func DynamoClient(client dynamodbiface.DynamoDBAPI) DataStoreOption {
-	return dynamoClientOption{client}
-}
-
-type sessionOptionsOption struct {
-	options session.Options
-}
-
-func (o sessionOptionsOption) apply(opts *dataStoreOptions) error {
-	opts.sessionOptions = o.options
-	return nil
-}
-
-// SessionOptions creates an option for NewDynamoDBDataStoreFactory, to specify an AWS
-// Session.Options object to use when creating the DynamoDB session. This can be used to
-// set properties such as the region programmatically, rather than relying on the
-// defaults from the environment.
-//
-//     factory, err := lddynamodb.NewDynamoDBDataStoreFactory("my-table-name",
-//         lddynamodb.SessionOptions(myOptions))
-func SessionOptions(options session.Options) DataStoreOption {
-	return sessionOptionsOption{options}
-}
-
-// NewDynamoDBDataStoreFactory returns a factory function for a DynamoDB-backed data store with an
-// optional memory cache. You may customize its behavior with DataStoreOption values, such as
-// CacheTTL and SessionOptions.
-//
-// By default, this function uses https://docs.aws.amazon.com/sdk-for-go/api/aws/session/#NewSession
-// to configure access to DynamoDB, so the configuration will use your local AWS credentials as well
-// as AWS environment variables. You can also override the default configuration with the SessionOptions
-// option, or use an already-configured DynamoDB client instance with the DynamoClient option.
-//
-// Set the DataStore field in your Config to the returned value. Because this is specified as a factory
-// object, the Consul client is not actually created until you create the SDK client.
-func NewDynamoDBDataStoreFactory(table string, options ...DataStoreOption) (interfaces.DataStoreFactory, error) {
-	return dynamoDBDataStoreFactory{table, options}, nil
-}
-
-type dynamoDBDataStoreFactory struct {
-	table   string
-	options []DataStoreOption
-}
-
-// DataStoreFactory implementation
-func (f dynamoDBDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
-	configuredOptions, err := validateOptions(f.table, f.options...)
-	if err != nil {
-		return nil, err
+func newDynamoDBDataStoreImpl(builder *DynamoDBDataStoreBuilder, loggers ldlog.Loggers) (*dynamoDBDataStore, error) {
+	if builder.table == "" {
+		return nil, errors.New("table name is required")
 	}
-	core, err := newDynamoDBDataStoreInternal(configuredOptions, context.GetLoggers())
-	if err != nil {
-		return nil, err
-	}
-	return utils.NewNonAtomicDataStoreWrapperWithConfig(core, context.GetLoggers()), nil
-}
 
-// DiagnosticDescription implementation
-func (f dynamoDBDataStoreFactory) DescribeConfiguration() ldvalue.Value {
-	return ldvalue.String("DynamoDB")
-}
-
-func validateOptions(table string, options ...DataStoreOption) (dataStoreOptions, error) {
-	ret := dataStoreOptions{
-		table:    table,
-		cacheTTL: DefaultCacheTTL,
-	}
-	if table == "" {
-		return ret, errors.New("table name is required")
-	}
-	for _, o := range options {
-		err := o.apply(&ret)
-		if err != nil {
-			return ret, err
-		}
-	}
-	return ret, nil
-}
-
-func newDynamoDBDataStoreInternal(configuredOptions dataStoreOptions, loggers ldlog.Loggers) (*dynamoDBDataStore, error) {
-	store := dynamoDBDataStore{
-		options: configuredOptions,
-		client:  configuredOptions.client,
+	store := &dynamoDBDataStore{
+		client:  builder.client,
+		table:   builder.table,
+		prefix:  builder.prefix,
 		loggers: loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetPrefix("DynamoDBDataStore:")
-	store.loggers.Infof(`Using DynamoDB table %s`, configuredOptions.table)
+	store.loggers.Infof(`Using DynamoDB table %s`, store.table)
 
 	if store.client == nil {
-		sess, err := session.NewSessionWithOptions(configuredOptions.sessionOptions)
+		sess, err := session.NewSessionWithOptions(builder.sessionOptions)
 		if err != nil {
 			return nil, fmt.Errorf("unable to configure DynamoDB client: %s", err)
 		}
-		store.client = dynamodb.New(sess, configuredOptions.configs...)
+		store.client = dynamodb.New(sess, builder.configs...)
 	}
 
-	return &store, nil
+	return store, nil
 }
 
-func (store *dynamoDBDataStore) GetCacheTTL() time.Duration {
-	return store.options.cacheTTL
-}
-
-func (store *dynamoDBDataStore) InitCollectionsInternal(allData []interfaces.StoreCollection) error {
+func (store *dynamoDBDataStore) Init(allData []interfaces.StoreCollection) error {
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys(allData)
 	if err != nil {
@@ -352,18 +143,18 @@ func (store *dynamoDBDataStore) InitCollectionsInternal(allData []interfaces.Sto
 		PutRequest: &dynamodb.PutRequest{Item: initedItem},
 	})
 
-	if err := batchWriteRequests(store.client, store.options.table, requests); err != nil {
+	if err := batchWriteRequests(store.client, store.table, requests); err != nil {
 		return fmt.Errorf("failed to write %d items(s) in batches: %s", len(requests), err)
 	}
 
-	store.loggers.Infof("Initialized table %q with %d item(s)", store.options.table, numItems)
+	store.loggers.Infof("Initialized table %q with %d item(s)", store.table, numItems)
 
 	return nil
 }
 
-func (store *dynamoDBDataStore) InitializedInternal() bool {
+func (store *dynamoDBDataStore) IsInitialized() bool {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
-		TableName:      aws.String(store.options.table),
+		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(store.initedKey())},
@@ -373,7 +164,7 @@ func (store *dynamoDBDataStore) InitializedInternal() bool {
 	return err == nil && len(result.Item) != 0
 }
 
-func (store *dynamoDBDataStore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+func (store *dynamoDBDataStore) GetAll(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	var items []map[string]*dynamodb.AttributeValue
 
 	err := store.client.QueryPages(store.makeQueryForKind(kind),
@@ -398,9 +189,9 @@ func (store *dynamoDBDataStore) GetAllInternal(kind interfaces.VersionedDataKind
 	return results, nil
 }
 
-func (store *dynamoDBDataStore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (store *dynamoDBDataStore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
-		TableName:      aws.String(store.options.table),
+		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(store.namespaceForKind(kind))},
@@ -424,7 +215,7 @@ func (store *dynamoDBDataStore) GetInternal(kind interfaces.VersionedDataKind, k
 	return item, nil
 }
 
-func (store *dynamoDBDataStore) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
+func (store *dynamoDBDataStore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
 	av, err := store.marshalItem(kind, item)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, item.GetKey(), err)
@@ -435,7 +226,7 @@ func (store *dynamoDBDataStore) UpsertInternal(kind interfaces.VersionedDataKind
 	}
 
 	_, err = store.client.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(store.options.table),
+		TableName: aws.String(store.table),
 		Item:      av,
 		ConditionExpression: aws.String(
 			"attribute_not_exists(#namespace) or " +
@@ -455,8 +246,8 @@ func (store *dynamoDBDataStore) UpsertInternal(kind interfaces.VersionedDataKind
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
 			store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
 				kind.GetNamespace(), item.GetKey(), item.GetVersion())
-			// We must now read the item that's in the database and return it, so DataStoreWrapper can cache it
-			oldItem, err := store.GetInternal(kind, item.GetKey())
+			// We must now read the item that's in the database and return it, so PersistentDataStoreWrapper can cache it
+			oldItem, err := store.Get(kind, item.GetKey())
 			return oldItem, err
 		}
 		return nil, fmt.Errorf("failed to put %s key %s: %s", kind, item.GetKey(), err)
@@ -470,7 +261,7 @@ func (store *dynamoDBDataStore) IsStoreAvailable() bool {
 	// do a simple query for the "inited" key, and test whether we get an error ("not found" does not
 	// count as an error).
 	_, err := store.client.GetItem(&dynamodb.GetItemInput{
-		TableName:      aws.String(store.options.table),
+		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(store.initedKey())},
@@ -480,11 +271,16 @@ func (store *dynamoDBDataStore) IsStoreAvailable() bool {
 	return err == nil
 }
 
+func (store *dynamoDBDataStore) Close() error {
+	// The AWS client doesn't currently need to be explicitly disposed of
+	return nil
+}
+
 func (store *dynamoDBDataStore) prefixedNamespace(baseNamespace string) string {
-	if store.options.prefix == "" {
+	if store.prefix == "" {
 		return baseNamespace
 	}
-	return store.options.prefix + ":" + baseNamespace
+	return store.prefix + ":" + baseNamespace
 }
 
 func (store *dynamoDBDataStore) namespaceForKind(kind interfaces.VersionedDataKind) string {
@@ -497,7 +293,7 @@ func (store *dynamoDBDataStore) initedKey() string {
 
 func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.VersionedDataKind) *dynamodb.QueryInput {
 	return &dynamodb.QueryInput{
-		TableName:      aws.String(store.options.table),
+		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		KeyConditions: map[string]*dynamodb.Condition{
 			tablePartitionKey: {

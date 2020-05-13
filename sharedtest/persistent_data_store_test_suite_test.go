@@ -1,0 +1,47 @@
+package sharedtest
+
+import (
+	"testing"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+)
+
+// This verifies that the PersistentDataStoreTestSuite tests behave as expected as long as the
+// PersistentDataStore implementation behaves as expected, so we can distinguish between flaws in the
+// implementations and flaws in the test logic.
+//
+// PersistentDataStore implementations may be able to persist the version and deleted state as metadata
+// separate from the serialized item string; or they may not, in which case a little extra parsing is
+// necessary. MockPersistentDataStore is able to simulate both of these scenarios, and we test both here.
+
+type mockStoreFactory struct {
+	db     *MockDatabaseInstance
+	prefix string
+}
+
+func (f mockStoreFactory) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+	store := NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
+	return store, nil
+}
+
+func TestPersistentDataStoreTestSuite(t *testing.T) {
+	db := NewMockDatabaseInstance()
+
+	runTests := func(t *testing.T) {
+		NewPersistentDataStoreTestSuite(
+			func(prefix string) interfaces.PersistentDataStoreFactory {
+				return mockStoreFactory{db, prefix}
+			},
+			func(prefix string) error {
+				db.Clear(prefix)
+				return nil
+			},
+		).ConcurrentModificationHook(
+			func(store interfaces.PersistentDataStore, hook func()) {
+				store.(*MockPersistentDataStore).testTxHook = hook
+			},
+		).Run(t)
+	}
+
+	runTests(t)
+}

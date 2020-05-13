@@ -59,11 +59,11 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 
 	// data store configuration
 	doTest(func(c *Config) { c.DataStore = ldcomponents.InMemoryDataStore() }, func(b ldvalue.ObjectBuilder) {})
-	doTest(func(c *Config) { c.DataStore, _ = ldconsul.NewConsulDataStoreFactory() },
+	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(ldconsul.DataStore()) },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Consul")) })
-	doTest(func(c *Config) { c.DataStore, _ = lddynamodb.NewDynamoDBDataStoreFactory("table-name") },
+	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(lddynamodb.DataStore("table-name")) },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("DynamoDB")) })
-	doTest(func(c *Config) { c.DataStore, _ = redis.NewRedisDataStoreFactory() },
+	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(redis.DataStore()) },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Redis")) })
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })

@@ -1,9 +1,10 @@
-package utils
+package internal
 
 import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 type testCacheMode string
@@ -44,78 +45,98 @@ func (m testCacheMode) ttl() time.Duration {
 type mockCore struct {
 	cacheTTL         time.Duration
 	data             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
+	orderedInitData  []interfaces.StoreCollection
 	fakeError        error
+	fakeAvailability bool
 	inited           bool
 	initQueriedCount int
+	queryCount       int
+	queryDelay       time.Duration
+	queryStartedCh   chan struct{}
+	lock             sync.Mutex
 }
 
-// Test implementation of NonAtomicDataStoreCore - we test this in somewhat less detail
-type mockNonAtomicCore struct {
-	data []interfaces.StoreCollection
-}
-
-// Test implementation of DataStoreCore for request-coalescing tests
-type mockCoreWithInstrumentedQueries struct {
-	cacheTTL       time.Duration
-	data           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
-	inited         bool
-	queryCount     int
-	queryDelay     time.Duration
-	queryStartedCh chan struct{}
-}
-
-func newCore(ttl time.Duration) *mockCore {
+func newCore() *mockCore {
 	return &mockCore{
-		cacheTTL: ttl,
-		data:     map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
+		data:             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
+		fakeAvailability: true,
 	}
 }
 
-func newCoreWithInstrumentedQueries(ttl time.Duration) *mockCoreWithInstrumentedQueries {
-	return &mockCoreWithInstrumentedQueries{
-		cacheTTL:       ttl,
-		data:           map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
-		queryDelay:     200 * time.Millisecond,
-		queryStartedCh: make(chan struct{}, 2),
-	}
+func (c *mockCore) EnableInstrumentedQueries(queryDelay time.Duration) <-chan struct{} {
+	c.queryDelay = queryDelay
+	c.queryStartedCh = make(chan struct{}, 10)
+	return c.queryStartedCh
 }
 
 func (c *mockCore) forceSet(kind interfaces.VersionedDataKind, item interfaces.VersionedData) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.data[kind][item.GetKey()] = item
 }
 
 func (c *mockCore) forceRemove(kind interfaces.VersionedDataKind, key string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	delete(c.data[kind], key)
 }
 
-func (c *mockCore) GetCacheTTL() time.Duration {
-	return c.cacheTTL
+func (c *mockCore) setAvailable(available bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.fakeAvailability = available
 }
 
-func (c *mockCore) InitInternal(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
+func (c *mockCore) startQuery() {
+	if c.queryDelay > 0 {
+		c.queryStartedCh <- struct{}{}
+		<-time.After(c.queryDelay)
+	}
+}
+
+func (c *mockCore) Init(allData []interfaces.StoreCollection) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.fakeError != nil {
 		return c.fakeError
 	}
-	c.data = allData
+	c.orderedInitData = allData
+	for k := range c.data {
+		delete(c.data, k)
+	}
+	for _, coll := range allData {
+		c.data[coll.Kind] = make(map[string]interfaces.VersionedData)
+		for _, item := range coll.Items {
+			c.data[coll.Kind][item.GetKey()] = item
+		}
+	}
 	c.inited = true
 	return nil
 }
 
-func (c *mockCore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (c *mockCore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+	c.startQuery()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
 	return c.data[kind][key], nil
 }
 
-func (c *mockCore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+func (c *mockCore) GetAll(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+	c.startQuery()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
 	return c.data[kind], nil
 }
 
-func (c *mockCore) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
+func (c *mockCore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.fakeError != nil {
 		return nil, c.fakeError
 	}
@@ -127,73 +148,21 @@ func (c *mockCore) UpsertInternal(kind interfaces.VersionedDataKind, item interf
 	return item, nil
 }
 
-func (c *mockCore) InitializedInternal() bool {
+func (c *mockCore) IsInitialized() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.initQueriedCount++
 	return c.inited
 }
 
-func (c *mockNonAtomicCore) GetCacheTTL() time.Duration {
-	return 0
+func (c *mockCore) IsStoreAvailable() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.fakeAvailability
 }
 
-func (c *mockNonAtomicCore) InitCollectionsInternal(allData []interfaces.StoreCollection) error {
-	c.data = allData
+func (c *mockCore) Close() error {
 	return nil
-}
-
-func (c *mockNonAtomicCore) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	return nil, nil // not used in tests
-}
-
-func (c *mockNonAtomicCore) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	return nil, nil // not used in tests
-}
-
-func (c *mockNonAtomicCore) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
-	return nil, nil // not used in tests
-}
-
-func (c *mockNonAtomicCore) InitializedInternal() bool {
-	return false // not used in tests
-}
-
-func (c *mockCoreWithInstrumentedQueries) forceSet(kind interfaces.VersionedDataKind, item interfaces.VersionedData) {
-	c.data[kind][item.GetKey()] = item
-}
-
-func (c *mockCoreWithInstrumentedQueries) GetCacheTTL() time.Duration {
-	return c.cacheTTL
-}
-
-func (c *mockCoreWithInstrumentedQueries) InitInternal(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
-	c.data = allData
-	c.inited = true
-	return nil
-}
-
-func (c *mockCoreWithInstrumentedQueries) GetInternal(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	c.queryStartedCh <- struct{}{}
-	<-time.After(c.queryDelay)
-	return c.data[kind][key], nil
-}
-
-func (c *mockCoreWithInstrumentedQueries) GetAllInternal(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	c.queryStartedCh <- struct{}{}
-	<-time.After(c.queryDelay)
-	return c.data[kind], nil
-}
-
-func (c *mockCoreWithInstrumentedQueries) UpsertInternal(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
-	oldItem := c.data[kind][item.GetKey()]
-	if oldItem != nil && oldItem.GetVersion() >= item.GetVersion() {
-		return oldItem, nil
-	}
-	c.data[kind][item.GetKey()] = item
-	return item, nil
-}
-
-func (c *mockCoreWithInstrumentedQueries) InitializedInternal() bool {
-	return c.inited
 }
 
 func TestDataStoreWrapper(t *testing.T) {
@@ -207,14 +176,14 @@ func TestDataStoreWrapper(t *testing.T) {
 			}
 			for _, mode := range forModes {
 				t.Run(string(mode), func(t *testing.T) {
-					test(t, mode, newCore(mode.ttl()))
+					test(t, mode, newCore())
 				})
 			}
 		})
 	}
 
 	runTests(t, "Get", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
@@ -235,7 +204,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Get with deleted item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Deleted(true).Build()
 		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
@@ -256,8 +225,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Get with missing item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		mockLog := shared_test.NewMockLoggers()
-		w := NewDataStoreWrapperWithConfig(core, mockLog.Loggers)
+		mockLog := sharedtest.NewMockLoggers()
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), mockLog.Loggers)
 		defer w.Close()
 		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
 
@@ -278,7 +247,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "cached Get uses values from Init", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -298,7 +267,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testCached, testCachedIndefinitely)
 
 	runTests(t, "All", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
 		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
@@ -320,7 +289,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "cached All uses values from Init", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
@@ -340,7 +309,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testCached, testCachedIndefinitely)
 
 	runTests(t, "cached All uses fresh values if there has been an update", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
@@ -369,7 +338,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testCached)
 
 	runTests(t, "Upsert - successful", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -400,7 +369,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		// store, this is just a no-op as far as the wrapper is concerned so there's nothing to
 		// test here. In a cached store, we need to verify that the cache has been refreshed
 		// using the data that was found in the store.
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -423,7 +392,7 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testCached, testCachedIndefinitely)
 
 	runTests(t, "Delete", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -452,8 +421,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	t.Run("Initialized calls InitializedInternal only if not already inited", func(t *testing.T) {
-		core := newCore(0)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, 0, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		assert.False(t, w.Initialized())
@@ -469,8 +438,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Initialized won't call InitializedInternal if Init has been called", func(t *testing.T) {
-		core := newCore(0)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, 0, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		assert.False(t, w.Initialized())
@@ -485,8 +454,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Initialized can cache false result", func(t *testing.T) {
-		core := newCore(500 * time.Millisecond)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, 500*time.Millisecond, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		assert.False(t, w.Initialized())
@@ -502,8 +471,9 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Cached Get coalesces requests for same key", func(t *testing.T) {
-		core := newCoreWithInstrumentedQueries(cacheTime)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
+		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(9).Build()
@@ -517,7 +487,7 @@ func TestDataStoreWrapper(t *testing.T) {
 		// We can't actually *guarantee* that our second query will start while the first one is still
 		// in progress, but the combination of waiting on queryStartedCh and the built-in delay in
 		// mockCoreWithInstrumentedQueries should make it extremely likely.
-		<-core.queryStartedCh
+		<-queryStartedCh
 		go func() {
 			result, _ := w.Get(interfaces.DataKindFeatures(), flag.Key)
 			resultCh <- result.GetVersion()
@@ -528,12 +498,13 @@ func TestDataStoreWrapper(t *testing.T) {
 		assert.Equal(t, flag.Version, result1)
 		assert.Equal(t, flag.Version, result2)
 
-		assert.Equal(t, 0, len(core.queryStartedCh)) // core only received 1 query
+		assert.Len(t, queryStartedCh, 0) // core only received 1 query
 	})
 
 	t.Run("Cached Get doesn't coalesce requests for same key", func(t *testing.T) {
-		core := newCoreWithInstrumentedQueries(cacheTime)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
+		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(8).Build()
@@ -546,7 +517,7 @@ func TestDataStoreWrapper(t *testing.T) {
 			result, _ := w.Get(interfaces.DataKindFeatures(), flag1.Key)
 			resultCh <- result.GetVersion()
 		}()
-		<-core.queryStartedCh
+		<-queryStartedCh
 		go func() {
 			result, _ := w.Get(interfaces.DataKindFeatures(), flag2.Key)
 			resultCh <- result.GetVersion()
@@ -557,12 +528,13 @@ func TestDataStoreWrapper(t *testing.T) {
 		results[<-resultCh] = true
 		assert.Equal(t, map[int]bool{flag1.Version: true, flag2.Version: true}, results)
 
-		assert.Equal(t, 1, len(core.queryStartedCh)) // core received a total of 2 queries
+		assert.Len(t, core.queryStartedCh, 1) // core received a total of 2 queries
 	})
 
 	t.Run("Cached All coalesces requests", func(t *testing.T) {
-		core := newCoreWithInstrumentedQueries(cacheTime)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
+		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(9).Build()
@@ -573,7 +545,7 @@ func TestDataStoreWrapper(t *testing.T) {
 			result, _ := w.All(interfaces.DataKindFeatures())
 			resultCh <- len(result)
 		}()
-		<-core.queryStartedCh
+		<-queryStartedCh
 		go func() {
 			result, _ := w.All(interfaces.DataKindFeatures())
 			resultCh <- len(result)
@@ -584,12 +556,12 @@ func TestDataStoreWrapper(t *testing.T) {
 		assert.Equal(t, 1, result1)
 		assert.Equal(t, 1, result2)
 
-		assert.Equal(t, 0, len(core.queryStartedCh)) // core only received 1 query
+		assert.Len(t, core.queryStartedCh, 0) // core only received 1 query
 	})
 
 	t.Run("Cached store with finite TTL won't update cache if core update fails", func(t *testing.T) {
-		core := newCore(cacheTime)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -612,8 +584,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Cached store with infinite TTL will update cache even if core update fails", func(t *testing.T) {
-		core := newCore(-1)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -636,8 +608,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Cached store with finite TTL won't update cache if core init fails", func(t *testing.T) {
-		core := newCore(cacheTime)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -655,8 +627,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Cached store with infinite TTL will update cache even if core init fails", func(t *testing.T) {
-		core := newCore(-1)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
@@ -674,8 +646,8 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Cached store with finite TTL removes cached All data if a single item is updated", func(t *testing.T) {
-		core := newCore(cacheTime)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag1v1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
@@ -702,13 +674,13 @@ func TestDataStoreWrapper(t *testing.T) {
 		// now, All should reread the underlying data so we see both changes
 		data, err = w.All(interfaces.DataKindFeatures())
 		require.NoError(t, err)
-		assert.Equal(t, &flag1v2, allData[interfaces.DataKindFeatures()][flag1v1.Key])
-		assert.Equal(t, &flag2v2, allData[interfaces.DataKindFeatures()][flag2v1.Key])
+		assert.Equal(t, &flag1v2, data[flag1v1.Key])
+		assert.Equal(t, &flag2v2, data[flag2v1.Key])
 	})
 
 	t.Run("Cached store with infinite TTL updates cached All data if a single item is updated", func(t *testing.T) {
-		core := newCore(-1)
-		w := NewDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
 		defer w.Close()
 
 		flag1v1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
@@ -740,12 +712,12 @@ func TestDataStoreWrapper(t *testing.T) {
 	})
 
 	t.Run("Non-atomic init passes ordered data to core", func(t *testing.T) {
-		core := &mockNonAtomicCore{}
-		w := NewNonAtomicDataStoreWrapperWithConfig(core, ldlog.NewDisabledLoggers())
+		core := newCore()
+		w := NewPersistentDataStoreWrapper(core, 0, ldlog.NewDisabledLoggers())
 
 		assert.NoError(t, w.Init(dependencyOrderingTestData))
 
-		receivedData := core.data
+		receivedData := core.orderedInitData
 		assert.Equal(t, 2, len(receivedData))
 		assert.Equal(t, interfaces.DataKindSegments(), receivedData[0].Kind) // Segments should always be first
 		assert.Equal(t, len(dependencyOrderingTestData[interfaces.DataKindSegments()]), len(receivedData[0].Items))

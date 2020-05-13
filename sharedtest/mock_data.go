@@ -1,16 +1,36 @@
-package ldtest
+package sharedtest
 
 import (
-	"fmt"
-
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
+
+func MakeMockDataSet(items ...*MockDataItem) []intf.StoreCollection {
+	itemsColl := intf.StoreCollection{
+		Kind:  MockData,
+		Items: []intf.VersionedData{},
+	}
+	otherItemsColl := intf.StoreCollection{
+		Kind:  MockOtherData,
+		Items: []intf.VersionedData{},
+	}
+	for _, item := range items {
+		if item.IsOtherKind {
+			otherItemsColl.Items = append(otherItemsColl.Items, item)
+		} else {
+			itemsColl.Items = append(itemsColl.Items, item)
+		}
+	}
+	return []intf.StoreCollection{itemsColl, otherItemsColl}
+}
 
 // MockDataItem is a test implementation of ld.VersionedData.
 type MockDataItem struct {
-	Key     string
-	Version int
-	Deleted bool
+	Key         string
+	Version     int
+	Deleted     bool
+	Name        string
+	IsOtherKind bool
 }
 
 // GetKey returns the item key.
@@ -49,28 +69,6 @@ func (sk mockDataKind) MakeDeletedItem(key string, version int) interfaces.Versi
 	return &MockDataItem{Key: key, Version: version, Deleted: true}
 }
 
-// MockDataItem is a test implementation of ld.VersionedData.
-type MockOtherDataItem struct {
-	Key     string
-	Version int
-	Deleted bool
-}
-
-// GetKey returns the item key.
-func (i *MockOtherDataItem) GetKey() string {
-	return i.Key
-}
-
-// GetVersion returns the item version.
-func (i *MockOtherDataItem) GetVersion() int {
-	return i.Version
-}
-
-// IsDeleted returns true if this is a deleted item placeholder.
-func (i *MockOtherDataItem) IsDeleted() bool {
-	return i.Deleted
-}
-
 type mockOtherDataKind struct{}
 
 // MockOtherData is an instance of ld.VersionedDataKind corresponding to MockOtherDataItem.
@@ -85,30 +83,9 @@ func (sk mockOtherDataKind) String() string {
 }
 
 func (sk mockOtherDataKind) GetDefaultItem() interface{} {
-	return &MockOtherDataItem{}
+	return &MockDataItem{}
 }
 
 func (sk mockOtherDataKind) MakeDeletedItem(key string, version int) interfaces.VersionedData {
-	return &MockOtherDataItem{Key: key, Version: version, Deleted: true}
-}
-
-func makeMockDataMap(items ...interfaces.VersionedData) map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData {
-	allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData)
-	for _, item := range items {
-		var kind interfaces.VersionedDataKind
-		if _, ok := item.(*MockDataItem); ok {
-			kind = MockData
-		} else if _, ok := item.(*MockOtherDataItem); ok {
-			kind = MockOtherData
-		} else {
-			panic(fmt.Errorf("unsupported test data type: %T", item))
-		}
-		items, ok := allData[kind]
-		if !ok {
-			items = make(map[string]interfaces.VersionedData)
-			allData[kind] = items
-		}
-		items[item.GetKey()] = item
-	}
-	return allData
+	return &MockDataItem{Key: key, Version: version, Deleted: true}
 }
