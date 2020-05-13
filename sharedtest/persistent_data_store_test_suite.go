@@ -515,18 +515,17 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t *testing
 		})
 	}
 
-	// t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
-	// 	setupStore1(1)
-	// 	setupConcurrentModifierToWriteVersions(2, 3, 4)
+	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
+		setupStore1(1)
+		setupConcurrentModifierToWriteVersions(2, 3, 4)
 
-	// 	_, err := store1.Upsert(MockData, key, makeItemWithVersion(10).ToSerializedItemDescriptor())
-	// 	assert.NoError(t, err)
+		_, err := store1.Upsert(MockData, makeItemWithVersion(10))
+		assert.NoError(t, err)
 
-	// 	var result intf.StoreSerializedItemDescriptor
-	// 	result, err = store1.Get(MockData, key)
-	// 	assert.NoError(t, err)
-	// 	assertEqualsSerializedItem(t, makeItemWithVersion(10), result)
-	// })
+		result, err := store1.Get(MockData, key)
+		assert.NoError(t, err)
+		assert.Equal(t, makeItemWithVersion(10), result)
+	})
 
 	t.Run("upsert race condition against external client with higher version", func(t *testing.T) {
 		setupStore1(1)
