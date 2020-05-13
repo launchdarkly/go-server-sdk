@@ -48,14 +48,3 @@ type DataStore interface {
 	// may be called during feature flag evaluations.
 	Initialized() bool
 }
-
-// DataStoreCoreStatus is an optional interface that can be implemented by DataStoreCoreBase
-// implementations. It allows DataStoreWrapper to request a status check on the availability of
-// the underlying data store.
-type DataStoreCoreStatus interface {
-	// Tests whether the data store seems to be functioning normally. This should not be a detailed
-	// test of different kinds of operations, but just the smallest possible operation to determine
-	// whether (for instance) we can reach the database. DataStoreWrapper will call this method
-	// at intervals if the store has previously failed, until it returns true.
-	IsStoreAvailable() bool
-}
