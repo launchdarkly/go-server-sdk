@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	c "github.com/hashicorp/consul/api"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
@@ -31,12 +30,6 @@ const (
 	initedKey = "$inited"
 )
 
-type dataStoreOptions struct {
-	consulConfig c.Config
-	prefix       string
-	cacheTTL     time.Duration
-}
-
 // Internal implementation of the Consul-backed data store. We don't export this - we just
 // return an ld.DataStore.
 type consulDataStoreImpl struct {
@@ -46,7 +39,7 @@ type consulDataStoreImpl struct {
 	testTxHook func() // for unit testing of concurrent modifications
 }
 
-func newConsulDataStoreImpl(builder *ConsulDataStoreBuilder, loggers ldlog.Loggers) (*consulDataStoreImpl, error) {
+func newConsulDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) (*consulDataStoreImpl, error) {
 	loggers.Infof("Using config: %+v", builder.consulConfig)
 	client, err := c.NewClient(&builder.consulConfig)
 	if err != nil {

@@ -11,7 +11,7 @@
 //     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // The default Consul configuration uses an address of localhost:8500. You may customize the
-// configuration by using the methods of the ConsulDataStoreBuilder returned by
+// configuration by using the methods of the ldconsul.DataStoreBuilder returned by
 // ldconsul.DataStore(). For example:
 //
 //     config := ld.Config{
@@ -20,7 +20,7 @@
 //         ).CacheSeconds(30),
 //     }
 //
-// Note that CacheSeconds() is not a method of ConsulDataStoreBuilder, but rather a method of
+// Note that CacheSeconds() is not a method of ldconsul.DataStoreBuilder, but rather a method of
 // ldcomponents.PersistentDataStore(), because the caching behavior is provided by the SDK for
 // all database integrations.
 //

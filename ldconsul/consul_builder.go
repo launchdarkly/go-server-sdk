@@ -12,7 +12,7 @@ const (
 	DefaultPrefix = "launchdarkly"
 )
 
-// ConsulDataStoreBuilder is a builder for configuring the Consul-based persistent data store.
+// DataStoreBuilder is a builder for configuring the Consul-based persistent data store.
 //
 // Obtain an instance of this type by calling DataStore(). After calling its methods to specify any
 // desired custom settings, wrap it in a PersistentDataStoreBuilder by calling
@@ -24,34 +24,34 @@ const (
 //
 // You do not need to call the builder's CreatePersistentDataStore() method yourself to build the
 // actual data store; that will be done by the SDK.
-type ConsulDataStoreBuilder struct {
+type DataStoreBuilder struct {
 	consulConfig c.Config
 	prefix       string
 }
 
 // DataStore returns a configurable builder for a Consul-backed data store.
-func DataStore() *ConsulDataStoreBuilder {
-	return &ConsulDataStoreBuilder{
+func DataStore() *DataStoreBuilder {
+	return &DataStoreBuilder{
 		prefix: DefaultPrefix,
 	}
 }
 
 // Config specifies an entire configuration for the Consul driver. This overwrites any previous Consul
 // settings that may have been specified.
-func (b *ConsulDataStoreBuilder) Config(consulConfig c.Config) *ConsulDataStoreBuilder {
+func (b *DataStoreBuilder) Config(consulConfig c.Config) *DataStoreBuilder {
 	b.consulConfig = consulConfig
 	return b
 }
 
 // Address sets the address of the Consul server. If placed after Config(), this modifies the preivously
 // specified configuration.
-func (b *ConsulDataStoreBuilder) Address(address string) *ConsulDataStoreBuilder {
+func (b *DataStoreBuilder) Address(address string) *DataStoreBuilder {
 	b.consulConfig.Address = address
 	return b
 }
 
 // Prefix specifies a prefix for namespacing the data store's keys. The default value is DefaultPrefix.
-func (b *ConsulDataStoreBuilder) Prefix(prefix string) *ConsulDataStoreBuilder {
+func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
 	if prefix == "" {
 		prefix = DefaultPrefix
 	}
@@ -60,12 +60,12 @@ func (b *ConsulDataStoreBuilder) Prefix(prefix string) *ConsulDataStoreBuilder {
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *ConsulDataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
 	store, err := newConsulDataStoreImpl(b, context.GetLoggers())
 	return store, err
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *ConsulDataStoreBuilder) DescribeConfiguration() ldvalue.Value {
+func (b *DataStoreBuilder) DescribeConfiguration() ldvalue.Value {
 	return ldvalue.String("Consul")
 }

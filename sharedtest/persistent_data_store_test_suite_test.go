@@ -15,17 +15,17 @@ import (
 // necessary. MockPersistentDataStore is able to simulate both of these scenarios, and we test both here.
 
 type mockStoreFactory struct {
-	db     *MockDatabaseInstance
+	db     *mockDatabaseInstance
 	prefix string
 }
 
 func (f mockStoreFactory) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
-	store := NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
+	store := newMockPersistentDataStoreWithPrefix(f.db, f.prefix)
 	return store, nil
 }
 
 func TestPersistentDataStoreTestSuite(t *testing.T) {
-	db := NewMockDatabaseInstance()
+	db := newMockDatabaseInstance()
 
 	runTests := func(t *testing.T) {
 		NewPersistentDataStoreTestSuite(
@@ -38,7 +38,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 			},
 		).ConcurrentModificationHook(
 			func(store interfaces.PersistentDataStore, hook func()) {
-				store.(*MockPersistentDataStore).testTxHook = hook
+				store.(*mockPersistentDataStore).testTxHook = hook
 			},
 		).Run(t)
 	}

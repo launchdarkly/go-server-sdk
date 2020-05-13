@@ -18,7 +18,7 @@
 // This default configuration will only work if your AWS credentials and region are
 // available from AWS environment variables and/or configuration files. If you want to
 // set those programmatically or modify any other configuration settings, you can use the
-// methods of the DynamoDBDataStoreBuilder returned by lddynamodb.DataStore(). For example:
+// methods of the lddynamodb.DataStoreBuilder returned by lddynamodb.DataStore(). For example:
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(
@@ -26,7 +26,7 @@
 //         ).CacheSeconds(30),
 //     }
 //
-// Note that CacheSeconds() is not a method of DynamoDBDataStoreBuilder, but rather a method of
+// Note that CacheSeconds() is not a method of lddynamodb.DataStoreBuilder, but rather a method of
 // ldcomponents.PersistentDataStore(), because the caching behavior is provided by the SDK for
 // all database integrations.
 //

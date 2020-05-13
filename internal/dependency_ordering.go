@@ -7,7 +7,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-func TransformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) []interfaces.StoreCollection {
+func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) []interfaces.StoreCollection {
 	colls := make([]interfaces.StoreCollection, 0, len(allData))
 	for kind, itemsMap := range allData {
 		items := make([]interfaces.VersionedData, 0, len(itemsMap))

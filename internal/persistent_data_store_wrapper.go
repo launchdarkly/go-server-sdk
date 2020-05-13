@@ -13,7 +13,8 @@ import (
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-type PersistentDataStoreWrapper struct {
+// persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.
+type persistentDataStoreWrapper struct {
 	core          intf.PersistentDataStore
 	statusManager *DataStoreStatusManager
 	cache         *cache.Cache
@@ -26,11 +27,13 @@ type PersistentDataStoreWrapper struct {
 
 const initCheckedKey = "$initChecked"
 
+// NewPersistentDataStoreWrapper creates the implementation of DataStore that we use for all persistent data
+// stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
 func NewPersistentDataStoreWrapper(
 	core intf.PersistentDataStore,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
-) *PersistentDataStoreWrapper {
+) interfaces.DataStore {
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
 		myCache = cache.New(cacheTTL, 5*time.Minute)
@@ -38,7 +41,7 @@ func NewPersistentDataStoreWrapper(
 		// cache never expires. That is consistent with we've defined the parameter.
 	}
 
-	w := &PersistentDataStoreWrapper{
+	w := &persistentDataStoreWrapper{
 		core:     core,
 		cache:    myCache,
 		cacheTTL: cacheTTL,
@@ -55,7 +58,7 @@ func NewPersistentDataStoreWrapper(
 	return w
 }
 
-func (w *PersistentDataStoreWrapper) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
+func (w *persistentDataStoreWrapper) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	err := w.initCore(allData)
 	if w.cache != nil {
 		w.cache.Flush()
@@ -80,14 +83,14 @@ func (w *PersistentDataStoreWrapper) Init(allData map[interfaces.VersionedDataKi
 	return err
 }
 
-func (w *PersistentDataStoreWrapper) initCore(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
-	colls := TransformUnorderedDataToOrderedData(allData)
+func (w *persistentDataStoreWrapper) initCore(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
+	colls := transformUnorderedDataToOrderedData(allData)
 	err := w.core.Init(colls)
 	w.processError(err)
 	return err
 }
 
-func (w *PersistentDataStoreWrapper) filterAndCacheItems(kind interfaces.VersionedDataKind, items map[string]interfaces.VersionedData) map[string]interfaces.VersionedData {
+func (w *persistentDataStoreWrapper) filterAndCacheItems(kind interfaces.VersionedDataKind, items map[string]interfaces.VersionedData) map[string]interfaces.VersionedData {
 	// We do some filtering here so that deleted items are not included in the full cached data set
 	// that's used by All. This is so that All doesn't have to do that filtering itself. However,
 	// since Get does know to filter out deleted items, we will still cache those individually,
@@ -106,7 +109,7 @@ func (w *PersistentDataStoreWrapper) filterAndCacheItems(kind interfaces.Version
 	return filteredItems
 }
 
-func (w *PersistentDataStoreWrapper) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (w *persistentDataStoreWrapper) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	if w.cache == nil {
 		item, err := w.core.Get(kind, key)
 		w.processError(err)
@@ -149,7 +152,7 @@ func itemOnlyIfNotDeleted(item interfaces.VersionedData) interfaces.VersionedDat
 	return item
 }
 
-func (w *PersistentDataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+func (w *persistentDataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	if w.cache == nil {
 		items, err := w.core.GetAll(kind)
 		w.processError(err)
@@ -183,7 +186,7 @@ func (w *PersistentDataStoreWrapper) All(kind interfaces.VersionedDataKind) (map
 	return nil, nil
 }
 
-func (w *PersistentDataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
+func (w *persistentDataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
 	finalItem, err := w.core.Upsert(kind, item)
 	w.processError(err)
 	// Normally, if the underlying store failed to do the update, we do not want to update the cache -
@@ -221,12 +224,12 @@ func (w *PersistentDataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, i
 	return err
 }
 
-func (w *PersistentDataStoreWrapper) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
+func (w *persistentDataStoreWrapper) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return w.Upsert(kind, deletedItem)
 }
 
-func (w *PersistentDataStoreWrapper) Initialized() bool {
+func (w *persistentDataStoreWrapper) Initialized() bool {
 	w.initLock.RLock()
 	previousValue := w.inited
 	w.initLock.RUnlock()
@@ -256,30 +259,30 @@ func (w *PersistentDataStoreWrapper) Initialized() bool {
 	return newValue
 }
 
-func (w *PersistentDataStoreWrapper) Close() error {
+func (w *persistentDataStoreWrapper) Close() error {
 	w.statusManager.Close()
 	return w.core.Close()
 }
 
 // GetStoreStatus returns the current status of the store.
-func (w *PersistentDataStoreWrapper) GetStoreStatus() DataStoreStatus {
+func (w *persistentDataStoreWrapper) GetStoreStatus() DataStoreStatus {
 	return DataStoreStatus{Available: w.statusManager.IsAvailable()}
 }
 
 // StatusSubscribe creates a channel that will receive all changes in store status.
-func (w *PersistentDataStoreWrapper) StatusSubscribe() DataStoreStatusSubscription {
+func (w *persistentDataStoreWrapper) StatusSubscribe() DataStoreStatusSubscription {
 	return w.statusManager.Subscribe()
 }
 
 // Used internally to describe this component in diagnostic data.
-func (w *PersistentDataStoreWrapper) DescribeConfiguration() ldvalue.Value {
+func (w *persistentDataStoreWrapper) DescribeConfiguration() ldvalue.Value {
 	if dcd, ok := w.core.(intf.DiagnosticDescription); ok {
 		return dcd.DescribeConfiguration()
 	}
 	return ldvalue.String("custom")
 }
 
-func (w *PersistentDataStoreWrapper) processError(err error) {
+func (w *persistentDataStoreWrapper) processError(err error) {
 	if err == nil {
 		// If we're waiting to recover after a failure, we'll let the polling routine take care
 		// of signaling success. Even if we could signal success a little earlier based on the
@@ -290,7 +293,7 @@ func (w *PersistentDataStoreWrapper) processError(err error) {
 	w.statusManager.UpdateAvailability(false)
 }
 
-func (w *PersistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
+func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	if !w.core.IsStoreAvailable() {
 		return false
 	}
@@ -322,7 +325,7 @@ func (w *PersistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	return true
 }
 
-func (w *PersistentDataStoreWrapper) hasCacheWithInfiniteTTL() bool {
+func (w *persistentDataStoreWrapper) hasCacheWithInfiniteTTL() bool {
 	return w.cache != nil && w.cacheTTL < 0
 }
 

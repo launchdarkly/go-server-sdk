@@ -6,19 +6,19 @@ import (
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-type MockDatabaseInstance struct {
+type mockDatabaseInstance struct {
 	dataByPrefix   map[string]map[intf.VersionedDataKind]map[string]intf.VersionedData
 	initedByPrefix map[string]*bool
 }
 
-func NewMockDatabaseInstance() *MockDatabaseInstance {
-	return &MockDatabaseInstance{
+func newMockDatabaseInstance() *mockDatabaseInstance {
+	return &mockDatabaseInstance{
 		dataByPrefix:   make(map[string]map[intf.VersionedDataKind]map[string]intf.VersionedData),
 		initedByPrefix: make(map[string]*bool),
 	}
 }
 
-func (db *MockDatabaseInstance) Clear(prefix string) {
+func (db *mockDatabaseInstance) Clear(prefix string) {
 	for _, m := range db.dataByPrefix[prefix] {
 		for k := range m {
 			delete(m, k)
@@ -29,12 +29,11 @@ func (db *MockDatabaseInstance) Clear(prefix string) {
 	}
 }
 
-type MockPersistentDataStore struct {
+type mockPersistentDataStore struct {
 	Data             map[intf.VersionedDataKind]map[string]intf.VersionedData
 	FakeError        error
 	inited           *bool
 	InitQueriedCount int
-	queryCount       int
 	queryDelay       time.Duration
 	queryStartedCh   chan struct{}
 	testTxHook       func()
@@ -48,14 +47,14 @@ func newData() map[intf.VersionedDataKind]map[string]intf.VersionedData {
 	}
 }
 
-func NewMockPersistentDataStore() *MockPersistentDataStore {
+func newMockPersistentDataStore() *mockPersistentDataStore {
 	f := false
-	m := &MockPersistentDataStore{Data: newData(), inited: &f}
+	m := &mockPersistentDataStore{Data: newData(), inited: &f}
 	return m
 }
 
-func NewMockPersistentDataStoreWithPrefix(db *MockDatabaseInstance, prefix string) *MockPersistentDataStore {
-	m := &MockPersistentDataStore{}
+func newMockPersistentDataStoreWithPrefix(db *mockDatabaseInstance, prefix string) *mockPersistentDataStore {
+	m := &mockPersistentDataStore{}
 	if _, ok := db.dataByPrefix[prefix]; !ok {
 		db.dataByPrefix[prefix] = newData()
 		f := false
@@ -66,32 +65,32 @@ func NewMockPersistentDataStoreWithPrefix(db *MockDatabaseInstance, prefix strin
 	return m
 }
 
-func (m *MockPersistentDataStore) EnableInstrumentedQueries(queryDelay time.Duration) <-chan struct{} {
+func (m *mockPersistentDataStore) EnableInstrumentedQueries(queryDelay time.Duration) <-chan struct{} {
 	m.queryDelay = queryDelay
 	m.queryStartedCh = make(chan struct{}, 10)
 	return m.queryStartedCh
 }
 
-func (m *MockPersistentDataStore) ForceGet(kind intf.VersionedDataKind, key string) intf.VersionedData {
+func (m *mockPersistentDataStore) ForceGet(kind intf.VersionedDataKind, key string) intf.VersionedData {
 	if ret, ok := m.Data[kind][key]; ok {
 		return ret
 	}
 	return nil
 }
 
-func (m *MockPersistentDataStore) ForceSet(kind intf.VersionedDataKind, key string, item intf.VersionedData) {
+func (m *mockPersistentDataStore) ForceSet(kind intf.VersionedDataKind, key string, item intf.VersionedData) {
 	m.Data[kind][key] = item
 }
 
-func (m *MockPersistentDataStore) ForceRemove(kind intf.VersionedDataKind, key string) {
+func (m *mockPersistentDataStore) ForceRemove(kind intf.VersionedDataKind, key string) {
 	delete(m.Data[kind], key)
 }
 
-func (m *MockPersistentDataStore) ForceSetInited(inited bool) {
+func (m *mockPersistentDataStore) ForceSetInited(inited bool) {
 	*m.inited = inited
 }
 
-func (m *MockPersistentDataStore) startQuery() {
+func (m *mockPersistentDataStore) startQuery() {
 	if m.queryStartedCh != nil {
 		m.queryStartedCh <- struct{}{}
 	}
@@ -100,7 +99,7 @@ func (m *MockPersistentDataStore) startQuery() {
 	}
 }
 
-func (m *MockPersistentDataStore) Init(allData []intf.StoreCollection) error {
+func (m *mockPersistentDataStore) Init(allData []intf.StoreCollection) error {
 	if m.FakeError != nil {
 		return m.FakeError
 	}
@@ -120,7 +119,7 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreCollection) error {
 	return nil
 }
 
-func (m *MockPersistentDataStore) Get(kind intf.VersionedDataKind, key string) (intf.VersionedData, error) {
+func (m *mockPersistentDataStore) Get(kind intf.VersionedDataKind, key string) (intf.VersionedData, error) {
 	if m.FakeError != nil {
 		return nil, m.FakeError
 	}
@@ -131,7 +130,7 @@ func (m *MockPersistentDataStore) Get(kind intf.VersionedDataKind, key string) (
 	return nil, nil
 }
 
-func (m *MockPersistentDataStore) GetAll(kind intf.VersionedDataKind) (map[string]intf.VersionedData, error) {
+func (m *mockPersistentDataStore) GetAll(kind intf.VersionedDataKind) (map[string]intf.VersionedData, error) {
 	if m.FakeError != nil {
 		return nil, m.FakeError
 	}
@@ -143,7 +142,7 @@ func (m *MockPersistentDataStore) GetAll(kind intf.VersionedDataKind) (map[strin
 	return ret, nil
 }
 
-func (m *MockPersistentDataStore) Upsert(kind intf.VersionedDataKind, newItem intf.VersionedData) (intf.VersionedData, error) {
+func (m *mockPersistentDataStore) Upsert(kind intf.VersionedDataKind, newItem intf.VersionedData) (intf.VersionedData, error) {
 	if m.FakeError != nil {
 		return nil, m.FakeError
 	}
@@ -161,16 +160,16 @@ func (m *MockPersistentDataStore) Upsert(kind intf.VersionedDataKind, newItem in
 	return newItem, nil
 }
 
-func (m *MockPersistentDataStore) IsInitialized() bool {
+func (m *mockPersistentDataStore) IsInitialized() bool {
 	m.InitQueriedCount++
 	return *m.inited
 }
 
-func (m *MockPersistentDataStore) IsStoreAvailable() bool {
+func (m *mockPersistentDataStore) IsStoreAvailable() bool {
 	return true
 }
 
-func (m *MockPersistentDataStore) Close() error {
+func (m *mockPersistentDataStore) Close() error {
 	m.closed = true
 	return nil
 }

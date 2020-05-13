@@ -15,8 +15,8 @@ type inMemoryDataStore struct {
 	loggers ldlog.Loggers
 }
 
-type inMemoryDataStoreFactory struct{}
-
+// NewInMemoryDataStore creates an instance of the in-memory data store. This is not part of the public API; it is
+// always called through ldcomponents.InMemoryDataStore().
 func NewInMemoryDataStore(loggers ldlog.Loggers) interfaces.DataStore {
 	return &inMemoryDataStore{
 		allData:       make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),

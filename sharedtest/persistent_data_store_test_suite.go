@@ -48,6 +48,13 @@ func NewPersistentDataStoreTestSuite(
 	}
 }
 
+// ConcurrentModificationHook enables tests of concurrent modification behavior, for store
+// implementations that support testing this.
+//
+// The hook parameter is a function which, when called with a store instance and another function as
+// parameters, will modify the store instance so that it will call the latter function synchronously
+// during each Upsert operation - after the old value has been read, but before the new one has been
+// written.
 func (s *PersistentDataStoreTestSuite) ConcurrentModificationHook(
 	setHookFn func(store intf.PersistentDataStore, hook func()),
 ) *PersistentDataStoreTestSuite {
@@ -97,14 +104,14 @@ func (s *PersistentDataStoreTestSuite) initWithEmptyData(store intf.PersistentDa
 
 func (s *PersistentDataStoreTestSuite) withDefaultStore(action func(intf.PersistentDataStore)) {
 	store := s.makeStore("")
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 	action(store)
 }
 
 func (s *PersistentDataStoreTestSuite) withDefaultInitedStore(action func(intf.PersistentDataStore)) {
 	s.clearData("")
 	store := s.makeStore("")
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 	s.initWithEmptyData(store)
 	action(store)
 }
@@ -375,9 +382,9 @@ func (s *PersistentDataStoreTestSuite) runPrefixIndependenceTests(t *testing.T) 
 		s.clearData(prefix1)
 		s.clearData(prefix2)
 		store1 := s.makeStore(prefix1)
-		defer store1.Close()
+		defer store1.Close() //nolint:errcheck
 		store2 := s.makeStore(prefix2)
-		defer store2.Close()
+		defer store2.Close() //nolint:errcheck
 		t.Run(name, func(t *testing.T) {
 			test(t, store1, store2)
 		})
@@ -481,9 +488,9 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t *testing
 
 	s.clearData("")
 	store1 := s.makeStore("")
-	defer store1.Close()
+	defer store1.Close() //nolint:errcheck
 	store2 := s.makeStore("")
-	defer store2.Close()
+	defer store2.Close() //nolint:errcheck
 
 	key := "foo"
 

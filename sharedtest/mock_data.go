@@ -5,6 +5,7 @@ import (
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
+// MakeMockDataSet constructs a data set to be passed to a data store's Init method.
 func MakeMockDataSet(items ...*MockDataItem) []intf.StoreCollection {
 	itemsColl := intf.StoreCollection{
 		Kind:  MockData,

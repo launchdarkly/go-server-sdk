@@ -68,7 +68,7 @@ type dynamoDBDataStore struct {
 	testUpdateHook func() // Used only by unit tests - see updateWithVersioning
 }
 
-func newDynamoDBDataStoreImpl(builder *DynamoDBDataStoreBuilder, loggers ldlog.Loggers) (*dynamoDBDataStore, error) {
+func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) (*dynamoDBDataStore, error) {
 	if builder.table == "" {
 		return nil, errors.New("table name is required")
 	}

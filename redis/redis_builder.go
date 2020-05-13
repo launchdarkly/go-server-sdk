@@ -21,14 +21,14 @@ const (
 )
 
 // DataStore returns a configurable builder for a Redis-backed data store.
-func DataStore() *RedisDataStoreBuilder {
-	return &RedisDataStoreBuilder{
+func DataStore() *DataStoreBuilder {
+	return &DataStoreBuilder{
 		prefix: DefaultPrefix,
 		url:    DefaultURL,
 	}
 }
 
-// RedisDataStoreBuilder is a builder for configuring the Redis-based persistent data store.
+// DataStoreBuilder is a builder for configuring the Redis-based persistent data store.
 //
 // Obtain an instance of this type by calling DataStore(). After calling its methods to specify any
 // desired custom settings, wrap it in a PersistentDataStoreBuilder by calling
@@ -40,7 +40,7 @@ func DataStore() *RedisDataStoreBuilder {
 //
 // You do not need to call the builder's CreatePersistentDataStore() method yourself to build the
 // actual data store; that will be done by the SDK.
-type RedisDataStoreBuilder struct {
+type DataStoreBuilder struct {
 	prefix      string
 	pool        *r.Pool
 	url         string
@@ -49,7 +49,7 @@ type RedisDataStoreBuilder struct {
 
 // Prefix specifies a string that should be prepended to all Redis keys used by the data store.
 // A colon will be added to this automatically. If this is unspecified or empty, DefaultPrefix will be used.
-func (b *RedisDataStoreBuilder) Prefix(prefix string) *RedisDataStoreBuilder {
+func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
 	if prefix == "" {
 		prefix = DefaultPrefix
 	}
@@ -63,7 +63,7 @@ func (b *RedisDataStoreBuilder) Prefix(prefix string) *RedisDataStoreBuilder {
 // the redis:// syntax (https://www.iana.org/assignments/uri-schemes/prov/redis), which can include a
 // password and a database number, as well as rediss://
 // (https://www.iana.org/assignments/uri-schemes/prov/rediss), which enables TLS.
-func (b *RedisDataStoreBuilder) URL(url string) *RedisDataStoreBuilder {
+func (b *DataStoreBuilder) URL(url string) *DataStoreBuilder {
 	if url == "" {
 		url = DefaultURL
 	}
@@ -72,7 +72,7 @@ func (b *RedisDataStoreBuilder) URL(url string) *RedisDataStoreBuilder {
 }
 
 // HostAndPort is a shortcut for specifying the Redis host address as a hostname and port.
-func (b *RedisDataStoreBuilder) HostAndPort(host string, port int) *RedisDataStoreBuilder {
+func (b *DataStoreBuilder) HostAndPort(host string, port int) *DataStoreBuilder {
 	return b.URL(fmt.Sprintf("redis://%s:%d", host, port))
 }
 
@@ -82,7 +82,7 @@ func (b *RedisDataStoreBuilder) HostAndPort(host string, port int) *RedisDataSto
 //
 // If you only need to change basic connection options such as providing a password, it is
 // simpler to use DialOptions().
-func (b *RedisDataStoreBuilder) Pool(pool *r.Pool) *RedisDataStoreBuilder {
+func (b *DataStoreBuilder) Pool(pool *r.Pool) *DataStoreBuilder {
 	b.pool = pool
 	return b
 }
@@ -97,18 +97,18 @@ func (b *RedisDataStoreBuilder) Pool(pool *r.Pool) *RedisDataStoreBuilder {
 //     factory, err := redis.NewRedisDataStoreFactory(redis.DialOption(redigo.DialPassword("verysecure123")))
 //
 // Note that some Redis client features can also be specified as part of the URL: see  URL().
-func (b *RedisDataStoreBuilder) DialOptions(options ...r.DialOption) *RedisDataStoreBuilder {
+func (b *DataStoreBuilder) DialOptions(options ...r.DialOption) *DataStoreBuilder {
 	b.dialOptions = options
 	return b
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *RedisDataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
 	store := newRedisDataStoreImpl(b, context.GetLoggers())
 	return store, nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *RedisDataStoreBuilder) DescribeConfiguration() ldvalue.Value {
+func (b *DataStoreBuilder) DescribeConfiguration() ldvalue.Value {
 	return ldvalue.String("Redis")
 }

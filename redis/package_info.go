@@ -12,7 +12,7 @@
 //
 // The default Redis pool configuration uses an address of localhost:6379, a maximum of 16
 // concurrent connections, and blocking connection requests. You may customize the configuration
-// by using the methods of the RedisDataStoreBuilder returned by redis.DataStore():
+// by using the methods of the redis.DataStoreBuilder returned by redis.DataStore():
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(
@@ -20,7 +20,7 @@
 //         ).CacheSeconds(30),
 //     }
 //
-// Note that CacheSeconds() is not a method of RedisDataStoreBuilder, but rather a method of
+// Note that CacheSeconds() is not a method of redis.DataStoreBuilder, but rather a method of
 // ldcomponents.PersistentDataStore(), because the caching behavior is provided by the SDK for
 // all database integrations.
 //

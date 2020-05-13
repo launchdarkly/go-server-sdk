@@ -14,7 +14,7 @@ const (
 	DefaultPrefix = "launchdarkly"
 )
 
-// DynamoDBDataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
+// DataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
 //
 // Obtain an instance of this type by calling DataStore(). After calling its methods to specify any
 // desired custom settings, wrap it in a PersistentDataStoreBuilder by calling
@@ -26,7 +26,7 @@ const (
 //
 // You do not need to call the builder's CreatePersistentDataStore() method yourself to build the
 // actual data store; that will be done by the SDK.
-type DynamoDBDataStoreBuilder struct {
+type DataStoreBuilder struct {
 	client         dynamodbiface.DynamoDBAPI
 	table          string
 	prefix         string
@@ -37,14 +37,14 @@ type DynamoDBDataStoreBuilder struct {
 // DataStore returns a configurable builder for a DynamoDB-backed data store.
 //
 // The tableName parameter is required, and the table must already exist in DynamoDB.
-func DataStore(tableName string) *DynamoDBDataStoreBuilder {
-	return &DynamoDBDataStoreBuilder{
+func DataStore(tableName string) *DataStoreBuilder {
+	return &DataStoreBuilder{
 		table: tableName,
 	}
 }
 
 // Prefix specifies a prefix for namespacing the data store's keys. The default value is DefaultPrefix.
-func (b *DynamoDBDataStoreBuilder) Prefix(prefix string) *DynamoDBDataStoreBuilder {
+func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
 	if prefix == "" {
 		prefix = DefaultPrefix
 	}
@@ -54,7 +54,7 @@ func (b *DynamoDBDataStoreBuilder) Prefix(prefix string) *DynamoDBDataStoreBuild
 
 // ClientConfig adds an AWS configuration object for the DynamoDB client. This allows you to customize
 // settings such as the retry behavior.
-func (b *DynamoDBDataStoreBuilder) ClientConfig(config *aws.Config) *DynamoDBDataStoreBuilder {
+func (b *DataStoreBuilder) ClientConfig(config *aws.Config) *DataStoreBuilder {
 	if config != nil {
 		b.configs = append(b.configs, config)
 	}
@@ -62,9 +62,9 @@ func (b *DynamoDBDataStoreBuilder) ClientConfig(config *aws.Config) *DynamoDBDat
 }
 
 // DynamoClient specifies an existing DynamoDB client instance. Use this if you want to customize the client
-// used by the data store in ways that are not supported by other DynamoDBDataStoreBuilder options. If you
+// used by the data store in ways that are not supported by other DataStoreBuilder options. If you
 // specify this option, then any configurations specified with SessionOptions or ClientConfig will be ignored.
-func (b *DynamoDBDataStoreBuilder) DynamoClient(client dynamodbiface.DynamoDBAPI) *DynamoDBDataStoreBuilder {
+func (b *DataStoreBuilder) DynamoClient(client dynamodbiface.DynamoDBAPI) *DataStoreBuilder {
 	b.client = client
 	return b
 }
@@ -72,18 +72,18 @@ func (b *DynamoDBDataStoreBuilder) DynamoClient(client dynamodbiface.DynamoDBAPI
 // SessionOptions specifies an AWS Session.Options object to use when creating the DynamoDB session. This
 // can be used to set properties such as the region programmatically, rather than relying on the defaults
 // from the environment.
-func (b *DynamoDBDataStoreBuilder) SessionOptions(options session.Options) *DynamoDBDataStoreBuilder {
+func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBuilder {
 	b.sessionOptions = options
 	return b
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *DynamoDBDataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
 	store, err := newDynamoDBDataStoreImpl(b, context.GetLoggers())
 	return store, err
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *DynamoDBDataStoreBuilder) DescribeConfiguration() ldvalue.Value {
+func (b *DataStoreBuilder) DescribeConfiguration() ldvalue.Value {
 	return ldvalue.String("DynamoDB")
 }

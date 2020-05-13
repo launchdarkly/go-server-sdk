@@ -30,7 +30,7 @@ func TestDynamoDBDataStore(t *testing.T) {
 		Run(t)
 }
 
-func baseBuilder() *DynamoDBDataStoreBuilder {
+func baseBuilder() *DataStoreBuilder {
 	return DataStore(testTableName).SessionOptions(makeTestOptions())
 }
 

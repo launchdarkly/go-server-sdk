@@ -42,7 +42,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 	runTests(t, "Status is OK initially", func(t *testing.T, mode testCacheMode, core *mockCore) {
 		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
-		assert.Equal(t, DataStoreStatus{Available: true}, w.GetStoreStatus())
+		assert.Equal(t, DataStoreStatus{Available: true}, w.(DataStoreStatusProvider).GetStoreStatus())
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Status is unavailable after error", func(t *testing.T, mode testCacheMode, core *mockCore) {
@@ -53,13 +53,13 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		_, err := w.All(interfaces.DataKindFeatures())
 		require.Equal(t, core.fakeError, err)
 
-		assert.Equal(t, DataStoreStatus{Available: false}, w.GetStoreStatus())
+		assert.Equal(t, DataStoreStatus{Available: false}, w.(DataStoreStatusProvider).GetStoreStatus())
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Error listener is notified on failure and recovery", func(t *testing.T, mode testCacheMode, core *mockCore) {
 		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 		defer w.Close()
-		sub := w.StatusSubscribe()
+		sub := w.(DataStoreStatusProvider).StatusSubscribe()
 		require.NotNil(t, sub)
 		defer sub.Close()
 
@@ -90,7 +90,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		core := newCore()
 		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
 		defer w.Close()
-		sub := w.StatusSubscribe()
+		sub := w.(DataStoreStatusProvider).StatusSubscribe()
 		require.NotNil(t, sub)
 		defer sub.Close()
 

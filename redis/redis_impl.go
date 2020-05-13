@@ -41,7 +41,7 @@ func newPool(url string, dialOptions []r.DialOption) *r.Pool {
 const initedKey = "$inited"
 
 func newRedisDataStoreImpl(
-	builder *RedisDataStoreBuilder,
+	builder *DataStoreBuilder,
 	loggers ldlog.Loggers,
 ) *redisDataStoreImpl {
 	impl := &redisDataStoreImpl{
