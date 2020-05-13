@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"strings"
 	"time"
@@ -300,9 +299,7 @@ func (client *LDClient) Close() error {
 	}
 	_ = client.eventProcessor.Close()
 	_ = client.dataSource.Close()
-	if c, ok := client.store.(io.Closer); ok { // not all DataStores implement Closer
-		_ = c.Close()
-	}
+	_ = client.store.Close()
 	return nil
 }
 
