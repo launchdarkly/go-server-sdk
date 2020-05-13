@@ -16,17 +16,14 @@ import (
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/ldservices"
 
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/ldservices"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 )
 
 func TestClientUsesProxyEnvVars(t *testing.T) {
