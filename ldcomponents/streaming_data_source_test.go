@@ -200,7 +200,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withDataSourceTestParams(func(p dataSourceTestParams) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers)
+			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers())
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
 				CreateDataSource(context, p.store, p.dataStoreStatusProvider)

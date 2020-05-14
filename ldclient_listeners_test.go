@@ -28,6 +28,7 @@ func TestDataStoreStatusProviderReturnsLatestStatus(t *testing.T) {
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
 		DataStore:  &factoryWithUpdater,
 		Events:     ldcomponents.NoEvents(),
+		Loggers:    sharedtest.NewTestLoggers(),
 	}
 	client, err := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	require.NoError(t, err)

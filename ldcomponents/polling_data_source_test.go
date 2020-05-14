@@ -133,7 +133,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		withDataSourceTestParams(func(params dataSourceTestParams) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers)
+			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers())
 			req := newRequestor(context, nil, ts.URL)
 
 			p := newPollingProcessor(context, params.store, req, time.Minute*30)
