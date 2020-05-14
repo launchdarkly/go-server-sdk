@@ -55,12 +55,12 @@ func TestPollingProcessorInitialization(t *testing.T) {
 
 		flag, err := store.Get(interfaces.DataKindFeatures(), "my-flag")
 		if assert.NoError(t, err) {
-			assert.Equal(t, 2, flag.GetVersion())
+			assert.Equal(t, 2, flag.Version)
 		}
 
 		segment, err := store.Get(interfaces.DataKindSegments(), "my-segment")
 		if assert.NoError(t, err) {
-			assert.Equal(t, 3, segment.GetVersion())
+			assert.Equal(t, 3, segment.Version)
 		}
 
 		for i := 0; i < 2; i++ {

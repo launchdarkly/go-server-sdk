@@ -86,19 +86,27 @@ func checkForHttpError(statusCode int, url string) error {
 	return nil
 }
 
-// makeAllVersionedDataMap returns a map of version objects grouped by namespace that can be used to initialize a data store
-func makeAllVersionedDataMap(
-	features map[string]*ldmodel.FeatureFlag,
-	segments map[string]*ldmodel.Segment) map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData {
-
-	allData := make(map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData)
-	allData[interfaces.DataKindFeatures()] = make(map[string]interfaces.VersionedData)
-	allData[interfaces.DataKindSegments()] = make(map[string]interfaces.VersionedData)
-	for k, v := range features {
-		allData[interfaces.DataKindFeatures()][k] = v
+// makeAllStoreData returns a data set that can be used to initialize a data store
+func makeAllStoreData(
+	flags map[string]*ldmodel.FeatureFlag,
+	segments map[string]*ldmodel.Segment,
+) []interfaces.StoreCollection {
+	flagsColl := make([]interfaces.StoreKeyedItemDescriptor, 0, len(flags))
+	for key, flag := range flags {
+		flagsColl = append(flagsColl, interfaces.StoreKeyedItemDescriptor{
+			Key:  key,
+			Item: interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag},
+		})
 	}
-	for k, v := range segments {
-		allData[interfaces.DataKindSegments()][k] = v
+	segmentsColl := make([]interfaces.StoreKeyedItemDescriptor, 0, len(segments))
+	for key, segment := range segments {
+		segmentsColl = append(segmentsColl, interfaces.StoreKeyedItemDescriptor{
+			Key:  key,
+			Item: interfaces.StoreItemDescriptor{Version: segment.Version, Item: segment},
+		})
 	}
-	return allData
+	return []interfaces.StoreCollection{
+		interfaces.StoreCollection{Kind: interfaces.DataKindFeatures(), Items: flagsColl},
+		interfaces.StoreCollection{Kind: interfaces.DataKindSegments(), Items: segmentsColl},
+	}
 }

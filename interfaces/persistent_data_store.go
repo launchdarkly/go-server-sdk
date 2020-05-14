@@ -27,33 +27,34 @@ type PersistentDataStore interface {
 	// The update should be done atomically. If it cannot be done atomically, then the store
 	// must first add or update each item in the same order that they are given in the input
 	// data, and then delete any previously stored items that were not in the input data.
-	Init(allData []StoreCollection) error
+	Init(allData []StoreSerializedCollection) error
 
 	// Get retrieves an item from the specified collection, if available.
 	//
-	// If the specified key does not exist in the collection, it should return a nil value.
+	// If the specified key does not exist in the collection, it should return a StoreSerializedItemDescriptor
+	// with a Version of -1 and an Item of nil.
 	//
 	// If the item has been deleted and the store contains a placeholder, it should return that
-	// placeholder rather than nil.
-	Get(kind VersionedDataKind, key string) (VersionedData, error)
+	// placeholder rather than filtering it out.
+	Get(kind StoreDataKind, key string) (StoreSerializedItemDescriptor, error)
 
 	// GetAll retrieves all items from the specified collection.
 	//
 	// If the store contains placeholders for deleted items, it should include them in the results,
 	// not filter them out.
-	GetAll(kind VersionedDataKind) (map[string]VersionedData, error)
+	GetAll(kind StoreDataKind) ([]StoreKeyedSerializedItemDescriptor, error)
 
 	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
 	// updated if the existing version is less than the new version.
 	//
-	// The SDK may pass an VersionedData that represents a placeholder for a deleted item. In that
-	// case, assuming the version is greater than any existing version of that item, the store should
+	// The SDK may pass StoreSerializedItemDescriptor that represents a placeholder for a deleted item. In
+	// that case, assuming the version is greater than any existing version of that item, the store should
 	// retain that placeholder rather than simply not storing anything.
 	//
 	// The method returns the updated item if the update was successful; or, if the update was not
 	// successful because the store contained an equal or higher version, it returns the item that is
 	// in the store.
-	Upsert(kind VersionedDataKind, item VersionedData) (VersionedData, error)
+	Upsert(kind StoreDataKind, key string, item StoreSerializedItemDescriptor) (bool, error)
 
 	// IsInitialized returns true if the data store contains a data set, meaning that Init has been
 	// called at least once.

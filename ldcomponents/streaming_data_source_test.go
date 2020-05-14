@@ -105,36 +105,34 @@ func TestStreamProcessor(t *testing.T) {
 	})
 }
 
-func waitForVersion(t *testing.T, store interfaces.DataStore, kind interfaces.VersionedDataKind, key string, version int) interfaces.VersionedData {
-	var item interfaces.VersionedData
+func waitForVersion(t *testing.T, store interfaces.DataStore, kind interfaces.StoreDataKind, key string, version int) {
+	var item interfaces.StoreItemDescriptor
 	var err error
 	deadline := time.Now().Add(time.Second * 3)
 	for {
 		item, err = store.Get(kind, key)
-		if err == nil && item != nil && item.GetVersion() == version || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if assert.NoError(t, err) && assert.NotNil(t, item) && assert.Equal(t, version, item.GetVersion()) {
-		return item
-	}
-	return nil
-}
-
-func waitForDelete(t *testing.T, store interfaces.DataStore, kind interfaces.VersionedDataKind, key string) {
-	var item interfaces.VersionedData
-	var err error
-	deadline := time.Now().Add(time.Second * 3)
-	for {
-		item, err = store.Get(kind, key)
-		if item == nil || time.Now().After(deadline) {
+		if err == nil && item.Version == version || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 	assert.NoError(t, err)
-	assert.Nil(t, item)
+	assert.Equal(t, version, item.Version)
+}
+
+func waitForDelete(t *testing.T, store interfaces.DataStore, kind interfaces.StoreDataKind, key string) {
+	var item interfaces.StoreItemDescriptor
+	var err error
+	deadline := time.Now().Add(time.Second * 3)
+	for {
+		item, err = store.Get(kind, key)
+		if item.Item == nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	assert.NoError(t, err)
+	assert.Nil(t, item.Item)
 }
 
 func TestStreamProcessorDoesNotFailImmediatelyOn400(t *testing.T) {
@@ -269,7 +267,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
 		store := &testDataStoreWithStatus{
-			inits: make(chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData),
+			inits: make(chan []interfaces.StoreCollection),
 		}
 
 		sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
@@ -281,8 +279,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 		sp.Start(closeWhenReady)
 
 		// Wait until the stream has received data and put it in the store
-		receivedInitialData := <-store.inits
-		assert.Equal(t, 1, receivedInitialData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
+		waitForInit(t, store, initialData)
 
 		// Change the stream's initialData so we'll get different data the next time it restarts
 		initialData.Flags(ldservices.FlagOrSegment("my-flag", 2))
@@ -292,70 +289,6 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 		store.publishStatus(internal.DataStoreStatus{Available: true, NeedsRefresh: true})
 
 		// When the stream restarts, it'll call Init with the refreshed data
-		receivedNewData := <-store.inits
-		assert.Equal(t, 2, receivedNewData[interfaces.DataKindFeatures()]["my-flag"].GetVersion())
+		waitForInit(t, store, initialData)
 	})
-}
-
-type testDataStoreWithStatus struct {
-	inits     chan map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
-	statusSub *testStatusSubscription
-}
-
-func (t *testDataStoreWithStatus) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	return nil, nil
-}
-
-func (t *testDataStoreWithStatus) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	return nil, nil
-}
-
-func (t *testDataStoreWithStatus) Init(data map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
-	t.inits <- data
-	return nil
-}
-
-func (t *testDataStoreWithStatus) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
-	return nil
-}
-
-func (t *testDataStoreWithStatus) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
-	return nil
-}
-
-func (t *testDataStoreWithStatus) Initialized() bool {
-	return true
-}
-
-func (t *testDataStoreWithStatus) GetStoreStatus() internal.DataStoreStatus {
-	return internal.DataStoreStatus{Available: true}
-}
-
-func (t *testDataStoreWithStatus) StatusSubscribe() internal.DataStoreStatusSubscription {
-	t.statusSub = &testStatusSubscription{
-		ch: make(chan internal.DataStoreStatus),
-	}
-	return t.statusSub
-}
-
-func (t *testDataStoreWithStatus) Close() error {
-	return nil
-}
-
-func (t *testDataStoreWithStatus) publishStatus(status internal.DataStoreStatus) {
-	if t.statusSub != nil {
-		t.statusSub.ch <- status
-	}
-}
-
-type testStatusSubscription struct {
-	ch chan internal.DataStoreStatus
-}
-
-func (s *testStatusSubscription) Channel() <-chan internal.DataStoreStatus {
-	return s.ch
-}
-
-func (s *testStatusSubscription) Close() {
-	close(s.ch)
 }

@@ -7,18 +7,16 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) []interfaces.StoreCollection {
+func sortCollectionsForDataStoreInit(allData []interfaces.StoreCollection) []interfaces.StoreCollection {
 	colls := make([]interfaces.StoreCollection, 0, len(allData))
-	for kind, itemsMap := range allData {
-		items := make([]interfaces.VersionedData, 0, len(itemsMap))
-		if doesDataKindSupportDependencies(kind) {
-			addItemsInDependencyOrder(itemsMap, &items)
+	for _, coll := range allData {
+		if doesDataKindSupportDependencies(coll.Kind) {
+			itemsOut := make([]interfaces.StoreKeyedItemDescriptor, 0, len(coll.Items))
+			addItemsInDependencyOrder(coll.Items, &itemsOut)
+			colls = append(colls, interfaces.StoreCollection{Kind: coll.Kind, Items: itemsOut})
 		} else {
-			for _, item := range itemsMap {
-				items = append(items, item)
-			}
+			colls = append(colls, coll)
 		}
-		colls = append(colls, interfaces.StoreCollection{Kind: kind, Items: items})
 	}
 	sort.Slice(colls, func(i, j int) bool {
 		return dataKindPriority(colls[i].Kind) < dataKindPriority(colls[j].Kind)
@@ -26,38 +24,42 @@ func transformUnorderedDataToOrderedData(allData map[interfaces.VersionedDataKin
 	return colls
 }
 
-func doesDataKindSupportDependencies(kind interfaces.VersionedDataKind) bool {
+func doesDataKindSupportDependencies(kind interfaces.StoreDataKind) bool {
 	return kind == interfaces.DataKindFeatures() //nolint:megacheck
 }
 
-func addItemsInDependencyOrder(itemsMap map[string]interfaces.VersionedData, out *[]interfaces.VersionedData) {
-	remainingItems := make(map[string]interfaces.VersionedData, len(itemsMap))
-	for key, item := range itemsMap { // copy the map because we'll be consuming it
-		remainingItems[key] = item
+func addItemsInDependencyOrder(itemsIn []interfaces.StoreKeyedItemDescriptor, out *[]interfaces.StoreKeyedItemDescriptor) {
+	remainingItems := make(map[string]interfaces.StoreItemDescriptor, len(itemsIn))
+	for _, item := range itemsIn {
+		remainingItems[item.Key] = item.Item
 	}
 	for len(remainingItems) > 0 {
 		// pick a random item that hasn't been visited yet
-		for _, item := range remainingItems {
-			addWithDependenciesFirst(item, remainingItems, out)
+		for firstKey := range remainingItems {
+			addWithDependenciesFirst(firstKey, remainingItems, out)
 			break
 		}
 	}
 }
 
-func addWithDependenciesFirst(startItem interfaces.VersionedData, remainingItems map[string]interfaces.VersionedData, out *[]interfaces.VersionedData) {
-	delete(remainingItems, startItem.GetKey()) // we won't need to visit this item again
+func addWithDependenciesFirst(
+	startingKey string,
+	remainingItems map[string]interfaces.StoreItemDescriptor,
+	out *[]interfaces.StoreKeyedItemDescriptor,
+) {
+	startItem := remainingItems[startingKey]
+	delete(remainingItems, startingKey) // we won't need to visit this item again
 	for _, prereqKey := range getDependencyKeys(startItem) {
-		prereqItem := remainingItems[prereqKey]
-		if prereqItem != nil {
-			addWithDependenciesFirst(prereqItem, remainingItems, out)
+		if _, ok := remainingItems[prereqKey]; ok {
+			addWithDependenciesFirst(prereqKey, remainingItems, out)
 		}
 	}
-	*out = append(*out, startItem)
+	*out = append(*out, interfaces.StoreKeyedItemDescriptor{Key: startingKey, Item: startItem})
 }
 
-func getDependencyKeys(item interfaces.VersionedData) []string {
+func getDependencyKeys(item interfaces.StoreItemDescriptor) []string {
 	var ret []string
-	switch i := item.(type) {
+	switch i := item.Item.(type) {
 	case *ldmodel.FeatureFlag:
 		for _, p := range i.Prerequisites {
 			ret = append(ret, p.Key)
@@ -68,13 +70,13 @@ func getDependencyKeys(item interfaces.VersionedData) []string {
 
 // Logic for ensuring that segments are processed before features; if we get any other data types that
 // haven't been accounted for here, they'll come after those two in an arbitrary order.
-func dataKindPriority(kind interfaces.VersionedDataKind) int {
-	switch kind.GetNamespace() {
+func dataKindPriority(kind interfaces.StoreDataKind) int {
+	switch kind.GetName() {
 	case "segments":
 		return 0
 	case "features":
 		return 1
 	default:
-		return len(kind.GetNamespace()) + 2
+		return len(kind.GetName()) + 2
 	}
 }

@@ -1,21 +1,16 @@
 package internal
 
 import (
-	"encoding/json"
 	"errors"
-	"strings"
-	"sync"
+	"sort"
 	"testing"
 	"time"
-
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	s "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 type testCacheMode string
@@ -41,736 +36,451 @@ func (m testCacheMode) ttl() time.Duration {
 	}
 }
 
-// Test implementation of DataStoreCore
-type mockCore struct {
-	cacheTTL         time.Duration
-	data             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData
-	orderedInitData  []interfaces.StoreCollection
-	fakeError        error
-	fakeAvailability bool
-	inited           bool
-	initQueriedCount int
-	queryCount       int
-	queryDelay       time.Duration
-	queryStartedCh   chan struct{}
-	lock             sync.Mutex
+func (m testCacheMode) isInfiniteTTL() bool {
+	return m.ttl() < 0
 }
 
-func newCore() *mockCore {
-	return &mockCore{
-		data:             map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}, interfaces.DataKindSegments(): {}},
-		fakeAvailability: true,
-	}
+func makePersistentDataStoreWrapper(
+	t *testing.T,
+	mode testCacheMode,
+	core *s.MockPersistentDataStore,
+) intf.DataStore {
+	return NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
 }
 
-func (c *mockCore) EnableInstrumentedQueries(queryDelay time.Duration) <-chan struct{} {
-	c.queryDelay = queryDelay
-	c.queryStartedCh = make(chan struct{}, 10)
-	return c.queryStartedCh
-}
+func TestPersistentDataStoreWrapper(t *testing.T) {
+	allCacheModes := []testCacheMode{testUncached, testCached, testCachedIndefinitely}
+	cachedOnly := []testCacheMode{testCached, testCachedIndefinitely}
 
-func (c *mockCore) forceSet(kind interfaces.VersionedDataKind, item interfaces.VersionedData) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.data[kind][item.GetKey()] = item
-}
-
-func (c *mockCore) forceRemove(kind interfaces.VersionedDataKind, key string) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	delete(c.data[kind], key)
-}
-
-func (c *mockCore) setAvailable(available bool) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.fakeAvailability = available
-}
-
-func (c *mockCore) startQuery() {
-	if c.queryDelay > 0 {
-		c.queryStartedCh <- struct{}{}
-		<-time.After(c.queryDelay)
-	}
-}
-
-func (c *mockCore) Init(allData []interfaces.StoreCollection) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	if c.fakeError != nil {
-		return c.fakeError
-	}
-	c.orderedInitData = allData
-	for k := range c.data {
-		delete(c.data, k)
-	}
-	for _, coll := range allData {
-		c.data[coll.Kind] = make(map[string]interfaces.VersionedData)
-		for _, item := range coll.Items {
-			c.data[coll.Kind][item.GetKey()] = item
+	runTests := func(
+		name string,
+		test func(t *testing.T, mode testCacheMode),
+		forModes ...testCacheMode,
+	) {
+		if len(forModes) == 0 {
+			require.Fail(t, "didn't specify any testCacheModes")
 		}
-	}
-	c.inited = true
-	return nil
-}
-
-func (c *mockCore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	c.startQuery()
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	if c.fakeError != nil {
-		return nil, c.fakeError
-	}
-	return c.data[kind][key], nil
-}
-
-func (c *mockCore) GetAll(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	c.startQuery()
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	if c.fakeError != nil {
-		return nil, c.fakeError
-	}
-	return c.data[kind], nil
-}
-
-func (c *mockCore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	if c.fakeError != nil {
-		return nil, c.fakeError
-	}
-	oldItem := c.data[kind][item.GetKey()]
-	if oldItem != nil && oldItem.GetVersion() >= item.GetVersion() {
-		return oldItem, nil
-	}
-	c.data[kind][item.GetKey()] = item
-	return item, nil
-}
-
-func (c *mockCore) IsInitialized() bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.initQueriedCount++
-	return c.inited
-}
-
-func (c *mockCore) IsStoreAvailable() bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return c.fakeAvailability
-}
-
-func (c *mockCore) Close() error {
-	return nil
-}
-
-func TestDataStoreWrapper(t *testing.T) {
-	cacheTime := 30 * time.Second
-
-	runTests := func(t *testing.T, name string, test func(t *testing.T, mode testCacheMode, core *mockCore),
-		forModes ...testCacheMode) {
 		t.Run(name, func(t *testing.T) {
-			if len(forModes) == 0 {
-				require.True(t, false, "didn't specify any testCacheModes")
-			}
 			for _, mode := range forModes {
 				t.Run(string(mode), func(t *testing.T) {
-					test(t, mode, newCore())
+					test(t, mode)
 				})
 			}
 		})
 	}
 
-	runTests(t, "Get", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
+	runTests("Get", testPersistentDataStoreWrapperGet, allCacheModes...)
+	runTests("GetAll", testPersistentDataStoreWrapperGetAll, allCacheModes...)
+	runTests("Upsert", testPersistentDataStoreWrapperUpsert, allCacheModes...)
+	runTests("Delete", testPersistentDataStoreWrapperDelete, allCacheModes...)
+	runTests("IsInitialized", testPersistentDataStoreWrapperIsInitialized, allCacheModes...)
+	runTests("update failures with cache", testPersistentDataStoreWrapperUpdateFailuresWithCache, cachedOnly...)
+}
+
+func testWithMockPersistentDataStore(
+	t *testing.T,
+	name string,
+	mode testCacheMode,
+	action func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore),
+) {
+	t.Run(name, func(t *testing.T) {
+		core := s.NewMockPersistentDataStore()
+		w := makePersistentDataStoreWrapper(t, mode, core)
 		defer w.Close()
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
+		action(t, core, w)
+	})
+}
 
-		core.forceSet(interfaces.DataKindFeatures(), &flagv1)
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
+func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
+	testWithMockPersistentDataStore(t, "existing item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		itemv1 := s.MockDataItem{Key: "item", Version: 1}
+		itemv2 := s.MockDataItem{Key: itemv1.Key, Version: 2}
+
+		core.ForceSet(s.MockData, itemv1.Key, itemv1.ToSerializedItemDescriptor())
+		item, err := w.Get(s.MockData, itemv1.Key)
 		require.NoError(t, err)
-		require.Equal(t, &flagv1, item)
+		require.Equal(t, itemv1.ToItemDescriptor(), item)
 
-		core.forceSet(interfaces.DataKindFeatures(), &flagv2)
-		item, err = w.Get(interfaces.DataKindFeatures(), flagv1.Key)
+		core.ForceSet(s.MockData, itemv1.Key, itemv2.ToSerializedItemDescriptor())
+		item, err = w.Get(s.MockData, itemv1.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
-			require.Equal(t, &flagv1, item) // returns cached value, does not call getter
+			require.Equal(t, itemv1.ToItemDescriptor(), item) // returns cached value, does not call getter
 		} else {
-			require.Equal(t, &flagv2, item) // no caching, calls getter
+			require.Equal(t, itemv2.ToItemDescriptor(), item) // no caching, calls getter
 		}
-	}, testUncached, testCached, testCachedIndefinitely)
+	})
 
-	runTests(t, "Get with deleted item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Deleted(true).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
+	testWithMockPersistentDataStore(t, "unknown item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		itemv1 := s.MockDataItem{Key: "key", Version: 1}
 
-		core.forceSet(interfaces.DataKindFeatures(), &flagv1)
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
+		item, err := w.Get(s.MockData, itemv1.Key)
 		require.NoError(t, err)
-		require.Nil(t, item) // item is filtered out because Deleted is true
+		require.Equal(t, intf.StoreItemDescriptor{}.NotFound(), item)
 
-		core.forceSet(interfaces.DataKindFeatures(), &flagv2)
-		item, err = w.Get(interfaces.DataKindFeatures(), flagv1.Key)
+		core.ForceSet(s.MockData, itemv1.Key, itemv1.ToSerializedItemDescriptor())
+		item, err = w.Get(s.MockData, itemv1.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
-			require.Nil(t, item) // it used the cached deleted item rather than calling the getter
+			require.Equal(t, intf.StoreItemDescriptor{}.NotFound(), item) // the cache retains a nil result
 		} else {
-			require.Equal(t, &flagv2, item) // no caching, calls getter
+			require.Equal(t, itemv1.ToItemDescriptor(), item) // no caching, calls getter
 		}
-	}, testUncached, testCached, testCachedIndefinitely)
+	})
 
-	runTests(t, "Get with missing item", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		mockLog := sharedtest.NewMockLoggers()
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), mockLog.Loggers)
-		defer w.Close()
-		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
+	testWithMockPersistentDataStore(t, "deleted item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		key := "item"
+		deletedItemDesc := intf.StoreItemDescriptor{Version: 1}
+		serializedDeletedItemDesc := intf.StoreSerializedItemDescriptor{Version: 1}
+		itemv2 := s.MockDataItem{Key: key, Version: 2}
 
-		item, err := w.Get(interfaces.DataKindFeatures(), flag.Key)
+		core.ForceSet(s.MockData, key, serializedDeletedItemDesc)
+		item, err := w.Get(s.MockData, key)
 		require.NoError(t, err)
-		require.Nil(t, item)
+		assert.Equal(t, deletedItemDesc, item)
 
-		assert.Nil(t, mockLog.Output[ldlog.Error]) // missing item should *not* be logged as an error by this component
-
-		core.forceSet(interfaces.DataKindFeatures(), &flag)
-		item, err = w.Get(interfaces.DataKindFeatures(), flag.Key)
+		core.ForceSet(s.MockData, key, itemv2.ToSerializedItemDescriptor())
+		item, err = w.Get(s.MockData, key)
 		require.NoError(t, err)
 		if mode.isCached() {
-			require.Nil(t, item) // the cache retains a nil result
+			require.Equal(t, deletedItemDesc, item) // it used the cached deleted item rather than calling the getter
 		} else {
-			require.Equal(t, &flag, item) // no caching, calls getter
+			require.Equal(t, itemv2.ToItemDescriptor(), item) // no caching, calls getter
 		}
-	}, testUncached, testCached, testCachedIndefinitely)
+	})
 
-	runTests(t, "cached Get uses values from Init", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
+	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		key := "item"
+		core.ForceSet(s.MockData, key, intf.StoreSerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
 
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder("flag").Version(2).Build()
+		_, err := w.Get(s.MockData, key)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a valid MockDataItem") // the error that our mock item deserializer returns
+	})
 
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flagv1.Key: &flagv1},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-		require.Equal(t, core.data, allData)
+	if mode.isCached() {
+		t.Run("cached", func(t *testing.T) {
+			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				itemv1 := s.MockDataItem{Key: "item", Version: 1}
+				itemv2 := s.MockDataItem{Key: itemv1.Key, Version: 2}
 
-		core.forceSet(interfaces.DataKindFeatures(), &flagv2)
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
-		require.NoError(t, err)
-		require.Equal(t, &flagv1, item) // it used the cached item rather than calling the getter
-	}, testCached, testCachedIndefinitely)
+				require.NoError(t, w.Init(s.MakeMockDataSet(itemv1)))
 
-	runTests(t, "All", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
-		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
-		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
+				core.ForceSet(s.MockData, itemv1.Key, itemv2.ToSerializedItemDescriptor())
+				result, err := w.Get(s.MockData, itemv1.Key)
+				require.NoError(t, err)
+				require.Equal(t, itemv1.ToItemDescriptor(), result)
+			})
 
-		core.forceSet(interfaces.DataKindFeatures(), &flag1)
-		core.forceSet(interfaces.DataKindFeatures(), &flag2)
-		items, err := w.All(interfaces.DataKindFeatures())
+			testWithMockPersistentDataStore(t, "coalesces requests for same key", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
+
+				item := s.MockDataItem{Key: "key", Version: 9}
+				core.ForceSet(s.MockData, item.Key, item.ToSerializedItemDescriptor())
+
+				resultCh := make(chan int, 2)
+				go func() {
+					result, _ := w.Get(s.MockData, item.Key)
+					resultCh <- result.Version
+				}()
+				// We can't actually *guarantee* that our second query will start while the first one is still
+				// in progress, but the combination of waiting on queryStartedCh and the built-in delay in
+				// MockCoreWithInstrumentedQueries should make it extremely likely.
+				<-queryStartedCh
+				go func() {
+					result, _ := w.Get(s.MockData, item.Key)
+					resultCh <- result.Version
+				}()
+
+				result1 := <-resultCh
+				result2 := <-resultCh
+				assert.Equal(t, item.Version, result1)
+				assert.Equal(t, item.Version, result2)
+
+				assert.Len(t, queryStartedCh, 0) // core only received 1 query
+			})
+		})
+	}
+}
+
+func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
+	testWithMockPersistentDataStore(t, "gets only items of one kind", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		item1 := s.MockDataItem{Key: "item1", Version: 1}
+		item2 := s.MockDataItem{Key: "item2", Version: 1}
+		otherItem1 := s.MockDataItem{Key: "item1", Version: 3, IsOtherKind: true}
+
+		core.ForceSet(s.MockData, item1.Key, item1.ToSerializedItemDescriptor())
+		core.ForceSet(s.MockData, item2.Key, item2.ToSerializedItemDescriptor())
+		core.ForceSet(s.MockOtherData, otherItem1.Key, otherItem1.ToSerializedItemDescriptor())
+
+		items, err := w.GetAll(s.MockData)
 		require.NoError(t, err)
 		require.Equal(t, 2, len(items))
+		sort.Slice(items, func(i, j int) bool { return items[i].Key < items[j].Key })
+		assert.Equal(t, []intf.StoreKeyedItemDescriptor{item1.ToKeyedItemDescriptor(), item2.ToKeyedItemDescriptor()}, items)
 
-		core.forceRemove(interfaces.DataKindFeatures(), flag2.Key)
-		items, err = w.All(interfaces.DataKindFeatures())
+		items, err = w.GetAll(s.MockOtherData)
 		require.NoError(t, err)
-		if mode.isCached() {
-			require.Equal(t, 2, len(items))
-		} else {
-			require.Equal(t, 1, len(items))
-		}
-	}, testUncached, testCached, testCachedIndefinitely)
+		require.Equal(t, 1, len(items))
+		assert.Equal(t, []intf.StoreKeyedItemDescriptor{otherItem1.ToKeyedItemDescriptor()}, items)
+	})
 
-	runTests(t, "cached All uses values from Init", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
+	if mode.isCached() {
+		t.Run("cached", func(t *testing.T) {
+			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				item1 := s.MockDataItem{Key: "item1", Version: 1}
+				item2 := s.MockDataItem{Key: "item2", Version: 1}
 
-		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
-		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
+				require.NoError(t, w.Init(s.MakeMockDataSet(item1, item2)))
 
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flag1.Key: &flag1, flag2.Key: &flag2},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-		require.Equal(t, allData, core.data)
+				core.ForceRemove(s.MockData, item2.Key)
 
-		core.forceRemove(interfaces.DataKindFeatures(), flag2.Key)
-		items, err := w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		require.Equal(t, 2, len(items))
-	}, testCached, testCachedIndefinitely)
+				items, err := w.GetAll(s.MockData)
+				require.NoError(t, err)
+				assert.Len(t, items, 2)
+			})
 
-	runTests(t, "cached All uses fresh values if there has been an update", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
+			t.Run("uses fresh values if there has been an update", func(t *testing.T) {
+				core := s.NewMockPersistentDataStore()
+				w := makePersistentDataStoreWrapper(t, mode, core)
+				defer w.Close()
 
-		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
-		flag1v2 := ldbuilders.NewFlagBuilder("flag1").Version(2).Build()
-		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
-		flag2v2 := ldbuilders.NewFlagBuilder("flag2").Version(2).Build()
+				item1v1 := s.MockDataItem{Key: "item1", Version: 1}
+				item1v2 := s.MockDataItem{Key: "item1", Version: 2}
+				item2v1 := s.MockDataItem{Key: "item2", Version: 1}
+				item2v2 := s.MockDataItem{Key: "item2", Version: 2}
 
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flag1.Key: &flag1, flag2.Key: &flag2},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-		require.Equal(t, allData, core.data)
+				require.NoError(t, w.Init(s.MakeMockDataSet(item1v1, item2v2)))
 
-		// make a change to flag1 using the wrapper - this should flush the cache
-		err = w.Upsert(interfaces.DataKindFeatures(), &flag1v2)
-		require.NoError(t, err)
+				// make a change to item1 using the wrapper - this should flush the cache
+				require.NoError(t, w.Upsert(s.MockData, item1v1.Key, item1v2.ToItemDescriptor()))
 
-		// make a change to flag2 that bypasses the cache
-		core.forceSet(interfaces.DataKindFeatures(), &flag2v2)
+				// make a change to item2 that bypasses the cache
+				core.ForceSet(s.MockData, item2v1.Key, item2v2.ToSerializedItemDescriptor())
 
-		// we should now see both changes since the cache was flushed
-		items, err := w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		require.Equal(t, 2, items[flag2.Key].GetVersion())
-	}, testCached)
+				// we should now see both changes since the cache was flushed
+				items, err := w.GetAll(s.MockData)
+				require.NoError(t, err)
+				sort.Slice(items, func(i, j int) bool { return items[i].Key < items[j].Key })
+				require.Equal(t, 2, items[1].Item.Version)
+			})
 
-	runTests(t, "Upsert - successful", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
+			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
 
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
+				item := s.MockDataItem{Key: "key", Version: 9}
+				core.ForceSet(s.MockData, item.Key, item.ToSerializedItemDescriptor())
 
-		err := w.Upsert(interfaces.DataKindFeatures(), &flagv1)
-		require.NoError(t, err)
-		require.Equal(t, &flagv1, core.data[interfaces.DataKindFeatures()][flagv1.Key])
+				resultCh := make(chan int, 2)
+				go func() {
+					result, _ := w.GetAll(s.MockData)
+					resultCh <- len(result)
+				}()
+				// We can't actually *guarantee* that our second query will start while the first one is still
+				// in progress, but the combination of waiting on queryStartedCh and the built-in delay in
+				// MockCoreWithInstrumentedQueries should make it extremely likely.
+				<-queryStartedCh
+				go func() {
+					result, _ := w.GetAll(s.MockData)
+					resultCh <- len(result)
+				}()
 
-		err = w.Upsert(interfaces.DataKindFeatures(), &flagv2)
-		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key])
+				result1 := <-resultCh
+				result2 := <-resultCh
+				assert.Equal(t, 1, result1)
+				assert.Equal(t, 1, result2)
+
+				assert.Len(t, queryStartedCh, 0) // core only received 1 query
+			})
+		})
+	}
+}
+
+func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
+	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		key := "item"
+		itemv1 := s.MockDataItem{Key: key, Version: 1}
+		itemv2 := s.MockDataItem{Key: key, Version: 2}
+
+		require.NoError(t, w.Upsert(s.MockData, key, itemv1.ToItemDescriptor()))
+		require.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
+
+		require.NoError(t, w.Upsert(s.MockData, key, itemv2.ToItemDescriptor()))
+		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
 		// if we have a cache, verify that the new item is now cached by writing a different value
 		// to the underlying data - Get should still return the cached item
 		if mode.isCached() {
-			flagv3 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(3).Build()
-			core.forceSet(interfaces.DataKindFeatures(), &flagv3)
+			itemv3 := s.MockDataItem{Key: key, Version: 3}
+			core.ForceSet(s.MockData, key, itemv3.ToSerializedItemDescriptor())
 		}
 
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
+		result, err := w.Get(s.MockData, key)
 		require.NoError(t, err)
-		require.Equal(t, &flagv2, item)
-	}, testUncached, testCached, testCachedIndefinitely)
+		assert.Equal(t, itemv2.ToItemDescriptor(), result)
+	})
 
-	runTests(t, "cached Upsert - unsuccessful", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		// This is for an upsert where the data in the store has a higher version. In an uncached
-		// store, this is just a no-op as far as the wrapper is concerned so there's nothing to
-		// test here. In a cached store, we need to verify that the cache has been refreshed
-		// using the data that was found in the store.
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
+	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		key := "item"
+		itemv1 := s.MockDataItem{Key: key, Version: 1}
+		itemv2 := s.MockDataItem{Key: key, Version: 2}
 
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
+		require.NoError(t, w.Upsert(s.MockData, key, itemv2.ToItemDescriptor()))
+		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
-		err := w.Upsert(interfaces.DataKindFeatures(), &flagv2)
+		// In a cached store, we need to verify that after an unsuccessful upsert it will refresh the
+		// cache using the very latest data from the store - so here we'll sneak a higher-versioned
+		// item directly into the store.
+		itemv3 := s.MockDataItem{Key: key, Version: 3}
+		core.ForceSet(s.MockData, key, itemv3.ToSerializedItemDescriptor())
+
+		require.NoError(t, w.Upsert(s.MockData, key, itemv1.ToItemDescriptor()))
+
+		result, err := w.Get(s.MockData, key)
 		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key])
+		assert.Equal(t, itemv3.ToItemDescriptor(), result)
+	})
+}
 
-		err = w.Upsert(interfaces.DataKindFeatures(), &flagv1)
-		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key]) // value in store remains the same
+func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
+	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		key := "item"
+		itemv1 := s.MockDataItem{Key: key, Version: 1}
+		deletedv2 := intf.StoreItemDescriptor{Version: 2}
 
-		flagv3 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(3).Build()
-		core.forceSet(interfaces.DataKindFeatures(), &flagv3) // bypasses cache so we can verify that flagv2 is in the cache
+		require.NoError(t, w.Upsert(s.MockData, key, itemv1.ToItemDescriptor()))
+		require.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
-		require.NoError(t, err)
-		require.Equal(t, &flagv2, item)
-	}, testCached, testCachedIndefinitely)
+		require.NoError(t, w.Upsert(s.MockData, key, deletedv2))
 
-	runTests(t, "Delete", func(t *testing.T, mode testCacheMode, core *mockCore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Deleted(true).Build()
-		flagv3 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(3).Build()
-
-		core.forceSet(interfaces.DataKindFeatures(), &flagv1)
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv1.Key)
-		require.NoError(t, err)
-		require.Equal(t, &flagv1, item)
-
-		err = w.Delete(interfaces.DataKindFeatures(), flagv1.Key, 2)
-		require.NoError(t, err)
-		require.Equal(t, &flagv2, core.data[interfaces.DataKindFeatures()][flagv1.Key])
-
-		// make a change to the flag that bypasses the cache
-		core.forceSet(interfaces.DataKindFeatures(), &flagv3)
-
-		item, err = w.Get(interfaces.DataKindFeatures(), flagv1.Key)
-		require.NoError(t, err)
+		// if we have a cache, verify that the new item is now cached by writing a different value
+		// to the underlying data - Get should still return the cached item
 		if mode.isCached() {
-			require.Nil(t, item)
-		} else {
-			require.Equal(t, &flagv3, item)
-		}
-	}, testUncached, testCached, testCachedIndefinitely)
-
-	t.Run("Initialized calls InitializedInternal only if not already inited", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, 0, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		assert.False(t, w.Initialized())
-		assert.Equal(t, 1, core.initQueriedCount)
-
-		core.inited = true
-		assert.True(t, w.Initialized())
-		assert.Equal(t, 2, core.initQueriedCount)
-
-		core.inited = false
-		assert.True(t, w.Initialized())
-		assert.Equal(t, 2, core.initQueriedCount)
-	})
-
-	t.Run("Initialized won't call InitializedInternal if Init has been called", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, 0, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		assert.False(t, w.Initialized())
-		assert.Equal(t, 1, core.initQueriedCount)
-
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{interfaces.DataKindFeatures(): {}}
-		err := w.Init(allData)
-		require.NoError(t, err)
-
-		assert.True(t, w.Initialized())
-		assert.Equal(t, 1, core.initQueriedCount)
-	})
-
-	t.Run("Initialized can cache false result", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, 500*time.Millisecond, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		assert.False(t, w.Initialized())
-		assert.Equal(t, 1, core.initQueriedCount)
-
-		core.inited = true
-		assert.False(t, w.Initialized())
-		assert.Equal(t, 1, core.initQueriedCount)
-
-		time.Sleep(600 * time.Millisecond)
-		assert.True(t, w.Initialized())
-		assert.Equal(t, 2, core.initQueriedCount)
-	})
-
-	t.Run("Cached Get coalesces requests for same key", func(t *testing.T) {
-		core := newCore()
-		queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
-		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag := ldbuilders.NewFlagBuilder("flag").Version(9).Build()
-		core.forceSet(interfaces.DataKindFeatures(), &flag)
-
-		resultCh := make(chan int, 2)
-		go func() {
-			result, _ := w.Get(interfaces.DataKindFeatures(), flag.Key)
-			resultCh <- result.GetVersion()
-		}()
-		// We can't actually *guarantee* that our second query will start while the first one is still
-		// in progress, but the combination of waiting on queryStartedCh and the built-in delay in
-		// mockCoreWithInstrumentedQueries should make it extremely likely.
-		<-queryStartedCh
-		go func() {
-			result, _ := w.Get(interfaces.DataKindFeatures(), flag.Key)
-			resultCh <- result.GetVersion()
-		}()
-
-		result1 := <-resultCh
-		result2 := <-resultCh
-		assert.Equal(t, flag.Version, result1)
-		assert.Equal(t, flag.Version, result2)
-
-		assert.Len(t, queryStartedCh, 0) // core only received 1 query
-	})
-
-	t.Run("Cached Get doesn't coalesce requests for same key", func(t *testing.T) {
-		core := newCore()
-		queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
-		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag1 := ldbuilders.NewFlagBuilder("flag1").Version(8).Build()
-		flag2 := ldbuilders.NewFlagBuilder("flag2").Version(9).Build()
-		core.forceSet(interfaces.DataKindFeatures(), &flag1)
-		core.forceSet(interfaces.DataKindFeatures(), &flag2)
-
-		resultCh := make(chan int, 2)
-		go func() {
-			result, _ := w.Get(interfaces.DataKindFeatures(), flag1.Key)
-			resultCh <- result.GetVersion()
-		}()
-		<-queryStartedCh
-		go func() {
-			result, _ := w.Get(interfaces.DataKindFeatures(), flag2.Key)
-			resultCh <- result.GetVersion()
-		}()
-
-		results := map[int]bool{}
-		results[<-resultCh] = true
-		results[<-resultCh] = true
-		assert.Equal(t, map[int]bool{flag1.Version: true, flag2.Version: true}, results)
-
-		assert.Len(t, core.queryStartedCh, 1) // core received a total of 2 queries
-	})
-
-	t.Run("Cached All coalesces requests", func(t *testing.T) {
-		core := newCore()
-		queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
-		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag := ldbuilders.NewFlagBuilder("flag").Version(9).Build()
-		core.forceSet(interfaces.DataKindFeatures(), &flag)
-
-		resultCh := make(chan int, 2)
-		go func() {
-			result, _ := w.All(interfaces.DataKindFeatures())
-			resultCh <- len(result)
-		}()
-		<-queryStartedCh
-		go func() {
-			result, _ := w.All(interfaces.DataKindFeatures())
-			resultCh <- len(result)
-		}()
-
-		result1 := <-resultCh
-		result2 := <-resultCh
-		assert.Equal(t, 1, result1)
-		assert.Equal(t, 1, result2)
-
-		assert.Len(t, core.queryStartedCh, 0) // core only received 1 query
-	})
-
-	t.Run("Cached store with finite TTL won't update cache if core update fails", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flagv1.Key: &flagv1},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-		require.Equal(t, core.data, allData)
-
-		core.fakeError = errors.New("sorry")
-		err = w.Upsert(interfaces.DataKindFeatures(), &flagv2)
-		require.Equal(t, core.fakeError, err)
-
-		core.fakeError = nil
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv2.Key)
-		require.NoError(t, err)
-		require.Equal(t, &flagv1, item) // cache still has old item, same as underlying store
-	})
-
-	t.Run("Cached store with infinite TTL will update cache even if core update fails", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flagv1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		flagv2 := ldbuilders.NewFlagBuilder(flagv1.Key).Version(2).Build()
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flagv1.Key: &flagv1},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-		require.Equal(t, core.data, allData)
-
-		core.fakeError = errors.New("sorry")
-		err = w.Upsert(interfaces.DataKindFeatures(), &flagv2)
-		require.Equal(t, core.fakeError, err)
-
-		core.fakeError = nil
-		item, err := w.Get(interfaces.DataKindFeatures(), flagv2.Key)
-		require.NoError(t, err)
-		require.Equal(t, &flagv2, item) // underlying store has old item but cache has new item
-	})
-
-	t.Run("Cached store with finite TTL won't update cache if core init fails", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flag.Key: &flag},
-		}
-		core.fakeError = errors.New("sorry")
-		err := w.Init(allData)
-		require.Equal(t, core.fakeError, err)
-
-		core.fakeError = nil
-		data, err := w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		require.Equal(t, map[string]interfaces.VersionedData{}, data)
-	})
-
-	t.Run("Cached store with infinite TTL will update cache even if core init fails", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flag.Key: &flag},
-		}
-		core.fakeError = errors.New("sorry")
-		err := w.Init(allData)
-		require.Equal(t, core.fakeError, err)
-
-		core.fakeError = nil
-		data, err := w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		require.Equal(t, allData[interfaces.DataKindFeatures()], data)
-	})
-
-	t.Run("Cached store with finite TTL removes cached All data if a single item is updated", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, cacheTime, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag1v1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
-		flag1v2 := ldbuilders.NewFlagBuilder(flag1v1.Key).Version(2).Build()
-		flag2v1 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
-		flag2v2 := ldbuilders.NewFlagBuilder(flag2v1.Key).Version(2).Build()
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-
-		data, err := w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		require.Equal(t, allData[interfaces.DataKindFeatures()], data)
-		// now the All data is cached
-
-		// do an Upsert for flag1 - this should drop the previous All data from the cache
-		err = w.Upsert(interfaces.DataKindFeatures(), &flag1v2)
-
-		// modify flag2 directly in the underlying data
-		core.forceSet(interfaces.DataKindFeatures(), &flag2v2)
-
-		// now, All should reread the underlying data so we see both changes
-		data, err = w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		assert.Equal(t, &flag1v2, data[flag1v1.Key])
-		assert.Equal(t, &flag2v2, data[flag2v1.Key])
-	})
-
-	t.Run("Cached store with infinite TTL updates cached All data if a single item is updated", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
-		defer w.Close()
-
-		flag1v1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
-		flag1v2 := ldbuilders.NewFlagBuilder(flag1v1.Key).Version(2).Build()
-		flag2v1 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
-		flag2v2 := ldbuilders.NewFlagBuilder(flag2v1.Key).Version(2).Build()
-		allData := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-			interfaces.DataKindFeatures(): {flag1v1.Key: &flag1v1, flag2v1.Key: &flag2v1},
-		}
-		err := w.Init(allData)
-		require.NoError(t, err)
-
-		data, err := w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		require.Equal(t, allData[interfaces.DataKindFeatures()], data)
-		// now the All data is cached
-
-		// do an Upsert for flag1 - this should update the underlying data *and* the cached All data
-		err = w.Upsert(interfaces.DataKindFeatures(), &flag1v2)
-
-		// modify flag2 directly in the underlying data
-		core.forceSet(interfaces.DataKindFeatures(), &flag2v2)
-
-		// now, All should *not* reread the underlying data - we should only see the change to flag1
-		data, err = w.All(interfaces.DataKindFeatures())
-		require.NoError(t, err)
-		assert.Equal(t, &flag1v2, data[flag1v1.Key])
-		assert.Equal(t, &flag2v1, data[flag2v1.Key])
-	})
-
-	t.Run("Non-atomic init passes ordered data to core", func(t *testing.T) {
-		core := newCore()
-		w := NewPersistentDataStoreWrapper(core, 0, ldlog.NewDisabledLoggers())
-
-		assert.NoError(t, w.Init(dependencyOrderingTestData))
-
-		receivedData := core.orderedInitData
-		assert.Equal(t, 2, len(receivedData))
-		assert.Equal(t, interfaces.DataKindSegments(), receivedData[0].Kind) // Segments should always be first
-		assert.Equal(t, len(dependencyOrderingTestData[interfaces.DataKindSegments()]), len(receivedData[0].Items))
-		assert.Equal(t, interfaces.DataKindFeatures(), receivedData[1].Kind)
-		assert.Equal(t, len(dependencyOrderingTestData[interfaces.DataKindFeatures()]), len(receivedData[1].Items))
-
-		flags := receivedData[1].Items
-		findFlagIndex := func(key string) int {
-			for i, item := range flags {
-				if item.GetKey() == key {
-					return i
-				}
-			}
-			return -1
+			itemv3 := s.MockDataItem{Key: key, Version: 3}
+			core.ForceSet(s.MockData, key, itemv3.ToSerializedItemDescriptor())
 		}
 
-		for _, item := range dependencyOrderingTestData[interfaces.DataKindFeatures()] {
-			if flag, ok := item.(*ldmodel.FeatureFlag); ok {
-				flagIndex := findFlagIndex(flag.Key)
-				for _, prereq := range flag.Prerequisites {
-					prereqIndex := findFlagIndex(prereq.Key)
-					if prereqIndex > flagIndex {
-						keys := make([]string, 0, len(flags))
-						for _, item := range flags {
-							keys = append(keys, item.GetKey())
-						}
-						assert.True(t, false, "%s depends on %s, but %s was listed first; keys in order are [%s]",
-							flag.Key, prereq.Key, strings.Join(keys, ", "))
-					}
-				}
-			}
-		}
+		result, err := w.Get(s.MockData, itemv1.Key)
+		require.NoError(t, err)
+		assert.Equal(t, deletedv2, result)
+	})
+
+	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		key := "item"
+		itemv2 := s.MockDataItem{Key: key, Version: 2}
+		deletedv1 := intf.StoreItemDescriptor{Version: 1}
+
+		require.NoError(t, w.Upsert(s.MockData, key, itemv2.ToItemDescriptor()))
+		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
+
+		require.NoError(t, w.Upsert(s.MockData, key, deletedv1))
+
+		result, err := w.Get(s.MockData, itemv2.Key)
+		require.NoError(t, err)
+		assert.Equal(t, itemv2.ToItemDescriptor(), result)
 	})
 }
 
-var dependencyOrderingTestData = map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
-	interfaces.DataKindFeatures(): {
-		"a": parseFlag(`{"key":"a","prerequisites":[{"key":"b"},{"key":"c"}]}`),
-		"b": parseFlag(`{"key":"b","prerequisites":[{"key":"c"},{"key":"e"}]}`),
-		"c": parseFlag(`{"key":"c"}`),
-		"d": parseFlag(`{"key":"d"}`),
-		"e": parseFlag(`{"key":"e"}`),
-		"f": parseFlag(`{"key":"f"}`),
-	},
-	interfaces.DataKindSegments(): {
-		"1": &ldmodel.Segment{Key: "1"},
-	},
-}
+func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMode) {
+	testWithMockPersistentDataStore(t, "won't call underlying IsInitialized if Init has been called", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		assert.False(t, w.IsInitialized())
+		assert.Equal(t, 1, core.InitQueriedCount)
 
-func parseFlag(jsonString string) *ldmodel.FeatureFlag {
-	var f ldmodel.FeatureFlag
-	if err := json.Unmarshal([]byte(jsonString), &f); err != nil {
-		panic(err)
+		require.NoError(t, w.Init(s.MakeMockDataSet()))
+
+		assert.True(t, w.IsInitialized())
+		assert.Equal(t, 1, core.InitQueriedCount)
+	})
+
+	if mode.isCached() {
+		testWithMockPersistentDataStore(t, "can cache false result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			assert.False(t, w.IsInitialized())
+			assert.Equal(t, 1, core.InitQueriedCount)
+
+			core.ForceSetInited(true)
+
+			assert.False(t, w.IsInitialized())
+			assert.Equal(t, 1, core.InitQueriedCount)
+		})
 	}
-	return &f
+}
+
+func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode testCacheMode) {
+	if mode.isInfiniteTTL() {
+		t.Run("infinite TTL", func(t *testing.T) {
+			testWithMockPersistentDataStore(t, "will update cache even if core Upsert fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				key := "key"
+				itemv1 := s.MockDataItem{Key: key, Version: 1}
+				itemv2 := s.MockDataItem{Key: key, Version: 2}
+
+				require.NoError(t, w.Init(s.MakeMockDataSet(itemv1)))
+				assert.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
+
+				myError := errors.New("sorry")
+				core.SetFakeError(myError)
+				err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+				assert.Equal(t, myError, err)
+				assert.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key)) // underlying store still has old item
+
+				core.SetFakeError(nil)
+				item, err := w.Get(s.MockData, key)
+				require.NoError(t, err)
+				require.Equal(t, itemv2.ToItemDescriptor(), item) // cache has new item
+			})
+
+			testWithMockPersistentDataStore(t, "will update cache even if core Init fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				key := "key"
+				itemv1 := s.MockDataItem{Key: key, Version: 1}
+
+				myError := errors.New("sorry")
+				core.SetFakeError(myError)
+				err := w.Init(s.MakeMockDataSet(itemv1))
+				assert.Equal(t, myError, err)
+				assert.Equal(t, intf.StoreSerializedItemDescriptor{}.NotFound(), core.ForceGet(s.MockData, key)) // underlying store does not have data
+
+				core.SetFakeError(nil)
+				result, err := w.GetAll(s.MockData)
+				require.NoError(t, err)
+				require.Len(t, result, 1) // cache does have data
+			})
+		})
+	} else {
+		t.Run("finite TTL", func(t *testing.T) {
+			testWithMockPersistentDataStore(t, "won't update cache if core Upsert fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				key := "key"
+				itemv1 := s.MockDataItem{Key: key, Version: 1}
+				itemv2 := s.MockDataItem{Key: key, Version: 2}
+
+				require.NoError(t, w.Init(s.MakeMockDataSet(itemv1)))
+				assert.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
+
+				myError := errors.New("sorry")
+				core.SetFakeError(myError)
+				err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+				assert.Equal(t, myError, err)
+				assert.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key)) // underlying store still has old item
+
+				core.SetFakeError(nil)
+				item, err := w.Get(s.MockData, key)
+				require.NoError(t, err)
+				require.Equal(t, itemv1.ToItemDescriptor(), item) // cache still has old item too
+			})
+
+			testWithMockPersistentDataStore(t, "won't update cache if core Init fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+				key := "key"
+				itemv1 := s.MockDataItem{Key: key, Version: 1}
+
+				myError := errors.New("sorry")
+				core.SetFakeError(myError)
+				err := w.Init(s.MakeMockDataSet(itemv1))
+				assert.Equal(t, myError, err)
+				assert.Equal(t, intf.StoreSerializedItemDescriptor{}.NotFound(), core.ForceGet(s.MockData, key)) // underlying store does not have data
+
+				core.SetFakeError(nil)
+				result, err := w.GetAll(s.MockData)
+				require.NoError(t, err)
+				require.Len(t, result, 0) // cache does not have data either
+			})
+		})
+	}
 }

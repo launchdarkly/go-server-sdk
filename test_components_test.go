@@ -1,13 +1,16 @@
 package ldclient
 
 import (
+	"log"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 const testSdkKey = "test-sdk-key"
@@ -21,8 +24,13 @@ func basicClientContext() interfaces.ClientContext {
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(basicClientContext())
-	return store
+	return internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+}
+
+func upsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {
+	log.Printf("*** store was %+v", store)
+	store.Upsert(interfaces.DataKindFeatures(), flag.Key, interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag})
+	log.Printf("*** store is %+v", store)
 }
 
 type singleDataStoreFactory struct {

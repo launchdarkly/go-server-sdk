@@ -67,26 +67,21 @@ func (r *requestor) requestAll() (allData, bool, error) {
 	return data, cached, nil
 }
 
-func (r *requestor) requestResource(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (r *requestor) requestResource(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
 	var resource string
-	switch kind.GetNamespace() {
+	switch kind.GetName() {
 	case "segments":
 		resource = LatestSegmentsPath + "/" + key
 	case "features":
 		resource = LatestFlagsPath + "/" + key
 	default:
-		return nil, fmt.Errorf("unexpected item type: %s", kind)
+		return interfaces.StoreItemDescriptor{}, fmt.Errorf("unexpected item type: %s", kind)
 	}
 	body, _, err := r.makeRequest(resource)
 	if err != nil {
-		return nil, err
+		return interfaces.StoreItemDescriptor{}, err
 	}
-	item := kind.GetDefaultItem().(interfaces.VersionedData)
-	err = json.Unmarshal(body, item)
-	if err != nil {
-		return nil, err
-	}
-	return item, nil
+	return kind.Deserialize(body)
 }
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {

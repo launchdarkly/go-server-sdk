@@ -30,7 +30,6 @@ package lddynamodb
 // stored as a single item, this mechanism will not work for extremely large flags or segments.
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -43,7 +42,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 const (
@@ -93,7 +91,7 @@ func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) 
 	return store, nil
 }
 
-func (store *dynamoDBDataStore) Init(allData []interfaces.StoreCollection) error {
+func (store *dynamoDBDataStore) Init(allData []interfaces.StoreSerializedCollection) error {
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys(allData)
 	if err != nil {
@@ -106,15 +104,11 @@ func (store *dynamoDBDataStore) Init(allData []interfaces.StoreCollection) error
 	// Insert or update every provided item
 	for _, coll := range allData {
 		for _, item := range coll.Items {
-			key := item.GetKey()
-			av, err := store.marshalItem(coll.Kind, item)
-			if err != nil {
-				return fmt.Errorf("failed to marshal %s key %s: %s", coll.Kind, key, err)
-			}
+			av := store.encodeItem(coll.Kind, item.Key, item.Item)
 			requests = append(requests, &dynamodb.WriteRequest{
 				PutRequest: &dynamodb.PutRequest{Item: av},
 			})
-			nk := namespaceAndKey{namespace: store.namespaceForKind(coll.Kind), key: key}
+			nk := namespaceAndKey{namespace: store.namespaceForKind(coll.Kind), key: item.Key}
 			unusedOldKeys[nk] = false
 			numItems++
 		}
@@ -164,32 +158,27 @@ func (store *dynamoDBDataStore) IsInitialized() bool {
 	return err == nil && len(result.Item) != 0
 }
 
-func (store *dynamoDBDataStore) GetAll(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	var items []map[string]*dynamodb.AttributeValue
-
+func (store *dynamoDBDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+	var results []interfaces.StoreKeyedSerializedItemDescriptor
 	err := store.client.QueryPages(store.makeQueryForKind(kind),
 		func(out *dynamodb.QueryOutput, lastPage bool) bool {
-			items = append(items, out.Items...)
+			for _, item := range out.Items {
+				if key, serializedItemDesc, ok := store.decodeItem(item); ok {
+					results = append(results, interfaces.StoreKeyedSerializedItemDescriptor{
+						Key:  key,
+						Item: serializedItemDesc,
+					})
+				}
+			}
 			return !lastPage
 		})
 	if err != nil {
 		return nil, err
 	}
-
-	results := make(map[string]interfaces.VersionedData)
-
-	for _, i := range items {
-		item, err := unmarshalItem(kind, i)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal %s: %s", kind, err)
-		}
-		results[item.GetKey()] = item
-	}
-
 	return results, nil
 }
 
-func (store *dynamoDBDataStore) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (store *dynamoDBDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
@@ -199,33 +188,32 @@ func (store *dynamoDBDataStore) Get(kind interfaces.VersionedDataKind, key strin
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get %s key %s: %s", kind, key, err)
+		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), fmt.Errorf("failed to get %s key %s: %s", kind, key, err)
 	}
 
 	if len(result.Item) == 0 {
 		store.loggers.Debugf("Item not found (key=%s)", key)
-		return nil, nil
+		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
 	}
 
-	item, err := unmarshalItem(kind, result.Item)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal %s key %s: %s", kind, key, err)
+	if _, serializedItemDesc, ok := store.decodeItem(result.Item); ok {
+		return serializedItemDesc, nil
 	}
-
-	return item, nil
+	return interfaces.StoreSerializedItemDescriptor{}.NotFound(), fmt.Errorf("invalid data for %s key %s: %s", kind, key, err)
 }
 
-func (store *dynamoDBDataStore) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (interfaces.VersionedData, error) {
-	av, err := store.marshalItem(kind, item)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, item.GetKey(), err)
-	}
+func (store *dynamoDBDataStore) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreSerializedItemDescriptor,
+) (bool, error) {
+	av := store.encodeItem(kind, key, newItem)
 
 	if store.testUpdateHook != nil {
 		store.testUpdateHook()
 	}
 
-	_, err = store.client.PutItem(&dynamodb.PutItemInput{
+	_, err := store.client.PutItem(&dynamodb.PutItemInput{
 		TableName: aws.String(store.table),
 		Item:      av,
 		ConditionExpression: aws.String(
@@ -239,21 +227,19 @@ func (store *dynamoDBDataStore) Upsert(kind interfaces.VersionedDataKind, item i
 			"#version":   aws.String(versionAttribute),
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-			":version": &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
+			":version": &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(newItem.Version))},
 		},
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
 			store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
-				kind.GetNamespace(), item.GetKey(), item.GetVersion())
-			// We must now read the item that's in the database and return it, so PersistentDataStoreWrapper can cache it
-			oldItem, err := store.Get(kind, item.GetKey())
-			return oldItem, err
+				kind, key, newItem.Version)
+			return false, nil
 		}
-		return nil, fmt.Errorf("failed to put %s key %s: %s", kind, item.GetKey(), err)
+		return false, fmt.Errorf("failed to put %s key %s: %s", kind, key, err)
 	}
 
-	return item, nil
+	return true, nil
 }
 
 func (store *dynamoDBDataStore) IsStoreAvailable() bool {
@@ -272,7 +258,6 @@ func (store *dynamoDBDataStore) IsStoreAvailable() bool {
 }
 
 func (store *dynamoDBDataStore) Close() error {
-	// The AWS client doesn't currently need to be explicitly disposed of
 	return nil
 }
 
@@ -283,15 +268,15 @@ func (store *dynamoDBDataStore) prefixedNamespace(baseNamespace string) string {
 	return store.prefix + ":" + baseNamespace
 }
 
-func (store *dynamoDBDataStore) namespaceForKind(kind interfaces.VersionedDataKind) string {
-	return store.prefixedNamespace(kind.GetNamespace())
+func (store *dynamoDBDataStore) namespaceForKind(kind interfaces.StoreDataKind) string {
+	return store.prefixedNamespace(kind.GetName())
 }
 
 func (store *dynamoDBDataStore) initedKey() string {
 	return store.prefixedNamespace("$inited")
 }
 
-func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.VersionedDataKind) *dynamodb.QueryInput {
+func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.StoreDataKind) *dynamodb.QueryInput {
 	return &dynamodb.QueryInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
@@ -306,7 +291,7 @@ func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.VersionedDataKi
 	}
 }
 
-func (store *dynamoDBDataStore) readExistingKeys(newData []interfaces.StoreCollection) (map[namespaceAndKey]bool, error) {
+func (store *dynamoDBDataStore) readExistingKeys(newData []interfaces.StoreSerializedCollection) (map[namespaceAndKey]bool, error) {
 	keys := make(map[namespaceAndKey]bool)
 	for _, coll := range newData {
 		kind := coll.Kind
@@ -349,23 +334,31 @@ func batchWriteRequests(client dynamodbiface.DynamoDBAPI, table string, requests
 	return nil
 }
 
-func (store *dynamoDBDataStore) marshalItem(kind interfaces.VersionedDataKind, item interfaces.VersionedData) (map[string]*dynamodb.AttributeValue, error) {
-	jsonItem, err := json.Marshal(item)
-	if err != nil {
-		return nil, err
+func (store *dynamoDBDataStore) decodeItem(av map[string]*dynamodb.AttributeValue) (string, interfaces.StoreSerializedItemDescriptor, bool) {
+	keyValue := av[tableSortKey]
+	versionValue := av[versionAttribute]
+	itemJSONValue := av[itemJSONAttribute]
+	if keyValue != nil && keyValue.S != nil &&
+		versionValue != nil && versionValue.N != nil &&
+		itemJSONValue != nil && itemJSONValue.S != nil {
+		v, _ := strconv.Atoi(*versionValue.N)
+		return *keyValue.S, interfaces.StoreSerializedItemDescriptor{
+			Version:        v,
+			SerializedItem: []byte(*itemJSONValue.S),
+		}, true
 	}
-	return map[string]*dynamodb.AttributeValue{
-		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(store.namespaceForKind(kind))},
-		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(item.GetKey())},
-		versionAttribute:  &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.GetVersion()))},
-		itemJSONAttribute: &dynamodb.AttributeValue{S: aws.String(string(jsonItem))},
-	}, nil
+	return "", interfaces.StoreSerializedItemDescriptor{}, false
 }
 
-func unmarshalItem(kind interfaces.VersionedDataKind, item map[string]*dynamodb.AttributeValue) (interfaces.VersionedData, error) {
-	if itemAttr := item[itemJSONAttribute]; itemAttr != nil && itemAttr.S != nil {
-		data, err := utils.UnmarshalItem(kind, []byte(*itemAttr.S))
-		return data, err
+func (store *dynamoDBDataStore) encodeItem(
+	kind interfaces.StoreDataKind,
+	key string,
+	item interfaces.StoreSerializedItemDescriptor,
+) map[string]*dynamodb.AttributeValue {
+	return map[string]*dynamodb.AttributeValue{
+		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(store.namespaceForKind(kind))},
+		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(key)},
+		versionAttribute:  &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.Version))},
+		itemJSONAttribute: &dynamodb.AttributeValue{S: aws.String(string(item.SerializedItem))},
 	}
-	return nil, errors.New("DynamoDB map did not contain expected item string")
 }

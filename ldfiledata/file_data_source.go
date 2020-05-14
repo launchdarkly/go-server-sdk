@@ -282,10 +282,10 @@ type fileData struct {
 	Segments   *map[string]ldmodel.Segment
 }
 
-func insertData(all map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, kind interfaces.VersionedDataKind, key string,
-	data interfaces.VersionedData) error {
+func insertData(all map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor, kind interfaces.StoreDataKind, key string,
+	data interfaces.StoreItemDescriptor) error {
 	if _, exists := all[kind][key]; exists {
-		return fmt.Errorf("%s '%s' is specified by multiple files", kind.GetNamespace(), key)
+		return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
 	}
 	all[kind][key] = data
 	return nil
@@ -314,16 +314,17 @@ func detectJSON(rawData []byte) bool {
 	return strings.HasPrefix("{", strings.TrimLeftFunc(string(rawData), unicode.IsSpace))
 }
 
-func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData, error) {
-	all := map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData{
+func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error) {
+	all := map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor{
 		interfaces.DataKindFeatures(): {},
 		interfaces.DataKindSegments(): {},
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
-				data := f
-				if err := insertData(all, interfaces.DataKindFeatures(), key, &data); err != nil {
+				ff := f
+				data := interfaces.StoreItemDescriptor{Version: f.Version, Item: &ff}
+				if err := insertData(all, interfaces.DataKindFeatures(), key, data); err != nil {
 					return nil, err
 				}
 			}
@@ -334,21 +335,31 @@ func mergeFileData(allFileData ...fileData) (map[interfaces.VersionedDataKind]ma
 				if err != nil {
 					return nil, err
 				}
-				if err := insertData(all, interfaces.DataKindFeatures(), key, flag); err != nil {
+				data := interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag}
+				if err := insertData(all, interfaces.DataKindFeatures(), key, data); err != nil {
 					return nil, err
 				}
 			}
 		}
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
-				data := s
-				if err := insertData(all, interfaces.DataKindSegments(), key, &data); err != nil {
+				ss := s
+				data := interfaces.StoreItemDescriptor{Version: s.Version, Item: &ss}
+				if err := insertData(all, interfaces.DataKindSegments(), key, data); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
-	return all, nil
+	ret := []interfaces.StoreCollection{}
+	for kind, itemsMap := range all {
+		items := make([]interfaces.StoreKeyedItemDescriptor, 0, len(itemsMap))
+		for k, v := range itemsMap {
+			items = append(items, interfaces.StoreKeyedItemDescriptor{Key: k, Item: v})
+		}
+		ret = append(ret, interfaces.StoreCollection{Kind: kind, Items: items})
+	}
+	return ret, nil
 }
 
 func makeFlagWithValue(key string, v interface{}) (*ldmodel.FeatureFlag, error) {
