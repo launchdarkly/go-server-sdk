@@ -41,13 +41,13 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 	}
 
 	runTests(t, "Status is OK initially", func(t *testing.T, mode testCacheMode, core *sharedtest.MockPersistentDataStore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers()).(*persistentDataStoreWrapper)
 		defer w.Close()
 		assert.Equal(t, DataStoreStatus{Available: true}, w.GetStoreStatus())
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Status is unavailable after error", func(t *testing.T, mode testCacheMode, core *sharedtest.MockPersistentDataStore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers()).(*persistentDataStoreWrapper)
 		defer w.Close()
 
 		myError := errors.New("sorry")
@@ -59,7 +59,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 	}, testUncached, testCached, testCachedIndefinitely)
 
 	runTests(t, "Error listener is notified on failure and recovery", func(t *testing.T, mode testCacheMode, core *sharedtest.MockPersistentDataStore) {
-		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers()).(*persistentDataStoreWrapper)
 		defer w.Close()
 		sub := w.StatusSubscribe()
 		require.NotNil(t, sub)
@@ -91,7 +91,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 	t.Run("Cache is written to store after recovery if TTL is infinite", func(t *testing.T) {
 		core := sharedtest.NewMockPersistentDataStore()
-		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers())
+		w := NewPersistentDataStoreWrapper(core, -1, ldlog.NewDisabledLoggers()).(*persistentDataStoreWrapper)
 		defer w.Close()
 		sub := w.StatusSubscribe()
 		require.NotNil(t, sub)
