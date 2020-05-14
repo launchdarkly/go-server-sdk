@@ -1,70 +1,84 @@
 package redis
 
 import (
+	"fmt"
+	"strings"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	r "github.com/garyburd/redigo/redis"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	ldtest "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test/ldtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 const redisURL = "redis://localhost:6379"
 
-func TestRedisDataStoreUncached(t *testing.T) {
-	f, err := NewRedisDataStoreFactory(CacheTTL(0))
-	require.NoError(t, err)
-	ldtest.RunDataStoreTests(t, f, clearExistingData, false)
+func TestRedisDataStore(t *testing.T) {
+	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+		ConcurrentModificationHook(setConcurrentModificationHook).
+		Run(t)
 }
 
-func TestRedisDataStoreCached(t *testing.T) {
-	f, err := NewRedisDataStoreFactory(CacheTTL(30 * time.Second))
-	require.NoError(t, err)
-	ldtest.RunDataStoreTests(t, f, clearExistingData, true)
+func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
+	return DataStore().Prefix(prefix)
 }
 
-func TestRedisDataStorePrefixes(t *testing.T) {
-	ldtest.RunDataStorePrefixIndependenceTests(t,
-		func(prefix string) (interfaces.DataStoreFactory, error) {
-			return NewRedisDataStoreFactory(Prefix(prefix), CacheTTL(0))
-		}, clearExistingData)
-}
-
-func TestRedisDataStoreConcurrentModification(t *testing.T) {
-	opts, err := validateOptions()
-	require.NoError(t, err)
-	var core1 *redisDataStoreCore
-	factory1 := func() (interfaces.DataStore, error) {
-		core1 = newRedisDataStoreInternal(opts, ldlog.NewDisabledLoggers()) // use the internal object so we can set testTxHook
-		return utils.NewDataStoreWrapperWithConfig(core1, ldlog.NewDisabledLoggers()), nil
+func clearTestData(prefix string) error {
+	if prefix == "" {
+		prefix = DefaultPrefix
 	}
-	factory2 := func() (interfaces.DataStore, error) {
-		f, _ := NewRedisDataStoreFactory()
-		return f.CreateDataStore(interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers()))
-	}
-	require.NoError(t, err)
-	ldtest.RunDataStoreConcurrentModificationTests(t, factory1, factory2, func(hook func()) {
-		core1.testTxHook = hook
-	})
-}
 
-func TestRedisStoreComponentTypeName(t *testing.T) {
-	f, _ := NewRedisDataStoreFactory()
-	assert.Equal(t, ldvalue.String("Redis"), (f.(redisDataStoreFactory)).DescribeConfiguration())
-}
-
-func clearExistingData() error {
 	client, err := r.DialURL(redisURL)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
-	_, err = client.Do("FLUSHDB")
-	return err
+
+	resp, err := client.Do("SCAN", "0", "MATCH", prefix+":*")
+	if err != nil {
+		return err
+	}
+	respValue, err := parseRedisResponseAsValue(resp)
+	if err != nil {
+		return err
+	}
+	if respValue.Count() == 2 {
+		respLines := respValue.GetByIndex(1)
+		if respLines.Type() == ldvalue.ArrayType {
+			var failure error
+			respLines.Enumerate(func(i int, key string, value ldvalue.Value) bool {
+				redisKey := strings.TrimPrefix(strings.TrimSuffix(value.String(), `"`), `"`)
+				failure = client.Send("DEL", redisKey)
+				return failure == nil
+			})
+			if failure != nil {
+				return failure
+			}
+			return client.Flush()
+		}
+	}
+	return fmt.Errorf("unexpected format of Redis response: %s", respValue)
+}
+
+func setConcurrentModificationHook(store interfaces.PersistentDataStore, hook func()) {
+	store.(*redisDataStoreImpl).testTxHook = hook
+}
+
+func parseRedisResponseAsValue(resp interface{}) (ldvalue.Value, error) {
+	switch t := resp.(type) {
+	case []interface{}:
+		a := ldvalue.ArrayBuild()
+		for _, item := range t {
+			v, err := parseRedisResponseAsValue(item)
+			if err != nil {
+				return ldvalue.Null(), err
+			}
+			a.Add(v)
+		}
+		return a.Build(), nil
+	case []byte:
+		return ldvalue.String(string(t)), nil
+	default:
+		return ldvalue.Null(), fmt.Errorf("unexpected data type in response: %T", resp)
+	}
 }

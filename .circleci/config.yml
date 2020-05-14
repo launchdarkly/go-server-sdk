@@ -54,7 +54,7 @@ jobs:
           condition: <<parameters.run-lint>>
           steps:
             - run: make lint
-      - run: dep ensure -dry-run
+      # - run: dep ensure -dry-run  # we're currently using private repos for some of our dependencies, so this won't work in CI
       - run: go build ./...
       
       - run:

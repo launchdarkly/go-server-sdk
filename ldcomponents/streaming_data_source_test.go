@@ -338,6 +338,10 @@ func (t *testDataStoreWithStatus) StatusSubscribe() internal.DataStoreStatusSubs
 	return t.statusSub
 }
 
+func (t *testDataStoreWithStatus) Close() error {
+	return nil
+}
+
 func (t *testDataStoreWithStatus) publishStatus(status internal.DataStoreStatus) {
 	if t.statusSub != nil {
 		t.statusSub.ch <- status

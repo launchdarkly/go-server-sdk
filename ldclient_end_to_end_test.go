@@ -15,7 +15,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v5/shared_test"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,7 +124,7 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 
 		expectedError := "Received HTTP error 503 for streaming connection - will retry"
 		assert.Equal(t, []string{expectedError}, logCapture.Output[ldlog.Error])
-		assert.Equal(t, []string{}, logCapture.Output[ldlog.Warn])
+		assert.Nil(t, logCapture.Output[ldlog.Warn])
 	})
 }
 

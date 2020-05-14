@@ -1,56 +1,24 @@
-// Package utils contains support code that most users of the SDK will not need to access
-// directly. However, they may be useful for anyone developing custom integrations.
-package utils
+package internal
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
+	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
-
-	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-// Optional interface that can be implemented by components whose types can't be easily
-// determined by looking at the config object. This is also defined in diagnostic_events.go,
-// but that's in another package and we'd rather not export this implementation detail.
-type diagnosticsComponentDescriptor interface {
-	GetDiagnosticsComponentTypeName() string
-}
-
-// UnmarshalItem attempts to unmarshal an entity that has been stored as JSON in a
-// DataStore. The kind parameter indicates what type of entity is expected.
-func UnmarshalItem(kind interfaces.VersionedDataKind, raw []byte) (interfaces.VersionedData, error) {
-	data := kind.GetDefaultItem()
-	if jsonErr := json.Unmarshal(raw, &data); jsonErr != nil {
-		return nil, jsonErr
-	}
-	if item, ok := data.(interfaces.VersionedData); ok {
-		return item, nil
-	}
-	return nil, fmt.Errorf("unexpected data type from JSON unmarshal: %T", data)
-}
-
-// DataStoreWrapper is a partial implementation of ldclient.DataStore that delegates basic
-// functionality to an instance of DataStoreCore. It provides optional caching, and will
-// automatically provide the proper data ordering when using  NonAtomicDataStoreCoreInitialization.
-//
-// Also, if the DataStoreCore object implements ldclient.DataStoreStatusProvider, the wrapper
-// will make it possible for SDK components to react appropriately if the availability of the store
-// changes (e.g. if we lose a database connection, but then regain it).
-type DataStoreWrapper struct {
-	core          interfaces.DataStoreCoreBase
-	coreAtomic    interfaces.DataStoreCore
-	coreNonAtomic interfaces.NonAtomicDataStoreCore
-	coreStatus    interfaces.DataStoreCoreStatus
-	statusManager *internal.DataStoreStatusManager
+// persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.
+type persistentDataStoreWrapper struct {
+	core          intf.PersistentDataStore
+	statusManager *DataStoreStatusManager
 	cache         *cache.Cache
+	cacheTTL      time.Duration
 	requests      singleflight.Group
 	loggers       ldlog.Loggers
 	inited        bool
@@ -59,26 +27,13 @@ type DataStoreWrapper struct {
 
 const initCheckedKey = "$initChecked"
 
-// NewDataStoreWrapperWithConfig creates an instance of DataStoreWrapper that wraps an instance
-// of DataStoreCore. It takes a Config parameter so that it can use the same logging configuration
-// as the SDK.
-func NewDataStoreWrapperWithConfig(core interfaces.DataStoreCore, loggers ldlog.Loggers) *DataStoreWrapper {
-	w := newBaseWrapper(core, loggers)
-	w.coreAtomic = core
-	return w
-}
-
-// NewNonAtomicDataStoreWrapperWithConfig creates an instance of DataStoreWrapper that wraps an
-// instance of NonAtomicDataStoreCore. It takes a Config parameter so that it can use the same logging configuration
-// as the SDK.
-func NewNonAtomicDataStoreWrapperWithConfig(core interfaces.NonAtomicDataStoreCore, loggers ldlog.Loggers) *DataStoreWrapper {
-	w := newBaseWrapper(core, loggers)
-	w.coreNonAtomic = core
-	return w
-}
-
-func newBaseWrapper(core interfaces.DataStoreCoreBase, loggers ldlog.Loggers) *DataStoreWrapper {
-	cacheTTL := core.GetCacheTTL()
+// NewPersistentDataStoreWrapper creates the implementation of DataStore that we use for all persistent data
+// stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
+func NewPersistentDataStoreWrapper(
+	core intf.PersistentDataStore,
+	cacheTTL time.Duration,
+	loggers ldlog.Loggers,
+) interfaces.DataStore {
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
 		myCache = cache.New(cacheTTL, 5*time.Minute)
@@ -86,34 +41,24 @@ func newBaseWrapper(core interfaces.DataStoreCoreBase, loggers ldlog.Loggers) *D
 		// cache never expires. That is consistent with we've defined the parameter.
 	}
 
-	w := &DataStoreWrapper{
-		core:    core,
-		cache:   myCache,
-		loggers: loggers,
+	w := &persistentDataStoreWrapper{
+		core:     core,
+		cache:    myCache,
+		cacheTTL: cacheTTL,
+		loggers:  loggers,
 	}
-	if cs, ok := core.(interfaces.DataStoreCoreStatus); ok {
-		w.coreStatus = cs
-	}
-	w.statusManager = internal.NewDataStoreStatusManager(
+
+	w.statusManager = NewDataStoreStatusManager(
 		true,
 		w.pollAvailabilityAfterOutage,
-		myCache == nil || core.GetCacheTTL() > 0, // needsRefresh=true unless we're in infinite cache mode
+		myCache == nil || cacheTTL > 0, // needsRefresh=true unless we're in infinite cache mode
 		loggers,
 	)
 
 	return w
 }
 
-func dataStoreCacheKey(kind interfaces.VersionedDataKind, key string) string {
-	return kind.GetNamespace() + ":" + key
-}
-
-func dataStoreAllItemsCacheKey(kind interfaces.VersionedDataKind) string {
-	return "all:" + kind.GetNamespace()
-}
-
-// Init performs an update of the entire data store, with optional caching.
-func (w *DataStoreWrapper) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
+func (w *persistentDataStoreWrapper) Init(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
 	err := w.initCore(allData)
 	if w.cache != nil {
 		w.cache.Flush()
@@ -138,21 +83,14 @@ func (w *DataStoreWrapper) Init(allData map[interfaces.VersionedDataKind]map[str
 	return err
 }
 
-func (w *DataStoreWrapper) initCore(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
-	var err error
-	if w.coreNonAtomic != nil {
-		// If the store uses non-atomic initialization, we'll need to put the data in the proper update
-		// order and call InitCollectionsInternal.
-		colls := transformUnorderedDataToOrderedData(allData)
-		err = w.coreNonAtomic.InitCollectionsInternal(colls)
-	} else {
-		err = w.coreAtomic.InitInternal(allData)
-	}
+func (w *persistentDataStoreWrapper) initCore(allData map[interfaces.VersionedDataKind]map[string]interfaces.VersionedData) error {
+	colls := transformUnorderedDataToOrderedData(allData)
+	err := w.core.Init(colls)
 	w.processError(err)
 	return err
 }
 
-func (w *DataStoreWrapper) filterAndCacheItems(kind interfaces.VersionedDataKind, items map[string]interfaces.VersionedData) map[string]interfaces.VersionedData {
+func (w *persistentDataStoreWrapper) filterAndCacheItems(kind interfaces.VersionedDataKind, items map[string]interfaces.VersionedData) map[string]interfaces.VersionedData {
 	// We do some filtering here so that deleted items are not included in the full cached data set
 	// that's used by All. This is so that All doesn't have to do that filtering itself. However,
 	// since Get does know to filter out deleted items, we will still cache those individually,
@@ -171,10 +109,9 @@ func (w *DataStoreWrapper) filterAndCacheItems(kind interfaces.VersionedDataKind
 	return filteredItems
 }
 
-// Get retrieves a single item by key, with optional caching.
-func (w *DataStoreWrapper) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
+func (w *persistentDataStoreWrapper) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
 	if w.cache == nil {
-		item, err := w.core.GetInternal(kind, key)
+		item, err := w.core.Get(kind, key)
 		w.processError(err)
 		return itemOnlyIfNotDeleted(item), err
 	}
@@ -191,7 +128,7 @@ func (w *DataStoreWrapper) Get(kind interfaces.VersionedDataKind, key string) (i
 	// do this core query once even if multiple goroutines are requesting it
 	reqKey := fmt.Sprintf("get:%s:%s", kind.GetNamespace(), key)
 	itemIntf, err, _ := w.requests.Do(reqKey, func() (interface{}, error) {
-		item, err := w.core.GetInternal(kind, key)
+		item, err := w.core.Get(kind, key)
 		w.processError(err)
 		if err == nil {
 			w.cache.Set(cacheKey, item, cache.DefaultExpiration)
@@ -215,10 +152,9 @@ func itemOnlyIfNotDeleted(item interfaces.VersionedData) interfaces.VersionedDat
 	return item
 }
 
-// All retrieves all items of the specified kind, with optional caching.
-func (w *DataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
+func (w *persistentDataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
 	if w.cache == nil {
-		items, err := w.core.GetAllInternal(kind)
+		items, err := w.core.GetAll(kind)
 		w.processError(err)
 		return items, err
 	}
@@ -233,7 +169,7 @@ func (w *DataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]in
 	// do this core query once even if multiple goroutines are requesting it
 	reqKey := fmt.Sprintf("all:%s", kind.GetNamespace())
 	itemsIntf, err, _ := w.requests.Do(reqKey, func() (interface{}, error) {
-		items, err := w.core.GetAllInternal(kind)
+		items, err := w.core.GetAll(kind)
 		w.processError(err)
 		if err != nil {
 			return nil, err
@@ -250,9 +186,8 @@ func (w *DataStoreWrapper) All(kind interfaces.VersionedDataKind) (map[string]in
 	return nil, nil
 }
 
-// Upsert updates or adds an item, with optional caching.
-func (w *DataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
-	finalItem, err := w.core.UpsertInternal(kind, item)
+func (w *persistentDataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, item interfaces.VersionedData) error {
+	finalItem, err := w.core.Upsert(kind, item)
 	w.processError(err)
 	// Normally, if the underlying store failed to do the update, we do not want to update the cache -
 	// the idea being that it's better to stay in a consistent state of having old data than to act
@@ -289,19 +224,12 @@ func (w *DataStoreWrapper) Upsert(kind interfaces.VersionedDataKind, item interf
 	return err
 }
 
-// Delete deletes an item, with optional caching.
-func (w *DataStoreWrapper) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
+func (w *persistentDataStoreWrapper) Delete(kind interfaces.VersionedDataKind, key string, version int) error {
 	deletedItem := kind.MakeDeletedItem(key, version)
 	return w.Upsert(kind, deletedItem)
 }
 
-// Initialized returns true if the data store contains a data set. To avoid calling the
-// underlying implementation any more often than necessary (since Initialized is called often),
-// DataStoreWrapper uses the following heuristic: 1. Once we have received a true result
-// from InitializedInternal, we always return true. 2. If InitializedInternal returns false,
-// and we have a cache, we will cache that result so we won't call it any more frequently
-// than the cache TTL.
-func (w *DataStoreWrapper) Initialized() bool {
+func (w *persistentDataStoreWrapper) Initialized() bool {
 	w.initLock.RLock()
 	previousValue := w.inited
 	w.initLock.RUnlock()
@@ -315,7 +243,7 @@ func (w *DataStoreWrapper) Initialized() bool {
 		}
 	}
 
-	newValue := w.core.InitializedInternal()
+	newValue := w.core.IsInitialized()
 	if newValue {
 		w.initLock.Lock()
 		defer w.initLock.Unlock()
@@ -331,34 +259,30 @@ func (w *DataStoreWrapper) Initialized() bool {
 	return newValue
 }
 
-// Close releases any resources being held by the store.
-func (w *DataStoreWrapper) Close() error {
+func (w *persistentDataStoreWrapper) Close() error {
 	w.statusManager.Close()
-	if coreCloser, ok := w.core.(io.Closer); ok {
-		return coreCloser.Close()
-	}
-	return nil
+	return w.core.Close()
 }
 
 // GetStoreStatus returns the current status of the store.
-func (w *DataStoreWrapper) GetStoreStatus() internal.DataStoreStatus {
-	return internal.DataStoreStatus{Available: w.statusManager.IsAvailable()}
+func (w *persistentDataStoreWrapper) GetStoreStatus() DataStoreStatus {
+	return DataStoreStatus{Available: w.statusManager.IsAvailable()}
 }
 
 // StatusSubscribe creates a channel that will receive all changes in store status.
-func (w *DataStoreWrapper) StatusSubscribe() internal.DataStoreStatusSubscription {
+func (w *persistentDataStoreWrapper) StatusSubscribe() DataStoreStatusSubscription {
 	return w.statusManager.Subscribe()
 }
 
 // Used internally to describe this component in diagnostic data.
-func (w *DataStoreWrapper) GetDiagnosticsComponentTypeName() string {
-	if dcd, ok := w.core.(diagnosticsComponentDescriptor); ok {
-		return dcd.GetDiagnosticsComponentTypeName()
+func (w *persistentDataStoreWrapper) DescribeConfiguration() ldvalue.Value {
+	if dcd, ok := w.core.(intf.DiagnosticDescription); ok {
+		return dcd.DescribeConfiguration()
 	}
-	return "custom"
+	return ldvalue.String("custom")
 }
 
-func (w *DataStoreWrapper) processError(err error) {
+func (w *persistentDataStoreWrapper) processError(err error) {
 	if err == nil {
 		// If we're waiting to recover after a failure, we'll let the polling routine take care
 		// of signaling success. Even if we could signal success a little earlier based on the
@@ -369,8 +293,8 @@ func (w *DataStoreWrapper) processError(err error) {
 	w.statusManager.UpdateAvailability(false)
 }
 
-func (w *DataStoreWrapper) pollAvailabilityAfterOutage() bool {
-	if w.coreStatus == nil || !w.coreStatus.IsStoreAvailable() {
+func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
+	if !w.core.IsStoreAvailable() {
 		return false
 	}
 	if w.hasCacheWithInfiniteTTL() {
@@ -401,6 +325,14 @@ func (w *DataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	return true
 }
 
-func (w *DataStoreWrapper) hasCacheWithInfiniteTTL() bool {
-	return w.cache != nil && w.core.GetCacheTTL() < 0
+func (w *persistentDataStoreWrapper) hasCacheWithInfiniteTTL() bool {
+	return w.cache != nil && w.cacheTTL < 0
+}
+
+func dataStoreCacheKey(kind intf.VersionedDataKind, key string) string {
+	return kind.GetNamespace() + ":" + key
+}
+
+func dataStoreAllItemsCacheKey(kind intf.VersionedDataKind) string {
+	return "all:" + kind.GetNamespace()
 }

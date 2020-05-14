@@ -50,4 +50,10 @@ To build the SDK and run all unit tests:
 make test
 ```
 
-By default, the full unit test suite includes live tests of the integrations for Consul, DynamoDB, and Redis. Those tests expect you to have instances of all of those databases running locally. To skip them, set the environment variable `LD_SKIP_DATABASE_TESTS=1` before running the tests.
+By default, the full unit test suite includes live tests of the integrations for Consul, DynamoDB, and Redis. Those tests expect you to have instances of all of those databases running locally. To skip them, set the environment variable `LD_SKIP_DATABASE_TESTS=1` before running the tests. If you do want to run them, the simplest way to provide the databases is with Docker:
+
+```bash
+docker run -p 8500:8500 consul
+docker run -p 8000:8000 amazon/dynamodb-local
+docker run -p 6379:6379 redis
+```
