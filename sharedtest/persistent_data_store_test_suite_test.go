@@ -42,7 +42,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 			func(store interfaces.PersistentDataStore, hook func()) {
 				store.(*MockPersistentDataStore).testTxHook = hook
 			},
-		).Run(t)
+		).AlwaysRun(true).Run(t)
 	}
 
 	t.Run("with metadata stored separately from serialized item", func(t *testing.T) {
