@@ -1,15 +1,12 @@
 package redis
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 
 	r "github.com/garyburd/redigo/redis"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 // Internal implementation of the PersistentDataStore interface for Redis.
@@ -58,52 +55,7 @@ func newRedisDataStoreImpl(
 	return impl
 }
 
-func (store *redisDataStoreImpl) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	c := store.getConn()
-	defer c.Close() // nolint:errcheck
-
-	jsonStr, err := r.String(c.Do("HGET", store.featuresKey(kind), key))
-
-	if err != nil {
-		if err == r.ErrNil {
-			store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetNamespace())
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	item, jsonErr := utils.UnmarshalItem(kind, []byte(jsonStr))
-	if jsonErr != nil {
-		return nil, fmt.Errorf("failed to unmarshal %s key %s: %s", kind, key, jsonErr)
-	}
-	return item, nil
-}
-
-func (store *redisDataStoreImpl) GetAll(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	results := make(map[string]interfaces.VersionedData)
-
-	c := store.getConn()
-	defer c.Close() // nolint:errcheck
-
-	values, err := r.StringMap(c.Do("HGETALL", store.featuresKey(kind)))
-
-	if err != nil && err != r.ErrNil {
-		return nil, err
-	}
-
-	for k, v := range values {
-		item, jsonErr := utils.UnmarshalItem(kind, []byte(v))
-
-		if jsonErr != nil {
-			return nil, fmt.Errorf("failed to unmarshal %s: %s", kind, err)
-		}
-
-		results[k] = item
-	}
-	return results, nil
-}
-
-func (store *redisDataStoreImpl) Init(allData []interfaces.StoreCollection) error {
+func (store *redisDataStoreImpl) Init(allData []interfaces.StoreSerializedCollection) error {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -114,15 +66,8 @@ func (store *redisDataStoreImpl) Init(allData []interfaces.StoreCollection) erro
 
 		_ = c.Send("DEL", baseKey)
 
-		for _, item := range coll.Items {
-			key := item.GetKey()
-			data, jsonErr := json.Marshal(item)
-
-			if jsonErr != nil {
-				return fmt.Errorf("failed to marshal %s key %s: %s", coll.Kind, key, jsonErr)
-			}
-
-			_ = c.Send("HSET", baseKey, key, data)
+		for _, keyedItem := range coll.Items {
+			_ = c.Send("HSET", baseKey, keyedItem.Key, keyedItem.Item.SerializedItem)
 		}
 	}
 
@@ -133,9 +78,49 @@ func (store *redisDataStoreImpl) Init(allData []interfaces.StoreCollection) erro
 	return err
 }
 
-func (store *redisDataStoreImpl) Upsert(kind interfaces.VersionedDataKind, newItem interfaces.VersionedData) (interfaces.VersionedData, error) {
+func (store *redisDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+	c := store.getConn()
+	defer c.Close() // nolint:errcheck
+
+	jsonStr, err := r.String(c.Do("HGET", store.featuresKey(kind), key))
+
+	if err != nil {
+		if err == r.ErrNil {
+			store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
+			return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
+		}
+		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), err
+	}
+
+	return interfaces.StoreSerializedItemDescriptor{Version: 0, SerializedItem: []byte(jsonStr)}, nil
+}
+
+func (store *redisDataStoreImpl) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+	c := store.getConn()
+	defer c.Close() // nolint:errcheck
+
+	values, err := r.StringMap(c.Do("HGETALL", store.featuresKey(kind)))
+
+	if err != nil && err != r.ErrNil {
+		return nil, err
+	}
+
+	results := make([]interfaces.StoreKeyedSerializedItemDescriptor, 0, len(values))
+	for k, v := range values {
+		results = append(results, interfaces.StoreKeyedSerializedItemDescriptor{
+			Key:  k,
+			Item: interfaces.StoreSerializedItemDescriptor{Version: 0, SerializedItem: []byte(v)},
+		})
+	}
+	return results, nil
+}
+
+func (store *redisDataStoreImpl) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreSerializedItemDescriptor,
+) (bool, error) {
 	baseKey := store.featuresKey(kind)
-	key := newItem.GetKey()
 	for {
 		// We accept that we can acquire multiple connections here and defer inside loop but we don't expect many
 		c := store.getConn()
@@ -143,7 +128,7 @@ func (store *redisDataStoreImpl) Upsert(kind interfaces.VersionedDataKind, newIt
 
 		_, err := c.Do("WATCH", baseKey)
 		if err != nil {
-			return nil, err
+			return false, err
 		}
 
 		defer c.Send("UNWATCH") // nolint:errcheck // this should always succeed
@@ -153,28 +138,29 @@ func (store *redisDataStoreImpl) Upsert(kind interfaces.VersionedDataKind, newIt
 		}
 
 		oldItem, err := store.Get(kind, key)
-
 		if err != nil {
-			return nil, err
+			return false, err
 		}
 
-		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
+		// In this implementation, we have to parse the existing item in order to determine its version.
+		oldVersion := oldItem.Version
+		if oldItem.SerializedItem != nil {
+			parsed, _ := kind.Deserialize(oldItem.SerializedItem)
+			oldVersion = parsed.Version
+		}
+
+		if oldVersion >= newItem.Version {
 			updateOrDelete := "update"
-			if newItem.IsDeleted() {
+			if newItem.SerializedItem == nil {
 				updateOrDelete = "delete"
 			}
 			store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
-				updateOrDelete, key, oldItem.GetVersion(), kind.GetNamespace(), newItem.GetVersion())
-			return oldItem, nil
-		}
-
-		data, jsonErr := json.Marshal(newItem)
-		if jsonErr != nil {
-			return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, key, jsonErr)
+				updateOrDelete, key, oldVersion, kind, newItem.Version)
+			return false, nil
 		}
 
 		_ = c.Send("MULTI")
-		err = c.Send("HSET", baseKey, key, data)
+		err = c.Send("HSET", baseKey, key, newItem.SerializedItem)
 		if err == nil {
 			var result interface{}
 			result, err = c.Do("EXEC")
@@ -185,9 +171,9 @@ func (store *redisDataStoreImpl) Upsert(kind interfaces.VersionedDataKind, newIt
 					continue
 				}
 			}
-			return newItem, nil
+			return true, nil
 		}
-		return nil, err
+		return false, err
 	}
 }
 
@@ -206,12 +192,11 @@ func (store *redisDataStoreImpl) IsStoreAvailable() bool {
 }
 
 func (store *redisDataStoreImpl) Close() error {
-	// The Redis client doesn't currently need to be explicitly disposed of
-	return nil
+	return store.pool.Close()
 }
 
-func (store *redisDataStoreImpl) featuresKey(kind interfaces.VersionedDataKind) string {
-	return store.prefix + ":" + kind.GetNamespace()
+func (store *redisDataStoreImpl) featuresKey(kind interfaces.StoreDataKind) string {
+	return store.prefix + ":" + kind.GetName()
 }
 
 func (store *redisDataStoreImpl) initedKey() string {

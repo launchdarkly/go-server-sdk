@@ -1,14 +1,12 @@
 package ldconsul
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	c "github.com/hashicorp/consul/api"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/utils"
 )
 
 // Implementation notes:
@@ -52,34 +50,30 @@ func newConsulDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) (*
 	}, nil
 }
 
-func (store *consulDataStoreImpl) Get(kind interfaces.VersionedDataKind, key string) (interfaces.VersionedData, error) {
-	item, _, err := store.getEvenIfDeleted(kind, key)
+func (store *consulDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+	item, _, err := store.getInternal(kind, key)
 	return item, err
 }
 
-func (store *consulDataStoreImpl) GetAll(kind interfaces.VersionedDataKind) (map[string]interfaces.VersionedData, error) {
-	results := make(map[string]interfaces.VersionedData)
-
+func (store *consulDataStoreImpl) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
 	kv := store.client.KV()
-	pairs, _, err := kv.List(store.featuresKey(kind), nil)
+	pairs, _, err := kv.List(store.collectionKey(kind), nil)
 
 	if err != nil {
-		return results, fmt.Errorf("list failed for %s: %s", kind, err)
+		return nil, fmt.Errorf("list failed for %s: %s", kind, err)
 	}
 
+	results := make([]interfaces.StoreKeyedSerializedItemDescriptor, 0, len(pairs))
 	for _, pair := range pairs {
-		item, jsonErr := utils.UnmarshalItem(kind, pair.Value)
-
-		if jsonErr != nil {
-			return nil, fmt.Errorf("unable to unmarshal %s: %s", kind, err)
-		}
-
-		results[item.GetKey()] = item
+		results = append(results, interfaces.StoreKeyedSerializedItemDescriptor{
+			Key:  store.itemKeyFromCombinedKey(kind, pair.Key),
+			Item: interfaces.StoreSerializedItemDescriptor{SerializedItem: pair.Value},
+		})
 	}
 	return results, nil
 }
 
-func (store *consulDataStoreImpl) Init(allData []interfaces.StoreCollection) error {
+func (store *consulDataStoreImpl) Init(allData []interfaces.StoreSerializedCollection) error {
 	kv := store.client.KV()
 
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
@@ -96,13 +90,8 @@ func (store *consulDataStoreImpl) Init(allData []interfaces.StoreCollection) err
 
 	for _, coll := range allData {
 		for _, item := range coll.Items {
-			data, jsonErr := json.Marshal(item)
-			if jsonErr != nil {
-				return fmt.Errorf("failed to marshal %s key %s: %s", coll.Kind, item.GetKey(), jsonErr)
-			}
-
-			key := store.featureKeyFor(coll.Kind, item.GetKey())
-			op := &c.KVTxnOp{Verb: c.KVSet, Key: key, Value: data}
+			key := store.combinedItemKey(coll.Kind, item.Key)
+			op := &c.KVTxnOp{Verb: c.KVSet, Key: key, Value: item.Item.SerializedItem}
 			ops = append(ops, op)
 
 			oldKeys[key] = false
@@ -127,26 +116,31 @@ func (store *consulDataStoreImpl) Init(allData []interfaces.StoreCollection) err
 	return batchOperations(kv, ops)
 }
 
-func (store *consulDataStoreImpl) Upsert(kind interfaces.VersionedDataKind, newItem interfaces.VersionedData) (interfaces.VersionedData, error) {
-	data, jsonErr := json.Marshal(newItem)
-	if jsonErr != nil {
-		return nil, fmt.Errorf("failed to marshal %s key %s: %s", kind, newItem.GetKey(), jsonErr)
-	}
-	key := newItem.GetKey()
-
+func (store *consulDataStoreImpl) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreSerializedItemDescriptor,
+) (bool, error) {
 	// We will potentially keep retrying to store indefinitely until someone's write succeeds
 	for {
 		// Get the item
-		oldItem, modifyIndex, err := store.getEvenIfDeleted(kind, key)
+		oldItem, modifyIndex, err := store.getInternal(kind, key)
 
 		if err != nil {
-			return nil, err
+			return false, err
+		}
+
+		// In this implementation, we have to parse the existing item in order to determine its version.
+		oldVersion := oldItem.Version
+		if oldItem.SerializedItem != nil {
+			parsed, _ := kind.Deserialize(oldItem.SerializedItem)
+			oldVersion = parsed.Version
 		}
 
 		// Check whether the item is stale. If so, don't do the update (and return the existing item to
-		// PersistentDataStoreWrapper so it can be cached)
-		if oldItem != nil && oldItem.GetVersion() >= newItem.GetVersion() {
-			return oldItem, nil
+		// DataStoreWrapper so it can be cached)
+		if oldVersion >= newItem.Version {
+			return false, nil
 		}
 
 		if store.testTxHook != nil { // instrumentation for unit tests
@@ -159,18 +153,18 @@ func (store *consulDataStoreImpl) Upsert(kind interfaces.VersionedDataKind, newI
 		// succeed if it still doesn't exist.
 		kv := store.client.KV()
 		p := &c.KVPair{
-			Key:         store.featureKeyFor(kind, key),
+			Key:         store.combinedItemKey(kind, key),
 			ModifyIndex: modifyIndex,
-			Value:       data,
+			Value:       newItem.SerializedItem,
 		}
 		written, _, err := kv.CAS(p, nil)
 
 		if err != nil {
-			return nil, err
+			return false, err
 		}
 
 		if written {
-			return newItem, nil // success
+			return true, nil // success
 		}
 		// If we failed, retry the whole shebang
 		store.loggers.Debug("Concurrent modification detected, retrying")
@@ -193,29 +187,29 @@ func (store *consulDataStoreImpl) IsStoreAvailable() bool {
 }
 
 func (store *consulDataStoreImpl) Close() error {
-	// The Consul client doesn't currently need to be explicitly disposed of
 	return nil
 }
 
-func (store *consulDataStoreImpl) getEvenIfDeleted(kind interfaces.VersionedDataKind, key string) (retrievedItem interfaces.VersionedData,
-	modifyIndex uint64, err error) {
+func (store *consulDataStoreImpl) getInternal(
+	kind interfaces.StoreDataKind,
+	key string,
+) (
+	retrievedItem interfaces.StoreSerializedItemDescriptor,
+	modifyIndex uint64,
+	err error,
+) {
 	var defaultModifyIndex = uint64(0)
 
 	kv := store.client.KV()
 
-	pair, _, err := kv.Get(store.featureKeyFor(kind, key), nil)
+	pair, _, err := kv.Get(store.combinedItemKey(kind, key), nil)
 
 	if err != nil || pair == nil {
-		return nil, defaultModifyIndex, err
+		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), defaultModifyIndex, err
 	}
 
-	item, jsonErr := utils.UnmarshalItem(kind, pair.Value)
-
-	if jsonErr != nil {
-		return nil, defaultModifyIndex, fmt.Errorf("failed to unmarshal %s key %s: %s", kind, key, jsonErr)
-	}
-
-	return item, pair.ModifyIndex, nil
+	itemDesc := interfaces.StoreSerializedItemDescriptor{SerializedItem: pair.Value}
+	return itemDesc, pair.ModifyIndex, nil
 }
 
 func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
@@ -241,12 +235,16 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 	return nil
 }
 
-func (store *consulDataStoreImpl) featuresKey(kind interfaces.VersionedDataKind) string {
-	return store.prefix + "/" + kind.GetNamespace()
+func (store *consulDataStoreImpl) collectionKey(kind interfaces.StoreDataKind) string {
+	return store.prefix + "/" + kind.GetName()
 }
 
-func (store *consulDataStoreImpl) featureKeyFor(kind interfaces.VersionedDataKind, k string) string {
-	return store.prefix + "/" + kind.GetNamespace() + "/" + k
+func (store *consulDataStoreImpl) combinedItemKey(kind interfaces.StoreDataKind, k string) string {
+	return store.prefix + "/" + kind.GetName() + "/" + k
+}
+
+func (store *consulDataStoreImpl) itemKeyFromCombinedKey(kind interfaces.StoreDataKind, combinedKey string) string {
+	return strings.TrimPrefix(combinedKey, store.collectionKey(kind)+"/")
 }
 
 func (store *consulDataStoreImpl) initedKey() string {

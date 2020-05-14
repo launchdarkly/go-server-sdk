@@ -77,7 +77,7 @@ func (sp *streamProcessor) Start(closeWhenReady chan<- struct{}) {
 
 type parsedPath struct {
 	key  string
-	kind interfaces.VersionedDataKind
+	kind interfaces.StoreDataKind
 }
 
 func parsePath(path string) (parsedPath, error) {
@@ -164,7 +164,7 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					gotMalformedEvent(event, err)
 					break
 				}
-				err := sp.store.Init(makeAllVersionedDataMap(put.Data.Flags, put.Data.Segments))
+				err := sp.store.Init(makeAllStoreData(put.Data.Flags, put.Data.Segments))
 				if err == nil {
 					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				} else {
@@ -182,12 +182,12 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					gotMalformedEvent(event, err)
 					break
 				}
-				item := path.kind.GetDefaultItem().(interfaces.VersionedData)
-				if err = json.Unmarshal(patch.Data, item); err != nil {
+				item, err := path.kind.Deserialize(patch.Data)
+				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
-				if err = sp.store.Upsert(path.kind, item); err != nil {
+				if err = sp.store.Upsert(path.kind, path.key, item); err != nil {
 					storeUpdateFailed("streaming update of "+path.key, err)
 				}
 
@@ -202,7 +202,8 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					gotMalformedEvent(event, err)
 					break
 				}
-				if err = sp.store.Delete(path.kind, path.key, data.Version); err != nil {
+				deletedItem := interfaces.StoreItemDescriptor{Version: data.Version, Item: nil}
+				if err = sp.store.Upsert(path.kind, path.key, deletedItem); err != nil {
 					storeUpdateFailed("streaming deletion of "+path.key, err)
 				}
 
@@ -216,7 +217,7 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					sp.loggers.Errorf(`Unexpected error requesting %s item "%s": %+v`, path.kind, path.key, err)
 					break
 				}
-				if err = sp.store.Upsert(path.kind, item); err != nil {
+				if err = sp.store.Upsert(path.kind, path.key, item); err != nil {
 					storeUpdateFailed("streaming update of "+path.key, err)
 				}
 			default:

@@ -62,7 +62,10 @@ var defaultEventFactory = ldevents.NewEventFactory(false, nil)
 type offlineDataSourceFactory struct{}
 type offlineDataSource struct{}
 
-func (f offlineDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
+func (f offlineDataSourceFactory) CreateDataSource(
+	context interfaces.ClientContext,
+	store interfaces.DataStore,
+) (interfaces.DataSource, error) {
 	context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
 	return offlineDataSource{}, nil
 }
@@ -135,7 +138,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return nil, err
 	}
 
-	evaluator := ldeval.NewEvaluator(interfaces.NewDataStoreEvaluatorDataProvider(store))
+	dataProvider := interfaces.NewDataStoreEvaluatorDataProvider(store, config.Loggers)
+	evaluator := ldeval.NewEvaluator(dataProvider)
 
 	client := LDClient{
 		sdkKey:    sdkKey,
@@ -294,9 +298,6 @@ func (client *LDClient) Initialized() bool {
 // been sent.
 func (client *LDClient) Close() error {
 	client.config.Loggers.Info("Closing LaunchDarkly client")
-	if client.IsOffline() {
-		return nil
-	}
 	_ = client.eventProcessor.Close()
 	_ = client.dataSource.Close()
 	_ = client.store.Close()
@@ -323,7 +324,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		client.config.Loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
 	} else if !client.Initialized() {
-		if client.store.Initialized() {
+		if client.store.IsInitialized() {
 			client.config.Loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
 			client.config.Loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state")
@@ -335,7 +336,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		return FeatureFlagsState{valid: false}
 	}
 
-	items, err := client.store.All(interfaces.DataKindFeatures())
+	items, err := client.store.GetAll(interfaces.DataKindFeatures())
 	if err != nil {
 		client.config.Loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
@@ -346,16 +347,18 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 	withReasons := hasFlagsStateOption(options, WithReasons)
 	detailsOnlyIfTracked := hasFlagsStateOption(options, DetailsOnlyForTrackedFlags)
 	for _, item := range items {
-		if flag, ok := item.(*ldmodel.FeatureFlag); ok {
-			if clientSideOnly && !flag.ClientSide {
-				continue
+		if item.Item.Item != nil {
+			if flag, ok := item.Item.Item.(*ldmodel.FeatureFlag); ok {
+				if clientSideOnly && !flag.ClientSide {
+					continue
+				}
+				result := client.evaluator.Evaluate(*flag, user, nil)
+				var reason ldreason.EvaluationReason
+				if withReasons {
+					reason = result.Reason
+				}
+				state.addFlag(*flag, result.Value, result.VariationIndex, reason, detailsOnlyIfTracked)
 			}
-			result := client.evaluator.Evaluate(*flag, user, nil)
-			var reason ldreason.EvaluationReason
-			if withReasons {
-				reason = result.Reason
-			}
-			state.addFlag(*flag, result.Value, result.VariationIndex, reason, detailsOnlyIfTracked)
 		}
 	}
 
@@ -521,14 +524,14 @@ func (client *LDClient) evaluateInternal(
 	}
 
 	if !client.Initialized() {
-		if client.store.Initialized() {
+		if client.store.IsInitialized() {
 			client.config.Loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store")
 		} else {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
 	}
 
-	data, storeErr := client.store.Get(interfaces.DataKindFeatures(), key)
+	itemDesc, storeErr := client.store.Get(interfaces.DataKindFeatures(), key)
 
 	if storeErr != nil {
 		client.config.Loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)
@@ -536,11 +539,11 @@ func (client *LDClient) evaluateInternal(
 		return detail, nil, storeErr
 	}
 
-	if data != nil {
-		feature, ok = data.(*ldmodel.FeatureFlag)
+	if itemDesc.Item != nil {
+		feature, ok = itemDesc.Item.(*ldmodel.FeatureFlag)
 		if !ok {
 			return evalErrorResult(ldreason.EvalErrorException, nil,
-				fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", data, key))
+				fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", itemDesc.Item, key))
 		}
 	} else {
 		return evalErrorResult(ldreason.EvalErrorFlagNotFound, nil,
