@@ -37,7 +37,6 @@ type LDClient struct {
 	eventProcessor ldevents.EventProcessor
 	dataSource     interfaces.DataSource
 	store          interfaces.DataStore
-	dataProvider   ldeval.DataProvider
 	evaluator      ldeval.Evaluator
 }
 
@@ -143,11 +142,10 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	evaluator := ldeval.NewEvaluator(dataProvider)
 
 	client := LDClient{
-		sdkKey:       sdkKey,
-		config:       config,
-		store:        store,
-		evaluator:    evaluator,
-		dataProvider: dataProvider,
+		sdkKey:    sdkKey,
+		config:    config,
+		store:     store,
+		evaluator: evaluator,
 	}
 
 	client.eventProcessor, err = eventProcessorFactory.CreateEventProcessor(clientContext)
