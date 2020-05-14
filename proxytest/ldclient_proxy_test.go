@@ -19,8 +19,7 @@ import (
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +43,7 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 		os.Setenv("HTTP_PROXY", proxy.URL)
 
 		config := ld.Config{}
-		config.Loggers = ldlog.NewDisabledLoggers()
+		config.Loggers = sharedtest.NewTestLoggers()
 		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
 		config.Events = ldcomponents.NoEvents()
 
@@ -72,7 +71,7 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 
 		config := ld.Config{}
 		config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
-		config.Loggers = ldlog.NewDisabledLoggers()
+		config.Loggers = sharedtest.NewTestLoggers()
 		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
 		config.Events = ldcomponents.NoEvents()
 

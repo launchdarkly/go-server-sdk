@@ -13,7 +13,6 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 const (
@@ -30,6 +29,7 @@ const (
 
 type streamProcessor struct {
 	store                      interfaces.DataStore
+	dataStoreStatusProvider    interfaces.DataStoreStatusProvider
 	streamURI                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
@@ -40,7 +40,7 @@ type streamProcessor struct {
 	setInitializedOnce         sync.Once
 	isInitialized              bool
 	halt                       chan struct{}
-	storeStatusSub             internal.DataStoreStatusSubscription
+	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
@@ -69,8 +69,8 @@ func (sp *streamProcessor) Initialized() bool {
 
 func (sp *streamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	if fss, ok := sp.store.(internal.DataStoreStatusProvider); ok {
-		sp.storeStatusSub = fss.StatusSubscribe()
+	if sp.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
+		sp.storeStatusCh = sp.dataStoreStatusProvider.AddStatusListener()
 	}
 	go sp.subscribe(closeWhenReady)
 }
@@ -126,11 +126,6 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 		}
 	}()
 
-	var statusCh <-chan internal.DataStoreStatus
-	if sp.storeStatusSub != nil {
-		statusCh = sp.storeStatusSub.Channel()
-	}
-
 	for {
 		select {
 		case event, ok := <-stream.Events:
@@ -148,7 +143,7 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			}
 
 			storeUpdateFailed := func(updateDesc string, err error) {
-				if sp.storeStatusSub != nil {
+				if sp.storeStatusCh != nil {
 					sp.loggers.Errorf("Failed to store %s in data store (%s); will try again once data store is working", updateDesc, err)
 					// scenario 2a above
 				} else {
@@ -228,7 +223,8 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				stream.Restart()
 			}
 
-		case newStoreStatus := <-statusCh:
+		case newStoreStatus := <-sp.storeStatusCh:
+			sp.loggers.Debugf("StreamProcessor received store status update: %+v", newStoreStatus)
 			if newStoreStatus.Available {
 				// The store has just transitioned from unavailable to available (scenario 2a above)
 				if newStoreStatus.NeedsRefresh {
@@ -253,18 +249,20 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 func newStreamProcessor(
 	context interfaces.ClientContext,
 	store interfaces.DataStore,
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
 	streamURI string,
 	initialReconnectDelay time.Duration,
 	requestor *requestor,
 ) *streamProcessor {
 	sp := &streamProcessor{
-		store:                 store,
-		streamURI:             streamURI,
-		initialReconnectDelay: initialReconnectDelay,
-		requestor:             requestor,
-		headers:               context.GetDefaultHTTPHeaders(),
-		loggers:               context.GetLoggers(),
-		halt:                  make(chan struct{}),
+		store:                   store,
+		dataStoreStatusProvider: dataStoreStatusProvider,
+		streamURI:               streamURI,
+		initialReconnectDelay:   initialReconnectDelay,
+		requestor:               requestor,
+		headers:                 context.GetDefaultHTTPHeaders(),
+		loggers:                 context.GetLoggers(),
+		halt:                    make(chan struct{}),
 	}
 	if hdm, ok := context.(hasDiagnosticsManager); ok {
 		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
@@ -369,8 +367,8 @@ func (sp *streamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		sp.loggers.Info("Closing event stream")
 		close(sp.halt)
-		if sp.storeStatusSub != nil {
-			sp.storeStatusSub.Close()
+		if sp.storeStatusCh != nil {
+			sp.dataStoreStatusProvider.RemoveStatusListener(sp.storeStatusCh)
 		}
 	})
 	return nil

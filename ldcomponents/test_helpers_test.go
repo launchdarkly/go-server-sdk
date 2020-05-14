@@ -3,6 +3,9 @@ package ldcomponents
 import (
 	"net/http"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -10,8 +13,14 @@ import (
 
 const testSdkKey = "test-sdk-key"
 
+func sharedLoggers() ldlog.Loggers {
+	loggers := ldlog.NewDefaultLoggers()
+	loggers.SetMinLevel(ldlog.Debug) // go test will suppress the output unless a test fails
+	return loggers
+}
+
 func basicClientContext() interfaces.ClientContext {
-	return interfaces.NewClientContext(testSdkKey, nil, nil, ldlog.NewDisabledLoggers())
+	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedLoggers())
 }
 
 type contextWithDiagnostics struct {
@@ -26,7 +35,7 @@ func (c *contextWithDiagnostics) GetSDKKey() string {
 }
 
 func (c *contextWithDiagnostics) GetLoggers() ldlog.Loggers {
-	return ldlog.NewDisabledLoggers()
+	return sharedtest.NewTestLoggers()
 }
 
 func (c *contextWithDiagnostics) GetDefaultHTTPHeaders() http.Header {
@@ -49,8 +58,7 @@ func newClientContextWithDiagnostics(sdkKey string, headers http.Header, httpCli
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {
-	store, _ := InMemoryDataStore().CreateDataStore(basicClientContext())
-	return store
+	return internal.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 
 type urlAppendingHTTPTransport string

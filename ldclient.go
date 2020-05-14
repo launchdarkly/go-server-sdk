@@ -22,6 +22,7 @@ import (
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
 
@@ -32,12 +33,14 @@ const Version = "5.0.0"
 // Applications should instantiate a single instance for the lifetime
 // of their application.
 type LDClient struct {
-	sdkKey         string
-	config         Config
-	eventProcessor ldevents.EventProcessor
-	dataSource     interfaces.DataSource
-	store          interfaces.DataStore
-	evaluator      ldeval.Evaluator
+	sdkKey                     string
+	config                     Config
+	eventProcessor             ldevents.EventProcessor
+	dataSource                 interfaces.DataSource
+	store                      interfaces.DataStore
+	evaluator                  ldeval.Evaluator
+	dataStoreStatusBroadcaster *internal.DataStoreStatusBroadcaster
+	dataStoreStatusProvider    interfaces.DataStoreStatusProvider
 }
 
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
@@ -65,6 +68,7 @@ type offlineDataSource struct{}
 func (f offlineDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
 	store interfaces.DataStore,
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
 ) (interfaces.DataSource, error) {
 	context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
 	return offlineDataSource{}, nil
@@ -133,7 +137,9 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	clientContext := newClientContextImpl(sdkKey, config, config.newHTTPClient, diagnosticsManager)
 
-	store, err := getDataStoreFactory(config).CreateDataStore(clientContext)
+	dataStoreStatusBroadcaster := internal.NewDataStoreStatusBroadcaster()
+	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(dataStoreStatusBroadcaster)
+	store, err := getDataStoreFactory(config).CreateDataStore(clientContext, dataStoreUpdates)
 	if err != nil {
 		return nil, err
 	}
@@ -141,11 +147,15 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	dataProvider := interfaces.NewDataStoreEvaluatorDataProvider(store, config.Loggers)
 	evaluator := ldeval.NewEvaluator(dataProvider)
 
+	dataStoreStatusProvider := internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
+
 	client := LDClient{
-		sdkKey:    sdkKey,
-		config:    config,
-		store:     store,
-		evaluator: evaluator,
+		sdkKey:                     sdkKey,
+		config:                     config,
+		store:                      store,
+		evaluator:                  evaluator,
+		dataStoreStatusBroadcaster: dataStoreStatusBroadcaster,
+		dataStoreStatusProvider:    dataStoreStatusProvider,
 	}
 
 	client.eventProcessor, err = eventProcessorFactory.CreateEventProcessor(clientContext)
@@ -153,7 +163,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return nil, err
 	}
 
-	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, store)
+	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, store, dataStoreStatusProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -301,6 +311,7 @@ func (client *LDClient) Close() error {
 	_ = client.eventProcessor.Close()
 	_ = client.dataSource.Close()
 	_ = client.store.Close()
+	client.dataStoreStatusBroadcaster.Close()
 	return nil
 }
 
@@ -462,6 +473,16 @@ func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal l
 func (client *LDClient) JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, defaultVal, false, true)
 	return detail.Value, detail, err
+}
+
+// GetDataStoreStatusProvider returns an interface for tracking the status of a persistent data store.
+//
+// The DataStoreStatusProvider has methods for checking whether the data store is (as far as the SDK
+// SDK knows) currently operational, tracking changes in this status, and getting cache statistics. These
+// are only relevant for a persistent data store; if you are using an in-memory data store, then this
+// method will always report that the store is operational.
+func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
+	return client.dataStoreStatusProvider
 }
 
 // Generic method for evaluating a feature flag for a given user.

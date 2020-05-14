@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 	s "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -45,7 +45,9 @@ func makePersistentDataStoreWrapper(
 	mode testCacheMode,
 	core *s.MockPersistentDataStore,
 ) intf.DataStore {
-	return NewPersistentDataStoreWrapper(core, mode.ttl(), ldlog.NewDisabledLoggers())
+	broadcaster := NewDataStoreStatusBroadcaster()
+	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
+	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers())
 }
 
 func TestPersistentDataStoreWrapper(t *testing.T) {

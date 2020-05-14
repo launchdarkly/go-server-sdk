@@ -182,7 +182,11 @@ type fileDataSourceFactory struct {
 }
 
 // DataSourceFactory implementation
-func (f fileDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
+func (f fileDataSourceFactory) CreateDataSource(
+	context interfaces.ClientContext,
+	dataStore interfaces.DataStore,
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+) (interfaces.DataSource, error) {
 	if dataStore == nil {
 		return nil, fmt.Errorf("dataStore must not be nil")
 	}

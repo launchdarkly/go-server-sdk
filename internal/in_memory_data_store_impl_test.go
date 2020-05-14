@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 func TestInMemoryDataStore(t *testing.T) {
@@ -29,7 +29,7 @@ func TestInMemoryDataStore(t *testing.T) {
 }
 
 func makeInMemoryStore() interfaces.DataStore {
-	return NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	return NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 
 func extractCollections(allData []interfaces.StoreCollection) [][]interfaces.StoreKeyedItemDescriptor {

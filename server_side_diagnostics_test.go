@@ -128,12 +128,18 @@ func (c customStoreFactoryForDiagnostics) DescribeConfiguration() ldvalue.Value 
 	return ldvalue.String(c.name)
 }
 
-func (c customStoreFactoryForDiagnostics) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+func (c customStoreFactoryForDiagnostics) CreateDataStore(
+	context interfaces.ClientContext,
+	dataStoreUpdates interfaces.DataStoreUpdates,
+) (interfaces.DataStore, error) {
 	return nil, errors.New("not implemented")
 }
 
 type customStoreFactoryWithoutDiagnosticDescription struct{}
 
-func (c customStoreFactoryWithoutDiagnosticDescription) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+func (c customStoreFactoryWithoutDiagnosticDescription) CreateDataStore(
+	context interfaces.ClientContext,
+	dataStoreUpdates interfaces.DataStoreUpdates,
+) (interfaces.DataStore, error) {
 	return nil, errors.New("not implemented")
 }

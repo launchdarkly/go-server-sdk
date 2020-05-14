@@ -1,0 +1,77 @@
+package internal
+
+import (
+	"sync"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+)
+
+// This file contains all of the types we use for the publish-subscribe model for various status types.
+// The logic is very repetitive, due to Go's lack of generics; in each case, we're just maintaining a list
+// of subscription channels that we will broadcast some value to.
+
+// Arbitrary buffer size to make it less likely that we'll block when broadcasting to channels. It is still
+// the consumer's responsibility to make sure they're reading the channel.
+const subscriberChannelBufferLength = 10
+
+// DataStoreStatusBroadcaster is the internal implementation of publish-subscribe for DataStoreStatus values.
+type DataStoreStatusBroadcaster struct {
+	subscribers []chan interfaces.DataStoreStatus
+	lock        sync.Mutex
+}
+
+// NewDataStoreStatusBroadcaster creates an instance of DataStoreStatusBroadcaster.
+func NewDataStoreStatusBroadcaster() *DataStoreStatusBroadcaster {
+	return &DataStoreStatusBroadcaster{}
+}
+
+// AddListener creates a new channel for listening to broadcast values. This is created with a small
+// channel buffer, but it is the consumer's responsibility to consume the channel to avoid blocking an
+// SDK goroutine.
+func (b *DataStoreStatusBroadcaster) AddListener() <-chan interfaces.DataStoreStatus {
+	ch := make(chan interfaces.DataStoreStatus, subscriberChannelBufferLength)
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.subscribers = append(b.subscribers, ch)
+	return ch
+}
+
+// RemoveListener stops broadcasting to a channel that was created with AddListener.
+func (b *DataStoreStatusBroadcaster) RemoveListener(ch <-chan interfaces.DataStoreStatus) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	ss := b.subscribers
+	for i, s := range ss {
+		if s == ch {
+			copy(ss[i:], ss[i+1:])
+			ss[len(ss)-1] = nil
+			b.subscribers = ss[:len(ss)-1]
+			close(s)
+			break
+		}
+	}
+}
+
+// Broadcast broadcasts a new value to the registered listeners, if any.
+func (b *DataStoreStatusBroadcaster) Broadcast(value interfaces.DataStoreStatus) {
+	var ss []chan interfaces.DataStoreStatus
+	b.lock.Lock()
+	if len(b.subscribers) > 0 {
+		ss = make([]chan interfaces.DataStoreStatus, len(b.subscribers))
+		copy(ss, b.subscribers)
+	}
+	b.lock.Unlock()
+	for _, ch := range ss {
+		ch <- value
+	}
+}
+
+// Close closes all currently registered listener channels.
+func (b *DataStoreStatusBroadcaster) Close() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	for _, s := range b.subscribers {
+		close(s)
+	}
+	b.subscribers = nil
+}
