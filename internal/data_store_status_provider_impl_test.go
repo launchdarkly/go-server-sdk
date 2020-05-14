@@ -51,7 +51,7 @@ func TestDataStoreStatusProviderImpl(t *testing.T) {
 	})
 }
 
-func makeDataStoreStatusProviderTestComponents() (*dataStoreWithStatusMonitoringFlag, interfaces.DataStoreUpdates, *DataStoreStatusProviderImpl) {
+func makeDataStoreStatusProviderTestComponents() (*dataStoreWithStatusMonitoringFlag, interfaces.DataStoreUpdates, interfaces.DataStoreStatusProvider) {
 	store := &dataStoreWithStatusMonitoringFlag{}
 	dataStoreUpdates := NewDataStoreUpdatesImpl(NewDataStoreStatusBroadcaster())
 	dataStoreStatusProvider := NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
