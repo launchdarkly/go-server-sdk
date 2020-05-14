@@ -1,6 +1,7 @@
 package sharedtest
 
 import (
+	"os"
 	"testing"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -24,6 +25,7 @@ type PersistentDataStoreTestSuite struct {
 	storeFactoryFn               func(string) intf.PersistentDataStoreFactory
 	clearDataFn                  func(string) error
 	concurrentModificationHookFn func(store intf.PersistentDataStore, hook func())
+	alwaysRun                    bool
 }
 
 // NewPersistentDataStoreTestSuite creates a PersistentDataStoreTestSuite for testing some
@@ -62,8 +64,19 @@ func (s *PersistentDataStoreTestSuite) ConcurrentModificationHook(
 	return s
 }
 
+// AlwaysRun specifies whether this test suite should always be run even if the environment variable
+// LD_SKIP_DATABASE_TESTS is set.
+func (s *PersistentDataStoreTestSuite) AlwaysRun(alwaysRun bool) *PersistentDataStoreTestSuite {
+	s.alwaysRun = alwaysRun
+	return s
+}
+
 // Run runs the configured test suite.
 func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
+	if !s.alwaysRun && os.Getenv("LD_SKIP_DATABASE_TESTS") != "" {
+		return
+	}
+
 	t.Run("Init", s.runInitTests)
 	t.Run("Get", s.runGetTests)
 	t.Run("Upsert", s.runUpsertTests)

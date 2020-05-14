@@ -36,7 +36,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 			func(store interfaces.PersistentDataStore, hook func()) {
 				store.(*mockPersistentDataStore).testTxHook = hook
 			},
-		).Run(t)
+		).AlwaysRun(true).Run(t)
 	}
 
 	runTests(t)
