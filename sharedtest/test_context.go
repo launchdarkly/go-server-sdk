@@ -21,5 +21,5 @@ func (c stubClientContext) CreateHTTPClient() *http.Client {
 }
 
 func (c stubClientContext) GetLoggers() ldlog.Loggers {
-	return ldlog.NewDisabledLoggers()
+	return NewTestLoggers()
 }

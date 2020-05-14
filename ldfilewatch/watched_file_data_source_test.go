@@ -10,35 +10,62 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
-func makeTempFile(t *testing.T, initialText string) string {
+type fileDataSourceTestParams struct {
+	store          interfaces.DataStore
+	dataSource     interfaces.DataSource
+	closeWhenReady chan struct{}
+}
+
+func (p fileDataSourceTestParams) waitForStart() {
+	p.dataSource.Start(p.closeWhenReady)
+	<-p.closeWhenReady
+}
+
+func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
+	p := fileDataSourceTestParams{}
+	testContext := interfaces.NewClientContext("", nil, nil, sharedtest.NewTestLoggers())
+	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(internal.NewDataStoreStatusBroadcaster())
+	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, dataStoreUpdates)
+	dataSource, err := factory.CreateDataSource(testContext, store, internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates))
+	if err != nil {
+		panic(err)
+	}
+	defer dataSource.Close()
+	p.dataSource = dataSource
+	action(fileDataSourceTestParams{store, dataSource, make(chan struct{})})
+}
+
+func makeTempFile(initialText string) string {
 	f, err := ioutil.TempFile("", "file-source-test")
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	f.WriteString(initialText)
-	require.NoError(t, f.Close())
+	err = f.Close()
+	if err != nil {
+		panic(err)
+	}
 	return f.Name()
 }
 
-func testContext() interfaces.ClientContext {
-	return interfaces.NewClientContext("", nil, nil, ldlog.NewDisabledLoggers())
-}
-
-func makeDataStore() interfaces.DataStore {
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext())
-	return store
-}
-
-func replaceFileContents(t *testing.T, filename string, text string) {
+func replaceFileContents(filename string, text string) {
 	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0600)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	f.WriteString(text)
-	require.NoError(t, f.Sync())
+	err = f.Sync()
+	if err != nil {
+		panic(err)
+	}
 	f.Close()
 }
 
@@ -64,92 +91,82 @@ func hasFlag(t *testing.T, store interfaces.DataStore, key string, test func(ldm
 }
 
 func TestNewWatchedFileDataSource(t *testing.T) {
-	filename := makeTempFile(t, `
+	filename := makeTempFile(`
 ---
 flags: bad
 `)
 	defer os.Remove(filename)
 
-	store := makeDataStore()
-
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory.CreateDataSource(testContext(), store)
-	require.NoError(t, err)
-	defer dataSource.Close()
+	withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+		p.dataSource.Start(p.closeWhenReady)
 
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-
-	// Create the flags file after we start
-	time.Sleep(time.Second)
-	replaceFileContents(t, filename, `
+		// Create the flags file after we start
+		time.Sleep(time.Second)
+		replaceFileContents(filename, `
 ---
 flags:
   my-flag:
     "on": true
 `)
 
-	<-closeWhenReady
+		<-p.closeWhenReady
 
-	// Don't use waitForExpectedChange here because the expectation is that as soon as the dataSource
-	// reports being ready (which it will only do once we've given it a valid file), the flag should
-	// be available immediately.
-	assert.True(t, hasFlag(t, store, "my-flag", func(f ldmodel.FeatureFlag) bool {
-		return f.On
-	}))
-	assert.True(t, dataSource.Initialized())
+		// Don't use waitForExpectedChange here because the expectation is that as soon as the dataSource
+		// reports being ready (which it will only do once we've given it a valid file), the flag should
+		// be available immediately.
+		assert.True(t, hasFlag(t, p.store, "my-flag", func(f ldmodel.FeatureFlag) bool {
+			return f.On
+		}))
+		assert.True(t, p.dataSource.Initialized())
 
-	// Update the file
-	replaceFileContents(t, filename, `
+		// Update the file
+		replaceFileContents(filename, `
 ---
 flags:
   my-flag:
     "on": false
 `)
 
-	requireTrueWithinDuration(t, time.Second, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ldmodel.FeatureFlag) bool {
-			return !f.On
+		requireTrueWithinDuration(t, time.Second, func() bool {
+			return hasFlag(t, p.store, "my-flag", func(f ldmodel.FeatureFlag) bool {
+				return !f.On
+			})
 		})
 	})
 }
 
 // File need not exist when the dataSource is started
 func TestNewWatchedFileMissing(t *testing.T) {
-	filename := makeTempFile(t, "")
+	filename := makeTempFile("")
 	require.NoError(t, os.Remove(filename))
 	defer os.Remove(filename)
-
-	store := makeDataStore()
 
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filename),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory.CreateDataSource(testContext(), store)
-	defer dataSource.Close()
+	withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+		p.dataSource.Start(p.closeWhenReady)
 
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-
-	time.Sleep(time.Second)
-	replaceFileContents(t, filename, `
+		time.Sleep(time.Second)
+		replaceFileContents(filename, `
 ---
 flags:
   my-flag:
     "on": true
 `)
 
-	<-closeWhenReady
+		<-p.closeWhenReady
 
-	requireTrueWithinDuration(t, time.Second, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ldmodel.FeatureFlag) bool {
-			return f.On
+		requireTrueWithinDuration(t, time.Second, func() bool {
+			return hasFlag(t, p.store, "my-flag", func(f ldmodel.FeatureFlag) bool {
+				return f.On
+			})
 		})
+		assert.True(t, p.dataSource.Initialized())
 	})
-	assert.True(t, dataSource.Initialized())
 }
 
 // Directory needn't exist when the dataSource is started
@@ -157,7 +174,6 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "file-source-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
-	store := makeDataStore()
 
 	dirPath := path.Join(tempDir, "test")
 	filePath := path.Join(dirPath, "flags.yml")
@@ -165,31 +181,28 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 	factory := ldfiledata.NewFileDataSourceFactory(
 		ldfiledata.FilePaths(filePath),
 		ldfiledata.UseReloader(WatchFiles))
-	dataSource, err := factory.CreateDataSource(testContext(), store)
-	require.NoError(t, err)
-	defer dataSource.Close()
+	withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+		p.dataSource.Start(p.closeWhenReady)
 
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
+		time.Sleep(time.Second)
+		err = os.Mkdir(dirPath, 0700)
+		require.NoError(t, err)
 
-	time.Sleep(time.Second)
-	err = os.Mkdir(dirPath, 0700)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second)
-	replaceFileContents(t, filePath, `
+		time.Sleep(time.Second)
+		replaceFileContents(filePath, `
 ---
 flags:
   my-flag:
     "on": true
 `)
 
-	<-closeWhenReady
+		<-p.closeWhenReady
 
-	requireTrueWithinDuration(t, time.Second*2, func() bool {
-		return hasFlag(t, store, "my-flag", func(f ldmodel.FeatureFlag) bool {
-			return f.On
+		requireTrueWithinDuration(t, time.Second*2, func() bool {
+			return hasFlag(t, p.store, "my-flag", func(f ldmodel.FeatureFlag) bool {
+				return f.On
+			})
 		})
+		assert.True(t, p.dataSource.Initialized())
 	})
-	assert.True(t, dataSource.Initialized())
 }

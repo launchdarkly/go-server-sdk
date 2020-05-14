@@ -11,6 +11,70 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
+type dataSourceTestParams struct {
+	store                   *dataStoreThatCapturesUpdates
+	dataStoreUpdates        *internal.DataStoreUpdatesImpl
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider
+}
+
+func withDataSourceTestParams(action func(dataSourceTestParams)) {
+	params := dataSourceTestParams{}
+	params.store = newDataStoreThatCapturesUpdates()
+	broadcaster := internal.NewDataStoreStatusBroadcaster()
+	defer broadcaster.Close()
+	params.dataStoreUpdates = internal.NewDataStoreUpdatesImpl(broadcaster)
+	params.dataStoreStatusProvider = internal.NewDataStoreStatusProviderImpl(params.store, params.dataStoreUpdates)
+
+	action(params)
+}
+
+func (p dataSourceTestParams) waitForInit(
+	t *testing.T,
+	data *ldservices.ServerSDKData,
+) {
+	select {
+	case inited := <-p.store.receivedInits:
+		assertReceivedInitDataEquals(t, data, inited)
+		break
+	case <-time.After(time.Second * 3):
+		assert.Fail(t, "timed out before receiving expected init")
+	}
+}
+
+func (p dataSourceTestParams) waitForUpdate(
+	t *testing.T,
+	kind interfaces.StoreDataKind,
+	key string,
+	version int,
+) {
+	select {
+	case upserted := <-p.store.receivedUpserts:
+		assert.Equal(t, key, upserted.key)
+		assert.Equal(t, version, upserted.item.Version)
+		assert.NotNil(t, upserted.item.Item)
+		break
+	case <-time.After(time.Second * 3):
+		assert.Fail(t, "timed out before receiving expected update")
+	}
+}
+
+func (p dataSourceTestParams) waitForDelete(
+	t *testing.T,
+	kind interfaces.StoreDataKind,
+	key string,
+	version int,
+) {
+	select {
+	case upserted := <-p.store.receivedUpserts:
+		assert.Equal(t, key, upserted.key)
+		assert.Equal(t, version, upserted.item.Version)
+		assert.Nil(t, upserted.item.Item)
+		break
+	case <-time.After(time.Second * 3):
+		assert.Fail(t, "timed out before receiving expected deletion")
+	}
+}
+
 func assertReceivedInitDataEquals(t *testing.T, expected *ldservices.ServerSDKData, received []interfaces.StoreCollection) {
 	assert.Equal(t, 2, len(received))
 	for _, coll := range received {
@@ -34,79 +98,54 @@ func assertReceivedInitDataEquals(t *testing.T, expected *ldservices.ServerSDKDa
 	}
 }
 
-func waitForInit(
-	t *testing.T,
-	store *testDataStoreWithStatus,
-	data *ldservices.ServerSDKData,
-) {
-	select {
-	case receivedInitialData := <-store.inits:
-		assertReceivedInitDataEquals(t, data, receivedInitialData)
-		break
-	case <-time.After(time.Second * 3):
-		assert.Fail(t, "timed out before receiving expected init")
+type upsertParams struct {
+	kind interfaces.StoreDataKind
+	key  string
+	item interfaces.StoreItemDescriptor
+}
+
+type dataStoreThatCapturesUpdates struct {
+	receivedInits   chan []interfaces.StoreCollection
+	receivedUpserts chan upsertParams
+	fakeError       error
+}
+
+func newDataStoreThatCapturesUpdates() *dataStoreThatCapturesUpdates {
+	return &dataStoreThatCapturesUpdates{
+		receivedInits:   make(chan []interfaces.StoreCollection, 10),
+		receivedUpserts: make(chan upsertParams, 10),
 	}
 }
 
-type testDataStoreWithStatus struct {
-	inits     chan []interfaces.StoreCollection
-	statusSub *testStatusSubscription
+func (d *dataStoreThatCapturesUpdates) Init(allData []interfaces.StoreCollection) error {
+	d.receivedInits <- allData
+	if d.fakeError != nil {
+		return d.fakeError
+	}
+	return nil
 }
 
-func (t *testDataStoreWithStatus) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
-	return interfaces.StoreItemDescriptor{}.NotFound(), nil
+func (d *dataStoreThatCapturesUpdates) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
+	return interfaces.StoreItemDescriptor{Version: -1, Item: nil}, nil
 }
 
-func (t *testDataStoreWithStatus) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
+func (d *dataStoreThatCapturesUpdates) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
 	return nil, nil
 }
 
-func (t *testDataStoreWithStatus) Init(data []interfaces.StoreCollection) error {
-	t.inits <- data
-	return nil
+func (d *dataStoreThatCapturesUpdates) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) error {
+	d.receivedUpserts <- upsertParams{kind, key, newItem}
+	return d.fakeError
 }
 
-func (t *testDataStoreWithStatus) Upsert(kind interfaces.StoreDataKind, key string, item interfaces.StoreItemDescriptor) error {
-	return nil
-}
-
-func (t *testDataStoreWithStatus) IsInitialized() bool {
+func (d *dataStoreThatCapturesUpdates) IsInitialized() bool {
 	return true
 }
 
-func (t *testDataStoreWithStatus) IsStatusMonitoringEnabled() bool {
+func (d *dataStoreThatCapturesUpdates) IsStatusMonitoringEnabled() bool {
 	return true
 }
 
-func (t *testDataStoreWithStatus) GetStoreStatus() internal.DataStoreStatus {
-	return internal.DataStoreStatus{Available: true}
-}
-
-func (t *testDataStoreWithStatus) StatusSubscribe() internal.DataStoreStatusSubscription {
-	t.statusSub = &testStatusSubscription{
-		ch: make(chan internal.DataStoreStatus),
-	}
-	return t.statusSub
-}
-
-func (t *testDataStoreWithStatus) Close() error {
+func (d *dataStoreThatCapturesUpdates) Close() error {
 	return nil
-}
-
-func (t *testDataStoreWithStatus) publishStatus(status internal.DataStoreStatus) {
-	if t.statusSub != nil {
-		t.statusSub.ch <- status
-	}
-}
-
-type testStatusSubscription struct {
-	ch chan internal.DataStoreStatus
-}
-
-func (s *testStatusSubscription) Channel() <-chan internal.DataStoreStatus {
-	return s.ch
-}
-
-func (s *testStatusSubscription) Close() {
-	close(s.ch)
 }

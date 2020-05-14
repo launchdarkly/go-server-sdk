@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -141,7 +141,7 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	}
 
 	client, err := MakeCustomClient(testSdkKey, Config{
-		Loggers:    ldlog.NewDisabledLoggers(),
+		Loggers:    sharedtest.NewTestLoggers(),
 		DataSource: singleDataSourceFactory{dataSource},
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)

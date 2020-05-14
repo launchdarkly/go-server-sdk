@@ -1,9 +1,6 @@
 package ldclient
 
 import (
-	"log"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
@@ -11,6 +8,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 const testSdkKey = "test-sdk-key"
@@ -20,32 +18,60 @@ var testUser = lduser.NewUser("test-user-key")
 var alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
 
 func basicClientContext() interfaces.ClientContext {
-	return newClientContextImpl(testSdkKey, Config{Loggers: ldlog.NewDisabledLoggers()}, nil, nil)
+	return newClientContextImpl(testSdkKey, Config{Loggers: sharedtest.NewTestLoggers()}, nil, nil)
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {
-	return internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	return internal.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 
 func upsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {
-	log.Printf("*** store was %+v", store)
 	store.Upsert(interfaces.DataKindFeatures(), flag.Key, interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag})
-	log.Printf("*** store is %+v", store)
 }
 
 type singleDataStoreFactory struct {
 	dataStore interfaces.DataStore
 }
 
-func (f singleDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+func (f singleDataStoreFactory) CreateDataStore(
+	context interfaces.ClientContext,
+	dataStoreUpdates interfaces.DataStoreUpdates,
+) (interfaces.DataStore, error) {
 	return f.dataStore, nil
+}
+
+type dataStoreFactoryThatExposesUpdater struct {
+	underlyingFactory interfaces.DataStoreFactory
+	dataStoreUpdates  interfaces.DataStoreUpdates
+}
+
+func (f *dataStoreFactoryThatExposesUpdater) CreateDataStore(
+	context interfaces.ClientContext,
+	dataStoreUpdates interfaces.DataStoreUpdates,
+) (interfaces.DataStore, error) {
+	f.dataStoreUpdates = dataStoreUpdates
+	return f.underlyingFactory.CreateDataStore(context, dataStoreUpdates)
+}
+
+type singlePersistentDataStoreFactory struct {
+	persistentDataStore interfaces.PersistentDataStore
+}
+
+func (f singlePersistentDataStoreFactory) CreatePersistentDataStore(
+	context interfaces.ClientContext,
+) (interfaces.PersistentDataStore, error) {
+	return f.persistentDataStore, nil
 }
 
 type singleDataSourceFactory struct {
 	dataSource interfaces.DataSource
 }
 
-func (f singleDataSourceFactory) CreateDataSource(context interfaces.ClientContext, store interfaces.DataStore) (interfaces.DataSource, error) {
+func (f singleDataSourceFactory) CreateDataSource(
+	context interfaces.ClientContext,
+	store interfaces.DataStore,
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+) (interfaces.DataSource, error) {
 	return f.dataSource, nil
 }
 

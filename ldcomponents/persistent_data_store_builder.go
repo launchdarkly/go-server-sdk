@@ -98,12 +98,13 @@ func (b *PersistentDataStoreBuilder) NoCaching() *PersistentDataStoreBuilder {
 // CreateDataStore is called by the SDK to create the data store implemntation object.
 func (b *PersistentDataStoreBuilder) CreateDataStore(
 	context interfaces.ClientContext,
+	dataStoreUpdates interfaces.DataStoreUpdates,
 ) (interfaces.DataStore, error) {
 	core, err := b.persistentDataStoreFactory.CreatePersistentDataStore(context)
 	if err != nil {
 		return nil, err
 	}
-	return internal.NewPersistentDataStoreWrapper(core, b.cacheTTL, context.GetLoggers()), nil
+	return internal.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL, context.GetLoggers()), nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

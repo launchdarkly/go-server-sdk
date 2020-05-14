@@ -14,14 +14,15 @@ import (
 
 // persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.
 type persistentDataStoreWrapper struct {
-	core          intf.PersistentDataStore
-	statusManager *DataStoreStatusManager
-	cache         *cache.Cache
-	cacheTTL      time.Duration
-	requests      singleflight.Group
-	loggers       ldlog.Loggers
-	inited        bool
-	initLock      sync.RWMutex
+	core             intf.PersistentDataStore
+	dataStoreUpdates intf.DataStoreUpdates
+	statusPoller     *dataStoreStatusPoller
+	cache            *cache.Cache
+	cacheTTL         time.Duration
+	requests         singleflight.Group
+	loggers          ldlog.Loggers
+	inited           bool
+	initLock         sync.RWMutex
 }
 
 const initCheckedKey = "$initChecked"
@@ -30,6 +31,7 @@ const initCheckedKey = "$initChecked"
 // stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
 func NewPersistentDataStoreWrapper(
 	core intf.PersistentDataStore,
+	dataStoreUpdates intf.DataStoreUpdates,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
 ) interfaces.DataStore {
@@ -41,15 +43,17 @@ func NewPersistentDataStoreWrapper(
 	}
 
 	w := &persistentDataStoreWrapper{
-		core:     core,
-		cache:    myCache,
-		cacheTTL: cacheTTL,
-		loggers:  loggers,
+		core:             core,
+		dataStoreUpdates: dataStoreUpdates,
+		cache:            myCache,
+		cacheTTL:         cacheTTL,
+		loggers:          loggers,
 	}
 
-	w.statusManager = NewDataStoreStatusManager(
+	w.statusPoller = newDataStoreStatusPoller(
 		true,
 		w.pollAvailabilityAfterOutage,
+		dataStoreUpdates.UpdateStatus,
 		myCache == nil || cacheTTL > 0, // needsRefresh=true unless we're in infinite cache mode
 		loggers,
 	)
@@ -246,7 +250,7 @@ func (w *persistentDataStoreWrapper) IsStatusMonitoringEnabled() bool {
 }
 
 func (w *persistentDataStoreWrapper) Close() error {
-	w.statusManager.Close()
+	w.statusPoller.Close()
 	return w.core.Close()
 }
 
@@ -422,15 +426,5 @@ func (w *persistentDataStoreWrapper) processError(err error) {
 		// w.statusLock every time we do anything. So we'll just do nothing here.
 		return
 	}
-	w.statusManager.UpdateAvailability(false)
-}
-
-// GetStoreStatus returns the current status of the store.
-func (w *persistentDataStoreWrapper) GetStoreStatus() DataStoreStatus {
-	return DataStoreStatus{Available: w.statusManager.IsAvailable()}
-}
-
-// StatusSubscribe creates a channel that will receive all changes in store status.
-func (w *persistentDataStoreWrapper) StatusSubscribe() DataStoreStatusSubscription {
-	return w.statusManager.Subscribe()
+	w.statusPoller.UpdateAvailability(false)
 }

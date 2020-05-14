@@ -27,7 +27,11 @@ func ExternalUpdatesOnly() interfaces.DataSourceFactory {
 }
 
 // DataSourceFactory implementation
-func (f nullDataSourceFactory) CreateDataSource(context interfaces.ClientContext, dataStore interfaces.DataStore) (interfaces.DataSource, error) {
+func (f nullDataSourceFactory) CreateDataSource(
+	context interfaces.ClientContext,
+	dataStore interfaces.DataStore,
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+) (interfaces.DataSource, error) {
 	return nullDataSource{}, nil
 }
 

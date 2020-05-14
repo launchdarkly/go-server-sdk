@@ -4,7 +4,8 @@ import "io"
 
 // DataStoreFactory is a factory that creates some implementation of DataStore.
 type DataStoreFactory interface {
-	CreateDataStore(context ClientContext) (DataStore, error)
+	// CreateDataStore is called by the SDK to create the implementation instance.
+	CreateDataStore(context ClientContext, dataStoreUpdates DataStoreUpdates) (DataStore, error)
 }
 
 // DataStore is an interface for a data store that holds feature flags and related data received by

@@ -9,7 +9,10 @@ import (
 type inMemoryDataStoreFactory struct{}
 
 // DataStoreFactory implementation
-func (f inMemoryDataStoreFactory) CreateDataStore(context interfaces.ClientContext) (interfaces.DataStore, error) {
+func (f inMemoryDataStoreFactory) CreateDataStore(
+	context interfaces.ClientContext,
+	dataStoreUpdates interfaces.DataStoreUpdates,
+) (interfaces.DataStore, error) {
 	loggers := context.GetLoggers()
 	loggers.SetPrefix("InMemoryDataStore:")
 	return internal.NewInMemoryDataStore(loggers), nil
