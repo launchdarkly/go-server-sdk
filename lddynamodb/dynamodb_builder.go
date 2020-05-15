@@ -79,7 +79,7 @@ func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBui
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
 func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
-	store, err := newDynamoDBDataStoreImpl(b, context.GetLoggers())
+	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().GetLoggers())
 	return store, err
 }
 

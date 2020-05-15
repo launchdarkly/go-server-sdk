@@ -257,7 +257,7 @@ func newStreamProcessor(
 		initialReconnectDelay: initialReconnectDelay,
 		requestor:             requestor,
 		headers:               context.GetDefaultHTTPHeaders(),
-		loggers:               context.GetLoggers(),
+		loggers:               context.GetLogging().GetLoggers(),
 		halt:                  make(chan struct{}),
 	}
 	if hdm, ok := context.(hasDiagnosticsManager); ok {

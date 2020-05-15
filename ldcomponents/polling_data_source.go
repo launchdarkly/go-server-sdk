@@ -29,7 +29,7 @@ func newPollingProcessor(
 		dataSourceUpdates: dataSourceUpdates,
 		requestor:         requestor,
 		pollInterval:      pollInterval,
-		loggers:           context.GetLoggers(),
+		loggers:           context.GetLogging().GetLoggers(),
 		quit:              make(chan struct{}),
 	}
 

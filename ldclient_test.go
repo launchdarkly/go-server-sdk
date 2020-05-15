@@ -1,8 +1,6 @@
 package ldclient
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -136,7 +134,7 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	dataSource := mockDataSource{Initialized: false, StartFn: startImmediately}
 
 	client, err := MakeCustomClient(testSdkKey, Config{
-		Loggers:    sharedtest.NewTestLoggers(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 		DataSource: singleDataSourceFactory{dataSource},
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
@@ -155,34 +153,11 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 		DataStore:  ldcomponents.InMemoryDataStore(),
 		DataSource: singleDataSourceFactory{mockDataSource{Initialized: true}},
 		Events:     singleEventProcessorFactory{&testEventProcessor{}},
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
-	config.Loggers.SetBaseLogger(newMockLogger(""))
 	if modConfig != nil {
 		modConfig(&config)
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, time.Duration(0))
 	return client
-}
-
-func newMockLogger(prefix string) *mockLogger {
-	return &mockLogger{output: make([]string, 0), prefix: prefix}
-}
-
-type mockLogger struct {
-	output []string
-	prefix string
-}
-
-func (l *mockLogger) append(s string) {
-	if l.prefix == "" || strings.HasPrefix(s, l.prefix) {
-		l.output = append(l.output, s)
-	}
-}
-
-func (l *mockLogger) Println(args ...interface{}) {
-	l.append(strings.TrimSpace(fmt.Sprintln(args...)))
-}
-
-func (l *mockLogger) Printf(format string, args ...interface{}) {
-	l.append(fmt.Sprintf(format, args...))
 }

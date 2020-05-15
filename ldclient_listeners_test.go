@@ -26,7 +26,7 @@ func clientDataSourceStatusProviderTest(action func(*LDClient, interfaces.DataSo
 	config := Config{
 		DataSource: &factoryWithUpdater,
 		Events:     ldcomponents.NoEvents(),
-		Loggers:    sharedtest.NewTestLoggers(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
@@ -83,7 +83,7 @@ func clientDataStoreStatusProviderTest(action func(*LDClient, interfaces.DataSto
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
 		DataStore:  &factoryWithUpdater,
 		Events:     ldcomponents.NoEvents(),
-		Loggers:    sharedtest.NewTestLoggers(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
@@ -55,17 +54,11 @@ type Config struct {
 	//     config := ld.DefaultConfig
 	//     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyURL(myProxyURL))
 	HTTPClientFactory HTTPClientFactory
-	// Sets whether the client should log a warning message whenever a flag cannot be evaluated due to an error
-	// (e.g. there is no flag with that key, or the user properties are invalid). By default, these messages are
-	// not logged, although you can detect such errors programmatically using the VariationDetail methods.
-	LogEvaluationErrors bool
-	// Sets whether log messages for errors related to a specific user can include the user key. By default, they
-	// will not, since the user key might be considered privileged information.
-	LogUserKeyInErrors bool
-	// Configures the SDK's logging behavior. You may call its SetBaseLogger() method to specify the
-	// output destination (the default is standard error), and SetMinLevel() to specify the minimum level
-	// of messages to be logged (the default is ldlog.Info).
-	Loggers ldlog.Loggers
+	// Provides configuration of the SDK's logging behavior.
+	//
+	// If nil, the default is ldcomponents.Logging(); see that method for an explanation of how to
+	// further configure logging behavior. The other option is ldcomponents.NoLogging().
+	Logging interfaces.LoggingConfigurationFactory
 	// Sets whether this client is offline. An offline client will not make any network connections to LaunchDarkly,
 	// and will return default values for all feature flags.
 	Offline bool

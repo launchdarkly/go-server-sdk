@@ -20,15 +20,15 @@ type ClientContext interface {
 	GetDefaultHTTPHeaders() http.Header
 	// CreateHTTPClient creates an HTTP client instance based on the current configuration.
 	CreateHTTPClient() *http.Client
-	// GetLoggers returns the configured Loggers instance.
-	GetLoggers() ldlog.Loggers
+	// GetLogging returns the configured LoggingConfiguration.
+	GetLogging() LoggingConfiguration
 }
 
 type basicClientContext struct {
 	sdkKey            string
 	headers           http.Header
 	httpClientFactory func() *http.Client
-	loggers           ldlog.Loggers
+	logging           LoggingConfiguration
 }
 
 func (c *basicClientContext) GetSDKKey() string {
@@ -46,15 +46,32 @@ func (c *basicClientContext) CreateHTTPClient() *http.Client {
 	return c.httpClientFactory()
 }
 
-func (c *basicClientContext) GetLoggers() ldlog.Loggers {
-	return c.loggers
+func (c *basicClientContext) GetLogging() LoggingConfiguration {
+	return c.logging
 }
 
 // NewClientContext creates the default implementation of ClientContext with the provided values.
 //
 // If httpClientFactory is nil, components will use http.DefaultClient.
 //
-// To turn off logging for test code, set loggers to ldlog.NewDisabledLoggers.
-func NewClientContext(sdkKey string, headers http.Header, httpClientFactory func() *http.Client, loggers ldlog.Loggers) ClientContext {
-	return &basicClientContext{sdkKey, headers, httpClientFactory, loggers}
+// To turn off logging for test code, set logging to ldcomponents.NoLogging().CreateLoggingConfiguration().
+func NewClientContext(sdkKey string, headers http.Header, httpClientFactory func() *http.Client, logging LoggingConfiguration) ClientContext {
+	if logging == nil {
+		logging = defaultLoggingConfiguration{}
+	}
+	return &basicClientContext{sdkKey, headers, httpClientFactory, logging}
+}
+
+type defaultLoggingConfiguration struct{}
+
+func (c defaultLoggingConfiguration) IsLogEvaluationErrors() bool {
+	return false
+}
+
+func (c defaultLoggingConfiguration) IsLogUserKeyInErrors() bool {
+	return false
+}
+
+func (c defaultLoggingConfiguration) GetLoggers() ldlog.Loggers {
+	return ldlog.NewDefaultLoggers()
 }
