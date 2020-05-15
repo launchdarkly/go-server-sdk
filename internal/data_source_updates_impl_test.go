@@ -24,7 +24,7 @@ type dataSourceUpdatesImplTestParams struct {
 	mockLoggers             *sharedtest.MockLoggers
 }
 
-func withDataSourceUpdatesImplTestParams(action func(dataSourceUpdatesImplTestParams)) {
+func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	p := dataSourceUpdatesImplTestParams{}
 	p.mockLoggers = sharedtest.NewMockLoggers()
 	p.store = sharedtest.NewCapturingDataStore(NewInMemoryDataStore(p.mockLoggers.Loggers))
@@ -43,7 +43,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 
 	t.Run("Init", func(t *testing.T) {
 		t.Run("passes data to store", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				inputData := NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("a").Build())
 
 				result := p.dataSourceUpdates.Init(inputData.Build())
@@ -54,7 +54,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("detects error from store", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				p.store.SetFakeError(storeError)
 
 				result := p.dataSourceUpdates.Init(NewDataSetBuilder().Build())
@@ -84,7 +84,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 
 	t.Run("Upsert", func(t *testing.T) {
 		t.Run("passes data to store", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				flag := ldbuilders.NewFlagBuilder("key").Version(1).Build()
 				itemDesc := intf.StoreItemDescriptor{Version: 1, Item: &flag}
 				result := p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc)
@@ -95,7 +95,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("detects error from store", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				p.store.SetFakeError(storeError)
 
 				flag := ldbuilders.NewFlagBuilder("key").Version(1).Build()
@@ -127,7 +127,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		// broadcaster behavior is covered by DataSourceStatusProviderImpl tests
 
 		t.Run("does not update status if state is the same and errorInfo is empty", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
 				status1 := p.dataSourceUpdates.currentStatus
 				<-time.After(time.Millisecond) // so time is different
@@ -139,7 +139,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("does not update status if new state is empty", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
 				status1 := p.dataSourceUpdates.currentStatus
 
@@ -150,7 +150,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("updates status if state is the same and errorInfo is not empty", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
 				status1 := p.dataSourceUpdates.currentStatus
 				<-time.After(time.Millisecond) // so time is different
@@ -165,7 +165,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("updates status if state is not the same", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				errorInfo := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown}
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, errorInfo)
 
@@ -177,7 +177,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("Initialized is used instead of Interrupted during startup", func(t *testing.T) {
-			withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				errorInfo := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown}
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo)
 				status1 := p.dataSourceUpdates.currentStatus
@@ -197,7 +197,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 	})
 
 	t.Run("GetDataStoreStatusProvider", func(t *testing.T) {
-		withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 			assert.Equal(t, p.dataStoreStatusProvider, p.dataSourceUpdates.GetDataStoreStatusProvider())
 		})
 	})
@@ -206,7 +206,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
 	// This verifies that the data store will receive the data set in the correct ordering for flag
 	// prerequisites, etc., in case it is not able to do an atomic update.
-	withDataSourceUpdatesImplTestParams(func(p dataSourceUpdatesImplTestParams) {
+	dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 		inputData := makeDependencyOrderingDataSourceTestData()
 
 		result := p.dataSourceUpdates.Init(inputData)
