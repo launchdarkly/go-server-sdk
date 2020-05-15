@@ -8,10 +8,10 @@ import (
 )
 
 func TestExternalUpdatesOnly(t *testing.T) {
-	ds, err := ExternalUpdatesOnly().CreateDataSource(basicClientContext(), nil, nil)
+	ds, err := ExternalUpdatesOnly().CreateDataSource(basicClientContext(), nil)
 	require.NoError(t, err)
 	defer ds.Close()
-	assert.True(t, ds.Initialized())
+	assert.True(t, ds.IsInitialized())
 	closeWhenReady := make(chan struct{})
 	ds.Start(closeWhenReady)
 	<-closeWhenReady

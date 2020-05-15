@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ShouldSkipDatabaseTests returns true if the environment variable LD_SKIP_DATABASE_TESTS is non-empty.
+func ShouldSkipDatabaseTests() bool {
+	return os.Getenv("LD_SKIP_DATABASE_TESTS") != ""
+}
+
 func assertEqualsSerializedItem(t *testing.T, item MockDataItem, serializedItemDesc intf.StoreSerializedItemDescriptor) {
 	// This allows for the fact that a PersistentDataStore may not be able to get the item version without
 	// deserializing it, so we allow the version to be zero.
@@ -99,7 +104,7 @@ func (s *PersistentDataStoreTestSuite) AlwaysRun(alwaysRun bool) *PersistentData
 
 // Run runs the configured test suite.
 func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
-	if !s.alwaysRun && os.Getenv("LD_SKIP_DATABASE_TESTS") != "" {
+	if !s.alwaysRun && ShouldSkipDatabaseTests() {
 		return
 	}
 

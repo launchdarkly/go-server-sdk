@@ -9,7 +9,7 @@ import (
 )
 
 type pollingProcessor struct {
-	store              interfaces.DataStore
+	dataSourceUpdates  interfaces.DataSourceUpdates
 	requestor          *requestor
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
@@ -19,13 +19,18 @@ type pollingProcessor struct {
 	closeOnce          sync.Once
 }
 
-func newPollingProcessor(context interfaces.ClientContext, store interfaces.DataStore, requestor *requestor, pollInterval time.Duration) *pollingProcessor {
+func newPollingProcessor(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+	requestor *requestor,
+	pollInterval time.Duration,
+) *pollingProcessor {
 	pp := &pollingProcessor{
-		store:        store,
-		requestor:    requestor,
-		pollInterval: pollInterval,
-		loggers:      context.GetLoggers(),
-		quit:         make(chan struct{}),
+		dataSourceUpdates: dataSourceUpdates,
+		requestor:         requestor,
+		pollInterval:      pollInterval,
+		loggers:           context.GetLoggers(),
+		quit:              make(chan struct{}),
 	}
 
 	return pp
@@ -84,7 +89,7 @@ func (pp *pollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		return pp.store.Init(makeAllStoreData(allData.Flags, allData.Segments))
+		pp.dataSourceUpdates.Init(makeAllStoreData(allData.Flags, allData.Segments))
 	}
 	return nil
 }
@@ -96,7 +101,7 @@ func (pp *pollingProcessor) Close() error {
 	return nil
 }
 
-func (pp *pollingProcessor) Initialized() bool {
+func (pp *pollingProcessor) IsInitialized() bool {
 	return pp.isInitialized
 }
 

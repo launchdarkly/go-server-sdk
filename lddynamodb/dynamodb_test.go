@@ -22,8 +22,10 @@ const (
 )
 
 func TestDynamoDBDataStore(t *testing.T) {
-	err := createTableIfNecessary()
-	require.NoError(t, err)
+	if !sharedtest.ShouldSkipDatabaseTests() {
+		err := createTableIfNecessary()
+		require.NoError(t, err)
+	}
 
 	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
 		ConcurrentModificationHook(setConcurrentModificationHook).

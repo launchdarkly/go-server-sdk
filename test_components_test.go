@@ -69,10 +69,22 @@ type singleDataSourceFactory struct {
 
 func (f singleDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
-	store interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
 	return f.dataSource, nil
+}
+
+type dataSourceFactoryThatExposesUpdater struct {
+	underlyingFactory interfaces.DataSourceFactory
+	dataSourceUpdates interfaces.DataSourceUpdates
+}
+
+func (f *dataSourceFactoryThatExposesUpdater) CreateDataSource(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+) (interfaces.DataSource, error) {
+	f.dataSourceUpdates = dataSourceUpdates
+	return f.underlyingFactory.CreateDataSource(context, dataSourceUpdates)
 }
 
 type singleEventProcessorFactory struct {
@@ -84,13 +96,13 @@ func (f singleEventProcessorFactory) CreateEventProcessor(context interfaces.Cli
 }
 
 type mockDataSource struct {
-	IsInitialized bool
-	CloseFn       func() error
-	StartFn       func(chan<- struct{})
+	Initialized bool
+	CloseFn     func() error
+	StartFn     func(chan<- struct{})
 }
 
-func (u mockDataSource) Initialized() bool {
-	return u.IsInitialized
+func (u mockDataSource) IsInitialized() bool {
+	return u.Initialized
 }
 
 func (u mockDataSource) Close() error {
@@ -105,6 +117,10 @@ func (u mockDataSource) Start(closeWhenReady chan<- struct{}) {
 		return
 	}
 	u.StartFn(closeWhenReady)
+}
+
+func startImmediately(closeWhenReady chan<- struct{}) {
+	close(closeWhenReady)
 }
 
 type testEventProcessor struct {

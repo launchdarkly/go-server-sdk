@@ -19,9 +19,9 @@ import (
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	handler := ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData())
 	httphelpers.WithServer(handler, func(server *httptest.Server) {
-		withDataSourceTestParams(func(params dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			req := newRequestor(basicClientContext(), nil, server.URL)
-			p := newPollingProcessor(basicClientContext(), params.store, req, time.Minute)
+			p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Minute)
 
 			p.Close()
 
@@ -41,11 +41,11 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2)).Segments(ldservices.FlagOrSegment("my-segment", 3))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(params dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			p, err := PollingDataSource().
 				BaseURI(ts.URL).
 				forcePollInterval(time.Millisecond*10).
-				CreateDataSource(basicClientContext(), params.store, params.dataStoreStatusProvider)
+				CreateDataSource(basicClientContext(), dataSourceUpdates)
 			require.NoError(t, err)
 			defer p.Close()
 
@@ -59,7 +59,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 				return
 			}
 
-			params.waitForInit(t, data)
+			dataSourceUpdates.DataStore.WaitForInit(t, data, 3*time.Second)
 
 			for i := 0; i < 2; i++ {
 				select {
@@ -91,9 +91,9 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 		t.Run(fmt.Sprintf("status %d, recoverable %v", tt.statusCode, tt.recoverable), func(t *testing.T) {
 			handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(tt.statusCode))
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
-				withDataSourceTestParams(func(params dataSourceTestParams) {
+				withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 					req := newRequestor(basicClientContext(), nil, ts.URL)
-					p := newPollingProcessor(basicClientContext(), params.store, req, time.Millisecond*10)
+					p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
 					defer p.Close()
 					closeWhenReady := make(chan struct{})
 					p.Start(closeWhenReady)
@@ -116,7 +116,7 @@ func TestPollingProcessorRequestResponseCodes(t *testing.T) {
 						select {
 						case <-closeWhenReady:
 							assert.Len(t, requestsCh, 1) // should be ready after a single attempt
-							assert.False(t, p.Initialized())
+							assert.False(t, p.IsInitialized())
 						case <-time.After(time.Second):
 							assert.Fail(t, "channel was not closed immediately")
 						}
@@ -131,12 +131,12 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(params dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers())
 			req := newRequestor(context, nil, ts.URL)
 
-			p := newPollingProcessor(context, params.store, req, time.Minute*30)
+			p := newPollingProcessor(context, dataSourceUpdates, req, time.Minute*30)
 			defer p.Close()
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)

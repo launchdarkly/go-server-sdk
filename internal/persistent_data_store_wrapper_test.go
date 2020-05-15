@@ -77,6 +77,12 @@ func TestPersistentDataStoreWrapper(t *testing.T) {
 	runTests("Delete", testPersistentDataStoreWrapperDelete, allCacheModes...)
 	runTests("IsInitialized", testPersistentDataStoreWrapperIsInitialized, allCacheModes...)
 	runTests("update failures with cache", testPersistentDataStoreWrapperUpdateFailuresWithCache, cachedOnly...)
+
+	runTests("IsStatusMonitoringEnabled", func(t *testing.T, mode testCacheMode) {
+		testWithMockPersistentDataStore(t, "is always true", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			assert.True(t, w.IsStatusMonitoringEnabled())
+		})
+	}, allCacheModes...)
 }
 
 func testWithMockPersistentDataStore(

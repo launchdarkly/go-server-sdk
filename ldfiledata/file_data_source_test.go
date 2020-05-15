@@ -5,21 +5,22 @@ import (
 	"os"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func X() {}
+
 type fileDataSourceTestParams struct {
-	store          interfaces.DataStore
 	dataSource     interfaces.DataSource
+	updates        *sharedtest.MockDataSourceUpdates
 	closeWhenReady chan struct{}
 }
 
@@ -31,15 +32,15 @@ func (p fileDataSourceTestParams) waitForStart() {
 func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
 	testContext := interfaces.NewClientContext("", nil, nil, sharedtest.NewTestLoggers())
-	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(internal.NewDataStoreStatusBroadcaster())
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, dataStoreUpdates)
-	dataSource, err := factory.CreateDataSource(testContext, store, internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates))
+	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	updates := sharedtest.NewMockDataSourceUpdates(store)
+	dataSource, err := factory.CreateDataSource(testContext, updates)
 	if err != nil {
 		panic(err)
 	}
 	defer dataSource.Close()
 	p.dataSource = dataSource
-	action(fileDataSourceTestParams{store, dataSource, make(chan struct{})})
+	action(fileDataSourceTestParams{dataSource, updates, make(chan struct{})})
 }
 
 func withTempFileContaining(initialText string, action func(filename string)) {
@@ -71,14 +72,14 @@ segments:
 		factory := NewFileDataSourceFactory(FilePaths(filename))
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
-			require.True(t, p.dataSource.Initialized())
+			require.True(t, p.dataSource.IsInitialized())
 
-			flagItem, err := p.store.Get(interfaces.DataKindFeatures(), "my-flag")
+			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
 			require.NoError(t, err)
 			require.NotNil(t, flagItem.Item)
 			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
 
-			segmentItem, err := p.store.Get(interfaces.DataKindSegments(), "my-segment")
+			segmentItem, err := p.updates.DataStore.Get(interfaces.DataKindSegments(), "my-segment")
 			require.NoError(t, err)
 			require.NotNil(t, segmentItem.Item)
 			assert.Empty(t, segmentItem.Item.(*ldmodel.Segment).Rules)
@@ -91,9 +92,9 @@ func TestNewFileDataSourceJson(t *testing.T) {
 		factory := NewFileDataSourceFactory(FilePaths(filename))
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
-			require.True(t, p.dataSource.Initialized())
+			require.True(t, p.dataSource.IsInitialized())
 
-			flagItem, err := p.store.Get(interfaces.DataKindFeatures(), "my-flag")
+			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
 			require.NoError(t, err)
 			require.NotNil(t, flagItem.Item)
 			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
@@ -107,14 +108,14 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 			factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 				p.waitForStart()
-				require.True(t, p.dataSource.Initialized())
+				require.True(t, p.dataSource.IsInitialized())
 
-				flagItem1, err := p.store.Get(interfaces.DataKindFeatures(), "my-flag1")
+				flagItem1, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag1")
 				require.NoError(t, err)
 				require.NotNil(t, flagItem1.Item)
 				assert.True(t, flagItem1.Item.(*ldmodel.FeatureFlag).On)
 
-				flagItem2, err := p.store.Get(interfaces.DataKindFeatures(), "my-flag2")
+				flagItem2, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag2")
 				require.NoError(t, err)
 				require.NotNil(t, flagItem2.Item)
 				assert.True(t, flagItem2.Item.(*ldmodel.FeatureFlag).On)
@@ -129,7 +130,7 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 			factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 				p.waitForStart()
-				require.False(t, p.dataSource.Initialized())
+				require.False(t, p.dataSource.IsInitialized())
 			})
 		})
 	})
@@ -140,7 +141,7 @@ func TestNewFileDataSourceBadData(t *testing.T) {
 		factory := NewFileDataSourceFactory(FilePaths(filename))
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
-			require.False(t, p.dataSource.Initialized())
+			require.False(t, p.dataSource.IsInitialized())
 		})
 	})
 }
@@ -152,7 +153,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 		factory := NewFileDataSourceFactory(FilePaths(filename))
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
-			assert.False(t, p.dataSource.Initialized())
+			assert.False(t, p.dataSource.IsInitialized())
 		})
 	})
 }
@@ -167,8 +168,8 @@ flagValues:
 		factory := NewFileDataSourceFactory(FilePaths(filename))
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
-			require.True(t, p.dataSource.Initialized())
-			flagItem, err := p.store.Get(interfaces.DataKindFeatures(), "my-flag")
+			require.True(t, p.dataSource.IsInitialized())
+			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
 			require.NoError(t, err)
 			require.NotNil(t, flagItem.Item)
 			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flagItem.Item.(*ldmodel.FeatureFlag).Variations)

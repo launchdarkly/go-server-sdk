@@ -75,3 +75,65 @@ func (b *DataStoreStatusBroadcaster) Close() {
 	}
 	b.subscribers = nil
 }
+
+// DataSourceStatusBroadcaster is the internal implementation of publish-subscribe for DataSourceStatus values.
+type DataSourceStatusBroadcaster struct {
+	subscribers []chan interfaces.DataSourceStatus
+	lock        sync.Mutex
+}
+
+// NewDataSourceStatusBroadcaster creates an instance of DataSourceStatusBroadcaster.
+func NewDataSourceStatusBroadcaster() *DataSourceStatusBroadcaster {
+	return &DataSourceStatusBroadcaster{}
+}
+
+// AddListener creates a new channel for listening to broadcast values. This is created with a small
+// channel buffer, but it is the consumer's responsibility to consume the channel to avoid blocking an
+// SDK goroutine.
+func (b *DataSourceStatusBroadcaster) AddListener() <-chan interfaces.DataSourceStatus {
+	ch := make(chan interfaces.DataSourceStatus, subscriberChannelBufferLength)
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.subscribers = append(b.subscribers, ch)
+	return ch
+}
+
+// RemoveListener stops broadcasting to a channel that was created with AddListener.
+func (b *DataSourceStatusBroadcaster) RemoveListener(ch <-chan interfaces.DataSourceStatus) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	ss := b.subscribers
+	for i, s := range ss {
+		if s == ch {
+			copy(ss[i:], ss[i+1:])
+			ss[len(ss)-1] = nil
+			b.subscribers = ss[:len(ss)-1]
+			close(s)
+			break
+		}
+	}
+}
+
+// Broadcast broadcasts a new value to the registered listeners, if any.
+func (b *DataSourceStatusBroadcaster) Broadcast(value interfaces.DataSourceStatus) {
+	var ss []chan interfaces.DataSourceStatus
+	b.lock.Lock()
+	if len(b.subscribers) > 0 {
+		ss = make([]chan interfaces.DataSourceStatus, len(b.subscribers))
+		copy(ss, b.subscribers)
+	}
+	b.lock.Unlock()
+	for _, ch := range ss {
+		ch <- value
+	}
+}
+
+// Close closes all currently registered listener channels.
+func (b *DataSourceStatusBroadcaster) Close() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	for _, s := range b.subscribers {
+		close(s)
+	}
+	b.subscribers = nil
+}

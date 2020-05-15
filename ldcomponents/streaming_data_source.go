@@ -28,8 +28,7 @@ const (
 )
 
 type streamProcessor struct {
-	store                      interfaces.DataStore
-	dataStoreStatusProvider    interfaces.DataStoreStatusProvider
+	dataSourceUpdates          interfaces.DataSourceUpdates
 	streamURI                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
@@ -63,14 +62,14 @@ type deleteData struct {
 	Version int    `json:"version"`
 }
 
-func (sp *streamProcessor) Initialized() bool {
+func (sp *streamProcessor) IsInitialized() bool {
 	return sp.isInitialized
 }
 
 func (sp *streamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	if sp.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
-		sp.storeStatusCh = sp.dataStoreStatusProvider.AddStatusListener()
+	if sp.dataSourceUpdates.GetDataStoreStatusProvider().IsStatusMonitoringEnabled() {
+		sp.storeStatusCh = sp.dataSourceUpdates.GetDataStoreStatusProvider().AddStatusListener()
 	}
 	go sp.subscribe(closeWhenReady)
 }
@@ -142,12 +141,12 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				shouldRestart = true // scenario 1 above
 			}
 
-			storeUpdateFailed := func(updateDesc string, err error) {
+			storeUpdateFailed := func(updateDesc string) {
 				if sp.storeStatusCh != nil {
-					sp.loggers.Errorf("Failed to store %s in data store (%s); will try again once data store is working", updateDesc, err)
+					sp.loggers.Errorf("Failed to store %s in data store; will try again once data store is working", updateDesc)
 					// scenario 2a above
 				} else {
-					sp.loggers.Errorf("Failed to store %s in data store (%s); will restart stream until successful", updateDesc, err)
+					sp.loggers.Errorf("Failed to store %s in data store; will restart stream until successful", updateDesc)
 					shouldRestart = true // scenario 2b above
 				}
 			}
@@ -159,11 +158,10 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					gotMalformedEvent(event, err)
 					break
 				}
-				err := sp.store.Init(makeAllStoreData(put.Data.Flags, put.Data.Segments))
-				if err == nil {
+				if sp.dataSourceUpdates.Init(makeAllStoreData(put.Data.Flags, put.Data.Segments)) {
 					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				} else {
-					storeUpdateFailed("initial streaming data", err)
+					storeUpdateFailed("initial streaming data")
 				}
 
 			case patchEvent:
@@ -182,8 +180,8 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					gotMalformedEvent(event, err)
 					break
 				}
-				if err = sp.store.Upsert(path.kind, path.key, item); err != nil {
-					storeUpdateFailed("streaming update of "+path.key, err)
+				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, item) {
+					storeUpdateFailed("streaming update of " + path.key)
 				}
 
 			case deleteEvent:
@@ -198,8 +196,8 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 				deletedItem := interfaces.StoreItemDescriptor{Version: data.Version, Item: nil}
-				if err = sp.store.Upsert(path.kind, path.key, deletedItem); err != nil {
-					storeUpdateFailed("streaming deletion of "+path.key, err)
+				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, deletedItem) {
+					storeUpdateFailed("streaming deletion of " + path.key)
 				}
 
 			case indirectPatchEvent:
@@ -212,8 +210,8 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					sp.loggers.Errorf(`Unexpected error requesting %s item "%s": %+v`, path.kind, path.key, err)
 					break
 				}
-				if err = sp.store.Upsert(path.kind, path.key, item); err != nil {
-					storeUpdateFailed("streaming update of "+path.key, err)
+				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, item) {
+					storeUpdateFailed("streaming update of " + path.key)
 				}
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
@@ -248,21 +246,19 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 func newStreamProcessor(
 	context interfaces.ClientContext,
-	store interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 	streamURI string,
 	initialReconnectDelay time.Duration,
 	requestor *requestor,
 ) *streamProcessor {
 	sp := &streamProcessor{
-		store:                   store,
-		dataStoreStatusProvider: dataStoreStatusProvider,
-		streamURI:               streamURI,
-		initialReconnectDelay:   initialReconnectDelay,
-		requestor:               requestor,
-		headers:                 context.GetDefaultHTTPHeaders(),
-		loggers:                 context.GetLoggers(),
-		halt:                    make(chan struct{}),
+		dataSourceUpdates:     dataSourceUpdates,
+		streamURI:             streamURI,
+		initialReconnectDelay: initialReconnectDelay,
+		requestor:             requestor,
+		headers:               context.GetDefaultHTTPHeaders(),
+		loggers:               context.GetLoggers(),
+		halt:                  make(chan struct{}),
 	}
 	if hdm, ok := context.(hasDiagnosticsManager); ok {
 		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
@@ -368,7 +364,7 @@ func (sp *streamProcessor) Close() error {
 		sp.loggers.Info("Closing event stream")
 		close(sp.halt)
 		if sp.storeStatusCh != nil {
-			sp.dataStoreStatusProvider.RemoveStatusListener(sp.storeStatusCh)
+			sp.dataSourceUpdates.GetDataStoreStatusProvider().RemoveStatusListener(sp.storeStatusCh)
 		}
 	})
 	return nil

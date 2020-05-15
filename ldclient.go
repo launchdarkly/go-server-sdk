@@ -33,14 +33,16 @@ const Version = "5.0.0"
 // Applications should instantiate a single instance for the lifetime
 // of their application.
 type LDClient struct {
-	sdkKey                     string
-	config                     Config
-	eventProcessor             ldevents.EventProcessor
-	dataSource                 interfaces.DataSource
-	store                      interfaces.DataStore
-	evaluator                  ldeval.Evaluator
-	dataStoreStatusBroadcaster *internal.DataStoreStatusBroadcaster
-	dataStoreStatusProvider    interfaces.DataStoreStatusProvider
+	sdkKey                      string
+	config                      Config
+	eventProcessor              ldevents.EventProcessor
+	dataSource                  interfaces.DataSource
+	store                       interfaces.DataStore
+	evaluator                   ldeval.Evaluator
+	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
+	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
+	dataStoreStatusBroadcaster  *internal.DataStoreStatusBroadcaster
+	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
 }
 
 // Implementation of ldeval.PrerequisiteFlagEventRecorder
@@ -67,14 +69,13 @@ type offlineDataSource struct{}
 
 func (f offlineDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
-	store interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
 	context.GetLoggers().Info("Started LaunchDarkly client in LDD mode")
 	return offlineDataSource{}, nil
 }
 
-func (o offlineDataSource) Initialized() bool {
+func (o offlineDataSource) IsInitialized() bool {
 	return true
 }
 
@@ -137,36 +138,45 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	clientContext := newClientContextImpl(sdkKey, config, config.newHTTPClient, diagnosticsManager)
 
-	dataStoreStatusBroadcaster := internal.NewDataStoreStatusBroadcaster()
-	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(dataStoreStatusBroadcaster)
+	client := LDClient{
+		sdkKey: sdkKey,
+		config: config,
+	}
+
+	client.dataStoreStatusBroadcaster = internal.NewDataStoreStatusBroadcaster()
+	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
 	store, err := getDataStoreFactory(config).CreateDataStore(clientContext, dataStoreUpdates)
 	if err != nil {
 		return nil, err
 	}
+	client.store = store
 
 	dataProvider := interfaces.NewDataStoreEvaluatorDataProvider(store, config.Loggers)
-	evaluator := ldeval.NewEvaluator(dataProvider)
+	client.evaluator = ldeval.NewEvaluator(dataProvider)
+	client.dataStoreStatusProvider = internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
-	dataStoreStatusProvider := internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
-
-	client := LDClient{
-		sdkKey:                     sdkKey,
-		config:                     config,
-		store:                      store,
-		evaluator:                  evaluator,
-		dataStoreStatusBroadcaster: dataStoreStatusBroadcaster,
-		dataStoreStatusProvider:    dataStoreStatusProvider,
-	}
+	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
+	dataSourceUpdates := internal.NewDataSourceUpdatesImpl(
+		store,
+		client.dataStoreStatusProvider,
+		client.dataSourceStatusBroadcaster,
+		config.Loggers,
+	)
 
 	client.eventProcessor, err = eventProcessorFactory.CreateEventProcessor(clientContext)
 	if err != nil {
 		return nil, err
 	}
 
-	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, store, dataStoreStatusProvider)
+	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, dataSourceUpdates)
 	if err != nil {
 		return nil, err
 	}
+	client.dataSourceStatusProvider = internal.NewDataSourceStatusProviderImpl(
+		client.dataSourceStatusBroadcaster,
+		dataSourceUpdates,
+	)
+
 	client.dataSource.Start(closeWhenReady)
 	if config.Offline {
 		config.Loggers.Info("Started LaunchDarkly client in offline mode")
@@ -180,7 +190,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	for {
 		select {
 		case <-closeWhenReady:
-			if !client.dataSource.Initialized() {
+			if !client.dataSource.IsInitialized() {
 				config.Loggers.Warn("LaunchDarkly client initialization failed")
 				return &client, ErrInitializationFailed
 			}
@@ -300,7 +310,7 @@ func (client *LDClient) SecureModeHash(user lduser.User) string {
 
 // Initialized returns whether the LaunchDarkly client is initialized.
 func (client *LDClient) Initialized() bool {
-	return client.dataSource.Initialized()
+	return client.dataSource.IsInitialized()
 }
 
 // Close shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
@@ -311,6 +321,7 @@ func (client *LDClient) Close() error {
 	_ = client.eventProcessor.Close()
 	_ = client.dataSource.Close()
 	_ = client.store.Close()
+	client.dataSourceStatusBroadcaster.Close()
 	client.dataStoreStatusBroadcaster.Close()
 	return nil
 }
@@ -473,6 +484,16 @@ func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal l
 func (client *LDClient) JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, defaultVal, false, true)
 	return detail.Value, detail, err
+}
+
+// GetDataSourceStatusProvider returns an interface for tracking the status of the data source.
+//
+// The data source is the mechanism that the SDK uses to get feature flag configurations, such as a
+// streaming connection (the default) or poll requests. The DataSourceStatusProvider has methods
+// for checking whether the data source is (as far as the SDK knows) currently operational and tracking
+// changes in this status.
+func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatusProvider {
+	return client.dataSourceStatusProvider
 }
 
 // GetDataStoreStatusProvider returns an interface for tracking the status of a persistent data store.

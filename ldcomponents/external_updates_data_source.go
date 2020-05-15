@@ -29,8 +29,7 @@ func ExternalUpdatesOnly() interfaces.DataSourceFactory {
 // DataSourceFactory implementation
 func (f nullDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
-	dataStore interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
 	return nullDataSource{}, nil
 }
@@ -49,7 +48,7 @@ func (f nullDataSourceFactory) DescribeConfiguration() ldvalue.Value {
 
 // DataSource implementation
 
-func (n nullDataSource) Initialized() bool {
+func (n nullDataSource) IsInitialized() bool {
 	return true
 }
 

@@ -133,12 +133,7 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
-	dataSource := mockDataSource{
-		IsInitialized: false,
-		StartFn: func(closeWhenReady chan<- struct{}) {
-			close(closeWhenReady)
-		},
-	}
+	dataSource := mockDataSource{Initialized: false, StartFn: startImmediately}
 
 	client, err := MakeCustomClient(testSdkKey, Config{
 		Loggers:    sharedtest.NewTestLoggers(),
@@ -158,7 +153,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
 		Offline:    false,
 		DataStore:  ldcomponents.InMemoryDataStore(),
-		DataSource: singleDataSourceFactory{mockDataSource{IsInitialized: true}},
+		DataSource: singleDataSourceFactory{mockDataSource{Initialized: true}},
 		Events:     singleEventProcessorFactory{&testEventProcessor{}},
 	}
 	config.Loggers.SetBaseLogger(newMockLogger(""))
