@@ -13,6 +13,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
@@ -53,6 +54,8 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
 
@@ -82,6 +85,8 @@ func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 		defer client.Close()
 
 		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
@@ -114,6 +119,8 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
 
@@ -145,6 +152,8 @@ func TestClientStartsInPollingMode(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
 
@@ -174,6 +183,8 @@ func TestClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 		defer client.Close()
 
 		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)

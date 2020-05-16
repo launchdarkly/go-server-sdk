@@ -26,6 +26,14 @@ type requestor struct {
 	loggers    ldlog.Loggers
 }
 
+type malformedJSONError struct {
+	innerError error
+}
+
+func (e malformedJSONError) Error() string {
+	return e.innerError.Error()
+}
+
 func newRequestor(context interfaces.ClientContext, httpClient *http.Client, baseURI string) *requestor {
 	var decoratedClient http.Client
 	if httpClient != nil {
@@ -62,7 +70,7 @@ func (r *requestor) requestAll() (allData, bool, error) {
 	jsonErr := json.Unmarshal(body, &data)
 
 	if jsonErr != nil {
-		return allData{}, false, jsonErr
+		return allData{}, false, malformedJSONError{jsonErr}
 	}
 	return data, cached, nil
 }
@@ -81,7 +89,11 @@ func (r *requestor) requestResource(kind interfaces.StoreDataKind, key string) (
 	if err != nil {
 		return interfaces.StoreItemDescriptor{}, err
 	}
-	return kind.Deserialize(body)
+	item, err := kind.Deserialize(body)
+	if err != nil {
+		return item, malformedJSONError{err}
+	}
+	return item, nil
 }
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {

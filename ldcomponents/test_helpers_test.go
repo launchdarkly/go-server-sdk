@@ -47,6 +47,10 @@ func (c *contextWithDiagnostics) GetDiagnosticsManager() *ldevents.DiagnosticsMa
 	return c.diagnosticsManager
 }
 
+func (c *contextWithDiagnostics) IsOffline() bool {
+	return false
+}
+
 func newClientContextWithDiagnostics(sdkKey string, headers http.Header, httpClientFactory func() *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) interfaces.ClientContext {
 	return &contextWithDiagnostics{sdkKey, headers, httpClientFactory, diagnosticsManager}
 }

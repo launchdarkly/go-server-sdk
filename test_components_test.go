@@ -18,7 +18,7 @@ var testUser = lduser.NewUser("test-user-key")
 var alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
 
 func basicClientContext() interfaces.ClientContext {
-	return newClientContextImpl(testSdkKey, Config{Loggers: sharedtest.NewTestLoggers()}, nil, nil)
+	return newClientContextFromConfig(testSdkKey, Config{Loggers: sharedtest.NewTestLoggers()}, nil)
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {
