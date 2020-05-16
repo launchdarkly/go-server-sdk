@@ -16,7 +16,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 	shared "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
@@ -63,8 +62,8 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		assert.Nil(t, logCapture.Output[ldlog.Error])
-		assert.Nil(t, logCapture.Output[ldlog.Warn])
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
+		assert.Len(t, logCapture.GetOutput(ldlog.Warn), 0)
 	})
 }
 
@@ -95,9 +94,9 @@ func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		expectedError := "Received HTTP error 401 (invalid SDK key) for streaming connection - giving up permanently"
-		assert.Equal(t, []string{expectedError}, logCapture.Output[ldlog.Error])
-		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.Output[ldlog.Warn])
+		expectedError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
+		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
+		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -130,9 +129,9 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 		assert.Equal(t, testSdkKey, r1.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		expectedError := "Received HTTP error 503 for streaming connection - will retry"
-		assert.Equal(t, []string{expectedError}, logCapture.Output[ldlog.Error])
-		assert.Nil(t, logCapture.Output[ldlog.Warn])
+		expectedWarning := "Error in stream connection (will retry): HTTP error 503"
+		assert.Equal(t, []string{expectedWarning}, logCapture.GetOutput(ldlog.Warn))
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 	})
 }
 
@@ -161,8 +160,8 @@ func TestClientStartsInPollingMode(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		assert.Nil(t, logCapture.Output[ldlog.Error])
-		assert.Equal(t, []string{pollingModeWarningMessage}, logCapture.Output[ldlog.Warn])
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
+		assert.Equal(t, []string{pollingModeWarningMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -193,8 +192,9 @@ func TestClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		assert.NotNil(t, logCapture.Output[ldlog.Error]) // specific error message is long and not important
-		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.Output[ldlog.Warn])
+		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
+		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
+		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -242,7 +242,7 @@ func TestClientSendsDiagnostics(t *testing.T) {
 			config := Config{
 				DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
 				Events:     ldcomponents.SendEvents().BaseURI(eventsServer.URL),
-				Logging:    ldcomponents.Logging().Loggers(shared.NewTestLoggers()),
+				Logging:    shared.TestLogging(),
 			}
 
 			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -269,7 +269,7 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 			DataSource:        ldcomponents.StreamingDataSource().BaseURI(server.URL),
 			Events:            ldcomponents.NoEvents(),
 			HTTPClientFactory: NewHTTPClientFactory(ldhttp.CACertOption(certData)),
-			Logging:           ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+			Logging:           shared.TestLogging(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -308,7 +308,7 @@ func TestClientStartupTimesOut(t *testing.T) {
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
 
-		assert.Equal(t, []string{"Timeout encountered waiting for LaunchDarkly client initialization"}, logCapture.Output[ldlog.Warn])
-		assert.Nil(t, logCapture.Output[ldlog.Error])
+		assert.Equal(t, []string{"Timeout encountered waiting for LaunchDarkly client initialization"}, logCapture.GetOutput(ldlog.Warn))
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 	})
 }

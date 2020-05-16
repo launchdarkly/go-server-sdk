@@ -8,6 +8,11 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
+const (
+	pollingErrorContext     = "on polling request"
+	pollingWillRetryMessage = "will retry at next scheduled poll interval"
+)
+
 type pollingProcessor struct {
 	dataSourceUpdates  interfaces.DataSourceUpdates
 	requestor          *requestor
@@ -60,15 +65,20 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				return
 			case <-ticker.C:
 				if err := pp.poll(); err != nil {
-					pp.loggers.Errorf("Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(httpStatusError); ok {
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:       interfaces.DataSourceErrorKindErrorResponse,
 							StatusCode: hse.Code,
 							Time:       time.Now(),
 						}
-						pp.loggers.Error(httpErrorMessage(hse.Code, "polling request", "will retry"))
-						if isHTTPErrorRecoverable(hse.Code) {
+						recoverable := checkIfErrorIsRecoverableAndLog(
+							pp.loggers,
+							httpErrorDescription(hse.Code),
+							pollingErrorContext,
+							hse.Code,
+							pollingWillRetryMessage,
+						)
+						if recoverable {
 							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 						} else {
 							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
@@ -84,6 +94,7 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 						if _, ok := err.(malformedJSONError); ok {
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
+						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
 						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					}
 					continue

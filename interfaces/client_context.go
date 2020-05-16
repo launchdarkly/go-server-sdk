@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"net/http"
+	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
@@ -81,4 +82,8 @@ func (c defaultLoggingConfiguration) IsLogUserKeyInErrors() bool {
 
 func (c defaultLoggingConfiguration) GetLoggers() ldlog.Loggers {
 	return ldlog.NewDefaultLoggers()
+}
+
+func (c defaultLoggingConfiguration) GetLogDataSourceOutageAsErrorAfter() time.Duration {
+	return 0
 }

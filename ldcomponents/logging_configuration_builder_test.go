@@ -36,8 +36,8 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 		c := Logging().Loggers(mockLoggers.Loggers).MinLevel(ldlog.Error).CreateLoggingConfiguration()
 		c.GetLoggers().Info("suppress this message")
 		c.GetLoggers().Error("log this message")
-		assert.Nil(t, mockLoggers.Output[ldlog.Info])
-		assert.Equal(t, []string{"log this message"}, mockLoggers.Output[ldlog.Error])
+		assert.Len(t, mockLoggers.GetOutput(ldlog.Info), 0)
+		assert.Equal(t, []string{"log this message"}, mockLoggers.GetOutput(ldlog.Error))
 	})
 
 	t.Run("NoLogging", func(t *testing.T) {

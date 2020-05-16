@@ -1,6 +1,9 @@
 package interfaces
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // DataSourceStatusProvider is an interface for querying the status of a DataSource. The data source is the
 // component that receives updates to feature flag data; normally this is a streaming connection, but it
@@ -90,6 +93,11 @@ type DataSourceStatus struct {
 	LastError DataSourceErrorInfo
 }
 
+// String returns a simple string representation of the status.
+func (e DataSourceStatus) String() string {
+	return fmt.Sprintf("Status(%s,%s,%s)", e.State, e.StateSince, e.LastError)
+}
+
 // DataSourceState is any of the allowable values for DataSourceStatus.State.
 //
 // See DataSourceStatusProvider.
@@ -146,6 +154,28 @@ type DataSourceErrorInfo struct {
 
 	// Time is the date/time that the error occurred.
 	Time time.Time
+}
+
+// String returns a simple string representation of the error.
+func (e DataSourceErrorInfo) String() string {
+	ret := string(e.Kind)
+	if e.StatusCode > 0 || e.Message != "" {
+		ret = ret + " ("
+		if e.StatusCode > 0 {
+			ret = ret + fmt.Sprintf("%d", e.StatusCode)
+		}
+		if e.Message != "" {
+			if e.StatusCode > 0 {
+				ret = ret + ", "
+			}
+			ret = ret + e.Message
+		}
+		ret = ret + ")"
+	}
+	if !e.Time.IsZero() {
+		ret = ret + fmt.Sprintf(" @%s", e.Time)
+	}
+	return ret
 }
 
 // DataSourceErrorKind is any of the allowable values for DataSourceErrorInfo.Kind.

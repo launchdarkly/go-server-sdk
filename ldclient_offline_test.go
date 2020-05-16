@@ -7,12 +7,11 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 func makeOfflineClient() *LDClient {
-	config := Config{Offline: true, Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers())}
+	config := Config{Offline: true, Logging: sharedtest.TestLogging()}
 	client, _ := MakeCustomClient("api_key", config, 0)
 	return client
 }

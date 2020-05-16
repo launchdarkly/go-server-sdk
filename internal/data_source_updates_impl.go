@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ type DataSourceUpdatesImpl struct {
 	store                   intf.DataStore
 	dataStoreStatusProvider intf.DataStoreStatusProvider
 	broadcaster             *DataSourceStatusBroadcaster
+	outageTracker           *outageTracker
 	loggers                 ldlog.Loggers
 	currentStatus           intf.DataSourceStatus
 	lastStoreUpdateFailed   bool
@@ -26,12 +28,14 @@ func NewDataSourceUpdatesImpl(
 	store intf.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
 	broadcaster *DataSourceStatusBroadcaster,
+	logDataSourceOutageAsErrorAfter time.Duration,
 	loggers ldlog.Loggers,
 ) *DataSourceUpdatesImpl {
 	return &DataSourceUpdatesImpl{
 		store:                   store,
 		dataStoreStatusProvider: dataStoreStatusProvider,
 		broadcaster:             broadcaster,
+		outageTracker:           newOutageTracker(logDataSourceOutageAsErrorAfter, loggers),
 		loggers:                 loggers,
 		currentStatus: intf.DataSourceStatus{
 			State:      intf.DataSourceStateInitializing,
@@ -128,6 +132,9 @@ func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
 		StateSince: stateSince,
 		LastError:  lastError,
 	}
+
+	d.outageTracker.trackDataSourceState(newState, newError)
+
 	return d.currentStatus, true
 }
 
@@ -176,4 +183,97 @@ func (d *DataSourceUpdatesImpl) waitFor(desiredState intf.DataSourceState, timeo
 			return false
 		}
 	}
+}
+
+type outageTracker struct {
+	outageLoggingTimeout time.Duration
+	loggers              ldlog.Loggers
+	inOutage             bool
+	errorCounts          map[intf.DataSourceErrorInfo]int
+	timeoutCloser        chan struct{}
+	lock                 sync.Mutex
+}
+
+func newOutageTracker(outageLoggingTimeout time.Duration, loggers ldlog.Loggers) *outageTracker {
+	return &outageTracker{
+		outageLoggingTimeout: outageLoggingTimeout,
+		loggers:              loggers,
+	}
+}
+
+func (o *outageTracker) trackDataSourceState(newState intf.DataSourceState, newError intf.DataSourceErrorInfo) {
+	if o.outageLoggingTimeout == 0 {
+		return
+	}
+
+	o.lock.Lock()
+	defer o.lock.Unlock()
+
+	if newState == intf.DataSourceStateInterrupted || newError.Kind != "" || (newState == intf.DataSourceStateInitializing && o.inOutage) {
+		// We are in a potentially recoverable outage. If that wasn't the case already, and if we've been configured
+		// with a timeout for logging the outage at a higher level, schedule that timeout.
+		if o.inOutage {
+			// We were already in one - just record this latest error for logging later.
+			o.recordError(newError)
+		} else {
+			// We weren't already in one, so set the timeout and start recording errors.
+			o.inOutage = true
+			o.errorCounts = make(map[intf.DataSourceErrorInfo]int)
+			o.recordError(newError)
+			o.timeoutCloser = make(chan struct{})
+			go o.awaitTimeout(o.timeoutCloser)
+		}
+	} else {
+		if o.timeoutCloser != nil {
+			close(o.timeoutCloser)
+			o.timeoutCloser = nil
+		}
+		o.inOutage = false
+	}
+}
+
+func (o *outageTracker) recordError(newError intf.DataSourceErrorInfo) {
+	// Accumulate how many times each kind of error has occurred during the outage - use just the basic
+	// properties as the key so the map won't expand indefinitely
+	basicErrorInfo := intf.DataSourceErrorInfo{Kind: newError.Kind, StatusCode: newError.StatusCode}
+	o.errorCounts[basicErrorInfo] = o.errorCounts[basicErrorInfo] + 1
+}
+
+func (o *outageTracker) awaitTimeout(closer chan struct{}) {
+	select {
+	case <-closer:
+		return
+	case <-time.After(o.outageLoggingTimeout):
+		break
+	}
+
+	o.lock.Lock()
+	if !o.inOutage {
+		o.lock.Unlock()
+		return
+	}
+	errorsDesc := o.describeErrors()
+	o.timeoutCloser = nil
+	o.lock.Unlock()
+
+	o.loggers.Errorf(
+		"LaunchDarkly data source outage - updates have been unavailable for at least %s with the following errors: %s",
+		o.outageLoggingTimeout,
+		errorsDesc,
+	)
+}
+
+func (o *outageTracker) describeErrors() string {
+	ret := ""
+	for err, count := range o.errorCounts {
+		if ret != "" {
+			ret = ret + ", "
+		}
+		times := "times"
+		if count == 1 {
+			times = "time"
+		}
+		ret = ret + fmt.Sprintf("%s (%d %s)", err, count, times)
+	}
+	return ret
 }

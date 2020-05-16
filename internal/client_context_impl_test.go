@@ -14,7 +14,7 @@ import (
 
 func TestClientContextImpl(t *testing.T) {
 	sdkKey := "SDK_KEY"
-	logging := sharedtest.TestLogging()
+	logging := sharedtest.TestLoggingConfig()
 	headers := make(http.Header)
 	headers.Set("x", "y")
 

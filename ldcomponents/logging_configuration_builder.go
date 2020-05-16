@@ -1,6 +1,8 @@
 package ldcomponents
 
 import (
+	"time"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
@@ -19,6 +21,10 @@ type LoggingConfigurationBuilder struct {
 	config internal.LoggingConfigurationImpl
 }
 
+// DefaultLogDataSourceOutageAsErrorAfter is the default value for
+// LoggingConfigurationBuilder.LogDataSourceOutageAsErrorAfter(): one minute.
+const DefaultLogDataSourceOutageAsErrorAfter = time.Minute
+
 // Logging returns a configuration builder for the SDK's logging configuration.
 //
 // The default configuration has logging enabled with default settings. If you want to set non-default
@@ -29,7 +35,30 @@ type LoggingConfigurationBuilder struct {
 //         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
 //     }
 func Logging() *LoggingConfigurationBuilder {
-	return &LoggingConfigurationBuilder{config: internal.LoggingConfigurationImpl{Loggers: ldlog.NewDefaultLoggers()}}
+	return &LoggingConfigurationBuilder{
+		config: internal.LoggingConfigurationImpl{
+			LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
+			Loggers:                         ldlog.NewDefaultLoggers(),
+		},
+	}
+}
+
+// LogDataSourceOutageAsErrorAfter sets the time threshold, if any, after which the SDK will log a data
+// source outage at Error level instead of Warn level.
+//
+// A data source outage means that an error condition, such as a network interruption or an error from
+// the LaunchDarkly service, is preventing the SDK from receiving feature flag updates. Many outages are
+// brief and the SDK can recover from them quickly; in that case it may be undesirable to log an
+// Error line, which might trigger an unwanted automated alert depending on your monitoring
+// tools. So, by default, the SDK logs such errors at Warn level. However, if the amount of time
+// specified by this method elapses before the data source starts working again, the SDK will log an
+// additional message at Error level to indicate that this is a sustained problem.
+//
+// The default is DefaultLogDataSourceOutageAsErrorAfter (one minute). Setting it to zero will disable
+// this feature, so you will only get Warn messages.
+func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(logDataSourceOutageAsErrorAfter time.Duration) *LoggingConfigurationBuilder {
+	b.config.LogDataSourceOutageAsErrorAfter = logDataSourceOutageAsErrorAfter
+	return b
 }
 
 // LogEvaluationErrors sets whether the client should log a warning message whenever a flag cannot be evaluated due

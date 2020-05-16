@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,8 @@ import (
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
+
+const testDataSourceOutageTimeout = 200 * time.Millisecond
 
 type dataSourceUpdatesImplTestParams struct {
 	store                   *sharedtest.CapturingDataStore
@@ -32,7 +35,13 @@ func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	p.dataStoreStatusProvider = NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
 	dataSourceStatusBroadcaster := NewDataSourceStatusBroadcaster()
 	defer dataSourceStatusBroadcaster.Close()
-	p.dataSourceUpdates = NewDataSourceUpdatesImpl(p.store, p.dataStoreStatusProvider, dataSourceStatusBroadcaster, p.mockLoggers.Loggers)
+	p.dataSourceUpdates = NewDataSourceUpdatesImpl(
+		p.store,
+		p.dataStoreStatusProvider,
+		dataSourceStatusBroadcaster,
+		testDataSourceOutageTimeout,
+		p.mockLoggers.Loggers,
+	)
 
 	action(p)
 }
@@ -61,12 +70,12 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.False(t, result)
 				assert.Equal(t, intf.DataSourceErrorKindStoreError, p.dataSourceUpdates.GetLastStatus().LastError.Kind)
 
-				log1 := p.mockLoggers.Output[ldlog.Warn]
+				log1 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, []string{expectedStoreErrorMessage}, log1)
 
 				// does not log a redundant message if the next update also fails
 				assert.False(t, p.dataSourceUpdates.Init(NewDataSetBuilder().Build()))
-				log2 := p.mockLoggers.Output[ldlog.Warn]
+				log2 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, log1, log2)
 
 				// does log the message again if there's another failure later after a success
@@ -74,7 +83,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.True(t, p.dataSourceUpdates.Init(NewDataSetBuilder().Build()))
 				p.store.SetFakeError(storeError)
 				assert.False(t, p.dataSourceUpdates.Init(NewDataSetBuilder().Build()))
-				log3 := p.mockLoggers.Output[ldlog.Warn]
+				log3 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, []string{expectedStoreErrorMessage, expectedStoreErrorMessage}, log3)
 			})
 		})
@@ -104,12 +113,12 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.False(t, result)
 				assert.Equal(t, intf.DataSourceErrorKindStoreError, p.dataSourceUpdates.GetLastStatus().LastError.Kind)
 
-				log1 := p.mockLoggers.Output[ldlog.Warn]
+				log1 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, []string{expectedStoreErrorMessage}, log1)
 
 				// does not log a redundant message if the next update also fails
 				assert.False(t, p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc))
-				log2 := p.mockLoggers.Output[ldlog.Warn]
+				log2 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, log1, log2)
 
 				// does log the message again if there's another failure later after a success
@@ -117,7 +126,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.True(t, p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc))
 				p.store.SetFakeError(storeError)
 				assert.False(t, p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc))
-				log3 := p.mockLoggers.Output[ldlog.Warn]
+				log3 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, []string{expectedStoreErrorMessage, expectedStoreErrorMessage}, log3)
 			})
 		})
@@ -194,6 +203,8 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.Equal(t, errorInfo, status3.LastError)
 			})
 		})
+
+		t.Run("can log outage at Error level after timeout", TestDataSourceOutageLoggingTimeout)
 	})
 
 	t.Run("GetDataStoreStatusProvider", func(t *testing.T) {
@@ -247,6 +258,47 @@ func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
 				}
 			}
 		}
+	})
+}
+
+func TestDataSourceOutageLoggingTimeout(t *testing.T) {
+	t.Run("does not log error if data source recovers before timeout", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			errorInfo := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown}
+			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo)
+			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
+
+			<-time.After(testDataSourceOutageTimeout)
+
+			assert.Len(t, p.mockLoggers.GetOutput(ldlog.Error), 0)
+		})
+	})
+
+	t.Run("logs error if data source does not recover before timeout", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			// simulate a series of consecutive errors
+			errorInfo1 := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown, Time: time.Now()}
+			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo1)
+			errorInfo2 := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindErrorResponse, StatusCode: 500, Time: time.Now()}
+			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo2)
+
+			<-time.After(testDataSourceOutageTimeout + (100 * time.Millisecond))
+
+			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
+
+			<-time.After(testDataSourceOutageTimeout)
+
+			require.Len(t, p.mockLoggers.GetOutput(ldlog.Error), 1)
+			message := p.mockLoggers.GetOutput(ldlog.Error)[0]
+			assert.True(t, strings.HasPrefix(
+				message,
+				fmt.Sprintf(
+					"LaunchDarkly data source outage - updates have been unavailable for at least %s with the following errors:",
+					testDataSourceOutageTimeout,
+				)))
+			assert.Contains(t, message, "UNKNOWN (1 time)")
+			assert.Contains(t, message, "ERROR_RESPONSE (500) (1 time)")
+		})
 	})
 }
 

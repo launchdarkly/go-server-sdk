@@ -1,6 +1,8 @@
 package interfaces
 
 import (
+	"time"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
 
@@ -10,6 +12,11 @@ import (
 type LoggingConfiguration interface {
 	// GetLoggers returns the configured ldlog.Loggers instance.
 	GetLoggers() ldlog.Loggers
+
+	// GetLogDataSourceOutageAsErrorAfter returns the time threshold, if any, after which the SDK
+	// will log a data source outage at Error level instead of Warn level. See
+	// LoggingConfigurationBuilderLogDataSourceOutageAsErrorAfter().
+	GetLogDataSourceOutageAsErrorAfter() time.Duration
 
 	// IsLogEvaluationErrors returns true if evaluation errors should be logged.
 	IsLogEvaluationErrors() bool

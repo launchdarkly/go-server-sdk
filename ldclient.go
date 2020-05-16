@@ -171,6 +171,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		store,
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
+		clientContext.GetLogging().GetLogDataSourceOutageAsErrorAfter(),
 		loggers,
 	)
 
