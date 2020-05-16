@@ -21,7 +21,7 @@ type Config struct {
 	//
 	// If nil, the default is ldcomponents.StreamingDataSource(); see that method for an explanation of how to
 	// further configure streaming behavior. Other options include ldcomponents.PollingDataSource(),
-	// ldcomponents.ExternalUpdatesOnly(), the file data source in ldfiledata, or a custom implementation for testing.
+	// ldcomponents.ExternalUpdatesOnly(), ldfiledata.DataSource(), or a custom implementation for testing.
 	//
 	// If Offline is set to true, then DataSource is ignored.
 	DataSource interfaces.DataSourceFactory
