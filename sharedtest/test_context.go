@@ -43,3 +43,7 @@ func (c testLoggingConfiguration) IsLogUserKeyInErrors() bool {
 func (c testLoggingConfiguration) GetLoggers() ldlog.Loggers {
 	return NewTestLoggers()
 }
+
+func (c stubClientContext) IsOffline() bool {
+	return false
+}

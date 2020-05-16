@@ -102,6 +102,18 @@ func TestNewFileDataSourceJson(t *testing.T) {
 	})
 }
 
+func TestStatusIsValidAfterSuccessfulLoad(t *testing.T) {
+	withTempFileContaining(`{"flags": {"my-flag": {"on": true}}}`, func(filename string) {
+		factory := NewFileDataSourceFactory(FilePaths(filename))
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, p.dataSource.IsInitialized())
+
+			p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)
+		})
+	})
+}
+
 func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	withTempFileContaining(`{"flags": {"my-flag1": {"on": true}}}`, func(filename1 string) {
 		withTempFileContaining(`{"flags": {"my-flag2": {"on": true}}}`, func(filename2 string) {
@@ -154,6 +166,18 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			assert.False(t, p.dataSource.IsInitialized())
+		})
+	})
+}
+
+func TestStatusIsInterruptedAfterUnsuccessfulLoad(t *testing.T) {
+	withTempFileContaining(`bad data`, func(filename string) {
+		factory := NewFileDataSourceFactory(FilePaths(filename))
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.False(t, p.dataSource.IsInitialized())
+
+			p.updates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 		})
 	})
 }

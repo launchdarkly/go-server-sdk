@@ -62,14 +62,33 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				if err := pp.poll(); err != nil {
 					pp.loggers.Errorf("Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(httpStatusError); ok {
+						errorInfo := interfaces.DataSourceErrorInfo{
+							Kind:       interfaces.DataSourceErrorKindErrorResponse,
+							StatusCode: hse.Code,
+							Time:       time.Now(),
+						}
 						pp.loggers.Error(httpErrorMessage(hse.Code, "polling request", "will retry"))
-						if !isHTTPErrorRecoverable(hse.Code) {
+						if isHTTPErrorRecoverable(hse.Code) {
+							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+						} else {
+							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 							notifyReady()
 							return
 						}
+					} else {
+						errorInfo := interfaces.DataSourceErrorInfo{
+							Kind:    interfaces.DataSourceErrorKindNetworkError,
+							Message: err.Error(),
+							Time:    time.Now(),
+						}
+						if _, ok := err.(malformedJSONError); ok {
+							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
+						}
+						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					}
 					continue
 				}
+				pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 				pp.setInitializedOnce.Do(func() {
 					pp.isInitialized = true
 					pp.loggers.Info("First polling request successful")

@@ -65,31 +65,6 @@ func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.Prerequ
 // Standard event factory when evaluation reasons are not an issue
 var defaultEventFactory = ldevents.NewEventFactory(false, nil)
 
-// offlineDataSourceFactory is a stub identical to ldcomponents.ExternalUpdatesOnly(), except that it does not
-// log the "daemon mode" message.
-type offlineDataSourceFactory struct{}
-type offlineDataSource struct{}
-
-func (f offlineDataSourceFactory) CreateDataSource(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
-	context.GetLogging().GetLoggers().Info("Started LaunchDarkly client in LDD mode")
-	return offlineDataSource{}, nil
-}
-
-func (o offlineDataSource) IsInitialized() bool {
-	return true
-}
-
-func (o offlineDataSource) Close() error {
-	return nil
-}
-
-func (o offlineDataSource) Start(closeWhenReady chan<- struct{}) {
-	close(closeWhenReady)
-}
-
 // Initialization errors
 var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
@@ -99,10 +74,26 @@ var (
 
 // MakeClient creates a new client instance that connects to LaunchDarkly with the default configuration.
 //
-// The optional duration parameter allows callers to block until the client has connected to LaunchDarkly and is
-// properly initialized.
-//
 // For advanced configuration options, use MakeCustomClient.
+//
+// Unless it is configured to be offline with Config.Offline or ldcomponents.ExternalUpdatesOnly(), the client
+// will begin attempting to connect to LaunchDarkly as soon as you call this constructor. The constructor will
+// return when it successfully connects, or when the timeout set by the waitFor parameter expires, whichever
+// comes first. If it has not succeeded in connecting when the timeout elapses, you will receive the client in
+// an uninitialized state where feature flags will return  default values; it will still continue trying to
+// connect in the background. You can detect whether initialization has succeeded by calling Initialized().
+//
+// If you prefer to have the constructor return immediately, and then wait for initialization to finish
+// at some other point, you can use GetDataSourceStatusProvider() as follows:
+//
+//     // create the client but do not wait
+//     client = ld.MakeClient(sdkKey, 0)
+//
+//     // later, possibly on another goroutine:
+//     inited := client.GetDataSourceStatusProvider().WaitFor(DataSourceStateValid, 10 * time.Second)
+//     if !inited {
+//         // do whatever is appropriate if initialization has timed out
+//     }
 func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 	return MakeCustomClient(sdkKey, Config{}, waitFor)
 }
@@ -119,8 +110,24 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 //     }
 //     client, err := ld.MakeCustomClient(sdkKey, config, 5 * time.Second)
 //
-// The optional duration parameter allows callers to block until the client has connected to LaunchDarkly and is
-// properly initialized.
+// Unless it is configured to be offline with Config.Offline or ldcomponents.ExternalUpdatesOnly(), the client
+// will begin attempting to connect to LaunchDarkly as soon as you call this constructor. The constructor will
+// return when it successfully connects, or when the timeout set by the waitFor parameter expires, whichever
+// comes first. If it has not succeeded in connecting when the timeout elapses, you will receive the client in
+// an uninitialized state where feature flags will return  default values; it will still continue trying to
+// connect in the background. You can detect whether initialization has succeeded by calling Initialized().
+//
+// If you prefer to have the constructor return immediately, and then wait for initialization to finish
+// at some other point, you can use GetDataSourceStatusProvider() as follows:
+//
+//     // create the client but do not wait
+//     client = ld.MakeCustomClient(sdkKey, config, 0)
+//
+//     // later, possibly on another goroutine:
+//     inited := client.GetDataSourceStatusProvider().WaitFor(DataSourceStateValid, 10 * time.Second)
+//     if !inited {
+//         // do whatever is appropriate if initialization has timed out
+//     }
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	closeWhenReady := make(chan struct{})
 
@@ -136,7 +143,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 	}
 
-	clientContext := newClientContextImpl(sdkKey, config, config.newHTTPClient, diagnosticsManager)
+	clientContext := newClientContextFromConfig(sdkKey, config, diagnosticsManager)
 	loggers := clientContext.GetLogging().GetLoggers()
 	loggers.Infof("Starting LaunchDarkly client %s", Version)
 
@@ -172,7 +179,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return nil, err
 	}
 
-	client.dataSource, err = getDataSourceFactory(config).CreateDataSource(clientContext, dataSourceUpdates)
+	dataSourceFactory := getDataSourceFactory(config)
+	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, dataSourceUpdates)
 	if err != nil {
 		return nil, err
 	}
@@ -182,35 +190,33 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	)
 
 	client.dataSource.Start(closeWhenReady)
-	if config.Offline {
-		loggers.Info("Started LaunchDarkly client in offline mode")
-	} else {
-		if waitFor > 0 {
-			loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
-				waitFor/time.Millisecond)
+	if waitFor > 0 && dataSourceFactory != ldcomponents.ExternalUpdatesOnly() {
+		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
+			waitFor/time.Millisecond)
+		timeout := time.After(waitFor)
+		for {
+			select {
+			case <-closeWhenReady:
+				if !client.dataSource.IsInitialized() {
+					loggers.Warn("LaunchDarkly client initialization failed")
+					return &client, ErrInitializationFailed
+				}
+
+				loggers.Info("Successfully initialized LaunchDarkly client!")
+				return &client, nil
+			case <-timeout:
+				if waitFor > 0 {
+					loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
+					return &client, ErrInitializationTimeout
+				}
+
+				go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
+				return &client, nil
+			}
 		}
 	}
-	timeout := time.After(waitFor)
-	for {
-		select {
-		case <-closeWhenReady:
-			if !client.dataSource.IsInitialized() {
-				loggers.Warn("LaunchDarkly client initialization failed")
-				return &client, ErrInitializationFailed
-			}
-
-			loggers.Info("Successfully initialized LaunchDarkly client!")
-			return &client, nil
-		case <-timeout:
-			if waitFor > 0 {
-				loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
-				return &client, ErrInitializationTimeout
-			}
-
-			go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
-			return &client, nil
-		}
-	}
+	go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
+	return &client, nil
 }
 
 func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
@@ -222,7 +228,7 @@ func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
 
 func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
 	if config.Offline {
-		return offlineDataSourceFactory{}
+		return ldcomponents.ExternalUpdatesOnly()
 	}
 	if config.DataSource == nil {
 		return ldcomponents.StreamingDataSource()

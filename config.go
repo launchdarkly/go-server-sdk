@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
 
@@ -83,15 +84,6 @@ type Config struct {
 // HTTPClientFactory is a function that creates a custom HTTP client.
 type HTTPClientFactory func(Config) http.Client
 
-func (c Config) newHTTPClient() *http.Client {
-	factory := c.HTTPClientFactory
-	if factory == nil {
-		factory = NewHTTPClientFactory()
-	}
-	client := factory(c)
-	return &client
-}
-
 // NewHTTPClientFactory creates an HTTPClientFactory based on the standard SDK configuration as well
 // as any custom ldhttp.TransportOption properties you specify.
 //
@@ -99,17 +91,6 @@ func (c Config) newHTTPClient() *http.Client {
 //     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.CACertFileOption("my-cert.pem"))
 func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
 	return func(c Config) http.Client {
-		client := http.Client{
-			Timeout: c.Timeout,
-		}
-		if c.Timeout <= 0 {
-			client.Timeout = DefaultTimeout
-		}
-		allOpts := []ldhttp.TransportOption{ldhttp.ConnectTimeoutOption(c.Timeout)}
-		allOpts = append(allOpts, options...)
-		if transport, _, err := ldhttp.NewHTTPTransport(allOpts...); err == nil {
-			client.Transport = transport
-		}
-		return client
+		return internal.NewHTTPClient(c.Timeout, options...)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"gopkg.in/ghodss/yaml.v1"
@@ -245,13 +246,28 @@ func (fs *fileDataSource) reload() {
 			filesData = append(filesData, data)
 		} else {
 			fs.loggers.Errorf("Unable to load flags: %s [%s]", err, path)
+			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
+				interfaces.DataSourceErrorInfo{
+					Kind:    interfaces.DataSourceErrorKindInvalidData,
+					Message: err.Error(),
+					Time:    time.Now(),
+				})
 			return
 		}
 	}
 	storeData, err := mergeFileData(filesData...)
 	if err == nil {
-		_ = fs.dataSourceUpdates.Init(storeData)
-		fs.signalStartComplete(true)
+		if fs.dataSourceUpdates.Init(storeData) {
+			fs.signalStartComplete(true)
+			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+		}
+	} else {
+		fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
+			interfaces.DataSourceErrorInfo{
+				Kind:    interfaces.DataSourceErrorKindInvalidData,
+				Message: err.Error(),
+				Time:    time.Now(),
+			})
 	}
 	if err != nil {
 		fs.loggers.Error(err)

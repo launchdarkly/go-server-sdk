@@ -2,6 +2,7 @@ package ldcomponents
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,5 +15,5 @@ func TestExternalUpdatesOnly(t *testing.T) {
 	assert.True(t, ds.IsInitialized())
 	closeWhenReady := make(chan struct{})
 	ds.Start(closeWhenReady)
-	<-closeWhenReady
+	waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 }

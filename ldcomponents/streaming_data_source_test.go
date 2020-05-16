@@ -155,6 +155,10 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 			event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
 			assert.Equal(t, 1, event.GetByKey("streamInits").Count())
 			assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
+
+			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)
+			assert.Equal(t, statusCode, status.LastError.StatusCode)
 		})
 	})
 }
@@ -191,6 +195,14 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 			assert.Equal(t, 2, event.GetByKey("streamInits").Count())
 			assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
 			assert.Equal(t, ldvalue.Bool(false), event.GetByKey("streamInits").GetByIndex(1).GetByKey("failed"))
+
+			// should have gotten two status updates: first for the error, then the success - note that we're checking
+			// here for Interrupted because that's how the StreamProcessor reports the error, even though in the public
+			// API it would show up as Initializing because it was still initializing
+			status1 := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
+			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status1.LastError.Kind)
+			assert.Equal(t, statusCode, status1.LastError.StatusCode)
+			_ = dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateValid)
 		})
 	})
 }

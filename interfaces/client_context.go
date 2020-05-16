@@ -22,6 +22,8 @@ type ClientContext interface {
 	CreateHTTPClient() *http.Client
 	// GetLogging returns the configured LoggingConfiguration.
 	GetLogging() LoggingConfiguration
+	// IsOffline returns true if the client was configured to be completely offline.
+	IsOffline() bool
 }
 
 type basicClientContext struct {
@@ -29,6 +31,7 @@ type basicClientContext struct {
 	headers           http.Header
 	httpClientFactory func() *http.Client
 	logging           LoggingConfiguration
+	offline           bool
 }
 
 func (c *basicClientContext) GetSDKKey() string {
@@ -50,6 +53,10 @@ func (c *basicClientContext) GetLogging() LoggingConfiguration {
 	return c.logging
 }
 
+func (c *basicClientContext) IsOffline() bool {
+	return c.offline
+}
+
 // NewClientContext creates the default implementation of ClientContext with the provided values.
 //
 // If httpClientFactory is nil, components will use http.DefaultClient.
@@ -59,7 +66,7 @@ func NewClientContext(sdkKey string, headers http.Header, httpClientFactory func
 	if logging == nil {
 		logging = defaultLoggingConfiguration{}
 	}
-	return &basicClientContext{sdkKey, headers, httpClientFactory, logging}
+	return &basicClientContext{sdkKey, headers, httpClientFactory, logging, false}
 }
 
 type defaultLoggingConfiguration struct{}

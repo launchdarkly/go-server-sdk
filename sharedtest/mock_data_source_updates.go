@@ -2,7 +2,11 @@ package sharedtest
 
 import (
 	"sync"
+	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -11,6 +15,8 @@ type MockDataSourceUpdates struct {
 	DataStore               *CapturingDataStore
 	Statuses                chan interfaces.DataSourceStatus
 	dataStoreStatusProvider *mockDataStoreStatusProvider
+	lastStatus              interfaces.DataSourceStatus
+	lock                    sync.Mutex
 }
 
 // NewMockDataSourceUpdates creates an instance of MockDataSourceUpdates.
@@ -45,7 +51,12 @@ func (d *MockDataSourceUpdates) Upsert(kind interfaces.StoreDataKind, key string
 
 // UpdateStatus, in this test implementation, pushes a value onto the Statuses channel.
 func (d *MockDataSourceUpdates) UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo) {
-	d.Statuses <- interfaces.DataSourceStatus{State: newState, LastError: newError}
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	if newState != d.lastStatus.State || newError.Kind != "" {
+		d.lastStatus = interfaces.DataSourceStatus{State: newState, LastError: newError}
+		d.Statuses <- d.lastStatus
+	}
 }
 
 // GetDataStoreStatusProvider returns a stub implementation that does not have full functionality
@@ -57,6 +68,24 @@ func (d *MockDataSourceUpdates) GetDataStoreStatusProvider() interfaces.DataStor
 // UpdateStoreStatus simulates a change in the data store status.
 func (d *MockDataSourceUpdates) UpdateStoreStatus(newStatus interfaces.DataStoreStatus) {
 	d.dataStoreStatusProvider.statusCh <- newStatus
+}
+
+// RequireStatusOf blocks until a new data source status is available, and verifies its state.
+func (d *MockDataSourceUpdates) RequireStatusOf(t *testing.T, newState interfaces.DataSourceState) interfaces.DataSourceStatus {
+	status := d.RequireStatus(t)
+	assert.Equal(t, string(newState), string(status.State)) // string conversion is due to a bug in assert with type aliases
+	return status
+}
+
+// RequireStatus blocks until a new data source status is available.
+func (d *MockDataSourceUpdates) RequireStatus(t *testing.T) interfaces.DataSourceStatus {
+	select {
+	case s := <-d.Statuses:
+		return s
+	case <-time.After(time.Second):
+		require.Fail(t, "timed out waiting for new data source status")
+		return interfaces.DataSourceStatus{}
+	}
 }
 
 type mockDataStoreStatusProvider struct {
