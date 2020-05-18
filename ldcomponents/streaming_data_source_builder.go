@@ -87,8 +87,7 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(initialReconnectDelay
 // Called by the SDK to create the data source instance.
 func (b *StreamingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
-	dataStore interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
 	pollingBaseURI := b.pollingBaseURI
 	if pollingBaseURI == "" {
@@ -100,7 +99,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 		}
 	}
 	requestor := newRequestor(context, context.CreateHTTPClient(), pollingBaseURI)
-	return newStreamProcessor(context, dataStore, dataStoreStatusProvider, b.baseURI, b.initialReconnectDelay, requestor), nil
+	return newStreamProcessor(context, dataSourceUpdates, b.baseURI, b.initialReconnectDelay, requestor), nil
 }
 
 // Used internally by the SDK to inspect the configuration.

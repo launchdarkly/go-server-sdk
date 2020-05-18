@@ -23,3 +23,7 @@ func (c stubClientContext) CreateHTTPClient() *http.Client {
 func (c stubClientContext) GetLoggers() ldlog.Loggers {
 	return NewTestLoggers()
 }
+
+func (c stubClientContext) IsOffline() bool {
+	return false
+}

@@ -1,7 +1,9 @@
 package ldcomponents
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -19,9 +21,9 @@ import (
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	handler := ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData())
 	httphelpers.WithServer(handler, func(server *httptest.Server) {
-		withDataSourceTestParams(func(params dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			req := newRequestor(basicClientContext(), nil, server.URL)
-			p := newPollingProcessor(basicClientContext(), params.store, req, time.Minute)
+			p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Minute)
 
 			p.Close()
 
@@ -41,11 +43,11 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2)).Segments(ldservices.FlagOrSegment("my-segment", 3))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(params dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			p, err := PollingDataSource().
 				BaseURI(ts.URL).
 				forcePollInterval(time.Millisecond*10).
-				CreateDataSource(basicClientContext(), params.store, params.dataStoreStatusProvider)
+				CreateDataSource(basicClientContext(), dataSourceUpdates)
 			require.NoError(t, err)
 			defer p.Close()
 
@@ -59,7 +61,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 				return
 			}
 
-			params.waitForInit(t, data)
+			dataSourceUpdates.DataStore.WaitForInit(t, data, 3*time.Second)
 
 			for i := 0; i < 2; i++ {
 				select {
@@ -73,70 +75,124 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	})
 }
 
-func TestPollingProcessorRequestResponseCodes(t *testing.T) {
-	specs := []struct {
-		statusCode  int
-		recoverable bool
-	}{
-		{400, true},
-		{401, false},
-		{403, false},
-		{405, false},
-		{408, true},
-		{429, true},
-		{500, true},
-	}
+func TestPollingProcessorRecoverableErrors(t *testing.T) {
+	for _, statusCode := range []int{400, 408, 429, 500, 503} {
+		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
+			badResponse := httphelpers.HandlerWithStatus(statusCode)
+			testPollingProcessorRecoverableError(t, badResponse, func(errorInfo interfaces.DataSourceErrorInfo) {
+				assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, errorInfo.Kind)
+				assert.Equal(t, statusCode, errorInfo.StatusCode)
+			})
+		})
 
-	for _, tt := range specs {
-		t.Run(fmt.Sprintf("status %d, recoverable %v", tt.statusCode, tt.recoverable), func(t *testing.T) {
-			handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(tt.statusCode))
-			httphelpers.WithServer(handler, func(ts *httptest.Server) {
-				withDataSourceTestParams(func(params dataSourceTestParams) {
-					req := newRequestor(basicClientContext(), nil, ts.URL)
-					p := newPollingProcessor(basicClientContext(), params.store, req, time.Millisecond*10)
-					defer p.Close()
-					closeWhenReady := make(chan struct{})
-					p.Start(closeWhenReady)
+		t.Run("network error", func(t *testing.T) {
+			badResponse := httphelpers.PanicHandler(errors.New("sorry")) // this causes the server to drop the connection
+			testPollingProcessorRecoverableError(t, badResponse, func(errorInfo interfaces.DataSourceErrorInfo) {
+				assert.Equal(t, interfaces.DataSourceErrorKindNetworkError, errorInfo.Kind)
+				assert.Contains(t, errorInfo.Message, "EOF") // expected message for this kind of error
+			})
+		})
 
-					if tt.recoverable {
-						// wait for two polls
-						for i := 0; i < 2; i++ {
-							select {
-							case <-requestsCh:
-								t.Logf("Got poll attempt %d/2", i+1)
-							case <-closeWhenReady:
-								assert.Fail(t, "should not report ready")
-								break
-							case <-time.After(time.Second * 3):
-								assert.Fail(t, "failed to retry")
-								break
-							}
-						}
-					} else {
-						select {
-						case <-closeWhenReady:
-							assert.Len(t, requestsCh, 1) // should be ready after a single attempt
-							assert.False(t, p.Initialized())
-						case <-time.After(time.Second):
-							assert.Fail(t, "channel was not closed immediately")
-						}
-					}
-				})
+		t.Run("malformed data", func(t *testing.T) {
+			badResponse := httphelpers.HandlerWithJSONResponse(map[string]interface{}{"flags": 3}, nil)
+			testPollingProcessorRecoverableError(t, badResponse, func(errorInfo interfaces.DataSourceErrorInfo) {
+				assert.Equal(t, string(interfaces.DataSourceErrorKindInvalidData), string(errorInfo.Kind))
+				assert.Contains(t, errorInfo.Message, "cannot unmarshal") // should be a JSON parsing error message
 			})
 		})
 	}
+}
+
+func testPollingProcessorRecoverableError(t *testing.T, badResponse http.Handler, verifyError func(interfaces.DataSourceErrorInfo)) {
+	handler, requestsCh := httphelpers.RecordingHandler(
+		httphelpers.SequentialHandler( // first request fails, second request succeeds
+			badResponse,
+			ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData()),
+		),
+	)
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+			req := newRequestor(basicClientContext(), nil, ts.URL)
+			p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
+			defer p.Close()
+			closeWhenReady := make(chan struct{})
+			p.Start(closeWhenReady)
+
+			// wait for first poll
+			<-requestsCh
+
+			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
+			verifyError(status.LastError)
+
+			select {
+			case <-closeWhenReady:
+				require.Fail(t, "should not report ready yet")
+			default:
+			}
+
+			// wait for second poll
+			select {
+			case <-requestsCh:
+				break
+			case <-time.After(time.Second):
+				require.Fail(t, "failed to retry")
+			}
+
+			waitForReadyWithTimeout(t, closeWhenReady, time.Second)
+			_ = dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateValid)
+		})
+	})
+}
+
+func TestPollingProcessorUnrecoverableErrors(t *testing.T) {
+	for _, statusCode := range []int{401, 403, 405} {
+		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
+			badResponse := httphelpers.HandlerWithStatus(statusCode)
+			testPollingProcessorUnrecoverableError(t, badResponse, func(errorInfo interfaces.DataSourceErrorInfo) {
+				assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, errorInfo.Kind)
+				assert.Equal(t, statusCode, errorInfo.StatusCode)
+			})
+		})
+	}
+}
+
+func testPollingProcessorUnrecoverableError(t *testing.T, badResponse http.Handler, verifyError func(interfaces.DataSourceErrorInfo)) {
+	handler, requestsCh := httphelpers.RecordingHandler(
+		httphelpers.SequentialHandler( // first request fails, second request would succeed if it was made
+			badResponse,
+			ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData()),
+		),
+	)
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+			req := newRequestor(basicClientContext(), nil, ts.URL)
+			p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
+			defer p.Close()
+			closeWhenReady := make(chan struct{})
+			p.Start(closeWhenReady)
+
+			// wait for first poll
+			<-requestsCh
+
+			waitForReadyWithTimeout(t, closeWhenReady, time.Second)
+
+			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+			verifyError(status.LastError)
+			assert.Len(t, requestsCh, 0)
+		})
+	})
 }
 
 func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(params dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers())
 			req := newRequestor(context, nil, ts.URL)
 
-			p := newPollingProcessor(context, params.store, req, time.Minute*30)
+			p := newPollingProcessor(context, dataSourceUpdates, req, time.Minute*30)
 			defer p.Close()
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)

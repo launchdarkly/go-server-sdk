@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"gopkg.in/ghodss/yaml.v1"
@@ -88,14 +89,14 @@ func UseReloader(reloaderFactory ReloaderFactory) FileDataSourceOption {
 }
 
 type fileDataSource struct {
-	store           interfaces.DataStore
-	options         fileDataSourceOptions
-	loggers         ldlog.Loggers
-	isInitialized   bool
-	readyCh         chan<- struct{}
-	readyOnce       sync.Once
-	closeOnce       sync.Once
-	closeReloaderCh chan struct{}
+	dataSourceUpdates interfaces.DataSourceUpdates
+	options           fileDataSourceOptions
+	loggers           ldlog.Loggers
+	isInitialized     bool
+	readyCh           chan<- struct{}
+	readyOnce         sync.Once
+	closeOnce         sync.Once
+	closeReloaderCh   chan struct{}
 }
 
 // NewFileDataSourceFactory returns a function that allows the LaunchDarkly client to read feature
@@ -184,15 +185,14 @@ type fileDataSourceFactory struct {
 // DataSourceFactory implementation
 func (f fileDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
-	dataStore interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	if dataStore == nil {
-		return nil, fmt.Errorf("dataStore must not be nil")
+	if dataSourceUpdates == nil {
+		return nil, fmt.Errorf("dataSourceUpdates must not be nil")
 	}
 	fs := &fileDataSource{
-		store:   dataStore,
-		loggers: context.GetLoggers(),
+		dataSourceUpdates: dataSourceUpdates,
+		loggers:           context.GetLoggers(),
 	}
 	for _, o := range f.options {
 		err := o.apply(&fs.options)
@@ -210,7 +210,7 @@ func (f fileDataSourceFactory) DescribeConfiguration() ldvalue.Value {
 }
 
 // Initialized is used internally by the LaunchDarkly client.
-func (fs *fileDataSource) Initialized() bool {
+func (fs *fileDataSource) IsInitialized() bool {
 	return fs.isInitialized
 }
 
@@ -246,13 +246,28 @@ func (fs *fileDataSource) reload() {
 			filesData = append(filesData, data)
 		} else {
 			fs.loggers.Errorf("Unable to load flags: %s [%s]", err, path)
+			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
+				interfaces.DataSourceErrorInfo{
+					Kind:    interfaces.DataSourceErrorKindInvalidData,
+					Message: err.Error(),
+					Time:    time.Now(),
+				})
 			return
 		}
 	}
 	storeData, err := mergeFileData(filesData...)
 	if err == nil {
-		err = fs.store.Init(storeData)
-		fs.signalStartComplete(true)
+		if fs.dataSourceUpdates.Init(storeData) {
+			fs.signalStartComplete(true)
+			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+		}
+	} else {
+		fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
+			interfaces.DataSourceErrorInfo{
+				Kind:    interfaces.DataSourceErrorKindInvalidData,
+				Message: err.Error(),
+				Time:    time.Now(),
+			})
 	}
 	if err != nil {
 		fs.loggers.Error(err)

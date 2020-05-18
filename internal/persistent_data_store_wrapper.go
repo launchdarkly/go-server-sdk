@@ -300,7 +300,6 @@ func dataStoreAllItemsCacheKey(kind intf.StoreDataKind) string {
 }
 
 func (w *persistentDataStoreWrapper) initCore(allData []intf.StoreCollection) error {
-	allData = sortCollectionsForDataStoreInit(allData)
 	serializedAllData := make([]intf.StoreSerializedCollection, len(allData))
 	for _, coll := range allData {
 		serializedAllData = append(serializedAllData, intf.StoreSerializedCollection{

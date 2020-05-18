@@ -29,9 +29,17 @@ func ExternalUpdatesOnly() interfaces.DataSourceFactory {
 // DataSourceFactory implementation
 func (f nullDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
-	dataStore interfaces.DataStore,
-	dataStoreStatusProvider interfaces.DataStoreStatusProvider,
+	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
+	if context.IsOffline() {
+		// If they have explicitly set Offline to disable everything, we'll log this slightly more specific message.
+		context.GetLoggers().Info("Starting LaunchDarkly client in offline mode")
+	} else {
+		context.GetLoggers().Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
+	}
+	if dataSourceUpdates != nil {
+		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+	}
 	return nullDataSource{}, nil
 }
 
@@ -49,7 +57,7 @@ func (f nullDataSourceFactory) DescribeConfiguration() ldvalue.Value {
 
 // DataSource implementation
 
-func (n nullDataSource) Initialized() bool {
+func (n nullDataSource) IsInitialized() bool {
 	return true
 }
 

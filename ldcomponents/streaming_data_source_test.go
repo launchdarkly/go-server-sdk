@@ -24,7 +24,7 @@ const briefDelay = time.Millisecond * 50
 func runStreamingTest(
 	t *testing.T,
 	initialEvent eventsource.Event,
-	test func(events chan<- eventsource.Event, p dataSourceTestParams),
+	test func(events chan<- eventsource.Event, dataSourceUpdates *sharedtest.MockDataSourceUpdates),
 ) {
 	events := make(chan eventsource.Event, 1000)
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialEvent, events)
@@ -35,12 +35,12 @@ func runStreamingTest(
 			nil,
 		)
 		httphelpers.WithServer(flagEndpointHandler, func(sdkServer *httptest.Server) {
-			withDataSourceTestParams(func(params dataSourceTestParams) {
+			withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 				sp, err := StreamingDataSource().
 					BaseURI(streamServer.URL).
 					PollingBaseURI(sdkServer.URL).
 					InitialReconnectDelay(briefDelay).
-					CreateDataSource(basicClientContext(), params.store, params.dataStoreStatusProvider)
+					CreateDataSource(basicClientContext(), dataSourceUpdates)
 				require.NoError(t, err)
 				defer sp.Close()
 
@@ -55,7 +55,7 @@ func runStreamingTest(
 					return
 				}
 
-				test(events, params)
+				test(events, dataSourceUpdates)
 			})
 		})
 	})
@@ -64,50 +64,51 @@ func runStreamingTest(
 func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
 	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2)).Segments(ldservices.FlagOrSegment("my-segment", 2))
+	timeout := 3 * time.Second
 
 	t.Run("initial put", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, p dataSourceTestParams) {
-			p.waitForInit(t, initialData)
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+			updates.DataStore.WaitForInit(t, initialData, timeout)
 		})
 	})
 
 	t.Run("patch flag", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, p dataSourceTestParams) {
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
 
-			p.waitForUpdate(t, interfaces.DataKindFeatures(), "my-flag", 3)
+			updates.DataStore.WaitForUpsert(t, interfaces.DataKindFeatures(), "my-flag", 3, timeout)
 		})
 	})
 
 	t.Run("delete flag", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, p dataSourceTestParams) {
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
 
-			p.waitForDelete(t, interfaces.DataKindSegments(), "my-flag", 4)
+			updates.DataStore.WaitForDelete(t, interfaces.DataKindSegments(), "my-flag", 4, timeout)
 		})
 	})
 
 	t.Run("patch segment", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, p dataSourceTestParams) {
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
 
-			p.waitForUpdate(t, interfaces.DataKindSegments(), "my-segment", 7)
+			updates.DataStore.WaitForUpsert(t, interfaces.DataKindSegments(), "my-segment", 7, timeout)
 		})
 	})
 
 	t.Run("delete segment", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, p dataSourceTestParams) {
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
 
-			p.waitForDelete(t, interfaces.DataKindSegments(), "my-segment", 8)
+			updates.DataStore.WaitForDelete(t, interfaces.DataKindSegments(), "my-segment", 8, timeout)
 		})
 	})
 
 	t.Run("indirect flag patch", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, p dataSourceTestParams) {
+		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", indirectPatchEvent, "/flags/my-flag")
 
-			p.waitForUpdate(t, interfaces.DataKindFeatures(), "my-flag", 5)
+			updates.DataStore.WaitForUpsert(t, interfaces.DataKindFeatures(), "my-flag", 5, timeout)
 		})
 	})
 }
@@ -130,13 +131,13 @@ func TestStreamProcessorDoesNotFailImmediatelyOn500(t *testing.T) {
 
 func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
-		withDataSourceTestParams(func(p dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSdkKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).
-				CreateDataSource(context, p.store, p.dataStoreStatusProvider)
+				CreateDataSource(context, dataSourceUpdates)
 			require.NoError(t, err)
 			defer sp.Close()
 
@@ -146,7 +147,7 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 
 			select {
 			case <-closeWhenReady:
-				assert.False(t, sp.Initialized())
+				assert.False(t, sp.IsInitialized())
 			case <-time.After(time.Second * 3):
 				assert.Fail(t, "Initialization shouldn't block after this error")
 			}
@@ -154,6 +155,10 @@ func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 			event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
 			assert.Equal(t, 1, event.GetByKey("streamInits").Count())
 			assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
+
+			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)
+			assert.Equal(t, statusCode, status.LastError.StatusCode)
 		})
 	})
 }
@@ -166,13 +171,13 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 		streamHandler, // then gets a valid stream
 	)
 	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(p dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSdkKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(context, p.store, p.dataStoreStatusProvider)
+				CreateDataSource(context, dataSourceUpdates)
 			require.NoError(t, err)
 			defer sp.Close()
 
@@ -181,7 +186,7 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 
 			select {
 			case <-closeWhenReady:
-				assert.True(t, sp.Initialized())
+				assert.True(t, sp.IsInitialized())
 			case <-time.After(time.Second * 3):
 				assert.Fail(t, "Should have successfully retried before now")
 			}
@@ -190,6 +195,14 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 			assert.Equal(t, 2, event.GetByKey("streamInits").Count())
 			assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
 			assert.Equal(t, ldvalue.Bool(false), event.GetByKey("streamInits").GetByIndex(1).GetByKey("failed"))
+
+			// should have gotten two status updates: first for the error, then the success - note that we're checking
+			// here for Interrupted because that's how the StreamProcessor reports the error, even though in the public
+			// API it would show up as Initializing because it was still initializing
+			status1 := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
+			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status1.LastError.Kind)
+			assert.Equal(t, statusCode, status1.LastError.StatusCode)
+			_ = dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateValid)
 		})
 	})
 }
@@ -198,12 +211,12 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
 
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(p dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers())
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(context, p.store, p.dataStoreStatusProvider)
+				CreateDataSource(context, dataSourceUpdates)
 			require.NoError(t, err)
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
@@ -221,7 +234,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(p dataSourceTestParams) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := func() *http.Client {
 				c := *http.DefaultClient
 				c.Timeout = 200 * time.Millisecond
@@ -230,7 +243,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.NewTestLoggers())
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(context, p.store, p.dataStoreStatusProvider)
+				CreateDataSource(context, dataSourceUpdates)
 			require.NoError(t, err)
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
@@ -247,9 +260,9 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData, nil)
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
-		withDataSourceTestParams(func(p dataSourceTestParams) {
+		withMockDataSourceUpdates(func(updates *sharedtest.MockDataSourceUpdates) {
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(basicClientContext(), p.store, p.dataStoreStatusProvider)
+				CreateDataSource(basicClientContext(), updates)
 			require.NoError(t, err)
 			defer sp.Close()
 
@@ -257,17 +270,17 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 			sp.Start(closeWhenReady)
 
 			// Wait until the stream has received data and put it in the store
-			p.waitForInit(t, initialData)
+			updates.DataStore.WaitForInit(t, initialData, 3*time.Second)
 
 			// Change the stream's initialData so we'll get different data the next time it restarts
 			initialData.Flags(ldservices.FlagOrSegment("my-flag", 2))
 
 			// Make the data store simulate an outage and recovery with NeedsRefresh: true
-			p.dataStoreUpdates.UpdateStatus(interfaces.DataStoreStatus{Available: false})
-			p.dataStoreUpdates.UpdateStatus(interfaces.DataStoreStatus{Available: true, NeedsRefresh: true})
+			updates.UpdateStoreStatus(interfaces.DataStoreStatus{Available: false})
+			updates.UpdateStoreStatus(interfaces.DataStoreStatus{Available: true, NeedsRefresh: true})
 
 			// When the stream restarts, it'll call Init with the refreshed data
-			p.waitForInit(t, initialData)
+			updates.DataStore.WaitForInit(t, initialData, 3*time.Second)
 		})
 	})
 }

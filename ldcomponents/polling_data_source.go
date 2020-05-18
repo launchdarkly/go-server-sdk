@@ -9,7 +9,7 @@ import (
 )
 
 type pollingProcessor struct {
-	store              interfaces.DataStore
+	dataSourceUpdates  interfaces.DataSourceUpdates
 	requestor          *requestor
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
@@ -19,13 +19,18 @@ type pollingProcessor struct {
 	closeOnce          sync.Once
 }
 
-func newPollingProcessor(context interfaces.ClientContext, store interfaces.DataStore, requestor *requestor, pollInterval time.Duration) *pollingProcessor {
+func newPollingProcessor(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+	requestor *requestor,
+	pollInterval time.Duration,
+) *pollingProcessor {
 	pp := &pollingProcessor{
-		store:        store,
-		requestor:    requestor,
-		pollInterval: pollInterval,
-		loggers:      context.GetLoggers(),
-		quit:         make(chan struct{}),
+		dataSourceUpdates: dataSourceUpdates,
+		requestor:         requestor,
+		pollInterval:      pollInterval,
+		loggers:           context.GetLoggers(),
+		quit:              make(chan struct{}),
 	}
 
 	return pp
@@ -57,14 +62,33 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				if err := pp.poll(); err != nil {
 					pp.loggers.Errorf("Error when requesting feature updates: %+v", err)
 					if hse, ok := err.(httpStatusError); ok {
+						errorInfo := interfaces.DataSourceErrorInfo{
+							Kind:       interfaces.DataSourceErrorKindErrorResponse,
+							StatusCode: hse.Code,
+							Time:       time.Now(),
+						}
 						pp.loggers.Error(httpErrorMessage(hse.Code, "polling request", "will retry"))
-						if !isHTTPErrorRecoverable(hse.Code) {
+						if isHTTPErrorRecoverable(hse.Code) {
+							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+						} else {
+							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 							notifyReady()
 							return
 						}
+					} else {
+						errorInfo := interfaces.DataSourceErrorInfo{
+							Kind:    interfaces.DataSourceErrorKindNetworkError,
+							Message: err.Error(),
+							Time:    time.Now(),
+						}
+						if _, ok := err.(malformedJSONError); ok {
+							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
+						}
+						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					}
 					continue
 				}
+				pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 				pp.setInitializedOnce.Do(func() {
 					pp.isInitialized = true
 					pp.loggers.Info("First polling request successful")
@@ -84,7 +108,7 @@ func (pp *pollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		return pp.store.Init(makeAllStoreData(allData.Flags, allData.Segments))
+		pp.dataSourceUpdates.Init(makeAllStoreData(allData.Flags, allData.Segments))
 	}
 	return nil
 }
@@ -96,7 +120,7 @@ func (pp *pollingProcessor) Close() error {
 	return nil
 }
 
-func (pp *pollingProcessor) Initialized() bool {
+func (pp *pollingProcessor) IsInitialized() bool {
 	return pp.isInitialized
 }
 

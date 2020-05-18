@@ -3,6 +3,8 @@ package internal
 import (
 	"errors"
 
+	"github.com/launchdarkly/go-test-helpers/ldservices"
+
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -35,6 +37,23 @@ func (d *dataSetBuilder) Segments(segments ...ldmodel.Segment) *dataSetBuilder {
 		d.segments = append(d.segments, interfaces.StoreKeyedItemDescriptor{Key: s.Key, Item: segmentDescriptor(s)})
 	}
 	return d
+}
+
+type flagAsSDKData ldmodel.FeatureFlag // hacky type aliasing to let us use ldservices.SDKData with real data model objects
+type segmentAsSDKData ldmodel.Segment
+
+func (f flagAsSDKData) GetKey() string    { return f.Key }
+func (s segmentAsSDKData) GetKey() string { return s.Key }
+
+func (d *dataSetBuilder) ToServerSDKData() *ldservices.ServerSDKData {
+	ret := ldservices.NewServerSDKData()
+	for _, f := range d.flags {
+		ret.Flags(flagAsSDKData(*(f.Item.Item.(*ldmodel.FeatureFlag))))
+	}
+	for _, s := range d.segments {
+		ret.Segments(segmentAsSDKData(*(s.Item.Item.(*ldmodel.Segment))))
+	}
+	return ret
 }
 
 func flagDescriptor(f ldmodel.FeatureFlag) interfaces.StoreItemDescriptor {

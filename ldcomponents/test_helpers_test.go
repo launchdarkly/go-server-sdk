@@ -13,14 +13,8 @@ import (
 
 const testSdkKey = "test-sdk-key"
 
-func sharedLoggers() ldlog.Loggers {
-	loggers := ldlog.NewDefaultLoggers()
-	loggers.SetMinLevel(ldlog.Debug) // go test will suppress the output unless a test fails
-	return loggers
-}
-
 func basicClientContext() interfaces.ClientContext {
-	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedLoggers())
+	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedtest.NewTestLoggers())
 }
 
 type contextWithDiagnostics struct {
@@ -51,6 +45,10 @@ func (c *contextWithDiagnostics) CreateHTTPClient() *http.Client {
 
 func (c *contextWithDiagnostics) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
 	return c.diagnosticsManager
+}
+
+func (c *contextWithDiagnostics) IsOffline() bool {
+	return false
 }
 
 func newClientContextWithDiagnostics(sdkKey string, headers http.Header, httpClientFactory func() *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) interfaces.ClientContext {
