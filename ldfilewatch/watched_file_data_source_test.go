@@ -108,9 +108,9 @@ flags: bad
 `)
 		defer os.Remove(filename)
 
-		factory := ldfiledata.NewFileDataSourceFactory(
-			ldfiledata.FilePaths(filename),
-			ldfiledata.UseReloader(WatchFiles))
+		factory := ldfiledata.DataSource().
+			FilePaths(filename).
+			Reloader(WatchFiles)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.dataSource.Start(p.closeWhenReady)
 
@@ -157,9 +157,9 @@ func TestNewWatchedFileMissing(t *testing.T) {
 		require.NoError(t, os.Remove(filename))
 		defer os.Remove(filename)
 
-		factory := ldfiledata.NewFileDataSourceFactory(
-			ldfiledata.FilePaths(filename),
-			ldfiledata.UseReloader(WatchFiles))
+		factory := ldfiledata.DataSource().
+			FilePaths(filename).
+			Reloader(WatchFiles)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.dataSource.Start(p.closeWhenReady)
 
@@ -193,9 +193,9 @@ func TestNewWatchedDirectoryMissing(t *testing.T) {
 		dirPath := path.Join(tempDir, "test")
 		filePath := path.Join(dirPath, "flags.yml")
 
-		factory := ldfiledata.NewFileDataSourceFactory(
-			ldfiledata.FilePaths(filePath),
-			ldfiledata.UseReloader(WatchFiles))
+		factory := ldfiledata.DataSource().
+			FilePaths(filePath).
+			Reloader(WatchFiles)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.dataSource.Start(p.closeWhenReady)
 

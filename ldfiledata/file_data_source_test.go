@@ -69,7 +69,7 @@ segments:
     rules: []
 `
 	withTempFileContaining(fileData, func(filename string) {
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
@@ -89,7 +89,7 @@ segments:
 
 func TestNewFileDataSourceJson(t *testing.T) {
 	withTempFileContaining(`{"flags": {"my-flag": {"on": true}}}`, func(filename string) {
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
@@ -104,7 +104,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 
 func TestStatusIsValidAfterSuccessfulLoad(t *testing.T) {
 	withTempFileContaining(`{"flags": {"my-flag": {"on": true}}}`, func(filename string) {
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
@@ -117,7 +117,7 @@ func TestStatusIsValidAfterSuccessfulLoad(t *testing.T) {
 func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 	withTempFileContaining(`{"flags": {"my-flag1": {"on": true}}}`, func(filename1 string) {
 		withTempFileContaining(`{"flags": {"my-flag2": {"on": true}}}`, func(filename2 string) {
-			factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
+			factory := DataSource().FilePaths(filename1, filename2)
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 				p.waitForStart()
 				require.True(t, p.dataSource.IsInitialized())
@@ -139,7 +139,7 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 	withTempFileContaining(`{"flags": {"my-flag1": {"on": true}}}`, func(filename1 string) {
 		withTempFileContaining(`{"flags": {"my-flag1": {"on": true}}}`, func(filename2 string) {
-			factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
+			factory := DataSource().FilePaths(filename1, filename2)
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 				p.waitForStart()
 				require.False(t, p.dataSource.IsInitialized())
@@ -150,7 +150,7 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 
 func TestNewFileDataSourceBadData(t *testing.T) {
 	withTempFileContaining(`bad data`, func(filename string) {
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.False(t, p.dataSource.IsInitialized())
@@ -162,7 +162,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 	withTempFileContaining("", func(filename string) {
 		os.Remove(filename)
 
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			assert.False(t, p.dataSource.IsInitialized())
@@ -172,7 +172,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 
 func TestStatusIsInterruptedAfterUnsuccessfulLoad(t *testing.T) {
 	withTempFileContaining(`bad data`, func(filename string) {
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.False(t, p.dataSource.IsInitialized())
@@ -189,7 +189,7 @@ flagValues:
   my-flag: true
 `
 	withTempFileContaining(fileData, func(filename string) {
-		factory := NewFileDataSourceFactory(FilePaths(filename))
+		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
