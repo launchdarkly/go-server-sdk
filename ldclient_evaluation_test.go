@@ -741,10 +741,10 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 		value, _ := client.StringVariation(key, user, "default")
 		assert.Equal(t, "default", value)
 		if withLogging {
-			assert.Equal(t, 1, len(mockLoggers.AllOutput))
-			assert.Regexp(t, expectedMessageRegex, mockLoggers.Output[ldlog.Warn][0])
+			assert.Len(t, mockLoggers.GetAllOutput(), 1)
+			assert.Regexp(t, expectedMessageRegex, mockLoggers.GetOutput(ldlog.Warn)[0])
 		} else {
-			assert.Equal(t, 0, len(mockLoggers.AllOutput))
+			assert.Len(t, mockLoggers.GetAllOutput(), 0)
 		}
 	}
 	runTest(false)

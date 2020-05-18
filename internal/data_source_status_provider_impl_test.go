@@ -22,7 +22,7 @@ func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTe
 	defer broadcaster.Close()
 	store := NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	dataStoreStatusProvider := NewDataStoreStatusProviderImpl(store, nil)
-	p.dataSourceUpdates = NewDataSourceUpdatesImpl(store, dataStoreStatusProvider, broadcaster, sharedtest.NewTestLoggers())
+	p.dataSourceUpdates = NewDataSourceUpdatesImpl(store, dataStoreStatusProvider, broadcaster, 0, sharedtest.NewTestLoggers())
 	p.dataSourceStatusProvider = NewDataSourceStatusProviderImpl(broadcaster, p.dataSourceUpdates)
 
 	action(p)

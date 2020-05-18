@@ -13,7 +13,7 @@ import (
 const testSdkKey = "test-sdk-key"
 
 func basicClientContext() interfaces.ClientContext {
-	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedtest.TestLogging())
+	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedtest.TestLoggingConfig())
 }
 
 type contextWithDiagnostics struct {
@@ -28,7 +28,7 @@ func (c *contextWithDiagnostics) GetSDKKey() string {
 }
 
 func (c *contextWithDiagnostics) GetLogging() interfaces.LoggingConfiguration {
-	return sharedtest.TestLogging()
+	return sharedtest.TestLoggingConfig()
 }
 
 func (c *contextWithDiagnostics) GetDefaultHTTPHeaders() http.Header {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
@@ -52,17 +53,28 @@ func isHTTPErrorRecoverable(statusCode int) bool {
 	return true
 }
 
-func httpErrorMessage(statusCode int, context string, recoverableMessage string) string {
-	statusDesc := ""
-	if statusCode == 401 {
-		statusDesc = " (invalid SDK key)"
+func httpErrorDescription(statusCode int) string {
+	message := ""
+	if statusCode == 401 || statusCode == 403 {
+		message = " (invalid SDK key)"
 	}
-	resultMessage := recoverableMessage
-	if !isHTTPErrorRecoverable(statusCode) {
-		resultMessage = "giving up permanently"
+	return fmt.Sprintf("HTTP error %d%s", statusCode, message)
+}
+
+// Logs an HTTP error or network error at the appropriate level and determines whether it is recoverable
+// (as defined by isHTTPErrorRecoverable).
+func checkIfErrorIsRecoverableAndLog(
+	loggers ldlog.Loggers,
+	errorDesc, errorContext string,
+	statusCode int,
+	recoverableMessage string,
+) bool {
+	if statusCode > 0 && !isHTTPErrorRecoverable(statusCode) {
+		loggers.Errorf("Error %s (giving up permanently): %s", errorContext, errorDesc)
+		return false
 	}
-	return fmt.Sprintf("Received HTTP error %d%s for %s - %s",
-		statusCode, statusDesc, context, resultMessage)
+	loggers.Warnf("Error %s (%s): %s", errorContext, recoverableMessage, errorDesc)
+	return true
 }
 
 func checkForHttpError(statusCode int, url string) error {

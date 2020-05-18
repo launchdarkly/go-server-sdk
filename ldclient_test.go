@@ -134,7 +134,7 @@ func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
 	dataSource := mockDataSource{Initialized: false, StartFn: startImmediately}
 
 	client, err := MakeCustomClient(testSdkKey, Config{
-		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+		Logging:    sharedtest.TestLogging(),
 		DataSource: singleDataSourceFactory{dataSource},
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
@@ -153,7 +153,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 		DataStore:  ldcomponents.InMemoryDataStore(),
 		DataSource: singleDataSourceFactory{mockDataSource{Initialized: true}},
 		Events:     singleEventProcessorFactory{&testEventProcessor{}},
-		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+		Logging:    sharedtest.TestLogging(),
 	}
 	if modConfig != nil {
 		modConfig(&config)

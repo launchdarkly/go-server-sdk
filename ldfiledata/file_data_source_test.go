@@ -31,7 +31,7 @@ func (p fileDataSourceTestParams) waitForStart() {
 
 func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
-	testContext := interfaces.NewClientContext("", nil, nil, sharedtest.TestLogging())
+	testContext := interfaces.NewClientContext("", nil, nil, sharedtest.TestLoggingConfig())
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
 	dataSource, err := factory.CreateDataSource(testContext, updates)

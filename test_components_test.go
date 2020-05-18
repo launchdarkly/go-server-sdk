@@ -8,7 +8,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -19,7 +18,7 @@ var testUser = lduser.NewUser("test-user-key")
 var alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
 
 func basicClientContext() interfaces.ClientContext {
-	return newClientContextFromConfig(testSdkKey, Config{Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers())}, nil)
+	return newClientContextFromConfig(testSdkKey, Config{Logging: sharedtest.TestLogging()}, nil)
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {

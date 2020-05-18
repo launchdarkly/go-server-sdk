@@ -48,6 +48,9 @@ const (
 	streamRetryResetInterval = 60 * time.Second
 	streamJitterRatio        = 0.5
 	defaultStreamRetryDelay  = 1 * time.Second
+
+	streamingErrorContext     = "in stream connection"
+	streamingWillRetryMessage = "will retry"
 )
 
 type streamProcessor struct {
@@ -308,15 +311,19 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		sp.logConnectionResult(false)
 
 		if se, ok := err.(es.SubscriptionError); ok {
-			sp.loggers.Error(httpErrorMessage(se.Code, "streaming connection", "will retry"))
-
 			errorInfo := interfaces.DataSourceErrorInfo{
 				Kind:       interfaces.DataSourceErrorKindErrorResponse,
 				StatusCode: se.Code,
 				Time:       time.Now(),
 			}
-
-			if isHTTPErrorRecoverable(se.Code) {
+			recoverable := checkIfErrorIsRecoverableAndLog(
+				sp.loggers,
+				httpErrorDescription(se.Code),
+				streamingErrorContext,
+				se.Code,
+				streamingWillRetryMessage,
+			)
+			if recoverable {
 				sp.logConnectionStarted()
 				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 				return es.StreamErrorHandlerResult{CloseNow: false}
@@ -325,7 +332,13 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
 
-		sp.loggers.Errorf("Network error on streaming connection: %s", err.Error())
+		checkIfErrorIsRecoverableAndLog(
+			sp.loggers,
+			err.Error(),
+			streamingErrorContext,
+			0,
+			streamingWillRetryMessage,
+		)
 		errorInfo := interfaces.DataSourceErrorInfo{
 			Kind:    interfaces.DataSourceErrorKindNetworkError,
 			Message: err.Error(),
