@@ -5,6 +5,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 )
@@ -14,6 +15,13 @@ func newClientContextFromConfig(
 	config Config,
 	diagnosticsManager *ldevents.DiagnosticsManager,
 ) interfaces.ClientContext {
+	var logging interfaces.LoggingConfiguration
+	if config.Logging == nil {
+		logging = ldcomponents.Logging().CreateLoggingConfiguration()
+	} else {
+		logging = config.Logging.CreateLoggingConfiguration()
+	}
+
 	headers := make(http.Header)
 	headers.Set("Authorization", sdkKey)
 	headers.Set("User-Agent", config.UserAgent)
@@ -34,7 +42,7 @@ func newClientContextFromConfig(
 	}
 	return internal.NewClientContextImpl(
 		sdkKey,
-		config.Loggers,
+		logging,
 		headers,
 		httpClientFactory,
 		config.Offline,

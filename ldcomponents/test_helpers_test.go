@@ -6,7 +6,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -14,7 +13,7 @@ import (
 const testSdkKey = "test-sdk-key"
 
 func basicClientContext() interfaces.ClientContext {
-	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedtest.NewTestLoggers())
+	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedtest.TestLogging())
 }
 
 type contextWithDiagnostics struct {
@@ -28,8 +27,8 @@ func (c *contextWithDiagnostics) GetSDKKey() string {
 	return c.sdkKey
 }
 
-func (c *contextWithDiagnostics) GetLoggers() ldlog.Loggers {
-	return sharedtest.NewTestLoggers()
+func (c *contextWithDiagnostics) GetLogging() interfaces.LoggingConfiguration {
+	return sharedtest.TestLogging()
 }
 
 func (c *contextWithDiagnostics) GetDefaultHTTPHeaders() http.Header {

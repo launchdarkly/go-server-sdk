@@ -192,7 +192,7 @@ func (f fileDataSourceFactory) CreateDataSource(
 	}
 	fs := &fileDataSource{
 		dataSourceUpdates: dataSourceUpdates,
-		loggers:           context.GetLoggers(),
+		loggers:           context.GetLogging().GetLoggers(),
 	}
 	for _, o := range f.options {
 		err := o.apply(&fs.options)

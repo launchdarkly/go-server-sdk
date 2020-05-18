@@ -33,9 +33,9 @@ func (f nullDataSourceFactory) CreateDataSource(
 ) (interfaces.DataSource, error) {
 	if context.IsOffline() {
 		// If they have explicitly set Offline to disable everything, we'll log this slightly more specific message.
-		context.GetLoggers().Info("Starting LaunchDarkly client in offline mode")
+		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
 	} else {
-		context.GetLoggers().Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
+		context.GetLogging().GetLoggers().Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
 	}
 	if dataSourceUpdates != nil {
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})

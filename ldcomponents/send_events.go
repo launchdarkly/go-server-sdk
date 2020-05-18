@@ -68,8 +68,9 @@ func SendEvents() *EventProcessorBuilder {
 
 // Called by the SDK to create the event processor instance.
 func (b *EventProcessorBuilder) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+	loggers := context.GetLogging().GetLoggers()
 	eventSender := ldevents.NewServerSideEventSender(context.CreateHTTPClient(), context.GetSDKKey(), b.baseURI,
-		context.GetDefaultHTTPHeaders(), context.GetLoggers())
+		context.GetDefaultHTTPHeaders(), loggers)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,
@@ -77,7 +78,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(context interfaces.ClientCo
 		EventSender:                 eventSender,
 		FlushInterval:               b.flushInterval,
 		InlineUsersInEvents:         b.inlineUsersInEvents,
-		Loggers:                     context.GetLoggers(),
+		Loggers:                     loggers,
 		LogUserKeyInErrors:          b.logUserKeyInErrors,
 		PrivateAttributeNames:       b.privateAttributeNames,
 		UserKeysCapacity:            b.userKeysCapacity,

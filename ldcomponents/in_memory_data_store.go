@@ -13,7 +13,7 @@ func (f inMemoryDataStoreFactory) CreateDataStore(
 	context interfaces.ClientContext,
 	dataStoreUpdates interfaces.DataStoreUpdates,
 ) (interfaces.DataStore, error) {
-	loggers := context.GetLoggers()
+	loggers := context.GetLogging().GetLoggers()
 	loggers.SetPrefix("InMemoryDataStore:")
 	return internal.NewInMemoryDataStore(loggers), nil
 }

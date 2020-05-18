@@ -7,7 +7,10 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
 	helpers "github.com/launchdarkly/go-test-helpers"
@@ -715,20 +718,19 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 
 func TestUnknownFlagErrorLogging(t *testing.T) {
 	testEvalErrorLogging(t, nil, "unknown-flag", evalTestUser,
-		"WARN: unknown feature key: unknown-flag\\. Verify that this feature key exists\\. Returning default value")
+		"unknown feature key: unknown-flag\\. Verify that this feature key exists\\. Returning default value")
 }
 
 func TestMalformedFlagErrorLogging(t *testing.T) {
 	testEvalErrorLogging(t, makeMalformedFlag("bad-flag"), "", evalTestUser,
-		"WARN: flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
+		"flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
 func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User, expectedMessageRegex string) {
 	runTest := func(withLogging bool) {
-		logger := newMockLogger("WARN:")
+		mockLoggers := sharedtest.NewMockLoggers()
 		client := makeTestClientWithConfig(func(c *Config) {
-			c.Loggers.SetBaseLogger(logger)
-			c.LogEvaluationErrors = withLogging
+			c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers).MinLevel(ldlog.Warn).LogEvaluationErrors(withLogging)
 		})
 		defer client.Close()
 		if flag != nil {
@@ -739,10 +741,10 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 		value, _ := client.StringVariation(key, user, "default")
 		assert.Equal(t, "default", value)
 		if withLogging {
-			assert.Equal(t, 1, len(logger.output))
-			assert.Regexp(t, expectedMessageRegex, logger.output[0])
+			assert.Equal(t, 1, len(mockLoggers.AllOutput))
+			assert.Regexp(t, expectedMessageRegex, mockLoggers.Output[ldlog.Warn][0])
 		} else {
-			assert.Equal(t, 0, len(logger.output))
+			assert.Equal(t, 0, len(mockLoggers.AllOutput))
 		}
 	}
 	runTest(false)

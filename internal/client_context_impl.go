@@ -3,14 +3,14 @@ package internal
 import (
 	"net/http"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-// ClientContextImpl is the SDK's standard implementation of interfaces.ClientContext.
-type ClientContextImpl struct {
+// clientContextImpl is the SDK's standard implementation of interfaces.ClientContext.
+type clientContextImpl struct {
 	sdkKey            string
-	loggers           ldlog.Loggers
+	logging           interfaces.LoggingConfiguration
 	httpHeaders       http.Header
 	httpClientFactory func() *http.Client
 	offline           bool
@@ -21,32 +21,32 @@ type ClientContextImpl struct {
 // NewClientContextImpl creates the SDK's standard implementation of interfaces.ClientContext.
 func NewClientContextImpl(
 	sdkKey string,
-	loggers ldlog.Loggers,
+	logging interfaces.LoggingConfiguration,
 	httpHeaders http.Header,
 	httpClientFactory func() *http.Client,
 	offline bool,
 	diagnosticsManager *ldevents.DiagnosticsManager,
-) *ClientContextImpl {
-	return &ClientContextImpl{sdkKey, loggers, httpHeaders, httpClientFactory, offline, diagnosticsManager}
+) interfaces.ClientContext {
+	return &clientContextImpl{sdkKey, logging, httpHeaders, httpClientFactory, offline, diagnosticsManager}
 }
 
-func (c *ClientContextImpl) GetSDKKey() string { //nolint:golint // no doc comment for standard interface method
+func (c *clientContextImpl) GetSDKKey() string {
 	return c.sdkKey
 }
 
-func (c *ClientContextImpl) GetLoggers() ldlog.Loggers { //nolint:golint // no doc comment for standard interface method
-	return c.loggers
+func (c *clientContextImpl) GetLogging() interfaces.LoggingConfiguration {
+	return c.logging
 }
 
-func (c *ClientContextImpl) GetDefaultHTTPHeaders() http.Header { //nolint:golint // no doc comment for standard interface method
+func (c *clientContextImpl) GetDefaultHTTPHeaders() http.Header {
 	return c.httpHeaders
 }
 
-func (c *ClientContextImpl) IsOffline() bool { //nolint:golint // no doc comment for standard interface method
+func (c *clientContextImpl) IsOffline() bool {
 	return c.offline
 }
 
-func (c *ClientContextImpl) CreateHTTPClient() *http.Client { //nolint:golint // no doc comment for standard interface method
+func (c *clientContextImpl) CreateHTTPClient() *http.Client {
 	if c.httpClientFactory == nil {
 		client := NewHTTPClient(defaultHTTPTimeout)
 		return &client
@@ -55,6 +55,6 @@ func (c *ClientContextImpl) CreateHTTPClient() *http.Client { //nolint:golint //
 }
 
 // This method is accessed by components like StreamProcessor by checking for a private interface.
-func (c *ClientContextImpl) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
+func (c *clientContextImpl) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
 	return c.diagnosticsManager
 }
