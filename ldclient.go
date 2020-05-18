@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
@@ -131,8 +130,6 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	closeWhenReady := make(chan struct{})
 
-	config.UserAgent = strings.TrimSpace("GoClient/" + Version + " " + config.UserAgent)
-
 	eventProcessorFactory := getEventProcessorFactory(config)
 
 	// Do not create a diagnostics manager if diagnostics are disabled, or if we're not using the standard event processor.
@@ -143,7 +140,11 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 	}
 
-	clientContext := newClientContextFromConfig(sdkKey, config, diagnosticsManager)
+	clientContext, err := newClientContextFromConfig(sdkKey, config, diagnosticsManager)
+	if err != nil {
+		return nil, err
+	}
+
 	loggers := clientContext.GetLogging().GetLoggers()
 	loggers.Infof("Starting LaunchDarkly client %s", Version)
 
@@ -206,13 +207,9 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 				loggers.Info("Successfully initialized LaunchDarkly client!")
 				return &client, nil
 			case <-timeout:
-				if waitFor > 0 {
-					loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
-					return &client, ErrInitializationTimeout
-				}
-
+				loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
 				go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
-				return &client, nil
+				return &client, ErrInitializationTimeout
 			}
 		}
 	}

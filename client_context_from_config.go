@@ -1,8 +1,6 @@
 package ldclient
 
 import (
-	"net/http"
-
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
@@ -14,38 +12,32 @@ func newClientContextFromConfig(
 	sdkKey string,
 	config Config,
 	diagnosticsManager *ldevents.DiagnosticsManager,
-) interfaces.ClientContext {
-	var logging interfaces.LoggingConfiguration
-	if config.Logging == nil {
-		logging = ldcomponents.Logging().CreateLoggingConfiguration()
-	} else {
-		logging = config.Logging.CreateLoggingConfiguration()
+) (interfaces.ClientContext, error) {
+	basicConfig := interfaces.BasicConfiguration{SDKKey: sdkKey, Offline: config.Offline}
+
+	httpFactory := config.HTTP
+	if httpFactory == nil {
+		httpFactory = ldcomponents.HTTPConfiguration()
+	}
+	http, err := httpFactory.CreateHTTPConfiguration(basicConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	headers := make(http.Header)
-	headers.Set("Authorization", sdkKey)
-	headers.Set("User-Agent", config.UserAgent)
-	if config.WrapperName != "" {
-		w := config.WrapperName
-		if config.WrapperVersion != "" {
-			w = w + "/" + config.WrapperVersion
-		}
-		headers.Add("X-LaunchDarkly-Wrapper", w)
+	loggingFactory := config.Logging
+	if loggingFactory == nil {
+		loggingFactory = ldcomponents.Logging()
 	}
-	httpClientFactoryFromConfig := config.HTTPClientFactory
-	if httpClientFactoryFromConfig == nil {
-		httpClientFactoryFromConfig = NewHTTPClientFactory()
+	logging, err := loggingFactory.CreateLoggingConfiguration(basicConfig)
+	if err != nil {
+		return nil, err
 	}
-	httpClientFactory := func() *http.Client {
-		client := httpClientFactoryFromConfig(config)
-		return &client
-	}
+
 	return internal.NewClientContextImpl(
 		sdkKey,
+		http,
 		logging,
-		headers,
-		httpClientFactory,
 		config.Offline,
 		diagnosticsManager,
-	)
+	), nil
 }

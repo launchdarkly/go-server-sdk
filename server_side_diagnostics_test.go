@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
@@ -24,8 +25,8 @@ func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 		Set("customStreamURI", ldvalue.Bool(false)).
 		Set("dataStoreType", ldvalue.String("memory")).
 		Set("eventsCapacity", ldvalue.Int(ldcomponents.DefaultEventsCapacity)).
-		Set("connectTimeoutMillis", durationToMillis(DefaultTimeout)).
-		Set("socketTimeoutMillis", durationToMillis(DefaultTimeout)).
+		Set("connectTimeoutMillis", durationToMillis(ldcomponents.DefaultConnectTimeout)).
+		Set("socketTimeoutMillis", durationToMillis(ldcomponents.DefaultConnectTimeout)).
 		Set("eventsFlushIntervalMillis", durationToMillis(ldcomponents.DefaultFlushInterval)).
 		Set("startWaitMillis", durationToMillis(testStartWaitMillis)).
 		Set("streamingDisabled", ldvalue.Bool(false)).
@@ -113,11 +114,23 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().UserKeysFlushInterval(time.Second) },
 		func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
 
-	// miscellaneous properties
-	doTest(func(c *Config) { c.Timeout = time.Second }, func(b ldvalue.ObjectBuilder) {
-		b.Set("connectTimeoutMillis", ldvalue.Int(1000))
-		b.Set("socketTimeoutMillis", ldvalue.Int(1000))
-	})
+	// network properties
+	doTest(
+		func(c *Config) {
+			c.HTTP = ldcomponents.HTTPConfiguration().ConnectTimeout(time.Second)
+		},
+		func(b ldvalue.ObjectBuilder) {
+			b.Set("connectTimeoutMillis", ldvalue.Int(1000))
+			b.Set("socketTimeoutMillis", ldvalue.Int(1000))
+		})
+	doTest(
+		func(c *Config) {
+			proxyURL, _ := url.Parse("http://proxyhost")
+			c.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(*proxyURL)
+		},
+		func(b ldvalue.ObjectBuilder) {
+			b.Set("usingProxy", ldvalue.Bool(true))
+		})
 }
 
 type customStoreFactoryForDiagnostics struct {

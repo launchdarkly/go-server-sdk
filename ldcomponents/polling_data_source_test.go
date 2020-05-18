@@ -189,7 +189,8 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.TestLoggingConfig())
+			httpConfig, _ := HTTPConfiguration().HTTPClientFactory(httpClientFactory).CreateHTTPConfiguration(interfaces.BasicConfiguration{})
+			context := sharedtest.NewTestContext(testSdkKey, httpConfig, sharedtest.TestLoggingConfig())
 			req := newRequestor(context, nil, ts.URL)
 
 			p := newPollingProcessor(context, dataSourceUpdates, req, time.Minute*30)

@@ -19,7 +19,6 @@ const (
 )
 
 type requestor struct {
-	sdkKey     string
 	httpClient *http.Client
 	baseURI    string
 	headers    http.Header
@@ -39,7 +38,7 @@ func newRequestor(context interfaces.ClientContext, httpClient *http.Client, bas
 	if httpClient != nil {
 		decoratedClient = *httpClient
 	} else {
-		decoratedClient = *context.CreateHTTPClient()
+		decoratedClient = *context.GetHTTP().CreateHTTPClient()
 	}
 	decoratedClient.Transport = &httpcache.Transport{
 		Cache:               httpcache.NewMemoryCache(),
@@ -48,10 +47,9 @@ func newRequestor(context interfaces.ClientContext, httpClient *http.Client, bas
 	}
 
 	httpRequestor := requestor{
-		sdkKey:     context.GetSDKKey(),
 		httpClient: &decoratedClient,
 		baseURI:    baseURI,
-		headers:    context.GetDefaultHTTPHeaders(),
+		headers:    context.GetHTTP().GetDefaultHeaders(),
 		loggers:    context.GetLogging().GetLoggers(),
 	}
 

@@ -15,7 +15,6 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 	shared "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
@@ -266,10 +265,10 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 		config := Config{
-			DataSource:        ldcomponents.StreamingDataSource().BaseURI(server.URL),
-			Events:            ldcomponents.NoEvents(),
-			HTTPClientFactory: NewHTTPClientFactory(ldhttp.CACertOption(certData)),
-			Logging:           shared.TestLogging(),
+			DataSource: ldcomponents.StreamingDataSource().BaseURI(server.URL),
+			Events:     ldcomponents.NoEvents(),
+			HTTP:       ldcomponents.HTTPConfiguration().CACert(certData),
+			Logging:    shared.TestLogging(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)

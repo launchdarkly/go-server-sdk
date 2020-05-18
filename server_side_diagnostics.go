@@ -1,7 +1,6 @@
 package ldclient
 
 import (
-	"os"
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
@@ -17,22 +16,11 @@ func createDiagnosticsManager(sdkKey string, config Config, waitFor time.Duratio
 }
 
 func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Value {
-	// Notes on config data
-	// - usingProxy: there are many ways to implement an HTTP proxy in Go, but the only one we're capable of
-	//   detecting is the HTTP_PROXY environment variable; programmatic approaches involve using a custom
-	//   transport, which we have no way of distinguishing from other kinds of custom transports (for the
-	//   same reason, we cannot detect if proxy authentication is being used).
-	timeout := config.Timeout
-	if timeout <= 0 {
-		timeout = DefaultTimeout
-	}
 	builder := ldvalue.ObjectBuild().
-		Set("connectTimeoutMillis", durationToMillis(timeout)).
-		Set("socketTimeoutMillis", durationToMillis(timeout)).
-		Set("startWaitMillis", durationToMillis(waitFor)).
-		Set("usingProxy", ldvalue.Bool(os.Getenv("HTTP_PROXY") != ""))
+		Set("startWaitMillis", durationToMillis(waitFor))
 
 	// Allow each pluggable component to describe its own relevant properties.
+	mergeComponentProperties(builder, config.HTTP, ldcomponents.HTTPConfiguration(), "")
 	mergeComponentProperties(builder, config.DataSource, ldcomponents.StreamingDataSource(), "")
 	mergeComponentProperties(builder, config.DataStore, ldcomponents.InMemoryDataStore(), "dataStoreType")
 	mergeComponentProperties(builder, config.Events, ldcomponents.SendEvents(), "")
@@ -42,6 +30,7 @@ func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Valu
 
 var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{
 	"allAttributesPrivate":              ldvalue.BoolType,
+	"connectTimeoutMillis":              ldvalue.NumberType,
 	"customBaseURI":                     ldvalue.BoolType,
 	"customEventsURI":                   ldvalue.BoolType,
 	"customStreamURI":                   ldvalue.BoolType,
@@ -51,9 +40,11 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{
 	"inlineUsersInEvents":               ldvalue.BoolType,
 	"pollingIntervalMillis":             ldvalue.NumberType,
 	"reconnectTimeMillis":               ldvalue.NumberType,
+	"socketTimeoutMillis":               ldvalue.NumberType,
 	"streamingDisabled":                 ldvalue.BoolType,
 	"userKeysCapacity":                  ldvalue.NumberType,
 	"userKeysFlushIntervalMillis":       ldvalue.NumberType,
+	"usingProxy":                        ldvalue.BoolType,
 	"usingRelayDaemon":                  ldvalue.BoolType,
 }
 

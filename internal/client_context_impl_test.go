@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"net/http"
 	"testing"
 	"time"
 
@@ -14,22 +13,19 @@ import (
 
 func TestClientContextImpl(t *testing.T) {
 	sdkKey := "SDK_KEY"
+	http := sharedtest.TestHTTPConfig()
 	logging := sharedtest.TestLoggingConfig()
-	headers := make(http.Header)
-	headers.Set("x", "y")
 
-	context1 := NewClientContextImpl(sdkKey, logging, headers, nil, false, nil)
-	assert.Equal(t, sdkKey, context1.GetSDKKey())
+	context1 := NewClientContextImpl(sdkKey, http, logging, false, nil)
+	assert.Equal(t, sdkKey, context1.GetBasic().SDKKey)
+	assert.False(t, context1.GetBasic().Offline)
+	assert.Equal(t, http, context1.GetHTTP())
 	assert.Equal(t, logging, context1.GetLogging())
-	assert.Equal(t, headers, context1.GetDefaultHTTPHeaders())
-	assert.NotNil(t, context1.CreateHTTPClient())
-	assert.False(t, context1.IsOffline())
 	assert.Nil(t, context1.(*clientContextImpl).GetDiagnosticsManager())
 
-	httpClient := &http.Client{}
 	diagnosticsManager := ldevents.NewDiagnosticsManager(ldvalue.Null(), ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-	context2 := NewClientContextImpl(sdkKey, logging, headers, func() *http.Client { return httpClient }, true, diagnosticsManager)
-	assert.Equal(t, httpClient, context2.CreateHTTPClient())
-	assert.True(t, context2.IsOffline())
+	context2 := NewClientContextImpl(sdkKey, http, logging, true, diagnosticsManager)
+	assert.Equal(t, sdkKey, context2.GetBasic().SDKKey)
+	assert.True(t, context2.GetBasic().Offline)
 	assert.Equal(t, diagnosticsManager, context2.(*clientContextImpl).GetDiagnosticsManager())
 }

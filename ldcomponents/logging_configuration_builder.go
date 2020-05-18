@@ -95,8 +95,10 @@ func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingCon
 }
 
 // CreateLoggingConfiguration is called internally by the SDK.
-func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration() interfaces.LoggingConfiguration {
-	return b.config
+func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
+	basic interfaces.BasicConfiguration,
+) (interfaces.LoggingConfiguration, error) {
+	return b.config, nil
 }
 
 // NoLogging returns a configuration object that disables logging.
@@ -110,6 +112,8 @@ func NoLogging() interfaces.LoggingConfigurationFactory {
 
 type noLoggingConfigurationFactory struct{}
 
-func (f noLoggingConfigurationFactory) CreateLoggingConfiguration() interfaces.LoggingConfiguration {
-	return internal.LoggingConfigurationImpl{Loggers: ldlog.NewDisabledLoggers()}
+func (f noLoggingConfigurationFactory) CreateLoggingConfiguration(
+	basic interfaces.BasicConfiguration,
+) (interfaces.LoggingConfiguration, error) {
+	return internal.LoggingConfigurationImpl{Loggers: ldlog.NewDisabledLoggers()}, nil
 }

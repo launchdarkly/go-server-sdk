@@ -1,16 +1,8 @@
 package ldclient
 
 import (
-	"net/http"
-	"time"
-
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
-
-// DefaultTimeout is the HTTP timeout used if Config.Timeout is not set.
-const DefaultTimeout = 3 * time.Second
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
 //
@@ -25,12 +17,14 @@ type Config struct {
 	//
 	// If Offline is set to true, then DataSource is ignored.
 	DataSource interfaces.DataSourceFactory
+
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
 	// If nil, the default is ldcomponents.InMemoryDataStore(). Other available implementations include the
 	// database integrations in the redis, ldconsul, and lddynamodb packages.
 	DataStore interfaces.DataStoreFactory
+
 	// Set to true to opt out of sending diagnostic events.
 	//
 	// Unless DiagnosticOptOut is set to true, the client will send some diagnostics data to the LaunchDarkly
@@ -39,6 +33,7 @@ type Config struct {
 	// SDK is being run on, as well as payloads sent periodically with information on irregular occurrences such
 	// as dropped events.
 	DiagnosticOptOut bool
+
 	// Sets the SDK's behavior regarding analytics events.
 	//
 	// If nil, the default is ldcomponents.SendEvents(); see that method for an explanation of how to further
@@ -46,51 +41,22 @@ type Config struct {
 	//
 	// If Offline is set to true, then event delivery is always off and Events is ignored.
 	Events interfaces.EventProcessorFactory
-	// If not nil, this function will be called to create an HTTP client instead of using the default
-	// client. You may use this to specify custom HTTP properties such as a proxy URL or CA certificates.
-	// The SDK may modify the client properties after that point (for instance, to add caching),
-	// but will not replace the underlying Transport, and will not modify any timeout properties you set.
-	// See NewHTTPClientFactory().
+
+	// Provides configuration of the SDK's network connection behavior.
 	//
-	//     config := ld.DefaultConfig
-	//     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyURL(myProxyURL))
-	HTTPClientFactory HTTPClientFactory
+	// If nil, the default is ldcomponents.HTTPConfiguration(); see that method for an explanation of how to
+	// further configure these options.
+	//
+	// If Offline is set to true, then HTTP is ignored.
+	HTTP interfaces.HTTPConfigurationFactory
+
 	// Provides configuration of the SDK's logging behavior.
 	//
 	// If nil, the default is ldcomponents.Logging(); see that method for an explanation of how to
 	// further configure logging behavior. The other option is ldcomponents.NoLogging().
 	Logging interfaces.LoggingConfigurationFactory
+
 	// Sets whether this client is offline. An offline client will not make any network connections to LaunchDarkly,
 	// and will return default values for all feature flags.
 	Offline bool
-	// The connection timeout to use when making polling requests to LaunchDarkly.
-	//
-	// The default is three seconds.
-	Timeout time.Duration
-	// The User-Agent header to send with HTTP requests. This defaults to a value that identifies the version
-	// of the Go SDK for LaunchDarkly usage metrics.
-	UserAgent string
-	// For use by wrapper libraries to set an identifying name for the wrapper being used.
-	//
-	// This will be sent in request headers during requests to the LaunchDarkly servers to allow recording
-	// metrics on the usage of these wrapper libraries.
-	WrapperName string
-	// For use by wrapper libraries to set the version to be included alongside a WrapperName.
-	//
-	// If WrapperName is unset, this field will be ignored.
-	WrapperVersion string
-}
-
-// HTTPClientFactory is a function that creates a custom HTTP client.
-type HTTPClientFactory func(Config) http.Client
-
-// NewHTTPClientFactory creates an HTTPClientFactory based on the standard SDK configuration as well
-// as any custom ldhttp.TransportOption properties you specify.
-//
-//     config := ld.DefaultConfig
-//     config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.CACertFileOption("my-cert.pem"))
-func NewHTTPClientFactory(options ...ldhttp.TransportOption) HTTPClientFactory {
-	return func(c Config) http.Client {
-		return internal.NewHTTPClient(c.Timeout, options...)
-	}
 }

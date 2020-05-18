@@ -13,7 +13,7 @@ import (
 const testSdkKey = "test-sdk-key"
 
 func basicClientContext() interfaces.ClientContext {
-	return interfaces.NewClientContext(testSdkKey, nil, nil, sharedtest.TestLoggingConfig())
+	return sharedtest.NewSimpleTestContext(testSdkKey)
 }
 
 type contextWithDiagnostics struct {
@@ -23,16 +23,16 @@ type contextWithDiagnostics struct {
 	diagnosticsManager *ldevents.DiagnosticsManager
 }
 
-func (c *contextWithDiagnostics) GetSDKKey() string {
-	return c.sdkKey
+func (c *contextWithDiagnostics) GetBasic() interfaces.BasicConfiguration {
+	return interfaces.BasicConfiguration{SDKKey: c.sdkKey}
+}
+
+func (c *contextWithDiagnostics) GetHTTP() interfaces.HTTPConfiguration {
+	return sharedtest.TestHTTPConfig()
 }
 
 func (c *contextWithDiagnostics) GetLogging() interfaces.LoggingConfiguration {
 	return sharedtest.TestLoggingConfig()
-}
-
-func (c *contextWithDiagnostics) GetDefaultHTTPHeaders() http.Header {
-	return c.headers
 }
 
 func (c *contextWithDiagnostics) CreateHTTPClient() *http.Client {
@@ -44,10 +44,6 @@ func (c *contextWithDiagnostics) CreateHTTPClient() *http.Client {
 
 func (c *contextWithDiagnostics) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
 	return c.diagnosticsManager
-}
-
-func (c *contextWithDiagnostics) IsOffline() bool {
-	return false
 }
 
 func newClientContextWithDiagnostics(sdkKey string, headers http.Header, httpClientFactory func() *http.Client, diagnosticsManager *ldevents.DiagnosticsManager) interfaces.ClientContext {
