@@ -15,5 +15,12 @@ import (
 // do not need to interact with it directly, except for testing purposes or if an alternate event storage
 // mechanism is needed.
 type EventProcessorFactory interface {
+	// CreateEventProcessor is called by the SDK to create the implementation instance.
+	//
+	// This happens only when MakeClient or MakeCustomClient is called. The implementation instance
+	// is then tied to the life cycle of the LDClient, so it will receive a Close() call when the
+	// client is closed.
+	//
+	// If the factory returns an error, creation of the LDClient fails.
 	CreateEventProcessor(context ClientContext) (ldevents.EventProcessor, error)
 }

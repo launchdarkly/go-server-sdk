@@ -98,7 +98,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 			pollingBaseURI = b.baseURI
 		}
 	}
-	requestor := newRequestor(context, context.CreateHTTPClient(), pollingBaseURI)
+	requestor := newRequestor(context, context.GetHTTP().CreateHTTPClient(), pollingBaseURI)
 	return newStreamProcessor(context, dataSourceUpdates, b.baseURI, b.initialReconnectDelay, requestor), nil
 }
 

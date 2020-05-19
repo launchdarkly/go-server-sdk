@@ -8,7 +8,7 @@ import (
 
 // LoggingConfiguration encapsulates the SDK's general logging configuration.
 //
-// See LoggingConfigurationBuilder for more details on these properties.
+// See ldcomponents.LoggingConfigurationBuilder for more details on these properties.
 type LoggingConfiguration interface {
 	// GetLoggers returns the configured ldlog.Loggers instance.
 	GetLoggers() ldlog.Loggers
@@ -28,5 +28,8 @@ type LoggingConfiguration interface {
 // LoggingConfigurationFactory is an interface for a factory that creates a LoggingConfiguration.
 type LoggingConfigurationFactory interface {
 	// CreateLoggingConfiguration is called internally by the SDK to obtain the configuration.
-	CreateLoggingConfiguration() LoggingConfiguration
+	//
+	// This happens only when MakeClient or MakeCustomClient is called. If the factory returns
+	// an error, creation of the LDClient fails.
+	CreateLoggingConfiguration(basicConfig BasicConfiguration) (LoggingConfiguration, error)
 }

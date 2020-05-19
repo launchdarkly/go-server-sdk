@@ -213,7 +213,8 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.TestLoggingConfig())
+			httpConfig, _ := HTTPConfiguration().HTTPClientFactory(httpClientFactory).CreateHTTPConfiguration(interfaces.BasicConfiguration{})
+			context := sharedtest.NewTestContext(testSdkKey, httpConfig, sharedtest.TestLoggingConfig())
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
 				CreateDataSource(context, dataSourceUpdates)
@@ -240,7 +241,8 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 				c.Timeout = 200 * time.Millisecond
 				return &c
 			}
-			context := interfaces.NewClientContext(testSdkKey, nil, httpClientFactory, sharedtest.TestLoggingConfig())
+			httpConfig, _ := HTTPConfiguration().HTTPClientFactory(httpClientFactory).CreateHTTPConfiguration(interfaces.BasicConfiguration{})
+			context := sharedtest.NewTestContext(testSdkKey, httpConfig, sharedtest.TestLoggingConfig())
 
 			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
 				CreateDataSource(context, dataSourceUpdates)

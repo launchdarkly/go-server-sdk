@@ -275,7 +275,7 @@ func newStreamProcessor(
 		streamURI:             streamURI,
 		initialReconnectDelay: initialReconnectDelay,
 		requestor:             requestor,
-		headers:               context.GetDefaultHTTPHeaders(),
+		headers:               context.GetHTTP().GetDefaultHeaders(),
 		loggers:               context.GetLogging().GetLoggers(),
 		halt:                  make(chan struct{}),
 	}
@@ -283,7 +283,7 @@ func newStreamProcessor(
 		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
 	}
 
-	sp.client = context.CreateHTTPClient()
+	sp.client = context.GetHTTP().CreateHTTPClient()
 	// Client.Timeout isn't just a connect timeout, it will break the connection if a full response
 	// isn't received within that time (which, with the stream, it never will be), so we must make
 	// sure it's zero and not the usual configured default. What we do want is a *connection* timeout,

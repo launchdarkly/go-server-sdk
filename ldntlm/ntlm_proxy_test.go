@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
 
@@ -38,7 +37,7 @@ func TestCanConnectToNTLMProxyServer(t *testing.T) {
 	httphelpers.WithServer(makeFakeNTLMProxyHandler(), func(server *httptest.Server) {
 		factory, err := NewNTLMProxyHTTPClientFactory(server.URL, username, password, domain)
 		require.NoError(t, err)
-		client := factory(ld.Config{})
+		client := factory()
 
 		resp, err := client.Get(targetURL)
 		require.NoError(t, err)
@@ -55,7 +54,7 @@ func TestCanConnectSecurelyToNTLMProxyServerWithSelfSignedCert(t *testing.T) {
 		factory, err := NewNTLMProxyHTTPClientFactory(server.URL, username, password, domain,
 			ldhttp.CACertOption(certData))
 		require.NoError(t, err)
-		client := factory(ld.Config{})
+		client := factory()
 
 		resp, err := client.Get(targetURL)
 		require.NoError(t, err)

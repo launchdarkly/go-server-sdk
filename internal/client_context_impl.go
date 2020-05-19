@@ -1,19 +1,15 @@
 package internal
 
 import (
-	"net/http"
-
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 // clientContextImpl is the SDK's standard implementation of interfaces.ClientContext.
 type clientContextImpl struct {
-	sdkKey            string
-	logging           interfaces.LoggingConfiguration
-	httpHeaders       http.Header
-	httpClientFactory func() *http.Client
-	offline           bool
+	basic   interfaces.BasicConfiguration
+	http    interfaces.HTTPConfiguration
+	logging interfaces.LoggingConfiguration
 	// Used internally to share a diagnosticsManager instance between components.
 	diagnosticsManager *ldevents.DiagnosticsManager
 }
@@ -21,37 +17,29 @@ type clientContextImpl struct {
 // NewClientContextImpl creates the SDK's standard implementation of interfaces.ClientContext.
 func NewClientContextImpl(
 	sdkKey string,
+	http interfaces.HTTPConfiguration,
 	logging interfaces.LoggingConfiguration,
-	httpHeaders http.Header,
-	httpClientFactory func() *http.Client,
 	offline bool,
 	diagnosticsManager *ldevents.DiagnosticsManager,
 ) interfaces.ClientContext {
-	return &clientContextImpl{sdkKey, logging, httpHeaders, httpClientFactory, offline, diagnosticsManager}
+	return &clientContextImpl{
+		interfaces.BasicConfiguration{SDKKey: sdkKey, Offline: offline},
+		http,
+		logging,
+		diagnosticsManager,
+	}
 }
 
-func (c *clientContextImpl) GetSDKKey() string {
-	return c.sdkKey
+func (c *clientContextImpl) GetBasic() interfaces.BasicConfiguration {
+	return c.basic
+}
+
+func (c *clientContextImpl) GetHTTP() interfaces.HTTPConfiguration {
+	return c.http
 }
 
 func (c *clientContextImpl) GetLogging() interfaces.LoggingConfiguration {
 	return c.logging
-}
-
-func (c *clientContextImpl) GetDefaultHTTPHeaders() http.Header {
-	return c.httpHeaders
-}
-
-func (c *clientContextImpl) IsOffline() bool {
-	return c.offline
-}
-
-func (c *clientContextImpl) CreateHTTPClient() *http.Client {
-	if c.httpClientFactory == nil {
-		client := NewHTTPClient(defaultHTTPTimeout)
-		return &client
-	}
-	return c.httpClientFactory()
 }
 
 // This method is accessed by components like StreamProcessor by checking for a private interface.

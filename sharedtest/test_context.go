@@ -8,7 +8,43 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-type stubClientContext struct{}
+type stubClientContext struct {
+	sdkKey  string
+	http    interfaces.HTTPConfiguration
+	logging interfaces.LoggingConfiguration
+}
+
+// NewSimpleTestContext returns a basic implementation of interfaces.ClientContext for use in test code.
+func NewSimpleTestContext(sdkKey string) interfaces.ClientContext {
+	return NewTestContext(sdkKey, TestHTTPConfig(), TestLoggingConfig())
+}
+
+// NewTestContext returns a basic implementation of interfaces.ClientContext for use in test code.
+func NewTestContext(sdkKey string, http interfaces.HTTPConfiguration, logging interfaces.LoggingConfiguration) interfaces.ClientContext {
+	return stubClientContext{sdkKey, http, logging}
+}
+
+func (c stubClientContext) GetBasic() interfaces.BasicConfiguration {
+	return interfaces.BasicConfiguration{SDKKey: c.sdkKey}
+}
+
+func (c stubClientContext) GetHTTP() interfaces.HTTPConfiguration {
+	return c.http
+}
+
+func (c stubClientContext) GetLogging() interfaces.LoggingConfiguration {
+	return c.logging
+}
+
+// TestHTTP returns a basic HTTPConfigurationFactory for test code.
+func TestHTTP() interfaces.HTTPConfigurationFactory {
+	return testHTTPConfigurationFactory{}
+}
+
+// TestHTTPConfig returns a basic HTTPConfiguration for test code.
+func TestHTTPConfig() interfaces.HTTPConfiguration {
+	return testHTTPConfiguration{}
+}
 
 // TestLogging returns a LoggingConfigurationFactory corresponding to NewTestLoggers().
 func TestLogging() interfaces.LoggingConfigurationFactory {
@@ -20,24 +56,22 @@ func TestLoggingConfig() interfaces.LoggingConfiguration {
 	return testLoggingConfiguration{}
 }
 
-func (c stubClientContext) GetSDKKey() string {
-	return "test-sdk-key"
-}
+type testHTTPConfiguration struct{}
+type testHTTPConfigurationFactory struct{}
 
-func (c stubClientContext) GetDefaultHTTPHeaders() http.Header {
+func (c testHTTPConfiguration) GetDefaultHeaders() http.Header {
 	return nil
 }
 
-func (c stubClientContext) CreateHTTPClient() *http.Client {
-	return http.DefaultClient
+func (c testHTTPConfiguration) CreateHTTPClient() *http.Client {
+	client := *http.DefaultClient
+	return &client
 }
 
-func (c stubClientContext) GetLogging() interfaces.LoggingConfiguration {
-	return TestLoggingConfig()
-}
-
-func (c stubClientContext) IsOffline() bool {
-	return false
+func (c testHTTPConfigurationFactory) CreateHTTPConfiguration(
+	basicConfig interfaces.BasicConfiguration,
+) (interfaces.HTTPConfiguration, error) {
+	return testHTTPConfiguration{}, nil
 }
 
 type testLoggingConfiguration struct{}
@@ -59,6 +93,8 @@ func (c testLoggingConfiguration) GetLoggers() ldlog.Loggers {
 	return NewTestLoggers()
 }
 
-func (c testLoggingConfigurationFactory) CreateLoggingConfiguration() interfaces.LoggingConfiguration {
-	return testLoggingConfiguration{}
+func (c testLoggingConfigurationFactory) CreateLoggingConfiguration(
+	basicConfig interfaces.BasicConfiguration,
+) (interfaces.LoggingConfiguration, error) {
+	return testLoggingConfiguration{}, nil
 }

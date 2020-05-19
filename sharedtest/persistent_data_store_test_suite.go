@@ -125,7 +125,7 @@ func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
 }
 
 func (s *PersistentDataStoreTestSuite) makeStore(prefix string) intf.PersistentDataStore {
-	store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(stubClientContext{})
+	store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(NewSimpleTestContext(""))
 	if err != nil {
 		panic(err)
 	}

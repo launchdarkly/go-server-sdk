@@ -2,22 +2,7 @@
 // uses NTLM authentication. The standard Go HTTP client proxy mechanism does not support this. The
 // implementation uses this package: github.com/launchdarkly/go-ntlm-proxy-auth
 //
-// Usage:
-//
-//     clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
-//         "password", "domain")
-//     if err != nil {
-//         // there's some configuration problem such as an invalid proxy URL
-//     }
-//     config := ld.Config{
-//         HTTPClientFactory: clientFactory,
-//     }
-//     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
-//
-// You can also specify TLS configuration options from the ldhttp package:
-//
-//     clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
-//         "password", "domain", ldhttp.CACertFileOption("extra-ca-cert.pem"))
+// See NewNTLMProxyHTTPClientFactory for more details.
 package ldntlm
 
 import (
@@ -28,17 +13,31 @@ import (
 
 	ntlm "github.com/launchdarkly/go-ntlm-proxy-auth"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )
 
 // NewNTLMProxyHTTPClientFactory returns a factory function for creating an HTTP client that will
-// connect through an NTLM-authenticated proxy server. This function should be placed in the
-// HTTPClientFactory property of your Config object when you create the LaunchDarkly SDK client.
-// If you are connecting to the proxy securely and need to specify any custom TLS options, these
-// can be specified using the TransportOption values defined in the ldhttp package.
+// connect through an NTLM-authenticated proxy server.
+//
+// To use this with the SDK, pass the factory function to HTTPConfigurationBuilder.HTTPClientFactory:
+//
+//     clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
+//         "password", "domain")
+//     if err != nil {
+//         // there's some configuration problem such as an invalid proxy URL
+//     }
+//     config := ld.Config{
+//         HTTP: ldcomponents.HTTPConfiguration().HTTPClientFactory(clientFactory),
+//     }
+//     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
+//
+// You can also specify TLS configuration options from the ldhttp package, if you are connecting to
+// the proxy securely:
+//
+//     clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
+//         "password", "domain", ldhttp.CACertFileOption("extra-ca-cert.pem"))
 func NewNTLMProxyHTTPClientFactory(proxyURL, username, password, domain string,
-	options ...ldhttp.TransportOption) (ld.HTTPClientFactory, error) {
+	options ...ldhttp.TransportOption) (func() *http.Client, error) {
 	if proxyURL == "" || username == "" || password == "" {
 		return nil, errors.New("ProxyURL, username, and password are required")
 	}
@@ -50,15 +49,13 @@ func NewNTLMProxyHTTPClientFactory(proxyURL, username, password, domain string,
 	if _, _, err := ldhttp.NewHTTPTransport(options...); err != nil {
 		return nil, err
 	}
-	return func(config ld.Config) http.Client {
+	return func() *http.Client {
 		client := *http.DefaultClient
-		allOpts := []ldhttp.TransportOption{ldhttp.ConnectTimeoutOption(config.Timeout)}
-		allOpts = append(allOpts, options...)
-		if transport, dialer, err := ldhttp.NewHTTPTransport(allOpts...); err == nil {
+		if transport, dialer, err := ldhttp.NewHTTPTransport(options...); err == nil {
 			transport.DialContext = ntlm.NewNTLMProxyDialContext(dialer, *parsedProxyURL,
 				username, password, domain, transport.TLSClientConfig)
 			client.Transport = transport
 		}
-		return client
+		return &client
 	}, nil
 }
