@@ -134,7 +134,7 @@ jobs:
           COMMON_GO_PACKAGES: >
             github.com/golang/dep/cmd/dep
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
