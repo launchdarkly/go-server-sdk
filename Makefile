@@ -19,7 +19,7 @@ test:
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
 
 benchmarks:
-	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v4 -bench .
+	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
 
 $(LINTER):
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s $(GOLANGCI_LINT_VERSION)
