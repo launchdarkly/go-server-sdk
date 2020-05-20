@@ -43,6 +43,12 @@ func (b *SegmentBuilder) Included(keys ...string) *SegmentBuilder {
 	return b
 }
 
+// Version sets the segment's Version property.
+func (b *SegmentBuilder) Version(value int) *SegmentBuilder {
+	b.segment.Version = value
+	return b
+}
+
 // NewSegmentRuleBuilder creates a SegmentRuleBuilder.
 func NewSegmentRuleBuilder() *SegmentRuleBuilder {
 	return &SegmentRuleBuilder{}

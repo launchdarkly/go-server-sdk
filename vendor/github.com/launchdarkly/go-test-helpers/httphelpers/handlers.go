@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 )
 
 // HTTPRequestInfo represents a request captured by NewRecordingHTTPHandler.
@@ -56,6 +57,23 @@ func HandlerForMethod(method string, handlerForMethod http.Handler, defaultHandl
 func HandlerForPath(path string, handlerForPath http.Handler, defaultHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == path {
+			handlerForPath.ServeHTTP(w, r)
+		} else {
+			if defaultHandler != nil {
+				defaultHandler.ServeHTTP(w, r)
+			} else {
+				w.WriteHeader(404)
+			}
+		}
+	})
+}
+
+// HandlerForPathRegex is a simple alternative to using an HTTP router. It delegates to the specified handler
+// if the path matches; otherwise to the default handler, or a 404 if that is nil.
+func HandlerForPathRegex(pathRegex string, handlerForPath http.Handler, defaultHandler http.Handler) http.Handler {
+	pr := regexp.MustCompile(pathRegex)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if pr.MatchString(r.URL.Path) {
 			handlerForPath.ServeHTTP(w, r)
 		} else {
 			if defaultHandler != nil {

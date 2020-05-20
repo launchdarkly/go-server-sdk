@@ -21,6 +21,7 @@ workflows:
           docker-image: circleci/golang:1.12
       - go-test-windows:
           name: Windows
+      - benchmarks
 
 jobs:
   go-test:
@@ -124,3 +125,26 @@ jobs:
           command: |
             cd ${env:GOPATH}\src\${env:PACKAGE_PATH}
             go test -race ./...
+
+  benchmarks:
+    docker:
+      - image: circleci/golang:1.14
+        environment:
+          CIRCLE_ARTIFACTS: /tmp/circle-artifacts
+          COMMON_GO_PACKAGES: >
+            github.com/golang/dep/cmd/dep
+
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+
+    steps:
+      - checkout
+      - run: go get -u github.com/golang/dep/cmd/dep
+      - run: go build ./...      
+      - run:
+          name: Run benchmarks
+          command: |
+            mkdir -p $CIRCLE_ARTIFACTS
+            make benchmarks | tee $CIRCLE_ARTIFACTS/benchmarks.txt
+
+      - store_artifacts:
+          path: /tmp/circle-artifacts
