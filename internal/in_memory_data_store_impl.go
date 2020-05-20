@@ -8,6 +8,14 @@ import (
 )
 
 // inMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.
+//
+// Implementation notes:
+//
+// We deliberately do not use a defer pattern to manage the lock in these methods. Using defer adds a small but
+// consistent overhead, and these store methods may be called with very high frequency (at least in the case of
+// Get and IsInitialized). To make it safe to hold a lock without deferring the unlock, we must ensure that
+// there is only one return point from each method, and that there is no operation that could possibly cause a
+// panic after the lock has been acquired. See notes on performance in CONTRIBUTING.md.
 type inMemoryDataStore struct {
 	allData       map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor
 	isInitialized bool
@@ -27,7 +35,6 @@ func NewInMemoryDataStore(loggers ldlog.Loggers) interfaces.DataStore {
 
 func (store *inMemoryDataStore) Init(allData []interfaces.StoreCollection) error {
 	store.Lock()
-	defer store.Unlock()
 
 	store.allData = make(map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor)
 
@@ -40,16 +47,27 @@ func (store *inMemoryDataStore) Init(allData []interfaces.StoreCollection) error
 	}
 
 	store.isInitialized = true
+
+	store.Unlock()
+
 	return nil
 }
 
 func (store *inMemoryDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
 	store.RLock()
-	defer store.RUnlock()
-	if coll, ok := store.allData[kind]; ok {
-		if item, ok := coll[key]; ok {
-			return item, nil
-		}
+
+	var coll map[string]interfaces.StoreItemDescriptor
+	var item interfaces.StoreItemDescriptor
+	var ok bool
+	coll, ok = store.allData[kind]
+	if ok {
+		item, ok = coll[key]
+	}
+
+	store.RUnlock()
+
+	if ok {
+		return item, nil
 	}
 	store.loggers.Debugf(`Key %s not found in "%s"`, key, kind)
 	return interfaces.StoreItemDescriptor{}.NotFound(), nil
@@ -57,37 +75,52 @@ func (store *inMemoryDataStore) Get(kind interfaces.StoreDataKind, key string) (
 
 func (store *inMemoryDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
 	store.RLock()
-	defer store.RUnlock()
-	if coll, ok := store.allData[kind]; ok {
-		ret := make([]interfaces.StoreKeyedItemDescriptor, 0, len(coll))
-		for key, item := range coll {
-			ret = append(ret, interfaces.StoreKeyedItemDescriptor{Key: key, Item: item})
+
+	var itemsOut []interfaces.StoreKeyedItemDescriptor
+	if itemsMap, ok := store.allData[kind]; ok {
+		if len(itemsMap) > 0 {
+			itemsOut = make([]interfaces.StoreKeyedItemDescriptor, 0, len(itemsMap))
+			for key, item := range itemsMap {
+				itemsOut = append(itemsOut, interfaces.StoreKeyedItemDescriptor{Key: key, Item: item})
+			}
 		}
-		return ret, nil
 	}
-	return nil, nil
+
+	store.RUnlock()
+
+	return itemsOut, nil
 }
 
 func (store *inMemoryDataStore) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) error {
 	store.Lock()
-	defer store.Unlock()
-	if coll, ok := store.allData[kind]; ok {
+
+	var coll map[string]interfaces.StoreItemDescriptor
+	var ok bool
+	shouldUpdate := true
+	if coll, ok = store.allData[kind]; ok {
 		if item, ok := coll[key]; ok {
 			if item.Version >= newItem.Version {
-				return nil
+				shouldUpdate = false
 			}
 		}
-		coll[key] = newItem
 	} else {
 		store.allData[kind] = map[string]interfaces.StoreItemDescriptor{key: newItem}
+		shouldUpdate = false // because we already initialized the map with the new item
 	}
+	if shouldUpdate {
+		coll[key] = newItem
+	}
+
+	store.Unlock()
+
 	return nil
 }
 
 func (store *inMemoryDataStore) IsInitialized() bool {
 	store.RLock()
-	defer store.RUnlock()
-	return store.isInitialized
+	ret := store.isInitialized
+	store.RUnlock()
+	return ret
 }
 
 func (store *inMemoryDataStore) IsStatusMonitoringEnabled() bool {
