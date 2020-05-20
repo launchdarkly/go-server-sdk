@@ -43,26 +43,33 @@ type LDClient struct {
 	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
 	dataStoreStatusBroadcaster  *internal.DataStoreStatusBroadcaster
 	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
+	eventsDefault               eventsScope
+	eventsWithReasons           eventsScope
 	logEvaluationErrors         bool
 	offline                     bool
 }
 
-// Implementation of ldeval.PrerequisiteFlagEventRecorder
-type clientEvaluatorEventSink struct {
-	user         *lduser.User
-	events       []ldevents.FeatureRequestEvent
-	eventFactory ldevents.EventFactory
+// This struct is used during evaluations to keep track of the event generation strategy we are using
+// (with or without evaluation reasons). It captures all of the relevant state so that we do not need to
+// create any more stateful objects, such as closures, to generate events during an evaluation. See
+// CONTRIBUTING.md for performance issues with closures.
+type eventsScope struct {
+	factory                   ldevents.EventFactory
+	prerequisiteEventRecorder ldeval.PrerequisiteFlagEventRecorder
 }
 
-func (c *clientEvaluatorEventSink) recordPrerequisiteEvent(params ldeval.PrerequisiteFlagEvent) {
-	flagProps := ldeval.FlagEventProperties(params.PrerequisiteFlag)
-	event := c.eventFactory.NewSuccessfulEvalEvent(flagProps, ldevents.User(*c.user), params.PrerequisiteResult.VariationIndex,
-		params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, params.TargetFlagKey)
-	c.events = append(c.events, event)
+func makeEventsScope(client *LDClient, withReasons bool) eventsScope {
+	factory := ldevents.NewEventFactory(withReasons, nil)
+	return eventsScope{
+		factory: factory,
+		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
+			flagProps := ldeval.FlagEventProperties(params.PrerequisiteFlag)
+			event := factory.NewSuccessfulEvalEvent(flagProps, ldevents.User(params.User), params.PrerequisiteResult.VariationIndex,
+				params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, params.TargetFlagKey)
+			client.eventProcessor.SendEvent(event)
+		},
+	}
 }
-
-// Standard event factory when evaluation reasons are not an issue
-var defaultEventFactory = ldevents.NewEventFactory(false, nil)
 
 // Initialization errors
 var (
@@ -180,6 +187,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if err != nil {
 		return nil, err
 	}
+	client.eventsDefault = makeEventsScope(&client, false)
+	client.eventsWithReasons = makeEventsScope(&client, true)
 
 	dataSourceFactory := getDataSourceFactory(config)
 	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, dataSourceUpdates)
@@ -250,7 +259,7 @@ func (client *LDClient) Identify(user lduser.User) error {
 		client.loggers.Warn("Identify called with empty user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := defaultEventFactory.NewIdentifyEvent(ldevents.User(user))
+	evt := client.eventsDefault.factory.NewIdentifyEvent(ldevents.User(user))
 	client.eventProcessor.SendEvent(evt)
 	return nil
 }
@@ -279,7 +288,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, ldevents.User(user), data, false, 0))
+	client.eventProcessor.SendEvent(client.eventsDefault.factory.NewCustomEvent(eventName, ldevents.User(user), data, false, 0))
 	return nil
 }
 
@@ -298,7 +307,7 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(defaultEventFactory.NewCustomEvent(eventName, ldevents.User(user), data, true, metricValue))
+	client.eventProcessor.SendEvent(client.eventsDefault.factory.NewCustomEvent(eventName, ldevents.User(user), data, true, metricValue))
 	return nil
 }
 
@@ -525,8 +534,11 @@ func (client *LDClient) variation(
 	if client.IsOffline() {
 		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
 	}
-	eventFactory := ldevents.NewEventFactory(sendReasonsInEvents, nil)
-	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventFactory)
+	eventsScope := client.eventsDefault
+	if sendReasonsInEvents {
+		eventsScope = client.eventsWithReasons
+	}
+	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventsScope)
 	if err != nil {
 		result.Value = defaultVal
 		result.VariationIndex = -1
@@ -538,10 +550,10 @@ func (client *LDClient) variation(
 
 	var evt ldevents.FeatureRequestEvent
 	if flag == nil {
-		evt = eventFactory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
+		evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
 	} else {
 		flagProps := ldeval.FlagEventProperties(*flag)
-		evt = eventFactory.NewSuccessfulEvalEvent(flagProps, ldevents.User(user), result.VariationIndex, result.Value, defaultVal,
+		evt = eventsScope.factory.NewSuccessfulEvalEvent(flagProps, ldevents.User(user), result.VariationIndex, result.Value, defaultVal,
 			result.Reason, "")
 	}
 	client.eventProcessor.SendEvent(evt)
@@ -555,8 +567,11 @@ func (client *LDClient) evaluateInternal(
 	key string,
 	user lduser.User,
 	defaultVal ldvalue.Value,
-	eventFactory ldevents.EventFactory,
+	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
+	// THIS IS A HIGH-TRAFFIC CODE PATH so performance tuning is important. Please see CONTRIBUTING.md for guidelines
+	// to keep in mind during any changes to the evaluation logic.
+
 	if user.GetKey() == "" {
 		client.loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
 	}
@@ -600,8 +615,7 @@ func (client *LDClient) evaluateInternal(
 			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 
-	eventSink := clientEvaluatorEventSink{user: &user, eventFactory: eventFactory}
-	detail := client.evaluator.Evaluate(*feature, user, eventSink.recordPrerequisiteEvent)
+	detail := client.evaluator.Evaluate(*feature, user, eventsScope.prerequisiteEventRecorder)
 	if detail.Reason.GetKind() == ldreason.EvalReasonError && client.logEvaluationErrors {
 		client.loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
 			key, detail.Reason.GetErrorKind())
@@ -609,9 +623,6 @@ func (client *LDClient) evaluateInternal(
 	if detail.IsDefaultValue() {
 		detail.Value = defaultVal
 		detail.VariationIndex = -1
-	}
-	for _, event := range eventSink.events {
-		client.eventProcessor.SendEvent(event)
 	}
 	return detail, feature, nil
 }
