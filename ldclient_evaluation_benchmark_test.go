@@ -35,7 +35,8 @@ func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []ldvalue.Va
 		c.Events = ldcomponents.NoEvents()
 	})
 
-	// Set up the feature flag store.
+	// Set up the feature flag store. Note that we're using a regular in-memory data store, so the
+	// benchmarks will include the overhead of calling Get on the store.
 	testFlags := makeEvalBenchmarkFlags(bc, variations)
 	for _, ff := range testFlags {
 		env.client.store.Upsert(interfaces.DataKindFeatures(), ff.Key, interfaces.StoreItemDescriptor{ff.Version, ff})
@@ -48,7 +49,9 @@ func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []ldvalue.Va
 	}
 	env.targetFeatureKey = fmt.Sprintf("flag-%d", targetFeatureKeyIndex)
 
-	// Create users to match all of the user keys in the flag's target list.
+	// Create users to match all of the user keys in the flag's target list. These will be used
+	// only in BenchmarkUsersFoundInTargets; with all the other benchmarks, we are deliberately
+	// using a user key that is *not* found in the targets.
 	env.targetUsers = make([]lduser.User, bc.numTargets)
 	for i := 0; i < bc.numTargets; i++ {
 		env.targetUsers[i] = lduser.NewUser(makeEvalBenchmarkTargetUserKey(i))
@@ -223,13 +226,9 @@ var targetMatchBenchmarkCases = []evalBenchmarkCase{
 }
 
 var (
-	/*
-	 * Always record the result of an operation to prevent the
-	 * compiler eliminating the function call.
-	 *
-	 * Always store the result to a package level variable so
-	 * the compiler cannot eliminate the benchmark itself.
-	 */
+	// Always record the result of an operation to prevent the  compiler eliminating the function call.
+	//
+	// Always store the result to a package level variable so the compiler cannot eliminate the benchmark itself.
 	boolResult   bool
 	intResult    int
 	stringResult string
@@ -252,10 +251,6 @@ func benchmarkEval(b *testing.B, makeVariation func(int) ldvalue.Value, cases []
 		})
 		env.tearDown()
 	}
-}
-
-func allCases(c evalBenchmarkCase) bool {
-	return true
 }
 
 func BenchmarkBoolVariation(b *testing.B) {
@@ -310,6 +305,9 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 }
 
 // Input data creation
+
+// The flag rules and clauses we create here are intended *not* to match the user, so the more of them we
+// create, the more we are testing the overhead of iterating through all the clauses.
 
 func makeBoolVariation(i int) ldvalue.Value {
 	return ldvalue.Bool(i%2 == 0)
@@ -415,8 +413,6 @@ func assignPrereqTree(flags []*ldmodel.FeatureFlag, width, depth int) {
 		if levelIndex > depth {
 			levelIndex = 0
 			parentLevel = []*ldmodel.FeatureFlag{flags[i]}
-			// log.Println("\n\n*** new tree!")
-			// log.Print("\nlevel 0 - " + flags[i].Key)
 		}
 		if levelIndex == 0 {
 			levelIndex++
@@ -424,21 +420,16 @@ func assignPrereqTree(flags []*ldmodel.FeatureFlag, width, depth int) {
 			continue
 		}
 
-		// log.Printf("\nlevel %d - ", levelIndex)
-
 		var childLevel []*ldmodel.FeatureFlag
 		for _, parent := range parentLevel {
-			// log.Print(parent.Key + ": ")
 			for w := 0; w < width && i+w < len(flags); w++ {
 				child := flags[i+w]
 				child.Prerequisites = []ldmodel.Prerequisite{{Key: parent.Key, Variation: 0}}
 				childLevel = append(childLevel, child)
-				// log.Print(child.Key + ", ")
 			}
 			i += width
 		}
 		parentLevel = childLevel
 		levelIndex++
 	}
-	// log.Println()
 }
