@@ -126,7 +126,6 @@ func testInMemoryDataStoreGetAll(t *testing.T) {
 
 	result, err := store.GetAll(interfaces.DataKindFeatures())
 	require.NoError(t, err)
-	assert.NotNil(t, result)
 	assert.Len(t, result, 0)
 
 	flag1 := ldbuilders.NewFlagBuilder("flag1").Build()
