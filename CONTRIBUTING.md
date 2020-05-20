@@ -81,7 +81,7 @@ BENCHMARK=BenchmarkMySampleOperation make benchmark-allocs
 
 ### Avoid `defer` in simple cases
 
-It's common to use `defer` to guarantee cleanup of some kind of temporary state when a method exits, such as releasing a lock. As convenient as this feature is, it should be avoided in high-traffic code paths ''if it is safe to do so'', due to its small but consistent [runtime overhead](https://medium.com/i0exception/runtime-overhead-of-using-defer-in-go-7140d5c40e32).
+It's common to use `defer` to guarantee cleanup of some kind of temporary state when a method exits, such as releasing a lock. As convenient as this feature is, it should be avoided in high-traffic code paths _if it is safe to do so_, due to its small but consistent [runtime overhead](https://medium.com/i0exception/runtime-overhead-of-using-defer-in-go-7140d5c40e32).
 
 It is safe to avoid `defer` if:
 
@@ -117,4 +117,4 @@ func (t *thing) getNumber() int {
 }
 ```
 
-Note that in this example, a panic _is_ possible on the first line if `t` is nil; but since the lock would not get locked in that scenario, thing would still be left in a safe state even in that case.
+Note that in this example, a panic _is_ possible on the first line if `t` is nil; but since the lock would not get locked in that scenario, things would still be left in a safe state even in that case.
