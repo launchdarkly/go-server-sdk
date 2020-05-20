@@ -8,9 +8,11 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
 )
 
-/*
- * Test env
- */
+// These benchmarks cover the LDClient evaluation flow, including looking up the target flag, applying all
+// relevant targets and rules, and producing analytics event data (but then discarding the event data,
+// so the event processor logic is not included).
+//
+// This was adapted from a user-contributed PR: https://github.com/launchdarkly/go-server-sdk/pull/28
 
 type evalBenchmarkEnv struct {
 	client           *LDClient
@@ -30,7 +32,7 @@ func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []interface{
 	})
 
 	// Set up the feature flag store.
-	testFlags := makeBenchmarkFlags(bc, variations)
+	testFlags := makeEvalBenchmarkFlags(bc, variations)
 	for _, ff := range testFlags {
 		env.client.store.Upsert(Features, ff)
 	}
@@ -45,7 +47,7 @@ func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []interface{
 	// Create users to match all of the user keys in the flag's target list.
 	env.targetUsers = make([]User, bc.numTargets)
 	for i := 0; i < bc.numTargets; i++ {
-		env.targetUsers[i] = NewUser(makeTargetUserKey(i))
+		env.targetUsers[i] = NewUser(makeEvalBenchmarkTargetUserKey(i))
 	}
 }
 
@@ -55,10 +57,6 @@ func (env *evalBenchmarkEnv) tearDown() {
 	env.client = nil
 	env.targetFeatureKey = ""
 }
-
-/*
- * Benchmark cases
- */
 
 var (
 	evalBenchmarkUser = NewUserBuilder("user-nomatch").
@@ -307,9 +305,7 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 		})
 }
 
-/*
- * Helpers
- */
+// Input data creation
 
 func newBenchmarkFlag(key string, fallThroughVariation int, targets []Target, rules []Rule, prereqs []Prerequisite, variations ...interface{}) *FeatureFlag {
 	return &FeatureFlag{
@@ -340,7 +336,7 @@ func makeJSONVariation(i int) interface{} {
 	return map[string]interface{}{"result": map[string]interface{}{"value": []interface{}{i}}}
 }
 
-func makeClauses(numClauses int, op Operator) []Clause {
+func makeEvalBenchmarkClauses(numClauses int, op Operator) []Clause {
 	clauses := make([]Clause, 0, numClauses)
 	for i := 0; i < numClauses; i++ {
 		clause := Clause{Op: op}
@@ -376,18 +372,18 @@ func makeClauses(numClauses int, op Operator) []Clause {
 	return clauses
 }
 
-func makeTargetUserKey(i int) string {
+func makeEvalBenchmarkTargetUserKey(i int) string {
 	return fmt.Sprintf("user-%d", i)
 }
 
-func makeBenchmarkFlags(bc evalBenchmarkCase, variations []interface{}) []*FeatureFlag {
+func makeEvalBenchmarkFlags(bc evalBenchmarkCase, variations []interface{}) []*FeatureFlag {
 	testFlags := make([]*FeatureFlag, 0, bc.numFlags)
 	for i := 0; i < bc.numFlags; i++ {
 		targets := make([]Target, 0, bc.numVariations)
 		for j := 0; j < bc.numVariations; j++ {
 			values := make([]string, 0, bc.numTargets)
 			for k := 0; k < bc.numTargets; k++ {
-				values = append(values, makeTargetUserKey(k))
+				values = append(values, makeEvalBenchmarkTargetUserKey(k))
 			}
 			targets = append(targets, Target{
 				Values:    values,
@@ -399,7 +395,7 @@ func makeBenchmarkFlags(bc evalBenchmarkCase, variations []interface{}) []*Featu
 		for j := 0; j < bc.numRules; j++ {
 			rules = append(rules, Rule{
 				ID:      fmt.Sprintf("%d-%d", i, j),
-				Clauses: makeClauses(bc.numClauses, bc.operator),
+				Clauses: makeEvalBenchmarkClauses(bc.numClauses, bc.operator),
 				VariationOrRollout: VariationOrRollout{
 					Variation: &variation,
 				},
