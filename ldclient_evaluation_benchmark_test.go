@@ -12,18 +12,22 @@ import (
  * Test env
  */
 
-type benchmarkEnv struct {
+type evalBenchmarkEnv struct {
 	client           *LDClient
 	targetFeatureKey string
+	targetUsers      []User
 }
 
-func newBenchmarkEnv() *benchmarkEnv {
-	return &benchmarkEnv{}
+func newEvalBenchmarkEnv() *evalBenchmarkEnv {
+	return &evalBenchmarkEnv{}
 }
 
-func (env *benchmarkEnv) setUp(bc benchmarkCase, variations []interface{}) {
+func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []interface{}) {
 	// Set up the client.
-	env.client = makeTestClient()
+	env.client = makeTestClientWithConfig(func(c *Config) {
+		c.SendEvents = false
+		c.EventProcessor = nil
+	})
 
 	// Set up the feature flag store.
 	testFlags := makeBenchmarkFlags(bc, variations)
@@ -37,9 +41,15 @@ func (env *benchmarkEnv) setUp(bc benchmarkCase, variations []interface{}) {
 		targetFeatureKeyIndex = bc.numFlags / 2
 	}
 	env.targetFeatureKey = fmt.Sprintf("flag-%d", targetFeatureKeyIndex)
+
+	// Create users to match all of the user keys in the flag's target list.
+	env.targetUsers = make([]User, bc.numTargets)
+	for i := 0; i < bc.numTargets; i++ {
+		env.targetUsers[i] = NewUser(makeTargetUserKey(i))
+	}
 }
 
-func (env *benchmarkEnv) tearDown() {
+func (env *evalBenchmarkEnv) tearDown() {
 	// Prepare for the next benchmark case.
 	env.client.Close()
 	env.client = nil
@@ -57,7 +67,7 @@ var (
 		Custom("numAttr", ldvalue.Int(0)).Build()
 )
 
-type benchmarkCase struct {
+type evalBenchmarkCase struct {
 	numUsers      int
 	numFlags      int
 	numVariations int
@@ -69,7 +79,7 @@ type benchmarkCase struct {
 	operator      Operator
 }
 
-var benchmarkCases = []benchmarkCase{
+var ruleEvalBenchmarkCases = []evalBenchmarkCase{
 	// simple
 	{
 		numUsers:      1000,
@@ -189,6 +199,27 @@ var benchmarkCases = []benchmarkCase{
 	// },
 }
 
+var targetMatchBenchmarkCases = []evalBenchmarkCase{
+	{
+		numUsers:      1000,
+		numFlags:      1000,
+		numVariations: 2,
+		numTargets:    10,
+	},
+	{
+		numUsers:      1000,
+		numFlags:      1000,
+		numVariations: 2,
+		numTargets:    100,
+	},
+	{
+		numUsers:      1000,
+		numFlags:      1000,
+		numVariations: 2,
+		numTargets:    1000,
+	},
+}
+
 var (
 	/*
 	 * Always record the result of an operation to prevent the
@@ -203,73 +234,77 @@ var (
 	jsonResult   ldvalue.Value
 )
 
-func BenchmarkBoolVariation(b *testing.B) {
-	env := newBenchmarkEnv()
-	for _, bc := range benchmarkCases {
-		variations := makeBoolVariations(bc.numVariations)
+func benchmarkEval(b *testing.B, makeVariation func(int) interface{}, cases []evalBenchmarkCase, action func(*evalBenchmarkEnv)) {
+	env := newEvalBenchmarkEnv()
+	for _, bc := range cases {
+		variations := make([]interface{}, bc.numVariations)
+		for i := 0; i < bc.numVariations; i++ {
+			variations[i] = makeVariation(i)
+		}
 		env.setUp(bc, variations)
 
 		b.Run(fmt.Sprintf("%+v", bc), func(b *testing.B) {
-			var r bool
 			for i := 0; i < b.N; i++ {
-				r, _ = env.client.BoolVariation(env.targetFeatureKey, evalBenchmarkUser, false)
+				action(env)
 			}
-			boolResult = r
 		})
 		env.tearDown()
 	}
+}
+
+func allCases(c evalBenchmarkCase) bool {
+	return true
+}
+
+func BenchmarkBoolVariation(b *testing.B) {
+	benchmarkEval(b, makeBoolVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		r, _ := env.client.BoolVariation(env.targetFeatureKey, evalBenchmarkUser, false)
+		boolResult = r
+	})
 }
 
 func BenchmarkIntVariation(b *testing.B) {
-	env := newBenchmarkEnv()
-	for _, bc := range benchmarkCases {
-		variations := makeIntVariations(bc.numVariations)
-		env.setUp(bc, variations)
-
-		b.Run(fmt.Sprintf("%+v", bc), func(b *testing.B) {
-			var r int
-			for i := 0; i < b.N; i++ {
-				r, _ = env.client.IntVariation(env.targetFeatureKey, evalBenchmarkUser, 0)
-			}
-			intResult = r
-		})
-		env.tearDown()
-	}
+	benchmarkEval(b, makeIntVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		r, _ := env.client.IntVariation(env.targetFeatureKey, evalBenchmarkUser, 0)
+		intResult = r
+	})
 }
 
 func BenchmarkStringVariation(b *testing.B) {
-	env := newBenchmarkEnv()
-	for _, bc := range benchmarkCases {
-		variations := makeStringVariations(bc.numVariations)
-		env.setUp(bc, variations)
-
-		b.Run(fmt.Sprintf("%+v", bc), func(b *testing.B) {
-			var r string
-			for i := 0; i < b.N; i++ {
-				r, _ = env.client.StringVariation(env.targetFeatureKey, evalBenchmarkUser, "variation-0")
-			}
-			stringResult = r
-		})
-		env.tearDown()
-	}
+	benchmarkEval(b, makeStringVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		r, _ := env.client.StringVariation(env.targetFeatureKey, evalBenchmarkUser, "variation-0")
+		stringResult = r
+	})
 }
 
 func BenchmarkJSONVariation(b *testing.B) {
-	env := newBenchmarkEnv()
-	for _, bc := range benchmarkCases {
-		variations := makeJSONVariations(bc.numVariations)
-		env.setUp(bc, variations)
+	defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"result":{"value":[0]}}`))
+	benchmarkEval(b, makeJSONVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		r, _ := env.client.JSONVariation(env.targetFeatureKey, evalBenchmarkUser, defaultValAsRawJSON)
+		jsonResult = r
+	})
+}
 
-		b.Run(fmt.Sprintf("%+v", bc), func(b *testing.B) {
-			var r ldvalue.Value
-			defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"result":{"value":[0]}}`))
-			for i := 0; i < b.N; i++ {
-				r, _ = env.client.JSONVariation(env.targetFeatureKey, evalBenchmarkUser, defaultValAsRawJSON)
+func BenchmarkUsersFoundInTargets(b *testing.B) {
+	benchmarkEval(b, makeBoolVariation,
+		targetMatchBenchmarkCases,
+		func(env *evalBenchmarkEnv) {
+			for _, user := range env.targetUsers {
+				r, _ := env.client.BoolVariation(env.targetFeatureKey, user, false)
+				boolResult = r
 			}
-			jsonResult = r
 		})
-		env.tearDown()
-	}
+}
+
+func BenchmarkUserNotFoundInTargets(b *testing.B) {
+	benchmarkEval(b, makeBoolVariation,
+		targetMatchBenchmarkCases,
+		func(env *evalBenchmarkEnv) {
+			for _ = range env.targetUsers {
+				r, _ := env.client.BoolVariation(env.targetFeatureKey, evalBenchmarkUser, false)
+				boolResult = r
+			}
+		})
 }
 
 /*
@@ -289,41 +324,20 @@ func newBenchmarkFlag(key string, fallThroughVariation int, targets []Target, ru
 	}
 }
 
-func makeBoolVariations(numVariations int) []interface{} {
-	variations := make([]interface{}, 0, numVariations)
-	for i := 0; i < numVariations; i++ {
-		variation := false
-		if i%2 == 0 {
-			variation = true
-		}
-		variations = append(variations, variation)
-	}
-	return variations
+func makeBoolVariation(i int) interface{} {
+	return bool(i%2 == 0)
 }
 
-func makeIntVariations(numVariations int) []interface{} {
-	variations := make([]interface{}, 0, numVariations)
-	for i := 0; i < numVariations; i++ {
-		variations = append(variations, i)
-	}
-	return variations
+func makeIntVariation(i int) interface{} {
+	return i
 }
 
-func makeStringVariations(numVariations int) []interface{} {
-	variations := make([]interface{}, 0, numVariations)
-	for i := 0; i < numVariations; i++ {
-		variations = append(variations, fmt.Sprintf("variation-%d", i))
-	}
-	return variations
+func makeStringVariation(i int) interface{} {
+	return fmt.Sprintf("variation-%d", i)
 }
 
-func makeJSONVariations(numVariations int) []interface{} {
-	variations := make([]interface{}, 0, numVariations)
-	for i := 0; i < numVariations; i++ {
-		valAsRawJSON := ldvalue.Raw(json.RawMessage(fmt.Sprintf(`{"result":{"value":[%d]}}`, i)))
-		variations = append(variations, valAsRawJSON)
-	}
-	return variations
+func makeJSONVariation(i int) interface{} {
+	return map[string]interface{}{"result": map[string]interface{}{"value": []interface{}{i}}}
 }
 
 func makeClauses(numClauses int, op Operator) []Clause {
@@ -362,14 +376,18 @@ func makeClauses(numClauses int, op Operator) []Clause {
 	return clauses
 }
 
-func makeBenchmarkFlags(bc benchmarkCase, variations []interface{}) []*FeatureFlag {
+func makeTargetUserKey(i int) string {
+	return fmt.Sprintf("user-%d", i)
+}
+
+func makeBenchmarkFlags(bc evalBenchmarkCase, variations []interface{}) []*FeatureFlag {
 	testFlags := make([]*FeatureFlag, 0, bc.numFlags)
 	for i := 0; i < bc.numFlags; i++ {
 		targets := make([]Target, 0, bc.numVariations)
 		for j := 0; j < bc.numVariations; j++ {
 			values := make([]string, 0, bc.numTargets)
 			for k := 0; k < bc.numTargets; k++ {
-				values = append(values, fmt.Sprintf("user-%d", k))
+				values = append(values, makeTargetUserKey(k))
 			}
 			targets = append(targets, Target{
 				Values:    values,
