@@ -2,6 +2,119 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.17.2] - 2020-05-13
+### Fixed:
+- Updated the version of [`go-yaml`](https://github.com/go-yaml/yaml) that is optionally used by the file data source feature, to version 2.3.0, due to a [vulnerability warning](https://vuln.whitesourcesoftware.com/vulnerability/CVE-2019-11254/) on version 2.2.1. Note that this is just the dependency version used when building the SDK; an application that uses the SDK may get different versions of its transitive dependencies depending on the package management system being used. The vulnerability would not affect normal usage of the SDK without the file data source, or with YAML files in the SDK&#39;s correct documented format.
+
+## [4.17.1] - 2020-04-16
+### Fixed:
+- In streaming mode, a bug introduced in version 4.17.0 could cause a panic if the stream connection was broken and remained unavailable for a fairly long time (over half an hour).
+
+## [4.17.0] - 2020-03-30
+### Added:
+- `Config` field `StreamInitialReconnectDelay` specifies how long the SDK should initially wait before retrying the stream connection after a failure. The default is one second; previously it was three seconds.
+
+### Changed:
+- When the SDK retries the stream connection after a failure, the delay now increases using an exponential backoff (which is reset to the initial level if the stream remains active for at least a minute), and each delay also has a random jitter from 0 to -50%. Previously, every retry used a three-second delay.
+
+## [4.16.2] - 2020-03-13
+### Added:
+- CI tests now verify that the SDK supports Go 1.14.
+
+### Fixed:
+- In streaming mode, when using a persistent data store such as Redis, if the database was unavailable when the client initially started and made its first stream connection, a bug caused the SDK to give up on retrying and leave the client in a failed state. This has been fixed so that it will retry the stream connection once it detects that the database is available again (or, if using infinite caching mode, it will leave the same stream connection open and write the already-cached data to the database).
+
+## [4.16.1] - 2020-02-10
+### Changed:
+- Diagnostic events reported by this SDK now have an SDK name of `go-server-sdk` instead of `Go`.
+
+
+## [4.16.0] - 2020-02-04
+This release introduces new types for building user properties and representing arbitrary JSON values. In the next major version, these will entirely replace the current deprecated equivalents.
+
+### Added:
+- `NewUserBuilder`, and its associated interfaces `UserBuilder` and `UserBuilderCanMakeAttributePrivate`. This is the new preferred mechanism for creating `User` instances when you need to set multiple properties; it reduces unsafe and inconvenient use of pointers.
+- `User` property getter methods such as `GetName()`.
+- The SDK has a new dependency on `gopkg.in/launchdarkly/go-sdk-common.v1`, which provides the helper types `ldvalue.Value` and `ldvalue.OptionalString`.
+- In `LDClient`, `JSONVariation` and `JSONVariationDetail` are the new preferred mechanism for evaluating flags whose values can be of any JSON type. The value is represented as an `ldvalue.Value` rather than a `json.RawMessage`, but can be easily converted to `json.RawMessage` or to other Go types.
+- In `LDClient`, `TrackData` and `TrackMetric` are the new preferred versions of `Track` and `TrackWithMetric`; they use `ldvalue.Value` rather than `interface{}` for the data parameter.
+- `EvaluationReason` methods `GetRuleIndex()`, `GetRuleID()`, `GetPrerequisiteKey()`, `GetErrorKind()`. These were formerly only on concrete implementation types such as `EvaluationReasonRuleMatch`; they are being added to the interface type because in a future version, it will be changed to a struct.
+
+### Fixed:
+- By default, the SDK should log to `os.Stderr` with a minimum level of `ldlog.Info`, omitting only `Debug`-level messages. A bug introduced in 4.12.0 caused the default logger not to produce any output. It will now log at `Info` level by default again, as documented.
+
+### Deprecated:
+- All exported fields of `User`. In a future version, these will be hidden. Use getters such as `GetName()` to read these fields, and `NewUserBuilder` to set them.
+- In `LDClient`, `JsonVariation`, `JsonVariationDetail`, `Track`, and `TrackWithMetric`. Use `JSONVariation`, `JSONVariationDetail`, `TrackData`, `TrackEvent`, or `TrackMetric` instead.
+- The `EvaluationReason` implementation types such as `EvaluationReasonRuleMatch` are deprecated. Instead of casting to these types, use `EvaluationReason` methods such as `GetKind()` and `GetErrorKind()`.
+
+## [4.15.0] - 2020-01-23
+Note: if you are using the LaunchDarkly Relay Proxy to forward events, update the Relay to version 5.10.0 or later before updating to this Go SDK version.
+
+### Added:
+- The SDK now periodically sends diagnostic data to LaunchDarkly, describing the version and configuration of the SDK, the architecture and version of the runtime platform, and performance statistics. No credentials, hostnames, or other identifiable values are included. This behavior can be disabled with `Config.DiagnosticOptOut` or configured with `Config.DiagnosticRecordingInterval`.
+- New `Config` fields `WrapperName` and `WrapperVersion` allow a library that uses the Go SDK to identify itself for usage data if desired.
+
+## [4.14.2] - 2020-01-22
+### Fixed:
+- The SDK was logging a spurious "feature store query returned unexpected type" message at ERROR level if the application tried to evaluate an unknown feature flag when using a persistent data store.
+- Added missing package comments.
+
+## [4.14.1] - 2020-01-15
+### Fixed:
+- The SDK now specifies a uniquely identifiable request header when sending events to LaunchDarkly to ensure that events are only processed once, even if the SDK sends them two times due to a failed initial attempt.
+
+## [4.14.0] - 2020-01-09
+### Added:
+- `ldhttp.ProxyOption`, for specifying an HTTP/HTTPS proxy URL programmatically rather than using environment variables.
+
+### Fixed:
+- `NewHTTPClientFactory` did not work correctly: it did construct an HTTP client, but did not actually apply any `ldhttp` transport options that were specified.
+- In rare circumstances (depending on the exact data in the flag configuration, the flag's salt value, and the user properties), a percentage rollout could fail and return a default value, logging the error "Data inconsistency in feature flag ... variation/rollout object with no variation or rollout". This would happen if the user's hashed value fell exactly at the end of the last "bucket" (the last variation defined in the rollout). This has been fixed so that the user will get the last variation.
+
+### Deprecated:
+- Data model classes `FeatureFlag`, `Segment`, etc. are all deprecated and will be moved to another package in the future. Application code should never need to reference these types, and feature store integration code should only use abstractions like `ld.VersionedData`.
+- `SegmentExplanation`, `HttpStatusError`, `ParseTime`, `ParseFloat64`, and `ToJsonRawMessage` were meant for internal use, and will be removed or made private in a future version.
+
+## [4.13.1] - 2019-11-05
+### Fixed:
+- When using a persistent feature store (Redis, etc.), if multiple goroutines request the same flag in rapid succession when the flag data is not in the cache, the SDK will coalesce these requests so only a single database query is done.
+
+
+## [4.13.0] - 2019-10-10
+### Added:
+- It is now possible to specify an infinite cache TTL for persistent feature stores by passing a negative number to the `CacheTTL` option, in which case the persistent store will never be read unless the application restarts. Use this mode with caution as described in the comments for `redis.CacheTTL`, `dynamodb.CacheTTL`, etc.
+
+### Changed:
+- When using a persistent store with an infinite cache TTL (see above), if the SDK receives a feature flag update from LaunchDarkly and is unable to write it to the persistent store because of a database outage, it will still update the data in the in-memory cache so it will be available to the application. This is different from the existing behavior when there is a finite cache TTL: in that case, if the database update fails, the in-memory cache will _not_ be updated because the update would be lost as soon as the cache expires.
+- When using a persistent store, if there is a database error (indicating that the database may be unavailable, or at least that the most recent update did not get persisted), the SDK will continue to monitor the database availability. Once it returns to normal, if the cache TTL is finite, the SDK will restart the stream connection to ensure that it receives and persists a full set of flag data; if the cache TTL is infinite, it will assume the cache is up to date and will simply write it to the database.
+
+
+## [4.12.0] - 2019-09-12
+### Added:
+- The Go SDK now has log levels, similar to the logging frameworks used in the other LaunchDarkly SDKs. Log messages can have a level of Debug, Info, Warn, or Error; by default, Debug is hidden. The new package [`ldlog`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v4/ldlog) defines these levels, and you can use `Config.Loggers.SetMinLevel()` and `Config.Loggers.SetBaseLogger()` to control the behavior. The old property `Config.Logger` still works but is deprecated.
+- The SDK will produce very detailed output if you call `Config.Loggers.SetMinLevel(ldlog.Debug)`. This includes information about when and how it connects to LaunchDarkly, and a full dump of all analytics event data it is sending. Since the debug logging is very verbose, and the event data includes user properties, you should not normally enable this log level in production unless advised to by LaunchDarkly support.
+- There is now a different property for specifying a feature store mechanism: `Config.FeatureStoreFactory`, which takes a factory method, rather than `Config.FeatureStore`, which takes an implementation instance. Using a factory method allows the implementation to access `Config` properties such as the logging configuration. The new methods `NewInMemoryFeatureStoreFactory`, `redis.NewRedisFeatureStoreFactory`, `consul.NewConsulFeatureStoreFactory`, and `dynamodb.NewDynamoDBFeatureStoreFactory` work with this mechanism.
+- The SDK's CI build now verifies compatibility with Go 1.11 and 1.12.
+
+### Deprecated:
+- `Config.SamplingInterval`: the intended use case for the `SamplingInterval` feature was to reduce analytics event network usage in high-traffic applications. This feature is being deprecated in favor of summary counters, which are meant to track all events.
+- `Config.Logger`: use `Config.Loggers` for more flexible configuration.
+- `NewInMemoryFeatureStore`, `redis.NewRedisFeatureStoreWithDefault`, `consul.NewConsulFeaturStore`, `dynamodb.NewDynamoDBFeatureStore`: see above.
+
+
+## [4.11.0] - 2019-08-19
+### Added:
+- Added support for upcoming LaunchDarkly experimentation features. See `LDClient.TrackWithMetric`.
+
+## [4.10.0] - 2019-07-30
+### Added:
+- In the `redis` subpackage, the new option `DialOptions` allows configuration of any [connection option supported by Redigo](https://godoc.org/github.com/garyburd/redigo/redis#DialOption), such as setting a password or enabling TLS. (Thanks, [D-Raiser](https://github.com/launchdarkly/go-server-sdk/pull/8)!) Note that it was already possible to specify a password or TLS as part of the Redis URL.
+- The new `Config` property `LogUserKeyInErrors`, if set to true, causes error log messages that are related to a specific user to include that user's key. This is false by default since user keys could be considered privileged information.
+ 
+### Changed:
+- If an error occurs during JSON serialization of user data in analytics events, previously all of the events that were going to be sent to LaunchDarkly at that point would be lost. Such an error could occur if a) the user's map of custom attributes was being modified by another goroutine, causing a concurrent modification panic, or b) a custom attribute value had a custom JSON marshaller that returned an error or caused a panic. The new behavior in these cases is that the SDK will log an error ("An error occurred while processing custom attributes ... the custom attributes for this user have been dropped from analytics data") and continue sending all of the event data except for the custom attributes for that user.
+
 ## [4.9.0] - 2019-07-23
 ### Added:
 - The new `Config` property `LogEvaluationErrors`, if set to `true`, causes the client to output a `WARN:` log message whenever a flag cannot be evaluated because the flag does not exist, the user key was not specified, or the flag rules are invalid. The error message is the same as the message in the `error` object returned by the evaluation method. This may be useful in debugging if you are unexpectedly seeing default values instead of real values for a flag. Most of the other LaunchDarkly SDKs already log these messages by default, but since the Go SDK historically did not, this has been made an opt-in feature. It may be changed to be `true` by default in the next major version.

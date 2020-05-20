@@ -18,11 +18,11 @@ import (
 const retryDuration = time.Second
 
 type fileWatcher struct {
-	watcher  *fsnotify.Watcher
-	logger   ld.Logger
-	reload   func()
-	paths    []string
-	absPaths map[string]bool
+	watcher     *fsnotify.Watcher
+	errorLogger ld.Logger
+	reload      func()
+	paths       []string
+	absPaths    map[string]bool
 }
 
 // WatchFiles sets up a mechanism for the file data source to reload its source files whenever one of them has
@@ -31,17 +31,17 @@ type fileWatcher struct {
 //     factory := ldfiledata.NewFileDataSourceFactory(
 //         ldfiledata.FilePaths("./test-data/my-flags.json"),
 //         ldfiledata.UseReloader(ldfilewatch.WatchFiles))
-func WatchFiles(paths []string, logger ld.Logger, reload func(), closeCh <-chan struct{}) error {
+func WatchFiles(paths []string, errorLogger ld.Logger, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("Unable to create file watcher: %s", err)
 	}
 	fw := &fileWatcher{
-		watcher:  watcher,
-		logger:   logger,
-		reload:   reload,
-		paths:    paths,
-		absPaths: make(map[string]bool),
+		watcher:     watcher,
+		errorLogger: errorLogger,
+		reload:      reload,
+		paths:       paths,
+		absPaths:    make(map[string]bool),
 	}
 	go fw.run(closeCh)
 	return nil
@@ -59,7 +59,7 @@ func (fw *fileWatcher) run(closeCh <-chan struct{}) {
 	}
 	for {
 		if err := fw.setupWatches(); err != nil {
-			fw.logger.Printf(err.Error())
+			fw.errorLogger.Println(err)
 			scheduleRetry()
 		}
 
@@ -101,7 +101,7 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 		case <-closeCh:
 			err := fw.watcher.Close()
 			if err != nil {
-				fw.logger.Printf("Error closing Watcher: %s", err)
+				fw.errorLogger.Printf("Error closing Watcher: %s", err)
 			}
 			return true
 		case event := <-fw.watcher.Events:
@@ -111,7 +111,7 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 			fw.consumeExtraEvents()
 			return false
 		case err := <-fw.watcher.Errors:
-			fw.logger.Println("ERROR: ", err)
+			fw.errorLogger.Println(err)
 		case <-retryCh:
 			consumeExtraRetries(retryCh)
 			return false

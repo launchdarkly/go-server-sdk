@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
@@ -44,10 +45,11 @@ func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
 }
 
 func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	store1Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
+	store1Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
 	require.NoError(t, err)
 	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Internal)
-	store2Internal, err := newDynamoDBFeatureStoreInternal(testTableName, SessionOptions(makeTestOptions()))
+	store2Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
 	require.NoError(t, err)
 	store2 := utils.NewNonAtomicFeatureStoreWrapper(store2Internal)
 	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
@@ -55,10 +57,15 @@ func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
-	}
+func TestDynamoDBStoreComponentTypeName(t *testing.T) {
+	factory, _ := NewDynamoDBFeatureStoreFactory("table")
+	store, _ := factory(ld.DefaultConfig)
+	assert.Equal(t, "DynamoDB", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
+}
+
+func makeStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
+	f, _ := NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
+	return f
 }
 
 func makeTestOptions() session.Options {

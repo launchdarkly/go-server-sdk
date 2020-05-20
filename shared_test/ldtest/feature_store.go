@@ -1,3 +1,6 @@
+// Package ldtest contains types and functions used by SDK unit tests in multiple packages.
+//
+// Application code should not use this package. In a future version, it will be moved to internal.
 package ldtest
 
 import (
@@ -15,9 +18,9 @@ import (
 //   that the store instances may be sharing. If this is nil, it means store instances do not share any
 //   common storage.
 // - isCached: True if the instances returned by makeStore have caching enabled.
-func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, error), clearExistingData func() error, isCached bool) {
+func RunFeatureStoreTests(t *testing.T, storeFactory ld.FeatureStoreFactory, clearExistingData func() error, isCached bool) {
 	makeStore := func(t *testing.T) ld.FeatureStore {
-		store, err := storeFactory()
+		store, err := storeFactory(ld.Config{})
 		require.NoError(t, err)
 		return store
 	}
@@ -29,15 +32,15 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 	}
 
 	initWithEmptyData := func(t *testing.T, store ld.FeatureStore) {
-		err := store.Init(map[ld.VersionedDataKind]map[string]ld.VersionedData{ld.Features: make(map[string]ld.VersionedData)})
+		err := store.Init(makeMockDataMap())
 		require.NoError(t, err)
 	}
 
 	t.Run("store initialized after init", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
-		feature1 := ld.FeatureFlag{Key: "feature"}
-		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"feature": &feature1}, make(map[string]*ld.Segment))
+		item1 := &MockDataItem{Key: "feature"}
+		allData := makeMockDataMap(item1)
 		require.NoError(t, store.Init(allData))
 
 		assert.True(t, store.Initialized())
@@ -46,34 +49,29 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 	t.Run("init completely replaces previous data", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
-		feature1 := ld.FeatureFlag{Key: "first", Version: 1}
-		feature2 := ld.FeatureFlag{Key: "second", Version: 1}
-		segment1 := ld.Segment{Key: "first", Version: 1}
-		allData := makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1, "second": &feature2},
-			map[string]*ld.Segment{"first": &segment1})
+		item1 := &MockDataItem{Key: "first", Version: 1}
+		item2 := &MockDataItem{Key: "second", Version: 1}
+		otherItem1 := &MockOtherDataItem{Key: "first", Version: 1}
+		allData := makeMockDataMap(item1, item2, otherItem1)
 		require.NoError(t, store.Init(allData))
 
-		flags, err := store.All(ld.Features)
+		items, err := store.All(MockData)
 		require.NoError(t, err)
-		segs, err := store.All(ld.Segments)
+		assert.Equal(t, map[string]ld.VersionedData{item1.Key: item1, item2.Key: item2}, items)
+		otherItems, err := store.All(MockOtherData)
 		require.NoError(t, err)
-		assert.Equal(t, 1, flags["first"].GetVersion())
-		assert.Equal(t, 1, flags["second"].GetVersion())
-		assert.Equal(t, 1, segs["first"].GetVersion())
+		assert.Equal(t, map[string]ld.VersionedData{otherItem1.Key: otherItem1}, otherItems)
 
-		feature1.Version = 2
-		segment1.Version = 2
-		allData = makeAllVersionedDataMap(map[string]*ld.FeatureFlag{"first": &feature1},
-			map[string]*ld.Segment{"first": &segment1})
+		otherItem2 := &MockOtherDataItem{Key: "second", Version: 1}
+		allData = makeMockDataMap(item1, otherItem2)
 		require.NoError(t, store.Init(allData))
 
-		flags, err = store.All(ld.Features)
+		items, err = store.All(MockData)
 		require.NoError(t, err)
-		segs, err = store.All(ld.Segments)
+		assert.Equal(t, map[string]ld.VersionedData{item1.Key: item1}, items)
+		otherItems, err = store.All(MockOtherData)
 		require.NoError(t, err)
-		assert.Equal(t, 2, flags["first"].GetVersion())
-		assert.Nil(t, flags["second"])
-		assert.Equal(t, 2, segs["first"].GetVersion())
+		assert.Equal(t, map[string]ld.VersionedData{otherItem2.Key: otherItem2}, otherItems)
 	})
 
 	if !isCached && clearExistingData != nil {
@@ -92,62 +90,50 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		})
 	}
 
-	t.Run("get existing feature", func(t *testing.T) {
+	t.Run("get existing item", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
 		initWithEmptyData(t, store)
-		feature1 := ld.FeatureFlag{Key: "feature"}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		item1 := &MockDataItem{Key: "feature"}
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(MockData, item1.Key)
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
-
-		if assert.IsType(t, &ld.FeatureFlag{}, result) {
-			r := result.(*ld.FeatureFlag)
-			assert.Equal(t, feature1.Key, r.Key)
-		}
+		assert.Equal(t, result, item1)
 	})
 
-	t.Run("get nonexisting feature", func(t *testing.T) {
+	t.Run("get nonexisting item", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		result, err := store.Get(ld.Features, "no")
+		result, err := store.Get(MockData, "no") //nolint:megacheck // allow deprecated usage
 		assert.Nil(t, result)
 		assert.NoError(t, err)
 	})
 
-	t.Run("get all ld.Features", func(t *testing.T) {
+	t.Run("get all items", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		result, err := store.All(ld.Features)
+		result, err := store.All(MockData)
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
 		assert.Len(t, result, 0)
 
-		feature1 := ld.FeatureFlag{Key: "feature1"}
-		feature2 := ld.FeatureFlag{Key: "feature2"}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
-		assert.NoError(t, store.Upsert(ld.Features, &feature2))
+		item1 := &MockDataItem{Key: "first", Version: 1}
+		item2 := &MockDataItem{Key: "second", Version: 1}
+		otherItem1 := &MockOtherDataItem{Key: "first", Version: 1}
+		assert.NoError(t, store.Upsert(MockData, item1))
+		assert.NoError(t, store.Upsert(MockData, item2))
+		assert.NoError(t, store.Upsert(MockOtherData, otherItem1))
 
-		result, err = store.All(ld.Features)
+		result, err = store.All(MockData)
 		assert.NotNil(t, result)
 		assert.NoError(t, err)
-		assert.Len(t, result, 2)
-
-		if assert.IsType(t, &ld.FeatureFlag{}, result["feature1"]) {
-			r := result["feature1"].(*ld.FeatureFlag)
-			assert.Equal(t, "feature1", r.Key)
-		}
-
-		if assert.IsType(t, &ld.FeatureFlag{}, result["feature2"]) {
-			r := result["feature2"].(*ld.FeatureFlag)
-			assert.Equal(t, "feature2", r.Key)
-		}
+		assert.Equal(t, map[string]ld.VersionedData{item1.Key: item1, item2.Key: item2}, result)
 	})
 
 	t.Run("upsert with newer version", func(t *testing.T) {
@@ -155,19 +141,15 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		item1 := &MockDataItem{Key: "feature", Version: 10}
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version + 1}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1a))
+		item1a := &MockDataItem{Key: "feature", Version: item1.Version + 1}
+		assert.NoError(t, store.Upsert(MockData, item1a))
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(MockData, item1.Key)
 		assert.NoError(t, err)
-
-		if assert.IsType(t, &ld.FeatureFlag{}, result) {
-			r := result.(*ld.FeatureFlag)
-			assert.Equal(t, feature1a.Version, r.Version)
-		}
+		assert.Equal(t, item1a, result)
 	})
 
 	t.Run("upsert with older version", func(t *testing.T) {
@@ -175,19 +157,15 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		item1 := &MockDataItem{Key: "feature", Version: 10}
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		feature1a := ld.FeatureFlag{Key: "feature", Version: feature1.Version - 1}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1a))
+		item1a := &MockDataItem{Key: "feature", Version: item1.Version - 1}
+		assert.NoError(t, store.Upsert(MockData, item1a))
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(MockData, item1.Key)
 		assert.NoError(t, err)
-
-		if assert.IsType(t, &ld.FeatureFlag{}, result) {
-			r := result.(*ld.FeatureFlag)
-			assert.Equal(t, feature1.Version, r.Version)
-		}
+		assert.Equal(t, item1, result)
 	})
 
 	t.Run("delete with newer version", func(t *testing.T) {
@@ -195,12 +173,12 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		item1 := &MockDataItem{Key: "feature", Version: 10}
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1))
+		assert.NoError(t, store.Delete(MockData, item1.Key, item1.Version+1))
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(MockData, item1.Key)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -210,24 +188,24 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		item1 := &MockDataItem{Key: "feature", Version: 10}
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version-1))
+		assert.NoError(t, store.Delete(MockData, item1.Key, item1.Version-1))
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(MockData, item1.Key)
 		assert.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.Equal(t, item1, result)
 	})
 
-	t.Run("delete unknown feature", func(t *testing.T) {
+	t.Run("delete unknown item", func(t *testing.T) {
 		clearAll(t)
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		assert.NoError(t, store.Delete(ld.Features, "no", 1))
+		assert.NoError(t, store.Delete(MockData, "no", 1))
 
-		result, err := store.Get(ld.Features, "no")
+		result, err := store.Get(MockData, "no")
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -237,14 +215,14 @@ func RunFeatureStoreTests(t *testing.T, storeFactory func() (ld.FeatureStore, er
 		store := makeStore(t)
 		initWithEmptyData(t, store)
 
-		feature1 := ld.FeatureFlag{Key: "feature", Version: 10}
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		item1 := &MockDataItem{Key: "feature", Version: 10}
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		assert.NoError(t, store.Delete(ld.Features, feature1.Key, feature1.Version+1))
+		assert.NoError(t, store.Delete(MockData, item1.Key, item1.Version+1))
 
-		assert.NoError(t, store.Upsert(ld.Features, &feature1))
+		assert.NoError(t, store.Upsert(MockData, item1))
 
-		result, err := store.Get(ld.Features, feature1.Key)
+		result, err := store.Get(MockData, item1.Key)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -280,17 +258,13 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
-		flag1a := ld.FeatureFlag{Key: "flag-a", Version: 1}
-		flag1b := ld.FeatureFlag{Key: "flag-b", Version: 1}
-		flag2a := ld.FeatureFlag{Key: "flag-a", Version: 2}
-		flag2c := ld.FeatureFlag{Key: "flag-c", Version: 2}
+		item1a := &MockDataItem{Key: "flag-a", Version: 1}
+		item1b := &MockDataItem{Key: "flag-b", Version: 1}
+		item2a := &MockDataItem{Key: "flag-a", Version: 2}
+		item2c := &MockDataItem{Key: "flag-c", Version: 2}
 
-		data1 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag1a.Key: &flag1a, flag1b.Key: &flag1b},
-		}
-		data2 := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flag2a.Key: &flag2a, flag2c.Key: &flag2c},
-		}
+		data1 := makeMockDataMap(item1a, item1b)
+		data2 := makeMockDataMap(item2a, item2c)
 
 		err := store1.Init(data1)
 		require.NoError(t, err)
@@ -304,60 +278,60 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 		assert.True(t, store1.Initialized())
 		assert.True(t, store2.Initialized())
 
-		newFlags1, err := store1.All(ld.Features)
+		newItems1, err := store1.All(MockData)
 		require.NoError(t, err)
-		assert.Equal(t, data1[ld.Features], newFlags1)
+		assert.Equal(t, data1[MockData], newItems1)
 
-		newFlag1a, err := store1.Get(ld.Features, flag1a.Key)
+		newItem1a, err := store1.Get(MockData, item1a.Key)
 		require.NoError(t, err)
-		assert.Equal(t, &flag1a, newFlag1a)
+		assert.Equal(t, item1a, newItem1a)
 
-		newFlag1b, err := store1.Get(ld.Features, flag1b.Key)
+		newItem1b, err := store1.Get(MockData, item1b.Key)
 		require.NoError(t, err)
-		assert.Equal(t, &flag1b, newFlag1b)
+		assert.Equal(t, item1b, newItem1b)
 
-		newFlags2, err := store2.All(ld.Features)
+		newItems2, err := store2.All(MockData)
 		require.NoError(t, err)
-		assert.Equal(t, data2[ld.Features], newFlags2)
+		assert.Equal(t, data2[MockData], newItems2)
 
-		newFlag2a, err := store2.Get(ld.Features, flag2a.Key)
+		newItem2a, err := store2.Get(MockData, item2a.Key)
 		require.NoError(t, err)
-		assert.Equal(t, &flag2a, newFlag2a)
+		assert.Equal(t, item2a, newItem2a)
 
-		newFlag2c, err := store2.Get(ld.Features, flag2c.Key)
+		newItem2c, err := store2.Get(MockData, item2c.Key)
 		require.NoError(t, err)
-		assert.Equal(t, &flag2c, newFlag2c)
+		assert.Equal(t, item2c, newItem2c)
 	})
 
 	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore) {
 		assert.False(t, store1.Initialized())
 		assert.False(t, store2.Initialized())
 
-		flagKey := "flag"
-		flag1 := ld.FeatureFlag{Key: flagKey, Version: 1}
-		flag2 := ld.FeatureFlag{Key: flagKey, Version: 2}
+		key := "flag"
+		item1 := &MockDataItem{Key: key, Version: 1}
+		item2 := &MockDataItem{Key: key, Version: 2}
 
 		// Insert the one with the higher version first, so we can verify that the version-checking logic
 		// is definitely looking in the right namespace
-		err := store2.Upsert(ld.Features, &flag2)
+		err := store2.Upsert(MockData, item2)
 		require.NoError(t, err)
-		err = store1.Upsert(ld.Features, &flag1)
-		require.NoError(t, err)
-
-		newFlag1, err := store1.Get(ld.Features, flagKey)
-		require.NoError(t, err)
-		assert.Equal(t, &flag1, newFlag1)
-
-		newFlag2, err := store2.Get(ld.Features, flagKey)
-		require.NoError(t, err)
-		assert.Equal(t, &flag2, newFlag2)
-
-		err = store1.Delete(ld.Features, flagKey, 2)
+		err = store1.Upsert(MockData, item1)
 		require.NoError(t, err)
 
-		newFlag1a, err := store1.Get(ld.Features, flagKey)
+		newItem1, err := store1.Get(MockData, key)
 		require.NoError(t, err)
-		assert.Equal(t, nil, newFlag1a)
+		assert.Equal(t, item1, newItem1)
+
+		newItem2, err := store2.Get(MockData, key)
+		require.NoError(t, err)
+		assert.Equal(t, item2, newItem2)
+
+		err = store1.Delete(MockData, key, 2)
+		require.NoError(t, err)
+
+		newItem1a, err := store1.Get(MockData, key)
+		require.NoError(t, err)
+		assert.Nil(t, newItem1a)
 	})
 }
 
@@ -374,25 +348,23 @@ func RunFeatureStorePrefixIndependenceTests(t *testing.T,
 func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureStore, store2 ld.FeatureStore,
 	setStore1UpdateHook func(func())) {
 
-	flagKey := "foo"
+	key := "foo"
 
-	makeFlagWithVersion := func(version int) *ld.FeatureFlag {
-		return &ld.FeatureFlag{Key: flagKey, Version: version}
+	makeItemWithVersion := func(version int) *MockDataItem {
+		return &MockDataItem{Key: key, Version: version}
 	}
 
 	setupStore1 := func(initialVersion int) {
-		allData := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-			ld.Features: {flagKey: makeFlagWithVersion(initialVersion)},
-		}
+		allData := makeMockDataMap(makeItemWithVersion(initialVersion))
 		require.NoError(t, store1.Init(allData))
 	}
 
-	setupConcurrentModifierToWriteVersions := func(flagVersionsToWrite ...int) {
+	setupConcurrentModifierToWriteVersions := func(versionsToWrite ...int) {
 		i := 0
 		setStore1UpdateHook(func() {
-			if i < len(flagVersionsToWrite) {
-				newFlag := makeFlagWithVersion(flagVersionsToWrite[i])
-				err := store2.Upsert(ld.Features, newFlag)
+			if i < len(versionsToWrite) {
+				newItem := makeItemWithVersion(versionsToWrite[i])
+				err := store2.Upsert(MockData, newItem)
 				require.NoError(t, err)
 				i++
 			}
@@ -403,41 +375,25 @@ func RunFeatureStoreConcurrentModificationTests(t *testing.T, store1 ld.FeatureS
 		setupStore1(1)
 		setupConcurrentModifierToWriteVersions(2, 3, 4)
 
-		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(10)))
+		assert.NoError(t, store1.Upsert(MockData, makeItemWithVersion(10)))
 
 		var result ld.VersionedData
-		result, err := store1.Get(ld.Features, flagKey)
+		result, err := store1.Get(MockData, key)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, 10, result.(*ld.FeatureFlag).Version)
+		assert.Equal(t, 10, result.GetVersion())
 	})
 
 	t.Run("upsert race condition against external client with lower version", func(t *testing.T) {
 		setupStore1(1)
 		setupConcurrentModifierToWriteVersions(3)
 
-		assert.NoError(t, store1.Upsert(ld.Features, makeFlagWithVersion(2)))
+		assert.NoError(t, store1.Upsert(MockData, makeItemWithVersion(2)))
 
 		var result ld.VersionedData
-		result, err := store1.Get(ld.Features, flagKey)
+		result, err := store1.Get(MockData, key)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, 3, result.(*ld.FeatureFlag).Version)
+		assert.Equal(t, 3, result.GetVersion())
 	})
-}
-
-func makeAllVersionedDataMap(
-	features map[string]*ld.FeatureFlag,
-	segments map[string]*ld.Segment) map[ld.VersionedDataKind]map[string]ld.VersionedData {
-
-	allData := make(map[ld.VersionedDataKind]map[string]ld.VersionedData)
-	allData[ld.Features] = make(map[string]ld.VersionedData)
-	allData[ld.Segments] = make(map[string]ld.VersionedData)
-	for k, v := range features {
-		allData[ld.Features][k] = v
-	}
-	for k, v := range segments {
-		allData[ld.Segments][k] = v
-	}
-	return allData
 }

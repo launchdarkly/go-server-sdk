@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,24 +13,31 @@ import (
 	"gopkg.in/ghodss/yaml.v1"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
 )
+
+type fileDataSourceOptions struct {
+	absFilePaths    []string
+	reloaderFactory ReloaderFactory
+	logger          ld.Logger
+}
 
 // FileDataSourceOption is the interface for optional configuration parameters that can be
 // passed to NewFileDataSourceFactory. These include FilePaths and UseLogger.
 type FileDataSourceOption interface {
-	apply(fp *fileDataSource) error
+	apply(opts *fileDataSourceOptions) error
 }
 
 type filePathsOption struct {
 	paths []string
 }
 
-func (o filePathsOption) apply(fs *fileDataSource) error {
+func (o filePathsOption) apply(opts *fileDataSourceOptions) error {
 	abs, err := absFilePaths(o.paths)
 	if err != nil {
 		return err
 	}
-	fs.absFilePaths = append(fs.absFilePaths, abs...)
+	opts.absFilePaths = append(opts.absFilePaths, abs...)
 	return nil
 }
 
@@ -46,27 +51,28 @@ type loggerOption struct {
 	logger ld.Logger
 }
 
-func (o loggerOption) apply(fs *fileDataSource) error {
-	fs.logger = o.logger
+func (o loggerOption) apply(opts *fileDataSourceOptions) error {
+	opts.logger = o.logger
 	return nil
 }
 
 // UseLogger creates an option for NewFileDataSourceFactory, to specify where to send
-// log output. If not specified, a log.Logger is used.
+// log output. If not specified, it defaults to using the same logging options as the
+// rest of the SDK.
 func UseLogger(logger ld.Logger) FileDataSourceOption {
 	return loggerOption{logger}
 }
 
 // ReloaderFactory is a function type used with UseReloader, to specify a mechanism for detecting when
 // data files should be reloaded. Its standard implementation is in the ldfilewatch package.
-type ReloaderFactory func(paths []string, logger ld.Logger, reload func(), closeCh <-chan struct{}) error
+type ReloaderFactory func(paths []string, loggers ld.Logger, reload func(), closeCh <-chan struct{}) error
 
 type reloaderOption struct {
 	reloaderFactory ReloaderFactory
 }
 
-func (o reloaderOption) apply(fs *fileDataSource) error {
-	fs.reloaderFactory = o.reloaderFactory
+func (o reloaderOption) apply(opts *fileDataSourceOptions) error {
+	opts.reloaderFactory = o.reloaderFactory
 	return nil
 }
 
@@ -80,10 +86,9 @@ func UseReloader(reloaderFactory ReloaderFactory) FileDataSourceOption {
 
 type fileDataSource struct {
 	store           ld.FeatureStore
-	reloaderFactory ReloaderFactory
-	logger          ld.Logger
+	options         fileDataSourceOptions
+	loggers         ldlog.Loggers
 	isInitialized   bool
-	absFilePaths    []string
 	readyCh         chan<- struct{}
 	readyOnce       sync.Once
 	closeOnce       sync.Once
@@ -166,26 +171,26 @@ type fileDataSource struct {
 // duplicate key-- it will not load flags from any of the files.
 func NewFileDataSourceFactory(options ...FileDataSourceOption) ld.UpdateProcessorFactory {
 	return func(sdkKey string, config ld.Config) (ld.UpdateProcessor, error) {
-		return newFileDataSource(config.FeatureStore, options...)
+		return newFileDataSource(config, options...)
 	}
 }
 
-func newFileDataSource(featureStore ld.FeatureStore, options ...FileDataSourceOption) (*fileDataSource, error) {
-	if featureStore == nil {
+func newFileDataSource(ldConfig ld.Config, options ...FileDataSourceOption) (*fileDataSource, error) {
+	if ldConfig.FeatureStore == nil {
 		return nil, fmt.Errorf("featureStore must not be nil")
 	}
 	fs := &fileDataSource{
-		store: featureStore,
+		store:   ldConfig.FeatureStore,
+		loggers: ldConfig.Loggers,
 	}
 	for _, o := range options {
-		err := o.apply(fs)
+		err := o.apply(&fs.options)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if fs.logger == nil {
-		fs.logger = log.New(os.Stderr, "[LaunchDarkly FileDataSource] ", log.LstdFlags)
-	}
+	fs.loggers.SetBaseLogger(fs.options.logger) // has no effect if it is nil
+	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil
 }
 
@@ -201,7 +206,7 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 
 	// If there is no reloader, then we signal readiness immediately regardless of whether the
 	// data load succeeded or failed.
-	if fs.reloaderFactory == nil {
+	if fs.options.reloaderFactory == nil {
 		fs.signalStartComplete(fs.isInitialized)
 		return
 	}
@@ -209,9 +214,10 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
 	// readiness signal will happen the first time we do get valid data (in reload).
 	fs.closeReloaderCh = make(chan struct{})
-	err := fs.reloaderFactory(fs.absFilePaths, fs.logger, fs.reload, fs.closeReloaderCh)
+	err := fs.options.reloaderFactory(fs.options.absFilePaths, fs.loggers.ForLevel(ldlog.Error),
+		fs.reload, fs.closeReloaderCh)
 	if err != nil {
-		fs.logger.Printf("ERROR: Unable to start reloader: %s\n", err)
+		fs.loggers.Errorf("Unable to start reloader: %s\n", err)
 	}
 }
 
@@ -220,12 +226,12 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 // be modified.
 func (fs *fileDataSource) reload() {
 	filesData := make([]fileData, 0)
-	for _, path := range fs.absFilePaths {
+	for _, path := range fs.options.absFilePaths {
 		data, err := readFile(path)
 		if err == nil {
 			filesData = append(filesData, data)
 		} else {
-			fs.logger.Printf("ERROR: Unable to load flags: %s [%s]", err, path)
+			fs.loggers.Errorf("Unable to load flags: %s [%s]", err, path)
 			return
 		}
 	}
@@ -235,7 +241,7 @@ func (fs *fileDataSource) reload() {
 		fs.signalStartComplete(true)
 	}
 	if err != nil {
-		fs.logger.Printf("ERROR: %s", err)
+		fs.loggers.Error(err)
 	}
 }
 
@@ -261,9 +267,9 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ld.FeatureFlag
+	Flags      *map[string]ld.FeatureFlag //nolint:megacheck // allow deprecated usage
 	FlagValues *map[string]interface{}
-	Segments   *map[string]ld.Segment
+	Segments   *map[string]ld.Segment //nolint:megacheck // allow deprecated usage
 }
 
 func insertData(all map[ld.VersionedDataKind]map[string]ld.VersionedData, kind ld.VersionedDataKind, key string,
@@ -300,14 +306,14 @@ func detectJSON(rawData []byte) bool {
 
 func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string]ld.VersionedData, error) {
 	all := map[ld.VersionedDataKind]map[string]ld.VersionedData{
-		ld.Features: {},
-		ld.Segments: {},
+		ld.Features: {}, //nolint:megacheck // allow deprecated usage
+		ld.Segments: {}, //nolint:megacheck // allow deprecated usage
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				data := f
-				if err := insertData(all, ld.Features, key, &data); err != nil {
+				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -315,13 +321,13 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 		if d.FlagValues != nil {
 			for key, f := range *d.FlagValues {
 				zeroVariation := 0
-				data := ld.FeatureFlag{
+				data := ld.FeatureFlag{ //nolint:megacheck // allow deprecated usage
 					Key:         key,
 					Variations:  []interface{}{f},
 					On:          true,
-					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation},
+					Fallthrough: ld.VariationOrRollout{Variation: &zeroVariation}, //nolint:megacheck // allow deprecated usage
 				}
-				if err := insertData(all, ld.Features, key, &data); err != nil {
+				if err := insertData(all, ld.Features, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}
@@ -329,7 +335,7 @@ func mergeFileData(allFileData ...fileData) (map[ld.VersionedDataKind]map[string
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := s
-				if err := insertData(all, ld.Segments, key, &data); err != nil {
+				if err := insertData(all, ld.Segments, key, &data); err != nil { //nolint:megacheck // allow deprecated usage
 					return nil, err
 				}
 			}

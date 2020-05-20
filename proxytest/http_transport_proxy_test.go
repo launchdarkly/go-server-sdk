@@ -8,14 +8,15 @@ package proxytest
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
 func TestDefaultTransportUsesProxyEnvVars(t *testing.T) {
@@ -27,7 +28,8 @@ func TestDefaultTransportUsesProxyEnvVars(t *testing.T) {
 	// Create an extremely minimal fake proxy server that doesn't actually do any proxying, just to
 	// verify that we are connecting to it. If the HTTP_PROXY setting is ignored, then it will try
 	// to connect directly to the nonexistent host "badhost" instead and get an error.
-	proxy := shared.NewStubHTTPServer(shared.StubResponse{})
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(200))
+	proxy := httptest.NewServer(handler)
 	defer proxy.Close()
 
 	// Note that in normal usage, we will be connecting to secure LaunchDarkly endpoints, so it's
@@ -44,5 +46,7 @@ func TestDefaultTransportUsesProxyEnvVars(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, []string{targetURL}, proxy.RequestedURLs)
+	assert.Equal(t, 1, len(requestsCh))
+	r := <-requestsCh
+	assert.Equal(t, targetURL, r.Request.URL.String())
 }

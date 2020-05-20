@@ -5,6 +5,7 @@ import (
 	"time"
 
 	c "github.com/hashicorp/consul/api"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
@@ -27,7 +28,8 @@ func TestConsulFeatureStorePrefixes(t *testing.T) {
 }
 
 func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
-	store1Core, err := newConsulFeatureStoreInternal() // we need the underlying implementation object so we can set testTxHook
+	options, _ := validateOptions()
+	store1Core, err := newConsulFeatureStoreInternal(options, ld.Config{}) // we need the underlying implementation object so we can set testTxHook
 	require.NoError(t, err)
 	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Core)
 	store2, err := NewConsulFeatureStore()
@@ -38,10 +40,15 @@ func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
 	})
 }
 
-func makeConsulStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewConsulFeatureStore(CacheTTL(ttl))
-	}
+func TestConsulStoreComponentTypeName(t *testing.T) {
+	factory, _ := NewConsulFeatureStoreFactory()
+	store, _ := factory(ld.DefaultConfig)
+	assert.Equal(t, "Consul", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
+}
+
+func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
+	f, _ := NewConsulFeatureStoreFactory(CacheTTL(ttl))
+	return f
 }
 
 func clearExistingData() error {

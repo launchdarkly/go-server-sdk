@@ -7,10 +7,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
 )
 
-func makeInMemoryStore() (ld.FeatureStore, error) {
-	return ld.NewInMemoryFeatureStore(nil), nil
-}
-
 func TestInMemoryFeatureStore(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeInMemoryStore, nil, false)
+	ldtest.RunFeatureStoreTests(t, ld.NewInMemoryFeatureStoreFactory(), nil, false)
 }
