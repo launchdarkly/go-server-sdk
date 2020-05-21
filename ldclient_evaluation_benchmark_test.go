@@ -21,6 +21,7 @@ import (
 
 type evalBenchmarkEnv struct {
 	client           *LDClient
+	evalUser         lduser.User
 	targetFeatureKey string
 	targetUsers      []lduser.User
 }
@@ -41,6 +42,8 @@ func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []ldvalue.Va
 	for _, ff := range testFlags {
 		env.client.store.Upsert(interfaces.DataKindFeatures(), ff.Key, interfaces.StoreItemDescriptor{ff.Version, ff})
 	}
+
+	env.evalUser = makeEvalBenchmarkUser(bc)
 
 	// Target a feature key in the middle of the list in case a linear search is being used.
 	targetFeatureKeyIndex := 0
@@ -65,12 +68,31 @@ func (env *evalBenchmarkEnv) tearDown() {
 	env.targetFeatureKey = ""
 }
 
-var (
-	evalBenchmarkUser = lduser.NewUserBuilder("user-nomatch").
+func makeEvalBenchmarkUser(bc evalBenchmarkCase) lduser.User {
+	if bc.shouldMatch {
+		builder := lduser.NewUserBuilder("user-match")
+		switch bc.operator {
+		case ldmodel.OperatorGreaterThan:
+			builder.Custom("numAttr", ldvalue.Int(10000))
+		case ldmodel.OperatorContains:
+			builder.Name("name-0")
+		case ldmodel.OperatorMatches:
+			builder.Custom("stringAttr", ldvalue.String("stringAttr-0"))
+		case ldmodel.OperatorAfter:
+			builder.Custom("dateAttr", ldvalue.String("2999-12-31T00:00:00.000-00:00"))
+		case ldmodel.OperatorIn:
+			builder.Custom("stringAttr", ldvalue.String("stringAttr-0"))
+		}
+		return builder.Build()
+	}
+	// default is that the user will not be matched by any clause or target
+	return lduser.NewUserBuilder("user-nomatch").
 		Name("name-nomatch").
 		Custom("stringAttr", ldvalue.String("stringAttr-nomatch")).
-		Custom("numAttr", ldvalue.Int(0)).Build()
-)
+		Custom("numAttr", ldvalue.Int(0)).
+		Custom("dateAttr", ldvalue.String("1980-01-01T00:00:00.000-00:00")).
+		Build()
+}
 
 type evalBenchmarkCase struct {
 	numUsers      int
@@ -82,6 +104,7 @@ type evalBenchmarkCase struct {
 	prereqsWidth  int
 	prereqsDepth  int
 	operator      ldmodel.Operator
+	shouldMatch   bool
 }
 
 var ruleEvalBenchmarkCases = []evalBenchmarkCase{
@@ -165,7 +188,7 @@ var ruleEvalBenchmarkCases = []evalBenchmarkCase{
 		prereqsDepth:  5,
 	},
 
-	// operations
+	// operations - if not specified, the default is OperatorIn
 	{
 		numUsers:      10000,
 		numFlags:      1000,
@@ -188,20 +211,8 @@ var ruleEvalBenchmarkCases = []evalBenchmarkCase{
 		numVariations: 2,
 		numRules:      1,
 		numClauses:    1,
-		operator:      ldmodel.OperatorIn,
+		operator:      ldmodel.OperatorMatches,
 	},
-
-	// // slow case
-	// {
-	// 	numUsers:       100000,
-	// 	numFlags:      10000,
-	// 	numVariations: 3,
-	// 	numRules:      3,
-	// 	numClauses:    3,
-	// 	prereqsWidth:  5,
-	// 	prereqsDepth:  5,
-	// 	operator:      OperatorIn,
-	// },
 }
 
 var targetMatchBenchmarkCases = []evalBenchmarkCase{
@@ -225,8 +236,53 @@ var targetMatchBenchmarkCases = []evalBenchmarkCase{
 	},
 }
 
+var ruleMatchBenchmarkCases = []evalBenchmarkCase{
+	// These cases are deliberately simple because the benchmark is meant to focus on the evaluation of
+	// one specific type of matching operation. The user will match the first clause in the first rule.
+	{
+		numFlags:      1,
+		numRules:      1,
+		numClauses:    1,
+		numVariations: 2,
+		operator:      ldmodel.OperatorIn,
+		shouldMatch:   true,
+	},
+	{
+		numFlags:      1,
+		numRules:      1,
+		numClauses:    1,
+		numVariations: 2,
+		operator:      ldmodel.OperatorContains,
+		shouldMatch:   true,
+	},
+	{
+		numFlags:      1,
+		numRules:      1,
+		numClauses:    1,
+		numVariations: 2,
+		operator:      ldmodel.OperatorGreaterThan,
+		shouldMatch:   true,
+	},
+	{
+		numFlags:      1,
+		numRules:      1,
+		numClauses:    1,
+		numVariations: 2,
+		operator:      ldmodel.OperatorAfter,
+		shouldMatch:   true,
+	},
+	{
+		numFlags:      1,
+		numRules:      1,
+		numClauses:    1,
+		numVariations: 2,
+		operator:      ldmodel.OperatorMatches,
+		shouldMatch:   true,
+	},
+}
+
 var (
-	// Always record the result of an operation to prevent the  compiler eliminating the function call.
+	// Always record the result of an operation to prevent the compiler eliminating the function call.
 	//
 	// Always store the result to a package level variable so the compiler cannot eliminate the benchmark itself.
 	boolResult   bool
@@ -255,21 +311,21 @@ func benchmarkEval(b *testing.B, makeVariation func(int) ldvalue.Value, cases []
 
 func BenchmarkBoolVariation(b *testing.B) {
 	benchmarkEval(b, makeBoolVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.BoolVariation(env.targetFeatureKey, evalBenchmarkUser, false)
+		r, _ := env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
 		boolResult = r
 	})
 }
 
 func BenchmarkIntVariation(b *testing.B) {
 	benchmarkEval(b, makeIntVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.IntVariation(env.targetFeatureKey, evalBenchmarkUser, 0)
+		r, _ := env.client.IntVariation(env.targetFeatureKey, env.evalUser, 0)
 		intResult = r
 	})
 }
 
 func BenchmarkStringVariation(b *testing.B) {
 	benchmarkEval(b, makeStringVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.StringVariation(env.targetFeatureKey, evalBenchmarkUser, "variation-0")
+		r, _ := env.client.StringVariation(env.targetFeatureKey, env.evalUser, "variation-0")
 		stringResult = r
 	})
 }
@@ -277,7 +333,7 @@ func BenchmarkStringVariation(b *testing.B) {
 func BenchmarkJSONVariation(b *testing.B) {
 	defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"result":{"value":[0]}}`))
 	benchmarkEval(b, makeJSONVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.JSONVariation(env.targetFeatureKey, evalBenchmarkUser, defaultValAsRawJSON)
+		r, _ := env.client.JSONVariation(env.targetFeatureKey, env.evalUser, defaultValAsRawJSON)
 		jsonResult = r
 	})
 }
@@ -298,16 +354,25 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
 			for _ = range env.targetUsers {
-				r, _ := env.client.BoolVariation(env.targetFeatureKey, evalBenchmarkUser, false)
+				r, _ := env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
 				boolResult = r
 			}
 		})
 }
 
+func BenchmarkUserMatchesRule(b *testing.B) {
+	benchmarkEval(b, makeBoolVariation,
+		ruleMatchBenchmarkCases,
+		func(env *evalBenchmarkEnv) {
+			boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
+		})
+}
+
 // Input data creation
 
-// The flag rules and clauses we create here are intended *not* to match the user, so the more of them we
-// create, the more we are testing the overhead of iterating through all the clauses.
+// Except for when we're running BenchmarkUserMatchesRule, the flag rules and clauses we create here are
+// intended *not* to match the user, so the more of them we create, the more we are testing the overhead
+// of iterating through and evaluating all the clauses.
 
 func makeBoolVariation(i int) ldvalue.Value {
 	return ldvalue.Bool(i%2 == 0)
@@ -345,15 +410,22 @@ func makeEvalBenchmarkClauses(numClauses int, op ldmodel.Operator) []ldmodel.Cla
 				ldvalue.String(fmt.Sprintf("name-%d", i+1)),
 				ldvalue.String(fmt.Sprintf("name-%d", i+2)),
 			}
-		case ldmodel.OperatorIn:
+		case ldmodel.OperatorMatches:
 			clause.Attribute = "stringAttr"
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+1)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+2)),
 			}
+		case ldmodel.OperatorAfter:
+			clause.Attribute = "dateAttr"
+			clause.Values = []ldvalue.Value{
+				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2000+i)),
+				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2001+i)),
+				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2002+i)),
+			}
 		default:
-			clause.Op = ldmodel.OperatorMatches
+			clause.Op = ldmodel.OperatorIn
 			clause.Attribute = "stringAttr"
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i)),
