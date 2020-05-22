@@ -14,14 +14,14 @@ const (
 	longScale = float32(0xFFFFFFFFFFFFFFF)
 )
 
-func bucketUser(user *lduser.User, key string, attr lduser.UserAttribute, salt string) float32 {
-	uValue := user.GetAttribute(attr)
+func (es *evaluationScope) bucketUser(key string, attr lduser.UserAttribute, salt string) float32 {
+	uValue := es.user.GetAttribute(attr)
 	idHash, ok := bucketableStringValue(uValue)
 	if !ok {
 		return 0
 	}
 
-	if secondary := user.GetSecondaryKey(); secondary.IsDefined() {
+	if secondary := es.user.GetSecondaryKey(); secondary.IsDefined() {
 		idHash = idHash + "." + secondary.StringValue()
 	}
 

@@ -41,11 +41,17 @@ func (s jsonDataModelSerialization) MarshalSegment(item Segment) ([]byte, error)
 func (s jsonDataModelSerialization) UnmarshalFeatureFlag(data []byte) (FeatureFlag, error) {
 	var item FeatureFlag
 	err := json.Unmarshal(data, &item)
+	if err == nil {
+		PreprocessFlag(&item)
+	}
 	return item, err
 }
 
 func (s jsonDataModelSerialization) UnmarshalSegment(data []byte) (Segment, error) {
 	var item Segment
 	err := json.Unmarshal(data, &item)
+	if err == nil {
+		PreprocessSegment(&item)
+	}
 	return item, err
 }

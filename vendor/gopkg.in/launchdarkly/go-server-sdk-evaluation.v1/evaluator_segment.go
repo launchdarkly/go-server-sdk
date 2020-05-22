@@ -11,26 +11,21 @@ type SegmentExplanation struct {
 	MatchedRule *ldmodel.SegmentRule
 }
 
-func segmentContainsUser(s ldmodel.Segment, user *lduser.User) (bool, SegmentExplanation) {
-	userKey := user.GetKey()
+func (es *evaluationScope) segmentContainsUser(s *ldmodel.Segment) (bool, SegmentExplanation) {
+	userKey := es.user.GetKey()
 
-	// Check if the user is included in the segment by key
-	for _, key := range s.Included {
-		if userKey == key {
+	// Check if the user is specifically included in or excluded from the segment by key
+	if included, found := ldmodel.SegmentIncludesOrExcludesKey(s, userKey); found {
+		if included {
 			return true, SegmentExplanation{Kind: "included"}
 		}
-	}
-
-	// Check if the user is excluded from the segment by key
-	for _, key := range s.Excluded {
-		if userKey == key {
-			return false, SegmentExplanation{Kind: "excluded"}
-		}
+		return false, SegmentExplanation{Kind: "excluded"}
 	}
 
 	// Check if any of the segment rules match
 	for _, rule := range s.Rules {
-		if segmentRuleMatchesUser(rule, user, s.Key, s.Salt) {
+		// Note, taking address of range variable here is OK because it's not used outside the loop
+		if es.segmentRuleMatchesUser(&rule, s.Key, s.Salt) { //nolint:scopelint // see comment above
 			reason := rule
 			return true, SegmentExplanation{Kind: "rule", MatchedRule: &reason}
 		}
@@ -39,10 +34,11 @@ func segmentContainsUser(s ldmodel.Segment, user *lduser.User) (bool, SegmentExp
 	return false, SegmentExplanation{}
 }
 
-func segmentRuleMatchesUser(r ldmodel.SegmentRule, user *lduser.User, key, salt string) bool {
+func (es *evaluationScope) segmentRuleMatchesUser(r *ldmodel.SegmentRule, key, salt string) bool {
+	// Note that r is passed by reference only for efficiency; we do not modify it
 	for _, clause := range r.Clauses {
 		c := clause
-		if !clauseMatchesUserNoSegments(&c, user) {
+		if !ldmodel.ClauseMatchesUser(&c, &es.user) {
 			return false
 		}
 	}
@@ -59,7 +55,7 @@ func segmentRuleMatchesUser(r ldmodel.SegmentRule, user *lduser.User, key, salt 
 	}
 
 	// Check whether the user buckets into the segment
-	bucket := bucketUser(user, key, bucketBy, salt)
+	bucket := es.bucketUser(key, bucketBy, salt)
 	weight := float32(*r.Weight) / 100000.0
 
 	return bucket < weight

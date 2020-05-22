@@ -26,6 +26,8 @@ type Segment struct {
 	// Deleted is true if this is not actually a user segment but rather a placeholder (tombstone) for a
 	// deleted segment. This is only relevant in data store implementations.
 	Deleted bool `json:"deleted" bson:"deleted"`
+	// preprocessedData is created by Segment.Preprocess() to speed up target matching.
+	preprocessed segmentPreprocessedData
 }
 
 // GetKey returns the string key for the segment.
