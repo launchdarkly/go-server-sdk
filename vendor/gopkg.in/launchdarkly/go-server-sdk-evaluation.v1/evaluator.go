@@ -87,7 +87,7 @@ func (e *evaluator) checkPrerequisites(
 		}
 
 		if prerequisiteFlagEventRecorder != nil {
-			event := PrerequisiteFlagEvent{f.Key, prereqFeatureFlag, prereqResult}
+			event := PrerequisiteFlagEvent{f.Key, *user, prereqFeatureFlag, prereqResult}
 			prerequisiteFlagEventRecorder(event)
 		}
 
