@@ -10,9 +10,28 @@ import (
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 )
 
-const serverSideSDKStreamingPath = "/all"
+const (
+	// ServerSideSDKStreamingPath is the expected request path for server-side SDK stream requests.
+	ServerSideSDKStreamingPath = "/all"
+	// ClientSideSDKStreamingBasePath is the expected request path for client-side SDK stream requests that
+	// use the REPORT method, or the base path (not including ClientSideOrMobileUserSubpath) for requests that
+	// use the GET method.
+	ClientSideSDKStreamingBasePath = "/eval"
+	// MobileSDKStreamingBasePath is the expected request path for mobile SDK stream requests that
+	// use the REPORT method, or the base path (not including ClientSideOrMobileUserSubpath) for requests that
+	// use the GET method.
+	MobileSDKStreamingBasePath = "/meval"
+	// ClientSideOrMobileUserSubpath is a subpath added to client-side/mobile GET requests. The base64-encoded
+	// user data follows this.
+	ClientSideOrMobileUserSubpath = "/user/"
+)
 
-// ServerSideStreamingServiceHandler creates an HTTP handler to mimic the LaunchDarkly server-side streaming service.
+// StreamingServiceHandler creates an HTTP handler that provides an SSE stream.
+//
+// This is a very simplistic implementation, not suitable for use in a real server that must handle multiple clients
+// simultaneously (it has a single channel for events, so if there are multiple requests the events will be divided
+// up random between them). Real applications should instead use the Server type in eventsource, which provides a
+// multiplexed publish-subscribe model.
 //
 // If initialEvent is non-nil, it will be sent at the beginning of each connection; you can pass a *ServerSDKData value
 // to generate a "put" event.
@@ -22,8 +41,28 @@ const serverSideSDKStreamingPath = "/all"
 // Calling Close() on the returned io.Closer causes the handler to close any active stream connections and refuse all
 // subsequent requests. You don't need to do this unless you need to force a stream to disconnect before the test
 // server has been shut down; shutting down the server will close connections anyway.
+func StreamingServiceHandler(
+	initialEvent eventsource.Event,
+	eventsCh <-chan eventsource.Event,
+) (http.Handler, io.Closer) {
+	closerCh := make(chan struct{})
+	sh := &streamingServiceHandler{
+		initialEvent: initialEvent,
+		eventsCh:     eventsCh,
+		closerCh:     closerCh,
+	}
+	c := &streamingServiceCloser{
+		closerCh: closerCh,
+	}
+	return sh, c
+}
+
+// ServerSideStreamingServiceHandler creates an HTTP handler to mimic the LaunchDarkly server-side streaming service.
 //
-//     initialData := ldservices.NewSDKData().Flags(flag1, flag2) // all connections will receive this in a "put" event
+// This is the same as StreamingServiceHandler, but enforces that the request path is ServerSideSDKStreamingPath and
+// that the method is GET.
+//
+//     initialData := ldservices.NewServerSDKData().Flags(flag1, flag2) // all clients will get this in a "put" event
 //     eventsCh := make(chan eventsource.Event)
 //     handler, closer := ldservices.ServerSideStreamingHandler(initialData, eventsCh)
 //     server := httptest.NewServer(handler)
@@ -33,40 +72,67 @@ func ServerSideStreamingServiceHandler(
 	initialEvent eventsource.Event,
 	eventsCh <-chan eventsource.Event,
 ) (http.Handler, io.Closer) {
-	closerCh := make(chan struct{})
-	sh := &serverSideStreamingServiceHandler{
-		initialEvent: initialEvent,
-		eventsCh:     eventsCh,
-		closerCh:     closerCh,
-	}
-	h := httphelpers.HandlerForPath(serverSideSDKStreamingPath, httphelpers.HandlerForMethod("GET", sh, nil), nil)
-	c := &serverSideStreamingServiceCloser{
-		closerCh: closerCh,
-	}
-	return h, c
+	handler, closer := StreamingServiceHandler(initialEvent, eventsCh)
+	return httphelpers.HandlerForPath(ServerSideSDKStreamingPath, httphelpers.HandlerForMethod("GET", handler, nil), nil),
+		closer
 }
 
-type serverSideStreamingServiceHandler struct {
+// ClientSideStreamingServiceHandler creates an HTTP handler to mimic the LaunchDarkly client-side streaming service.
+//
+// This is the same as StreamingServiceHandler, but enforces that the request path and method correspond to one of
+// the client-side/mobile endpoints.
+//
+//     initialData := ldservices.NewClientSDKData().Flags(flag1, flag2) // all clients will get this in a "put" event
+//     eventsCh := make(chan eventsource.Event)
+//     handler, closer := ldservices.ClientSideStreamingHandler(initialData, eventsCh)
+//     server := httptest.NewServer(handler)
+//     eventsCh <- myUpdatedFlag // push a "patch" event
+//     closer.Close() // force any current stream connections to be closed
+func ClientSideStreamingServiceHandler(
+	initialEvent eventsource.Event,
+	eventsCh <-chan eventsource.Event,
+) (http.Handler, io.Closer) {
+	handler, closer := StreamingServiceHandler(initialEvent, eventsCh)
+	return httphelpers.HandlerForPath(
+		ClientSideSDKStreamingBasePath,
+		httphelpers.HandlerForMethod("REPORT", handler, nil),
+		httphelpers.HandlerForPathRegex(
+			"^"+ClientSideSDKStreamingBasePath+ClientSideOrMobileUserSubpath+".*",
+			httphelpers.HandlerForMethod("GET", handler, nil),
+			httphelpers.HandlerForPath(
+				MobileSDKStreamingBasePath,
+				httphelpers.HandlerForMethod("REPORT", handler, nil),
+				httphelpers.HandlerForPathRegex(
+					"^"+MobileSDKStreamingBasePath+ClientSideOrMobileUserSubpath+".*",
+					httphelpers.HandlerForMethod("GET", handler, nil),
+					nil,
+				),
+			),
+		),
+	), closer
+}
+
+type streamingServiceHandler struct {
 	initialEvent eventsource.Event
 	eventsCh     <-chan eventsource.Event
 	closed       bool
 	closerCh     <-chan struct{}
 }
 
-type serverSideStreamingServiceCloser struct {
+type streamingServiceCloser struct {
 	closerCh  chan<- struct{}
 	closeOnce sync.Once
 }
 
-func (s *serverSideStreamingServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *streamingServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		log.Println("ServerSideStreamingServiceHandler can't be used with a ResponseWriter that does not support Flush")
+		log.Println("StreamingServiceHandler can't be used with a ResponseWriter that does not support Flush")
 		w.WriteHeader(500)
 		return
 	}
 	if s.closed {
-		log.Println("ServerSideStreamingServiceHandler received a request after it was closed")
+		log.Println("StreamingServiceHandler received a request after it was closed")
 		w.WriteHeader(500)
 		return
 	}
@@ -108,7 +174,7 @@ StreamLoop:
 	}
 }
 
-func (c *serverSideStreamingServiceCloser) Close() error {
+func (c *streamingServiceCloser) Close() error {
 	c.closeOnce.Do(func() {
 		close(c.closerCh)
 	})
