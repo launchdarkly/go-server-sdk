@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -30,10 +31,20 @@ func newEvalBenchmarkEnv() *evalBenchmarkEnv {
 	return &evalBenchmarkEnv{}
 }
 
-func (env *evalBenchmarkEnv) setUp(bc evalBenchmarkCase, variations []ldvalue.Value) {
+func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCase, variations []ldvalue.Value) {
 	// Set up the client.
 	env.client = makeTestClientWithConfig(func(c *Config) {
-		c.Events = ldcomponents.NoEvents()
+		if withEventGeneration {
+			// In this mode, we use a stub EventProcessor implementation that immediately discards
+			// every event, but the SDK will still generate the events before passing them to the stub,
+			// so we are still measuring the overhead of that.
+			c.Events = benchmarkStubEventProcessorFactory{}
+		} else {
+			// Completely disable all event functionality, so we are only testing the evaluation logic
+			// (plus retrieval of the flag from the in-memory store). The SDK only behaves this way if
+			// Events is set to the specific factory returned by NoEvents().
+			c.Events = ldcomponents.NoEvents()
+		}
 	})
 
 	// Set up the feature flag store. Note that we're using a regular in-memory data store, so the
@@ -66,6 +77,12 @@ func (env *evalBenchmarkEnv) tearDown() {
 	env.client.Close()
 	env.client = nil
 	env.targetFeatureKey = ""
+}
+
+type benchmarkStubEventProcessorFactory struct{}
+
+func (f benchmarkStubEventProcessorFactory) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+	return ldcomponents.NoEvents().CreateEventProcessor(context)
 }
 
 func makeEvalBenchmarkUser(bc evalBenchmarkCase) lduser.User {
@@ -291,14 +308,20 @@ var (
 	jsonResult   ldvalue.Value
 )
 
-func benchmarkEval(b *testing.B, makeVariation func(int) ldvalue.Value, cases []evalBenchmarkCase, action func(*evalBenchmarkEnv)) {
+func benchmarkEval(
+	b *testing.B,
+	withEventGeneration bool,
+	makeVariation func(int) ldvalue.Value,
+	cases []evalBenchmarkCase,
+	action func(*evalBenchmarkEnv),
+) {
 	env := newEvalBenchmarkEnv()
 	for _, bc := range cases {
 		variations := make([]ldvalue.Value, bc.numVariations)
 		for i := 0; i < bc.numVariations; i++ {
 			variations[i] = makeVariation(i)
 		}
-		env.setUp(bc, variations)
+		env.setUp(withEventGeneration, bc, variations)
 
 		b.Run(fmt.Sprintf("%+v", bc), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
@@ -309,37 +332,59 @@ func benchmarkEval(b *testing.B, makeVariation func(int) ldvalue.Value, cases []
 	}
 }
 
+// This benchmark executes only a single basic evaluation case. It is mainly useful in very
+// detailed profiling and allocation tracing where you don't want a huge log file.
+func BenchmarkSingleVariation(b *testing.B) {
+	singleCase := []evalBenchmarkCase{ruleEvalBenchmarkCases[0]}
+	benchmarkEval(b, false, makeBoolVariation, singleCase, func(env *evalBenchmarkEnv) {
+		boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
+	})
+}
+
+func BenchmarkSingleVariationWithEvents(b *testing.B) {
+	singleCase := []evalBenchmarkCase{ruleEvalBenchmarkCases[0]}
+	benchmarkEval(b, true, makeBoolVariation, singleCase, func(env *evalBenchmarkEnv) {
+		boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
+	})
+}
+
 func BenchmarkBoolVariation(b *testing.B) {
-	benchmarkEval(b, makeBoolVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
-		boolResult = r
+	benchmarkEval(b, false, makeBoolVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
+	})
+}
+
+// The ___WithEvents version of the benchmark enables the LDClient code path that creates an evaluation
+// event instance, even though the event will not be sent anywhere, so we can measure the overhead of
+// that step. It is not repeated for BenchmarkIntVariation, etc., because the data type of the
+// variation makes no difference in how events are generated.
+func BenchmarkBoolVariationWithEvents(b *testing.B) {
+	benchmarkEval(b, true, makeBoolVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
 	})
 }
 
 func BenchmarkIntVariation(b *testing.B) {
-	benchmarkEval(b, makeIntVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.IntVariation(env.targetFeatureKey, env.evalUser, 0)
-		intResult = r
+	benchmarkEval(b, false, makeIntVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		intResult, _ = env.client.IntVariation(env.targetFeatureKey, env.evalUser, 0)
 	})
 }
 
 func BenchmarkStringVariation(b *testing.B) {
-	benchmarkEval(b, makeStringVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.StringVariation(env.targetFeatureKey, env.evalUser, "variation-0")
-		stringResult = r
+	benchmarkEval(b, false, makeStringVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		stringResult, _ = env.client.StringVariation(env.targetFeatureKey, env.evalUser, "variation-0")
 	})
 }
 
 func BenchmarkJSONVariation(b *testing.B) {
 	defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"result":{"value":[0]}}`))
-	benchmarkEval(b, makeJSONVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
-		r, _ := env.client.JSONVariation(env.targetFeatureKey, env.evalUser, defaultValAsRawJSON)
-		jsonResult = r
+	benchmarkEval(b, false, makeJSONVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
+		jsonResult, _ = env.client.JSONVariation(env.targetFeatureKey, env.evalUser, defaultValAsRawJSON)
 	})
 }
 
 func BenchmarkUsersFoundInTargets(b *testing.B) {
-	benchmarkEval(b, makeBoolVariation,
+	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
 			for _, user := range env.targetUsers {
@@ -350,7 +395,7 @@ func BenchmarkUsersFoundInTargets(b *testing.B) {
 }
 
 func BenchmarkUserNotFoundInTargets(b *testing.B) {
-	benchmarkEval(b, makeBoolVariation,
+	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
 			for _ = range env.targetUsers {
@@ -361,7 +406,7 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 }
 
 func BenchmarkUserMatchesRule(b *testing.B) {
-	benchmarkEval(b, makeBoolVariation,
+	benchmarkEval(b, false, makeBoolVariation,
 		ruleMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
 			boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)

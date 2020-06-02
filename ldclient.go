@@ -49,34 +49,6 @@ type LDClient struct {
 	offline                     bool
 }
 
-// This struct is used during evaluations to keep track of the event generation strategy we are using
-// (with or without evaluation reasons). It captures all of the relevant state so that we do not need to
-// create any more stateful objects, such as closures, to generate events during an evaluation. See
-// CONTRIBUTING.md for performance issues with closures.
-type eventsScope struct {
-	factory                   ldevents.EventFactory
-	prerequisiteEventRecorder ldeval.PrerequisiteFlagEventRecorder
-}
-
-func makeEventsScope(client *LDClient, withReasons bool) eventsScope {
-	factory := ldevents.NewEventFactory(withReasons, nil)
-	return eventsScope{
-		factory: factory,
-		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
-			event := factory.NewSuccessfulEvalEvent(
-				params.PrerequisiteFlag,
-				ldevents.User(params.User),
-				params.PrerequisiteResult.VariationIndex,
-				params.PrerequisiteResult.Value,
-				ldvalue.Null(),
-				params.PrerequisiteResult.Reason,
-				params.TargetFlagKey,
-			)
-			client.eventProcessor.SendEvent(event)
-		},
-	}
-}
-
 // Initialization errors
 var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
@@ -193,8 +165,13 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if err != nil {
 		return nil, err
 	}
-	client.eventsDefault = makeEventsScope(&client, false)
-	client.eventsWithReasons = makeEventsScope(&client, true)
+	if isNullEventProcessorFactory(eventProcessorFactory) {
+		client.eventsDefault = newDisabledEventsScope()
+		client.eventsWithReasons = newDisabledEventsScope()
+	} else {
+		client.eventsDefault = newEventsScope(&client, false)
+		client.eventsWithReasons = newEventsScope(&client, true)
+	}
 
 	dataSourceFactory := getDataSourceFactory(config)
 	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, dataSourceUpdates)
@@ -249,18 +226,11 @@ func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
 	return config.DataSource
 }
 
-func getEventProcessorFactory(config Config) interfaces.EventProcessorFactory {
-	if config.Offline {
-		return ldcomponents.NoEvents()
-	}
-	if config.Events == nil {
-		return ldcomponents.SendEvents()
-	}
-	return config.Events
-}
-
 // Identify reports details about a a user.
 func (client *LDClient) Identify(user lduser.User) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
 	if user.GetKey() == "" {
 		client.loggers.Warn("Identify called with empty user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
@@ -290,6 +260,9 @@ func (client *LDClient) TrackEvent(eventName string, user lduser.User) error {
 // will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
 // instead). To send a numeric value for experimentation, use TrackMetric.
 func (client *LDClient) TrackData(eventName string, user lduser.User, data ldvalue.Value) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
 	if user.GetKey() == "" {
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
@@ -309,6 +282,9 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 // The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 // will be sent with the event. If no such value is needed, use ldvalue.Null().
 func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricValue float64, data ldvalue.Value) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
 	if user.GetKey() == "" {
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
@@ -554,21 +530,23 @@ func (client *LDClient) variation(
 		}
 	}
 
-	var evt ldevents.FeatureRequestEvent
-	if flag == nil {
-		evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
-	} else {
-		evt = eventsScope.factory.NewSuccessfulEvalEvent(
-			flag,
-			ldevents.User(user),
-			result.VariationIndex,
-			result.Value,
-			defaultVal,
-			result.Reason,
-			"",
-		)
+	if !eventsScope.disabled {
+		var evt ldevents.FeatureRequestEvent
+		if flag == nil {
+			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
+		} else {
+			evt = eventsScope.factory.NewSuccessfulEvalEvent(
+				flag,
+				ldevents.User(user),
+				result.VariationIndex,
+				result.Value,
+				defaultVal,
+				result.Reason,
+				"",
+			)
+		}
+		client.eventProcessor.SendEvent(evt)
 	}
-	client.eventProcessor.SendEvent(evt)
 
 	return result, err
 }
