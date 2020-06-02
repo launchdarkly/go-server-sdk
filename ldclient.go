@@ -63,9 +63,15 @@ func makeEventsScope(client *LDClient, withReasons bool) eventsScope {
 	return eventsScope{
 		factory: factory,
 		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
-			flagProps := ldeval.FlagEventProperties(params.PrerequisiteFlag)
-			event := factory.NewSuccessfulEvalEvent(flagProps, ldevents.User(params.User), params.PrerequisiteResult.VariationIndex,
-				params.PrerequisiteResult.Value, ldvalue.Null(), params.PrerequisiteResult.Reason, params.TargetFlagKey)
+			event := factory.NewSuccessfulEvalEvent(
+				params.PrerequisiteFlag,
+				ldevents.User(params.User),
+				params.PrerequisiteResult.VariationIndex,
+				params.PrerequisiteResult.Value,
+				ldvalue.Null(),
+				params.PrerequisiteResult.Reason,
+				params.TargetFlagKey,
+			)
 			client.eventProcessor.SendEvent(event)
 		},
 	}
@@ -391,7 +397,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 				if clientSideOnly && !flag.ClientSide {
 					continue
 				}
-				result := client.evaluator.Evaluate(*flag, user, nil)
+				result := client.evaluator.Evaluate(flag, user, nil)
 				var reason ldreason.EvaluationReason
 				if withReasons {
 					reason = result.Reason
@@ -552,9 +558,15 @@ func (client *LDClient) variation(
 	if flag == nil {
 		evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
 	} else {
-		flagProps := ldeval.FlagEventProperties(*flag)
-		evt = eventsScope.factory.NewSuccessfulEvalEvent(flagProps, ldevents.User(user), result.VariationIndex, result.Value, defaultVal,
-			result.Reason, "")
+		evt = eventsScope.factory.NewSuccessfulEvalEvent(
+			flag,
+			ldevents.User(user),
+			result.VariationIndex,
+			result.Value,
+			defaultVal,
+			result.Reason,
+			"",
+		)
 	}
 	client.eventProcessor.SendEvent(evt)
 
@@ -615,7 +627,7 @@ func (client *LDClient) evaluateInternal(
 			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 
-	detail := client.evaluator.Evaluate(*feature, user, eventsScope.prerequisiteEventRecorder)
+	detail := client.evaluator.Evaluate(feature, user, eventsScope.prerequisiteEventRecorder)
 	if detail.Reason.GetKind() == ldreason.EvalReasonError && client.logEvaluationErrors {
 		client.loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
 			key, detail.Reason.GetErrorKind())

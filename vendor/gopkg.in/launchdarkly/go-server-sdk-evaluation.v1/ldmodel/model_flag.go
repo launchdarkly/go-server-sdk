@@ -1,6 +1,7 @@
 package ldmodel
 
 import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -101,11 +102,48 @@ func (f *FeatureFlag) GetVersion() int {
 	return f.Version
 }
 
-// IsDeleted returns whether this is a deleted flag placeholder.
+// IsFullEventTrackingEnabled returns true if the flag has been configured to always generate detailed event data.
 //
-// This method exists in order to conform to interfaces used internally by the SDK.
-func (f *FeatureFlag) IsDeleted() bool {
-	return f.Deleted
+// This method exists in order to conform to interfaces used internally by the SDK
+// (go-sdk-events.v1/FlagEventProperties). It simply returns TrackEvents.
+func (f *FeatureFlag) IsFullEventTrackingEnabled() bool {
+	return f.TrackEvents
+}
+
+// GetDebugEventsUntilDate returns zero normally, but if event debugging has been temporarily enabled for the flag,
+// it returns the time at which debugging mode should expire.
+//
+// This method exists in order to conform to interfaces used internally by the SDK
+// (go-sdk-events.v1/FlagEventProperties). It simply returns DebugEventsUntilDate, with nil converted to zero.
+func (f *FeatureFlag) GetDebugEventsUntilDate() ldtime.UnixMillisecondTime {
+	if f.DebugEventsUntilDate == nil {
+		return 0
+	}
+	return *f.DebugEventsUntilDate
+}
+
+// IsExperimentationEnabled returns true if, based on the EvaluationReason returned by the flag evaluation, an event for
+// that evaluation should have full tracking enabled and always report the reason even if the application didn't
+// explicitly request this. For instance, this is true if a rule was matched that had tracking enabled for that specific
+// rule.
+//
+// This differs from IsFullEventTrackingEnabled() in that it is dependent on the result of a specific evaluation; also,
+// IsFullEventTrackingEnabled() being true does not imply that the event should always contain a reason, whereas
+// IsExperimentationEnabled() being true does force the reason to be included.
+//
+// This method exists in order to conform to interfaces used internally by the SDK
+// (go-sdk-events.v1/FlagEventProperties).
+func (f *FeatureFlag) IsExperimentationEnabled(reason ldreason.EvaluationReason) bool {
+	switch reason.GetKind() {
+	case ldreason.EvalReasonFallthrough:
+		return f.TrackEventsFallthrough
+	case ldreason.EvalReasonRuleMatch:
+		i := reason.GetRuleIndex()
+		if i >= 0 && i < len(f.Rules) {
+			return f.Rules[i].TrackEvents
+		}
+	}
+	return false
 }
 
 // FlagRule describes a single rule within a feature flag.
@@ -188,6 +226,9 @@ type Clause struct {
 	// If the user does not have a value for the specified attribute, the Values are ignored and the
 	// Clause is always treated as a non-match.
 	Values []ldvalue.Value `json:"values" bson:"values"` // An array, interpreted as an OR of values
+	// preprocessed is created by PreprocessFlag() to speed up clause evaluation in scenarios like
+	// regex matching.
+	preprocessed clausePreprocessedData
 	// Negate is true if the specified Operator should be inverted.
 	//
 	// For instance, this would cause OperatorIn to mean "not equal" rather than "equal". Note that if no
@@ -210,6 +251,8 @@ type Target struct {
 	Values []string `json:"values" bson:"values"`
 	// Variation is the index of the variation to be returned if the user matches one of these keys.
 	Variation int `json:"variation" bson:"variation"`
+	// preprocessedData is created by PreprocessFlag() to speed up target matching.
+	preprocessed targetPreprocessedData
 }
 
 // Prerequisite describes a requirement that another feature flag return a specific variation.

@@ -21,26 +21,26 @@ func NewDataStoreEvaluatorDataProvider(store DataStore, loggers ldlog.Loggers) l
 	return dataStoreEvaluatorDataProvider{store, loggers}
 }
 
-func (d dataStoreEvaluatorDataProvider) GetFeatureFlag(key string) (ldmodel.FeatureFlag, bool) {
+func (d dataStoreEvaluatorDataProvider) GetFeatureFlag(key string) *ldmodel.FeatureFlag {
 	item, err := d.store.Get(dataKindFeatures, key)
 	if err == nil && item.Item != nil {
 		data := item.Item
 		if flag, ok := data.(*ldmodel.FeatureFlag); ok {
-			return *flag, true
+			return flag
 		}
 		d.loggers.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", data, key)
 	}
-	return ldmodel.FeatureFlag{}, false
+	return nil
 }
 
-func (d dataStoreEvaluatorDataProvider) GetSegment(key string) (ldmodel.Segment, bool) {
+func (d dataStoreEvaluatorDataProvider) GetSegment(key string) *ldmodel.Segment {
 	item, err := d.store.Get(dataKindSegments, key)
 	if err == nil && item.Item != nil {
 		data := item.Item
 		if segment, ok := data.(*ldmodel.Segment); ok {
-			return *segment, true
+			return segment
 		}
 		d.loggers.Errorf("unexpected data type (%T) found in store for segment key: %s. Returning default value", data, key)
 	}
-	return ldmodel.Segment{}, false
+	return nil
 }
