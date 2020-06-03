@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,10 +39,13 @@ func TestFlagValueChangeListener(t *testing.T) {
 	user := lduser.NewUser("important-user")
 	otherUser := lduser.NewUser("unimportant-user")
 	resultMap := make(map[string]ldvalue.Value)
+	resultLock := sync.Mutex{}
 
 	broadcaster := NewFlagChangeEventBroadcaster()
 	defer broadcaster.Close()
 	tracker := NewFlagTrackerImpl(broadcaster, func(flag string, user lduser.User, defaultValue ldvalue.Value) ldvalue.Value {
+		resultLock.Lock()
+		defer resultLock.Unlock()
 		return resultMap[user.GetKey()]
 	})
 
@@ -58,7 +62,9 @@ func TestFlagValueChangeListener(t *testing.T) {
 	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
 
 	// make the flag true for the first user only, and broadcast a flag change event
+	resultLock.Lock()
 	resultMap[user.GetKey()] = ldvalue.Bool(true)
+	resultLock.Unlock()
 	broadcaster.Broadcast(intf.FlagChangeEvent{Key: flagKey})
 
 	// ch1 receives a value change event
