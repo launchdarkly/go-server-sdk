@@ -30,7 +30,7 @@ func makeInMemoryDataStore() interfaces.DataStore {
 }
 
 func upsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {
-	store.Upsert(interfaces.DataKindFeatures(), flag.Key, interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag})
+	store.Upsert(interfaces.DataKindFeatures(), flag.Key, sharedtest.FlagDescriptor(*flag))
 }
 
 type singleDataStoreFactory struct {

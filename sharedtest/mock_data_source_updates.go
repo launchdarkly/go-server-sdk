@@ -45,7 +45,7 @@ func (d *MockDataSourceUpdates) Init(allData []interfaces.StoreCollection) bool 
 
 // Upsert, in this test implementation, delegates to d.DataStore.CapturedUpdates.
 func (d *MockDataSourceUpdates) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) bool {
-	err := d.DataStore.Upsert(kind, key, newItem)
+	_, err := d.DataStore.Upsert(kind, key, newItem)
 	return err == nil
 }
 

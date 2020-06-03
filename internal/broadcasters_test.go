@@ -82,3 +82,41 @@ func TestDataSourceStatusBroadcaster(t *testing.T) {
 		assert.Equal(t, status1, <-ch2)
 	})
 }
+
+func TestFlagChangeEventBroadcaster(t *testing.T) {
+	event := interfaces.FlagChangeEvent{Key: "flag"}
+
+	t.Run("broadcast with no subscribers", func(t *testing.T) {
+		b := NewFlagChangeEventBroadcaster()
+		defer b.Close()
+
+		b.Broadcast(event)
+	})
+
+	t.Run("broadcast with subscribers", func(t *testing.T) {
+		b := NewFlagChangeEventBroadcaster()
+		defer b.Close()
+
+		ch1 := b.AddListener()
+		ch2 := b.AddListener()
+
+		b.Broadcast(event)
+
+		assert.Equal(t, event, <-ch1)
+		assert.Equal(t, event, <-ch2)
+	})
+
+	t.Run("unregister subscriber", func(t *testing.T) {
+		b := NewFlagChangeEventBroadcaster()
+		defer b.Close()
+
+		ch1 := b.AddListener()
+		ch2 := b.AddListener()
+		b.RemoveListener(ch1)
+
+		b.Broadcast(event)
+
+		assert.Len(t, ch1, 0)
+		assert.Equal(t, event, <-ch2)
+	})
+}

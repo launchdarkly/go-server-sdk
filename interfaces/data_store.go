@@ -53,7 +53,10 @@ type DataStore interface {
 	// The SDK may pass an ItemDescriptor whose Item is nil, to represent a placeholder for a deleted
 	// item. In that case, assuming the version is greater than any existing version of that item, the
 	// store should retain that placeholder rather than simply not storing anything.
-	Upsert(kind StoreDataKind, key string, item StoreItemDescriptor) error
+	//
+	// The method returns true if the item was updated, or false if it was not updated because the store
+	// contains an equal or greater version.
+	Upsert(kind StoreDataKind, key string, item StoreItemDescriptor) (bool, error)
 
 	// IsInitialized returns true if the data store contains a data set, meaning that Init has been
 	// called at least once.

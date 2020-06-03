@@ -137,3 +137,70 @@ func (b *DataSourceStatusBroadcaster) Close() {
 	}
 	b.subscribers = nil
 }
+
+// FlagChangeEventBroadcaster is the internal implementation of publish-subscribe for FlagChangeEvent values.
+type FlagChangeEventBroadcaster struct {
+	subscribers []chan interfaces.FlagChangeEvent
+	lock        sync.Mutex
+}
+
+// NewFlagChangeEventBroadcaster creates an instance of FlagChangeEventBroadcaster.
+func NewFlagChangeEventBroadcaster() *FlagChangeEventBroadcaster {
+	return &FlagChangeEventBroadcaster{}
+}
+
+// AddListener creates a new channel for listening to broadcast values. This is created with a small
+// channel buffer, but it is the consumer's responsibility to consume the channel to avoid blocking an
+// SDK goroutine.
+func (b *FlagChangeEventBroadcaster) AddListener() <-chan interfaces.FlagChangeEvent {
+	ch := make(chan interfaces.FlagChangeEvent, subscriberChannelBufferLength)
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.subscribers = append(b.subscribers, ch)
+	return ch
+}
+
+// RemoveListener stops broadcasting to a channel that was created with AddListener.
+func (b *FlagChangeEventBroadcaster) RemoveListener(ch <-chan interfaces.FlagChangeEvent) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	ss := b.subscribers
+	for i, s := range ss {
+		if s == ch {
+			copy(ss[i:], ss[i+1:])
+			ss[len(ss)-1] = nil
+			b.subscribers = ss[:len(ss)-1]
+			close(s)
+			break
+		}
+	}
+}
+
+// HasListeners returns true if any listeners are registered.
+func (b *FlagChangeEventBroadcaster) HasListeners() bool {
+	return len(b.subscribers) > 0
+}
+
+// Broadcast broadcasts a new value to the registered listeners, if any.
+func (b *FlagChangeEventBroadcaster) Broadcast(value interfaces.FlagChangeEvent) {
+	var ss []chan interfaces.FlagChangeEvent
+	b.lock.Lock()
+	if len(b.subscribers) > 0 {
+		ss = make([]chan interfaces.FlagChangeEvent, len(b.subscribers))
+		copy(ss, b.subscribers)
+	}
+	b.lock.Unlock()
+	for _, ch := range ss {
+		ch <- value
+	}
+}
+
+// Close closes all currently registered listener channels.
+func (b *FlagChangeEventBroadcaster) Close() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	for _, s := range b.subscribers {
+		close(s)
+	}
+	b.subscribers = nil
+}
