@@ -314,7 +314,7 @@ func (store *dynamoDBDataStore) readExistingKeys(
 		err := store.client.QueryPages(query,
 			func(out *dynamodb.QueryOutput, lastPage bool) bool {
 				for _, i := range out.Items {
-					nk := namespaceAndKey{namespace: *(*i[tablePartitionKey]).S, key: *(*i[tableSortKey]).S}
+					nk := namespaceAndKey{namespace: *(i[tablePartitionKey].S), key: *(i[tableSortKey].S)}
 					keys[nk] = true
 				}
 				return !lastPage

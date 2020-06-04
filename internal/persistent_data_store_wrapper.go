@@ -240,10 +240,8 @@ func (w *persistentDataStoreWrapper) IsInitialized() bool {
 		if w.cache != nil {
 			w.cache.Delete(initCheckedKey)
 		}
-	} else {
-		if w.cache != nil {
-			w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
-		}
+	} else if w.cache != nil {
+		w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
 	}
 	return newValue
 }

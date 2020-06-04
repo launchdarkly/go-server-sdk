@@ -178,11 +178,12 @@ func assertReceivedInitDataEquals(
 	assert.Equal(t, 2, len(received))
 	for _, coll := range received {
 		var itemsMap map[string]interface{}
-		if coll.Kind == interfaces.DataKindFeatures() {
+		switch coll.Kind {
+		case interfaces.DataKindFeatures():
 			itemsMap = expected.FlagsMap
-		} else if coll.Kind == interfaces.DataKindSegments() {
+		case interfaces.DataKindSegments():
 			itemsMap = expected.SegmentsMap
-		} else {
+		default:
 			assert.Fail(t, "received unknown data kind: %s", coll.Kind)
 		}
 		assert.Equal(t, len(itemsMap), len(coll.Items))

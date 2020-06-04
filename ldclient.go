@@ -558,10 +558,8 @@ func (client *LDClient) variation(
 	if err != nil {
 		result.Value = defaultVal
 		result.VariationIndex = -1
-	} else {
-		if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
-			result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
-		}
+	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
+		result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
 	}
 
 	if !eventsScope.disabled {

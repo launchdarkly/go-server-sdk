@@ -62,9 +62,8 @@ func addWithDependenciesFirst(
 
 func getDependencyKeys(item interfaces.StoreItemDescriptor) []string {
 	var ret []string
-	switch i := item.Item.(type) {
-	case *ldmodel.FeatureFlag:
-		for _, p := range i.Prerequisites {
+	if f, ok := item.Item.(*ldmodel.FeatureFlag); ok {
+		for _, p := range f.Prerequisites {
 			ret = append(ret, p.Key)
 		}
 	}

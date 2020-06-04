@@ -237,7 +237,7 @@ func (o *outageTracker) recordError(newError intf.DataSourceErrorInfo) {
 	// Accumulate how many times each kind of error has occurred during the outage - use just the basic
 	// properties as the key so the map won't expand indefinitely
 	basicErrorInfo := intf.DataSourceErrorInfo{Kind: newError.Kind, StatusCode: newError.StatusCode}
-	o.errorCounts[basicErrorInfo] = o.errorCounts[basicErrorInfo] + 1
+	o.errorCounts[basicErrorInfo]++
 }
 
 func (o *outageTracker) awaitTimeout(closer chan struct{}) {
@@ -268,13 +268,13 @@ func (o *outageTracker) describeErrors() string {
 	ret := ""
 	for err, count := range o.errorCounts {
 		if ret != "" {
-			ret = ret + ", "
+			ret += ", "
 		}
 		times := "times"
 		if count == 1 {
 			times = "time"
 		}
-		ret = ret + fmt.Sprintf("%s (%d %s)", err, count, times)
+		ret += fmt.Sprintf("%s (%d %s)", err, count, times)
 	}
 	return ret
 }
