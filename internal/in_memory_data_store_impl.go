@@ -69,7 +69,9 @@ func (store *inMemoryDataStore) Get(kind interfaces.StoreDataKind, key string) (
 	if ok {
 		return item, nil
 	}
-	store.loggers.Debugf(`Key %s not found in "%s"`, key, kind)
+	if store.loggers.IsDebugEnabled() {
+		store.loggers.Debugf(`Key %s not found in "%s"`, key, kind)
+	}
 	return interfaces.StoreItemDescriptor{}.NotFound(), nil
 }
 

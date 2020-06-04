@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	c "github.com/hashicorp/consul/api"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -167,7 +168,9 @@ func (store *consulDataStoreImpl) Upsert(
 			return true, nil // success
 		}
 		// If we failed, retry the whole shebang
-		store.loggers.Debug("Concurrent modification detected, retrying")
+		if store.loggers.IsDebugEnabled() {
+			store.loggers.Debug("Concurrent modification detected, retrying")
+		}
 	}
 }
 
