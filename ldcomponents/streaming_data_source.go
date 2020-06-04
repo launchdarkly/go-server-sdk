@@ -119,6 +119,7 @@ func parsePath(path string) (parsedPath, error) {
 	return parsedPath, nil
 }
 
+//nolint:gocyclo // yes, we know this is a long function
 func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -143,7 +144,11 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			shouldRestart := false
 
 			gotMalformedEvent := func(event es.Event, err error) {
-				sp.loggers.Errorf("Received streaming \"%s\" event with malformed JSON data (%s); will restart stream", event.Event(), err)
+				sp.loggers.Errorf(
+					"Received streaming \"%s\" event with malformed JSON data (%s); will restart stream",
+					event.Event(),
+					err,
+				)
 
 				errorInfo := interfaces.DataSourceErrorInfo{
 					Kind:    interfaces.DataSourceErrorKindInvalidData,

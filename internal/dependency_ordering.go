@@ -28,7 +28,10 @@ func doesDataKindSupportDependencies(kind interfaces.StoreDataKind) bool {
 	return kind == interfaces.DataKindFeatures() //nolint:megacheck
 }
 
-func addItemsInDependencyOrder(itemsIn []interfaces.StoreKeyedItemDescriptor, out *[]interfaces.StoreKeyedItemDescriptor) {
+func addItemsInDependencyOrder(
+	itemsIn []interfaces.StoreKeyedItemDescriptor,
+	out *[]interfaces.StoreKeyedItemDescriptor,
+) {
 	remainingItems := make(map[string]interfaces.StoreItemDescriptor, len(itemsIn))
 	for _, item := range itemsIn {
 		remainingItems[item.Key] = item.Item

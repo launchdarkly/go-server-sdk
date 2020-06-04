@@ -78,7 +78,10 @@ func (store *redisDataStoreImpl) Init(allData []interfaces.StoreSerializedCollec
 	return err
 }
 
-func (store *redisDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+func (store *redisDataStoreImpl) Get(
+	kind interfaces.StoreDataKind,
+	key string,
+) (interfaces.StoreSerializedItemDescriptor, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -95,7 +98,9 @@ func (store *redisDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) 
 	return interfaces.StoreSerializedItemDescriptor{Version: 0, SerializedItem: []byte(jsonStr)}, nil
 }
 
-func (store *redisDataStoreImpl) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+func (store *redisDataStoreImpl) GetAll(
+	kind interfaces.StoreDataKind,
+) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 

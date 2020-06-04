@@ -19,7 +19,9 @@ func NoEvents() interfaces.EventProcessorFactory {
 	return nullEventProcessorFactory{}
 }
 
-func (f nullEventProcessorFactory) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+func (f nullEventProcessorFactory) CreateEventProcessor(
+	context interfaces.ClientContext,
+) (ldevents.EventProcessor, error) {
 	return ldevents.NewNullEventProcessor(), nil
 }
 

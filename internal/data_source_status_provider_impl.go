@@ -21,22 +21,18 @@ func NewDataSourceStatusProviderImpl(
 	return &dataSourceStatusProviderImpl{broadcaster, dataSourceUpdates}
 }
 
-// GetStatus is a standard method of DataSourceStatusProvider.
 func (d *dataSourceStatusProviderImpl) GetStatus() interfaces.DataSourceStatus {
 	return d.dataSourceUpdates.GetLastStatus()
 }
 
-// AddStatusListener is a standard method of DataSourceStatusProvider.
 func (d *dataSourceStatusProviderImpl) AddStatusListener() <-chan interfaces.DataSourceStatus {
 	return d.broadcaster.AddListener()
 }
 
-// RemoveStatusListener is a standard method of DataSourceStatusProvider.
 func (d *dataSourceStatusProviderImpl) RemoveStatusListener(listener <-chan interfaces.DataSourceStatus) {
 	d.broadcaster.RemoveListener(listener)
 }
 
-// WaitFor is a standard method of DataSourceStatusProvider.
 func (d *dataSourceStatusProviderImpl) WaitFor(desiredState interfaces.DataSourceState, timeout time.Duration) bool {
 	return d.dataSourceUpdates.waitFor(desiredState, timeout)
 }

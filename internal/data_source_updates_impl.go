@@ -44,13 +44,13 @@ func NewDataSourceUpdatesImpl(
 	}
 }
 
-// Init is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Init(allData []intf.StoreCollection) bool {
 	err := d.store.Init(sortCollectionsForDataStoreInit(allData))
 	return d.maybeUpdateError(err)
 }
 
-// Upsert is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Upsert(
 	kind intf.StoreDataKind,
 	key string,
@@ -89,7 +89,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateError(err error) bool {
 	return false
 }
 
-// UpdateStatus is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) UpdateStatus(
 	newState intf.DataSourceState,
 	newError intf.DataSourceErrorInfo,
@@ -138,7 +138,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
 	return d.currentStatus, true
 }
 
-// GetDataStoreStatusProvider is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) GetDataStoreStatusProvider() intf.DataStoreStatusProvider {
 	return d.dataStoreStatusProvider
 }
@@ -209,9 +209,10 @@ func (o *outageTracker) trackDataSourceState(newState intf.DataSourceState, newE
 	o.lock.Lock()
 	defer o.lock.Unlock()
 
-	if newState == intf.DataSourceStateInterrupted || newError.Kind != "" || (newState == intf.DataSourceStateInitializing && o.inOutage) {
-		// We are in a potentially recoverable outage. If that wasn't the case already, and if we've been configured
-		// with a timeout for logging the outage at a higher level, schedule that timeout.
+	if newState == intf.DataSourceStateInterrupted || newError.Kind != "" ||
+		(newState == intf.DataSourceStateInitializing && o.inOutage) {
+		// We are in a potentially recoverable outage. If that wasn't the case already, and if we've been
+		// configured with a timeout for logging the outage at a higher level, schedule that timeout.
 		if o.inOutage {
 			// We were already in one - just record this latest error for logging later.
 			o.recordError(newError)

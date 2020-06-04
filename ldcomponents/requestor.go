@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gregjones/httpcache"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -117,7 +118,7 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 		_ = res.Body.Close()
 	}()
 
-	if err := checkForHttpError(res.StatusCode, url); err != nil {
+	if err := checkForHTTPError(res.StatusCode, url); err != nil {
 		return nil, false, err
 	}
 

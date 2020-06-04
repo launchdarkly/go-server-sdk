@@ -146,8 +146,12 @@ type fileData struct {
 	Segments   *map[string]ldmodel.Segment
 }
 
-func insertData(all map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor, kind interfaces.StoreDataKind, key string,
-	data interfaces.StoreItemDescriptor) error {
+func insertData(
+	all map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor,
+	kind interfaces.StoreDataKind,
+	key string,
+	data interfaces.StoreItemDescriptor,
+) error {
 	if _, exists := all[kind][key]; exists {
 		return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
 	}
@@ -195,10 +199,7 @@ func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error
 		}
 		if d.FlagValues != nil {
 			for key, value := range *d.FlagValues {
-				flag, err := makeFlagWithValue(key, value)
-				if err != nil {
-					return nil, err
-				}
+				flag := makeFlagWithValue(key, value)
 				data := interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag}
 				if err := insertData(all, interfaces.DataKindFeatures(), key, data); err != nil {
 					return nil, err
@@ -226,9 +227,9 @@ func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error
 	return ret, nil
 }
 
-func makeFlagWithValue(key string, v interface{}) (*ldmodel.FeatureFlag, error) {
+func makeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {
 	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(ldvalue.CopyArbitraryValue(v)).Build()
-	return &flag, nil
+	return &flag
 }
 
 // Close is called automatically when the client is closed.

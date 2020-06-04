@@ -20,7 +20,11 @@ func NewSimpleTestContext(sdkKey string) interfaces.ClientContext {
 }
 
 // NewTestContext returns a basic implementation of interfaces.ClientContext for use in test code.
-func NewTestContext(sdkKey string, http interfaces.HTTPConfiguration, logging interfaces.LoggingConfiguration) interfaces.ClientContext {
+func NewTestContext(
+	sdkKey string,
+	http interfaces.HTTPConfiguration,
+	logging interfaces.LoggingConfiguration,
+) interfaces.ClientContext {
 	return stubClientContext{sdkKey, http, logging}
 }
 

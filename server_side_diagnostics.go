@@ -12,7 +12,13 @@ import (
 
 func createDiagnosticsManager(sdkKey string, config Config, waitFor time.Duration) *ldevents.DiagnosticsManager {
 	id := ldevents.NewDiagnosticID(sdkKey)
-	return ldevents.NewDiagnosticsManager(id, makeDiagnosticConfigData(config, waitFor), makeDiagnosticSDKData(), time.Now(), nil)
+	return ldevents.NewDiagnosticsManager(
+		id,
+		makeDiagnosticConfigData(config, waitFor),
+		makeDiagnosticSDKData(),
+		time.Now(),
+		nil,
+	)
 }
 
 func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Value {
@@ -28,7 +34,7 @@ func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Valu
 	return builder.Build()
 }
 
-var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{
+var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolint:gochecknoglobals
 	"allAttributesPrivate":              ldvalue.BoolType,
 	"connectTimeoutMillis":              ldvalue.NumberType,
 	"customBaseURI":                     ldvalue.BoolType,
@@ -49,12 +55,18 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{
 }
 
 // Attempts to add relevant configuration properties, if any, from a customizable component:
-// - If the component does not implement DiagnosticDescription, set the defaultPropertyName property to "custom".
+// - If the component does not implement DiagnosticDescription, set the defaultPropertyName property to
+//   "custom".
 // - If it does implement DiagnosticDescription, call its DescribeConfiguration() method to get a value.
 // - If the value is a string, then set the defaultPropertyName property to that value.
 // - If the value is an object, then copy all of its properties as long as they are ones we recognize
 //   and have the expected type.
-func mergeComponentProperties(builder ldvalue.ObjectBuilder, component interface{}, defaultComponent interface{}, defaultPropertyName string) {
+func mergeComponentProperties(
+	builder ldvalue.ObjectBuilder,
+	component interface{},
+	defaultComponent interface{},
+	defaultPropertyName string,
+) {
 	if component == nil {
 		if defaultComponent == nil {
 			return
