@@ -113,7 +113,7 @@ func (o OptionalString) MarshalJSON() ([]byte, error) {
 	if o.hasValue {
 		return json.Marshal(o.value)
 	}
-	return []byte("null"), nil
+	return []byte(nullAsJSON), nil
 }
 
 // UnmarshalJSON parses an OptionalString from JSON.
@@ -128,7 +128,7 @@ func (o *OptionalString) UnmarshalJSON(data []byte) error {
 	case 'n':
 		// Note that since Go 1.5, comparing a string to string([]byte) is optimized so it
 		// does not actually create a new string from the byte slice.
-		if string(data) == "null" {
+		if string(data) == nullAsJSON {
 			*o = OptionalString{}
 			return nil
 		}

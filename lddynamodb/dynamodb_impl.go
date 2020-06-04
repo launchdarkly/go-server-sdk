@@ -40,6 +40,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -192,7 +193,9 @@ func (store *dynamoDBDataStore) Get(kind interfaces.StoreDataKind, key string) (
 	}
 
 	if len(result.Item) == 0 {
-		store.loggers.Debugf("Item not found (key=%s)", key)
+		if store.loggers.IsDebugEnabled() {
+			store.loggers.Debugf("Item not found (key=%s)", key)
+		}
 		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
 	}
 
@@ -232,8 +235,10 @@ func (store *dynamoDBDataStore) Upsert(
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
-				kind, key, newItem.Version)
+			if store.loggers.IsDebugEnabled() {
+				store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
+					kind, key, newItem.Version)
+			}
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to put %s key %s: %s", kind, key, err)
