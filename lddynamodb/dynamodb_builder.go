@@ -4,6 +4,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -78,7 +79,9 @@ func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBui
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(
+	context interfaces.ClientContext,
+) (interfaces.PersistentDataStore, error) {
 	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().GetLoggers())
 	return store, err
 }

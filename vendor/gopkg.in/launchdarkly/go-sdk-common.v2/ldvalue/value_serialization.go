@@ -15,7 +15,7 @@ func (v Value) JSONString() string {
 	// converting between byte arrays and strings.
 	switch v.valueType {
 	case NullType:
-		return "null"
+		return nullAsJSON
 	case BoolType:
 		if v.boolValue {
 			return "true"
@@ -28,7 +28,7 @@ func (v Value) JSONString() string {
 		return strconv.FormatFloat(v.numberValue, 'f', -1, 64)
 	}
 	// For all other types, we rely on our custom marshaller.
-	bytes, _ := json.Marshal(v) //nolint:gosec // see comment below
+	bytes, _ := json.Marshal(v)
 	// It shouldn't be possible for marshalling to fail, because Value can only contain
 	// JSON-compatible types. But if it somehow did fail, bytes will be nil and we'll return
 	// an empty tring.
@@ -43,7 +43,7 @@ func (v Value) JSONString() string {
 func (v Value) MarshalJSON() ([]byte, error) {
 	switch v.valueType {
 	case NullType:
-		return []byte("null"), nil
+		return []byte(nullAsJSON), nil
 	case BoolType:
 		if v.boolValue {
 			return []byte("true"), nil

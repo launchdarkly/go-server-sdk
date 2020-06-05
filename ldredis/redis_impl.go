@@ -1,4 +1,4 @@
-package redis
+package ldredis
 
 import (
 	"time"
@@ -78,7 +78,10 @@ func (store *redisDataStoreImpl) Init(allData []interfaces.StoreSerializedCollec
 	return err
 }
 
-func (store *redisDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+func (store *redisDataStoreImpl) Get(
+	kind interfaces.StoreDataKind,
+	key string,
+) (interfaces.StoreSerializedItemDescriptor, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -86,7 +89,9 @@ func (store *redisDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) 
 
 	if err != nil {
 		if err == r.ErrNil {
-			store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
+			if store.loggers.IsDebugEnabled() {
+				store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
+			}
 			return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
 		}
 		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), err
@@ -95,7 +100,9 @@ func (store *redisDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) 
 	return interfaces.StoreSerializedItemDescriptor{Version: 0, SerializedItem: []byte(jsonStr)}, nil
 }
 
-func (store *redisDataStoreImpl) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+func (store *redisDataStoreImpl) GetAll(
+	kind interfaces.StoreDataKind,
+) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -154,8 +161,10 @@ func (store *redisDataStoreImpl) Upsert(
 			if newItem.SerializedItem == nil {
 				updateOrDelete = "delete"
 			}
-			store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
-				updateOrDelete, key, oldVersion, kind, newItem.Version)
+			if store.loggers.IsDebugEnabled() {
+				store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
+					updateOrDelete, key, oldVersion, kind, newItem.Version)
+			}
 			return false, nil
 		}
 
@@ -167,7 +176,9 @@ func (store *redisDataStoreImpl) Upsert(
 			if err == nil {
 				if result == nil {
 					// if exec returned nothing, it means the watch was triggered and we should retry
-					store.loggers.Debug("Concurrent modification detected, retrying")
+					if store.loggers.IsDebugEnabled() {
+						store.loggers.Debug("Concurrent modification detected, retrying")
+					}
 					continue
 				}
 			}

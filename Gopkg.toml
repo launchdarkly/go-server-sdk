@@ -25,20 +25,9 @@
   non-go = true
   go-tests = true
 
-[[constraint]]
-  name = "gopkg.in/launchdarkly/go-sdk-common.v2"
-  source = "github.com/launchdarkly/go-sdk-common-private"
-  branch = "v2"
-
-[[constraint]]
-  name = "gopkg.in/launchdarkly/go-sdk-events.v1"
-  source = "github.com/launchdarkly/go-sdk-events-private"
-  branch = "v1"
-
-[[constraint]]
-  name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
-  source = "github.com/launchdarkly/go-server-sdk-evaluation-private"
-  branch = "v1"
+[[override]]
+  name = "github.com/blang/semver"
+  version = "3.5.1"
 
 [[constraint]]
   name = "github.com/garyburd/redigo"

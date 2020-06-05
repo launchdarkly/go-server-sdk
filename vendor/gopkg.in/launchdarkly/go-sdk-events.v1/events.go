@@ -104,7 +104,12 @@ func NewEventFactory(includeReasons bool, timeFn func() ldtime.UnixMillisecondTi
 }
 
 // NewUnknownFlagEvent creates an evaluation event for a missing flag.
-func (f EventFactory) NewUnknownFlagEvent(key string, user EventUser, defaultVal ldvalue.Value, reason ldreason.EvaluationReason) FeatureRequestEvent {
+func (f EventFactory) NewUnknownFlagEvent(
+	key string,
+	user EventUser,
+	defaultVal ldvalue.Value,
+	reason ldreason.EvaluationReason,
+) FeatureRequestEvent {
 	fre := FeatureRequestEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: f.timeFn(),
@@ -123,8 +128,14 @@ func (f EventFactory) NewUnknownFlagEvent(key string, user EventUser, defaultVal
 }
 
 // NewSuccessfulEvalEvent creates an evaluation event.
-func (f EventFactory) NewSuccessfulEvalEvent(flagProps FlagEventProperties, user EventUser, variation int, value, defaultVal ldvalue.Value,
-	reason ldreason.EvaluationReason, prereqOf string) FeatureRequestEvent {
+func (f EventFactory) NewSuccessfulEvalEvent(
+	flagProps FlagEventProperties,
+	user EventUser,
+	variation int,
+	value, defaultVal ldvalue.Value,
+	reason ldreason.EvaluationReason,
+	prereqOf string,
+) FeatureRequestEvent {
 	requireExperimentData := flagProps.IsExperimentationEnabled(reason)
 	fre := FeatureRequestEvent{
 		BaseEvent: BaseEvent{
@@ -154,7 +165,13 @@ func (evt FeatureRequestEvent) GetBase() BaseEvent {
 }
 
 // NewCustomEvent creates a new custom event.
-func (f EventFactory) NewCustomEvent(key string, user EventUser, data ldvalue.Value, withMetric bool, metricValue float64) CustomEvent {
+func (f EventFactory) NewCustomEvent(
+	key string,
+	user EventUser,
+	data ldvalue.Value,
+	withMetric bool,
+	metricValue float64,
+) CustomEvent {
 	ce := CustomEvent{
 		BaseEvent: BaseEvent{
 			CreationDate: f.timeFn(),
@@ -173,8 +190,8 @@ func (evt CustomEvent) GetBase() BaseEvent {
 	return evt.BaseEvent
 }
 
-// NewIdentifyEvent constructs a new identify event, but does not send it. Typically, Identify should be used to both create the
-// event and send it to LaunchDarkly.
+// NewIdentifyEvent constructs a new identify event, but does not send it. Typically, Identify should be
+// used to both create the event and send it to LaunchDarkly.
 func (f EventFactory) NewIdentifyEvent(user EventUser) IdentifyEvent {
 	return IdentifyEvent{
 		BaseEvent: BaseEvent{

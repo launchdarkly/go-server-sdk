@@ -69,7 +69,9 @@ func (store *inMemoryDataStore) Get(kind interfaces.StoreDataKind, key string) (
 	if ok {
 		return item, nil
 	}
-	store.loggers.Debugf(`Key %s not found in "%s"`, key, kind)
+	if store.loggers.IsDebugEnabled() {
+		store.loggers.Debugf(`Key %s not found in "%s"`, key, kind)
+	}
 	return interfaces.StoreItemDescriptor{}.NotFound(), nil
 }
 
@@ -91,7 +93,11 @@ func (store *inMemoryDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfa
 	return itemsOut, nil
 }
 
-func (store *inMemoryDataStore) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) (bool, error) {
+func (store *inMemoryDataStore) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreItemDescriptor,
+) (bool, error) {
 	store.Lock()
 
 	var coll map[string]interfaces.StoreItemDescriptor

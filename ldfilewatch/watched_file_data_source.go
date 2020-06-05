@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gregjones/httpcache"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -95,7 +96,9 @@ func (r *requestor) requestResource(kind interfaces.StoreDataKind, key string) (
 }
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
-	r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
+	if r.loggers.IsDebugEnabled() {
+		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
+	}
 	req, reqErr := http.NewRequest("GET", r.baseURI+resource, nil)
 	if reqErr != nil {
 		return nil, false, reqErr
@@ -117,7 +120,7 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 		_ = res.Body.Close()
 	}()
 
-	if err := checkForHttpError(res.StatusCode, url); err != nil {
+	if err := checkForHTTPError(res.StatusCode, url); err != nil {
 		return nil, false, err
 	}
 

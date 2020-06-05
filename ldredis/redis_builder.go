@@ -1,4 +1,4 @@
-package redis
+package ldredis
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ func DataStore() *DataStoreBuilder {
 //
 // Builder calls can be chained, for example:
 //
-//     config.DataStore = redis.DataStore().URL("redis://hostname").Prefix("prefix")
+//     config.DataStore = ldredis.DataStore().URL("redis://hostname").Prefix("prefix")
 //
 // You do not need to call the builder's CreatePersistentDataStore() method yourself to build the
 // actual data store; that will be done by the SDK.
@@ -92,10 +92,11 @@ func (b *DataStoreBuilder) Pool(pool *r.Pool) *DataStoreBuilder {
 //
 //     import (
 //         redigo "github.com/garyburd/redigo/redis"
-//         "gopkg.in/launchdarkly/go-server-sdk.v5/redis"
+//         "gopkg.in/launchdarkly/go-server-sdk.v5/ldredis"
 //     )
-//     factory, err := redis.NewRedisDataStoreFactory(redis.DialOption(redigo.DialPassword("verysecure123")))
-//
+//     config.DataSource = ldcomponents.PersistentDataStore(
+//         ldredis.DataStore().DialOptions(redigo.DialPassword("verysecure123")),
+//     )
 // Note that some Redis client features can also be specified as part of the URL: see  URL().
 func (b *DataStoreBuilder) DialOptions(options ...r.DialOption) *DataStoreBuilder {
 	b.dialOptions = options
@@ -103,7 +104,9 @@ func (b *DataStoreBuilder) DialOptions(options ...r.DialOption) *DataStoreBuilde
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(
+	context interfaces.ClientContext,
+) (interfaces.PersistentDataStore, error) {
 	store := newRedisDataStoreImpl(b, context.GetLogging().GetLoggers())
 	return store, nil
 }

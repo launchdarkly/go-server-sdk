@@ -2,6 +2,7 @@ package ldconsul
 
 import (
 	c "github.com/hashicorp/consul/api"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -60,7 +61,9 @@ func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(
+	context interfaces.ClientContext,
+) (interfaces.PersistentDataStore, error) {
 	store, err := newConsulDataStoreImpl(b, context.GetLogging().GetLoggers())
 	return store, err
 }
