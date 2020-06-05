@@ -157,7 +157,7 @@
   revision = "a22bdd33b2a45c81d5adce655962f79872df8fff"
 
 [[projects]]
-  digest = "1:4591cb66c9609e602937b9a917055b96830a68ea87316a5d497581f16ad7ea77"
+  digest = "1:d8e95d56d746c2198a6c0219f4603affbdb76d01afbb5d19794ee17e428d884b"
   name = "github.com/launchdarkly/go-test-helpers"
   packages = [
     ".",
@@ -165,8 +165,8 @@
     "ldservices",
   ]
   pruneopts = "NUT"
-  revision = "bdc50e152102df1cc8bfae26422e3ca7604bd04f"
-  version = "v1.1.2"
+  revision = "28a0434f9b3ce1e2a06bf28873334b0ad10d7ecd"
+  version = "v1.1.3"
 
 [[projects]]
   digest = "1:a4df73029d2c42fabcb6b41e327d2f87e685284ec03edf76921c267d9cfc9c23"
@@ -242,6 +242,14 @@
   pruneopts = "NUT"
   revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
   version = "v1.0.0"
+
+[[projects]]
+  digest = "1:797d10f97b03b3580492b34e3a1cb2608a1d905307a002341e4b957c1b92d0ab"
+  name = "gopkg.in/launchdarkly/go-sdk-common.v1"
+  packages = ["ldvalue"]
+  pruneopts = "NUT"
+  revision = "d48d1b4f4e7043144f7344be8a94cb3e3cd84275"
+  version = "1.0.0"
 
 [[projects]]
   branch = "v2"

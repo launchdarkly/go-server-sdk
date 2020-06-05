@@ -78,7 +78,7 @@ func MakeServerWithCert(certFilePath, keyFilePath string, handler http.Handler) 
 	server.TLS = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
-	server.TLS.BuildNameToCertificate() //nolint:staticcheck // method is deprecated but we still need to support older Gos
+	server.TLS.BuildNameToCertificate()
 	server.StartTLS()
 	return server, nil
 }
