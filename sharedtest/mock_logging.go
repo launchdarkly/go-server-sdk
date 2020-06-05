@@ -1,3 +1,4 @@
+//nolint:gochecknoglobals,golint,stylecheck
 package sharedtest
 
 import (

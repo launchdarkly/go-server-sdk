@@ -160,20 +160,20 @@ type DataSourceErrorInfo struct {
 func (e DataSourceErrorInfo) String() string {
 	ret := string(e.Kind)
 	if e.StatusCode > 0 || e.Message != "" {
-		ret = ret + " ("
+		ret += " ("
 		if e.StatusCode > 0 {
-			ret = ret + fmt.Sprintf("%d", e.StatusCode)
+			ret += fmt.Sprintf("%d", e.StatusCode)
 		}
 		if e.Message != "" {
 			if e.StatusCode > 0 {
-				ret = ret + ", "
+				ret += ", "
 			}
-			ret = ret + e.Message
+			ret += e.Message
 		}
-		ret = ret + ")"
+		ret += ")"
 	}
 	if !e.Time.IsZero() {
-		ret = ret + fmt.Sprintf(" @%s", e.Time)
+		ret += fmt.Sprintf(" @%s", e.Time)
 	}
 	return ret
 }

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/ldservices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/go-test-helpers/ldservices"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -58,7 +59,11 @@ func (d *CapturingDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces
 }
 
 // Upsert in this test type does nothing but capture its parameters.
-func (d *CapturingDataStore) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) error {
+func (d *CapturingDataStore) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreItemDescriptor,
+) error {
 	d.upserts <- upsertParams{kind, key, newItem}
 	_ = d.realStore.Upsert(kind, key, newItem)
 	d.lock.Lock()
@@ -127,7 +132,7 @@ func (d *CapturingDataStore) WaitForInit(
 	}
 }
 
-// WaitForUpdate waits for an Upsert call and verifies that it matches the expected data.
+// WaitForUpsert waits for an Upsert call and verifies that it matches the expected data.
 func (d *CapturingDataStore) WaitForUpsert(
 	t *testing.T,
 	kind interfaces.StoreDataKind,
@@ -165,15 +170,20 @@ func (d *CapturingDataStore) WaitForDelete(
 	}
 }
 
-func assertReceivedInitDataEquals(t *testing.T, expected *ldservices.ServerSDKData, received []interfaces.StoreCollection) {
+func assertReceivedInitDataEquals(
+	t *testing.T,
+	expected *ldservices.ServerSDKData,
+	received []interfaces.StoreCollection,
+) {
 	assert.Equal(t, 2, len(received))
 	for _, coll := range received {
 		var itemsMap map[string]interface{}
-		if coll.Kind == interfaces.DataKindFeatures() {
+		switch coll.Kind {
+		case interfaces.DataKindFeatures():
 			itemsMap = expected.FlagsMap
-		} else if coll.Kind == interfaces.DataKindSegments() {
+		case interfaces.DataKindSegments():
 			itemsMap = expected.SegmentsMap
-		} else {
+		default:
 			assert.Fail(t, "received unknown data kind: %s", coll.Kind)
 		}
 		assert.Equal(t, len(itemsMap), len(coll.Items))

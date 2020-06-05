@@ -40,7 +40,7 @@ func (s StoreItemDescriptor) NotFound() StoreItemDescriptor {
 	return StoreItemDescriptor{Version: -1, Item: nil}
 }
 
-// StoreItemDescriptor is a versioned item (or placeholder) storable in a PersistentDataStore.
+// StoreSerializedItemDescriptor is a versioned item (or placeholder) storable in a PersistentDataStore.
 //
 // Application code does not need to use this type. It is for data store implementations.
 //

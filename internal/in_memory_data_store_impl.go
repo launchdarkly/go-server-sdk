@@ -93,7 +93,11 @@ func (store *inMemoryDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfa
 	return itemsOut, nil
 }
 
-func (store *inMemoryDataStore) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) error {
+func (store *inMemoryDataStore) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreItemDescriptor,
+) error {
 	store.Lock()
 
 	var coll map[string]interfaces.StoreItemDescriptor

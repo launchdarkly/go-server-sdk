@@ -117,7 +117,7 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 	return b
 }
 
-// Used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is internally by the SDK to inspect the configuration.
 func (b *HTTPConfigurationBuilder) DescribeConfiguration() ldvalue.Value {
 	builder := ldvalue.ObjectBuild()
 

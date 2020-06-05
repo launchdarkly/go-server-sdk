@@ -104,7 +104,8 @@ func (b *PersistentDataStoreBuilder) CreateDataStore(
 	if err != nil {
 		return nil, err
 	}
-	return internal.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL, context.GetLogging().GetLoggers()), nil
+	return internal.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL,
+		context.GetLogging().GetLoggers()), nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

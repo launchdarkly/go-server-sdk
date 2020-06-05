@@ -37,7 +37,7 @@ type FlagsStateOption interface {
 // ClientSideOnly - when passed to LDClient.AllFlagsState() - specifies that only flags marked
 // for use with the client-side SDK should be included in the state object. By default, all
 // flags are included.
-var ClientSideOnly FlagsStateOption = clientSideOnlyFlagsStateOption{}
+var ClientSideOnly FlagsStateOption = clientSideOnlyFlagsStateOption{} //nolint:gochecknoglobals
 
 type clientSideOnlyFlagsStateOption struct{}
 
@@ -47,7 +47,7 @@ func (o clientSideOnlyFlagsStateOption) String() string {
 
 // WithReasons - when passed to LDClient.AllFlagsState() - specifies that evaluation reasons
 // should be included in the state object. By default, they are not.
-var WithReasons FlagsStateOption = withReasonsFlagsStateOption{}
+var WithReasons FlagsStateOption = withReasonsFlagsStateOption{} //nolint:gochecknoglobals
 
 type withReasonsFlagsStateOption struct{}
 
@@ -60,7 +60,7 @@ func (o withReasonsFlagsStateOption) String() string {
 // and evaluation reasons - should be omitted for any flag that does not have event tracking
 // or debugging turned on. This reduces the size of the JSON data if you are passing the flag
 // state to the front end.
-var DetailsOnlyForTrackedFlags FlagsStateOption = detailsOnlyForTrackedFlagsOption{}
+var DetailsOnlyForTrackedFlags FlagsStateOption = detailsOnlyForTrackedFlagsOption{} //nolint:gochecknoglobals
 
 type detailsOnlyForTrackedFlagsOption struct{}
 

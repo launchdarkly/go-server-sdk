@@ -16,6 +16,15 @@ type Config struct {
 	// ldcomponents.ExternalUpdatesOnly(), ldfiledata.DataSource(), or a custom implementation for testing.
 	//
 	// If Offline is set to true, then DataSource is ignored.
+	//
+	//     // using streaming mode and setting streaming options
+	//     config.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Second)
+	//
+	//     // using polling mode and setting polling options
+	//     config.DataSource = ldcomponents.PollingDataSource().PollInterval(time.Minute)
+	//
+	//     // specifying that data will be updated by an external process (such as the Relay Proxy)
+	//     config.DataSource = ldcomponents.ExternalUpdatesOnly()
 	DataSource interfaces.DataSourceFactory
 
 	// Sets the implementation of DataStore for holding feature flags and related data received from

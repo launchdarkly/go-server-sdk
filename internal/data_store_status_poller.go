@@ -22,7 +22,7 @@ type dataStoreStatusPoller struct {
 	loggers           ldlog.Loggers
 }
 
-var statusPollInterval = time.Millisecond * 500
+const statusPollInterval = time.Millisecond * 500
 
 // newDataStoreStatusPoller creates a new dataStoreStatusPoller. The pollFn should return
 // true if the store is available, false if not.

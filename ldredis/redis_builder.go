@@ -104,7 +104,9 @@ func (b *DataStoreBuilder) DialOptions(options ...r.DialOption) *DataStoreBuilde
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(
+	context interfaces.ClientContext,
+) (interfaces.PersistentDataStore, error) {
 	store := newRedisDataStoreImpl(b, context.GetLogging().GetLoggers())
 	return store, nil
 }

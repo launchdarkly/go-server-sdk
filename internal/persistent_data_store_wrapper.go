@@ -7,8 +7,8 @@ import (
 
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -34,7 +34,7 @@ func NewPersistentDataStoreWrapper(
 	dataStoreUpdates intf.DataStoreUpdates,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
-) interfaces.DataStore {
+) intf.DataStore {
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
 		myCache = cache.New(cacheTTL, 5*time.Minute)
@@ -158,7 +158,10 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 	return nil, nil
 }
 
-func (w *persistentDataStoreWrapper) Upsert(kind intf.StoreDataKind, key string, newItem intf.StoreItemDescriptor) error {
+func (w *persistentDataStoreWrapper) Upsert(
+	kind intf.StoreDataKind, key string,
+	newItem intf.StoreItemDescriptor,
+) error {
 	serializedItem := w.serialize(kind, newItem)
 	updated, err := w.core.Upsert(kind, key, serializedItem)
 	w.processError(err)
@@ -237,10 +240,8 @@ func (w *persistentDataStoreWrapper) IsInitialized() bool {
 		if w.cache != nil {
 			w.cache.Delete(initCheckedKey)
 		}
-	} else {
-		if w.cache != nil {
-			w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
-		}
+	} else if w.cache != nil {
+		w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
 	}
 	return newValue
 }
@@ -400,7 +401,11 @@ func (w *persistentDataStoreWrapper) deserialize(
 	return intf.StoreItemDescriptor{Version: serializedItemDesc.Version, Item: deserializedItemDesc.Item}, nil
 }
 
-func updateSingleItem(items []intf.StoreKeyedItemDescriptor, key string, newItem intf.StoreItemDescriptor) []intf.StoreKeyedItemDescriptor {
+func updateSingleItem(
+	items []intf.StoreKeyedItemDescriptor,
+	key string,
+	newItem intf.StoreItemDescriptor,
+) []intf.StoreKeyedItemDescriptor {
 	found := false
 	ret := make([]intf.StoreKeyedItemDescriptor, 0, len(items))
 	for _, item := range items {

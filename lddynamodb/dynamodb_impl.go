@@ -159,7 +159,9 @@ func (store *dynamoDBDataStore) IsInitialized() bool {
 	return err == nil && len(result.Item) != 0
 }
 
-func (store *dynamoDBDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+func (store *dynamoDBDataStore) GetAll(
+	kind interfaces.StoreDataKind,
+) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
 	var results []interfaces.StoreKeyedSerializedItemDescriptor
 	err := store.client.QueryPages(store.makeQueryForKind(kind),
 		func(out *dynamodb.QueryOutput, lastPage bool) bool {
@@ -179,7 +181,10 @@ func (store *dynamoDBDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfa
 	return results, nil
 }
 
-func (store *dynamoDBDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+func (store *dynamoDBDataStore) Get(
+	kind interfaces.StoreDataKind,
+	key string,
+) (interfaces.StoreSerializedItemDescriptor, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
@@ -189,7 +194,8 @@ func (store *dynamoDBDataStore) Get(kind interfaces.StoreDataKind, key string) (
 		},
 	})
 	if err != nil {
-		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), fmt.Errorf("failed to get %s key %s: %s", kind, key, err)
+		return interfaces.StoreSerializedItemDescriptor{}.NotFound(),
+			fmt.Errorf("failed to get %s key %s: %s", kind, key, err)
 	}
 
 	if len(result.Item) == 0 {
@@ -202,7 +208,8 @@ func (store *dynamoDBDataStore) Get(kind interfaces.StoreDataKind, key string) (
 	if _, serializedItemDesc, ok := store.decodeItem(result.Item); ok {
 		return serializedItemDesc, nil
 	}
-	return interfaces.StoreSerializedItemDescriptor{}.NotFound(), fmt.Errorf("invalid data for %s key %s: %s", kind, key, err)
+	return interfaces.StoreSerializedItemDescriptor{}.NotFound(),
+		fmt.Errorf("invalid data for %s key %s: %s", kind, key, err)
 }
 
 func (store *dynamoDBDataStore) Upsert(
@@ -296,7 +303,9 @@ func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.StoreDataKind) 
 	}
 }
 
-func (store *dynamoDBDataStore) readExistingKeys(newData []interfaces.StoreSerializedCollection) (map[namespaceAndKey]bool, error) {
+func (store *dynamoDBDataStore) readExistingKeys(
+	newData []interfaces.StoreSerializedCollection,
+) (map[namespaceAndKey]bool, error) {
 	keys := make(map[namespaceAndKey]bool)
 	for _, coll := range newData {
 		kind := coll.Kind
@@ -309,7 +318,7 @@ func (store *dynamoDBDataStore) readExistingKeys(newData []interfaces.StoreSeria
 		err := store.client.QueryPages(query,
 			func(out *dynamodb.QueryOutput, lastPage bool) bool {
 				for _, i := range out.Items {
-					nk := namespaceAndKey{namespace: *(*i[tablePartitionKey]).S, key: *(*i[tableSortKey]).S}
+					nk := namespaceAndKey{namespace: *(i[tablePartitionKey].S), key: *(i[tableSortKey].S)}
 					keys[nk] = true
 				}
 				return !lastPage
@@ -323,7 +332,11 @@ func (store *dynamoDBDataStore) readExistingKeys(newData []interfaces.StoreSeria
 
 // batchWriteRequests executes a list of write requests (PutItem or DeleteItem)
 // in batches of 25, which is the maximum BatchWriteItem can handle.
-func batchWriteRequests(client dynamodbiface.DynamoDBAPI, table string, requests []*dynamodb.WriteRequest) error {
+func batchWriteRequests(
+	client dynamodbiface.DynamoDBAPI,
+	table string,
+	requests []*dynamodb.WriteRequest,
+) error {
 	for len(requests) > 0 {
 		batchSize := int(math.Min(float64(len(requests)), 25))
 		batch := requests[:batchSize]
@@ -339,7 +352,9 @@ func batchWriteRequests(client dynamodbiface.DynamoDBAPI, table string, requests
 	return nil
 }
 
-func (store *dynamoDBDataStore) decodeItem(av map[string]*dynamodb.AttributeValue) (string, interfaces.StoreSerializedItemDescriptor, bool) {
+func (store *dynamoDBDataStore) decodeItem(
+	av map[string]*dynamodb.AttributeValue,
+) (string, interfaces.StoreSerializedItemDescriptor, bool) {
 	keyValue := av[tableSortKey]
 	versionValue := av[versionAttribute]
 	itemJSONValue := av[itemJSONAttribute]

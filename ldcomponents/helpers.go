@@ -77,7 +77,7 @@ func checkIfErrorIsRecoverableAndLog(
 	return true
 }
 
-func checkForHttpError(statusCode int, url string) error {
+func checkForHTTPError(statusCode int, url string) error {
 	if statusCode == http.StatusUnauthorized {
 		return httpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),

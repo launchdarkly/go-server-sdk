@@ -56,7 +56,7 @@ type LDClient struct {
 var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
 	ErrInitializationFailed  = errors.New("LaunchDarkly client initialization failed")
-	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed")
+	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed") //nolint:lll
 )
 
 // MakeClient creates a new client instance that connects to LaunchDarkly with the default configuration.
@@ -270,7 +270,14 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(client.eventsDefault.factory.NewCustomEvent(eventName, ldevents.User(user), data, false, 0))
+	client.eventProcessor.SendEvent(
+		client.eventsDefault.factory.NewCustomEvent(
+			eventName,
+			ldevents.User(user),
+			data,
+			false,
+			0,
+		))
 	return nil
 }
 
@@ -292,7 +299,14 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(client.eventsDefault.factory.NewCustomEvent(eventName, ldevents.User(user), data, true, metricValue))
+	client.eventProcessor.SendEvent(
+		client.eventsDefault.factory.NewCustomEvent(
+			eventName,
+			ldevents.User(user),
+			data,
+			true,
+			metricValue,
+		))
 	return nil
 }
 
@@ -351,7 +365,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		if client.store.IsInitialized() {
 			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
-			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state")
+			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
 			valid = false
 		}
 	}
@@ -400,7 +414,11 @@ func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal b
 
 // BoolVariationDetail is the same as BoolVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) BoolVariationDetail(key string, user lduser.User, defaultVal bool) (bool, ldreason.EvaluationDetail, error) {
+func (client *LDClient) BoolVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal bool,
+) (bool, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, true)
 	return detail.Value.BoolValue(), detail, err
 }
@@ -418,7 +436,11 @@ func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal in
 
 // IntVariationDetail is the same as IntVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) IntVariationDetail(key string, user lduser.User, defaultVal int) (int, ldreason.EvaluationDetail, error) {
+func (client *LDClient) IntVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal int,
+) (int, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, true)
 	return detail.Value.IntValue(), detail, err
 }
@@ -434,7 +456,11 @@ func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVa
 
 // Float64VariationDetail is the same as Float64Variation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) Float64VariationDetail(key string, user lduser.User, defaultVal float64) (float64, ldreason.EvaluationDetail, error) {
+func (client *LDClient) Float64VariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal float64,
+) (float64, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, true)
 	return detail.Value.Float64Value(), detail, err
 }
@@ -450,7 +476,11 @@ func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal
 
 // StringVariationDetail is the same as StringVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) StringVariationDetail(key string, user lduser.User, defaultVal string) (string, ldreason.EvaluationDetail, error) {
+func (client *LDClient) StringVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal string,
+) (string, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, true)
 	return detail.Value.StringValue(), detail, err
 }
@@ -483,7 +513,11 @@ func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal l
 
 // JSONVariationDetail is the same as JSONVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, ldreason.EvaluationDetail, error) {
+func (client *LDClient) JSONVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal ldvalue.Value,
+) (ldvalue.Value, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, defaultVal, false, true)
 	return detail.Value, detail, err
 }
@@ -527,16 +561,14 @@ func (client *LDClient) variation(
 	if err != nil {
 		result.Value = defaultVal
 		result.VariationIndex = -1
-	} else {
-		if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
-			result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
-		}
+	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
+		result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
 	}
 
 	if !eventsScope.disabled {
 		var evt ldevents.FeatureRequestEvent
 		if flag == nil {
-			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
+			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason)
 		} else {
 			evt = eventsScope.factory.NewSuccessfulEvalEvent(
 				flag,
@@ -566,14 +598,18 @@ func (client *LDClient) evaluateInternal(
 	// to keep in mind during any changes to the evaluation logic.
 
 	if user.GetKey() == "" {
-		client.loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
+		client.loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key) //nolint:lll
 	}
 
 	var feature *ldmodel.FeatureFlag
 	var storeErr error
 	var ok bool
 
-	evalErrorResult := func(errKind ldreason.EvalErrorKind, flag *ldmodel.FeatureFlag, err error) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
+	evalErrorResult := func(
+		errKind ldreason.EvalErrorKind,
+		flag *ldmodel.FeatureFlag,
+		err error,
+	) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 		detail := newEvaluationError(defaultVal, errKind)
 		if client.logEvaluationErrors {
 			client.loggers.Warn(err)
@@ -583,7 +619,7 @@ func (client *LDClient) evaluateInternal(
 
 	if !client.Initialized() {
 		if client.store.IsInitialized() {
-			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store")
+			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store") //nolint:lll
 		} else {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
@@ -601,7 +637,11 @@ func (client *LDClient) evaluateInternal(
 		feature, ok = itemDesc.Item.(*ldmodel.FeatureFlag)
 		if !ok {
 			return evalErrorResult(ldreason.EvalErrorException, nil,
-				fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", itemDesc.Item, key))
+				fmt.Errorf(
+					"unexpected data type (%T) found in store for feature key: %s. Returning default value",
+					itemDesc.Item,
+					key,
+				))
 		}
 	} else {
 		return evalErrorResult(ldreason.EvalErrorFlagNotFound, nil,

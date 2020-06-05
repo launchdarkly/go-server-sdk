@@ -4,6 +4,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
+//nolint:gochecknoglobals // global used as a constant for efficiency
 var modelSerialization = ldmodel.NewJSONDataModelSerialization()
 
 // StoreDataKinds returns a list of supported StoreDataKinds. Among other things, this list might
@@ -47,6 +48,7 @@ func (fk featureFlagStoreDataKind) String() string {
 	return fk.GetName()
 }
 
+//nolint:gochecknoglobals // global used as a constant for efficiency
 var dataKindFeatures StoreDataKind = featureFlagStoreDataKind{}
 
 // DataKindFeatures returns the StoreDataKind instance corresponding to feature flag data.
@@ -89,6 +91,7 @@ func (sk segmentStoreDataKind) String() string {
 	return sk.GetName()
 }
 
+//nolint:gochecknoglobals // global used as a constant for efficiency
 var dataKindSegments StoreDataKind = segmentStoreDataKind{}
 
 // DataKindSegments returns the StoreDataKind instance corresponding to user segment data.
