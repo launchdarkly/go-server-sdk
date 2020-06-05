@@ -60,7 +60,7 @@ func (es *evaluationScope) evaluate() ldreason.EvaluationDetail {
 	// Check to see if targets match
 	for _, target := range es.flag.Targets {
 		// Note, taking address of range variable here is OK because it's not used outside the loop
-		if ldmodel.TargetContainsKey(&target, key) { //nolint:scopelint // see comment above
+		if ldmodel.TargetContainsKey(&target, key) { //nolint:gosec // see comment above
 			return es.getVariation(target.Variation, ldreason.NewEvalReasonTargetMatch())
 		}
 	}
@@ -68,7 +68,7 @@ func (es *evaluationScope) evaluate() ldreason.EvaluationDetail {
 	// Now walk through the rules and see if any match
 	for ruleIndex, rule := range es.flag.Rules {
 		// Note, taking address of range variable here is OK because it's not used outside the loop
-		if es.ruleMatchesUser(&rule) { //nolint:scopelint // see comment above
+		if es.ruleMatchesUser(&rule) { //nolint:gosec // see comment above
 			reason := ldreason.NewEvalReasonRuleMatch(ruleIndex, rule.ID)
 			return es.getValueForVariationOrRollout(rule.VariationOrRollout, reason)
 		}
@@ -138,7 +138,7 @@ func (es *evaluationScope) ruleMatchesUser(rule *ldmodel.FlagRule) bool {
 	// Note that rule is passed by reference only for efficiency; we do not modify it
 	for _, clause := range rule.Clauses {
 		// Note, taking address of range variable here is OK because it's not used outside the loop
-		if !es.clauseMatchesUser(&clause) { //nolint:scopelint // see comment above
+		if !es.clauseMatchesUser(&clause) { //nolint:gosec // see comment above
 			return false
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
@@ -18,7 +19,8 @@ type diagnosticStreamInitInfo struct {
 
 // DiagnosticsManager is an object that maintains state for diagnostic events and produces JSON data.
 //
-// The format of the JSON event data is subject to change. Diagnostic events are represented opaquely with the Value type.
+// The format of the JSON event data is subject to change. Diagnostic events are represented opaquely with the
+// Value type.
 type DiagnosticsManager struct {
 	id                ldvalue.Value
 	configData        ldvalue.Value
@@ -39,7 +41,10 @@ func NewDiagnosticID(sdkKey string) ldvalue.Value {
 	} else {
 		sdkKeySuffix = sdkKey
 	}
-	return ldvalue.ObjectBuild().Set("diagnosticId", ldvalue.String(uuid.String())).Set("sdkKeySuffix", ldvalue.String(sdkKeySuffix)).Build()
+	return ldvalue.ObjectBuild().
+		Set("diagnosticId", ldvalue.String(uuid.String())).
+		Set("sdkKeySuffix", ldvalue.String(sdkKeySuffix)).
+		Build()
 }
 
 // NewDiagnosticsManager creates an instance of DiagnosticsManager.
@@ -63,7 +68,11 @@ func NewDiagnosticsManager(
 }
 
 // RecordStreamInit is called by the stream processor when a stream connection has either succeeded or failed.
-func (m *DiagnosticsManager) RecordStreamInit(timestamp ldtime.UnixMillisecondTime, failed bool, durationMillis uint64) {
+func (m *DiagnosticsManager) RecordStreamInit(
+	timestamp ldtime.UnixMillisecondTime,
+	failed bool,
+	durationMillis uint64,
+) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.streamInits = append(m.streamInits, diagnosticStreamInitInfo{
@@ -73,7 +82,8 @@ func (m *DiagnosticsManager) RecordStreamInit(timestamp ldtime.UnixMillisecondTi
 	})
 }
 
-// CreateInitEvent is called by DefaultEventProcessor to create the initial diagnostics event that includes the configuration.
+// CreateInitEvent is called by DefaultEventProcessor to create the initial diagnostics event that includes the
+// configuration.
 func (m *DiagnosticsManager) CreateInitEvent() ldvalue.Value {
 	// Notes on platformData
 	// - osArch: in Go, GOARCH is set at compile time, not at runtime (unlike GOOS, whiich is runtime).
@@ -95,9 +105,10 @@ func (m *DiagnosticsManager) CreateInitEvent() ldvalue.Value {
 		Build()
 }
 
-// CanSendStatsEvent is strictly for test instrumentation. In unit tests, we need to be able to stop DefaultEventProcessor
-// from constructing the periodic event until the test has finished setting up its preconditions. This is done
-// by passing in a periodicEventGate channel which the test will push to when it's ready.
+// CanSendStatsEvent is strictly for test instrumentation. In unit tests, we need to be able to stop
+// DefaultEventProcessor from constructing the periodic event until the test has finished setting up its
+// preconditions. This is done by passing in a periodicEventGate channel which the test will push to when it's
+// ready.
 func (m *DiagnosticsManager) CanSendStatsEvent() bool {
 	if m.periodicEventGate != nil {
 		select {
@@ -110,9 +121,10 @@ func (m *DiagnosticsManager) CanSendStatsEvent() bool {
 	return true
 }
 
-// CreateStatsEventAndReset is called by DefaultEventProcessor to create the periodic event containing usage statistics. Some of the
-// statistics are passed in as parameters because DefaultEventProcessor owns them and can more easily keep
-// track of them internally - pushing them into DiagnosticsManager would require frequent lock usage.
+// CreateStatsEventAndReset is called by DefaultEventProcessor to create the periodic event containing
+// usage statistics. Some of the statistics are passed in as parameters because DefaultEventProcessor owns
+// them and can more easily keep track of them internally - pushing them into DiagnosticsManager would
+// require frequent lock usage.
 func (m *DiagnosticsManager) CreateStatsEventAndReset(
 	droppedEvents int,
 	deduplicatedUsers int,

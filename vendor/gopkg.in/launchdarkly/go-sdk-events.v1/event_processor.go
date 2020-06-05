@@ -76,10 +76,10 @@ func (ep *defaultEventProcessor) Flush() {
 	ep.postNonBlockingMessageToInbox(flushEventsMessage{})
 }
 
-func (ep *defaultEventProcessor) postNonBlockingMessageToInbox(e eventDispatcherMessage) bool {
+func (ep *defaultEventProcessor) postNonBlockingMessageToInbox(e eventDispatcherMessage) {
 	select {
 	case ep.inboxCh <- e:
-		return true
+		return
 	default:
 	}
 	// If the inbox is full, it means the eventDispatcher is seriously backed up with not-yet-processed events.
@@ -89,7 +89,6 @@ func (ep *defaultEventProcessor) postNonBlockingMessageToInbox(e eventDispatcher
 	ep.inboxFullOnce.Do(func() {
 		ep.loggers.Warn("Events are being produced faster than they can be processed; some events will be dropped")
 	})
-	return false
 }
 
 func (ep *defaultEventProcessor) Close() error {

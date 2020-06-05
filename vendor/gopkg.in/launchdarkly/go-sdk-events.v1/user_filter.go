@@ -44,9 +44,10 @@ func newUserFilter(config EventsConfiguration) userFilter {
 	}
 }
 
-const userSerializationErrorMessage = "An error occurred while processing custom attributes for %s. If this is a concurrent" +
-	" modification error, check that you are not modifying custom attributes in a User after you have evaluated a flag with that User. The" +
-	" custom attributes for this user have been dropped from analytics data. Error: %s"
+const userSerializationErrorMessage = "An error occurred while processing custom attributes for %s. If this" +
+	" is a concurrent modification error, check that you are not modifying custom attributes in a User after" +
+	" you have evaluated a flag with that User. The custom attributes for this user have been dropped from" +
+	" analytics data. Error: %s"
 
 // Returns a version of the user data that is suitable for JSON serialization in event data.
 // If neither the configuration nor the user specifies any private attributes, then this is the same
@@ -75,7 +76,8 @@ func (uf *userFilter) scrubUser(user EventUser) (ret *serializableUser) {
 	// the PHP SDK. In this case, we do not need to repeat the filtering logic and we do not support
 	// re-filtering with a different private attribute configuration.
 
-	if alreadyFiltered || (!user.HasPrivateAttributes() && len(uf.globalPrivateAttributes) == 0 && !uf.allAttributesPrivate) {
+	if alreadyFiltered ||
+		(!user.HasPrivateAttributes() && len(uf.globalPrivateAttributes) == 0 && !uf.allAttributesPrivate) {
 		// No need to filter the user attributes
 		ret.filteredUser.Secondary = user.GetSecondaryKey().AsPointer()
 		ret.filteredUser.IP = user.GetIP().AsPointer()
@@ -156,7 +158,11 @@ func (u serializableUser) MarshalJSON() (output []byte, err error) {
 		if me, ok := err.(*json.MarshalerError); ok {
 			err = me.Err
 		}
-		u.filter.loggers.Errorf(userSerializationErrorMessage, describeUserForErrorLog(u.filteredUser.Key, u.filter.logUserKeyInErrors), err)
+		u.filter.loggers.Errorf(
+			userSerializationErrorMessage,
+			describeUserForErrorLog(u.filteredUser.Key, u.filter.logUserKeyInErrors),
+			err,
+		)
 		u.filteredUser.Custom = nil
 		return json.Marshal(u.filteredUser)
 	}

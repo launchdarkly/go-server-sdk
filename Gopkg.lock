@@ -263,21 +263,19 @@
     "ldvalue",
   ]
   pruneopts = "NUT"
-  revision = "09af655745d5878695bfc571726802d45ce48f7a"
-  source = "github.com/launchdarkly/go-sdk-common-private"
+  revision = "9d571f47a7aede45d1a1162c7e1bd3244ef1133b"
 
 [[projects]]
   branch = "v1"
-  digest = "1:1b4bd9b27121851677376ac0f0ee64a127610743304eb9772e7311d06d470e1c"
+  digest = "1:25b86a1a4d61aa052331c2f6bf62324884af4ce1b03b96db904fb04de4d6386a"
   name = "gopkg.in/launchdarkly/go-sdk-events.v1"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "f6c971eb836273e5a4f8072fe33d5bfbecf42da1"
-  source = "github.com/launchdarkly/go-sdk-events-private"
+  revision = "335433cdd623d4ba48739b92990b528b4e6835a0"
 
 [[projects]]
   branch = "v1"
-  digest = "1:06e14b379951de5b870f9601a6adbdcc4a0c896c0353129da8b3164e5a8313ee"
+  digest = "1:9daec228a51e5d65e1737cfd7bb07fb44e422349e3467c62c7c56bb2cc719d4e"
   name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
   packages = [
     ".",
@@ -285,8 +283,7 @@
     "ldmodel",
   ]
   pruneopts = "NUT"
-  revision = "7854e72b946281d8bd05d7438627d9f437d8b2c5"
-  source = "github.com/launchdarkly/go-server-sdk-evaluation-private"
+  revision = "c8aded9abc93901751f94a533142c12398f72887"
 
 [[projects]]
   digest = "1:62a89978829993fb84e755bff5ae0e3d84837228898fd55b1a88a885036e1e51"

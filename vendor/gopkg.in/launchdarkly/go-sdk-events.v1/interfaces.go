@@ -45,10 +45,10 @@ type EventSenderResult struct {
 	TimeFromServer ldtime.UnixMillisecondTime
 }
 
-// FlagEventProperties is an interface that provides the basic information about a feature flag that the events package needs,
-// without having a specific dependency on the server-side data model. An implementation of this interface for server-side
-// feature flags is provided in go-server-sdk-evaluation; if we ever create a client-side Go SDK, that will have its own
-// implementation.
+// FlagEventProperties is an interface that provides the basic information about a feature flag that the events
+// package needs, without having a specific dependency on the server-side data model. An implementation of this
+// interface for server-side feature flags is provided in go-server-sdk-evaluation; if we ever create a
+// client-side Go SDK, that will have its own implementation.
 type FlagEventProperties interface {
 	// GetKey returns the feature flag key.
 	GetKey() string
@@ -59,13 +59,13 @@ type FlagEventProperties interface {
 	// GetDebugEventsUntilDate returns zero normally, but if event debugging has been temporarily enabled for the flag,
 	// it returns the time at which debugging mode should expire.
 	GetDebugEventsUntilDate() ldtime.UnixMillisecondTime
-	// IsExperimentationEnabled returns true if, based on the EvaluationReason returned by the flag evaluation, an event for
-	// that evaluation should have full tracking enabled and always report the reason even if the application didn't
-	// explicitly request this. For instance, this is true if a rule was matched that had tracking enabled for that specific
-	// rule.
+	// IsExperimentationEnabled returns true if, based on the EvaluationReason returned by the flag evaluation,
+	// an event for that evaluation should have full tracking enabled and always report the reason even if the
+	// application didn't explicitly request this. For instance, this is true if a rule was matched that had
+	// tracking enabled for that specific rule.
 	//
-	// This differs from IsFullEventTrackingEnabled() in that it is dependent on the result of a specific evaluation; also,
-	// IsFullEventTrackingEnabled() being true does not imply that the event should always contain a reason, whereas
-	// IsExperimentationEnabled() being true does force the reason to be included.
+	// This differs from IsFullEventTrackingEnabled() in that it is dependent on the result of a specific
+	// evaluation; also, IsFullEventTrackingEnabled() being true does not imply that the event should always
+	// contain a reason, whereas IsExperimentationEnabled() being true does force the reason to be included.
 	IsExperimentationEnabled(reason ldreason.EvaluationReason) bool
 }
