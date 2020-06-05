@@ -56,7 +56,9 @@ func Logging() *LoggingConfigurationBuilder {
 //
 // The default is DefaultLogDataSourceOutageAsErrorAfter (one minute). Setting it to zero will disable
 // this feature, so you will only get Warn messages.
-func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(logDataSourceOutageAsErrorAfter time.Duration) *LoggingConfigurationBuilder {
+func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
+	logDataSourceOutageAsErrorAfter time.Duration,
+) *LoggingConfigurationBuilder {
 	b.config.LogDataSourceOutageAsErrorAfter = logDataSourceOutageAsErrorAfter
 	return b
 }

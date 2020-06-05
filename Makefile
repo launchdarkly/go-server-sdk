@@ -1,7 +1,8 @@
 
-GOLANGCI_LINT_VERSION=v1.23.7
+GOLANGCI_LINT_VERSION=v1.27.0
 
 LINTER=./bin/golangci-lint
+LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
 TEST_BINARY=./go-server-sdk.test
 ALLOCATIONS_LOG=./allocations.out
@@ -37,8 +38,10 @@ benchmark-allocs:
 	@echo "You should see some benchmark result output; if you do not, you may have misspelled the benchmark name/regex"
 	@GODEBUG=allocfreetrace=1 LD_TEST_ALLOCATIONS= $(TEST_BINARY) -test.run=none -test.bench=$$BENCHMARK -test.benchmem -test.benchtime=1x 2>$(ALLOCATIONS_LOG)
 
-$(LINTER):
+$(LINTER_VERSION_FILE):
+	rm -f $(LINTER)
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s $(GOLANGCI_LINT_VERSION)
+	touch $(LINTER_VERSION_FILE)
 
-lint: $(LINTER)
+lint: $(LINTER_VERSION_FILE)
 	$(LINTER) run ./...

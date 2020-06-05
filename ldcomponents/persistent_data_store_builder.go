@@ -22,7 +22,7 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(
-//             redis.DataStore().URL("redis://my-redis-host"),
+//             ldredis.DataStore().URL("redis://my-redis-host"),
 //         ).CacheSeconds(15),
 //     }
 //
@@ -49,7 +49,7 @@ func PersistentDataStore(persistentDataStoreFactory interfaces.PersistentDataSto
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(
-//             redis.DataStore().URL("redis://my-redis-host"),
+//             ldredis.DataStore().URL("redis://my-redis-host"),
 //         ).CacheSeconds(15),
 //     }
 //
@@ -104,7 +104,8 @@ func (b *PersistentDataStoreBuilder) CreateDataStore(
 	if err != nil {
 		return nil, err
 	}
-	return internal.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL, context.GetLogging().GetLoggers()), nil
+	return internal.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL,
+		context.GetLogging().GetLoggers()), nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

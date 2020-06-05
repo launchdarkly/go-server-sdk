@@ -15,7 +15,11 @@ func ShouldSkipDatabaseTests() bool {
 	return os.Getenv("LD_SKIP_DATABASE_TESTS") != ""
 }
 
-func assertEqualsSerializedItem(t *testing.T, item MockDataItem, serializedItemDesc intf.StoreSerializedItemDescriptor) {
+func assertEqualsSerializedItem(
+	t *testing.T,
+	item MockDataItem,
+	serializedItemDesc intf.StoreSerializedItemDescriptor,
+) {
 	// This allows for the fact that a PersistentDataStore may not be able to get the item version without
 	// deserializing it, so we allow the version to be zero.
 	assert.Equal(t, item.ToSerializedItemDescriptor().SerializedItem, serializedItemDesc.SerializedItem)
@@ -489,7 +493,8 @@ func (s *PersistentDataStoreTestSuite) runPrefixIndependenceTests(t *testing.T) 
 		assertEqualsSerializedItem(t, item2c, newItem2c)
 	})
 
-	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 intf.PersistentDataStore, store2 intf.PersistentDataStore) {
+	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 intf.PersistentDataStore,
+		store2 intf.PersistentDataStore) {
 		assert.False(t, store1.IsInitialized())
 		assert.False(t, store2.IsInitialized())
 

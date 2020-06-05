@@ -69,7 +69,7 @@ type FlagChangeEvent struct {
 	Key string
 }
 
-// FlagChangeEvent is a parameter type used with FlagTracker.AddFlagValueChangeListener().
+// FlagValueChangeEvent is a parameter type used with FlagTracker.AddFlagValueChangeListener().
 //
 // This is not an analytics event to be sent to LaunchDarkly; it is a notification to the application.
 type FlagValueChangeEvent struct {

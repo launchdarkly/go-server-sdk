@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -25,7 +26,8 @@ ReadLoop:
 			}
 			actualChangedFlagKeys[event.Key] = true
 		case <-time.After(time.Second):
-			assert.Fail(t, "did not receive expected event", "expected: %v, received: %v", expectedChangedFlagKeys, actualChangedFlagKeys)
+			assert.Fail(t, "did not receive expected event", "expected: %v, received: %v",
+				expectedChangedFlagKeys, actualChangedFlagKeys)
 			return
 		}
 	}
@@ -33,7 +35,8 @@ ReadLoop:
 	ExpectNoMoreFlagChangeEvents(t, ch)
 }
 
-// ExpectNoMoreFlagChangeEvents asserts that a channel does not receive any flag change events for the next 100ms.
+// ExpectNoMoreFlagChangeEvents asserts that a channel does not receive any flag change events for the
+// next 100ms.
 func ExpectNoMoreFlagChangeEvents(t *testing.T, ch <-chan interfaces.FlagChangeEvent) {
 	select {
 	case event, ok := <-ch:
@@ -45,7 +48,8 @@ func ExpectNoMoreFlagChangeEvents(t *testing.T, ch <-chan interfaces.FlagChangeE
 	}
 }
 
-// ExpectNoMoreFlagValueChangeEvents asserts that a channel does not receive any flag value change events for the next 100ms.
+// ExpectNoMoreFlagValueChangeEvents asserts that a channel does not receive any flag value change events
+// for the next 100ms.
 func ExpectNoMoreFlagValueChangeEvents(t *testing.T, ch <-chan interfaces.FlagValueChangeEvent) {
 	select {
 	case event, ok := <-ch:

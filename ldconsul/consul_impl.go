@@ -51,12 +51,17 @@ func newConsulDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) (*
 	}, nil
 }
 
-func (store *consulDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+func (store *consulDataStoreImpl) Get(
+	kind interfaces.StoreDataKind,
+	key string,
+) (interfaces.StoreSerializedItemDescriptor, error) {
 	item, _, err := store.getInternal(kind, key)
 	return item, err
 }
 
-func (store *consulDataStoreImpl) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+func (store *consulDataStoreImpl) GetAll(
+	kind interfaces.StoreDataKind,
+) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
 	kv := store.client.KV()
 	pairs, _, err := kv.List(store.collectionKey(kind), nil)
 
@@ -231,7 +236,8 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 			for _, te := range resp.Errors {
 				errs = append(errs, te.What)
 			}
-			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", ")) //nolint:stylecheck // this error message is capitalized on purpose
+			//nolint:stylecheck // this error message is capitalized on purpose
+			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", "))
 		}
 		i = j
 	}

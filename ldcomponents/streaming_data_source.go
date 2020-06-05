@@ -107,18 +107,20 @@ type parsedPath struct {
 
 func parsePath(path string) (parsedPath, error) {
 	parsedPath := parsedPath{}
-	if strings.HasPrefix(path, "/segments/") {
+	switch {
+	case strings.HasPrefix(path, "/segments/"):
 		parsedPath.kind = interfaces.DataKindSegments()
 		parsedPath.key = strings.TrimPrefix(path, "/segments/")
-	} else if strings.HasPrefix(path, "/flags/") {
+	case strings.HasPrefix(path, "/flags/"):
 		parsedPath.kind = interfaces.DataKindFeatures()
 		parsedPath.key = strings.TrimPrefix(path, "/flags/")
-	} else {
+	default:
 		return parsedPath, fmt.Errorf("unrecognized path %s", path)
 	}
 	return parsedPath, nil
 }
 
+//nolint:gocyclo // yes, we know this is a long function
 func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -143,7 +145,11 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			shouldRestart := false
 
 			gotMalformedEvent := func(event es.Event, err error) {
-				sp.loggers.Errorf("Received streaming \"%s\" event with malformed JSON data (%s); will restart stream", event.Event(), err)
+				sp.loggers.Errorf(
+					"Received streaming \"%s\" event with malformed JSON data (%s); will restart stream",
+					event.Event(),
+					err,
+				)
 
 				errorInfo := interfaces.DataSourceErrorInfo{
 					Kind:    interfaces.DataSourceErrorKindInvalidData,

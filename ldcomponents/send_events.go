@@ -66,11 +66,13 @@ func SendEvents() *EventProcessorBuilder {
 	}
 }
 
-// Called by the SDK to create the event processor instance.
-func (b *EventProcessorBuilder) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+// CreateEventProcessor is called by the SDK to create the event processor instance.
+func (b *EventProcessorBuilder) CreateEventProcessor(
+	context interfaces.ClientContext,
+) (ldevents.EventProcessor, error) {
 	loggers := context.GetLogging().GetLoggers()
-	eventSender := ldevents.NewServerSideEventSender(context.GetHTTP().CreateHTTPClient(), context.GetBasic().SDKKey, b.baseURI,
-		context.GetHTTP().GetDefaultHeaders(), loggers)
+	eventSender := ldevents.NewServerSideEventSender(context.GetHTTP().CreateHTTPClient(),
+		context.GetBasic().SDKKey, b.baseURI, context.GetHTTP().GetDefaultHeaders(), loggers)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,
@@ -194,7 +196,7 @@ func (b *EventProcessorBuilder) UserKeysFlushInterval(interval time.Duration) *E
 	return b
 }
 
-// Used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *EventProcessorBuilder) DescribeConfiguration() ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).

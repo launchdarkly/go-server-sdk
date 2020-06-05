@@ -75,7 +75,9 @@ func (b *StreamingDataSourceBuilder) PollingBaseURI(pollingBaseURI string) *Stre
 // exponentially for any subsequent connection failures.
 //
 // The default value is DefaultInitialReconnectDelay.
-func (b *StreamingDataSourceBuilder) InitialReconnectDelay(initialReconnectDelay time.Duration) *StreamingDataSourceBuilder {
+func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
+	initialReconnectDelay time.Duration,
+) *StreamingDataSourceBuilder {
 	if initialReconnectDelay <= 0 {
 		b.initialReconnectDelay = DefaultInitialReconnectDelay
 	} else {
@@ -84,7 +86,7 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(initialReconnectDelay
 	return b
 }
 
-// Called by the SDK to create the data source instance.
+// CreateDataSource is called by the SDK to create the data source instance.
 func (b *StreamingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
@@ -94,7 +96,8 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 		if b.baseURI == DefaultStreamingBaseURI {
 			pollingBaseURI = DefaultPollingBaseURI
 		} else {
-			// There's a custom stream URI, so it is probably a Relay instance and the polling base URI should default to the same value.
+			// There's a custom stream URI, so it is probably a Relay instance and the polling base URI should
+			// default to the same value.
 			pollingBaseURI = b.baseURI
 		}
 	}
@@ -102,7 +105,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 	return newStreamProcessor(context, dataSourceUpdates, b.baseURI, b.initialReconnectDelay, requestor), nil
 }
 
-// Used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *StreamingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
 	isCustomStreamURI := b.baseURI != "" && b.baseURI != DefaultStreamingBaseURI
 	isCustomBaseURI := (b.pollingBaseURI != "" && b.pollingBaseURI != DefaultPollingBaseURI) ||
