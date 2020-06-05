@@ -22,7 +22,7 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(
-//             redis.DataStore().URL("redis://my-redis-host"),
+//             ldredis.DataStore().URL("redis://my-redis-host"),
 //         ).CacheSeconds(15),
 //     }
 //
@@ -49,7 +49,7 @@ func PersistentDataStore(persistentDataStoreFactory interfaces.PersistentDataSto
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(
-//             redis.DataStore().URL("redis://my-redis-host"),
+//             ldredis.DataStore().URL("redis://my-redis-host"),
 //         ).CacheSeconds(15),
 //     }
 //

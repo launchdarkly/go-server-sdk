@@ -22,7 +22,7 @@ type Config struct {
 	// LaunchDarkly.
 	//
 	// If nil, the default is ldcomponents.InMemoryDataStore(). Other available implementations include the
-	// database integrations in the redis, ldconsul, and lddynamodb packages.
+	// database integrations in the ldredis, ldconsul, and lddynamodb packages.
 	DataStore interfaces.DataStoreFactory
 
 	// Set to true to opt out of sending diagnostic events.
