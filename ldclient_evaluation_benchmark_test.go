@@ -12,6 +12,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 // These benchmarks cover the LDClient evaluation flow, including looking up the target flag, applying all
@@ -51,7 +52,7 @@ func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCas
 	// benchmarks will include the overhead of calling Get on the store.
 	testFlags := makeEvalBenchmarkFlags(bc, variations)
 	for _, ff := range testFlags {
-		env.client.store.Upsert(interfaces.DataKindFeatures(), ff.Key, interfaces.StoreItemDescriptor{ff.Version, ff})
+		env.client.store.Upsert(interfaces.DataKindFeatures(), ff.Key, sharedtest.FlagDescriptor(*ff))
 	}
 
 	env.evalUser = makeEvalBenchmarkUser(bc)

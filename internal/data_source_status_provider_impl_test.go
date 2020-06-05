@@ -18,12 +18,15 @@ type dataSourceStatusProviderImplTestParams struct {
 
 func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTestParams)) {
 	p := dataSourceStatusProviderImplTestParams{}
-	broadcaster := NewDataSourceStatusBroadcaster()
-	defer broadcaster.Close()
+	statusBroadcaster := NewDataSourceStatusBroadcaster()
+	defer statusBroadcaster.Close()
+	flagBroadcaster := NewFlagChangeEventBroadcaster()
+	defer flagBroadcaster.Close()
 	store := NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	dataStoreStatusProvider := NewDataStoreStatusProviderImpl(store, nil)
-	p.dataSourceUpdates = NewDataSourceUpdatesImpl(store, dataStoreStatusProvider, broadcaster, 0, sharedtest.NewTestLoggers())
-	p.dataSourceStatusProvider = NewDataSourceStatusProviderImpl(broadcaster, p.dataSourceUpdates)
+	p.dataSourceUpdates = NewDataSourceUpdatesImpl(store, dataStoreStatusProvider, statusBroadcaster, flagBroadcaster,
+		0, sharedtest.NewTestLoggers())
+	p.dataSourceStatusProvider = NewDataSourceStatusProviderImpl(statusBroadcaster, p.dataSourceUpdates)
 
 	action(p)
 }

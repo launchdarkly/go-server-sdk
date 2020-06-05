@@ -45,7 +45,7 @@ type dataItemCreator func(key string, version int, otherProperty bool) interface
 func forAllDataKinds(t *testing.T, test func(*testing.T, interfaces.StoreDataKind, dataItemCreator)) {
 	test(t, interfaces.DataKindFeatures(), func(key string, version int, otherProperty bool) interfaces.StoreItemDescriptor {
 		flag := ldbuilders.NewFlagBuilder(key).Version(version).On(otherProperty).Build()
-		return interfaces.StoreItemDescriptor{Version: version, Item: &flag}
+		return sharedtest.FlagDescriptor(flag)
 	})
 	test(t, interfaces.DataKindSegments(), func(key string, version int, otherProperty bool) interfaces.StoreItemDescriptor {
 		segment := ldbuilders.NewSegmentBuilder(key).Build()
@@ -53,7 +53,7 @@ func forAllDataKinds(t *testing.T, test func(*testing.T, interfaces.StoreDataKin
 		if otherProperty {
 			segment.Included = []string{"arbitrary value"}
 		}
-		return interfaces.StoreItemDescriptor{Version: version, Item: &segment}
+		return sharedtest.SegmentDescriptor(segment)
 	})
 }
 
@@ -102,7 +102,8 @@ func testInMemoryDataStoreGet(t *testing.T) {
 			store := makeInMemoryStore()
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 			item := makeItem("key", 1, false)
-			assert.NoError(t, store.Upsert(kind, "key", item))
+			_, err := store.Upsert(kind, "key", item)
+			assert.NoError(t, err)
 
 			result, err := store.Get(kind, "key")
 			assert.NoError(t, err)
@@ -131,9 +132,12 @@ func testInMemoryDataStoreGetAll(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("flag1").Build()
 	flag2 := ldbuilders.NewFlagBuilder("flag2").Build()
 	segment1 := ldbuilders.NewSegmentBuilder("segment1").Build()
-	require.NoError(t, store.Upsert(interfaces.DataKindFeatures(), flag1.Key, flagDescriptor(flag1)))
-	require.NoError(t, store.Upsert(interfaces.DataKindFeatures(), flag2.Key, flagDescriptor(flag2)))
-	require.NoError(t, store.Upsert(interfaces.DataKindSegments(), segment1.Key, segmentDescriptor(segment1)))
+	_, err = store.Upsert(interfaces.DataKindFeatures(), flag1.Key, sharedtest.FlagDescriptor(flag1))
+	require.NoError(t, err)
+	_, err = store.Upsert(interfaces.DataKindFeatures(), flag2.Key, sharedtest.FlagDescriptor(flag2))
+	require.NoError(t, err)
+	_, err = store.Upsert(interfaces.DataKindSegments(), segment1.Key, sharedtest.SegmentDescriptor(segment1))
+	require.NoError(t, err)
 
 	flags, err := store.GetAll(interfaces.DataKindFeatures())
 	require.NoError(t, err)
@@ -156,10 +160,14 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
-			require.NoError(t, store.Upsert(kind, "key", item1))
+			updated, err := store.Upsert(kind, "key", item1)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			item1a := makeItem("key", item1.Version+1, true)
-			require.NoError(t, store.Upsert(kind, "key", item1a))
+			updated, err = store.Upsert(kind, "key", item1a)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			result, err := store.Get(kind, "key")
 			require.NoError(t, err)
@@ -171,10 +179,14 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
-			require.NoError(t, store.Upsert(kind, "key", item1))
+			updated, err := store.Upsert(kind, "key", item1)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			item1a := makeItem("key", item1.Version-1, true)
-			require.NoError(t, store.Upsert(kind, "key", item1a))
+			updated, err = store.Upsert(kind, "key", item1a)
+			require.NoError(t, err)
+			assert.False(t, updated)
 
 			result, err := store.Get(kind, "key")
 			require.NoError(t, err)
@@ -186,10 +198,14 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
-			require.NoError(t, store.Upsert(kind, "key", item1))
+			updated, err := store.Upsert(kind, "key", item1)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			item1a := makeItem("key", item1.Version, true)
-			require.NoError(t, store.Upsert(kind, "key", item1a))
+			updated, err = store.Upsert(kind, "key", item1a)
+			require.NoError(t, err)
+			assert.False(t, updated)
 
 			result, err := store.Get(kind, "key")
 			require.NoError(t, err)
@@ -205,10 +221,14 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
-			require.NoError(t, store.Upsert(kind, "key", item1))
+			updated, err := store.Upsert(kind, "key", item1)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			item1a := interfaces.StoreItemDescriptor{Version: item1.Version + 1, Item: nil}
-			require.NoError(t, store.Upsert(kind, "key", item1a))
+			updated, err = store.Upsert(kind, "key", item1a)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			result, err := store.Get(kind, "key")
 			require.NoError(t, err)
@@ -220,10 +240,14 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
-			require.NoError(t, store.Upsert(kind, "key", item1))
+			updated, err := store.Upsert(kind, "key", item1)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			item1a := interfaces.StoreItemDescriptor{Version: item1.Version - 1, Item: nil}
-			require.NoError(t, store.Upsert(kind, "key", item1a))
+			updated, err = store.Upsert(kind, "key", item1a)
+			require.NoError(t, err)
+			assert.False(t, updated)
 
 			result, err := store.Get(kind, "key")
 			require.NoError(t, err)
@@ -235,10 +259,14 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
-			require.NoError(t, store.Upsert(kind, "key", item1))
+			updated, err := store.Upsert(kind, "key", item1)
+			require.NoError(t, err)
+			assert.True(t, updated)
 
 			item1a := interfaces.StoreItemDescriptor{Version: item1.Version, Item: nil}
-			require.NoError(t, store.Upsert(kind, "key", item1a))
+			updated, err = store.Upsert(kind, "key", item1a)
+			require.NoError(t, err)
+			assert.False(t, updated)
 
 			result, err := store.Get(kind, "key")
 			require.NoError(t, err)

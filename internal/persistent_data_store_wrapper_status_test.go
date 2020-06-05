@@ -112,7 +112,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 			// While the store is still down, try to update it - the update goes into the cache
 			flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-			err = p.store.Upsert(intf.DataKindFeatures(), flag.Key, flagDescriptor(flag))
+			_, err = p.store.Upsert(intf.DataKindFeatures(), flag.Key, sharedtest.FlagDescriptor(flag))
 			assert.Equal(t, myError, err)
 			cachedFlag, err := p.store.Get(intf.DataKindFeatures(), flag.Key)
 			assert.NoError(t, err)
