@@ -118,3 +118,10 @@ func (t *thing) getNumber() int {
 ```
 
 Note that in this example, a panic _is_ possible on the first line if `t` is nil; but since the lock would not get locked in that scenario, things would still be left in a safe state even in that case.
+
+### Minimize overhead when logging at debug level
+
+The `Debug` logging level can be a useful diagnostic tool, and it is OK to log very verbosely at this level. However, to avoid slowing things down in the usual case where this log level is disabled, keep in mind:
+
+1. Avoid string concatenation; use `Printf`-style placeholders instead.
+2. Before calling `loggers.Debug` or `loggers.Debugf`, check `loggers.IsDebugEnabled()`. If it returns false, you should skip the `Debug` or `Debugf` call, since otherwise it can incur some overhead from converting the parameters of that call to `interface{}` values.

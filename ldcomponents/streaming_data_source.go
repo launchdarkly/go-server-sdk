@@ -247,7 +247,9 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			}
 
 		case newStoreStatus := <-sp.storeStatusCh:
-			sp.loggers.Debugf("StreamProcessor received store status update: %+v", newStoreStatus)
+			if sp.loggers.IsDebugEnabled() {
+				sp.loggers.Debugf("StreamProcessor received store status update: %+v", newStoreStatus)
+			}
 			if newStoreStatus.Available {
 				// The store has just transitioned from unavailable to available (scenario 2a above)
 				if newStoreStatus.NeedsRefresh {

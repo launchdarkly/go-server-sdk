@@ -1,8 +1,11 @@
 // Package ldclient is the main package for the LaunchDarkly SDK.
 //
 // This package contains the types and methods that most applications will use. The most commonly
-// used other packages are "ldlog" (the SDK's logging abstraction) and database integrations such
-// as "redis" and "lddynamodb".
+// used other packages in go-server-sdk are "ldcomponents" (configuration builders), and database
+// integrations such as "ldredis" and "lddynamodb".
+//
+// Other types that are commonly used with the SDK are in the go-sdk-common repository
+// (https://godoc.org/gopkg.in/launchdarkly/go-sdk-common.v2).
 package ldclient
 
 import (

@@ -199,7 +199,9 @@ func (store *dynamoDBDataStore) Get(
 	}
 
 	if len(result.Item) == 0 {
-		store.loggers.Debugf("Item not found (key=%s)", key)
+		if store.loggers.IsDebugEnabled() {
+			store.loggers.Debugf("Item not found (key=%s)", key)
+		}
 		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
 	}
 
@@ -240,8 +242,10 @@ func (store *dynamoDBDataStore) Upsert(
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
-				kind, key, newItem.Version)
+			if store.loggers.IsDebugEnabled() {
+				store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
+					kind, key, newItem.Version)
+			}
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to put %s key %s: %s", kind, key, err)

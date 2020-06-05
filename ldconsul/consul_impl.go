@@ -173,7 +173,9 @@ func (store *consulDataStoreImpl) Upsert(
 			return true, nil // success
 		}
 		// If we failed, retry the whole shebang
-		store.loggers.Debug("Concurrent modification detected, retrying")
+		if store.loggers.IsDebugEnabled() {
+			store.loggers.Debug("Concurrent modification detected, retrying")
+		}
 	}
 }
 

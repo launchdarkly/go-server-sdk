@@ -25,7 +25,7 @@ func (es *evaluationScope) segmentContainsUser(s *ldmodel.Segment) (bool, Segmen
 	// Check if any of the segment rules match
 	for _, rule := range s.Rules {
 		// Note, taking address of range variable here is OK because it's not used outside the loop
-		if es.segmentRuleMatchesUser(&rule, s.Key, s.Salt) { //nolint:scopelint // see comment above
+		if es.segmentRuleMatchesUser(&rule, s.Key, s.Salt) { //nolint:gosec // see comment above
 			reason := rule
 			return true, SegmentExplanation{Kind: "rule", MatchedRule: &reason}
 		}

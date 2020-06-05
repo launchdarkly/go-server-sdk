@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -31,7 +31,13 @@ type defaultEventSender struct {
 }
 
 // NewDefaultEventSender creates the default implementation of EventSender.
-func NewDefaultEventSender(httpClient *http.Client, eventsURI string, diagnosticURI string, headers http.Header, loggers ldlog.Loggers) EventSender {
+func NewDefaultEventSender(
+	httpClient *http.Client,
+	eventsURI string,
+	diagnosticURI string,
+	headers http.Header,
+	loggers ldlog.Loggers,
+) EventSender {
 	return &defaultEventSender{httpClient, eventsURI, diagnosticURI, headers, loggers, 0}
 }
 
@@ -39,7 +45,13 @@ func NewDefaultEventSender(httpClient *http.Client, eventsURI string, diagnostic
 //
 // This is a convenience function for calling NewDefaultEventSender with the standard event endpoint URIs and the
 // Authorization header.
-func NewServerSideEventSender(httpClient *http.Client, sdkKey string, eventsURI string, headers http.Header, loggers ldlog.Loggers) EventSender {
+func NewServerSideEventSender(
+	httpClient *http.Client,
+	sdkKey string,
+	eventsURI string,
+	headers http.Header,
+	loggers ldlog.Loggers,
+) EventSender {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
@@ -76,7 +88,8 @@ func (s *defaultEventSender) SendEventData(kind EventDataKind, data []byte, even
 		description = "diagnostic event"
 		headers.Add(eventSchemaHeader, currentEventSchema)
 		payloadUUID, _ := uuid.NewRandom()
-		headers.Add(payloadIDHeader, payloadUUID.String()) // if NewRandom somehow failed, we'll just proceed with an empty string
+		headers.Add(payloadIDHeader, payloadUUID.String())
+		// if NewRandom somehow failed, we'll just proceed with an empty string
 	case DiagnosticEventDataKind:
 		uri = s.diagnosticURI
 		description = fmt.Sprintf("%d events", eventCount)

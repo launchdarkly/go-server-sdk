@@ -96,7 +96,9 @@ func (r *requestor) requestResource(kind interfaces.StoreDataKind, key string) (
 }
 
 func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
-	r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
+	if r.loggers.IsDebugEnabled() {
+		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
+	}
 	req, reqErr := http.NewRequest("GET", r.baseURI+resource, nil)
 	if reqErr != nil {
 		return nil, false, reqErr

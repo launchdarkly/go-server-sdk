@@ -83,7 +83,7 @@ type levelLogger struct {
 	overrideLogger bool
 }
 
-var nullLog = levelLogger{enabled: false}
+var nullLog = levelLogger{enabled: false} //nolint:gochecknoglobals
 
 // NewDisabledLoggers returns a Loggers instance that will never generate output.
 func NewDisabledLoggers() Loggers {
@@ -126,7 +126,7 @@ func (l Loggers) Warnf(format string, values ...interface{}) {
 	l.ForLevel(Warn).Printf(format, values...)
 }
 
-// Debug logs a message at Debug level, if that level is enabled. It calls the BaseLogger's Println.
+// Error logs a message at Error level, if that level is enabled. It calls the BaseLogger's Println.
 func (l Loggers) Error(values ...interface{}) {
 	l.ForLevel(Error).Println(values...)
 }
@@ -216,6 +216,24 @@ func (l *Loggers) SetMinLevel(minLevel LogLevel) {
 	l.ensureInited()
 	l.minLevel = minLevel
 	l.configureLevels()
+}
+
+// GetMinLevel returns the minimum level that has been specified for log output. The default is Info.
+func (l Loggers) GetMinLevel() LogLevel {
+	if l.minLevel == 0 {
+		return Info // this instance hasn't been initialized, use the default
+	}
+	return l.minLevel
+}
+
+// IsDebugEnabled returns true if the minimum log level is Debug, or false if it is higher.
+//
+// This allows for greater efficiency in code that can produce verbose debug output. When the Debug
+// level is disabled, calling Debug or Debugf does not produce any output but they can still cause
+// unwanted overhead due to having to convert their parameters to interface{} values. To avoid that
+// overhead, you can choose to not bother calling Debug or Debugf at all if IsDebugEnabled returns false.
+func (l Loggers) IsDebugEnabled() bool {
+	return l.GetMinLevel() == Debug
 }
 
 // SetPrefix specifies a string to be added before every log message, after the LEVEL: prefix.

@@ -20,10 +20,8 @@ const (
 	// MobileSDKStreamingBasePath is the expected request path for mobile SDK stream requests that
 	// use the REPORT method, or the base path (not including ClientSideOrMobileUserSubpath) for requests that
 	// use the GET method.
-	MobileSDKStreamingBasePath = "/meval"
-	// ClientSideOrMobileUserSubpath is a subpath added to client-side/mobile GET requests. The base64-encoded
-	// user data follows this.
-	ClientSideOrMobileUserSubpath = "/user/"
+	MobileSDKStreamingBasePath  = "/meval"
+	arbitraryPathComponentRegex = "/[^/]*"
 )
 
 // StreamingServiceHandler creates an HTTP handler that provides an SSE stream.
@@ -93,17 +91,17 @@ func ClientSideStreamingServiceHandler(
 	eventsCh <-chan eventsource.Event,
 ) (http.Handler, io.Closer) {
 	handler, closer := StreamingServiceHandler(initialEvent, eventsCh)
-	return httphelpers.HandlerForPath(
-		ClientSideSDKStreamingBasePath,
+	return httphelpers.HandlerForPathRegex(
+		"^"+ClientSideSDKStreamingBasePath+arbitraryPathComponentRegex+"$",
 		httphelpers.HandlerForMethod("REPORT", handler, nil),
 		httphelpers.HandlerForPathRegex(
-			"^"+ClientSideSDKStreamingBasePath+ClientSideOrMobileUserSubpath+".*",
+			"^"+ClientSideSDKStreamingBasePath+arbitraryPathComponentRegex+arbitraryPathComponentRegex+"$",
 			httphelpers.HandlerForMethod("GET", handler, nil),
 			httphelpers.HandlerForPath(
 				MobileSDKStreamingBasePath,
 				httphelpers.HandlerForMethod("REPORT", handler, nil),
 				httphelpers.HandlerForPathRegex(
-					"^"+MobileSDKStreamingBasePath+ClientSideOrMobileUserSubpath+".*",
+					"^"+MobileSDKStreamingBasePath+arbitraryPathComponentRegex+"$",
 					httphelpers.HandlerForMethod("GET", handler, nil),
 					nil,
 				),

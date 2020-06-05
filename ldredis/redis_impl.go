@@ -1,4 +1,4 @@
-package redis
+package ldredis
 
 import (
 	"time"
@@ -89,7 +89,9 @@ func (store *redisDataStoreImpl) Get(
 
 	if err != nil {
 		if err == r.ErrNil {
-			store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
+			if store.loggers.IsDebugEnabled() {
+				store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
+			}
 			return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
 		}
 		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), err
@@ -159,8 +161,10 @@ func (store *redisDataStoreImpl) Upsert(
 			if newItem.SerializedItem == nil {
 				updateOrDelete = "delete"
 			}
-			store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
-				updateOrDelete, key, oldVersion, kind, newItem.Version)
+			if store.loggers.IsDebugEnabled() {
+				store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
+					updateOrDelete, key, oldVersion, kind, newItem.Version)
+			}
 			return false, nil
 		}
 
@@ -172,7 +176,9 @@ func (store *redisDataStoreImpl) Upsert(
 			if err == nil {
 				if result == nil {
 					// if exec returned nothing, it means the watch was triggered and we should retry
-					store.loggers.Debug("Concurrent modification detected, retrying")
+					if store.loggers.IsDebugEnabled() {
+						store.loggers.Debug("Concurrent modification detected, retrying")
+					}
 					continue
 				}
 			}

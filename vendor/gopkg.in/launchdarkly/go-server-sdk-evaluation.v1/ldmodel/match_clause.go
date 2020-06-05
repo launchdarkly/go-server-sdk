@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
@@ -77,9 +78,9 @@ func matchAny(
 
 type opFn (func(userValue ldvalue.Value, clauseValue ldvalue.Value, preprocessed clausePreprocessedValue) bool)
 
-var versionNumericComponentsRegex = regexp.MustCompile(`^\d+(\.\d+)?(\.\d+)?`)
+var versionNumericComponentsRegex = regexp.MustCompile(`^\d+(\.\d+)?(\.\d+)?`) //nolint:gochecknoglobals
 
-var allOps = map[Operator]opFn{
+var allOps = map[Operator]opFn{ //nolint:gochecknoglobals
 	OperatorIn:                 operatorInFn,
 	OperatorEndsWith:           operatorEndsWithFn,
 	OperatorStartsWith:         operatorStartsWithFn,
