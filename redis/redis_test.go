@@ -1,92 +1,84 @@
 package redis
 
 import (
+	"fmt"
+	"strings"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	r "github.com/garyburd/redigo/redis"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	ldtest "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 const redisURL = "redis://localhost:6379"
 
-func TestRedisFeatureStoreUncached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(0))
-	require.NoError(t, err)
-	ldtest.RunFeatureStoreTests(t, f, clearExistingData, false)
+func TestRedisDataStore(t *testing.T) {
+	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+		ConcurrentModificationHook(setConcurrentModificationHook).
+		Run(t)
 }
 
-func TestRedisFeatureStoreUncachedWithDeprecatedOptionsConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreWithDefaults(CacheTTL(0))
-	}, clearExistingData, false)
+func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
+	return DataStore().Prefix(prefix)
 }
 
-func TestRedisFeatureStoreUncachedWithDeprecatedConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 0, nil), nil
-	}, clearExistingData, false)
-}
-
-func TestRedisFeatureStoreCached(t *testing.T) {
-	f, err := NewRedisFeatureStoreFactory(CacheTTL(30 * time.Second))
-	require.NoError(t, err)
-	ldtest.RunFeatureStoreTests(t, f, clearExistingData, true)
-}
-
-func TestRedisFeatureStoreCachedWithDeprecatedOptionsConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreWithDefaults(CacheTTL(30 * time.Second))
-	}, clearExistingData, true)
-}
-
-func TestRedisFeatureStoreCachedWithDeprecatedConstructor(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, func(ld.Config) (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(DefaultURL, "", 30*time.Second, nil), nil
-	}, clearExistingData, true)
-}
-
-func TestRedisFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewRedisFeatureStoreWithDefaults(Prefix(prefix), CacheTTL(0))
-		}, clearExistingData)
-}
-
-func TestRedisFeatureStoreConcurrentModification(t *testing.T) {
-	opts, err := validateOptions()
-	require.NoError(t, err)
-	core1 := newRedisFeatureStoreInternal(opts, ld.Config{}) // use the internal object so we can set testTxHook
-	store1 := utils.NewFeatureStoreWrapper(core1)
-	store2, err := NewRedisFeatureStoreWithDefaults()
-	require.NoError(t, err)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
-		core1.testTxHook = hook
-	})
-}
-
-func TestRedisStoreComponentTypeName(t *testing.T) {
-	store, _ := NewRedisFeatureStoreWithDefaults()
-	assert.Equal(t, "Redis", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
-}
-
-func makeStoreWithCacheTTL(ttl time.Duration) func() (ld.FeatureStore, error) {
-	return func() (ld.FeatureStore, error) {
-		return NewRedisFeatureStoreFromUrl(redisURL, "", ttl, nil), nil
+func clearTestData(prefix string) error {
+	if prefix == "" {
+		prefix = DefaultPrefix
 	}
-}
 
-func clearExistingData() error {
 	client, err := r.DialURL(redisURL)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
-	_, err = client.Do("FLUSHDB")
-	return err
+
+	resp, err := client.Do("SCAN", "0", "MATCH", prefix+":*")
+	if err != nil {
+		return err
+	}
+	respValue, err := parseRedisResponseAsValue(resp)
+	if err != nil {
+		return err
+	}
+	if respValue.Count() == 2 {
+		respLines := respValue.GetByIndex(1)
+		if respLines.Type() == ldvalue.ArrayType {
+			var failure error
+			respLines.Enumerate(func(i int, key string, value ldvalue.Value) bool {
+				redisKey := strings.TrimPrefix(strings.TrimSuffix(value.String(), `"`), `"`)
+				failure = client.Send("DEL", redisKey)
+				return failure == nil
+			})
+			if failure != nil {
+				return failure
+			}
+			return client.Flush()
+		}
+	}
+	return fmt.Errorf("unexpected format of Redis response: %s", respValue)
+}
+
+func setConcurrentModificationHook(store interfaces.PersistentDataStore, hook func()) {
+	store.(*redisDataStoreImpl).testTxHook = hook
+}
+
+func parseRedisResponseAsValue(resp interface{}) (ldvalue.Value, error) {
+	switch t := resp.(type) {
+	case []interface{}:
+		a := ldvalue.ArrayBuild()
+		for _, item := range t {
+			v, err := parseRedisResponseAsValue(item)
+			if err != nil {
+				return ldvalue.Null(), err
+			}
+			a.Add(v)
+		}
+		return a.Build(), nil
+	case []byte:
+		return ldvalue.String(string(t)), nil
+	default:
+		return ldvalue.Null(), fmt.Errorf("unexpected data type in response: %T", resp)
+	}
 }

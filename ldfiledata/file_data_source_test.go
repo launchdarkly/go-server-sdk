@@ -1,26 +1,49 @@
 package ldfiledata
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
 )
 
-func makeTempFile(t *testing.T, initialText string) string {
-	f, err := ioutil.TempFile("", "file-dataSource-test")
-	require.NoError(t, err)
-	f.WriteString(initialText)
-	require.NoError(t, f.Close())
-	return f.Name()
+func X() {}
+
+type fileDataSourceTestParams struct {
+	dataSource     interfaces.DataSource
+	updates        *sharedtest.MockDataSourceUpdates
+	closeWhenReady chan struct{}
+}
+
+func (p fileDataSourceTestParams) waitForStart() {
+	p.dataSource.Start(p.closeWhenReady)
+	<-p.closeWhenReady
+}
+
+func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
+	p := fileDataSourceTestParams{}
+	testContext := sharedtest.NewTestContext("", nil, sharedtest.TestLoggingConfig())
+	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	updates := sharedtest.NewMockDataSourceUpdates(store)
+	dataSource, err := factory.CreateDataSource(testContext, updates)
+	if err != nil {
+		panic(err)
+	}
+	defer dataSource.Close()
+	p.dataSource = dataSource
+	action(fileDataSourceTestParams{dataSource, updates, make(chan struct{})})
 }
 
 func TestNewFileDataSourceYaml(t *testing.T) {
-	filename := makeTempFile(t, `
+	fileData := `
 ---
 flags:
   my-flag:
@@ -28,143 +51,136 @@ flags:
 segments:
   my-segment:
     rules: []
-`)
-	defer os.Remove(filename)
+`
+	sharedtest.WithTempFileContaining([]byte(fileData), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, p.dataSource.IsInitialized())
 
-	store := ld.NewInMemoryFeatureStore(nil)
+			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
+			require.NoError(t, err)
+			require.NotNil(t, flagItem.Item)
+			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
 
-	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	require.True(t, dataSource.Initialized())
-	flag, err := store.Get(ld.Features, "my-flag")
-	require.NoError(t, err)
-	require.NotNil(t, flag)
-	assert.True(t, flag.(*ld.FeatureFlag).On)
-
-	segment, err := store.Get(ld.Segments, "my-segment")
-	require.NoError(t, err)
-	require.NotNil(t, segment)
-	assert.Empty(t, segment.(*ld.Segment).Rules)
+			segmentItem, err := p.updates.DataStore.Get(interfaces.DataKindSegments(), "my-segment")
+			require.NoError(t, err)
+			require.NotNil(t, segmentItem.Item)
+			assert.Empty(t, segmentItem.Item.(*ldmodel.Segment).Rules)
+		})
+	})
 }
 
 func TestNewFileDataSourceJson(t *testing.T) {
-	filename := makeTempFile(t, `{"flags": {"my-flag": {"on": true}}}`)
-	defer os.Remove(filename)
+	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, p.dataSource.IsInitialized())
 
-	store := ld.NewInMemoryFeatureStore(nil)
+			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
+			require.NoError(t, err)
+			require.NotNil(t, flagItem.Item)
+			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
+		})
+	})
+}
 
-	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	require.True(t, dataSource.Initialized())
-	flag, err := store.Get(ld.Features, "my-flag")
-	require.NoError(t, err)
-	require.NotNil(t, flag)
-	assert.True(t, flag.(*ld.FeatureFlag).On)
+func TestStatusIsValidAfterSuccessfulLoad(t *testing.T) {
+	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, p.dataSource.IsInitialized())
+
+			p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)
+		})
+	})
 }
 
 func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
-	filename1 := makeTempFile(t, `{"flags": {"my-flag1": {"on": true}}}`)
-	defer os.Remove(filename1)
-	filename2 := makeTempFile(t, `{"flags": {"my-flag2": {"on": true}}}`)
-	defer os.Remove(filename2)
+	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename1 string) {
+		sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag2": {"on": true}}}`), func(filename2 string) {
+			factory := DataSource().FilePaths(filename1, filename2)
+			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+				p.waitForStart()
+				require.True(t, p.dataSource.IsInitialized())
 
-	store := ld.NewInMemoryFeatureStore(nil)
+				flagItem1, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag1")
+				require.NoError(t, err)
+				require.NotNil(t, flagItem1.Item)
+				assert.True(t, flagItem1.Item.(*ldmodel.FeatureFlag).On)
 
-	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	require.True(t, dataSource.Initialized())
-
-	flag1, err := store.Get(ld.Features, "my-flag1")
-	require.NoError(t, err)
-	require.NotNil(t, flag1)
-	assert.True(t, flag1.(*ld.FeatureFlag).On)
-
-	flag2, err := store.Get(ld.Features, "my-flag2")
-	require.NoError(t, err)
-	require.NotNil(t, flag2)
-	assert.True(t, flag2.(*ld.FeatureFlag).On)
+				flagItem2, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag2")
+				require.NoError(t, err)
+				require.NotNil(t, flagItem2.Item)
+				assert.True(t, flagItem2.Item.(*ldmodel.FeatureFlag).On)
+			})
+		})
+	})
 }
 
 func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
-	filename1 := makeTempFile(t, `{"flags": {"my-flag1": {"on": true}}}`)
-	defer os.Remove(filename1)
-	filename2 := makeTempFile(t, `{"flags": {"my-flag1": {"on": true}}}`)
-	defer os.Remove(filename2)
-
-	store := ld.NewInMemoryFeatureStore(nil)
-
-	factory := NewFileDataSourceFactory(FilePaths(filename1, filename2))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	require.False(t, dataSource.Initialized())
+	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename1 string) {
+		sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename2 string) {
+			factory := DataSource().FilePaths(filename1, filename2)
+			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+				p.waitForStart()
+				require.False(t, p.dataSource.IsInitialized())
+			})
+		})
+	})
 }
 
 func TestNewFileDataSourceBadData(t *testing.T) {
-	filename := makeTempFile(t, `bad data`)
-	defer os.Remove(filename)
-
-	store := ld.NewInMemoryFeatureStore(nil)
-
-	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	assert.False(t, dataSource.Initialized())
+	sharedtest.WithTempFileContaining([]byte(`bad data`), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.False(t, p.dataSource.IsInitialized())
+		})
+	})
 }
 
 func TestNewFileDataSourceMissingFile(t *testing.T) {
-	filename := makeTempFile(t, "")
-	os.Remove(filename)
+	sharedtest.WithTempFileContaining([]byte{}, func(filename string) {
+		os.Remove(filename)
 
-	store := ld.NewInMemoryFeatureStore(nil)
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			assert.False(t, p.dataSource.IsInitialized())
+		})
+	})
+}
 
-	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	assert.False(t, dataSource.Initialized())
+func TestStatusIsInterruptedAfterUnsuccessfulLoad(t *testing.T) {
+	sharedtest.WithTempFileContaining([]byte(`bad data`), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.False(t, p.dataSource.IsInitialized())
+
+			p.updates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
+		})
+	})
 }
 
 func TestNewFileDataSourceYamlValues(t *testing.T) {
-	filename := makeTempFile(t, `
+	fileData := `
 ---
 flagValues:
   my-flag: true
-`)
-	defer os.Remove(filename)
-
-	store := ld.NewInMemoryFeatureStore(nil)
-
-	factory := NewFileDataSourceFactory(FilePaths(filename))
-	dataSource, err := factory("", ld.Config{FeatureStore: store})
-	require.NoError(t, err)
-	closeWhenReady := make(chan struct{})
-	dataSource.Start(closeWhenReady)
-	<-closeWhenReady
-	require.True(t, dataSource.Initialized())
-	flag, err := store.Get(ld.Features, "my-flag")
-	require.NoError(t, err)
-	require.NotNil(t, flag)
-	require.NotNil(t, flag.(*ld.FeatureFlag).Fallthrough.Variation)
-	require.True(t, flag.(*ld.FeatureFlag).On)
-	assert.Equal(t, 0, *flag.(*ld.FeatureFlag).Fallthrough.Variation)
+`
+	sharedtest.WithTempFileContaining([]byte(fileData), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, p.dataSource.IsInitialized())
+			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
+			require.NoError(t, err)
+			require.NotNil(t, flagItem.Item)
+			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flagItem.Item.(*ldmodel.FeatureFlag).Variations)
+		})
+	})
 }

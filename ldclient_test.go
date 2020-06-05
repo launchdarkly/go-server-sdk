@@ -1,69 +1,69 @@
 package ldclient
 
 import (
-	"fmt"
-	"strings"
+	"errors"
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
-type mockUpdateProcessor struct {
-	IsInitialized bool
-	CloseFn       func() error
-	StartFn       func(chan<- struct{})
+type badFactory struct{ err error }
+
+func (f badFactory) CreateDataSource(c interfaces.ClientContext, u interfaces.DataSourceUpdates) (interfaces.DataSource, error) {
+	return nil, f.err
 }
 
-func (u mockUpdateProcessor) Initialized() bool {
-	return u.IsInitialized
+func (f badFactory) CreateDataStore(c interfaces.ClientContext, u interfaces.DataStoreUpdates) (interfaces.DataStore, error) {
+	return nil, f.err
 }
 
-func (u mockUpdateProcessor) Close() error {
-	if u.CloseFn == nil {
-		return nil
+func (f badFactory) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+	return nil, f.err
+}
+
+func (f badFactory) CreateHTTPConfiguration(context interfaces.BasicConfiguration) (interfaces.HTTPConfiguration, error) {
+	return nil, f.err
+}
+
+func (f badFactory) CreateLoggingConfiguration(context interfaces.BasicConfiguration) (interfaces.LoggingConfiguration, error) {
+	return nil, f.err
+}
+
+func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
+	fakeError := errors.New("sorry")
+	factory := badFactory{fakeError}
+
+	doTest := func(name string, config Config) {
+		t.Run(name, func(t *testing.T) {
+			client, err := MakeCustomClient(testSdkKey, config, 0)
+			assert.Nil(t, client)
+			assert.Equal(t, fakeError, err)
+		})
 	}
-	return u.CloseFn()
-}
 
-func (u mockUpdateProcessor) Start(closeWhenReady chan<- struct{}) {
-	if u.StartFn == nil {
-		return
-	}
-	u.StartFn(closeWhenReady)
-}
-
-func updateProcessorFactory(u UpdateProcessor) func(string, Config) (UpdateProcessor, error) {
-	return func(key string, c Config) (UpdateProcessor, error) {
-		return u, nil
-	}
-}
-
-type testEventProcessor struct {
-	events []Event
-}
-
-func (t *testEventProcessor) SendEvent(e Event) {
-	t.events = append(t.events, e)
-}
-
-func (t *testEventProcessor) Flush() {}
-
-func (t *testEventProcessor) Close() error {
-	return nil
+	doTest("DataSource", Config{DataSource: factory})
+	doTest("DataStore", Config{DataStore: factory})
+	doTest("Events", Config{Events: factory})
+	doTest("HTTP", Config{HTTP: factory})
+	doTest("Logging", Config{Logging: factory})
 }
 
 func TestSecureModeHash(t *testing.T) {
 	expected := "aa747c502a898200f9e4fa21bac68136f886a0e27aec70ba06daf2e2a5cb5597"
 	key := "Message"
-	config := DefaultConfig
-	config.Offline = true
+	config := Config{Offline: true}
 
 	client, _ := MakeCustomClient("secret", config, 0*time.Second)
 
-	hash := client.SecureModeHash(NewUser(key))
+	hash := client.SecureModeHash(lduser.NewUser(key))
 
 	assert.Equal(t, expected, hash)
 }
@@ -72,32 +72,21 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	err := client.Identify(user)
 	assert.NoError(t, err)
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(IdentifyEvent)
-	assert.Equal(t, user, e.User)
-}
-
-func TestIdentifyWithNilUserKeySendsNoEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	err := client.Identify(evalTestUserWithNilKey)
-	assert.NoError(t, err) // we don't return an error for this, we just log it
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 0, len(events))
+	e := events[0].(ldevents.IdentifyEvent)
+	assert.Equal(t, ldevents.User(user), e.User)
 }
 
 func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Identify(NewUser(""))
+	err := client.Identify(lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -108,25 +97,25 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	key := "eventKey"
 	err := client.TrackEvent(key, user)
 	assert.NoError(t, err)
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
+	e := events[0].(ldevents.CustomEvent)
+	assert.Equal(t, ldevents.User(user), e.User)
 	assert.Equal(t, key, e.Key)
-	assert.Nil(t, e.Data)
-	assert.Nil(t, e.MetricValue)
+	assert.Equal(t, ldvalue.Null(), e.Data)
+	assert.False(t, e.HasMetric)
 }
 
 func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	key := "eventKey"
 	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
 	err := client.TrackData(key, user, data)
@@ -134,18 +123,18 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
+	e := events[0].(ldevents.CustomEvent)
+	assert.Equal(t, ldevents.User(user), e.User)
 	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data.AsArbitraryValue(), e.Data)
-	assert.Nil(t, e.MetricValue)
+	assert.Equal(t, data, e.Data)
+	assert.False(t, e.HasMetric)
 }
 
 func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	user := NewUser("userKey")
+	user := lduser.NewUser("userKey")
 	key := "eventKey"
 	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
 	metric := float64(1.5)
@@ -154,110 +143,30 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
-	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data.AsArbitraryValue(), e.Data)
-	assert.Equal(t, &metric, e.MetricValue)
-}
-
-func TestDeprecatedTrackSendsCustomEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	user := NewUser("userKey")
-	key := "eventKey"
-	err := client.Track(key, user, nil) //nolint:megacheck // allow deprecated usage
-	assert.NoError(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
-	assert.Equal(t, key, e.Key)
-	assert.Nil(t, e.Data)
-	assert.Nil(t, e.MetricValue)
-}
-
-func TestDeprecatedTrackSendsCustomEventWithData(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	user := NewUser("userKey")
-	key := "eventKey"
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.Track(key, user, data) //nolint:megacheck // allow deprecated usage
-	assert.NoError(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
+	e := events[0].(ldevents.CustomEvent)
+	assert.Equal(t, ldevents.User(user), e.User)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
-	assert.Nil(t, e.MetricValue)
-}
-
-func TestDeprecatedTrackWithMetricSendsCustomEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	user := NewUser("userKey")
-	key := "eventKey"
-	value := 2.5
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric(key, user, data, value) //nolint:megacheck // allow deprecated usage
-	assert.NoError(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(CustomEvent)
-	assert.Equal(t, user, e.User)
-	assert.Equal(t, key, e.Key)
-	assert.Equal(t, data, e.Data)
-	assert.Equal(t, value, *e.MetricValue)
-}
-
-func TestTrackWithNilUserKeySendsNoEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	err := client.Track("eventkey", evalTestUserWithNilKey, nil)
-	assert.NoError(t, err) // we don't return an error for this, we just log it
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 0, len(events))
+	assert.True(t, e.HasMetric)
+	assert.Equal(t, metric, e.MetricValue)
 }
 
 func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	err := client.Track("eventkey", NewUser(""), nil)
+	err := client.TrackEvent("eventkey", lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
 }
 
-func TestTrackWithMetricWithNilUserKeySendsNoEvent(t *testing.T) {
+func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric("eventKey", evalTestUserWithNilKey, data, 2.5)
-	assert.NoError(t, err) // we don't return an error for this, we just log it
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 0, len(events))
-}
-
-func TestTrackWithMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	data := map[string]interface{}{"thing": "stuff"}
-	err := client.TrackWithMetric("eventKey", NewUser(""), data, 2.5)
+	err := client.TrackMetric("eventKey", lduser.NewUser(""), 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*testEventProcessor).events
@@ -265,18 +174,12 @@ func TestTrackWithMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
-	updateProcessor := mockUpdateProcessor{
-		IsInitialized: false,
-		StartFn: func(closeWhenReady chan<- struct{}) {
-			close(closeWhenReady)
-		},
-	}
+	dataSource := mockDataSource{Initialized: false, StartFn: startImmediately}
 
-	client, err := MakeCustomClient("sdkKey", Config{
-		Loggers:                shared.NullLoggers(),
-		UpdateProcessorFactory: updateProcessorFactory(updateProcessor),
-		EventProcessor:         &testEventProcessor{},
-		UserKeysFlushInterval:  30 * time.Second,
+	client, err := MakeCustomClient(testSdkKey, Config{
+		Logging:    sharedtest.TestLogging(),
+		DataSource: singleDataSourceFactory{dataSource},
+		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
 
 	assert.NotNil(t, client)
@@ -289,42 +192,15 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Logger:       newMockLogger(""),
-		Offline:      false,
-		SendEvents:   true,
-		FeatureStore: NewInMemoryFeatureStore(nil),
-		UpdateProcessorFactory: updateProcessorFactory(mockUpdateProcessor{
-			IsInitialized: true,
-		}),
-		EventProcessor:        &testEventProcessor{},
-		UserKeysFlushInterval: 30 * time.Second,
+		Offline:    false,
+		DataStore:  ldcomponents.InMemoryDataStore(),
+		DataSource: singleDataSourceFactory{mockDataSource{Initialized: true}},
+		Events:     singleEventProcessorFactory{&testEventProcessor{}},
+		Logging:    sharedtest.TestLogging(),
 	}
 	if modConfig != nil {
 		modConfig(&config)
 	}
-	client, _ := MakeCustomClient("sdkKey", config, time.Duration(0))
+	client, _ := MakeCustomClient(testSdkKey, config, time.Duration(0))
 	return client
-}
-
-func newMockLogger(prefix string) *mockLogger {
-	return &mockLogger{output: make([]string, 0), prefix: prefix}
-}
-
-type mockLogger struct {
-	output []string
-	prefix string
-}
-
-func (l *mockLogger) append(s string) {
-	if l.prefix == "" || strings.HasPrefix(s, l.prefix) {
-		l.output = append(l.output, s)
-	}
-}
-
-func (l *mockLogger) Println(args ...interface{}) {
-	l.append(strings.TrimSpace(fmt.Sprintln(args...)))
-}
-
-func (l *mockLogger) Printf(format string, args ...interface{}) {
-	l.append(fmt.Sprintf(format, args...))
 }

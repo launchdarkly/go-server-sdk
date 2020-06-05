@@ -51,7 +51,7 @@ func TestErrorForNonexistentCertFile(t *testing.T) {
 		os.Remove(certFile)
 		_, _, err := NewHTTPTransport(CACertFileOption(certFile))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "Can't read CA certificate file")
+		require.Contains(t, err.Error(), "can't read CA certificate file")
 	})
 }
 
@@ -60,14 +60,14 @@ func TestErrorForCertFileWithBadData(t *testing.T) {
 		ioutil.WriteFile(certFile, []byte("sorry"), os.ModeAppend)
 		_, _, err := NewHTTPTransport(CACertFileOption(certFile))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "Invalid CA certificate data")
+		require.Contains(t, err.Error(), "invalid CA certificate data")
 	})
 }
 
 func TestErrorForBadCertData(t *testing.T) {
 	_, _, err := NewHTTPTransport(CACertOption([]byte("sorry")))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "Invalid CA certificate data")
+	require.Contains(t, err.Error(), "invalid CA certificate data")
 }
 
 func TestProxyEnvVarsAreUsedByDefault(t *testing.T) {

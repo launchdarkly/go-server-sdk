@@ -1,7 +1,3 @@
-// Package ldfilewatch allows the LaunchDarkly client to read feature flag data from a
-// file, with automatic reloading. It should be used in conjunction with the ldfiledata package.
-// The two packages are separate so as to avoid bringing additional dependencies for users who
-// do not need automatic reloading.
 package ldfilewatch
 
 import (
@@ -11,37 +7,38 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
 
 const retryDuration = time.Second
 
 type fileWatcher struct {
-	watcher     *fsnotify.Watcher
-	errorLogger ld.Logger
-	reload      func()
-	paths       []string
-	absPaths    map[string]bool
+	watcher  *fsnotify.Watcher
+	loggers  ldlog.Loggers
+	reload   func()
+	paths    []string
+	absPaths map[string]bool
 }
 
 // WatchFiles sets up a mechanism for the file data source to reload its source files whenever one of them has
 // been modified. Use it as follows:
 //
-//     factory := ldfiledata.NewFileDataSourceFactory(
-//         ldfiledata.FilePaths("./test-data/my-flags.json"),
-//         ldfiledata.UseReloader(ldfilewatch.WatchFiles))
-func WatchFiles(paths []string, errorLogger ld.Logger, reload func(), closeCh <-chan struct{}) error {
+//     config := Config{
+//         DataSource: ldfiledata.DataSource().
+//             FilePaths(filePaths).
+//             Reloader(ldfilewatch.WatchFiles),
+//     }
+func WatchFiles(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return fmt.Errorf("Unable to create file watcher: %s", err)
+		return fmt.Errorf("unable to create file watcher: %s", err)
 	}
 	fw := &fileWatcher{
-		watcher:     watcher,
-		errorLogger: errorLogger,
-		reload:      reload,
-		paths:       paths,
-		absPaths:    make(map[string]bool),
+		watcher:  watcher,
+		loggers:  loggers,
+		reload:   reload,
+		paths:    paths,
+		absPaths: make(map[string]bool),
 	}
 	go fw.run(closeCh)
 	return nil
@@ -59,7 +56,7 @@ func (fw *fileWatcher) run(closeCh <-chan struct{}) {
 	}
 	for {
 		if err := fw.setupWatches(); err != nil {
-			fw.errorLogger.Println(err)
+			fw.loggers.Error(err)
 			scheduleRetry()
 		}
 
@@ -80,16 +77,16 @@ func (fw *fileWatcher) setupWatches() error {
 		absDirPath := path.Dir(p)
 		realDirPath, err := filepath.EvalSymlinks(absDirPath)
 		if err != nil {
-			return fmt.Errorf(`Unable to evaluate symlinks for "%s": %s`, absDirPath, err)
+			return fmt.Errorf(`unable to evaluate symlinks for "%s": %s`, absDirPath, err)
 		}
 
 		realPath := path.Join(realDirPath, path.Base(p))
 		fw.absPaths[realPath] = true
 		if err = fw.watcher.Add(realPath); err != nil {
-			return fmt.Errorf(`Unable to watch path "%s": %s`, realPath, err)
+			return fmt.Errorf(`unable to watch path "%s": %s`, realPath, err)
 		}
 		if err = fw.watcher.Add(realDirPath); err != nil {
-			return fmt.Errorf(`Unable to watch path "%s": %s`, realDirPath, err)
+			return fmt.Errorf(`unable to watch path "%s": %s`, realDirPath, err)
 		}
 	}
 	return nil
@@ -97,11 +94,13 @@ func (fw *fileWatcher) setupWatches() error {
 
 func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan struct{}) bool {
 	for {
+		fw.loggers.Warn("waitForEvents")
 		select {
 		case <-closeCh:
+			fw.loggers.Error("got close")
 			err := fw.watcher.Close()
 			if err != nil {
-				fw.errorLogger.Printf("Error closing Watcher: %s", err)
+				fw.loggers.Errorf("Error closing Watcher: %s", err)
 			}
 			return true
 		case event := <-fw.watcher.Events:
@@ -111,7 +110,7 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 			fw.consumeExtraEvents()
 			return false
 		case err := <-fw.watcher.Errors:
-			fw.errorLogger.Println(err)
+			fw.loggers.Error(err)
 		case <-retryCh:
 			consumeExtraRetries(retryCh)
 			return false

@@ -157,7 +157,7 @@
   revision = "a22bdd33b2a45c81d5adce655962f79872df8fff"
 
 [[projects]]
-  digest = "1:8246372a0823b1537c4948660912da3b89842b963ca0a088b3c087d22c14786d"
+  digest = "1:d8e95d56d746c2198a6c0219f4603affbdb76d01afbb5d19794ee17e428d884b"
   name = "github.com/launchdarkly/go-test-helpers"
   packages = [
     ".",
@@ -165,8 +165,8 @@
     "ldservices",
   ]
   pruneopts = "NUT"
-  revision = "5bddee53b2893034a37b9bc99ec57bb0b7eeae78"
-  version = "1.0.0"
+  revision = "28a0434f9b3ce1e2a06bf28873334b0ad10d7ecd"
+  version = "v1.1.3"
 
 [[projects]]
   digest = "1:a4df73029d2c42fabcb6b41e327d2f87e685284ec03edf76921c267d9cfc9c23"
@@ -252,6 +252,40 @@
   version = "1.0.0"
 
 [[projects]]
+  branch = "v2"
+  digest = "1:5f4850b7ae9547377ff482606cb06bf52a079200cc2d24b9e738fb30da6f5975"
+  name = "gopkg.in/launchdarkly/go-sdk-common.v2"
+  packages = [
+    "ldlog",
+    "ldreason",
+    "ldtime",
+    "lduser",
+    "ldvalue",
+  ]
+  pruneopts = "NUT"
+  revision = "9d571f47a7aede45d1a1162c7e1bd3244ef1133b"
+
+[[projects]]
+  branch = "v1"
+  digest = "1:25b86a1a4d61aa052331c2f6bf62324884af4ce1b03b96db904fb04de4d6386a"
+  name = "gopkg.in/launchdarkly/go-sdk-events.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "335433cdd623d4ba48739b92990b528b4e6835a0"
+
+[[projects]]
+  branch = "v1"
+  digest = "1:9daec228a51e5d65e1737cfd7bb07fb44e422349e3467c62c7c56bb2cc719d4e"
+  name = "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+  packages = [
+    ".",
+    "ldbuilders",
+    "ldmodel",
+  ]
+  pruneopts = "NUT"
+  revision = "c8aded9abc93901751f94a533142c12398f72887"
+
+[[projects]]
   digest = "1:62a89978829993fb84e755bff5ae0e3d84837228898fd55b1a88a885036e1e51"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -269,10 +303,8 @@
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/dynamodb",
     "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface",
-    "github.com/blang/semver",
     "github.com/fsnotify/fsnotify",
     "github.com/garyburd/redigo/redis",
-    "github.com/google/uuid",
     "github.com/gregjones/httpcache",
     "github.com/hashicorp/consul/api",
     "github.com/launchdarkly/eventsource",
@@ -285,7 +317,15 @@
     "github.com/stretchr/testify/require",
     "golang.org/x/sync/singleflight",
     "gopkg.in/ghodss/yaml.v1",
-    "gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldlog",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldreason",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldtime",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/lduser",
+    "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue",
+    "gopkg.in/launchdarkly/go-sdk-events.v1",
+    "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1",
+    "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders",
+    "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

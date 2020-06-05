@@ -2,61 +2,32 @@ package ldconsul
 
 import (
 	"testing"
-	"time"
 
 	c "github.com/hashicorp/consul/api"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
-func TestConsulFeatureStoreUncached(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeConsulStoreWithCacheTTL(0), clearExistingData, false)
+func TestConsulDataStore(t *testing.T) {
+	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+		ConcurrentModificationHook(setConcurrentModificationHook).
+		Run(t)
 }
 
-func TestConsulFeatureStoreCached(t *testing.T) {
-	ldtest.RunFeatureStoreTests(t, makeConsulStoreWithCacheTTL(30*time.Second), clearExistingData, true)
+func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
+	return DataStore().Prefix(prefix)
 }
 
-func TestConsulFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewConsulFeatureStore(Prefix(prefix), CacheTTL(0))
-		}, clearExistingData)
-}
-
-func TestConsulFeatureStoreConcurrentModification(t *testing.T) {
-	options, _ := validateOptions()
-	store1Core, err := newConsulFeatureStoreInternal(options, ld.Config{}) // we need the underlying implementation object so we can set testTxHook
-	require.NoError(t, err)
-	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Core)
-	store2, err := NewConsulFeatureStore()
-	require.NoError(t, err)
-
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
-		store1Core.testTxHook = hook
-	})
-}
-
-func TestConsulStoreComponentTypeName(t *testing.T) {
-	factory, _ := NewConsulFeatureStoreFactory()
-	store, _ := factory(ld.DefaultConfig)
-	assert.Equal(t, "Consul", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
-}
-
-func makeConsulStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
-	f, _ := NewConsulFeatureStoreFactory(CacheTTL(ttl))
-	return f
-}
-
-func clearExistingData() error {
+func clearTestData(prefix string) error {
 	client, err := c.NewClient(c.DefaultConfig())
 	if err != nil {
 		return err
 	}
 	kv := client.KV()
-	_, err = kv.DeleteTree("", nil)
+	_, err = kv.DeleteTree(prefix+"/", nil)
 	return err
+}
+
+func setConcurrentModificationHook(store interfaces.PersistentDataStore, hook func()) {
+	store.(*consulDataStoreImpl).testTxHook = hook
 }

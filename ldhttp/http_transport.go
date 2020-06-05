@@ -1,6 +1,7 @@
-// Package ldhttp provides helper functions for custom HTTP configuration. You will not need to use this package
-// unless you need to extend the default Go HTTP client behavior, for instance, to specify additional trusted CA
-// certificates.
+// Package ldhttp provides internal helper functions for custom HTTP configuration.
+//
+// Applications will not normally need to use this package. Use the HTTP configuration options provided by
+// ldcomponents.HTTPConfiguration() instead.
 package ldhttp
 
 import (
@@ -56,7 +57,7 @@ func (o caCertOption) apply(opts *transportExtraOptions) error {
 		}
 	}
 	if !opts.caCerts.AppendCertsFromPEM(o.certData) {
-		return errors.New("Invalid CA certificate data")
+		return errors.New("invalid CA certificate data")
 	}
 	return nil
 }
@@ -74,7 +75,7 @@ type caCertFileOption struct {
 func (o caCertFileOption) apply(opts *transportExtraOptions) error {
 	bytes, err := ioutil.ReadFile(o.filePath)
 	if err != nil {
-		return fmt.Errorf("Can't read CA certificate file: %v", err)
+		return fmt.Errorf("can't read CA certificate file: %v", err)
 	}
 	return caCertOption{certData: bytes}.apply(opts)
 }
@@ -104,7 +105,7 @@ func (o proxyOption) apply(opts *transportExtraOptions) error {
 // the Transport and an associated net.Dialer.
 //
 // To configure the LaunchDarkly SDK, rather than calling this function directly, it is simpler to use
-// ld.NewHTTPClientFactory().
+// the methods provided by ldcomponents.HTTPConfiguration().
 func NewHTTPTransport(options ...TransportOption) (*http.Transport, *net.Dialer, error) {
 	extraOptions := transportExtraOptions{
 		connectTimeout: defaultConnectTimeout,

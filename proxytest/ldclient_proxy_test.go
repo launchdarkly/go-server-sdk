@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
-
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/ldservices"
+
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
 )
 
 func TestClientUsesProxyEnvVars(t *testing.T) {
@@ -41,11 +41,10 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 		// same mechanism, so it's simpler to just test against an insecure proxy.
 		os.Setenv("HTTP_PROXY", proxy.URL)
 
-		config := ld.DefaultConfig
-		config.Loggers = shared.NullLoggers()
-		config.BaseUri = fakeBaseURL
-		config.SendEvents = false
-		config.Stream = false
+		config := ld.Config{}
+		config.Logging = sharedtest.TestLogging()
+		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
+		config.Events = ldcomponents.NoEvents()
 
 		client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 		require.NoError(t, err)
@@ -69,12 +68,11 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 		proxyURL, err := url.Parse(proxy.URL)
 		require.NoError(t, err)
 
-		config := ld.DefaultConfig
-		config.HTTPClientFactory = ld.NewHTTPClientFactory(ldhttp.ProxyOption(*proxyURL))
-		config.Loggers = shared.NullLoggers()
-		config.BaseUri = fakeBaseURL
-		config.SendEvents = false
-		config.Stream = false
+		config := ld.Config{}
+		config.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(*proxyURL)
+		config.Logging = sharedtest.TestLogging()
+		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
+		config.Events = ldcomponents.NoEvents()
 
 		client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 		require.NoError(t, err)

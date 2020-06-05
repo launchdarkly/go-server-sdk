@@ -3,6 +3,7 @@
 
 set -ue
 
-LDCLIENT_GO_TEMP=./ldclient.go.tmp
-sed "s/const Version =.*/const Version = \"${LD_RELEASE_VERSION}\"/g" ldclient.go > ${LDCLIENT_GO_TEMP}
-mv ${LDCLIENT_GO_TEMP} ldclient.go
+SOURCE_FILE=./internal/version.go
+TEMP_FILE=${SOURCE_FILE}.tmp
+sed "s/const SDKVersion =.*/const SDKVersion = \"${LD_RELEASE_VERSION}\"/g" ${SOURCE_FILE} > ${TEMP_FILE}
+mv ${TEMP_FILE} ${SOURCE_FILE}

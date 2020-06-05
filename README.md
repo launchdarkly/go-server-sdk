@@ -1,24 +1,25 @@
-LaunchDarkly Server-side SDK for Go
-===========================
+# LaunchDarkly Server-side SDK for Go
 
 [![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=svg)](https://circleci.com/gh/launchdarkly/go-server-sdk)
 
-LaunchDarkly overview
--------------------------
+## This is a prerelease branch
+
+The `v5` branch currently contains prerelease code for development of Go SDK 5.0.0. For the source code of the latest release of Go SDK 4.x, see the [`v4` branch](https://github.com/launchdarkly/go-server-sdk/tree/v4).
+
+## LaunchDarkly overview
+
 [LaunchDarkly](https://www.launchdarkly.com) is a feature management platform that serves over 100 billion feature flags daily to help teams build better software, faster. [Get started](https://docs.launchdarkly.com/docs/getting-started) using LaunchDarkly today!
  
-Supported Go versions
--------------------------
+## Supported Go versions
 
-This version of the LaunchDarkly SDK has been tested with Go 1.8 through 1.14.
+This version of the LaunchDarkly SDK has been tested with Go 1.12 and higher.
 
-Getting started
------------
+## Getting started
 
 Refer to the [SDK documentation](https://docs.launchdarkly.com/docs/go-sdk-reference#section-getting-started) for instructions on getting started with using the SDK.
 
-HTTPS proxy
-------------
+## HTTPS proxy
+
 Go's standard HTTP library provides built-in support for the use of an HTTPS proxy. If the HTTPS_PROXY environment variable is present then the SDK will proxy all network requests through the URL provided.
 
 How to set the HTTPS_PROXY environment variable on Mac/Linux systems:
@@ -26,12 +27,10 @@ How to set the HTTPS_PROXY environment variable on Mac/Linux systems:
 export HTTPS_PROXY=https://web-proxy.domain.com:8080
 ```
 
-
 How to set the HTTPS_PROXY environment variable on Windows systems:
 ```
 set HTTPS_PROXY=https://web-proxy.domain.com:8080
 ```
-
 
 If your proxy requires authentication then you can prefix the URN with your login information:
 ```
@@ -42,29 +41,23 @@ or
 set HTTPS_PROXY=http://user:pass@web-proxy.domain.com:8080
 ```
 
+## Database integrations
 
-Database integrations
----------------------
+Feature flag data can be kept in a persistent store using Redis, Consul, or DynamoDB. These adapters are implemented in the subpackages `redis`, `ldconsul`, and `lddynamodb`; to use them, call the `New...DataStoreFactory` function provided by the subpackage, and put the returned object in the `DataStoreFactory` field of your client configuration. See the subpackages and the [SDK reference guide](https://docs.launchdarkly.com/docs/using-a-persistent-feature-store) for more information.
 
-Feature flag data can be kept in a persistent store using Redis, Consul, or DynamoDB. These adapters are implemented in the subpackages `redis`, `ldconsul`, and `lddynamodb`; to use them, call the `New...FeatureStore` function provided by the subpackage, and put the returned object in the `FeatureStore` field of your client configuration. See the subpackages and the [SDK reference guide](https://docs.launchdarkly.com/docs/using-a-persistent-feature-store) for more information.
-
-Learn more
------------
+## Learn more
 
 Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference).
 
-Testing
--------
+## Testing
 
 We run integration tests for all our SDKs using a centralized test harness. This approach gives us the ability to test for consistency across SDKs, as well as test networking behavior in a long-running application. These tests cover each method in the SDK, and verify that event sending, flag evaluation, stream reconnection, and other aspects of the SDK all behave correctly.
 
-Contributing
-------------
+## Contributing
 
 We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this SDK.
 
-About LaunchDarkly
------------
+## About LaunchDarkly
 
 * LaunchDarkly is a continuous delivery platform that provides feature flags as a service and allows developers to iterate quickly and safely. We allow you to easily flag your features and manage them from the LaunchDarkly dashboard.  With LaunchDarkly, you can:
     * Roll out a new feature to a subset of your users (like a group of users who opt-in to a beta tester group), gathering feedback and bug reports from real-world use cases.

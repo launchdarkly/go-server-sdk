@@ -25,7 +25,7 @@
   non-go = true
   go-tests = true
 
-[[constraint]]
+[[override]]
   name = "github.com/blang/semver"
   version = "3.5.1"
 

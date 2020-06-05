@@ -2,6 +2,7 @@ package lddynamodb
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,11 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/shared_test/ldtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 const (
@@ -22,50 +21,65 @@ const (
 	testTableName       = "LD_DYNAMODB_TEST_TABLE"
 )
 
-func TestDynamoDBFeatureStoreUncached(t *testing.T) {
-	err := createTableIfNecessary()
-	require.NoError(t, err)
+func TestDynamoDBDataStore(t *testing.T) {
+	if !sharedtest.ShouldSkipDatabaseTests() {
+		err := createTableIfNecessary()
+		require.NoError(t, err)
+	}
 
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(0), clearExistingData, false)
+	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+		ConcurrentModificationHook(setConcurrentModificationHook).
+		Run(t)
 }
 
-func TestDynamoDBFeatureStoreCached(t *testing.T) {
-	err := createTableIfNecessary()
-	require.NoError(t, err)
-
-	ldtest.RunFeatureStoreTests(t, makeStoreWithCacheTTL(30*time.Second), clearExistingData, true)
+func baseBuilder() *DataStoreBuilder {
+	return DataStore(testTableName).SessionOptions(makeTestOptions())
 }
 
-func TestDynamoDBFeatureStorePrefixes(t *testing.T) {
-	ldtest.RunFeatureStorePrefixIndependenceTests(t,
-		func(prefix string) (ld.FeatureStore, error) {
-			return NewDynamoDBFeatureStore(testTableName, SessionOptions(makeTestOptions()),
-				Prefix(prefix), CacheTTL(0))
-		}, clearExistingData)
+func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
+	return baseBuilder().Prefix(prefix)
 }
 
-func TestDynamoDBFeatureStoreConcurrentModification(t *testing.T) {
-	opts, _ := validateOptions(testTableName, SessionOptions(makeTestOptions()))
-	store1Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
-	require.NoError(t, err)
-	store1 := utils.NewNonAtomicFeatureStoreWrapper(store1Internal)
-	store2Internal, err := newDynamoDBFeatureStoreInternal(opts, ld.Config{})
-	require.NoError(t, err)
-	store2 := utils.NewNonAtomicFeatureStoreWrapper(store2Internal)
-	ldtest.RunFeatureStoreConcurrentModificationTests(t, store1, store2, func(hook func()) {
-		store1Internal.testUpdateHook = hook
+func clearTestData(prefix string) error {
+	if prefix == "" {
+		prefix = DefaultPrefix
+	}
+
+	client, err := createTestClient()
+	if err != nil {
+		return err
+	}
+	var items []map[string]*dynamodb.AttributeValue
+
+	err = client.ScanPages(&dynamodb.ScanInput{
+		TableName:            aws.String(testTableName),
+		ConsistentRead:       aws.Bool(true),
+		ProjectionExpression: aws.String("#namespace, #key"),
+		ExpressionAttributeNames: map[string]*string{
+			"#namespace": aws.String(tablePartitionKey),
+			"#key":       aws.String(tableSortKey),
+		},
+	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
+		items = append(items, out.Items...)
+		return !lastPage
 	})
+	if err != nil {
+		return err
+	}
+
+	var requests []*dynamodb.WriteRequest
+	for _, item := range items {
+		if strings.HasPrefix(*item[tablePartitionKey].S, prefix+":") {
+			requests = append(requests, &dynamodb.WriteRequest{
+				DeleteRequest: &dynamodb.DeleteRequest{Key: item},
+			})
+		}
+	}
+	return batchWriteRequests(client, testTableName, requests)
 }
 
-func TestDynamoDBStoreComponentTypeName(t *testing.T) {
-	factory, _ := NewDynamoDBFeatureStoreFactory("table")
-	store, _ := factory(ld.DefaultConfig)
-	assert.Equal(t, "DynamoDB", (store.(*utils.FeatureStoreWrapper)).GetDiagnosticsComponentTypeName())
-}
-
-func makeStoreWithCacheTTL(ttl time.Duration) ld.FeatureStoreFactory {
-	f, _ := NewDynamoDBFeatureStoreFactory(testTableName, SessionOptions(makeTestOptions()), CacheTTL(ttl))
-	return f
+func setConcurrentModificationHook(store interfaces.PersistentDataStore, hook func()) {
+	store.(*dynamoDBDataStore).testUpdateHook = hook
 }
 
 func makeTestOptions() session.Options {
@@ -143,36 +157,4 @@ func createTableIfNecessary() error {
 			}
 		}
 	}
-}
-
-func clearExistingData() error {
-	client, err := createTestClient()
-	if err != nil {
-		return err
-	}
-	var items []map[string]*dynamodb.AttributeValue
-
-	err = client.ScanPages(&dynamodb.ScanInput{
-		TableName:            aws.String(testTableName),
-		ConsistentRead:       aws.Bool(true),
-		ProjectionExpression: aws.String("#namespace, #key"),
-		ExpressionAttributeNames: map[string]*string{
-			"#namespace": aws.String(tablePartitionKey),
-			"#key":       aws.String(tableSortKey),
-		},
-	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
-		items = append(items, out.Items...)
-		return !lastPage
-	})
-	if err != nil {
-		return err
-	}
-
-	var requests []*dynamodb.WriteRequest
-	for _, item := range items {
-		requests = append(requests, &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{Key: item},
-		})
-	}
-	return batchWriteRequests(client, testTableName, requests)
 }

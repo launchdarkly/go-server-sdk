@@ -3,36 +3,33 @@ package ldclient
 import (
 	"crypto/x509"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/ldservices"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/launchdarkly/go-sdk-common.v1/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldhttp"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v4/shared_test"
+)
+
+const (
+	initializationFailedErrorMessage = "LaunchDarkly client initialization failed"
+	pollingModeWarningMessage        = "You should only disable the streaming API if instructed to do so by LaunchDarkly support"
 )
 
 // This file contains smoke tests for a complete SDK instance running against embedded HTTP servers. We have many
 // component-level tests elsewhere (including tests of the components' network behavior using an instrumented
 // HTTPClient), but the end-to-end tests verify that the client is setting those components up correctly, with a
 // configuration that's as close to the default configuration as possible (just changing the service URIs).
-
-const testSdkKey = "sdk-key"
-
-var testUser = NewUser("test-user-key")
-
-var alwaysTrueFlag = FeatureFlag{
-	Key:          "always-true-flag",
-	Version:      1,
-	On:           false,
-	OffVariation: intPtr(0),
-	Variations:   []interface{}{true},
-}
 
 func assertNoMoreRequests(t *testing.T, requestsCh <-chan httphelpers.HTTPRequestInfo) {
 	assert.Equal(t, 0, len(requestsCh))
@@ -45,14 +42,17 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		logCapture := shared.NewMockLoggers()
 
-		config := DefaultConfig
-		config.StreamUri = streamServer.URL
-		config.SendEvents = false
-		config.Loggers = logCapture.Loggers
+		config := Config{
+			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 		require.NoError(t, err)
 		defer client.Close()
+
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
@@ -61,34 +61,42 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		assert.Nil(t, logCapture.Output[ldlog.Error])
-		assert.Nil(t, logCapture.Output[ldlog.Warn])
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
+		assert.Len(t, logCapture.GetOutput(ldlog.Warn), 0)
 	})
 }
 
 func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
-	streamServer := httptest.NewServer(handler)
-	defer streamServer.Close()
+	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
+		logCapture := shared.NewMockLoggers()
 
-	logCapture := shared.NewMockLoggers()
+		config := Config{
+			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+		}
 
-	config := DefaultConfig
-	config.StreamUri = streamServer.URL
-	config.SendEvents = false
-	config.Loggers = logCapture.Loggers
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
 
-	client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-	require.Error(t, err)
-	require.NotNil(t, client)
-	defer client.Close()
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 
-	value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
-	assert.False(t, value)
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
-	r := <-requestsCh
-	assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
-	assertNoMoreRequests(t, requestsCh)
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.False(t, value)
+
+		r := <-requestsCh
+		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
+		assertNoMoreRequests(t, requestsCh)
+
+		expectedError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
+		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
+		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+	})
 }
 
 func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
@@ -99,14 +107,17 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		logCapture := shared.NewMockLoggers()
 
-		config := DefaultConfig
-		config.StreamUri = streamServer.URL
-		config.SendEvents = false
-		config.Loggers = logCapture.Loggers
+		config := Config{
+			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 		require.NoError(t, err)
 		defer client.Close()
+
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
@@ -117,8 +128,9 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 		assert.Equal(t, testSdkKey, r1.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		assert.Equal(t, 1, len(logCapture.Output[ldlog.Error]))
-		assert.Equal(t, 0, len(logCapture.Output[ldlog.Warn]))
+		expectedWarning := "Error in stream connection (will retry): HTTP error 503"
+		assert.Equal(t, []string{expectedWarning}, logCapture.GetOutput(ldlog.Warn))
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 	})
 }
 
@@ -128,15 +140,17 @@ func TestClientStartsInPollingMode(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(pollServer *httptest.Server) {
 		logCapture := shared.NewMockLoggers()
 
-		config := DefaultConfig
-		config.Stream = false
-		config.BaseUri = pollServer.URL
-		config.SendEvents = false
-		config.Loggers = logCapture.Loggers
+		config := Config{
+			DataSource: ldcomponents.PollingDataSource().BaseURI(pollServer.URL),
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 		require.NoError(t, err)
 		defer client.Close()
+
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
@@ -145,37 +159,42 @@ func TestClientStartsInPollingMode(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		assert.Nil(t, logCapture.Output[ldlog.Error])
-		assert.Equal(t, []string{
-			"You should only disable the streaming API if instructed to do so by LaunchDarkly support",
-		}, logCapture.Output[ldlog.Warn])
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
+		assert.Equal(t, []string{pollingModeWarningMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
 func TestClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
-	pollServer := httptest.NewServer(handler)
-	defer pollServer.Close()
+	httphelpers.WithServer(handler, func(pollServer *httptest.Server) {
+		logCapture := shared.NewMockLoggers()
 
-	logCapture := shared.NewMockLoggers()
+		config := Config{
+			DataSource: ldcomponents.PollingDataSource().BaseURI(pollServer.URL),
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+		}
 
-	config := DefaultConfig
-	config.Stream = false
-	config.BaseUri = pollServer.URL
-	config.SendEvents = false
-	config.Loggers = logCapture.Loggers
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
 
-	client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-	require.Error(t, err)
-	require.NotNil(t, client)
-	defer client.Close()
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 
-	value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
-	assert.False(t, value)
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
-	r := <-requestsCh
-	assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
-	assertNoMoreRequests(t, requestsCh)
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.False(t, value)
+
+		r := <-requestsCh
+		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
+		assertNoMoreRequests(t, requestsCh)
+
+		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
+		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
+		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+	})
 }
 
 func TestClientSendsEventWithoutDiagnostics(t *testing.T) {
@@ -186,11 +205,12 @@ func TestClientSendsEventWithoutDiagnostics(t *testing.T) {
 		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
 			logCapture := shared.NewMockLoggers()
 
-			config := DefaultConfig
-			config.EventsUri = eventsServer.URL
-			config.StreamUri = streamServer.URL
-			config.DiagnosticOptOut = true
-			config.Loggers = logCapture.Loggers
+			config := Config{
+				DataSource:       ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
+				DiagnosticOptOut: true,
+				Events:           ldcomponents.SendEvents().BaseURI(eventsServer.URL),
+				Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			}
 
 			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 			require.NoError(t, err)
@@ -218,12 +238,11 @@ func TestClientSendsDiagnostics(t *testing.T) {
 		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
 		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
 		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-			logCapture := shared.NewMockLoggers()
-
-			config := DefaultConfig
-			config.EventsUri = eventsServer.URL
-			config.StreamUri = streamServer.URL
-			config.Loggers = logCapture.Loggers
+			config := Config{
+				DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
+				Events:     ldcomponents.SendEvents().BaseURI(eventsServer.URL),
+				Logging:    shared.TestLogging(),
+			}
 
 			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 			require.NoError(t, err)
@@ -245,10 +264,12 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
-		config := DefaultConfig
-		config.HTTPClientFactory = NewHTTPClientFactory(ldhttp.CACertOption(certData))
-		config.StreamUri = server.URL
-		config.SendEvents = false
+		config := Config{
+			DataSource: ldcomponents.StreamingDataSource().BaseURI(server.URL),
+			Events:     ldcomponents.NoEvents(),
+			HTTP:       ldcomponents.HTTPConfiguration().CACert(certData),
+			Logging:    shared.TestLogging(),
+		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 		require.NoError(t, err)
@@ -256,5 +277,37 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
+	})
+}
+
+func TestClientStartupTimesOut(t *testing.T) {
+	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+	slowHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		streamHandler.ServeHTTP(w, r)
+	})
+
+	httphelpers.WithServer(slowHandler, func(streamServer *httptest.Server) {
+		logCapture := shared.NewMockLoggers()
+
+		config := Config{
+			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Millisecond*100)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
+
+		assert.Equal(t, "timeout encountered waiting for LaunchDarkly client initialization", err.Error())
+
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.False(t, value)
+
+		assert.Equal(t, []string{"Timeout encountered waiting for LaunchDarkly client initialization"}, logCapture.GetOutput(ldlog.Warn))
+		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 	})
 }

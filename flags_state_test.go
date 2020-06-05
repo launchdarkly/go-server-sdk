@@ -4,73 +4,78 @@ import (
 	"encoding/json"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func TestFlagsStateCanGetFlagValue(t *testing.T) {
-	flag := FeatureFlag{Key: "key"}
+	flag := ldbuilders.NewFlagBuilder("key").Build()
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), nil, false)
+	state.addFlag(flag, ldvalue.String("value"), 1, ldreason.EvaluationReason{}, false)
 
-	assert.Equal(t, "value", state.GetFlagValue("key"))
+	assert.Equal(t, ldvalue.String("value"), state.GetFlagValue("key"))
 }
 
 func TestFlagsStateUnknownFlagReturnsNilValue(t *testing.T) {
 	state := newFeatureFlagsState()
 
-	assert.Nil(t, state.GetFlagValue("key"))
+	assert.Equal(t, ldvalue.Null(), state.GetFlagValue("key"))
 }
 
 func TestFlagsStateCanGetFlagReason(t *testing.T) {
-	flag := FeatureFlag{Key: "key"}
+	flag := ldbuilders.NewFlagBuilder("key").Build()
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), evalReasonOffInstance, false)
+	state.addFlag(flag, ldvalue.String("value"), 1, ldreason.NewEvalReasonOff(), false)
 
-	assert.Equal(t, evalReasonOffInstance, state.GetFlagReason("key"))
+	assert.Equal(t, ldreason.NewEvalReasonOff(), state.GetFlagReason("key"))
 }
 
-func TestFlagsStateUnknownFlagReturnsNilReason(t *testing.T) {
+func TestFlagsStateUnknownFlagReturnsEmptyReason(t *testing.T) {
 	state := newFeatureFlagsState()
 
-	assert.Nil(t, state.GetFlagReason("key"))
+	assert.Equal(t, ldreason.EvaluationReason{}, state.GetFlagReason("key"))
 }
 
-func TestFlagsStateReturnsNilReasonIfReasonsWereNotRecored(t *testing.T) {
-	flag := FeatureFlag{Key: "key"}
+func TestFlagsStateReturnsEmptyReasonIfReasonsWereNotRecorded(t *testing.T) {
+	flag := ldbuilders.NewFlagBuilder("key").Build()
 	state := newFeatureFlagsState()
-	state.addFlag(&flag, "value", intPtr(1), nil, false)
+	state.addFlag(flag, ldvalue.String("value"), 1, ldreason.EvaluationReason{}, false)
 
-	assert.Nil(t, state.GetFlagReason("key"))
+	assert.Equal(t, ldreason.EvaluationReason{}, state.GetFlagReason("key"))
 }
 
 func TestFlagsStateToValuesMap(t *testing.T) {
-	flag1 := FeatureFlag{Key: "key1"}
-	flag2 := FeatureFlag{Key: "key2"}
+	flag1 := ldbuilders.NewFlagBuilder("key1").Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").Build()
 	state := newFeatureFlagsState()
-	state.addFlag(&flag1, "value1", intPtr(0), nil, false)
-	state.addFlag(&flag2, "value2", intPtr(1), nil, false)
+	state.addFlag(flag1, ldvalue.String("value1"), 0, ldreason.EvaluationReason{}, false)
+	state.addFlag(flag2, ldvalue.String("value2"), 1, ldreason.EvaluationReason{}, false)
 
-	expected := map[string]interface{}{"key1": "value1", "key2": "value2"}
+	expected := map[string]ldvalue.Value{"key1": ldvalue.String("value1"), "key2": ldvalue.String("value2")}
 	assert.Equal(t, expected, state.ToValuesMap())
 }
 
 func TestFlagsStateToJSON(t *testing.T) {
-	date := uint64(1000)
-	flag1 := FeatureFlag{Key: "key1", Version: 100, TrackEvents: false}
-	flag2 := FeatureFlag{Key: "key2", Version: 200, TrackEvents: true, DebugEventsUntilDate: &date}
+	date := ldtime.UnixMillisecondTime(1000)
+	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).TrackEvents(true).DebugEventsUntilDate(date).Build()
 	state := newFeatureFlagsState()
-	state.addFlag(&flag1, "value1", intPtr(0), nil, false)
-	state.addFlag(&flag2, "value2", intPtr(1), nil, false)
+	state.addFlag(flag1, ldvalue.String("value1"), 0, ldreason.EvaluationReason{}, false)
+	state.addFlag(flag2, ldvalue.String("value2"), 1, ldreason.EvaluationReason{}, false)
 
 	expectedString := `{
 		"key1":"value1",
 		"key2":"value2",
 		"$flagsState":{
 	  		"key1":{
-				"variation":0,"version":100
+				"variation":0,"version":100,"reason":null
 			},
 			"key2": {
-				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000
+				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000,"reason":null
 			}
 		},
 		"$valid":true

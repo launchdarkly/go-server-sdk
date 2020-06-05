@@ -6,36 +6,18 @@ orbs:
 workflows:
   workflow:
     jobs:
-      # Note that currently we are using a golangci-lint version that supports our oldest compatible
-      # version, 1.8. Because of how build tags are handled in golangci-lint, that version is not
-      # compatible with 1.12 and above. So, until a future version where we drop older versions, we
-      # won't run the linter in 1.12 and above.
       - go-test:
           name: Go 1.14
           docker-image: circleci/golang:1.14
-          run-lint: false
       - go-test:
           name: Go 1.13
           docker-image: circleci/golang:1.13
-          run-lint: false
       - go-test:
           name: Go 1.12
           docker-image: circleci/golang:1.12
-          run-lint: false
-      - go-test:
-          name: Go 1.11
-          docker-image: circleci/golang:1.11
-      - go-test:
-          name: Go 1.10
-          docker-image: circleci/golang:1.10
-      - go-test:
-          name: Go 1.9
-          docker-image: circleci/golang:1.9
-      - go-test:
-          name: Go 1.8
-          docker-image: circleci/golang:1.8
       - go-test-windows:
           name: Windows
+      - benchmarks
 
 jobs:
   go-test:
@@ -43,6 +25,8 @@ jobs:
       run-lint:
         type: boolean
         default: true
+        # We are currently linting in all Go versions, but this parameter lets us turn it off for some, in
+        # case we need to support more versions than a single version of golangci-lint is compatible with
       docker-image:
         type: string
 
@@ -58,7 +42,7 @@ jobs:
       - image: consul
       - image: amazon/dynamodb-local
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
@@ -67,7 +51,7 @@ jobs:
           condition: <<parameters.run-lint>>
           steps:
             - run: make lint
-      - run: dep ensure -dry-run
+      # - run: dep ensure -dry-run  # we're currently using private repos for some of our dependencies, so this won't work in CI
       - run: go build ./...
       
       - run:
@@ -91,7 +75,7 @@ jobs:
 
     environment:
       GOPATH: C:\Users\VssAdministrator\go
-      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v4
+      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v5
 
     steps:
       - checkout
@@ -137,3 +121,26 @@ jobs:
           command: |
             cd ${env:GOPATH}\src\${env:PACKAGE_PATH}
             go test -race ./...
+
+  benchmarks:
+    docker:
+      - image: circleci/golang:1.14
+        environment:
+          CIRCLE_ARTIFACTS: /tmp/circle-artifacts
+          COMMON_GO_PACKAGES: >
+            github.com/golang/dep/cmd/dep
+
+    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
+
+    steps:
+      - checkout
+      - run: go get -u github.com/golang/dep/cmd/dep
+      - run: go build ./...      
+      - run:
+          name: Run benchmarks
+          command: |
+            mkdir -p $CIRCLE_ARTIFACTS
+            make benchmarks | tee $CIRCLE_ARTIFACTS/benchmarks.txt
+
+      - store_artifacts:
+          path: /tmp/circle-artifacts
