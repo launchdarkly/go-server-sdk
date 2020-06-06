@@ -37,12 +37,9 @@ func newFileDataSourceImpl(
 	filePaths []string,
 	reloaderFactory ReloaderFactory,
 ) (interfaces.DataSource, error) {
-	if dataSourceUpdates == nil {
-		return nil, fmt.Errorf("dataSourceUpdates must not be nil")
-	}
-
 	abs, err := absFilePaths(filePaths)
 	if err != nil {
+		// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
 		return nil, err
 	}
 
@@ -133,6 +130,7 @@ func absFilePaths(paths []string) ([]string, error) {
 	for _, p := range paths {
 		absPath, err := filepath.Abs(p)
 		if err != nil {
+			// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
 			return nil, fmt.Errorf("unable to determine absolute path for '%s'", p)
 		}
 		absPaths = append(absPaths, absPath)
@@ -179,7 +177,7 @@ func readFile(path string) (fileData, error) {
 
 func detectJSON(rawData []byte) bool {
 	// A valid JSON file for our purposes must be an object, i.e. it must start with '{'
-	return strings.HasPrefix("{", strings.TrimLeftFunc(string(rawData), unicode.IsSpace))
+	return strings.HasPrefix(strings.TrimLeftFunc(string(rawData), unicode.IsSpace), "{")
 }
 
 func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error) {

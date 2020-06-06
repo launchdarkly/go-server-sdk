@@ -3,10 +3,10 @@ package ldcomponents
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 type nullDataSourceFactory struct{}
-type nullDataSource struct{}
 
 // ExternalUpdatesOnly returns a configuration object that disables a direct connection with LaunchDarkly
 // for feature flag updates.
@@ -31,16 +31,11 @@ func (f nullDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	if context.GetBasic().Offline {
-		// If they have explicitly set Offline to disable everything, we'll log this slightly more specific message.
-		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
-	} else {
-		context.GetLogging().GetLoggers().Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
-	}
+	context.GetLogging().GetLoggers().Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
 	if dataSourceUpdates != nil {
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 	}
-	return nullDataSource{}, nil
+	return internal.NewNullDataSource(), nil
 }
 
 // DiagnosticDescription implementation
@@ -53,18 +48,4 @@ func (f nullDataSourceFactory) DescribeConfiguration() ldvalue.Value {
 		Set("customStreamURI", ldvalue.Bool(false)).
 		Set("usingRelayDaemon", ldvalue.Bool(true)).
 		Build()
-}
-
-// DataSource implementation
-
-func (n nullDataSource) IsInitialized() bool {
-	return true
-}
-
-func (n nullDataSource) Close() error {
-	return nil
-}
-
-func (n nullDataSource) Start(closeWhenReady chan<- struct{}) {
-	close(closeWhenReady)
 }

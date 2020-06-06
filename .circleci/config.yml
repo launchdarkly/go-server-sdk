@@ -9,6 +9,7 @@ workflows:
       - go-test:
           name: Go 1.14
           docker-image: circleci/golang:1.14
+          with-coverage: true
       - go-test:
           name: Go 1.13
           docker-image: circleci/golang:1.13
@@ -22,14 +23,17 @@ workflows:
 jobs:
   go-test:
     parameters:
+      docker-image:
+        type: string
       run-lint:
         type: boolean
         default: true
         # We are currently linting in all Go versions, but this parameter lets us turn it off for some, in
         # case we need to support more versions than a single version of golangci-lint is compatible with
-      docker-image:
-        type: string
-
+      with-coverage:
+        type: boolean
+        default: false
+  
     docker:
       - image: <<parameters.docker-image>>
         environment:
@@ -53,15 +57,29 @@ jobs:
             - run: make lint
       # - run: dep ensure -dry-run  # we're currently using private repos for some of our dependencies, so this won't work in CI
       - run: go build ./...
-      
+
       - run:
-          name: Run tests
+          name: Prepare tests
           command: |
             mkdir -p $CIRCLE_TEST_REPORTS
             mkdir -p $CIRCLE_ARTIFACTS
-            trap "go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
-            make test | tee $CIRCLE_ARTIFACTS/report.txt
 
+      - run:
+        name: Run tests
+        command: make test | tee $CIRCLE_ARTIFACTS/report.txt
+    
+      - when:
+          condition: <<parameters.with-coverage>>
+          steps:
+            - run:
+                name: Make coverage report
+                command: make test-coverage
+
+      - run:
+          name: Process test results
+          command: go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml
+          when: always
+      
       - store_test_results:
           path: /tmp/circle-reports
 

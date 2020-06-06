@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
@@ -18,6 +19,93 @@ import (
 
 // Note that we can't really test every event configuration option in these tests - they are tested in detail in
 // the ldevents package, but we do want to verify that the basic options are being passed to ldevents correctly.
+
+func TestEventProcessorBuilder(t *testing.T) {
+	t.Run("AllAttributesPrivate", func(t *testing.T) {
+		b := SendEvents()
+		assert.False(t, b.allAttributesPrivate)
+
+		b.AllAttributesPrivate(true)
+		assert.True(t, b.allAttributesPrivate)
+
+		b.AllAttributesPrivate(false)
+		assert.False(t, b.allAttributesPrivate)
+	})
+
+	t.Run("BaseURI", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, DefaultEventsBaseURI, b.baseURI)
+
+		b.BaseURI("x")
+		assert.Equal(t, "x", b.baseURI)
+
+		b.BaseURI("")
+		assert.Equal(t, DefaultEventsBaseURI, b.baseURI)
+	})
+
+	t.Run("Capacity", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, DefaultEventsCapacity, b.capacity)
+
+		b.Capacity(333)
+		assert.Equal(t, 333, b.capacity)
+	})
+
+	t.Run("DiagnosticRecordingInterval", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, DefaultDiagnosticRecordingInterval, b.diagnosticRecordingInterval)
+
+		b.DiagnosticRecordingInterval(time.Hour)
+		assert.Equal(t, time.Hour, b.diagnosticRecordingInterval)
+
+		b.DiagnosticRecordingInterval(time.Second)
+		assert.Equal(t, MinimumDiagnosticRecordingInterval, b.diagnosticRecordingInterval)
+	})
+
+	t.Run("FlushInterval", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, DefaultFlushInterval, b.flushInterval)
+
+		b.FlushInterval(time.Hour)
+		assert.Equal(t, time.Hour, b.flushInterval)
+	})
+
+	t.Run("InlineUsersInEvents", func(t *testing.T) {
+		b := SendEvents()
+		assert.False(t, b.inlineUsersInEvents)
+
+		b.InlineUsersInEvents(true)
+		assert.True(t, b.inlineUsersInEvents)
+
+		b.InlineUsersInEvents(false)
+		assert.False(t, b.inlineUsersInEvents)
+	})
+
+	t.Run("PrivateAttributeNames", func(t *testing.T) {
+		b := SendEvents()
+		assert.Len(t, b.privateAttributeNames, 0)
+
+		b.PrivateAttributeNames(lduser.NameAttribute, lduser.UserAttribute("other"))
+		assert.Equal(t, []lduser.UserAttribute{lduser.NameAttribute, lduser.UserAttribute("other")},
+			b.privateAttributeNames)
+	})
+
+	t.Run("UserKeysCapacity", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, DefaultUserKeysCapacity, b.userKeysCapacity)
+
+		b.UserKeysCapacity(333)
+		assert.Equal(t, 333, b.userKeysCapacity)
+	})
+
+	t.Run("UserKeysFlushInterval", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, DefaultUserKeysFlushInterval, b.userKeysFlushInterval)
+
+		b.UserKeysFlushInterval(time.Hour)
+		assert.Equal(t, time.Hour, b.userKeysFlushInterval)
+	})
+}
 
 func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())

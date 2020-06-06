@@ -5,9 +5,13 @@ LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
 TEST_BINARY=./go-server-sdk.test
-ALLOCATIONS_LOG=./allocations.out
 
-.PHONY: build clean test benchmarks benchmark-allocs lint
+OUTPUT_DIR=./build
+ALLOCATIONS_LOG=$(OUTPUT_DIR)/allocations.out
+COVERAGE_LOG=$(OUTPUT_DIR)/coverage.out
+COVERAGE_HTML=$(OUTPUT_DIR)/coverage.html
+
+.PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
 
 build:
 	go build ./...
@@ -22,6 +26,11 @@ test:
 	@# get unexpected errors.
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
 
+test-coverage:
+	mkdir -p $(OUTPUT_DIR)
+	go test -coverpkg ./... -coverprofile $(COVERAGE_LOG) ./...
+	go tool cover -html $(COVERAGE_LOG) -o $(COVERAGE_HTML)
+
 benchmarks:
 	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
 
@@ -32,6 +41,7 @@ benchmarks:
 #    count per run, possibly because the first run
 benchmark-allocs:
 	@if [ -z "$$BENCHMARK" ]; then echo "must specify BENCHMARK=" && exit 1; fi
+	@mkdir -p $(OUTPUT_DIR)
 	@echo Precompiling test code to $(TEST_BINARY)
 	@go test -c -o $(TEST_BINARY) >/dev/null 2>&1
 	@echo "Generating heap allocation traces in $(ALLOCATIONS_LOG) for benchmark(s): $$BENCHMARK"

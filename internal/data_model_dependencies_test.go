@@ -19,7 +19,7 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("key").Build()
 	assert.Len(
 		t,
-		computeDependenciesFrom(intf.DataKindFeatures(), intf.StoreItemDescriptor{Version: flag1.Version, Item: &flag1}),
+		computeDependenciesFrom(intf.DataKindFeatures(), sharedtest.FlagDescriptor(flag1)),
 		0,
 	)
 
@@ -47,7 +47,24 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 			{intf.DataKindSegments(), "segment2"}: true,
 			{intf.DataKindSegments(), "segment3"}: true,
 		},
-		computeDependenciesFrom(intf.DataKindFeatures(), intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2}),
+		computeDependenciesFrom(intf.DataKindFeatures(), sharedtest.FlagDescriptor(flag2)),
+	)
+
+	flag3 := ldbuilders.NewFlagBuilder("key").
+		AddRule(
+			ldbuilders.NewRuleBuilder().Clauses(
+				ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("ignore")),
+				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment1"), ldvalue.String("segment2")),
+			),
+		).
+		Build()
+	assert.Equal(
+		t,
+		kindAndKeySet{
+			{intf.DataKindSegments(), "segment1"}: true,
+			{intf.DataKindSegments(), "segment2"}: true,
+		},
+		computeDependenciesFrom(intf.DataKindFeatures(), sharedtest.FlagDescriptor(flag3)),
 	)
 }
 
@@ -80,6 +97,30 @@ func TestSortCollectionsForDataStoreInit(t *testing.T) {
 	inputData := makeDependencyOrderingDataSourceTestData()
 	sortedData := sortCollectionsForDataStoreInit(inputData)
 	verifySortedData(t, sortedData, inputData)
+}
+
+func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
+	item1 := sharedtest.MockDataItem{Key: "item1"}
+	item2 := sharedtest.MockDataItem{Key: "item2"}
+	flag := ldbuilders.NewFlagBuilder("a").Build()
+	inputData := []intf.StoreCollection{
+		{sharedtest.MockData, []intf.StoreKeyedItemDescriptor{
+			{item1.Key, item1.ToItemDescriptor()},
+			{item2.Key, item2.ToItemDescriptor()},
+		}},
+		{intf.DataKindFeatures(), []intf.StoreKeyedItemDescriptor{
+			{"a", sharedtest.FlagDescriptor(flag)},
+		}},
+		{intf.DataKindSegments(), nil},
+	}
+	sortedData := sortCollectionsForDataStoreInit(inputData)
+
+	// the unknown data kind appears last, and the ordering of its items is unchanged
+	assert.Len(t, sortedData, 3)
+	assert.Equal(t, intf.DataKindSegments(), sortedData[0].Kind)
+	assert.Equal(t, intf.DataKindFeatures(), sortedData[1].Kind)
+	assert.Equal(t, sharedtest.MockData, sortedData[2].Kind)
+	assert.Equal(t, inputData[0].Items, sortedData[2].Items)
 }
 
 func TestDependencyTrackerReturnsSingleValueResultForUnknownItem(t *testing.T) {

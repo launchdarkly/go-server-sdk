@@ -4,103 +4,71 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
-func makeOfflineClient() *LDClient {
-	config := Config{Offline: true, Logging: sharedtest.TestLogging()}
-	client, _ := MakeCustomClient("api_key", config, 0)
-	return client
+type clientOfflineTestParams struct {
+	client  *LDClient
+	store   interfaces.DataStore
+	mockLog *sharedtest.MockLoggers
 }
 
-func TestOfflineClientIsInitialized(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
-	assert.True(t, client.Initialized())
-	assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
+func withClientOfflineTestParams(callback func(clientExternalUpdatesTestParams)) {
+	p := clientExternalUpdatesTestParams{}
+	p.store = internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	p.mockLog = sharedtest.NewMockLoggers()
+	config := Config{
+		Offline:   true,
+		DataStore: singleDataStoreFactory{p.store},
+		Logging:   ldcomponents.Logging().Loggers(p.mockLog.Loggers),
+	}
+	p.client, _ = MakeCustomClient("sdk_key", config, 0)
+	defer p.client.Close()
+	callback(p)
 }
 
-func TestBoolVariationReturnsDefaultValueOffline(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
+func TestClientOfflineMode(t *testing.T) {
+	t.Run("is initialized", func(t *testing.T) {
+		withClientOfflineTestParams(func(p clientExternalUpdatesTestParams) {
+			assert.True(t, p.client.Initialized())
+			assert.Equal(t, interfaces.DataSourceStateValid,
+				p.client.GetDataSourceStatusProvider().GetStatus().State)
+		})
+	})
 
-	defaultVal := true
-	value, err := client.BoolVariation("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
+	t.Run("reports offline status", func(t *testing.T) {
+		withClientOfflineTestParams(func(p clientExternalUpdatesTestParams) {
+			assert.True(t, p.client.IsOffline())
+		})
+	})
 
-	value, detail, err := client.BoolVariationDetail("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, newEvaluationError(ldvalue.Bool(defaultVal), ldreason.EvalErrorClientNotReady), detail)
-}
+	t.Run("logs appropriate message at startup", func(t *testing.T) {
+		withClientOfflineTestParams(func(p clientExternalUpdatesTestParams) {
+			assert.Contains(
+				t,
+				p.mockLog.GetOutput(ldlog.Info),
+				"Starting LaunchDarkly client in offline mode",
+			)
+		})
+	})
 
-func TestIntVariationReturnsDefaultValueOffline(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
+	t.Run("returns default values", func(t *testing.T) {
+		withClientOfflineTestParams(func(p clientExternalUpdatesTestParams) {
+			result, err := p.client.BoolVariation("flagkey", evalTestUser, false)
+			assert.NoError(t, err)
+			assert.False(t, result)
+		})
+	})
 
-	defaultVal := 100
-	value, err := client.IntVariation("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-
-	value, detail, err := client.IntVariationDetail("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, newEvaluationError(ldvalue.Int(defaultVal), ldreason.EvalErrorClientNotReady), detail)
-}
-
-func TestFloat64VariationReturnsDefaultValueOffline(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
-
-	defaultVal := 100.0
-	value, err := client.Float64Variation("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-
-	value, detail, err := client.Float64VariationDetail("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, newEvaluationError(ldvalue.Float64(defaultVal), ldreason.EvalErrorClientNotReady), detail)
-}
-
-func TestStringVariationReturnsDefaultValueOffline(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
-
-	defaultVal := "expected"
-	value, err := client.StringVariation("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-
-	value, detail, err := client.StringVariationDetail("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, newEvaluationError(ldvalue.String(defaultVal), ldreason.EvalErrorClientNotReady), detail)
-}
-
-func TestJsonVariationReturnsDefaultValueOffline(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
-
-	defaultVal := ldvalue.ObjectBuild().Set("field2", ldvalue.String("value2")).Build()
-	value, err := client.JSONVariation("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-
-	value, detail, err := client.JSONVariationDetail("featureKey", evalTestUser, defaultVal)
-	assert.NoError(t, err)
-	assert.Equal(t, defaultVal, value)
-	assert.Equal(t, newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), detail)
-}
-
-func TestAllFlagsStateReturnsEmptyStateOffline(t *testing.T) {
-	client := makeOfflineClient()
-	defer client.Close()
-
-	result := client.AllFlagsState(evalTestUser)
-	assert.False(t, result.IsValid())
+	t.Run("returns invalid state from AllFlagsState", func(t *testing.T) {
+		withClientOfflineTestParams(func(p clientExternalUpdatesTestParams) {
+			result := p.client.AllFlagsState(evalTestUser)
+			assert.False(t, result.IsValid())
+		})
+	})
 }

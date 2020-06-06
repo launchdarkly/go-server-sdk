@@ -84,6 +84,8 @@ var (
 //         // do whatever is appropriate if initialization has timed out
 //     }
 func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
+	// COVERAGE: this constructor cannot be called in unit tests because it uses the default base
+	// URI and will attempt to make a live connection to LaunchDarkly.
 	return MakeCustomClient(sdkKey, Config{}, waitFor)
 }
 
@@ -180,8 +182,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventsWithReasons = newEventsScope(&client, true)
 	}
 
-	dataSourceFactory := getDataSourceFactory(config)
-	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, dataSourceUpdates)
+	dataSource, err := createDataSource(config, clientContext, dataSourceUpdates)
+	client.dataSource = dataSource
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +201,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	)
 
 	client.dataSource.Start(closeWhenReady)
-	if waitFor > 0 && dataSourceFactory != ldcomponents.ExternalUpdatesOnly() {
+	if waitFor > 0 && client.dataSource != internal.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
 		timeout := time.After(waitFor)
@@ -231,14 +233,22 @@ func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
 	return config.DataStore
 }
 
-func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
+func createDataSource(
+	config Config,
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+) (interfaces.DataSource, error) {
 	if config.Offline {
-		return ldcomponents.ExternalUpdatesOnly()
+		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
+		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+		return internal.NewNullDataSource(), nil
 	}
-	if config.DataSource == nil {
-		return ldcomponents.StreamingDataSource()
+	factory := config.DataSource
+	if factory == nil {
+		// COVERAGE: can't cause this condition in unit tests because it would try to connect to production LD
+		factory = ldcomponents.StreamingDataSource()
 	}
-	return config.DataSource
+	return factory.CreateDataSource(context, dataSourceUpdates)
 }
 
 // Identify reports details about a a user.
@@ -616,7 +626,7 @@ func (client *LDClient) evaluateInternal(
 	// to keep in mind during any changes to the evaluation logic.
 
 	if user.GetKey() == "" {
-		client.loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key) //nolint:lll
+		client.loggers.Warnf("User key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key) //nolint:lll
 	}
 
 	var feature *ldmodel.FeatureFlag
