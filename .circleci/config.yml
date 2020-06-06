@@ -73,7 +73,9 @@ jobs:
           steps:
             - run:
                 name: Make coverage report
-                command: make test-coverage
+                command: |
+                  make test-coverage
+                  cp build/coverage.html $CIRCLE_ARTIFACTS
 
       - run:
           name: Process test results
