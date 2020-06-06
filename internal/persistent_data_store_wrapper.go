@@ -94,9 +94,6 @@ func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (i
 	}
 	cacheKey := dataStoreCacheKey(kind, key)
 	if data, present := w.cache.Get(cacheKey); present {
-		if data == nil { // If present is true but data is nil, we have cached the absence of an item
-			return intf.StoreItemDescriptor{}.NotFound(), nil
-		}
 		if item, ok := data.(intf.StoreItemDescriptor); ok {
 			return item, nil
 		}
@@ -120,6 +117,7 @@ func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (i
 		return item, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemIntf)
+	// COVERAGE: there is no way to simulate this condition in unit tests; it should be impossible
 	return intf.StoreItemDescriptor{}.NotFound(), nil
 }
 
@@ -155,6 +153,7 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 		return items, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemsIntf)
+	// COVERAGE: there is no way to simulate this condition in unit tests; it should be impossible
 	return nil, nil
 }
 
