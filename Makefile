@@ -29,7 +29,12 @@ test:
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
 
 test-coverage:
-	mkdir -p $(OUTPUT_DIR)
+	@mkdir -p $(OUTPUT_DIR)
+	@echo "Note that the percentage figures in the output from \"go test\" below are not the percentage of"
+	@echo "covered code in each package, but rather the percentage as compared to all code in the project."
+	@echo "Those numbers are not useful; instead, look at the HTML report and the script results that"
+	@echo "appear after this section."
+	@echo
 	go test -coverpkg ./... -coverprofile $(COVERAGE_LOG) ./...
 	go tool cover -html $(COVERAGE_LOG) -o $(COVERAGE_HTML)
 	./scripts/check-coverage.sh $(COVERAGE_LOG) $(BASE_PACKAGE) ^sharedtest/

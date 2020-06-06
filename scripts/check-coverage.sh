@@ -19,6 +19,9 @@ IGNORE_FILES_PATTERN=$3
 
 PACKAGE_PREFIX="$PACKAGE_PATH/"
 
+echo
+echo "Parsing $COVERAGE_FILE and looking for uncovered code spans..."
+
 function extract_failed_spans() {
   last_failed_span=""
   sort | uniq | \
@@ -67,4 +70,6 @@ extract_failed_spans < "${COVERAGE_FILE}" |
 
 if [[ -n "${missed_some}" ]]; then
   exit 1
+else
+  echo "Good news! No uncovered code was detected, except for sections excluded with a \"// COVERAGE:\" comment."
 fi
