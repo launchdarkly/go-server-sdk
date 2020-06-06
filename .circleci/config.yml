@@ -65,8 +65,8 @@ jobs:
             mkdir -p $CIRCLE_ARTIFACTS
 
       - run:
-        name: Run tests
-        command: make test | tee $CIRCLE_ARTIFACTS/report.txt
+          name: Run tests
+          command: make test | tee $CIRCLE_ARTIFACTS/report.txt
     
       - when:
           condition: <<parameters.with-coverage>>
