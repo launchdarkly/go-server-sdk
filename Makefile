@@ -30,8 +30,7 @@ test-coverage:
 	@mkdir -p $(OUTPUT_DIR)
 	@echo "Note that the percentage figures in the output from \"go test\" below are not the percentage of"
 	@echo "covered code in each package, but rather the percentage as compared to all code in the project."
-	@echo "Those numbers are not useful; instead, look at the HTML report and the script results that"
-	@echo "appear after this section."
+	@echo "Those numbers are not useful; instead, look at the HTML report."
 	@echo
 	go test -coverpkg ./... -coverprofile $(COVERAGE_LOG) ./...
 	go tool cover -html $(COVERAGE_LOG) -o $(COVERAGE_HTML)
