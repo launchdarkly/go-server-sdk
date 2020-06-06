@@ -4,6 +4,8 @@ GOLANGCI_LINT_VERSION=v1.27.0
 LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
+BASE_PACKAGE=gopkg.in/launchdarkly/go-server-sdk.v5
+
 TEST_BINARY=./go-server-sdk.test
 
 OUTPUT_DIR=./build
@@ -30,9 +32,10 @@ test-coverage:
 	mkdir -p $(OUTPUT_DIR)
 	go test -coverpkg ./... -coverprofile $(COVERAGE_LOG) ./...
 	go tool cover -html $(COVERAGE_LOG) -o $(COVERAGE_HTML)
+	./scripts/check-coverage.sh $(COVERAGE_LOG) $(BASE_PACKAGE) ^sharedtest/
 
 benchmarks:
-	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
+	go test -benchmem '-run=^$$' $(BASE_PACKAGE) -bench .
 
 # See CONTRIBUTING.md regarding the use of the benchmark-allocs target. Notes about this implementation:
 # 1. We precompile the test code because otherwise the allocation traces will include the actions of the compiler itself.
