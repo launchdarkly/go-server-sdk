@@ -7,9 +7,13 @@ LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 TEST_BINARY=./go-server-sdk.test
 
 OUTPUT_DIR=./build
-ALLOCATIONS_LOG=$(OUTPUT_DIR)/allocations.out
-COVERAGE_LOG=$(OUTPUT_DIR)/coverage.out
-COVERAGE_HTML=$(OUTPUT_DIR)/coverage.html
+
+ALL_SOURCES := $(shell find * -type f -name "*.go")
+
+COVERAGE_PROFILE_RAW=./build/coverage_raw.out
+COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
+COVERAGE_PROFILE_FILTERED=./build/coverage.out
+COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
 
 .PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
 
@@ -26,14 +30,19 @@ test:
 	@# get unexpected errors.
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
 
-test-coverage:
-	@mkdir -p $(OUTPUT_DIR)
+test-coverage: $(COVERAGE_PROFILE_RAW)
+	if [ -z "$(which go-coverage-enforcer)" ]; then go get github.com/launchdarkly-labs/go-coverage-enforcer; fi
+	go-coverage-enforcer -package gopkg.in/launchdarkly/go-server-sdk.v5 -skipcode "// COVERAGE" -showcode -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
+	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
+	go tool cover -html $(COVERAGE_PROFILE_RAW) -o $(COVERAGE_PROFILE_RAW_HTML)
+
+$(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
 	@echo "Note that the percentage figures in the output from \"go test\" below are not the percentage of"
 	@echo "covered code in each package, but rather the percentage as compared to all code in the project."
 	@echo "Those numbers are not useful; instead, look at the HTML report."
 	@echo
-	go test -coverpkg ./... -coverprofile $(COVERAGE_LOG) ./...
-	go tool cover -html $(COVERAGE_LOG) -o $(COVERAGE_HTML)
+	mkdir -p ./build
+	go test -coverprofile $(COVERAGE_PROFILE_RAW) ./...
 
 benchmarks:
 	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
