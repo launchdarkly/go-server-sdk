@@ -43,6 +43,7 @@ func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStat
 	defer params.store.Close()
 	action(params)
 }
+
 func TestDataStoreWrapperStatus(t *testing.T) {
 	statusUpdateTimeout := 1 * time.Second // status poller has an interval of 500ms
 
@@ -99,6 +100,9 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			_, err = p.store.GetAll(intf.DataKindFeatures())
 			require.Equal(t, myError, err)
 			assert.Len(t, statusCh, 0)
+
+			// Wait for at least one status poll interval
+			<-time.After(statusPollInterval + time.Millisecond*100)
 
 			// Now simulate the data store becoming OK again; the poller detects this and publishes a new status
 			p.core.SetAvailable(true)

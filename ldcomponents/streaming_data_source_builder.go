@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 // DefaultStreamingBaseURI is the default value for StreamingDataSourceBuilder.BaseURI.
@@ -101,8 +102,13 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 			pollingBaseURI = b.baseURI
 		}
 	}
-	requestor := newRequestor(context, context.GetHTTP().CreateHTTPClient(), pollingBaseURI)
-	return newStreamProcessor(context, dataSourceUpdates, b.baseURI, b.initialReconnectDelay, requestor), nil
+	return internal.NewStreamProcessor(
+		context,
+		dataSourceUpdates,
+		b.baseURI,
+		pollingBaseURI,
+		b.initialReconnectDelay,
+	), nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
@@ -114,7 +120,7 @@ func (b *StreamingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
 		Set("streamingDisabled", ldvalue.Bool(false)).
 		Set("customBaseURI", ldvalue.Bool(isCustomBaseURI)).
 		Set("customStreamURI", ldvalue.Bool(isCustomStreamURI)).
-		Set("reconnectTimeMillis", ldvalue.Int(int(b.initialReconnectDelay/time.Millisecond))).
+		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Build()
 }

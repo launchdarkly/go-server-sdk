@@ -31,7 +31,7 @@ type fileWatcher struct {
 //     }
 func WatchFiles(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
+	if err != nil { // COVERAGE: can't simulate this condition in unit tests
 		return fmt.Errorf("unable to create file watcher: %s", err)
 	}
 	fw := &fileWatcher{
@@ -51,7 +51,7 @@ func (fw *fileWatcher) run(closeCh <-chan struct{}) {
 		time.AfterFunc(retryDuration, func() {
 			select {
 			case retryCh <- struct{}{}: // don't need multiple retries so no need to block
-			default:
+			default: // COVERAGE: can't simulate this condition in unit tests
 			}
 		})
 	}
@@ -83,10 +83,10 @@ func (fw *fileWatcher) setupWatches() error {
 
 		realPath := path.Join(realDirPath, path.Base(p))
 		fw.absPaths[realPath] = true
-		if err = fw.watcher.Add(realPath); err != nil {
+		if err = fw.watcher.Add(realPath); err != nil { // COVERAGE: can't simulate this condition in unit tests
 			return fmt.Errorf(`unable to watch path "%s": %s`, realPath, err)
 		}
-		if err = fw.watcher.Add(realDirPath); err != nil {
+		if err = fw.watcher.Add(realDirPath); err != nil { // COVERAGE: can't simulate this in unit tests
 			return fmt.Errorf(`unable to watch path "%s": %s`, realDirPath, err)
 		}
 	}
@@ -100,18 +100,18 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 		case <-closeCh:
 			fw.loggers.Error("got close")
 			err := fw.watcher.Close()
-			if err != nil {
+			if err != nil { // COVERAGE: can't simulate this condition in unit tests
 				fw.loggers.Errorf("Error closing Watcher: %s", err)
 			}
 			return true
 		case event := <-fw.watcher.Events:
-			if !fw.absPaths[event.Name] {
+			if !fw.absPaths[event.Name] { // COVERAGE: can't simulate this condition in unit tests
 				break
 			}
 			fw.consumeExtraEvents()
 			return false
 		case err := <-fw.watcher.Errors:
-			fw.loggers.Error(err)
+			fw.loggers.Error(err) // COVERAGE: can't simulate this condition in unit tests
 		case <-retryCh:
 			consumeExtraRetries(retryCh)
 			return false
@@ -122,7 +122,7 @@ func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan str
 func (fw *fileWatcher) consumeExtraEvents() {
 	for {
 		select {
-		case <-fw.watcher.Events:
+		case <-fw.watcher.Events: // COVERAGE: can't simulate this condition in unit tests
 		default:
 			return
 		}
@@ -132,7 +132,7 @@ func (fw *fileWatcher) consumeExtraEvents() {
 func consumeExtraRetries(retryCh <-chan struct{}) {
 	for {
 		select {
-		case <-retryCh:
+		case <-retryCh: // COVERAGE: can't simulate this condition in unit tests
 		default:
 			return
 		}

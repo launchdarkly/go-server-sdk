@@ -1,4 +1,4 @@
-package ldcomponents
+package internal
 
 import (
 	"encoding/json"
@@ -19,7 +19,14 @@ const (
 	LatestAllPath      = "/sdk/latest-all"
 )
 
-type requestor struct {
+// requestor is the interface implemented by requestorImpl, used for testing purposes
+type requestor interface {
+	requestAll() (data allData, cached bool, err error)
+	requestResource(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error)
+}
+
+// requestorImpl is the internal implementation of getting flag/segment data from the LD polling endpoints.
+type requestorImpl struct {
 	httpClient *http.Client
 	baseURI    string
 	headers    http.Header
@@ -34,30 +41,39 @@ func (e malformedJSONError) Error() string {
 	return e.innerError.Error()
 }
 
-func newRequestor(context interfaces.ClientContext, httpClient *http.Client, baseURI string) *requestor {
-	var decoratedClient http.Client
-	if httpClient != nil {
-		decoratedClient = *httpClient
-	} else {
-		decoratedClient = *context.GetHTTP().CreateHTTPClient()
+func newRequestorImpl(
+	context interfaces.ClientContext,
+	httpClient *http.Client,
+	baseURI string,
+	withCache bool,
+) requestor {
+	httpClientToUse := httpClient
+	if httpClientToUse == nil {
+		httpClientToUse = context.GetHTTP().CreateHTTPClient()
 	}
-	decoratedClient.Transport = &httpcache.Transport{
-		Cache:               httpcache.NewMemoryCache(),
-		MarkCachedResponses: true,
-		Transport:           decoratedClient.Transport,
+	if withCache {
+		modifiedClient := *httpClientToUse
+		modifiedClient.Transport = &httpcache.Transport{
+			Cache:               httpcache.NewMemoryCache(),
+			MarkCachedResponses: true,
+			Transport:           httpClientToUse.Transport,
+		}
+		httpClientToUse = &modifiedClient
 	}
 
-	httpRequestor := requestor{
-		httpClient: &decoratedClient,
+	return &requestorImpl{
+		httpClient: httpClientToUse,
 		baseURI:    baseURI,
 		headers:    context.GetHTTP().GetDefaultHeaders(),
 		loggers:    context.GetLogging().GetLoggers(),
 	}
-
-	return &httpRequestor
 }
 
-func (r *requestor) requestAll() (allData, bool, error) {
+func (r *requestorImpl) requestAll() (allData, bool, error) {
+	if r.loggers.IsDebugEnabled() {
+		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
+	}
+
 	var data allData
 	body, cached, err := r.makeRequest(LatestAllPath)
 	if err != nil {
@@ -74,7 +90,10 @@ func (r *requestor) requestAll() (allData, bool, error) {
 	return data, cached, nil
 }
 
-func (r *requestor) requestResource(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
+func (r *requestorImpl) requestResource(
+	kind interfaces.StoreDataKind,
+	key string,
+) (interfaces.StoreItemDescriptor, error) {
 	var resource string
 	switch kind.GetName() {
 	case "segments":
@@ -95,10 +114,7 @@ func (r *requestor) requestResource(kind interfaces.StoreDataKind, key string) (
 	return item, nil
 }
 
-func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
-	if r.loggers.IsDebugEnabled() {
-		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
-	}
+func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", r.baseURI+resource, nil)
 	if reqErr != nil {
 		return nil, false, reqErr
@@ -129,7 +145,7 @@ func (r *requestor) makeRequest(resource string) ([]byte, bool, error) {
 	body, ioErr := ioutil.ReadAll(res.Body)
 
 	if ioErr != nil {
-		return nil, false, ioErr
+		return nil, false, ioErr // COVERAGE: there is no way to simulate this condition in unit tests
 	}
 	return body, cached, nil
 }

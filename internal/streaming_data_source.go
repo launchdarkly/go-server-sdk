@@ -1,4 +1,4 @@
-package ldcomponents
+package internal
 
 import (
 	"encoding/json"
@@ -53,12 +53,17 @@ const (
 	streamingWillRetryMessage = "will retry"
 )
 
-type streamProcessor struct {
+// StreamProcessor is the internal implementation of the streaming data source.
+//
+// This type is exported from internal so that the StreamingDataSourceBuilder tests can verify its
+// configuration. All other code outside of this package should interact with it only via the
+// DataSource interface.
+type StreamProcessor struct {
 	dataSourceUpdates          interfaces.DataSourceUpdates
 	streamURI                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
-	requestor                  *requestor
+	requestor                  requestor
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
@@ -88,11 +93,55 @@ type deleteData struct {
 	Version int    `json:"version"`
 }
 
-func (sp *streamProcessor) IsInitialized() bool {
+// NewStreamProcessor creates the internal implementation of the streaming data source.
+func NewStreamProcessor(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+	streamURI string,
+	pollingBaseURI string,
+	initialReconnectDelay time.Duration,
+) interfaces.DataSource {
+	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), pollingBaseURI, false)
+	return newStreamProcessor(context, dataSourceUpdates, streamURI, initialReconnectDelay, requestor)
+}
+
+func newStreamProcessor(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+	streamURI string,
+	initialReconnectDelay time.Duration,
+	requestor requestor,
+) *StreamProcessor {
+	sp := &StreamProcessor{
+		dataSourceUpdates:     dataSourceUpdates,
+		streamURI:             streamURI,
+		initialReconnectDelay: initialReconnectDelay,
+		requestor:             requestor,
+		headers:               context.GetHTTP().GetDefaultHeaders(),
+		loggers:               context.GetLogging().GetLoggers(),
+		halt:                  make(chan struct{}),
+	}
+	if hdm, ok := context.(hasDiagnosticsManager); ok {
+		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
+	}
+
+	sp.client = context.GetHTTP().CreateHTTPClient()
+	// Client.Timeout isn't just a connect timeout, it will break the connection if a full response
+	// isn't received within that time (which, with the stream, it never will be), so we must make
+	// sure it's zero and not the usual configured default. What we do want is a *connection* timeout,
+	// which is set by Config.newHTTPClient as a property of the Dialer.
+	sp.client.Timeout = 0
+
+	return sp
+}
+
+//nolint:golint,stylecheck // no doc comment for standard method
+func (sp *StreamProcessor) IsInitialized() bool {
 	return sp.isInitialized
 }
 
-func (sp *streamProcessor) Start(closeWhenReady chan<- struct{}) {
+//nolint:golint,stylecheck // no doc comment for standard method
+func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
 	if sp.dataSourceUpdates.GetDataStoreStatusProvider().IsStatusMonitoringEnabled() {
 		sp.storeStatusCh = sp.dataSourceUpdates.GetDataStoreStatusProvider().AddStatusListener()
@@ -121,7 +170,7 @@ func parsePath(path string) (parsedPath, error) {
 }
 
 //nolint:gocyclo // yes, we know this is a long function
-func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
+func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
 		for range stream.Events {
@@ -271,37 +320,7 @@ func (sp *streamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 	}
 }
 
-func newStreamProcessor(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-	streamURI string,
-	initialReconnectDelay time.Duration,
-	requestor *requestor,
-) *streamProcessor {
-	sp := &streamProcessor{
-		dataSourceUpdates:     dataSourceUpdates,
-		streamURI:             streamURI,
-		initialReconnectDelay: initialReconnectDelay,
-		requestor:             requestor,
-		headers:               context.GetHTTP().GetDefaultHeaders(),
-		loggers:               context.GetLogging().GetLoggers(),
-		halt:                  make(chan struct{}),
-	}
-	if hdm, ok := context.(hasDiagnosticsManager); ok {
-		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
-	}
-
-	sp.client = context.GetHTTP().CreateHTTPClient()
-	// Client.Timeout isn't just a connect timeout, it will break the connection if a full response
-	// isn't received within that time (which, with the stream, it never will be), so we must make
-	// sure it's zero and not the usual configured default. What we do want is a *connection* timeout,
-	// which is set by Config.newHTTPClient as a property of the Dialer.
-	sp.client.Timeout = 0
-
-	return sp
-}
-
-func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
+func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	req, _ := http.NewRequest("GET", sp.streamURI+"/all", nil)
 	for k, vv := range sp.headers {
 		req.Header[k] = vv
@@ -379,7 +398,7 @@ func (sp *streamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	sp.consumeStream(stream, closeWhenReady)
 }
 
-func (sp *streamProcessor) setInitializedAndNotifyClient(success bool, closeWhenReady chan<- struct{}) {
+func (sp *StreamProcessor) setInitializedAndNotifyClient(success bool, closeWhenReady chan<- struct{}) {
 	if success {
 		sp.setInitializedOnce.Do(func() {
 			sp.loggers.Info("LaunchDarkly streaming is active")
@@ -391,13 +410,13 @@ func (sp *streamProcessor) setInitializedAndNotifyClient(success bool, closeWhen
 	})
 }
 
-func (sp *streamProcessor) logConnectionStarted() {
+func (sp *StreamProcessor) logConnectionStarted() {
 	sp.connectionAttemptLock.Lock()
 	defer sp.connectionAttemptLock.Unlock()
 	sp.connectionAttemptStartTime = ldtime.UnixMillisNow()
 }
 
-func (sp *streamProcessor) logConnectionResult(success bool) {
+func (sp *StreamProcessor) logConnectionResult(success bool) {
 	sp.connectionAttemptLock.Lock()
 	startTimeWas := sp.connectionAttemptStartTime
 	sp.connectionAttemptStartTime = 0
@@ -409,8 +428,8 @@ func (sp *streamProcessor) logConnectionResult(success bool) {
 	}
 }
 
-// Close instructs the processor to stop receiving updates
-func (sp *streamProcessor) Close() error {
+//nolint:golint,stylecheck // no doc comment for standard method
+func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		sp.loggers.Info("Closing event stream")
 		close(sp.halt)
@@ -420,4 +439,19 @@ func (sp *streamProcessor) Close() error {
 		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	})
 	return nil
+}
+
+// GetBaseURI returns the configured streaming base URI, for testing.
+func (sp *StreamProcessor) GetBaseURI() string {
+	return sp.streamURI
+}
+
+// GetPollingBaseURI returns the configured polling base URI, for testing.
+func (sp *StreamProcessor) GetPollingBaseURI() string {
+	return (sp.requestor.(*requestorImpl)).baseURI
+}
+
+// GetInitialReconnectDelay returns the configured reconnect delay, for testing.
+func (sp *StreamProcessor) GetInitialReconnectDelay() time.Duration {
+	return sp.initialReconnectDelay
 }

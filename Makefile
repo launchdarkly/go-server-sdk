@@ -14,7 +14,7 @@ COVERAGE_PROFILE_RAW=./build/coverage_raw.out
 COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
 COVERAGE_PROFILE_FILTERED=./build/coverage.out
 COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
-COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 -skipfiles sharedtest/ -skipcode "// COVERAGE" -showcode
+COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 -skipfiles sharedtest/ -skipcode "// COVERAGE" -packagestats -filestats -showcode
 
 .PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
 
@@ -39,7 +39,8 @@ test-coverage: $(COVERAGE_PROFILE_RAW)
 
 $(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
 	@mkdir -p ./build
-	go test -coverprofile $(COVERAGE_PROFILE_RAW) ./... >/dev/null
+	go test -coverprofile $(COVERAGE_PROFILE_RAW) -coverpkg=./... ./... >/dev/null
+	# note that -coverpkg=./... is necessary so it aggregates coverage to include inter-package references
 
 benchmarks:
 	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .

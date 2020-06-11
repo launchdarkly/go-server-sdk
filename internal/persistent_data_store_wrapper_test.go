@@ -210,6 +210,26 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 			})
 		})
 	}
+
+	testWithMockPersistentDataStore(t, "item whose version number doesn't come from the serialized data",
+		mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			// This is a condition that currently can't happen, but if we ever move away from always putting the
+			// version number in the serialized JSON (i.e. if every persistent data store implementation has a
+			// separate place to keep the version) then PersistentDataStoreWrapper should be able to handle it.
+			item := s.MockDataItem{Key: "key", Version: 1}
+
+			sid := item.ToSerializedItemDescriptor()
+			sid.Version = 2
+
+			core.ForceSet(s.MockData, item.Key, sid)
+
+			id := item.ToItemDescriptor()
+			id.Version = 2
+
+			result, err := w.Get(s.MockData, item.Key)
+			assert.NoError(t, err)
+			assert.Equal(t, id, result)
+		})
 }
 
 func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
