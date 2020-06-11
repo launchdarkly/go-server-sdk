@@ -123,8 +123,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 
 		data, cached, err := r.requestAll()
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "connection refused")
+		assert.Error(t, err)
 		assert.False(t, cached)
 		assert.Equal(t, allData{}, data)
 	})
