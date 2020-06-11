@@ -14,6 +14,7 @@ COVERAGE_PROFILE_RAW=./build/coverage_raw.out
 COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
 COVERAGE_PROFILE_FILTERED=./build/coverage.out
 COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
+COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 -skipfiles sharedtest/ -skipcode "// COVERAGE" -showcode
 
 .PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
 
@@ -32,17 +33,13 @@ test:
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	if [ -z "$(which go-coverage-enforcer)" ]; then go get github.com/launchdarkly-labs/go-coverage-enforcer; fi
-	go-coverage-enforcer -package gopkg.in/launchdarkly/go-server-sdk.v5 -skipfiles sharedtest/ -skipcode "// COVERAGE" -showcode -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW) || true  # "|| true" so the build won't fail now while we're still improving coverage
+	go-coverage-enforcer $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW) || true  # "|| true" so the build won't fail now while we're still improving coverage
 	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
 	go tool cover -html $(COVERAGE_PROFILE_RAW) -o $(COVERAGE_PROFILE_RAW_HTML)
 
 $(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
-	@echo "Note that the percentage figures in the output from \"go test\" below are not the percentage of"
-	@echo "covered code in each package, but rather the percentage as compared to all code in the project."
-	@echo "Those numbers are not useful; instead, look at the HTML report."
-	@echo
-	mkdir -p ./build
-	go test -coverprofile $(COVERAGE_PROFILE_RAW) ./...
+	@mkdir -p ./build
+	go test -coverprofile $(COVERAGE_PROFILE_RAW) ./... >/dev/null
 
 benchmarks:
 	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
