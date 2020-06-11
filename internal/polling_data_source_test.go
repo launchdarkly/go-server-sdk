@@ -22,6 +22,8 @@ import (
 
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	r := newMockRequestor()
+	defer r.Close()
+	r.requestAllRespCh <- mockRequestAllResponse{}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Minute)
