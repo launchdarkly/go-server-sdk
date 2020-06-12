@@ -11,7 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
@@ -28,6 +30,7 @@ func TestDynamoDBDataStore(t *testing.T) {
 	}
 
 	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)
 }
@@ -40,9 +43,19 @@ func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
 	return baseBuilder().Prefix(prefix)
 }
 
+func makeFailedStore() interfaces.PersistentDataStoreFactory {
+	// Here we ensure that all DynamoDB operations will fail by simply *not* using makeTestOptions(),
+	// so that the client does not have the necessary region parameter.
+	return DataStore(testTableName)
+}
+
+func verifyFailedStoreError(t *testing.T, err error) {
+	assert.Contains(t, err.Error(), "could not find region configuration")
+}
+
 func clearTestData(prefix string) error {
-	if prefix == "" {
-		prefix = DefaultPrefix
+	if prefix != "" {
+		prefix += ":"
 	}
 
 	client, err := createTestClient()
@@ -69,7 +82,7 @@ func clearTestData(prefix string) error {
 
 	var requests []*dynamodb.WriteRequest
 	for _, item := range items {
-		if strings.HasPrefix(*item[tablePartitionKey].S, prefix+":") {
+		if strings.HasPrefix(*item[tablePartitionKey].S, prefix) {
 			requests = append(requests, &dynamodb.WriteRequest{
 				DeleteRequest: &dynamodb.DeleteRequest{Key: item},
 			})

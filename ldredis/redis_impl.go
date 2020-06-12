@@ -89,7 +89,7 @@ func (store *redisDataStoreImpl) Get(
 
 	if err != nil {
 		if err == r.ErrNil {
-			if store.loggers.IsDebugEnabled() {
+			if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 				store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
 			}
 			return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
@@ -145,7 +145,7 @@ func (store *redisDataStoreImpl) Upsert(
 		}
 
 		oldItem, err := store.Get(kind, key)
-		if err != nil {
+		if err != nil { // COVERAGE: can't cause an error here in unit tests
 			return false, err
 		}
 
@@ -158,10 +158,10 @@ func (store *redisDataStoreImpl) Upsert(
 
 		if oldVersion >= newItem.Version {
 			updateOrDelete := "update"
-			if newItem.SerializedItem == nil {
+			if newItem.Deleted {
 				updateOrDelete = "delete"
 			}
-			if store.loggers.IsDebugEnabled() {
+			if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 				store.loggers.Debugf(`Attempted to %s key: %s version: %d in "%s" with a version that is the same or older: %d`,
 					updateOrDelete, key, oldVersion, kind, newItem.Version)
 			}
@@ -176,7 +176,7 @@ func (store *redisDataStoreImpl) Upsert(
 			if err == nil {
 				if result == nil {
 					// if exec returned nothing, it means the watch was triggered and we should retry
-					if store.loggers.IsDebugEnabled() {
+					if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 						store.loggers.Debug("Concurrent modification detected, retrying")
 					}
 					continue
@@ -184,7 +184,7 @@ func (store *redisDataStoreImpl) Upsert(
 			}
 			return true, nil
 		}
-		return false, err
+		return false, err // COVERAGE: can't cause an error here in unit tests
 	}
 }
 

@@ -9,12 +9,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-const (
-	// DefaultPrefix is a string that is prepended (along with a colon) to all Consul keys used
-	// by the data store. You can change this value with the Prefix() option.
-	DefaultPrefix = "launchdarkly"
-)
-
 // DataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
 //
 // Obtain an instance of this type by calling DataStore(). After calling its methods to specify any
@@ -44,11 +38,8 @@ func DataStore(tableName string) *DataStoreBuilder {
 	}
 }
 
-// Prefix specifies a prefix for namespacing the data store's keys. The default value is DefaultPrefix.
+// Prefix specifies a prefix for namespacing the data store's keys.
 func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
-	if prefix == "" {
-		prefix = DefaultPrefix
-	}
 	b.prefix = prefix
 	return b
 }

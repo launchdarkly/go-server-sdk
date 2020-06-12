@@ -139,6 +139,8 @@ func (store *dynamoDBDataStore) Init(allData []interfaces.StoreSerializedCollect
 	})
 
 	if err := batchWriteRequests(store.client, store.table, requests); err != nil {
+		// COVERAGE: can't cause an error here in unit tests because we only get this far if the
+		// DynamoDB client is successful on the initial query
 		return fmt.Errorf("failed to write %d items(s) in batches: %s", len(requests), err)
 	}
 
@@ -199,7 +201,7 @@ func (store *dynamoDBDataStore) Get(
 	}
 
 	if len(result.Item) == 0 {
-		if store.loggers.IsDebugEnabled() {
+		if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 			store.loggers.Debugf("Item not found (key=%s)", key)
 		}
 		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
@@ -208,7 +210,7 @@ func (store *dynamoDBDataStore) Get(
 	if _, serializedItemDesc, ok := store.decodeItem(result.Item); ok {
 		return serializedItemDesc, nil
 	}
-	return interfaces.StoreSerializedItemDescriptor{}.NotFound(),
+	return interfaces.StoreSerializedItemDescriptor{}.NotFound(), // COVERAGE: can't cause this in unit tests
 		fmt.Errorf("invalid data for %s key %s: %s", kind, key, err)
 }
 
@@ -242,7 +244,7 @@ func (store *dynamoDBDataStore) Upsert(
 	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
-			if store.loggers.IsDebugEnabled() {
+			if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 				store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
 					kind, key, newItem.Version)
 			}
@@ -346,6 +348,9 @@ func batchWriteRequests(
 			RequestItems: map[string][]*dynamodb.WriteRequest{table: batch},
 		})
 		if err != nil {
+			// COVERAGE: can't simulate this condition in unit tests because we will only get this
+			// far if the initial query in Init() already succeeded, and we don't have the ability
+			// to make DynamoDB fail *selectively* within a single test
 			return err
 		}
 	}
@@ -367,7 +372,7 @@ func (store *dynamoDBDataStore) decodeItem(
 			SerializedItem: []byte(*itemJSONValue.S),
 		}, true
 	}
-	return "", interfaces.StoreSerializedItemDescriptor{}, false
+	return "", interfaces.StoreSerializedItemDescriptor{}, false // COVERAGE: no way to cause this in unit tests
 }
 
 func (store *dynamoDBDataStore) encodeItem(
