@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
@@ -558,12 +557,12 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t *testing.T) {
 
 	store, err := s.errorStoreFactory.CreatePersistentDataStore(NewSimpleTestContext(""))
 	require.NoError(t, err)
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	t.Run("Init", func(t *testing.T) {
-		allData := []interfaces.StoreSerializedCollection{
-			{Kind: interfaces.DataKindFeatures()},
-			{Kind: interfaces.DataKindSegments()},
+		allData := []intf.StoreSerializedCollection{
+			{Kind: intf.DataKindFeatures()},
+			{Kind: intf.DataKindSegments()},
 		}
 		err := store.Init(allData)
 		require.Error(t, err)
@@ -571,24 +570,24 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t *testing.T) {
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		_, err := store.Get(interfaces.DataKindFeatures(), "key")
+		_, err := store.Get(intf.DataKindFeatures(), "key")
 		require.Error(t, err)
 		errorValidator(t, err)
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		_, err := store.GetAll(interfaces.DataKindFeatures())
+		_, err := store.GetAll(intf.DataKindFeatures())
 		require.Error(t, err)
 		errorValidator(t, err)
 	})
 
 	t.Run("Upsert", func(t *testing.T) {
 		desc := FlagDescriptor(ldbuilders.NewFlagBuilder("key").Build())
-		sdesc := interfaces.StoreSerializedItemDescriptor{
+		sdesc := intf.StoreSerializedItemDescriptor{
 			Version:        1,
-			SerializedItem: interfaces.DataKindFeatures().Serialize(desc),
+			SerializedItem: intf.DataKindFeatures().Serialize(desc),
 		}
-		_, err := store.Upsert(interfaces.DataKindFeatures(), "key", sdesc)
+		_, err := store.Upsert(intf.DataKindFeatures(), "key", sdesc)
 		require.Error(t, err)
 		errorValidator(t, err)
 	})
