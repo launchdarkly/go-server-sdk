@@ -8,13 +8,11 @@ workflows:
     jobs:
       - go-test:
           name: Go 1.14
-          docker-image: circleci/golang:1.14
+          docker-image: cimg/go:1.14
+          run-lint: true
       - go-test:
           name: Go 1.13
-          docker-image: circleci/golang:1.13
-      - go-test:
-          name: Go 1.12
-          docker-image: circleci/golang:1.12
+          docker-image: cimg/go:1.13
       - go-test-windows:
           name: Windows
       - benchmarks
@@ -24,9 +22,7 @@ jobs:
     parameters:
       run-lint:
         type: boolean
-        default: true
-        # We are currently linting in all Go versions, but this parameter lets us turn it off for some, in
-        # case we need to support more versions than a single version of golangci-lint is compatible with
+        default: false
       docker-image:
         type: string
 
@@ -42,7 +38,7 @@ jobs:
       - image: consul
       - image: amazon/dynamodb-local
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
+    working_directory: ~/go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
@@ -124,13 +120,13 @@ jobs:
 
   benchmarks:
     docker:
-      - image: circleci/golang:1.14
+      - image: cimg/go:1.14
         environment:
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
           COMMON_GO_PACKAGES: >
             github.com/golang/dep/cmd/dep
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
+    working_directory: ~/go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
