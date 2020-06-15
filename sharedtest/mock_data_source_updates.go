@@ -50,7 +50,7 @@ func (d *MockDataSourceUpdates) Upsert(
 	key string,
 	newItem interfaces.StoreItemDescriptor,
 ) bool {
-	err := d.DataStore.Upsert(kind, key, newItem)
+	_, err := d.DataStore.Upsert(kind, key, newItem)
 	return err == nil
 }
 

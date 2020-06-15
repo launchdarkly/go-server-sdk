@@ -159,9 +159,10 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 }
 
 func (w *persistentDataStoreWrapper) Upsert(
-	kind intf.StoreDataKind, key string,
+	kind intf.StoreDataKind,
+	key string,
 	newItem intf.StoreItemDescriptor,
-) error {
+) (bool, error) {
 	serializedItem := w.serialize(kind, newItem)
 	updated, err := w.core.Upsert(kind, key, serializedItem)
 	w.processError(err)
@@ -171,7 +172,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 	// if the cache TTL is infinite, then it makes sense to update the cache always.
 	if err != nil {
 		if !w.hasCacheWithInfiniteTTL() {
-			return err
+			return updated, err
 		}
 	}
 	if w.cache != nil {
@@ -215,7 +216,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 			}
 		}
 	}
-	return err
+	return updated, err
 }
 
 func (w *persistentDataStoreWrapper) IsInitialized() bool {

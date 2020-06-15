@@ -8,6 +8,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 // These benchmarks cover data store operations with the in-memory store.
@@ -46,7 +47,7 @@ func (env *inMemoryStoreBenchmarkEnv) setUp(bc inMemoryStoreBenchmarkCase) {
 		env.flags[i] = &flag
 	}
 	for _, flag := range env.flags {
-		env.store.Upsert(interfaces.DataKindFeatures(), flag.Key, interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag})
+		env.store.Upsert(interfaces.DataKindFeatures(), flag.Key, sharedtest.FlagDescriptor(*flag))
 	}
 	f := env.flags[bc.numFlags/2] // arbitrarily pick a flag in the middle of the list
 	env.targetFlagKey = f.Key
@@ -59,7 +60,7 @@ func (env *inMemoryStoreBenchmarkEnv) setUp(bc inMemoryStoreBenchmarkCase) {
 		env.segments[i] = &segment
 	}
 	for _, segment := range env.segments {
-		env.store.Upsert(interfaces.DataKindSegments(), segment.Key, interfaces.StoreItemDescriptor{Version: segment.Version, Item: segment})
+		env.store.Upsert(interfaces.DataKindSegments(), segment.Key, sharedtest.SegmentDescriptor(*segment))
 	}
 	s := env.segments[bc.numSegments/2]
 	env.targetSegmentKey = s.Key
@@ -72,11 +73,11 @@ func (env *inMemoryStoreBenchmarkEnv) setUp(bc inMemoryStoreBenchmarkCase) {
 func setupInitData(env *inMemoryStoreBenchmarkEnv) {
 	flags := make([]interfaces.StoreKeyedItemDescriptor, len(env.flags))
 	for i, f := range env.flags {
-		flags[i] = interfaces.StoreKeyedItemDescriptor{Key: f.Key, Item: interfaces.StoreItemDescriptor{Version: f.Version, Item: f}}
+		flags[i] = interfaces.StoreKeyedItemDescriptor{Key: f.Key, Item: sharedtest.FlagDescriptor(*f)}
 	}
 	segments := make([]interfaces.StoreKeyedItemDescriptor, len(env.segments))
 	for i, s := range env.segments {
-		segments[i] = interfaces.StoreKeyedItemDescriptor{Key: s.Key, Item: interfaces.StoreItemDescriptor{Version: s.Version, Item: s}}
+		segments[i] = interfaces.StoreKeyedItemDescriptor{Key: s.Key, Item: sharedtest.SegmentDescriptor(*s)}
 	}
 	env.initData = []interfaces.StoreCollection{
 		interfaces.StoreCollection{Kind: interfaces.DataKindFeatures(), Items: flags},
@@ -183,8 +184,8 @@ func BenchmarkInMemoryStoreUpsertExistingFlagSuccess(b *testing.B) {
 	dataKind := interfaces.DataKindFeatures()
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetFlagCopy.Version++
-		inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetFlagKey,
-			interfaces.StoreItemDescriptor{Version: env.targetFlagCopy.Version, Item: env.targetFlagCopy})
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetFlagKey,
+			sharedtest.FlagDescriptor(*env.targetFlagCopy))
 	})
 }
 
@@ -192,8 +193,8 @@ func BenchmarkInMemoryStoreUpsertExistingFlagFailure(b *testing.B) {
 	dataKind := interfaces.DataKindFeatures()
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetFlagCopy.Version--
-		inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetFlagKey,
-			interfaces.StoreItemDescriptor{Version: env.targetFlagCopy.Version, Item: env.targetFlagCopy})
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetFlagKey,
+			sharedtest.FlagDescriptor(*env.targetFlagCopy))
 	})
 }
 
@@ -201,8 +202,8 @@ func BenchmarkInMemoryStoreUpsertNewFlag(b *testing.B) {
 	dataKind := interfaces.DataKindFeatures()
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetFlagCopy.Key = env.unknownKey
-		inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
-			interfaces.StoreItemDescriptor{Version: env.targetFlagCopy.Version, Item: env.targetFlagCopy})
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
+			sharedtest.FlagDescriptor(*env.targetFlagCopy))
 	})
 }
 
@@ -210,8 +211,8 @@ func BenchmarkInMemoryStoreUpsertExistingSegmentSuccess(b *testing.B) {
 	dataKind := interfaces.DataKindSegments()
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetSegmentCopy.Version++
-		inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetSegmentKey,
-			interfaces.StoreItemDescriptor{Version: env.targetSegmentCopy.Version, Item: env.targetSegmentCopy})
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetSegmentKey,
+			sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
 	})
 }
 
@@ -219,8 +220,8 @@ func BenchmarkInMemoryStoreUpsertExistingSegmentFailure(b *testing.B) {
 	dataKind := interfaces.DataKindSegments()
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetSegmentCopy.Version--
-		inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetSegmentKey,
-			interfaces.StoreItemDescriptor{Version: env.targetSegmentCopy.Version, Item: env.targetSegmentCopy})
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetSegmentKey,
+			sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
 	})
 }
 
@@ -228,7 +229,7 @@ func BenchmarkInMemoryStoreUpsertNewSegment(b *testing.B) {
 	dataKind := interfaces.DataKindSegments()
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetSegmentCopy.Key = env.unknownKey
-		inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
-			interfaces.StoreItemDescriptor{Version: env.targetSegmentCopy.Version, Item: env.targetSegmentCopy})
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
+			sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
 	})
 }

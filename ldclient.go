@@ -46,6 +46,8 @@ type LDClient struct {
 	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
 	dataStoreStatusBroadcaster  *internal.DataStoreStatusBroadcaster
 	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
+	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
+	flagTracker                 interfaces.FlagTracker
 	eventsDefault               eventsScope
 	eventsWithReasons           eventsScope
 	logEvaluationErrors         bool
@@ -156,10 +158,12 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.dataStoreStatusProvider = internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
+	client.flagChangeEventBroadcaster = internal.NewFlagChangeEventBroadcaster()
 	dataSourceUpdates := internal.NewDataSourceUpdatesImpl(
 		store,
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
+		client.flagChangeEventBroadcaster,
 		clientContext.GetLogging().GetLogDataSourceOutageAsErrorAfter(),
 		loggers,
 	)
@@ -184,6 +188,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.dataSourceStatusProvider = internal.NewDataSourceStatusProviderImpl(
 		client.dataSourceStatusBroadcaster,
 		dataSourceUpdates,
+	)
+
+	client.flagTracker = internal.NewFlagTrackerImpl(
+		client.flagChangeEventBroadcaster,
+		func(flagKey string, user lduser.User, defaultValue ldvalue.Value) ldvalue.Value {
+			value, _ := client.JSONVariation(flagKey, user, defaultValue)
+			return value
+		},
 	)
 
 	client.dataSource.Start(closeWhenReady)
@@ -339,6 +351,7 @@ func (client *LDClient) Close() error {
 	_ = client.store.Close()
 	client.dataSourceStatusBroadcaster.Close()
 	client.dataStoreStatusBroadcaster.Close()
+	client.flagChangeEventBroadcaster.Close()
 	return nil
 }
 
@@ -540,6 +553,11 @@ func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatu
 // method will always report that the store is operational.
 func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return client.dataStoreStatusProvider
+}
+
+// GetFlagTracker returns an interface for tracking changes in feature flag configurations.
+func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
+	return client.flagTracker
 }
 
 // Generic method for evaluating a feature flag for a given user.

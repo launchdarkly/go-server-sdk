@@ -10,6 +10,7 @@ import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 // This interface is implemented only by the SDK's own ClientContext implementation.
@@ -107,14 +108,14 @@ func makeAllStoreData(
 	for key, flag := range flags {
 		flagsColl = append(flagsColl, interfaces.StoreKeyedItemDescriptor{
 			Key:  key,
-			Item: interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag},
+			Item: sharedtest.FlagDescriptor(*flag),
 		})
 	}
 	segmentsColl := make([]interfaces.StoreKeyedItemDescriptor, 0, len(segments))
 	for key, segment := range segments {
 		segmentsColl = append(segmentsColl, interfaces.StoreKeyedItemDescriptor{
 			Key:  key,
-			Item: interfaces.StoreItemDescriptor{Version: segment.Version, Item: segment},
+			Item: sharedtest.SegmentDescriptor(*segment),
 		})
 	}
 	return []interfaces.StoreCollection{

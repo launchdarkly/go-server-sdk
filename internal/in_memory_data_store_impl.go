@@ -97,12 +97,13 @@ func (store *inMemoryDataStore) Upsert(
 	kind interfaces.StoreDataKind,
 	key string,
 	newItem interfaces.StoreItemDescriptor,
-) error {
+) (bool, error) {
 	store.Lock()
 
 	var coll map[string]interfaces.StoreItemDescriptor
 	var ok bool
 	shouldUpdate := true
+	updated := false
 	if coll, ok = store.allData[kind]; ok {
 		if item, ok := coll[key]; ok {
 			if item.Version >= newItem.Version {
@@ -112,14 +113,16 @@ func (store *inMemoryDataStore) Upsert(
 	} else {
 		store.allData[kind] = map[string]interfaces.StoreItemDescriptor{key: newItem}
 		shouldUpdate = false // because we already initialized the map with the new item
+		updated = true
 	}
 	if shouldUpdate {
 		coll[key] = newItem
+		updated = true
 	}
 
 	store.Unlock()
 
-	return nil
+	return updated, nil
 }
 
 func (store *inMemoryDataStore) IsInitialized() bool {

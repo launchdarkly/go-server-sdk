@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 type dataSetBuilder struct {
@@ -27,14 +28,14 @@ func (d *dataSetBuilder) Build() []interfaces.StoreCollection {
 
 func (d *dataSetBuilder) Flags(flags ...ldmodel.FeatureFlag) *dataSetBuilder {
 	for _, f := range flags {
-		d.flags = append(d.flags, interfaces.StoreKeyedItemDescriptor{Key: f.Key, Item: flagDescriptor(f)})
+		d.flags = append(d.flags, interfaces.StoreKeyedItemDescriptor{Key: f.Key, Item: sharedtest.FlagDescriptor(f)})
 	}
 	return d
 }
 
 func (d *dataSetBuilder) Segments(segments ...ldmodel.Segment) *dataSetBuilder {
 	for _, s := range segments {
-		d.segments = append(d.segments, interfaces.StoreKeyedItemDescriptor{Key: s.Key, Item: segmentDescriptor(s)})
+		d.segments = append(d.segments, interfaces.StoreKeyedItemDescriptor{Key: s.Key, Item: sharedtest.SegmentDescriptor(s)})
 	}
 	return d
 }
@@ -54,14 +55,6 @@ func (d *dataSetBuilder) ToServerSDKData() *ldservices.ServerSDKData {
 		ret.Segments(segmentAsSDKData(*(s.Item.Item.(*ldmodel.Segment))))
 	}
 	return ret
-}
-
-func flagDescriptor(f ldmodel.FeatureFlag) interfaces.StoreItemDescriptor {
-	return interfaces.StoreItemDescriptor{Version: f.Version, Item: &f}
-}
-
-func segmentDescriptor(s ldmodel.Segment) interfaces.StoreItemDescriptor {
-	return interfaces.StoreItemDescriptor{Version: s.Version, Item: &s}
 }
 
 type unknownDataKind struct{}

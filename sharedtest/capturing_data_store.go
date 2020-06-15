@@ -63,12 +63,12 @@ func (d *CapturingDataStore) Upsert(
 	kind interfaces.StoreDataKind,
 	key string,
 	newItem interfaces.StoreItemDescriptor,
-) error {
+) (bool, error) {
 	d.upserts <- upsertParams{kind, key, newItem}
-	_ = d.realStore.Upsert(kind, key, newItem)
+	updated, _ := d.realStore.Upsert(kind, key, newItem)
 	d.lock.Lock()
 	defer d.lock.Unlock()
-	return d.fakeError
+	return updated, d.fakeError
 }
 
 // IsInitialized in this test type always returns true.
