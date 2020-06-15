@@ -5,9 +5,18 @@ LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
 TEST_BINARY=./go-server-sdk.test
-ALLOCATIONS_LOG=./allocations.out
 
-.PHONY: build clean test benchmarks benchmark-allocs lint
+OUTPUT_DIR=./build
+
+ALL_SOURCES := $(shell find * -type f -name "*.go")
+
+COVERAGE_PROFILE_RAW=./build/coverage_raw.out
+COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
+COVERAGE_PROFILE_FILTERED=./build/coverage.out
+COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
+COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 -skipfiles sharedtest/ -skipcode "// COVERAGE" -showcode
+
+.PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
 
 build:
 	go build ./...
@@ -22,6 +31,16 @@ test:
 	@# get unexpected errors.
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
 
+test-coverage: $(COVERAGE_PROFILE_RAW)
+	if [ -z "$(which go-coverage-enforcer)" ]; then go get github.com/launchdarkly-labs/go-coverage-enforcer; fi
+	go-coverage-enforcer $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW) || true  # "|| true" so the build won't fail now while we're still improving coverage
+	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
+	go tool cover -html $(COVERAGE_PROFILE_RAW) -o $(COVERAGE_PROFILE_RAW_HTML)
+
+$(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
+	@mkdir -p ./build
+	go test -coverprofile $(COVERAGE_PROFILE_RAW) ./... >/dev/null
+
 benchmarks:
 	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
 
@@ -32,6 +51,7 @@ benchmarks:
 #    count per run, possibly because the first run
 benchmark-allocs:
 	@if [ -z "$$BENCHMARK" ]; then echo "must specify BENCHMARK=" && exit 1; fi
+	@mkdir -p $(OUTPUT_DIR)
 	@echo Precompiling test code to $(TEST_BINARY)
 	@go test -c -o $(TEST_BINARY) >/dev/null 2>&1
 	@echo "Generating heap allocation traces in $(ALLOCATIONS_LOG) for benchmark(s): $$BENCHMARK"

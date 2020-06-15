@@ -14,11 +14,6 @@ type LoggingConfigurationImpl struct {
 	Loggers                         ldlog.Loggers
 }
 
-// NewLoggingConfigurationImpl creates the internal implementation of LoggingConfiguration.
-func NewLoggingConfigurationImpl(loggers ldlog.Loggers) LoggingConfigurationImpl {
-	return LoggingConfigurationImpl{Loggers: loggers}
-}
-
 //nolint:golint,stylecheck // no doc comment for standard method
 func (c LoggingConfigurationImpl) GetLogDataSourceOutageAsErrorAfter() time.Duration {
 	return c.LogDataSourceOutageAsErrorAfter

@@ -2,9 +2,11 @@ package ldcomponents
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
@@ -18,6 +20,12 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, c.IsLogEvaluationErrors())
 		assert.False(t, c.IsLogUserKeyInErrors())
+	})
+
+	t.Run("LogDataSourceOutageAsErrorAfter", func(t *testing.T) {
+		c, err := Logging().LogDataSourceOutageAsErrorAfter(time.Hour).CreateLoggingConfiguration(basicConfig)
+		require.NoError(t, err)
+		assert.Equal(t, time.Hour, c.GetLogDataSourceOutageAsErrorAfter())
 	})
 
 	t.Run("LogEvaluationErrors", func(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 	s "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
@@ -233,6 +234,16 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 		assert.Equal(t, []intf.StoreKeyedItemDescriptor{otherItem1.ToKeyedItemDescriptor()}, items)
 	})
 
+	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		item1 := s.MockDataItem{Key: "item1", Version: 1}
+		core.ForceSet(s.MockData, item1.Key, item1.ToSerializedItemDescriptor())
+		core.ForceSet(s.MockData, "item2", intf.StoreSerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
+
+		_, err := w.GetAll(s.MockData)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a valid MockDataItem") // the error that our mock item deserializer returns
+	})
+
 	if mode.isCached() {
 		t.Run("cached", func(t *testing.T) {
 			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
@@ -418,6 +429,20 @@ func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMod
 	})
 
 	if mode.isCached() {
+		testWithMockPersistentDataStore(t, "can cache true result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			assert.Equal(t, 0, core.InitQueriedCount)
+
+			core.ForceSetInited(true)
+
+			assert.True(t, w.IsInitialized())
+			assert.Equal(t, 1, core.InitQueriedCount)
+
+			core.ForceSetInited(false)
+
+			assert.True(t, w.IsInitialized())
+			assert.Equal(t, 1, core.InitQueriedCount)
+		})
+
 		testWithMockPersistentDataStore(t, "can cache false result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 			assert.False(t, w.IsInitialized())
 			assert.Equal(t, 1, core.InitQueriedCount)

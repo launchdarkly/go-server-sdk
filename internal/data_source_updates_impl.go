@@ -355,6 +355,7 @@ func (o *outageTracker) awaitTimeout(closer chan struct{}) {
 
 	o.lock.Lock()
 	if !o.inOutage {
+		// COVERAGE: there is no way to make this happen in unit tests; it is a very unlikely race condition
 		o.lock.Unlock()
 		return
 	}

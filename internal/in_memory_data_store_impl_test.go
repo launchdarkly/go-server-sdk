@@ -1,13 +1,16 @@
 package internal
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
@@ -97,6 +100,8 @@ func testInMemoryDataStoreInit(t *testing.T) {
 }
 
 func testInMemoryDataStoreGet(t *testing.T) {
+	const unknownKey = "unknown-key"
+
 	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
 		t.Run("found", func(t *testing.T) {
 			store := makeInMemoryStore()
@@ -111,12 +116,36 @@ func testInMemoryDataStoreGet(t *testing.T) {
 		})
 
 		t.Run("not found", func(t *testing.T) {
-			store := makeInMemoryStore()
+			mockLog := sharedtest.NewMockLoggers()
+			mockLog.Loggers.SetMinLevel(ldlog.Info)
+			store := NewInMemoryDataStore(mockLog.Loggers)
 			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
 
-			result, err := store.Get(kind, "no")
+			result, err := store.Get(kind, unknownKey)
 			assert.NoError(t, err)
 			assert.Equal(t, interfaces.StoreItemDescriptor{}.NotFound(), result)
+
+			assert.Len(t, mockLog.GetAllOutput(), 0)
+		})
+
+		t.Run("not found - debug logging", func(t *testing.T) {
+			mockLog := sharedtest.NewMockLoggers()
+			mockLog.Loggers.SetMinLevel(ldlog.Debug)
+			store := NewInMemoryDataStore(mockLog.Loggers)
+			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+
+			result, err := store.Get(kind, unknownKey)
+			assert.NoError(t, err)
+			assert.Equal(t, interfaces.StoreItemDescriptor{}.NotFound(), result)
+
+			assert.Len(t, mockLog.GetAllOutput(), 1)
+			assert.Equal(t,
+				sharedtest.MockLogItem{
+					Level:   ldlog.Debug,
+					Message: fmt.Sprintf(`Key %s not found in "%s"`, unknownKey, kind.GetName()),
+				},
+				mockLog.GetAllOutput()[0],
+			)
 		})
 	})
 }

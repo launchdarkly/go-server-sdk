@@ -22,8 +22,8 @@ func NewTestLoggers() ldlog.Loggers {
 
 // MockLogItem represents a log message captured by MockLoggers.
 type MockLogItem struct {
-	level   ldlog.LogLevel
-	message string
+	Level   ldlog.LogLevel
+	Message string
 }
 
 // MockLoggers provides the ability to capture log output.

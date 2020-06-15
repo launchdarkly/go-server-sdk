@@ -95,7 +95,7 @@ type DataSourceStatus struct {
 
 // String returns a simple string representation of the status.
 func (e DataSourceStatus) String() string {
-	return fmt.Sprintf("Status(%s,%s,%s)", e.State, e.StateSince, e.LastError)
+	return fmt.Sprintf("Status(%s,%s,%s)", e.State, e.StateSince.Format(time.RFC3339), e.LastError)
 }
 
 // DataSourceState is any of the allowable values for DataSourceStatus.State.
@@ -160,20 +160,20 @@ type DataSourceErrorInfo struct {
 func (e DataSourceErrorInfo) String() string {
 	ret := string(e.Kind)
 	if e.StatusCode > 0 || e.Message != "" {
-		ret += " ("
+		ret += "("
 		if e.StatusCode > 0 {
 			ret += fmt.Sprintf("%d", e.StatusCode)
 		}
 		if e.Message != "" {
 			if e.StatusCode > 0 {
-				ret += ", "
+				ret += ","
 			}
 			ret += e.Message
 		}
 		ret += ")"
 	}
 	if !e.Time.IsZero() {
-		ret += fmt.Sprintf(" @%s", e.Time)
+		ret += fmt.Sprintf("@%s", e.Time.Format(time.RFC3339))
 	}
 	return ret
 }

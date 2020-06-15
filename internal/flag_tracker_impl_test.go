@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -78,4 +79,8 @@ func TestFlagValueChangeListener(t *testing.T) {
 
 	// ch3 doesn't receive one, because the flag's value hasn't changed for otherUser
 	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+
+	// broadcast a flag change event for a different flag
+	broadcaster.Broadcast(intf.FlagChangeEvent{Key: "other-flag"})
+	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch1)
 }

@@ -8,6 +8,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
@@ -83,4 +84,10 @@ func TestFlagsStateToJSON(t *testing.T) {
 	actualBytes, err := json.Marshal(state)
 	assert.NoError(t, err)
 	assert.JSONEq(t, expectedString, string(actualBytes))
+}
+
+func TestFlagsStateOptionsStringDescription(t *testing.T) {
+	assert.Equal(t, "ClientSideOnly", ClientSideOnly.String())
+	assert.Equal(t, "WithReasons", WithReasons.String())
+	assert.Equal(t, "DetailsOnlyForTrackedFlags", DetailsOnlyForTrackedFlags.String())
 }

@@ -107,7 +107,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *StreamingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	isCustomStreamURI := b.baseURI != "" && b.baseURI != DefaultStreamingBaseURI
+	isCustomStreamURI := b.baseURI != DefaultStreamingBaseURI
 	isCustomBaseURI := (b.pollingBaseURI != "" && b.pollingBaseURI != DefaultPollingBaseURI) ||
 		(b.pollingBaseURI == "" && b.baseURI != DefaultStreamingBaseURI)
 	return ldvalue.ObjectBuild().

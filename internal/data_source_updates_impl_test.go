@@ -374,7 +374,7 @@ func TestDataSourceOutageLoggingTimeout(t *testing.T) {
 					testDataSourceOutageTimeout,
 				)))
 			assert.Contains(t, message, "UNKNOWN (1 time)")
-			assert.Contains(t, message, "ERROR_RESPONSE (500) (1 time)")
+			assert.Contains(t, message, "ERROR_RESPONSE(500) (1 time)")
 		})
 	})
 }

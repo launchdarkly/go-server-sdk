@@ -50,11 +50,17 @@ func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
 
 // Get is a standard DataStore method.
 func (d *CapturingDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
+	if d.fakeError != nil {
+		return interfaces.StoreItemDescriptor{}.NotFound(), d.fakeError
+	}
 	return d.realStore.Get(kind, key)
 }
 
 // GetAll is a standard DataStore method.
 func (d *CapturingDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
+	if d.fakeError != nil {
+		return nil, d.fakeError
+	}
 	return d.realStore.GetAll(kind)
 }
 
