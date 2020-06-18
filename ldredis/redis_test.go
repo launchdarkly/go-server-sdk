@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	r "github.com/garyburd/redigo/redis"
+	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -16,12 +17,22 @@ const redisURL = "redis://localhost:6379"
 
 func TestRedisDataStore(t *testing.T) {
 	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)
 }
 
 func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
 	return DataStore().Prefix(prefix)
+}
+
+func makeFailedStore() interfaces.PersistentDataStoreFactory {
+	// Here we ensure that all Redis operations will fail by using an invalid hostname.
+	return DataStore().URL("redis://not-a-real-host")
+}
+
+func verifyFailedStoreError(t *testing.T, err error) {
+	assert.Contains(t, err.Error(), "no such host")
 }
 
 func clearTestData(prefix string) error {
