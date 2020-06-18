@@ -35,34 +35,32 @@ jobs:
         environment:
           CIRCLE_TEST_REPORTS: /tmp/circle-reports
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
-          COMMON_GO_PACKAGES: >
-            github.com/golang/dep/cmd/dep
-            github.com/jstemmer/go-junit-report
       - image: redis
       - image: consul
       - image: amazon/dynamodb-local
 
-    working_directory: ~/go/src/gopkg.in/launchdarkly/go-server-sdk.v5
-
     steps:
       - checkout
-      - run: go get -u $COMMON_GO_PACKAGES
+
+      - run:
+          name: install go-junit-report
+          command: go get -u github.com/jstemmer/go-junit-report
+
       - when:
           condition: <<parameters.run-lint>>
           steps:
             - run: make lint
-      # - run: dep ensure -dry-run  # we're currently using private repos for some of our dependencies, so this won't work in CI
-      - run: go build ./...
 
       - run:
-          name: Prepare tests
-          command: |
-            mkdir -p $CIRCLE_TEST_REPORTS
-            mkdir -p $CIRCLE_ARTIFACTS
+          name: Build
+          command: make
 
       - run:
           name: Run tests
-          command: make test | tee $CIRCLE_ARTIFACTS/report.txt
+          command: |
+            mkdir -p $CIRCLE_TEST_REPORTS
+            mkdir -p $CIRCLE_ARTIFACTS
+            make test | tee $CIRCLE_ARTIFACTS/report.txt
     
       - when:
           condition: <<parameters.with-coverage>>
@@ -94,17 +92,10 @@ jobs:
 
     environment:
       GOPATH: C:\Users\VssAdministrator\go
-      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v5
 
     steps:
       - checkout
       - run: go version
-      - run:
-          name: move source
-          command: |
-            go env GOPATH
-            mkdir ${env:GOPATH}\src\${env:PACKAGE_PATH}
-            mv * ${env:GOPATH}\src\${env:PACKAGE_PATH}\
       - run:
           name: setup DynamoDB
           command: |
@@ -146,14 +137,9 @@ jobs:
       - image: cimg/go:1.14
         environment:
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
-          COMMON_GO_PACKAGES: >
-            github.com/golang/dep/cmd/dep
-
-    working_directory: ~/go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
-      - run: go get -u github.com/golang/dep/cmd/dep
       - run: go build ./...      
       - run:
           name: Run benchmarks
