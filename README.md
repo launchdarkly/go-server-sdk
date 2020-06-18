@@ -1,6 +1,6 @@
 # LaunchDarkly Server-side SDK for Go
 
-[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=svg)](https://circleci.com/gh/launchdarkly/go-server-sdk)
+[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk) [![Documentation](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5?status.svg)](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5)
 
 ## This is a prerelease branch
 
@@ -12,7 +12,7 @@ The `v5` branch currently contains prerelease code for development of Go SDK 5.0
  
 ## Supported Go versions
 
-This version of the LaunchDarkly SDK has been tested with Go 1.12 and higher.
+This version of the LaunchDarkly SDK has been tested with Go 1.13 and higher.
 
 ## Getting started
 
