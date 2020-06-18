@@ -12,6 +12,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/ldservices"
@@ -138,7 +139,7 @@ func TestDefaultEventsConfigWithDiagnostics(t *testing.T) {
 		time.Now(),
 		nil,
 	)
-	context := newClientContextWithDiagnostics("sdk-key", nil, nil, diagnosticsManager)
+	context := sharedtest.NewClientContextWithDiagnostics("sdk-key", nil, nil, diagnosticsManager)
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		_, err := SendEvents().
 			BaseURI(server.URL).

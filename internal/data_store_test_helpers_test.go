@@ -2,6 +2,7 @@ package internal
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/launchdarkly/go-test-helpers/ldservices"
 
@@ -69,4 +70,18 @@ func (k unknownDataKind) Serialize(item interfaces.StoreItemDescriptor) []byte {
 
 func (k unknownDataKind) Deserialize(data []byte) (interfaces.StoreItemDescriptor, error) {
 	return interfaces.StoreItemDescriptor{}, errors.New("not implemented")
+}
+
+type urlAppendingHTTPTransport string
+
+func urlAppendingHTTPClientFactory(suffix string) func() *http.Client {
+	return func() *http.Client {
+		return &http.Client{Transport: urlAppendingHTTPTransport(suffix)}
+	}
+}
+
+func (t urlAppendingHTTPTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	req := *r
+	req.URL.Path = req.URL.Path + string(t)
+	return http.DefaultTransport.RoundTrip(&req)
 }

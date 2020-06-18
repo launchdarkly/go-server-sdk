@@ -5,6 +5,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 func TestStreamingDataSourceBuilder(t *testing.T) {
@@ -42,5 +46,40 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 
 		s.InitialReconnectDelay(-1 * time.Millisecond)
 		assert.Equal(t, DefaultInitialReconnectDelay, s.initialReconnectDelay)
+	})
+
+	t.Run("CreateDataSource", func(t *testing.T) {
+		baseURI := "base"
+		pollingBaseURI := "poll"
+		delay := time.Hour
+
+		s := StreamingDataSource().BaseURI(baseURI).PollingBaseURI(pollingBaseURI).InitialReconnectDelay(delay)
+
+		dsu := sharedtest.NewMockDataSourceUpdates(internal.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		ds, err := s.CreateDataSource(basicClientContext(), dsu)
+		require.NoError(t, err)
+		require.NotNil(t, ds)
+		defer ds.Close()
+
+		sp := ds.(*internal.StreamProcessor)
+		assert.Equal(t, baseURI, sp.GetBaseURI())
+		assert.Equal(t, pollingBaseURI, sp.GetPollingBaseURI())
+		assert.Equal(t, delay, sp.GetInitialReconnectDelay())
+	})
+
+	t.Run("CreateDataSource with only the stream URI overridden", func(t *testing.T) {
+		baseURI := "base"
+
+		s := StreamingDataSource().BaseURI(baseURI)
+
+		dsu := sharedtest.NewMockDataSourceUpdates(internal.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		ds, err := s.CreateDataSource(basicClientContext(), dsu)
+		require.NoError(t, err)
+		require.NotNil(t, ds)
+		defer ds.Close()
+
+		sp := ds.(*internal.StreamProcessor)
+		assert.Equal(t, baseURI, sp.GetBaseURI())
+		assert.Equal(t, baseURI, sp.GetPollingBaseURI())
 	})
 }

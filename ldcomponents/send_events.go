@@ -9,6 +9,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 const (
@@ -86,7 +87,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 		UserKeysCapacity:            b.userKeysCapacity,
 		UserKeysFlushInterval:       b.userKeysFlushInterval,
 	}
-	if hdm, ok := context.(hasDiagnosticsManager); ok {
+	if hdm, ok := context.(internal.HasDiagnosticsManager); ok {
 		eventsConfig.DiagnosticsManager = hdm.GetDiagnosticsManager()
 	}
 	return ldevents.NewDefaultEventProcessor(eventsConfig), nil
@@ -208,4 +209,8 @@ func (b *EventProcessorBuilder) DescribeConfiguration() ldvalue.Value {
 		Set("userKeysCapacity", ldvalue.Int(b.userKeysCapacity)).
 		Set("userKeysFlushIntervalMillis", durationToMillisValue(b.userKeysFlushInterval)).
 		Build()
+}
+
+func durationToMillisValue(d time.Duration) ldvalue.Value {
+	return ldvalue.Float64(float64(uint64(d / time.Millisecond)))
 }

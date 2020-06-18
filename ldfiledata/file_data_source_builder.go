@@ -2,7 +2,6 @@ package ldfiledata
 
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -57,9 +56,4 @@ func (b *DataSourceBuilder) CreateDataSource(
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
 	return newFileDataSourceImpl(context, dataSourceUpdates, b.filePaths, b.reloaderFactory)
-}
-
-// DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *DataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	return ldvalue.String("file")
 }

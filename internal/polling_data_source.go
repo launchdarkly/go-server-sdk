@@ -1,4 +1,4 @@
-package ldcomponents
+package internal
 
 import (
 	"sync"
@@ -13,9 +13,14 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
-type pollingProcessor struct {
+// PollingProcessor is the internal implementation of the polling data source.
+//
+// This type is exported from internal so that the PollingDataSourceBuilder tests can verify its
+// configuration. All other code outside of this package should interact with it only via the
+// DataSource interface.
+type PollingProcessor struct {
 	dataSourceUpdates  interfaces.DataSourceUpdates
-	requestor          *requestor
+	requestor          requestor
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
@@ -24,13 +29,24 @@ type pollingProcessor struct {
 	closeOnce          sync.Once
 }
 
+// NewPollingProcessor creates the internal implementation of the polling data source.
+func NewPollingProcessor(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+	baseURI string,
+	pollInterval time.Duration,
+) *PollingProcessor {
+	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), baseURI, true)
+	return newPollingProcessor(context, dataSourceUpdates, requestor, pollInterval)
+}
+
 func newPollingProcessor(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
-	requestor *requestor,
+	requestor requestor,
 	pollInterval time.Duration,
-) *pollingProcessor {
-	pp := &pollingProcessor{
+) *PollingProcessor {
+	pp := &PollingProcessor{
 		dataSourceUpdates: dataSourceUpdates,
 		requestor:         requestor,
 		pollInterval:      pollInterval,
@@ -41,7 +57,8 @@ func newPollingProcessor(
 	return pp
 }
 
-func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
+//nolint:golint,stylecheck // no doc comment for standard method
+func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)
@@ -110,7 +127,7 @@ func (pp *pollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	}()
 }
 
-func (pp *pollingProcessor) poll() error {
+func (pp *PollingProcessor) poll() error {
 	allData, cached, err := pp.requestor.requestAll()
 
 	if err != nil {
@@ -124,15 +141,27 @@ func (pp *pollingProcessor) poll() error {
 	return nil
 }
 
-func (pp *pollingProcessor) Close() error {
+//nolint:golint,stylecheck // no doc comment for standard method
+func (pp *PollingProcessor) Close() error {
 	pp.closeOnce.Do(func() {
 		close(pp.quit)
 	})
 	return nil
 }
 
-func (pp *pollingProcessor) IsInitialized() bool {
+//nolint:golint,stylecheck // no doc comment for standard method
+func (pp *PollingProcessor) IsInitialized() bool {
 	return pp.isInitialized
+}
+
+// GetBaseURI returns the configured polling base URI, for testing.
+func (pp *PollingProcessor) GetBaseURI() string {
+	return (pp.requestor.(*requestorImpl)).baseURI
+}
+
+// GetPollInterval returns the configured polling interval, for testing.
+func (pp *PollingProcessor) GetPollInterval() time.Duration {
+	return pp.pollInterval
 }
 
 type tickerWithInitialTick struct {

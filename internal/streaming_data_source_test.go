@@ -1,10 +1,12 @@
-package ldcomponents
+package internal
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/ldservices"
@@ -14,9 +16,9 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
-	"github.com/launchdarkly/eventsource"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/eventsource"
 )
 
 const briefDelay = time.Millisecond * 50
@@ -24,39 +26,34 @@ const briefDelay = time.Millisecond * 50
 func runStreamingTest(
 	t *testing.T,
 	initialEvent eventsource.Event,
+	requestor requestor,
 	test func(events chan<- eventsource.Event, dataSourceUpdates *sharedtest.MockDataSourceUpdates),
 ) {
 	events := make(chan eventsource.Event, 1000)
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialEvent, events)
 	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-		flagEndpointHandler := httphelpers.HandlerForPath(
-			"/sdk/latest-flags/my-flag",
-			httphelpers.HandlerWithJSONResponse(ldservices.FlagOrSegment("my-flag", 5), nil),
-			nil,
-		)
-		httphelpers.WithServer(flagEndpointHandler, func(sdkServer *httptest.Server) {
-			withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
-				sp, err := StreamingDataSource().
-					BaseURI(streamServer.URL).
-					PollingBaseURI(sdkServer.URL).
-					InitialReconnectDelay(briefDelay).
-					CreateDataSource(basicClientContext(), dataSourceUpdates)
-				require.NoError(t, err)
-				defer sp.Close()
+		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+			sp := newStreamProcessor(
+				basicClientContext(),
+				dataSourceUpdates,
+				streamServer.URL,
+				briefDelay,
+				requestor,
+			)
+			defer sp.Close()
 
-				closeWhenReady := make(chan struct{})
+			closeWhenReady := make(chan struct{})
 
-				sp.Start(closeWhenReady)
+			sp.Start(closeWhenReady)
 
-				select {
-				case <-closeWhenReady:
-				case <-time.After(time.Second):
-					assert.Fail(t, "start timeout")
-					return
-				}
+			select {
+			case <-closeWhenReady:
+			case <-time.After(time.Second):
+				assert.Fail(t, "start timeout")
+				return
+			}
 
-				test(events, dataSourceUpdates)
-			})
+			test(events, dataSourceUpdates)
 		})
 	})
 }
@@ -67,13 +64,13 @@ func TestStreamProcessor(t *testing.T) {
 	timeout := 3 * time.Second
 
 	t.Run("initial put", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+		runStreamingTest(t, initialData, nil, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			updates.DataStore.WaitForInit(t, initialData, timeout)
 		})
 	})
 
 	t.Run("patch flag", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+		runStreamingTest(t, initialData, nil, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
 
 			updates.DataStore.WaitForUpsert(t, interfaces.DataKindFeatures(), "my-flag", 3, timeout)
@@ -81,7 +78,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("delete flag", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+		runStreamingTest(t, initialData, nil, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
 
 			updates.DataStore.WaitForDelete(t, interfaces.DataKindSegments(), "my-flag", 4, timeout)
@@ -89,7 +86,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("patch segment", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+		runStreamingTest(t, initialData, nil, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
 
 			updates.DataStore.WaitForUpsert(t, interfaces.DataKindSegments(), "my-segment", 7, timeout)
@@ -97,7 +94,7 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("delete segment", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+		runStreamingTest(t, initialData, nil, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
 			events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
 
 			updates.DataStore.WaitForDelete(t, interfaces.DataKindSegments(), "my-segment", 8, timeout)
@@ -105,10 +102,17 @@ func TestStreamProcessor(t *testing.T) {
 	})
 
 	t.Run("indirect flag patch", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
-			events <- ldservices.NewSSEEvent("", indirectPatchEvent, "/flags/my-flag")
+		flag := ldbuilders.NewFlagBuilder("my-flag").Version(5).Build()
+		requestor := newMockRequestor()
+		requestor.requestResourceRespCh <- mockRequestResourceResponse{
+			item: sharedtest.FlagDescriptor(flag),
+		}
+		defer requestor.Close()
 
-			updates.DataStore.WaitForUpsert(t, interfaces.DataKindFeatures(), "my-flag", 5, timeout)
+		runStreamingTest(t, initialData, requestor, func(events chan<- eventsource.Event, updates *sharedtest.MockDataSourceUpdates) {
+			events <- ldservices.NewSSEEvent("", indirectPatchEvent, "/flags/"+flag.Key)
+
+			updates.DataStore.WaitForUpsert(t, interfaces.DataKindFeatures(), flag.Key, flag.Version, timeout)
 		})
 	})
 }
@@ -132,13 +136,11 @@ func TestStreamProcessorDoesNotFailImmediatelyOn500(t *testing.T) {
 func testStreamProcessorUnrecoverableError(t *testing.T, statusCode int) {
 	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
-			id := ldevents.NewDiagnosticID(testSdkKey)
+			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
+			context := sharedtest.NewClientContextWithDiagnostics(testSDKKey, nil, nil, diagnosticsManager)
 
-			sp, err := StreamingDataSource().BaseURI(ts.URL).
-				CreateDataSource(context, dataSourceUpdates)
-			require.NoError(t, err)
+			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, "", time.Second)
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -172,13 +174,11 @@ func testStreamProcessorRecoverableError(t *testing.T, statusCode int) {
 	)
 	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
-			id := ldevents.NewDiagnosticID(testSdkKey)
+			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := newClientContextWithDiagnostics(testSdkKey, nil, nil, diagnosticsManager)
+			context := sharedtest.NewClientContextWithDiagnostics(testSDKKey, nil, nil, diagnosticsManager)
 
-			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(context, dataSourceUpdates)
-			require.NoError(t, err)
+			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, "", briefDelay)
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -213,12 +213,10 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			httpConfig, _ := HTTPConfiguration().HTTPClientFactory(httpClientFactory).CreateHTTPConfiguration(interfaces.BasicConfiguration{})
-			context := sharedtest.NewTestContext(testSdkKey, httpConfig, sharedtest.TestLoggingConfig())
+			httpConfig := HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
+			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 
-			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(context, dataSourceUpdates)
-			require.NoError(t, err)
+			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, "", briefDelay)
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
@@ -241,12 +239,10 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 				c.Timeout = 200 * time.Millisecond
 				return &c
 			}
-			httpConfig, _ := HTTPConfiguration().HTTPClientFactory(httpClientFactory).CreateHTTPConfiguration(interfaces.BasicConfiguration{})
-			context := sharedtest.NewTestContext(testSdkKey, httpConfig, sharedtest.TestLoggingConfig())
+			httpConfig := HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
+			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 
-			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(context, dataSourceUpdates)
-			require.NoError(t, err)
+			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, "", briefDelay)
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
@@ -263,9 +259,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(updates *sharedtest.MockDataSourceUpdates) {
-			sp, err := StreamingDataSource().BaseURI(ts.URL).InitialReconnectDelay(briefDelay).
-				CreateDataSource(basicClientContext(), updates)
-			require.NoError(t, err)
+			sp := NewStreamProcessor(basicClientContext(), updates, ts.URL, "", briefDelay)
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})

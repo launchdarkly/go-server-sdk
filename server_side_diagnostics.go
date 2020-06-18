@@ -68,9 +68,6 @@ func mergeComponentProperties(
 	defaultPropertyName string,
 ) {
 	if component == nil {
-		if defaultComponent == nil {
-			return
-		}
 		component = defaultComponent
 	}
 	if dd, ok := component.(interfaces.DiagnosticDescription); ok {

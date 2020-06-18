@@ -2,7 +2,9 @@ package ldclient
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -132,6 +134,21 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b ldvalue.ObjectBuilder) {
 			b.Set("usingProxy", ldvalue.Bool(true))
 		})
+	doTest(
+		func(c *Config) {
+			c.HTTP = ldcomponents.HTTPConfiguration().
+				HTTPClientFactory(func() *http.Client { return http.DefaultClient })
+		},
+		func(b ldvalue.ObjectBuilder) {})
+	func() {
+		os.Setenv("HTTP_PROXY", "http://proxyhost")
+		defer os.Setenv("HTTP_PROXY", "")
+		doTest(
+			func(c *Config) {},
+			func(b ldvalue.ObjectBuilder) {
+				b.Set("usingProxy", ldvalue.Bool(true))
+			})
+	}()
 }
 
 type customStoreFactoryForDiagnostics struct {
