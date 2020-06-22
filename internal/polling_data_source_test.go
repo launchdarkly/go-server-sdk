@@ -129,7 +129,6 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 	defer req.Close()
 
 	req.requestAllRespCh <- mockRequestAllResponse{err: err}
-	req.requestAllRespCh <- mockRequestAllResponse{}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
@@ -148,6 +147,8 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 			require.Fail(t, "should not report ready yet")
 		default:
 		}
+
+		req.requestAllRespCh <- mockRequestAllResponse{}
 
 		// wait for second poll
 		select {

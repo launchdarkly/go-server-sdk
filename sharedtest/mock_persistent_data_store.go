@@ -156,6 +156,7 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection)
 		}
 	}
 	for _, coll := range allData {
+		AssertNotNil(coll.Kind)
 		itemsMap := make(map[string]intf.StoreSerializedItemDescriptor)
 		for _, item := range coll.Items {
 			itemsMap[item.Key] = m.storableItem(item.Item)
@@ -168,6 +169,7 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection)
 
 // Get is a standard PersistentDataStore method.
 func (m *MockPersistentDataStore) Get(kind intf.StoreDataKind, key string) (intf.StoreSerializedItemDescriptor, error) {
+	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
@@ -182,6 +184,7 @@ func (m *MockPersistentDataStore) Get(kind intf.StoreDataKind, key string) (intf
 
 // GetAll is a standard PersistentDataStore method.
 func (m *MockPersistentDataStore) GetAll(kind intf.StoreDataKind) ([]intf.StoreKeyedSerializedItemDescriptor, error) {
+	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
@@ -201,6 +204,7 @@ func (m *MockPersistentDataStore) Upsert(
 	key string,
 	newItem intf.StoreSerializedItemDescriptor,
 ) (bool, error) {
+	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {

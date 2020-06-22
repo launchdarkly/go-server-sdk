@@ -40,6 +40,9 @@ func NewMockDataSourceUpdates(realStore interfaces.DataStore) *MockDataSourceUpd
 
 // Init in this test implementation, delegates to d.DataStore.CapturedUpdates.
 func (d *MockDataSourceUpdates) Init(allData []interfaces.StoreCollection) bool {
+	for _, coll := range allData {
+		AssertNotNil(coll.Kind)
+	}
 	err := d.DataStore.Init(allData)
 	return err == nil
 }
@@ -50,6 +53,7 @@ func (d *MockDataSourceUpdates) Upsert(
 	key string,
 	newItem interfaces.StoreItemDescriptor,
 ) bool {
+	AssertNotNil(kind)
 	_, err := d.DataStore.Upsert(kind, key, newItem)
 	return err == nil
 }

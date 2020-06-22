@@ -41,6 +41,9 @@ func NewCapturingDataStore(realStore interfaces.DataStore) *CapturingDataStore {
 
 // Init is a standard DataStore method.
 func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
+	for _, coll := range allData {
+		AssertNotNil(coll.Kind)
+	}
 	d.inits <- allData
 	_ = d.realStore.Init(allData)
 	d.lock.Lock()
@@ -50,6 +53,7 @@ func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
 
 // Get is a standard DataStore method.
 func (d *CapturingDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
+	AssertNotNil(kind)
 	if d.fakeError != nil {
 		return interfaces.StoreItemDescriptor{}.NotFound(), d.fakeError
 	}
@@ -58,6 +62,7 @@ func (d *CapturingDataStore) Get(kind interfaces.StoreDataKind, key string) (int
 
 // GetAll is a standard DataStore method.
 func (d *CapturingDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
+	AssertNotNil(kind)
 	if d.fakeError != nil {
 		return nil, d.fakeError
 	}
@@ -70,6 +75,7 @@ func (d *CapturingDataStore) Upsert(
 	key string,
 	newItem interfaces.StoreItemDescriptor,
 ) (bool, error) {
+	AssertNotNil(kind)
 	d.upserts <- upsertParams{kind, key, newItem}
 	updated, _ := d.realStore.Upsert(kind, key, newItem)
 	d.lock.Lock()

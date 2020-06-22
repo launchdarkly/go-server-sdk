@@ -301,7 +301,7 @@ func dataStoreAllItemsCacheKey(kind intf.StoreDataKind) string {
 }
 
 func (w *persistentDataStoreWrapper) initCore(allData []intf.StoreCollection) error {
-	serializedAllData := make([]intf.StoreSerializedCollection, len(allData))
+	serializedAllData := make([]intf.StoreSerializedCollection, 0, len(allData))
 	for _, coll := range allData {
 		serializedAllData = append(serializedAllData, intf.StoreSerializedCollection{
 			Kind:  coll.Kind,
