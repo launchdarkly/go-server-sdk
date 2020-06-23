@@ -42,7 +42,6 @@ const (
 	putEvent                 = "put"
 	patchEvent               = "patch"
 	deleteEvent              = "delete"
-	indirectPatchEvent       = "indirect/patch"
 	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
 	streamMaxRetryDelay      = 30 * time.Second
 	streamRetryResetInterval = 60 * time.Second
@@ -63,7 +62,6 @@ type StreamProcessor struct {
 	streamURI                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
-	requestor                  requestor
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
@@ -98,25 +96,12 @@ func NewStreamProcessor(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 	streamURI string,
-	pollingBaseURI string,
 	initialReconnectDelay time.Duration,
-) interfaces.DataSource {
-	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), pollingBaseURI, false)
-	return newStreamProcessor(context, dataSourceUpdates, streamURI, initialReconnectDelay, requestor)
-}
-
-func newStreamProcessor(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-	streamURI string,
-	initialReconnectDelay time.Duration,
-	requestor requestor,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
 		dataSourceUpdates:     dataSourceUpdates,
 		streamURI:             streamURI,
 		initialReconnectDelay: initialReconnectDelay,
-		requestor:             requestor,
 		headers:               context.GetHTTP().GetDefaultHeaders(),
 		loggers:               context.GetLogging().GetLoggers(),
 		halt:                  make(chan struct{}),
@@ -169,7 +154,6 @@ func parsePath(path string) (parsedPath, error) {
 	return parsedPath, nil
 }
 
-//nolint:gocyclo // yes, we know this is a long function
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -271,19 +255,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					storeUpdateFailed("streaming deletion of " + path.key)
 				}
 
-			case indirectPatchEvent:
-				path, err := parsePath(event.Data())
-				if err != nil {
-					gotMalformedEvent(event, err)
-				}
-				item, requestErr := sp.requestor.requestResource(path.kind, path.key)
-				if requestErr != nil {
-					sp.loggers.Errorf(`Unexpected error requesting %s item "%s": %+v`, path.kind, path.key, err)
-					break
-				}
-				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, item) {
-					storeUpdateFailed("streaming update of " + path.key)
-				}
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
 			}
@@ -444,11 +415,6 @@ func (sp *StreamProcessor) Close() error {
 // GetBaseURI returns the configured streaming base URI, for testing.
 func (sp *StreamProcessor) GetBaseURI() string {
 	return sp.streamURI
-}
-
-// GetPollingBaseURI returns the configured polling base URI, for testing.
-func (sp *StreamProcessor) GetPollingBaseURI() string {
-	return (sp.requestor.(*requestorImpl)).baseURI
 }
 
 // GetInitialReconnectDelay returns the configured reconnect delay, for testing.

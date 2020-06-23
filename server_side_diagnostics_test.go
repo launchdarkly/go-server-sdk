@@ -50,7 +50,7 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		setExpected(expected)
 		actual := makeDiagnosticConfigData(config, testStartWaitMillis)
-		assert.Equal(t, expected.Build(), actual)
+		assert.JSONEq(t, expected.Build().JSONString(), actual.JSONString())
 	}
 	doTest := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
 		doTestWithoutStreamingDefaults(setConfig, func(b ldvalue.ObjectBuilder) {
@@ -79,7 +79,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	doTest(func(c *Config) {
 		c.DataSource = ldcomponents.StreamingDataSource().BaseURI("custom")
 	}, func(b ldvalue.ObjectBuilder) {
-		b.Set("customBaseURI", ldvalue.Bool(true))
 		b.Set("customStreamURI", ldvalue.Bool(true))
 	})
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Minute) },

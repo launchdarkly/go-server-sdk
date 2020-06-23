@@ -9,8 +9,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
-// DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI and
-// StreamingDataSourceBuilder.PollingBaseURI.
+// DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI.
 const DefaultPollingBaseURI = "https://app.launchdarkly.com"
 
 // DefaultPollInterval is the default value for PollingDataSourceBuilder.PollInterval. This is also the minimum value.
