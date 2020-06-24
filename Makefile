@@ -14,7 +14,7 @@ COVERAGE_PROFILE_RAW=./build/coverage_raw.out
 COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
 COVERAGE_PROFILE_FILTERED=./build/coverage.out
 COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
-ifeq ("$$LD_SKIP_DATABASE_TESTS","")
+ifeq ("$(LD_SKIP_DATABASE_TESTS)","")
   COVERAGE_ENFORCER_SKIP_FILES=sharedtest/
 else
   COVERAGE_ENFORCER_SKIP_FILES='(sharedtest/|ldconsul/|lddynamodb/|ldredis/)'
