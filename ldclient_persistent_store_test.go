@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest/dynamodbtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest/dynamodbtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,10 +14,10 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldredis"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 // This is a smoke test of initializing LDClient with any of the built-in persistent data store

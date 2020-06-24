@@ -58,16 +58,6 @@ func MakeSerializedMockDataSet(items ...MockDataItem) []intf.StoreSerializedColl
 	return []intf.StoreSerializedCollection{itemsColl, otherItemsColl}
 }
 
-func itemDescriptorsToMap(
-	items []intf.StoreKeyedSerializedItemDescriptor,
-) map[string]intf.StoreSerializedItemDescriptor {
-	ret := make(map[string]intf.StoreSerializedItemDescriptor)
-	for _, item := range items {
-		ret[item.Key] = item.Item
-	}
-	return ret
-}
-
 // MockDataItem is a test replacement for FeatureFlag/Segment.
 type MockDataItem struct {
 	Key         string

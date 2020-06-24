@@ -11,8 +11,7 @@ import (
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
-	s "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	s "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 type testCacheMode string
@@ -49,7 +48,7 @@ func makePersistentDataStoreWrapper(
 ) intf.DataStore {
 	broadcaster := internal.NewDataStoreStatusBroadcaster()
 	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
-	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers())
+	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), s.NewTestLoggers())
 }
 
 func TestPersistentDataStoreWrapper(t *testing.T) {

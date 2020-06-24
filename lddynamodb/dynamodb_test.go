@@ -10,8 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest/dynamodbtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest/dynamodbtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
 )
 
 func TestDynamoDBDataStore(t *testing.T) {
@@ -20,7 +21,7 @@ func TestDynamoDBDataStore(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+	testhelpers.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
 		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)

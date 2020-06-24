@@ -1,9 +1,11 @@
-package sharedtest
+package testhelpers
 
 import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 // This verifies that the PersistentDataStoreTestSuite tests behave as expected as long as the
@@ -15,19 +17,19 @@ import (
 // necessary. MockPersistentDataStore is able to simulate both of these scenarios, and we test both here.
 
 type mockStoreFactory struct {
-	db                  *mockDatabaseInstance
+	db                  *sharedtest.MockDatabaseInstance
 	prefix              string
 	persistOnlyAsString bool
 }
 
 func (f mockStoreFactory) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
-	store := newMockPersistentDataStoreWithPrefix(f.db, f.prefix)
-	store.persistOnlyAsString = f.persistOnlyAsString
+	store := sh.NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
+	store.SetPersistOnlyAsString(f.persistOnlyAsString)
 	return store, nil
 }
 
 func TestPersistentDataStoreTestSuite(t *testing.T) {
-	db := newMockDatabaseInstance()
+	db := sh.NewMockDatabaseInstance()
 
 	runTests := func(t *testing.T, persistOnlyAsString bool) {
 		NewPersistentDataStoreTestSuite(
@@ -40,7 +42,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 			},
 		).ConcurrentModificationHook(
 			func(store interfaces.PersistentDataStore, hook func()) {
-				store.(*MockPersistentDataStore).testTxHook = hook
+				store.(*sh.MockPersistentDataStore).SetTestTxHook(hook)
 			},
 		).AlwaysRun(true).Run(t)
 	}

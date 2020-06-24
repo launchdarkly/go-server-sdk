@@ -12,7 +12,7 @@ import (
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
 	"github.com/stretchr/testify/require"
 
