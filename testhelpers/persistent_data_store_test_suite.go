@@ -286,15 +286,20 @@ func (s *PersistentDataStoreTestSuite) runGetTests(t *testing.T) {
 }
 
 func (s *PersistentDataStoreTestSuite) runUpsertTests(t *testing.T) {
+	item1 := sh.MockDataItem{Key: "feature", Version: 10, Name: "original"}
+
+	setupItem1 := func(t *testing.T, store intf.PersistentDataStore) {
+		updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
+		assert.NoError(t, err)
+		assert.True(t, updated)
+	}
+
 	t.Run("newer version", func(t *testing.T) {
 		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
-			item1 := sh.MockDataItem{Key: "feature", Version: 10, Name: "original"}
-			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
-			assert.NoError(t, err)
-			assert.True(t, updated)
+			setupItem1(t, store)
 
 			item1a := sh.MockDataItem{Key: "feature", Version: item1.Version + 1, Name: "updated"}
-			updated, err = store.Upsert(sh.MockData, item1.Key, item1a.ToSerializedItemDescriptor())
+			updated, err := store.Upsert(sh.MockData, item1.Key, item1a.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
 			assert.True(t, updated)
 
@@ -306,13 +311,10 @@ func (s *PersistentDataStoreTestSuite) runUpsertTests(t *testing.T) {
 
 	t.Run("older version", func(t *testing.T) {
 		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
-			item1 := sh.MockDataItem{Key: "feature", Version: 10, Name: "original"}
-			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
-			assert.NoError(t, err)
-			assert.True(t, updated)
+			setupItem1(t, store)
 
 			item1a := sh.MockDataItem{Key: "feature", Version: item1.Version - 1, Name: "updated"}
-			updated, err = store.Upsert(sh.MockData, item1.Key, item1a.ToSerializedItemDescriptor())
+			updated, err := store.Upsert(sh.MockData, item1.Key, item1a.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
 			assert.False(t, updated)
 
@@ -324,13 +326,10 @@ func (s *PersistentDataStoreTestSuite) runUpsertTests(t *testing.T) {
 
 	t.Run("same version", func(t *testing.T) {
 		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
-			item1 := sh.MockDataItem{Key: "feature", Version: 10, Name: "updated"}
-			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
-			assert.NoError(t, err)
-			assert.True(t, updated)
+			setupItem1(t, store)
 
 			item1a := sh.MockDataItem{Key: "feature", Version: item1.Version, Name: "updated"}
-			updated, err = store.Upsert(sh.MockData, item1.Key, item1a.ToSerializedItemDescriptor())
+			updated, err := store.Upsert(sh.MockData, item1.Key, item1a.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
 			assert.False(t, updated)
 
