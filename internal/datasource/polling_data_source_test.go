@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"errors"
@@ -14,6 +14,7 @@ import (
 	"github.com/launchdarkly/go-test-helpers/ldservices"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
@@ -212,7 +213,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			httpConfig := HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
+			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 			req := newRequestorImpl(context, nil, ts.URL, true)
 

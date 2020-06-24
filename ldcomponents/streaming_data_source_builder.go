@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 )
 
 // DefaultStreamingBaseURI is the default value for StreamingDataSourceBuilder.BaseURI.
@@ -80,7 +80,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	return internal.NewStreamProcessor(
+	return datasource.NewStreamProcessor(
 		context,
 		dataSourceUpdates,
 		b.baseURI,

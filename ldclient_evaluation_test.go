@@ -8,7 +8,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
@@ -58,7 +58,7 @@ type clientEvalTestParams struct {
 
 func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 	p := clientEvalTestParams{}
-	p.store = internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
 	p.events = &testEventProcessor{}
 	p.mockLog = sharedtest.NewMockLoggers()
 	config := Config{

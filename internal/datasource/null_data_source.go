@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 

@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"fmt"
@@ -7,16 +7,17 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataSourceUpdatesImpl struct {
+type DataSourceUpdatesImpl struct { //nolint:golint // yes, we know the package name resembles the type name
 	store                       intf.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
-	dataSourceStatusBroadcaster *DataSourceStatusBroadcaster
-	flagChangeEventBroadcaster  *FlagChangeEventBroadcaster
+	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
+	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
 	dependencyTracker           *dependencyTracker
 	outageTracker               *outageTracker
 	loggers                     ldlog.Loggers
@@ -29,8 +30,8 @@ type DataSourceUpdatesImpl struct {
 func NewDataSourceUpdatesImpl(
 	store intf.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
-	dataSourceStatusBroadcaster *DataSourceStatusBroadcaster,
-	flagChangeEventBroadcaster *FlagChangeEventBroadcaster,
+	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster,
+	flagChangeEventBroadcaster *internal.FlagChangeEventBroadcaster,
 	logDataSourceOutageAsErrorAfter time.Duration,
 	loggers ldlog.Loggers,
 ) *DataSourceUpdatesImpl {

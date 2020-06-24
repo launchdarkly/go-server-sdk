@@ -10,7 +10,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
@@ -23,7 +23,7 @@ type clientExternalUpdatesTestParams struct {
 
 func withClientExternalUpdatesTestParams(callback func(clientExternalUpdatesTestParams)) {
 	p := clientExternalUpdatesTestParams{}
-	p.store = internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
 	p.mockLog = sharedtest.NewMockLoggers()
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),

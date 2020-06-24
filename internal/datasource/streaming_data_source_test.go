@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"errors"
@@ -16,6 +16,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
@@ -472,7 +473,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			httpConfig := HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
+			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
@@ -498,7 +499,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 				c.Timeout = 200 * time.Millisecond
 				return &c
 			}
-			httpConfig := HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
+			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
