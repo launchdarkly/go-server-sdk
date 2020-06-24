@@ -52,7 +52,7 @@ docker run -p 8000:8000 amazon/dynamodb-local
 docker run -p 6379:6379 redis
 ```
 
-## Best practices for performance
+## Coding best practices
 
 The Go SDK can be used in high-traffic application/service code where performance is critical. There are a number of coding principles to keep in mind for maximizing performance. The benchmarks that are run in CI are helpful in measuring the impact of code changes in this regard.
 
@@ -123,3 +123,9 @@ The `Debug` logging level can be a useful diagnostic tool, and it is OK to log v
 
 1. Avoid string concatenation; use `Printf`-style placeholders instead.
 2. Before calling `loggers.Debug` or `loggers.Debugf`, check `loggers.IsDebugEnabled()`. If it returns false, you should skip the `Debug` or `Debugf` call, since otherwise it can incur some overhead from converting the parameters of that call to `interface{}` values.
+
+### Test coverage
+
+It is important to keep unit test coverage as close to 100% as possible in this project. You can view the latest code coverage report in CircleCI, as `coverage.html` and `coverage.txt` in the artifacts for the latest Go version build. You can also generate this information locally with `make test-coverage`.
+
+The build will fail if there are any uncovered blocks of code, unless you explicitly add an override by placing a comment that starts with `// COVERAGE` somewhere within that block. Sometimes a gap in coverage is unavoidable, usually because the compiler requires us to provide a code path for some condition that in practice can't happen and can't be tested. Exclude these paths with a `// COVERAGE` comment.
