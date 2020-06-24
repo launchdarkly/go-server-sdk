@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
@@ -42,6 +43,7 @@ func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStat
 	defer params.store.Close()
 	action(params)
 }
+
 func TestDataStoreWrapperStatus(t *testing.T) {
 	statusUpdateTimeout := 1 * time.Second // status poller has an interval of 500ms
 
@@ -54,7 +56,20 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		})
 	}
 
-	runTests(t, "Status is unavailable after error", func(t *testing.T, mode testCacheMode) {
+	runTests(t, "Status is unavailable after error (Get)", func(t *testing.T, mode testCacheMode) {
+		withDataStoreStatusTestParams(mode, func(p dataStoreStatusTestParams) {
+			myError := errors.New("sorry")
+			p.core.SetFakeError(myError)
+			_, err := p.store.Get(intf.DataKindFeatures(), "key")
+			require.Equal(t, myError, err)
+
+			status := p.dataStoreUpdates.getStatus()
+			assert.Equal(t, intf.DataStoreStatus{Available: false}, status)
+		})
+
+	}, testUncached, testCached, testCachedIndefinitely)
+
+	runTests(t, "Status is unavailable after error (GetAll)", func(t *testing.T, mode testCacheMode) {
 		withDataStoreStatusTestParams(mode, func(p dataStoreStatusTestParams) {
 			myError := errors.New("sorry")
 			p.core.SetFakeError(myError)
@@ -86,6 +101,9 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			require.Equal(t, myError, err)
 			assert.Len(t, statusCh, 0)
 
+			// Wait for at least one status poll interval
+			<-time.After(statusPollInterval + time.Millisecond*100)
+
 			// Now simulate the data store becoming OK again; the poller detects this and publishes a new status
 			p.core.SetAvailable(true)
 			updatedStatus = consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
@@ -112,7 +130,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 			// While the store is still down, try to update it - the update goes into the cache
 			flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-			err = p.store.Upsert(intf.DataKindFeatures(), flag.Key, flagDescriptor(flag))
+			_, err = p.store.Upsert(intf.DataKindFeatures(), flag.Key, sharedtest.FlagDescriptor(flag))
 			assert.Equal(t, myError, err)
 			cachedFlag, err := p.store.Get(intf.DataKindFeatures(), flag.Key)
 			assert.NoError(t, err)

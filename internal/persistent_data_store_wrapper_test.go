@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 	s "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
@@ -209,6 +210,26 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 			})
 		})
 	}
+
+	testWithMockPersistentDataStore(t, "item whose version number doesn't come from the serialized data",
+		mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			// This is a condition that currently can't happen, but if we ever move away from always putting the
+			// version number in the serialized JSON (i.e. if every persistent data store implementation has a
+			// separate place to keep the version) then PersistentDataStoreWrapper should be able to handle it.
+			item := s.MockDataItem{Key: "key", Version: 1}
+
+			sid := item.ToSerializedItemDescriptor()
+			sid.Version = 2
+
+			core.ForceSet(s.MockData, item.Key, sid)
+
+			id := item.ToItemDescriptor()
+			id.Version = 2
+
+			result, err := w.Get(s.MockData, item.Key)
+			assert.NoError(t, err)
+			assert.Equal(t, id, result)
+		})
 }
 
 func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
@@ -231,6 +252,16 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(items))
 		assert.Equal(t, []intf.StoreKeyedItemDescriptor{otherItem1.ToKeyedItemDescriptor()}, items)
+	})
+
+	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		item1 := s.MockDataItem{Key: "item1", Version: 1}
+		core.ForceSet(s.MockData, item1.Key, item1.ToSerializedItemDescriptor())
+		core.ForceSet(s.MockData, "item2", intf.StoreSerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
+
+		_, err := w.GetAll(s.MockData)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a valid MockDataItem") // the error that our mock item deserializer returns
 	})
 
 	if mode.isCached() {
@@ -261,7 +292,8 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 				require.NoError(t, w.Init(s.MakeMockDataSet(item1v1, item2v2)))
 
 				// make a change to item1 using the wrapper - this should flush the cache
-				require.NoError(t, w.Upsert(s.MockData, item1v1.Key, item1v2.ToItemDescriptor()))
+				_, err := w.Upsert(s.MockData, item1v1.Key, item1v2.ToItemDescriptor())
+				require.NoError(t, err)
 
 				// make a change to item2 that bypasses the cache
 				core.ForceSet(s.MockData, item2v1.Key, item2v2.ToSerializedItemDescriptor())
@@ -310,10 +342,14 @@ func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
 
-		require.NoError(t, w.Upsert(s.MockData, key, itemv1.ToItemDescriptor()))
+		updated, err := w.Upsert(s.MockData, key, itemv1.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.True(t, updated)
 		require.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
-		require.NoError(t, w.Upsert(s.MockData, key, itemv2.ToItemDescriptor()))
+		updated, err = w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.True(t, updated)
 		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
 		// if we have a cache, verify that the new item is now cached by writing a different value
@@ -333,7 +369,9 @@ func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
 
-		require.NoError(t, w.Upsert(s.MockData, key, itemv2.ToItemDescriptor()))
+		updated, err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.True(t, updated)
 		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
 		// In a cached store, we need to verify that after an unsuccessful upsert it will refresh the
@@ -342,7 +380,9 @@ func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
 		itemv3 := s.MockDataItem{Key: key, Version: 3}
 		core.ForceSet(s.MockData, key, itemv3.ToSerializedItemDescriptor())
 
-		require.NoError(t, w.Upsert(s.MockData, key, itemv1.ToItemDescriptor()))
+		updated, err = w.Upsert(s.MockData, key, itemv1.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.False(t, updated)
 
 		result, err := w.Get(s.MockData, key)
 		require.NoError(t, err)
@@ -356,10 +396,14 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
 		deletedv2 := intf.StoreItemDescriptor{Version: 2}
 
-		require.NoError(t, w.Upsert(s.MockData, key, itemv1.ToItemDescriptor()))
+		updated, err := w.Upsert(s.MockData, key, itemv1.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.True(t, updated)
 		require.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
-		require.NoError(t, w.Upsert(s.MockData, key, deletedv2))
+		updated, err = w.Upsert(s.MockData, key, deletedv2)
+		require.NoError(t, err)
+		assert.True(t, updated)
 
 		// if we have a cache, verify that the new item is now cached by writing a different value
 		// to the underlying data - Get should still return the cached item
@@ -378,10 +422,14 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
 		deletedv1 := intf.StoreItemDescriptor{Version: 1}
 
-		require.NoError(t, w.Upsert(s.MockData, key, itemv2.ToItemDescriptor()))
+		updated, err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.True(t, updated)
 		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key))
 
-		require.NoError(t, w.Upsert(s.MockData, key, deletedv1))
+		updated, err = w.Upsert(s.MockData, key, deletedv1)
+		require.NoError(t, err)
+		assert.False(t, updated)
 
 		result, err := w.Get(s.MockData, itemv2.Key)
 		require.NoError(t, err)
@@ -401,6 +449,20 @@ func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMod
 	})
 
 	if mode.isCached() {
+		testWithMockPersistentDataStore(t, "can cache true result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			assert.Equal(t, 0, core.InitQueriedCount)
+
+			core.ForceSetInited(true)
+
+			assert.True(t, w.IsInitialized())
+			assert.Equal(t, 1, core.InitQueriedCount)
+
+			core.ForceSetInited(false)
+
+			assert.True(t, w.IsInitialized())
+			assert.Equal(t, 1, core.InitQueriedCount)
+		})
+
 		testWithMockPersistentDataStore(t, "can cache false result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 			assert.False(t, w.IsInitialized())
 			assert.Equal(t, 1, core.InitQueriedCount)
@@ -426,7 +488,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 
 				myError := errors.New("sorry")
 				core.SetFakeError(myError)
-				err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+				_, err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
 				assert.Equal(t, myError, err)
 				assert.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key)) // underlying store still has old item
 
@@ -464,7 +526,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 
 				myError := errors.New("sorry")
 				core.SetFakeError(myError)
-				err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
+				_, err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
 				assert.Equal(t, myError, err)
 				assert.Equal(t, itemv1.ToSerializedItemDescriptor(), core.ForceGet(s.MockData, key)) // underlying store still has old item
 

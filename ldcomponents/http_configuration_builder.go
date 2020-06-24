@@ -76,7 +76,11 @@ func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfiguratio
 //         HTTP: ldcomponents.ConnectTimeout(),
 //     }
 func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) *HTTPConfigurationBuilder {
-	b.connectTimeout = connectTimeout
+	if connectTimeout <= 0 {
+		b.connectTimeout = DefaultConnectTimeout
+	} else {
+		b.connectTimeout = connectTimeout
+	}
 	return b
 }
 
@@ -117,17 +121,12 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 	return b
 }
 
-// Used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is internally by the SDK to inspect the configuration.
 func (b *HTTPConfigurationBuilder) DescribeConfiguration() ldvalue.Value {
 	builder := ldvalue.ObjectBuild()
 
-	timeout := b.connectTimeout
-	if timeout <= 0 {
-		timeout = DefaultConnectTimeout
-	}
-	timeoutValue := ldvalue.Float64(float64(uint64(timeout / time.Millisecond)))
-	builder.Set("connectTimeoutMillis", timeoutValue)
-	builder.Set("socketTimeoutMillis", timeoutValue)
+	builder.Set("connectTimeoutMillis", durationToMillisValue(b.connectTimeout))
+	builder.Set("socketTimeoutMillis", durationToMillisValue(b.connectTimeout))
 
 	builder.Set("usingProxy", ldvalue.Bool(b.isProxyEnabled()))
 
@@ -169,11 +168,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 
 	clientFactory := b.httpClientFactory
 	if clientFactory == nil {
-		timeout := b.connectTimeout
-		if timeout <= 0 {
-			timeout = DefaultConnectTimeout
-		}
-		allOpts := []ldhttp.TransportOption{ldhttp.ConnectTimeoutOption(timeout)}
+		allOpts := []ldhttp.TransportOption{ldhttp.ConnectTimeoutOption(b.connectTimeout)}
 		allOpts = append(allOpts, b.httpOptions...)
 		transport, _, err := ldhttp.NewHTTPTransport(allOpts...)
 		if err != nil {
@@ -181,7 +176,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		}
 		clientFactory = func() *http.Client {
 			return &http.Client{
-				Timeout:   timeout,
+				Timeout:   b.connectTimeout,
 				Transport: transport,
 			}
 		}

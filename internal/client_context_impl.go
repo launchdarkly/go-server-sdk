@@ -14,6 +14,12 @@ type clientContextImpl struct {
 	diagnosticsManager *ldevents.DiagnosticsManager
 }
 
+// HasDiagnosticsManager is an interface that is implemented only by the SDK's own ClientContext
+// implementation, to allow component factories to access the DiagnosticsManager.
+type HasDiagnosticsManager interface {
+	GetDiagnosticsManager() *ldevents.DiagnosticsManager
+}
+
 // NewClientContextImpl creates the SDK's standard implementation of interfaces.ClientContext.
 func NewClientContextImpl(
 	sdkKey string,

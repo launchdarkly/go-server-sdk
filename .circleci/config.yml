@@ -8,13 +8,12 @@ workflows:
     jobs:
       - go-test:
           name: Go 1.14
-          docker-image: circleci/golang:1.14
+          docker-image: cimg/go:1.14
+          with-coverage: true
+          run-lint: true
       - go-test:
           name: Go 1.13
-          docker-image: circleci/golang:1.13
-      - go-test:
-          name: Go 1.12
-          docker-image: circleci/golang:1.12
+          docker-image: cimg/go:1.13
       - go-test-windows:
           name: Windows
       - benchmarks
@@ -22,46 +21,64 @@ workflows:
 jobs:
   go-test:
     parameters:
-      run-lint:
-        type: boolean
-        default: true
-        # We are currently linting in all Go versions, but this parameter lets us turn it off for some, in
-        # case we need to support more versions than a single version of golangci-lint is compatible with
       docker-image:
         type: string
-
+      run-lint:
+        type: boolean
+        default: false
+      with-coverage:
+        type: boolean
+        default: false
+  
     docker:
       - image: <<parameters.docker-image>>
         environment:
           CIRCLE_TEST_REPORTS: /tmp/circle-reports
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
-          COMMON_GO_PACKAGES: >
-            github.com/golang/dep/cmd/dep
-            github.com/jstemmer/go-junit-report
       - image: redis
       - image: consul
       - image: amazon/dynamodb-local
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
-
     steps:
       - checkout
-      - run: go get -u $COMMON_GO_PACKAGES
+
+      - run:
+          name: install go-junit-report
+          command: go get -u github.com/jstemmer/go-junit-report
+
       - when:
           condition: <<parameters.run-lint>>
           steps:
             - run: make lint
-      # - run: dep ensure -dry-run  # we're currently using private repos for some of our dependencies, so this won't work in CI
-      - run: go build ./...
-      
+
+      - run:
+          name: Build
+          command: make
+
       - run:
           name: Run tests
           command: |
             mkdir -p $CIRCLE_TEST_REPORTS
             mkdir -p $CIRCLE_ARTIFACTS
-            trap "go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml" EXIT
             make test | tee $CIRCLE_ARTIFACTS/report.txt
-
+    
+      - when:
+          condition: <<parameters.with-coverage>>
+          steps:
+            - run:
+                name: Make coverage report
+                command: |
+                  make test-coverage || true
+            - run:
+                name: Store coverage results
+                command: cp build/coverage* /tmp/circle-artifacts
+                when: always
+    
+      - run:
+          name: Process test results
+          command: go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml
+          when: always
+      
       - store_test_results:
           path: /tmp/circle-reports
 
@@ -75,17 +92,10 @@ jobs:
 
     environment:
       GOPATH: C:\Users\VssAdministrator\go
-      PACKAGE_PATH: gopkg.in\launchdarkly\go-server-sdk.v5
 
     steps:
       - checkout
       - run: go version
-      - run:
-          name: move source
-          command: |
-            go env GOPATH
-            mkdir ${env:GOPATH}\src\${env:PACKAGE_PATH}
-            mv * ${env:GOPATH}\src\${env:PACKAGE_PATH}\
       - run:
           name: setup DynamoDB
           command: |
@@ -124,17 +134,12 @@ jobs:
 
   benchmarks:
     docker:
-      - image: circleci/golang:1.14
+      - image: cimg/go:1.14
         environment:
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
-          COMMON_GO_PACKAGES: >
-            github.com/golang/dep/cmd/dep
-
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v5
 
     steps:
       - checkout
-      - run: go get -u github.com/golang/dep/cmd/dep
       - run: go build ./...      
       - run:
           name: Run benchmarks

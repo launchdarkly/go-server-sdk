@@ -51,12 +51,17 @@ func newConsulDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) (*
 	}, nil
 }
 
-func (store *consulDataStoreImpl) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreSerializedItemDescriptor, error) {
+func (store *consulDataStoreImpl) Get(
+	kind interfaces.StoreDataKind,
+	key string,
+) (interfaces.StoreSerializedItemDescriptor, error) {
 	item, _, err := store.getInternal(kind, key)
 	return item, err
 }
 
-func (store *consulDataStoreImpl) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+func (store *consulDataStoreImpl) GetAll(
+	kind interfaces.StoreDataKind,
+) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
 	kv := store.client.KV()
 	pairs, _, err := kv.List(store.collectionKey(kind), nil)
 
@@ -161,14 +166,14 @@ func (store *consulDataStoreImpl) Upsert(
 		written, _, err := kv.CAS(p, nil)
 
 		if err != nil {
-			return false, err
+			return false, err // COVERAGE: can't simulate this condition in unit tests
 		}
 
 		if written {
 			return true, nil // success
 		}
 		// If we failed, retry the whole shebang
-		if store.loggers.IsDebugEnabled() {
+		if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 			store.loggers.Debug("Concurrent modification detected, retrying")
 		}
 	}
@@ -224,14 +229,18 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 		batch := ops[i:j]
 		ok, resp, _, err := kv.Txn(batch, nil)
 		if err != nil {
+			// COVERAGE: can't simulate this condition in unit tests because we will only get this
+			// far if the initial query in Init() already succeeded, and we don't have the ability
+			// to make the Consul client fail *selectively* within a single test
 			return err
 		}
-		if !ok {
+		if !ok { // COVERAGE: see above
 			errs := make([]string, 0)
-			for _, te := range resp.Errors {
+			for _, te := range resp.Errors { // COVERAGE: see above
 				errs = append(errs, te.What)
 			}
-			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", ")) //nolint:stylecheck // this error message is capitalized on purpose
+			//nolint:stylecheck // this error message is capitalized on purpose
+			return fmt.Errorf("Consul transaction failed: %s", strings.Join(errs, ", ")) // COVERAGE: see above
 		}
 		i = j
 	}

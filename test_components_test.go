@@ -30,7 +30,7 @@ func makeInMemoryDataStore() interfaces.DataStore {
 }
 
 func upsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {
-	store.Upsert(interfaces.DataKindFeatures(), flag.Key, interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag})
+	store.Upsert(interfaces.DataKindFeatures(), flag.Key, sharedtest.FlagDescriptor(*flag))
 }
 
 type singleDataStoreFactory struct {
@@ -89,6 +89,37 @@ func (f *dataSourceFactoryThatExposesUpdater) CreateDataSource(
 ) (interfaces.DataSource, error) {
 	f.dataSourceUpdates = dataSourceUpdates
 	return f.underlyingFactory.CreateDataSource(context, dataSourceUpdates)
+}
+
+type dataSourceFactoryWithData struct {
+	data []interfaces.StoreCollection
+}
+
+func (f dataSourceFactoryWithData) CreateDataSource(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+) (interfaces.DataSource, error) {
+	return &dataSourceWithData{f.data, dataSourceUpdates, false}, nil
+}
+
+type dataSourceWithData struct {
+	data              []interfaces.StoreCollection
+	dataSourceUpdates interfaces.DataSourceUpdates
+	inited            bool
+}
+
+func (d *dataSourceWithData) IsInitialized() bool {
+	return d.inited
+}
+
+func (d *dataSourceWithData) Close() error {
+	return nil
+}
+
+func (d *dataSourceWithData) Start(closeWhenReady chan<- struct{}) {
+	d.dataSourceUpdates.Init(d.data)
+	d.inited = true
+	close(closeWhenReady)
 }
 
 type singleEventProcessorFactory struct {

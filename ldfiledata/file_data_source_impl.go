@@ -37,12 +37,9 @@ func newFileDataSourceImpl(
 	filePaths []string,
 	reloaderFactory ReloaderFactory,
 ) (interfaces.DataSource, error) {
-	if dataSourceUpdates == nil {
-		return nil, fmt.Errorf("dataSourceUpdates must not be nil")
-	}
-
 	abs, err := absFilePaths(filePaths)
 	if err != nil {
+		// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
 		return nil, err
 	}
 
@@ -133,6 +130,7 @@ func absFilePaths(paths []string) ([]string, error) {
 	for _, p := range paths {
 		absPath, err := filepath.Abs(p)
 		if err != nil {
+			// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
 			return nil, fmt.Errorf("unable to determine absolute path for '%s'", p)
 		}
 		absPaths = append(absPaths, absPath)
@@ -146,8 +144,12 @@ type fileData struct {
 	Segments   *map[string]ldmodel.Segment
 }
 
-func insertData(all map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor, kind interfaces.StoreDataKind, key string,
-	data interfaces.StoreItemDescriptor) error {
+func insertData(
+	all map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor,
+	kind interfaces.StoreDataKind,
+	key string,
+	data interfaces.StoreItemDescriptor,
+) error {
 	if _, exists := all[kind][key]; exists {
 		return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
 	}
@@ -175,7 +177,7 @@ func readFile(path string) (fileData, error) {
 
 func detectJSON(rawData []byte) bool {
 	// A valid JSON file for our purposes must be an object, i.e. it must start with '{'
-	return strings.HasPrefix("{", strings.TrimLeftFunc(string(rawData), unicode.IsSpace))
+	return strings.HasPrefix(strings.TrimLeftFunc(string(rawData), unicode.IsSpace), "{")
 }
 
 func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error) {
@@ -195,10 +197,7 @@ func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error
 		}
 		if d.FlagValues != nil {
 			for key, value := range *d.FlagValues {
-				flag, err := makeFlagWithValue(key, value)
-				if err != nil {
-					return nil, err
-				}
+				flag := makeFlagWithValue(key, value)
 				data := interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag}
 				if err := insertData(all, interfaces.DataKindFeatures(), key, data); err != nil {
 					return nil, err
@@ -226,9 +225,9 @@ func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error
 	return ret, nil
 }
 
-func makeFlagWithValue(key string, v interface{}) (*ldmodel.FeatureFlag, error) {
+func makeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {
 	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(ldvalue.CopyArbitraryValue(v)).Build()
-	return &flag, nil
+	return &flag
 }
 
 // Close is called automatically when the client is closed.

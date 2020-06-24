@@ -6,9 +6,10 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
-// DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI and StreamingDataSourceBuilder.PollingBaseURI.
+// DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI.
 const DefaultPollingBaseURI = "https://app.launchdarkly.com"
 
 // DefaultPollInterval is the default value for PollingDataSourceBuilder.PollInterval. This is also the minimum value.
@@ -72,30 +73,32 @@ func (b *PollingDataSourceBuilder) PollInterval(pollInterval time.Duration) *Pol
 }
 
 // Used in tests to skip parameter validation.
-func (b *PollingDataSourceBuilder) forcePollInterval(pollInterval time.Duration) *PollingDataSourceBuilder { //nolint:unused // it is used in tests
+//nolint:unused // it is used in tests
+func (b *PollingDataSourceBuilder) forcePollInterval(
+	pollInterval time.Duration,
+) *PollingDataSourceBuilder {
 	b.pollInterval = pollInterval
 	return b
 }
 
-// Called by the SDK to create the data source instance.
+// CreateDataSource is called by the SDK to create the data source instance.
 func (b *PollingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	context.GetLogging().GetLoggers().Warn("You should only disable the streaming API if instructed to do so by LaunchDarkly support")
-	requestor := newRequestor(context, context.GetHTTP().CreateHTTPClient(), b.baseURI)
-	pp := newPollingProcessor(context, dataSourceUpdates, requestor, b.pollInterval)
+	context.GetLogging().GetLoggers().Warn(
+		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
+	pp := internal.NewPollingProcessor(context, dataSourceUpdates, b.baseURI, b.pollInterval)
 	return pp, nil
 }
 
-// Used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *PollingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	isCustomBaseURI := b.baseURI != "" && b.baseURI != DefaultPollingBaseURI
 	return ldvalue.ObjectBuild().
 		Set("streamingDisabled", ldvalue.Bool(true)).
-		Set("customBaseURI", ldvalue.Bool(isCustomBaseURI)).
+		Set("customBaseURI", ldvalue.Bool(b.baseURI != DefaultPollingBaseURI)).
 		Set("customStreamURI", ldvalue.Bool(false)).
-		Set("pollingIntervalMillis", ldvalue.Int(int(b.pollInterval/time.Millisecond))).
+		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Build()
 }

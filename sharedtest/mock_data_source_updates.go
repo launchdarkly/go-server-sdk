@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -37,20 +38,31 @@ func NewMockDataSourceUpdates(realStore interfaces.DataStore) *MockDataSourceUpd
 	}
 }
 
-// Init, in this test implementation, delegates to d.DataStore.CapturedUpdates.
+// Init in this test implementation, delegates to d.DataStore.CapturedUpdates.
 func (d *MockDataSourceUpdates) Init(allData []interfaces.StoreCollection) bool {
+	for _, coll := range allData {
+		AssertNotNil(coll.Kind)
+	}
 	err := d.DataStore.Init(allData)
 	return err == nil
 }
 
-// Upsert, in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataSourceUpdates) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) bool {
-	err := d.DataStore.Upsert(kind, key, newItem)
+// Upsert in this test implementation, delegates to d.DataStore.CapturedUpdates.
+func (d *MockDataSourceUpdates) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreItemDescriptor,
+) bool {
+	AssertNotNil(kind)
+	_, err := d.DataStore.Upsert(kind, key, newItem)
 	return err == nil
 }
 
-// UpdateStatus, in this test implementation, pushes a value onto the Statuses channel.
-func (d *MockDataSourceUpdates) UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo) {
+// UpdateStatus in this test implementation, pushes a value onto the Statuses channel.
+func (d *MockDataSourceUpdates) UpdateStatus(
+	newState interfaces.DataSourceState,
+	newError interfaces.DataSourceErrorInfo,
+) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	if newState != d.lastStatus.State || newError.Kind != "" {
@@ -71,9 +83,13 @@ func (d *MockDataSourceUpdates) UpdateStoreStatus(newStatus interfaces.DataStore
 }
 
 // RequireStatusOf blocks until a new data source status is available, and verifies its state.
-func (d *MockDataSourceUpdates) RequireStatusOf(t *testing.T, newState interfaces.DataSourceState) interfaces.DataSourceStatus {
+func (d *MockDataSourceUpdates) RequireStatusOf(
+	t *testing.T,
+	newState interfaces.DataSourceState,
+) interfaces.DataSourceStatus {
 	status := d.RequireStatus(t)
-	assert.Equal(t, string(newState), string(status.State)) // string conversion is due to a bug in assert with type aliases
+	assert.Equal(t, string(newState), string(status.State))
+	// string conversion is due to a bug in assert with type aliases
 	return status
 }
 

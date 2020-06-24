@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,11 @@ func ShouldSkipDatabaseTests() bool {
 	return os.Getenv("LD_SKIP_DATABASE_TESTS") != ""
 }
 
-func assertEqualsSerializedItem(t *testing.T, item MockDataItem, serializedItemDesc intf.StoreSerializedItemDescriptor) {
+func assertEqualsSerializedItem(
+	t *testing.T,
+	item MockDataItem,
+	serializedItemDesc intf.StoreSerializedItemDescriptor,
+) {
 	// This allows for the fact that a PersistentDataStore may not be able to get the item version without
 	// deserializing it, so we allow the version to be zero.
 	assert.Equal(t, item.ToSerializedItemDescriptor().SerializedItem, serializedItemDesc.SerializedItem)
@@ -55,6 +60,8 @@ func assertEqualsDeletedItem(
 type PersistentDataStoreTestSuite struct {
 	storeFactoryFn               func(string) intf.PersistentDataStoreFactory
 	clearDataFn                  func(string) error
+	errorStoreFactory            intf.PersistentDataStoreFactory
+	errorValidator               func(*testing.T, error)
 	concurrentModificationHookFn func(store intf.PersistentDataStore, hook func())
 	alwaysRun                    bool
 }
@@ -79,6 +86,18 @@ func NewPersistentDataStoreTestSuite(
 		storeFactoryFn: storeFactoryFn,
 		clearDataFn:    clearDataFn,
 	}
+}
+
+// ErrorStoreFactory enables a test of error handling. The provided errorStoreFactory is expected to
+// produce a data store instance whose operations should all fail and return an error. The errorValidator
+// function, if any, will be called to verify that it is the expected error.
+func (s *PersistentDataStoreTestSuite) ErrorStoreFactory(
+	errorStoreFactory intf.PersistentDataStoreFactory,
+	errorValidator func(*testing.T, error),
+) *PersistentDataStoreTestSuite {
+	s.errorStoreFactory = errorStoreFactory
+	s.errorValidator = errorValidator
+	return s
 }
 
 // ConcurrentModificationHook enables tests of concurrent modification behavior, for store
@@ -120,6 +139,7 @@ func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
 		})
 	})
 
+	t.Run("error returns", s.runErrorTests)
 	t.Run("prefix independence", s.runPrefixIndependenceTests)
 	t.Run("concurrent modification", s.runConcurrentModificationTests)
 }
@@ -489,7 +509,8 @@ func (s *PersistentDataStoreTestSuite) runPrefixIndependenceTests(t *testing.T) 
 		assertEqualsSerializedItem(t, item2c, newItem2c)
 	})
 
-	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 intf.PersistentDataStore, store2 intf.PersistentDataStore) {
+	runWithPrefixes(t, "Upsert/Delete", func(t *testing.T, store1 intf.PersistentDataStore,
+		store2 intf.PersistentDataStore) {
 		assert.False(t, store1.IsInitialized())
 		assert.False(t, store2.IsInitialized())
 
@@ -521,6 +542,58 @@ func (s *PersistentDataStoreTestSuite) runPrefixIndependenceTests(t *testing.T) 
 		newItem1a, err := store1.Get(MockData, key)
 		require.NoError(t, err)
 		assertEqualsSerializedItem(t, item2, newItem1a)
+	})
+}
+
+func (s *PersistentDataStoreTestSuite) runErrorTests(t *testing.T) {
+	if s.errorStoreFactory == nil {
+		t.Skip("not implemented for this store type")
+		return
+	}
+	errorValidator := s.errorValidator
+	if errorValidator == nil {
+		errorValidator = func(*testing.T, error) {}
+	}
+
+	store, err := s.errorStoreFactory.CreatePersistentDataStore(NewSimpleTestContext(""))
+	require.NoError(t, err)
+	defer store.Close() //nolint:errcheck
+
+	t.Run("Init", func(t *testing.T) {
+		allData := []intf.StoreSerializedCollection{
+			{Kind: intf.DataKindFeatures()},
+			{Kind: intf.DataKindSegments()},
+		}
+		err := store.Init(allData)
+		require.Error(t, err)
+		errorValidator(t, err)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		_, err := store.Get(intf.DataKindFeatures(), "key")
+		require.Error(t, err)
+		errorValidator(t, err)
+	})
+
+	t.Run("GetAll", func(t *testing.T) {
+		_, err := store.GetAll(intf.DataKindFeatures())
+		require.Error(t, err)
+		errorValidator(t, err)
+	})
+
+	t.Run("Upsert", func(t *testing.T) {
+		desc := FlagDescriptor(ldbuilders.NewFlagBuilder("key").Build())
+		sdesc := intf.StoreSerializedItemDescriptor{
+			Version:        1,
+			SerializedItem: intf.DataKindFeatures().Serialize(desc),
+		}
+		_, err := store.Upsert(intf.DataKindFeatures(), "key", sdesc)
+		require.Error(t, err)
+		errorValidator(t, err)
+	})
+
+	t.Run("IsInitialized", func(t *testing.T) {
+		assert.False(t, store.IsInitialized())
 	})
 }
 

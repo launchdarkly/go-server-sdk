@@ -14,11 +14,9 @@ We encourage pull requests and other contributions from the community. Before su
  
 ### Prerequisites
  
-The SDK should be built against Go 1.8 or newer.
+The SDK should be built against Go 1.13 or newer.
 
-Note that the SDK's public import path is `gopkg.in/launchdarkly/go-server-sdk.v5` (using the [`gopkg.in`](https://labix.org/gopkg.in) service as a simple way to pin to a major version). Since it does not use Go modules, and it references its own import path in imports between packages, this means that in order to build it you must check it out at `$GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v5`-- not `$GOPATH/src/github.com/launchdarkly/go-server-sdk`.
-
-Dependencies are managed with `dep`; after changing any imports, run `dep ensure`.
+Note that the base import path is `gopkg.in/launchdarkly/go-server-sdk.v5`, not `github.com/launchdarkly/go-server-sdk`; all references in this code to other packages within the repository must use that same base import path. This ensures that the package can be referenced not only as a Go module, but also by projects that use older tools like `dep` and `govendor`, because the 5.x release of the Go SDK supports either module or non-module usage. Future releases of this package, and of the Go SDK, may drop support for non-module usage.
 
 ### Building
 

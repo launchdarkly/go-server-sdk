@@ -53,7 +53,7 @@ func (o caCertOption) apply(opts *transportExtraOptions) error {
 		var err error
 		opts.caCerts, err = x509.SystemCertPool() // this returns a *copy* of the existing CA certs
 		if err != nil {
-			opts.caCerts = x509.NewCertPool()
+			opts.caCerts = x509.NewCertPool() // COVERAGE: can't simulate this condition in unit tests
 		}
 	}
 	if !opts.caCerts.AppendCertsFromPEM(o.certData) {

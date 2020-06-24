@@ -2,16 +2,19 @@ package ldclient
 
 import (
 	"errors"
+	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/redis"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldredis"
 
 	"github.com/stretchr/testify/assert"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
@@ -47,7 +50,7 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		setExpected(expected)
 		actual := makeDiagnosticConfigData(config, testStartWaitMillis)
-		assert.Equal(t, expected.Build(), actual)
+		assert.JSONEq(t, expected.Build().JSONString(), actual.JSONString())
 	}
 	doTest := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
 		doTestWithoutStreamingDefaults(setConfig, func(b ldvalue.ObjectBuilder) {
@@ -64,7 +67,7 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Consul")) })
 	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(lddynamodb.DataStore("table-name")) },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("DynamoDB")) })
-	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(redis.DataStore()) },
+	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore()) },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Redis")) })
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })
@@ -76,7 +79,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	doTest(func(c *Config) {
 		c.DataSource = ldcomponents.StreamingDataSource().BaseURI("custom")
 	}, func(b ldvalue.ObjectBuilder) {
-		b.Set("customBaseURI", ldvalue.Bool(true))
 		b.Set("customStreamURI", ldvalue.Bool(true))
 	})
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Minute) },
@@ -131,6 +133,21 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b ldvalue.ObjectBuilder) {
 			b.Set("usingProxy", ldvalue.Bool(true))
 		})
+	doTest(
+		func(c *Config) {
+			c.HTTP = ldcomponents.HTTPConfiguration().
+				HTTPClientFactory(func() *http.Client { return http.DefaultClient })
+		},
+		func(b ldvalue.ObjectBuilder) {})
+	func() {
+		os.Setenv("HTTP_PROXY", "http://proxyhost")
+		defer os.Setenv("HTTP_PROXY", "")
+		doTest(
+			func(c *Config) {},
+			func(b ldvalue.ObjectBuilder) {
+				b.Set("usingProxy", ldvalue.Bool(true))
+			})
+	}()
 }
 
 type customStoreFactoryForDiagnostics struct {

@@ -7,7 +7,7 @@ import (
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-type mockDatabaseInstance struct { //nolint:deadcode,unused // it is used in test code
+type mockDatabaseInstance struct { //nolint:unused // it is used in test code
 	dataByPrefix   map[string]map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor
 	initedByPrefix map[string]*bool
 }
@@ -59,7 +59,11 @@ func NewMockPersistentDataStore() *MockPersistentDataStore {
 	return m
 }
 
-func newMockPersistentDataStoreWithPrefix(db *mockDatabaseInstance, prefix string) *MockPersistentDataStore { //nolint:deadcode,unused // it is used in test code
+//nolint:deadcode,unused // it is used in test code
+func newMockPersistentDataStoreWithPrefix(
+	db *mockDatabaseInstance,
+	prefix string,
+) *MockPersistentDataStore {
 	m := &MockPersistentDataStore{available: true}
 	if _, ok := db.dataByPrefix[prefix]; !ok {
 		db.dataByPrefix[prefix] = newData()
@@ -92,7 +96,11 @@ func (m *MockPersistentDataStore) ForceGet(kind intf.StoreDataKind, key string) 
 }
 
 // ForceSet directly modifies an item in the test data.
-func (m *MockPersistentDataStore) ForceSet(kind intf.StoreDataKind, key string, item intf.StoreSerializedItemDescriptor) {
+func (m *MockPersistentDataStore) ForceSet(
+	kind intf.StoreDataKind,
+	key string,
+	item intf.StoreSerializedItemDescriptor,
+) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.data[kind][key] = item
@@ -148,6 +156,7 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection)
 		}
 	}
 	for _, coll := range allData {
+		AssertNotNil(coll.Kind)
 		itemsMap := make(map[string]intf.StoreSerializedItemDescriptor)
 		for _, item := range coll.Items {
 			itemsMap[item.Key] = m.storableItem(item.Item)
@@ -160,6 +169,7 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection)
 
 // Get is a standard PersistentDataStore method.
 func (m *MockPersistentDataStore) Get(kind intf.StoreDataKind, key string) (intf.StoreSerializedItemDescriptor, error) {
+	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
@@ -174,6 +184,7 @@ func (m *MockPersistentDataStore) Get(kind intf.StoreDataKind, key string) (intf
 
 // GetAll is a standard PersistentDataStore method.
 func (m *MockPersistentDataStore) GetAll(kind intf.StoreDataKind) ([]intf.StoreKeyedSerializedItemDescriptor, error) {
+	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
@@ -188,7 +199,12 @@ func (m *MockPersistentDataStore) GetAll(kind intf.StoreDataKind) ([]intf.StoreK
 }
 
 // Upsert is a standard PersistentDataStore method.
-func (m *MockPersistentDataStore) Upsert(kind intf.StoreDataKind, key string, newItem intf.StoreSerializedItemDescriptor) (bool, error) {
+func (m *MockPersistentDataStore) Upsert(
+	kind intf.StoreDataKind,
+	key string,
+	newItem intf.StoreSerializedItemDescriptor,
+) (bool, error) {
+	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
@@ -236,7 +252,9 @@ func (m *MockPersistentDataStore) Close() error {
 	return nil
 }
 
-func (m *MockPersistentDataStore) retrievedItem(item intf.StoreSerializedItemDescriptor) intf.StoreSerializedItemDescriptor {
+func (m *MockPersistentDataStore) retrievedItem(
+	item intf.StoreSerializedItemDescriptor,
+) intf.StoreSerializedItemDescriptor {
 	if m.persistOnlyAsString {
 		// This simulates the kind of store implementation that can't track metadata separately
 		return intf.StoreSerializedItemDescriptor{Version: 0, SerializedItem: item.SerializedItem}
@@ -244,7 +262,9 @@ func (m *MockPersistentDataStore) retrievedItem(item intf.StoreSerializedItemDes
 	return item
 }
 
-func (m *MockPersistentDataStore) storableItem(item intf.StoreSerializedItemDescriptor) intf.StoreSerializedItemDescriptor {
+func (m *MockPersistentDataStore) storableItem(
+	item intf.StoreSerializedItemDescriptor,
+) intf.StoreSerializedItemDescriptor {
 	if item.Deleted && !m.persistOnlyAsString {
 		// This simulates the kind of store implementation that *can* track metadata separately, so we don't
 		// have to persist the placeholder string for deleted items

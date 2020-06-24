@@ -1,8 +1,11 @@
 // Package ldclient is the main package for the LaunchDarkly SDK.
 //
 // This package contains the types and methods that most applications will use. The most commonly
-// used other packages are "ldlog" (the SDK's logging abstraction) and database integrations such
-// as "redis" and "lddynamodb".
+// used other packages in go-server-sdk are "ldcomponents" (configuration builders), and database
+// integrations such as "ldredis" and "lddynamodb".
+//
+// Other types that are commonly used with the SDK are in the go-sdk-common repository
+// (https://godoc.org/gopkg.in/launchdarkly/go-sdk-common.v2).
 package ldclient
 
 import (
@@ -43,6 +46,8 @@ type LDClient struct {
 	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
 	dataStoreStatusBroadcaster  *internal.DataStoreStatusBroadcaster
 	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
+	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
+	flagTracker                 interfaces.FlagTracker
 	eventsDefault               eventsScope
 	eventsWithReasons           eventsScope
 	logEvaluationErrors         bool
@@ -53,7 +58,7 @@ type LDClient struct {
 var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
 	ErrInitializationFailed  = errors.New("LaunchDarkly client initialization failed")
-	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed")
+	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed") //nolint:lll
 )
 
 // MakeClient creates a new client instance that connects to LaunchDarkly with the default configuration.
@@ -79,6 +84,8 @@ var (
 //         // do whatever is appropriate if initialization has timed out
 //     }
 func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
+	// COVERAGE: this constructor cannot be called in unit tests because it uses the default base
+	// URI and will attempt to make a live connection to LaunchDarkly.
 	return MakeCustomClient(sdkKey, Config{}, waitFor)
 }
 
@@ -153,10 +160,12 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.dataStoreStatusProvider = internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
+	client.flagChangeEventBroadcaster = internal.NewFlagChangeEventBroadcaster()
 	dataSourceUpdates := internal.NewDataSourceUpdatesImpl(
 		store,
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
+		client.flagChangeEventBroadcaster,
 		clientContext.GetLogging().GetLogDataSourceOutageAsErrorAfter(),
 		loggers,
 	)
@@ -173,8 +182,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventsWithReasons = newEventsScope(&client, true)
 	}
 
-	dataSourceFactory := getDataSourceFactory(config)
-	client.dataSource, err = dataSourceFactory.CreateDataSource(clientContext, dataSourceUpdates)
+	dataSource, err := createDataSource(config, clientContext, dataSourceUpdates)
+	client.dataSource = dataSource
 	if err != nil {
 		return nil, err
 	}
@@ -183,8 +192,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		dataSourceUpdates,
 	)
 
+	client.flagTracker = internal.NewFlagTrackerImpl(
+		client.flagChangeEventBroadcaster,
+		func(flagKey string, user lduser.User, defaultValue ldvalue.Value) ldvalue.Value {
+			value, _ := client.JSONVariation(flagKey, user, defaultValue)
+			return value
+		},
+	)
+
 	client.dataSource.Start(closeWhenReady)
-	if waitFor > 0 && dataSourceFactory != ldcomponents.ExternalUpdatesOnly() {
+	if waitFor > 0 && client.dataSource != internal.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
 		timeout := time.After(waitFor)
@@ -216,14 +233,22 @@ func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
 	return config.DataStore
 }
 
-func getDataSourceFactory(config Config) interfaces.DataSourceFactory {
+func createDataSource(
+	config Config,
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+) (interfaces.DataSource, error) {
 	if config.Offline {
-		return ldcomponents.ExternalUpdatesOnly()
+		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
+		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+		return internal.NewNullDataSource(), nil
 	}
-	if config.DataSource == nil {
-		return ldcomponents.StreamingDataSource()
+	factory := config.DataSource
+	if factory == nil {
+		// COVERAGE: can't cause this condition in unit tests because it would try to connect to production LD
+		factory = ldcomponents.StreamingDataSource()
 	}
-	return config.DataSource
+	return factory.CreateDataSource(context, dataSourceUpdates)
 }
 
 // Identify reports details about a a user.
@@ -267,7 +292,14 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(client.eventsDefault.factory.NewCustomEvent(eventName, ldevents.User(user), data, false, 0))
+	client.eventProcessor.SendEvent(
+		client.eventsDefault.factory.NewCustomEvent(
+			eventName,
+			ldevents.User(user),
+			data,
+			false,
+			0,
+		))
 	return nil
 }
 
@@ -289,7 +321,14 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(client.eventsDefault.factory.NewCustomEvent(eventName, ldevents.User(user), data, true, metricValue))
+	client.eventProcessor.SendEvent(
+		client.eventsDefault.factory.NewCustomEvent(
+			eventName,
+			ldevents.User(user),
+			data,
+			true,
+			metricValue,
+		))
 	return nil
 }
 
@@ -322,6 +361,7 @@ func (client *LDClient) Close() error {
 	_ = client.store.Close()
 	client.dataSourceStatusBroadcaster.Close()
 	client.dataStoreStatusBroadcaster.Close()
+	client.flagChangeEventBroadcaster.Close()
 	return nil
 }
 
@@ -348,7 +388,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		if client.store.IsInitialized() {
 			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
-			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state")
+			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
 			valid = false
 		}
 	}
@@ -397,7 +437,11 @@ func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal b
 
 // BoolVariationDetail is the same as BoolVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) BoolVariationDetail(key string, user lduser.User, defaultVal bool) (bool, ldreason.EvaluationDetail, error) {
+func (client *LDClient) BoolVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal bool,
+) (bool, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, true)
 	return detail.Value.BoolValue(), detail, err
 }
@@ -415,7 +459,11 @@ func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal in
 
 // IntVariationDetail is the same as IntVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) IntVariationDetail(key string, user lduser.User, defaultVal int) (int, ldreason.EvaluationDetail, error) {
+func (client *LDClient) IntVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal int,
+) (int, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, true)
 	return detail.Value.IntValue(), detail, err
 }
@@ -431,7 +479,11 @@ func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVa
 
 // Float64VariationDetail is the same as Float64Variation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) Float64VariationDetail(key string, user lduser.User, defaultVal float64) (float64, ldreason.EvaluationDetail, error) {
+func (client *LDClient) Float64VariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal float64,
+) (float64, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, true)
 	return detail.Value.Float64Value(), detail, err
 }
@@ -447,7 +499,11 @@ func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal
 
 // StringVariationDetail is the same as StringVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) StringVariationDetail(key string, user lduser.User, defaultVal string) (string, ldreason.EvaluationDetail, error) {
+func (client *LDClient) StringVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal string,
+) (string, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, true)
 	return detail.Value.StringValue(), detail, err
 }
@@ -480,7 +536,11 @@ func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal l
 
 // JSONVariationDetail is the same as JSONVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
-func (client *LDClient) JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, ldreason.EvaluationDetail, error) {
+func (client *LDClient) JSONVariationDetail(
+	key string,
+	user lduser.User,
+	defaultVal ldvalue.Value,
+) (ldvalue.Value, ldreason.EvaluationDetail, error) {
 	detail, err := client.variation(key, user, defaultVal, false, true)
 	return detail.Value, detail, err
 }
@@ -505,6 +565,11 @@ func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusP
 	return client.dataStoreStatusProvider
 }
 
+// GetFlagTracker returns an interface for tracking changes in feature flag configurations.
+func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
+	return client.flagTracker
+}
+
 // Generic method for evaluating a feature flag for a given user.
 func (client *LDClient) variation(
 	key string,
@@ -524,16 +589,14 @@ func (client *LDClient) variation(
 	if err != nil {
 		result.Value = defaultVal
 		result.VariationIndex = -1
-	} else {
-		if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
-			result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
-		}
+	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
+		result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
 	}
 
 	if !eventsScope.disabled {
 		var evt ldevents.FeatureRequestEvent
 		if flag == nil {
-			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason) //nolint
+			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason)
 		} else {
 			evt = eventsScope.factory.NewSuccessfulEvalEvent(
 				flag,
@@ -563,14 +626,18 @@ func (client *LDClient) evaluateInternal(
 	// to keep in mind during any changes to the evaluation logic.
 
 	if user.GetKey() == "" {
-		client.loggers.Warnf("User.Key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key)
+		client.loggers.Warnf("User key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key) //nolint:lll
 	}
 
 	var feature *ldmodel.FeatureFlag
 	var storeErr error
 	var ok bool
 
-	evalErrorResult := func(errKind ldreason.EvalErrorKind, flag *ldmodel.FeatureFlag, err error) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
+	evalErrorResult := func(
+		errKind ldreason.EvalErrorKind,
+		flag *ldmodel.FeatureFlag,
+		err error,
+	) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 		detail := newEvaluationError(defaultVal, errKind)
 		if client.logEvaluationErrors {
 			client.loggers.Warn(err)
@@ -580,7 +647,7 @@ func (client *LDClient) evaluateInternal(
 
 	if !client.Initialized() {
 		if client.store.IsInitialized() {
-			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store")
+			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store") //nolint:lll
 		} else {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
@@ -598,7 +665,11 @@ func (client *LDClient) evaluateInternal(
 		feature, ok = itemDesc.Item.(*ldmodel.FeatureFlag)
 		if !ok {
 			return evalErrorResult(ldreason.EvalErrorException, nil,
-				fmt.Errorf("unexpected data type (%T) found in store for feature key: %s. Returning default value", itemDesc.Item, key))
+				fmt.Errorf(
+					"unexpected data type (%T) found in store for feature key: %s. Returning default value",
+					itemDesc.Item,
+					key,
+				))
 		}
 	} else {
 		return evalErrorResult(ldreason.EvalErrorFlagNotFound, nil,

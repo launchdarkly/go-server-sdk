@@ -12,7 +12,6 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
@@ -24,6 +23,7 @@ type dataSourceUpdatesImplTestParams struct {
 	store                   *sharedtest.CapturingDataStore
 	dataStoreStatusProvider intf.DataStoreStatusProvider
 	dataSourceUpdates       *DataSourceUpdatesImpl
+	flagChangeBroadcaster   *FlagChangeEventBroadcaster
 	mockLoggers             *sharedtest.MockLoggers
 }
 
@@ -35,10 +35,13 @@ func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	p.dataStoreStatusProvider = NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
 	dataSourceStatusBroadcaster := NewDataSourceStatusBroadcaster()
 	defer dataSourceStatusBroadcaster.Close()
+	p.flagChangeBroadcaster = NewFlagChangeEventBroadcaster()
+	defer p.flagChangeBroadcaster.Close()
 	p.dataSourceUpdates = NewDataSourceUpdatesImpl(
 		p.store,
 		p.dataStoreStatusProvider,
 		dataSourceStatusBroadcaster,
+		p.flagChangeBroadcaster,
 		testDataSourceOutageTimeout,
 		p.mockLoggers.Loggers,
 	)
@@ -215,8 +218,8 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 }
 
 func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
-	// This verifies that the data store will receive the data set in the correct ordering for flag
-	// prerequisites, etc., in case it is not able to do an atomic update.
+	// The logic for this is already tested in data_model_dependencies_test, but here we are verifying
+	// that DataSourceUpdatesImpl is actually using that logic.
 	dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 		inputData := makeDependencyOrderingDataSourceTestData()
 
@@ -225,39 +228,113 @@ func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
 
 		receivedData := p.store.WaitForNextInit(t, time.Second)
 
-		assert.Equal(t, 2, len(receivedData))
+		verifySortedData(t, receivedData, inputData)
+	})
+}
 
-		assert.Equal(t, intf.DataKindSegments(), receivedData[0].Kind) // Segments should always be first
-		assert.Equal(t, 1, len(receivedData[0].Items))
-		assert.Equal(t, intf.DataKindFeatures(), receivedData[1].Kind)
-		assert.Equal(t, 6, len(receivedData[1].Items))
+func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
+	t.Run("sends events on init for newly added flags", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			builder := NewDataSetBuilder().
+				Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()).
+				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
 
-		flags := receivedData[1].Items
-		findFlagIndex := func(key string) int {
-			for i, item := range flags {
-				if item.Key == key {
-					return i
-				}
-			}
-			return -1
-		}
+			p.dataSourceUpdates.Init(builder.Build())
 
-		for _, item := range inputData[0].Items {
-			if flag, ok := item.Item.Item.(*ldmodel.FeatureFlag); ok {
-				flagIndex := findFlagIndex(item.Key)
-				for _, prereq := range flag.Prerequisites {
-					prereqIndex := findFlagIndex(prereq.Key)
-					if prereqIndex > flagIndex {
-						keys := make([]string, 0, len(flags))
-						for _, item := range flags {
-							keys = append(keys, item.Key)
-						}
-						assert.True(t, false, "%s depends on %s, but %s was listed first; keys in order are [%s]",
-							flag.Key, prereq.Key, strings.Join(keys, ", "))
-					}
-				}
-			}
-		}
+			ch := p.flagChangeBroadcaster.AddListener()
+
+			builder.Flags(ldbuilders.NewFlagBuilder("flag2").Version(1).Build()).
+				Segments(ldbuilders.NewSegmentBuilder("segment2").Version(1).Build())
+			// the new segment triggers no events since nothing is using it
+
+			p.dataSourceUpdates.Init(builder.Build())
+
+			sharedtest.ExpectFlagChangeEvents(t, ch, "flag2")
+		})
+	})
+
+	t.Run("sends event on update for newly added flag", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			builder := NewDataSetBuilder().
+				Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()).
+				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
+
+			p.dataSourceUpdates.Init(builder.Build())
+
+			ch := p.flagChangeBroadcaster.AddListener()
+
+			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
+			p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+
+			sharedtest.ExpectFlagChangeEvents(t, ch, "flag2")
+		})
+	})
+
+	t.Run("sends events on init for updated flags", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			builder := NewDataSetBuilder().
+				Flags(
+					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
+					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),
+				).
+				Segments(
+					ldbuilders.NewSegmentBuilder("segment1").Version(1).Build(),
+					ldbuilders.NewSegmentBuilder("segment2").Version(1).Build(),
+				)
+
+			p.dataSourceUpdates.Init(builder.Build())
+
+			ch := p.flagChangeBroadcaster.AddListener()
+
+			builder.Flags(
+				ldbuilders.NewFlagBuilder("flag2").Version(2).Build(), // modified flag
+			).Segments(
+				ldbuilders.NewSegmentBuilder("segment2").Version(2).Build(), // modified segment, but no one is using it
+			)
+
+			p.dataSourceUpdates.Init(builder.Build())
+
+			sharedtest.ExpectFlagChangeEvents(t, ch, "flag2")
+		})
+	})
+
+	t.Run("sends event on update for updated flag", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			builder := NewDataSetBuilder().
+				Flags(
+					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
+					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),
+				).
+				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
+
+			p.dataSourceUpdates.Init(builder.Build())
+
+			ch := p.flagChangeBroadcaster.AddListener()
+
+			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(2).Build()
+			p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+
+			sharedtest.ExpectFlagChangeEvents(t, ch, "flag2")
+		})
+	})
+
+	t.Run("does not send event on update if item was not really updated", func(t *testing.T) {
+		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			builder := NewDataSetBuilder().
+				Flags(
+					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
+					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),
+				)
+
+			p.dataSourceUpdates.Init(builder.Build())
+
+			ch := p.flagChangeBroadcaster.AddListener()
+
+			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
+			p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+
+			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch)
+		})
 	})
 }
 
@@ -297,23 +374,7 @@ func TestDataSourceOutageLoggingTimeout(t *testing.T) {
 					testDataSourceOutageTimeout,
 				)))
 			assert.Contains(t, message, "UNKNOWN (1 time)")
-			assert.Contains(t, message, "ERROR_RESPONSE (500) (1 time)")
+			assert.Contains(t, message, "ERROR_RESPONSE(500) (1 time)")
 		})
 	})
-}
-
-func makeDependencyOrderingDataSourceTestData() []intf.StoreCollection {
-	return NewDataSetBuilder().
-		Flags(
-			ldbuilders.NewFlagBuilder("a").AddPrerequisite("b", 0).AddPrerequisite("c", 0).Build(),
-			ldbuilders.NewFlagBuilder("b").AddPrerequisite("c", 0).AddPrerequisite("e", 0).Build(),
-			ldbuilders.NewFlagBuilder("c").Build(),
-			ldbuilders.NewFlagBuilder("d").Build(),
-			ldbuilders.NewFlagBuilder("e").Build(),
-			ldbuilders.NewFlagBuilder("f").Build(),
-		).
-		Segments(
-			ldbuilders.NewSegmentBuilder("1").Build(),
-		).
-		Build()
 }

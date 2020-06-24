@@ -4,14 +4,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-)
-
-const (
-	// DefaultPrefix is a string that is prepended (along with a colon) to all Consul keys used
-	// by the data store. You can change this value with the Prefix() option.
-	DefaultPrefix = "launchdarkly"
 )
 
 // DataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
@@ -43,11 +38,8 @@ func DataStore(tableName string) *DataStoreBuilder {
 	}
 }
 
-// Prefix specifies a prefix for namespacing the data store's keys. The default value is DefaultPrefix.
+// Prefix specifies a prefix for namespacing the data store's keys.
 func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
-	if prefix == "" {
-		prefix = DefaultPrefix
-	}
 	b.prefix = prefix
 	return b
 }
@@ -78,7 +70,9 @@ func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBui
 }
 
 // CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
-func (b *DataStoreBuilder) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (b *DataStoreBuilder) CreatePersistentDataStore(
+	context interfaces.ClientContext,
+) (interfaces.PersistentDataStore, error) {
 	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().GetLoggers())
 	return store, err
 }

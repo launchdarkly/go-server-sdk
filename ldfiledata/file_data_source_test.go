@@ -1,12 +1,14 @@
 package ldfiledata
 
 import (
+	"errors"
 	"os"
 	"testing"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -15,11 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func X() {}
-
 type fileDataSourceTestParams struct {
 	dataSource     interfaces.DataSource
 	updates        *sharedtest.MockDataSourceUpdates
+	mockLog        *sharedtest.MockLoggers
 	closeWhenReady chan struct{}
 }
 
@@ -30,7 +31,10 @@ func (p fileDataSourceTestParams) waitForStart() {
 
 func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
-	testContext := sharedtest.NewTestContext("", nil, sharedtest.TestLoggingConfig())
+	mockLog := sharedtest.NewMockLoggers()
+	logConfig, _ := ldcomponents.Logging().Loggers(mockLog.Loggers).
+		CreateLoggingConfiguration(interfaces.BasicConfiguration{})
+	testContext := sharedtest.NewTestContext("", nil, logConfig)
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
 	dataSource, err := factory.CreateDataSource(testContext, updates)
@@ -39,7 +43,17 @@ func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action f
 	}
 	defer dataSource.Close()
 	p.dataSource = dataSource
-	action(fileDataSourceTestParams{dataSource, updates, make(chan struct{})})
+	action(fileDataSourceTestParams{dataSource, updates, mockLog, make(chan struct{})})
+}
+
+func expectCreationError(t *testing.T, factory interfaces.DataSourceFactory) error {
+	testContext := sharedtest.NewTestContext("", nil, sharedtest.TestLoggingConfig())
+	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	updates := sharedtest.NewMockDataSourceUpdates(store)
+	dataSource, err := factory.CreateDataSource(testContext, updates)
+	require.Error(t, err)
+	require.Nil(t, dataSource)
+	return err
 }
 
 func TestNewFileDataSourceYaml(t *testing.T) {
@@ -121,14 +135,21 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 }
 
 func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename1 string) {
-		sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename2 string) {
-			factory := DataSource().FilePaths(filename1, filename2)
-			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
-				p.waitForStart()
-				require.False(t, p.dataSource.IsInitialized())
+	file1Data := `{"flags": {"flag1": {"on": true}, "flag2": {"on": true}}, "segments": {"segment1": {}}}`
+	file2Data := `{"flags": {"flag2": {"on": true}}}`
+	file3Data := `{"flagValues": {"flag2": true}}`
+	file4Data := `{"segments": {"segment1": {}}}`
+
+	sharedtest.WithTempFileContaining([]byte(file1Data), func(filename1 string) {
+		for _, data := range []string{file2Data, file3Data, file4Data} {
+			sharedtest.WithTempFileContaining([]byte(data), func(filename2 string) {
+				factory := DataSource().FilePaths(filename1, filename2)
+				withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+					p.waitForStart()
+					require.False(t, p.dataSource.IsInitialized())
+				})
 			})
-		})
+		}
 	})
 }
 
@@ -182,5 +203,18 @@ flagValues:
 			require.NotNil(t, flagItem.Item)
 			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flagItem.Item.(*ldmodel.FeatureFlag).Variations)
 		})
+	})
+}
+
+func TestReloaderFailureDoesNotPreventStarting(t *testing.T) {
+	e := errors.New("sorry")
+	f := func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
+		return e
+	}
+	factory := DataSource().Reloader(f)
+	withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+		p.waitForStart()
+		assert.True(t, p.dataSource.IsInitialized())
+		assert.Len(t, p.mockLog.GetOutput(ldlog.Error), 1)
 	})
 }

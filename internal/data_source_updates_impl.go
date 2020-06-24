@@ -13,30 +13,35 @@ import (
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
 type DataSourceUpdatesImpl struct {
-	store                   intf.DataStore
-	dataStoreStatusProvider intf.DataStoreStatusProvider
-	broadcaster             *DataSourceStatusBroadcaster
-	outageTracker           *outageTracker
-	loggers                 ldlog.Loggers
-	currentStatus           intf.DataSourceStatus
-	lastStoreUpdateFailed   bool
-	lock                    sync.Mutex
+	store                       intf.DataStore
+	dataStoreStatusProvider     intf.DataStoreStatusProvider
+	dataSourceStatusBroadcaster *DataSourceStatusBroadcaster
+	flagChangeEventBroadcaster  *FlagChangeEventBroadcaster
+	dependencyTracker           *dependencyTracker
+	outageTracker               *outageTracker
+	loggers                     ldlog.Loggers
+	currentStatus               intf.DataSourceStatus
+	lastStoreUpdateFailed       bool
+	lock                        sync.Mutex
 }
 
 // NewDataSourceUpdatesImpl creates the internal implementation of DataSourceUpdates.
 func NewDataSourceUpdatesImpl(
 	store intf.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
-	broadcaster *DataSourceStatusBroadcaster,
+	dataSourceStatusBroadcaster *DataSourceStatusBroadcaster,
+	flagChangeEventBroadcaster *FlagChangeEventBroadcaster,
 	logDataSourceOutageAsErrorAfter time.Duration,
 	loggers ldlog.Loggers,
 ) *DataSourceUpdatesImpl {
 	return &DataSourceUpdatesImpl{
-		store:                   store,
-		dataStoreStatusProvider: dataStoreStatusProvider,
-		broadcaster:             broadcaster,
-		outageTracker:           newOutageTracker(logDataSourceOutageAsErrorAfter, loggers),
-		loggers:                 loggers,
+		store:                       store,
+		dataStoreStatusProvider:     dataStoreStatusProvider,
+		dataSourceStatusBroadcaster: dataSourceStatusBroadcaster,
+		flagChangeEventBroadcaster:  flagChangeEventBroadcaster,
+		dependencyTracker:           newDependencyTracker(),
+		outageTracker:               newOutageTracker(logDataSourceOutageAsErrorAfter, loggers),
+		loggers:                     loggers,
 		currentStatus: intf.DataSourceStatus{
 			State:      intf.DataSourceStateInitializing,
 			StateSince: time.Now(),
@@ -44,20 +49,61 @@ func NewDataSourceUpdatesImpl(
 	}
 }
 
-// Init is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Init(allData []intf.StoreCollection) bool {
+	var oldData map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor
+
+	if d.flagChangeEventBroadcaster.HasListeners() {
+		// Query the existing data if any, so that after the update we can send events for whatever was changed
+		oldData = make(map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor)
+		for _, kind := range intf.StoreDataKinds() {
+			if items, err := d.store.GetAll(kind); err == nil {
+				m := make(map[string]intf.StoreItemDescriptor)
+				for _, item := range items {
+					m[item.Key] = item.Item
+				}
+				oldData[kind] = m
+			}
+		}
+	}
+
 	err := d.store.Init(sortCollectionsForDataStoreInit(allData))
-	return d.maybeUpdateError(err)
+	updated := d.maybeUpdateError(err)
+
+	if updated {
+		// We must always update the dependency graph even if we don't currently have any event listeners, because if
+		// listeners are added later, we don't want to have to reread the whole data store to compute the graph
+		d.updateDependencyTrackerFromFullDataSet(allData)
+
+		// Now, if we previously queried the old data because someone is listening for flag change events, compare
+		// the versions of all items and generate events for those (and any other items that depend on them)
+		if oldData != nil {
+			d.sendChangeEvents(d.computeChangedItemsForFullDataSet(oldData, fullDataSetToMap(allData)))
+		}
+	}
+
+	return updated
 }
 
-// Upsert is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Upsert(
 	kind intf.StoreDataKind,
 	key string,
 	item intf.StoreItemDescriptor,
 ) bool {
-	err := d.store.Upsert(kind, key, item)
-	return d.maybeUpdateError(err)
+	updated, err := d.store.Upsert(kind, key, item)
+	didNotGetError := d.maybeUpdateError(err)
+
+	if updated {
+		d.dependencyTracker.updateDependenciesFrom(kind, key, item)
+		if d.flagChangeEventBroadcaster.HasListeners() {
+			affectedItems := make(kindAndKeySet)
+			d.dependencyTracker.addAffectedItems(affectedItems, kindAndKey{kind, key})
+			d.sendChangeEvents(affectedItems)
+		}
+	}
+
+	return didNotGetError
 }
 
 func (d *DataSourceUpdatesImpl) maybeUpdateError(err error) bool {
@@ -89,7 +135,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateError(err error) bool {
 	return false
 }
 
-// UpdateStatus is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) UpdateStatus(
 	newState intf.DataSourceState,
 	newError intf.DataSourceErrorInfo,
@@ -98,7 +144,7 @@ func (d *DataSourceUpdatesImpl) UpdateStatus(
 		return
 	}
 	if statusToBroadcast, changed := d.maybeUpdateStatus(newState, newError); changed {
-		d.broadcaster.Broadcast(statusToBroadcast)
+		d.dataSourceStatusBroadcaster.Broadcast(statusToBroadcast)
 	}
 }
 
@@ -138,7 +184,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
 	return d.currentStatus, true
 }
 
-// GetDataStoreStatusProvider is a standard method of DataSourceUpdates.
+//nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) GetDataStoreStatusProvider() intf.DataStoreStatusProvider {
 	return d.dataStoreStatusProvider
 }
@@ -161,8 +207,8 @@ func (d *DataSourceUpdatesImpl) waitFor(desiredState intf.DataSourceState, timeo
 		return false
 	}
 
-	statusCh := d.broadcaster.AddListener()
-	defer d.broadcaster.RemoveListener(statusCh)
+	statusCh := d.dataSourceStatusBroadcaster.AddListener()
+	defer d.dataSourceStatusBroadcaster.RemoveListener(statusCh)
 	d.lock.Unlock()
 
 	var deadline <-chan time.Time
@@ -183,6 +229,65 @@ func (d *DataSourceUpdatesImpl) waitFor(desiredState intf.DataSourceState, timeo
 			return false
 		}
 	}
+}
+
+func (d *DataSourceUpdatesImpl) sendChangeEvents(affectedItems kindAndKeySet) {
+	for item := range affectedItems {
+		if item.kind == intf.DataKindFeatures() {
+			d.flagChangeEventBroadcaster.Broadcast(intf.FlagChangeEvent{Key: item.key})
+		}
+	}
+}
+
+func (d *DataSourceUpdatesImpl) updateDependencyTrackerFromFullDataSet(allData []intf.StoreCollection) {
+	d.dependencyTracker.reset()
+	for _, coll := range allData {
+		for _, item := range coll.Items {
+			d.dependencyTracker.updateDependenciesFrom(coll.Kind, item.Key, item.Item)
+		}
+	}
+}
+
+func fullDataSetToMap(allData []intf.StoreCollection) map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor {
+	ret := make(map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor, len(allData))
+	for _, coll := range allData {
+		m := make(map[string]intf.StoreItemDescriptor, len(coll.Items))
+		for _, item := range coll.Items {
+			m[item.Key] = item.Item
+		}
+		ret[coll.Kind] = m
+	}
+	return ret
+}
+
+func (d *DataSourceUpdatesImpl) computeChangedItemsForFullDataSet(
+	oldDataMap map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor,
+	newDataMap map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor,
+) kindAndKeySet {
+	affectedItems := make(kindAndKeySet)
+	for _, kind := range intf.StoreDataKinds() {
+		oldItems := oldDataMap[kind]
+		newItems := newDataMap[kind]
+		allKeys := make([]string, 0, len(oldItems)+len(newItems))
+		for key := range oldItems {
+			allKeys = append(allKeys, key)
+		}
+		for key := range newItems {
+			if _, found := oldItems[key]; !found {
+				allKeys = append(allKeys, key)
+			}
+		}
+		for _, key := range allKeys {
+			oldItem, haveOld := oldItems[key]
+			newItem, haveNew := newItems[key]
+			if haveOld || haveNew {
+				if !haveOld || !haveNew || oldItem.Version < newItem.Version {
+					d.dependencyTracker.addAffectedItems(affectedItems, kindAndKey{kind, key})
+				}
+			}
+		}
+	}
+	return affectedItems
 }
 
 type outageTracker struct {
@@ -209,9 +314,10 @@ func (o *outageTracker) trackDataSourceState(newState intf.DataSourceState, newE
 	o.lock.Lock()
 	defer o.lock.Unlock()
 
-	if newState == intf.DataSourceStateInterrupted || newError.Kind != "" || (newState == intf.DataSourceStateInitializing && o.inOutage) {
-		// We are in a potentially recoverable outage. If that wasn't the case already, and if we've been configured
-		// with a timeout for logging the outage at a higher level, schedule that timeout.
+	if newState == intf.DataSourceStateInterrupted || newError.Kind != "" ||
+		(newState == intf.DataSourceStateInitializing && o.inOutage) {
+		// We are in a potentially recoverable outage. If that wasn't the case already, and if we've been
+		// configured with a timeout for logging the outage at a higher level, schedule that timeout.
 		if o.inOutage {
 			// We were already in one - just record this latest error for logging later.
 			o.recordError(newError)
@@ -236,7 +342,7 @@ func (o *outageTracker) recordError(newError intf.DataSourceErrorInfo) {
 	// Accumulate how many times each kind of error has occurred during the outage - use just the basic
 	// properties as the key so the map won't expand indefinitely
 	basicErrorInfo := intf.DataSourceErrorInfo{Kind: newError.Kind, StatusCode: newError.StatusCode}
-	o.errorCounts[basicErrorInfo] = o.errorCounts[basicErrorInfo] + 1
+	o.errorCounts[basicErrorInfo]++
 }
 
 func (o *outageTracker) awaitTimeout(closer chan struct{}) {
@@ -249,6 +355,7 @@ func (o *outageTracker) awaitTimeout(closer chan struct{}) {
 
 	o.lock.Lock()
 	if !o.inOutage {
+		// COVERAGE: there is no way to make this happen in unit tests; it is a very unlikely race condition
 		o.lock.Unlock()
 		return
 	}
@@ -267,13 +374,13 @@ func (o *outageTracker) describeErrors() string {
 	ret := ""
 	for err, count := range o.errorCounts {
 		if ret != "" {
-			ret = ret + ", "
+			ret += ", "
 		}
 		times := "times"
 		if count == 1 {
 			times = "time"
 		}
-		ret = ret + fmt.Sprintf("%s (%d %s)", err, count, times)
+		ret += fmt.Sprintf("%s (%d %s)", err, count, times)
 	}
 	return ret
 }

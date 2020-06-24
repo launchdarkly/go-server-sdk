@@ -65,6 +65,24 @@ func TestCanConnectSecurelyToNTLMProxyServerWithSelfSignedCert(t *testing.T) {
 	})
 }
 
+func TestInvalidParameters(t *testing.T) {
+	_, err := NewNTLMProxyHTTPClientFactory("", "user", "pass", domain)
+	assert.Error(t, err)
+
+	_, err = NewNTLMProxyHTTPClientFactory("http://proxy", "", "pass", domain)
+	assert.Error(t, err)
+
+	_, err = NewNTLMProxyHTTPClientFactory("http://proxy", "user", "", domain)
+	assert.Error(t, err)
+
+	_, err = NewNTLMProxyHTTPClientFactory("://bad", "user", "pass", domain)
+	assert.Error(t, err)
+
+	_, err = NewNTLMProxyHTTPClientFactory("http://proxy", "user", "pass", "domain",
+		ldhttp.CACertOption([]byte("not a valid cert")))
+	assert.Error(t, err)
+}
+
 func makeFakeNTLMProxyHandler() http.Handler {
 	step := 0
 	// This is an extremely minimal simulation of an NTLM proxy exchange:

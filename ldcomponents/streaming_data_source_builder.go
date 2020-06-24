@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 )
 
 // DefaultStreamingBaseURI is the default value for StreamingDataSourceBuilder.BaseURI.
@@ -19,7 +20,6 @@ const DefaultInitialReconnectDelay = time.Second
 // See StreamingDataSource for usage.
 type StreamingDataSourceBuilder struct {
 	baseURI               string
-	pollingBaseURI        string
 	initialReconnectDelay time.Duration
 }
 
@@ -57,17 +57,6 @@ func (b *StreamingDataSourceBuilder) BaseURI(baseURI string) *StreamingDataSourc
 	return b
 }
 
-// PollingBaseURI sets a custom base URI for special polling requests.
-//
-// Even in streaming mode, the SDK sometimes temporarily must do a polling request. You do not need to
-// modify this property unless you are connecting to a test server or a nonstandard endpoint for the
-// LaunchDarkly service. If you are using the Relay Proxy (https://docs.launchdarkly.com/docs/the-relay-proxy),
-// you only need to set BaseURI.
-func (b *StreamingDataSourceBuilder) PollingBaseURI(pollingBaseURI string) *StreamingDataSourceBuilder {
-	b.pollingBaseURI = strings.TrimRight(pollingBaseURI, "/")
-	return b
-}
-
 // InitialReconnectDelay sets the initial reconnect delay for the streaming connection.
 //
 // The streaming service uses a backoff algorithm (with jitter) every time the connection needs to be
@@ -75,7 +64,9 @@ func (b *StreamingDataSourceBuilder) PollingBaseURI(pollingBaseURI string) *Stre
 // exponentially for any subsequent connection failures.
 //
 // The default value is DefaultInitialReconnectDelay.
-func (b *StreamingDataSourceBuilder) InitialReconnectDelay(initialReconnectDelay time.Duration) *StreamingDataSourceBuilder {
+func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
+	initialReconnectDelay time.Duration,
+) *StreamingDataSourceBuilder {
 	if initialReconnectDelay <= 0 {
 		b.initialReconnectDelay = DefaultInitialReconnectDelay
 	} else {
@@ -84,34 +75,27 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(initialReconnectDelay
 	return b
 }
 
-// Called by the SDK to create the data source instance.
+// CreateDataSource is called by the SDK to create the data source instance.
 func (b *StreamingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	pollingBaseURI := b.pollingBaseURI
-	if pollingBaseURI == "" {
-		if b.baseURI == DefaultStreamingBaseURI {
-			pollingBaseURI = DefaultPollingBaseURI
-		} else {
-			// There's a custom stream URI, so it is probably a Relay instance and the polling base URI should default to the same value.
-			pollingBaseURI = b.baseURI
-		}
-	}
-	requestor := newRequestor(context, context.GetHTTP().CreateHTTPClient(), pollingBaseURI)
-	return newStreamProcessor(context, dataSourceUpdates, b.baseURI, b.initialReconnectDelay, requestor), nil
+	return internal.NewStreamProcessor(
+		context,
+		dataSourceUpdates,
+		b.baseURI,
+		b.initialReconnectDelay,
+	), nil
 }
 
-// Used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *StreamingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	isCustomStreamURI := b.baseURI != "" && b.baseURI != DefaultStreamingBaseURI
-	isCustomBaseURI := (b.pollingBaseURI != "" && b.pollingBaseURI != DefaultPollingBaseURI) ||
-		(b.pollingBaseURI == "" && b.baseURI != DefaultStreamingBaseURI)
+	isCustomStreamURI := b.baseURI != DefaultStreamingBaseURI
 	return ldvalue.ObjectBuild().
 		Set("streamingDisabled", ldvalue.Bool(false)).
-		Set("customBaseURI", ldvalue.Bool(isCustomBaseURI)).
+		Set("customBaseURI", ldvalue.Bool(false)).
 		Set("customStreamURI", ldvalue.Bool(isCustomStreamURI)).
-		Set("reconnectTimeMillis", ldvalue.Int(int(b.initialReconnectDelay/time.Millisecond))).
+		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Build()
 }

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/ldservices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/go-test-helpers/ldservices"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -40,6 +41,9 @@ func NewCapturingDataStore(realStore interfaces.DataStore) *CapturingDataStore {
 
 // Init is a standard DataStore method.
 func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
+	for _, coll := range allData {
+		AssertNotNil(coll.Kind)
+	}
 	d.inits <- allData
 	_ = d.realStore.Init(allData)
 	d.lock.Lock()
@@ -49,21 +53,34 @@ func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
 
 // Get is a standard DataStore method.
 func (d *CapturingDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
+	AssertNotNil(kind)
+	if d.fakeError != nil {
+		return interfaces.StoreItemDescriptor{}.NotFound(), d.fakeError
+	}
 	return d.realStore.Get(kind, key)
 }
 
 // GetAll is a standard DataStore method.
 func (d *CapturingDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
+	AssertNotNil(kind)
+	if d.fakeError != nil {
+		return nil, d.fakeError
+	}
 	return d.realStore.GetAll(kind)
 }
 
 // Upsert in this test type does nothing but capture its parameters.
-func (d *CapturingDataStore) Upsert(kind interfaces.StoreDataKind, key string, newItem interfaces.StoreItemDescriptor) error {
+func (d *CapturingDataStore) Upsert(
+	kind interfaces.StoreDataKind,
+	key string,
+	newItem interfaces.StoreItemDescriptor,
+) (bool, error) {
+	AssertNotNil(kind)
 	d.upserts <- upsertParams{kind, key, newItem}
-	_ = d.realStore.Upsert(kind, key, newItem)
+	updated, _ := d.realStore.Upsert(kind, key, newItem)
 	d.lock.Lock()
 	defer d.lock.Unlock()
-	return d.fakeError
+	return updated, d.fakeError
 }
 
 // IsInitialized in this test type always returns true.
@@ -127,7 +144,7 @@ func (d *CapturingDataStore) WaitForInit(
 	}
 }
 
-// WaitForUpdate waits for an Upsert call and verifies that it matches the expected data.
+// WaitForUpsert waits for an Upsert call and verifies that it matches the expected data.
 func (d *CapturingDataStore) WaitForUpsert(
 	t *testing.T,
 	kind interfaces.StoreDataKind,
@@ -165,15 +182,20 @@ func (d *CapturingDataStore) WaitForDelete(
 	}
 }
 
-func assertReceivedInitDataEquals(t *testing.T, expected *ldservices.ServerSDKData, received []interfaces.StoreCollection) {
+func assertReceivedInitDataEquals(
+	t *testing.T,
+	expected *ldservices.ServerSDKData,
+	received []interfaces.StoreCollection,
+) {
 	assert.Equal(t, 2, len(received))
 	for _, coll := range received {
 		var itemsMap map[string]interface{}
-		if coll.Kind == interfaces.DataKindFeatures() {
+		switch coll.Kind {
+		case interfaces.DataKindFeatures():
 			itemsMap = expected.FlagsMap
-		} else if coll.Kind == interfaces.DataKindSegments() {
+		case interfaces.DataKindSegments():
 			itemsMap = expected.SegmentsMap
-		} else {
+		default:
 			assert.Fail(t, "received unknown data kind: %s", coll.Kind)
 		}
 		assert.Equal(t, len(itemsMap), len(coll.Items))

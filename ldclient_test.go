@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
@@ -13,6 +14,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type badFactory struct{ err error }
@@ -171,6 +173,33 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 
 	events := client.eventProcessor.(*testEventProcessor).events
 	assert.Equal(t, 0, len(events))
+}
+
+func TestIdentifyWithEventsDisabledDoesNotCauseError(t *testing.T) {
+	mockLog := sharedtest.NewMockLoggers()
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.Events = ldcomponents.NoEvents()
+		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
+	})
+	defer client.Close()
+
+	require.NoError(t, client.Identify(lduser.NewUser("")))
+
+	assert.Len(t, mockLog.GetOutput(ldlog.Warn), 0)
+}
+
+func TestTrackWithEventsDisabledDoesNotCauseError(t *testing.T) {
+	mockLog := sharedtest.NewMockLoggers()
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.Events = ldcomponents.NoEvents()
+		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
+	})
+	defer client.Close()
+
+	require.NoError(t, client.TrackEvent("eventkey", lduser.NewUser("")))
+	require.NoError(t, client.TrackMetric("eventkey", lduser.NewUser(""), 0, ldvalue.Null()))
+
+	assert.Len(t, mockLog.GetOutput(ldlog.Warn), 0)
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {

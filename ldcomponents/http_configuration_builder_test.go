@@ -15,6 +15,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
@@ -79,13 +80,22 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 	t.Run("can set connect timeout", func(t *testing.T) {
 		timeout := 700 * time.Millisecond
-		c, err := HTTPConfiguration().
+		c1, err := HTTPConfiguration().
 			ConnectTimeout(timeout).
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
 
-		client := c.CreateHTTPClient()
-		assert.Equal(t, timeout, client.Timeout)
+		client1 := c1.CreateHTTPClient()
+		assert.Equal(t, timeout, client1.Timeout)
+
+		c2, err := HTTPConfiguration().
+			ConnectTimeout(-1 * time.Millisecond).
+			CreateHTTPConfiguration(basicConfig)
+		require.NoError(t, err)
+
+		client2 := c2.CreateHTTPClient()
+		assert.Equal(t, DefaultConnectTimeout, client2.Timeout)
+
 	})
 
 	t.Run("can set proxy URL", func(t *testing.T) {
@@ -134,5 +144,16 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 		headers2 := c2.GetDefaultHeaders()
 		assert.Equal(t, "FancySDK/2.0", headers2.Get("X-LaunchDarkly-Wrapper"))
+	})
+
+	t.Run("can set client factory", func(t *testing.T) {
+		hc := &http.Client{Timeout: time.Hour}
+
+		c, err := HTTPConfiguration().
+			HTTPClientFactory(func() *http.Client { return hc }).
+			CreateHTTPConfiguration(basicConfig)
+		require.NoError(t, err)
+
+		assert.Equal(t, hc, c.CreateHTTPClient())
 	})
 }

@@ -2,19 +2,21 @@ package ldclient
 
 import (
 	"encoding/json"
-	"strconv"
+	"errors"
 	"testing"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
-	helpers "github.com/launchdarkly/go-test-helpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -39,10 +41,6 @@ func singleValueFlag(key string, value ldvalue.Value) ldmodel.FeatureFlag {
 	return ldbuilders.NewFlagBuilder(key).OffVariation(1).Variations(ldvalue.String("ignore-me"), value).Build()
 }
 
-func makeMalformedFlag(key string) *ldmodel.FeatureFlag {
-	return &ldmodel.FeatureFlag{Key: key, On: false, OffVariation: helpers.IntPtr(-1)}
-}
-
 func makeClauseToMatchUser(user lduser.User) ldmodel.Clause {
 	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String(user.GetKey()))
 }
@@ -51,14 +49,49 @@ func makeClauseToNotMatchUser(user lduser.User) ldmodel.Clause {
 	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("not-"+user.GetKey()))
 }
 
-func assertEvalEvent(t *testing.T, client *LDClient, flag ldmodel.FeatureFlag, user lduser.User, value ldvalue.Value,
-	variation int, defaultVal ldvalue.Value, reason ldreason.EvaluationReason) {
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-	e := events[0].(ldevents.FeatureRequestEvent)
+type clientEvalTestParams struct {
+	client  *LDClient
+	store   interfaces.DataStore
+	events  *testEventProcessor
+	mockLog *sharedtest.MockLoggers
+}
+
+func withClientEvalTestParams(callback func(clientEvalTestParams)) {
+	p := clientEvalTestParams{}
+	p.store = internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	p.events = &testEventProcessor{}
+	p.mockLog = sharedtest.NewMockLoggers()
+	config := Config{
+		Offline:    false,
+		DataStore:  singleDataStoreFactory{p.store},
+		DataSource: singleDataSourceFactory{mockDataSource{Initialized: true}},
+		Events:     singleEventProcessorFactory{p.events},
+		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
+	}
+	p.client, _ = MakeCustomClient("sdk_key", config, 0)
+	defer p.client.Close()
+	callback(p)
+}
+
+func (p clientEvalTestParams) requireSingleEvent(t *testing.T) ldevents.FeatureRequestEvent {
+	events := p.events.events
+	require.Equal(t, 1, len(events))
+	return events[0].(ldevents.FeatureRequestEvent)
+}
+
+func assertEvalEvent(
+	t *testing.T,
+	actualEvent ldevents.FeatureRequestEvent,
+	flag ldmodel.FeatureFlag,
+	user lduser.User,
+	value ldvalue.Value,
+	variation int,
+	defaultVal ldvalue.Value,
+	reason ldreason.EvaluationReason,
+) {
 	expectedEvent := ldevents.FeatureRequestEvent{
 		BaseEvent: ldevents.BaseEvent{
-			CreationDate: e.CreationDate,
+			CreationDate: actualEvent.CreationDate,
 			User:         ldevents.User(user),
 		},
 		Key:       flag.Key,
@@ -68,7 +101,7 @@ func assertEvalEvent(t *testing.T, client *LDClient, flag ldmodel.FeatureFlag, u
 		Default:   defaultVal,
 		Reason:    reason,
 	}
-	assert.Equal(t, expectedEvent, e)
+	assert.Equal(t, expectedEvent, actualEvent)
 }
 
 func TestBoolVariation(t *testing.T) {
@@ -76,36 +109,36 @@ func TestBoolVariation(t *testing.T) {
 	defaultVal := false
 	flag := singleValueFlag("flagKey", ldvalue.Bool(true))
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	t.Run("simple", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	actual, err := client.BoolVariation(flag.Key, evalTestUser, defaultVal)
+			actual, err := p.client.BoolVariation(flag.Key, evalTestUser, defaultVal)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Bool(expected), expectedVariationForSingleValueFlag, ldvalue.Bool(defaultVal), noReason)
-}
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Bool(expected),
+				expectedVariationForSingleValueFlag, ldvalue.Bool(defaultVal), noReason)
+		})
+	})
 
-func TestBoolVariationDetail(t *testing.T) {
-	expected := true
-	defaultVal := false
-	flag := singleValueFlag("flagKey", ldvalue.Bool(true))
+	t.Run("detail", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+			actual, detail, err := p.client.BoolVariationDetail(flag.Key, evalTestUser, defaultVal)
 
-	actual, detail, err := client.BoolVariationDetail(flag.Key, evalTestUser, defaultVal)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, detail.Value.BoolValue())
+			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
+			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-	assert.Equal(t, expected, detail.Value.BoolValue())
-	assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-	assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
-
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Bool(expected), expectedVariationForSingleValueFlag, ldvalue.Bool(defaultVal), detail.Reason)
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Bool(expected),
+				expectedVariationForSingleValueFlag, ldvalue.Bool(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestIntVariation(t *testing.T) {
@@ -113,66 +146,66 @@ func TestIntVariation(t *testing.T) {
 	defaultVal := 10000
 	flag := singleValueFlag("flagKey", ldvalue.Int(expected))
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	t.Run("simple", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	actual, err := client.IntVariation(flag.Key, evalTestUser, defaultVal)
+			actual, err := p.client.IntVariation(flag.Key, evalTestUser, defaultVal)
 
-	assert.NoError(t, err)
-	assert.Equal(t, int(expected), actual)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Int(expected), expectedVariationForSingleValueFlag, ldvalue.Int(defaultVal), noReason)
-}
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Int(expected),
+				expectedVariationForSingleValueFlag, ldvalue.Int(defaultVal), noReason)
+		})
+	})
 
-func TestIntVariationRoundsFloatTowardZero(t *testing.T) {
-	flag1 := singleValueFlag("flag1", ldvalue.Float64(2.25))
-	flag2 := singleValueFlag("flag2", ldvalue.Float64(2.75))
-	flag3 := singleValueFlag("flag3", ldvalue.Float64(-2.25))
-	flag4 := singleValueFlag("flag4", ldvalue.Float64(-2.75))
+	t.Run("detail", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag1)
-	upsertFlag(client.store, &flag2)
-	upsertFlag(client.store, &flag3)
-	upsertFlag(client.store, &flag4)
+			actual, detail, err := p.client.IntVariationDetail(flag.Key, evalTestUser, defaultVal)
 
-	actual, err := client.IntVariation(flag1.Key, evalTestUser, 0)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, actual)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, detail.Value.IntValue())
+			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
+			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
 
-	actual, err = client.IntVariation(flag2.Key, evalTestUser, 0)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, actual)
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Int(expected),
+				expectedVariationForSingleValueFlag, ldvalue.Int(defaultVal), detail.Reason)
+		})
+	})
 
-	actual, err = client.IntVariation(flag3.Key, evalTestUser, 0)
-	assert.NoError(t, err)
-	assert.Equal(t, -2, actual)
+	t.Run("rounds float toward zero", func(t *testing.T) {
+		flag1 := singleValueFlag("flag1", ldvalue.Float64(2.25))
+		flag2 := singleValueFlag("flag2", ldvalue.Float64(2.75))
+		flag3 := singleValueFlag("flag3", ldvalue.Float64(-2.25))
+		flag4 := singleValueFlag("flag4", ldvalue.Float64(-2.75))
 
-	actual, err = client.IntVariation(flag4.Key, evalTestUser, 0)
-	assert.NoError(t, err)
-	assert.Equal(t, -2, actual)
-}
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag1)
+			upsertFlag(p.store, &flag2)
+			upsertFlag(p.store, &flag3)
+			upsertFlag(p.store, &flag4)
 
-func TestIntVariationDetail(t *testing.T) {
-	expected := 100
-	defaultVal := 10000
-	flag := singleValueFlag("flagKey", ldvalue.Int(expected))
+			actual, err := p.client.IntVariation(flag1.Key, evalTestUser, 0)
+			assert.NoError(t, err)
+			assert.Equal(t, 2, actual)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+			actual, err = p.client.IntVariation(flag2.Key, evalTestUser, 0)
+			assert.NoError(t, err)
+			assert.Equal(t, 2, actual)
 
-	actual, detail, err := client.IntVariationDetail(flag.Key, evalTestUser, defaultVal)
+			actual, err = p.client.IntVariation(flag3.Key, evalTestUser, 0)
+			assert.NoError(t, err)
+			assert.Equal(t, -2, actual)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-	assert.Equal(t, expected, detail.Value.IntValue())
-	assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-	assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
-
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Int(expected), expectedVariationForSingleValueFlag, ldvalue.Int(defaultVal), detail.Reason)
+			actual, err = p.client.IntVariation(flag4.Key, evalTestUser, 0)
+			assert.NoError(t, err)
+			assert.Equal(t, -2, actual)
+		})
+	})
 }
 
 func TestFloat64Variation(t *testing.T) {
@@ -180,36 +213,36 @@ func TestFloat64Variation(t *testing.T) {
 	defaultVal := 0.0
 	flag := singleValueFlag("flagKey", ldvalue.Float64(expected))
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	t.Run("simple", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	actual, err := client.Float64Variation(flag.Key, evalTestUser, defaultVal)
+			actual, err := p.client.Float64Variation(flag.Key, evalTestUser, defaultVal)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Float64(expected), expectedVariationForSingleValueFlag, ldvalue.Float64(defaultVal), noReason)
-}
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Float64(expected),
+				expectedVariationForSingleValueFlag, ldvalue.Float64(defaultVal), noReason)
+		})
+	})
 
-func TestFloat64VariationDetail(t *testing.T) {
-	expected := 100.01
-	defaultVal := 0.0
-	flag := singleValueFlag("flagKey", ldvalue.Float64(expected))
+	t.Run("detail", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+			actual, detail, err := p.client.Float64VariationDetail(flag.Key, evalTestUser, defaultVal)
 
-	actual, detail, err := client.Float64VariationDetail(flag.Key, evalTestUser, defaultVal)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, detail.Value.Float64Value())
+			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
+			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-	assert.Equal(t, expected, detail.Value.Float64Value())
-	assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-	assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
-
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.Float64(expected), expectedVariationForSingleValueFlag, ldvalue.Float64(defaultVal), detail.Reason)
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Float64(expected),
+				expectedVariationForSingleValueFlag, ldvalue.Float64(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestStringVariation(t *testing.T) {
@@ -217,166 +250,199 @@ func TestStringVariation(t *testing.T) {
 	defaultVal := "a"
 	flag := singleValueFlag("flagKey", ldvalue.String(expected))
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	t.Run("simple", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	actual, err := client.StringVariation(flag.Key, evalTestUser, defaultVal)
+			actual, err := p.client.StringVariation(flag.Key, evalTestUser, defaultVal)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.String(expected), expectedVariationForSingleValueFlag, ldvalue.String(defaultVal), noReason)
-}
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.String(expected),
+				expectedVariationForSingleValueFlag, ldvalue.String(defaultVal), noReason)
+		})
+	})
 
-func TestStringVariationDetail(t *testing.T) {
-	expected := "b"
-	defaultVal := "a"
-	flag := singleValueFlag("flagKey", ldvalue.String(expected))
+	t.Run("detail", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+			actual, detail, err := p.client.StringVariationDetail(flag.Key, evalTestUser, defaultVal)
 
-	actual, detail, err := client.StringVariationDetail(flag.Key, evalTestUser, defaultVal)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, detail.Value.StringValue())
+			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
+			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-	assert.Equal(t, expected, detail.Value.StringValue())
-	assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-	assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
-
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.String(expected), expectedVariationForSingleValueFlag, ldvalue.String(defaultVal), detail.Reason)
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.String(expected),
+				expectedVariationForSingleValueFlag, ldvalue.String(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestJSONRawVariation(t *testing.T) {
 	expectedValue := map[string]interface{}{"field2": "value2"}
 	expectedJSON, _ := json.Marshal(expectedValue)
-
-	flag := singleValueFlag("flagKey", ldvalue.CopyArbitraryValue(expectedValue))
-
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
-
-	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
-	actual, err := client.JSONVariation(flag.Key, evalTestUser, ldvalue.Raw(defaultVal))
-
-	assert.NoError(t, err)
-	assert.Equal(t, json.RawMessage(expectedJSON), actual.AsRaw())
-
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.CopyArbitraryValue(expectedValue), expectedVariationForSingleValueFlag,
-		ldvalue.CopyArbitraryValue(defaultVal), noReason)
-}
-
-func TestJSONRawVariationDetail(t *testing.T) {
-	expectedValue := map[string]interface{}{"field2": "value2"}
-	expectedJSON, _ := json.Marshal(expectedValue)
 	expectedRaw := json.RawMessage(expectedJSON)
-
+	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
 	flag := singleValueFlag("flagKey", ldvalue.CopyArbitraryValue(expectedValue))
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	t.Run("simple", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	defaultVal := json.RawMessage([]byte(`{"default":"default"}`))
-	actual, detail, err := client.JSONVariationDetail(flag.Key, evalTestUser, ldvalue.Raw(defaultVal))
+			actual, err := p.client.JSONVariation(flag.Key, evalTestUser, ldvalue.Raw(defaultVal))
 
-	assert.NoError(t, err)
-	assert.Equal(t, expectedRaw, actual.AsRaw())
-	assert.Equal(t, expectedRaw, detail.Value.AsRaw())
-	assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-	assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedRaw, actual.AsRaw())
 
-	assertEvalEvent(t, client, flag, evalTestUser, ldvalue.CopyArbitraryValue(expectedValue), expectedVariationForSingleValueFlag,
-		ldvalue.CopyArbitraryValue(defaultVal), detail.Reason)
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser,
+				ldvalue.CopyArbitraryValue(expectedValue), expectedVariationForSingleValueFlag,
+				ldvalue.CopyArbitraryValue(defaultVal), noReason)
+		})
+	})
+
+	t.Run("detail", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
+
+			actual, detail, err := p.client.JSONVariationDetail(flag.Key, evalTestUser, ldvalue.Raw(defaultVal))
+
+			assert.NoError(t, err)
+			assert.Equal(t, expectedRaw, actual.AsRaw())
+			assert.Equal(t, expectedRaw, detail.Value.AsRaw())
+			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
+			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser,
+				ldvalue.CopyArbitraryValue(expectedValue), expectedVariationForSingleValueFlag,
+				ldvalue.CopyArbitraryValue(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestJSONVariation(t *testing.T) {
 	expected := ldvalue.CopyArbitraryValue(map[string]interface{}{"field2": "value2"})
-
+	defaultVal := ldvalue.String("no")
 	flag := singleValueFlag("flagKey", expected)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	t.Run("simple", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	defaultVal := ldvalue.String("no")
-	actual, err := client.JSONVariation(flag.Key, evalTestUser, defaultVal)
+			actual, err := p.client.JSONVariation(flag.Key, evalTestUser, defaultVal)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
 
-	assertEvalEvent(t, client, flag, evalTestUser, expected, expectedVariationForSingleValueFlag, defaultVal, noReason)
-}
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, expected,
+				expectedVariationForSingleValueFlag, defaultVal, noReason)
+		})
+	})
 
-func TestJSONVariationDetail(t *testing.T) {
-	expected := ldvalue.CopyArbitraryValue(map[string]interface{}{"field2": "value2"})
+	t.Run("detail", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			upsertFlag(p.store, &flag)
 
-	flag := singleValueFlag("flagKey", expected)
+			actual, detail, err := p.client.JSONVariationDetail(flag.Key, evalTestUser, defaultVal)
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, detail.Value)
+			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
+			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
 
-	defaultVal := ldvalue.String("no")
-	actual, detail, err := client.JSONVariationDetail(flag.Key, evalTestUser, defaultVal)
-
-	assert.NoError(t, err)
-	assert.Equal(t, expected, actual)
-	assert.Equal(t, expected, detail.Value)
-	assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-	assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
-
-	assertEvalEvent(t, client, flag, evalTestUser, expected, expectedVariationForSingleValueFlag, defaultVal, detail.Reason)
+			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, expected,
+				expectedVariationForSingleValueFlag, defaultVal, detail.Reason)
+		})
+	})
 }
 
 func TestEvaluatingUnknownFlagReturnsDefault(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	value, err := client.StringVariation("flagKey", evalTestUser, "default")
-	assert.Error(t, err)
-	assert.Equal(t, "default", value)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		value, err := p.client.StringVariation("flagKey", evalTestUser, "default")
+		assert.Error(t, err)
+		assert.Equal(t, "default", value)
+	})
 }
 
 func TestEvaluatingUnknownFlagReturnsDefaultWithDetail(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	_, detail, err := client.StringVariationDetail("flagKey", evalTestUser, "default")
-	assert.Error(t, err)
-	assert.Equal(t, ldvalue.String("default"), detail.Value)
-	assert.Equal(t, -1, detail.VariationIndex)
-	assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorFlagNotFound), detail.Reason)
-	assert.True(t, detail.IsDefaultValue())
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		_, detail, err := p.client.StringVariationDetail("flagKey", evalTestUser, "default")
+		assert.Error(t, err)
+		assert.Equal(t, ldvalue.String("default"), detail.Value)
+		assert.Equal(t, -1, detail.VariationIndex)
+		assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorFlagNotFound), detail.Reason)
+		assert.True(t, detail.IsDefaultValue())
+	})
 }
 
 func TestDefaultIsReturnedIfFlagEvaluatesToNil(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagKey").Build() // flag is off and we haven't defined an off variation
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, "default", value)
+		value, err := p.client.StringVariation(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, "default", value)
+	})
 }
 
 func TestDefaultIsReturnedIfFlagEvaluatesToNilWithDetail(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagKey").Build() // flag is off and we haven't defined an off variation
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	_, detail, err := client.StringVariationDetail(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, ldvalue.String("default"), detail.Value)
-	assert.Equal(t, -1, detail.VariationIndex)
-	assert.Equal(t, ldreason.NewEvalReasonOff(), detail.Reason)
+		_, detail, err := p.client.StringVariationDetail(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, ldvalue.String("default"), detail.Value)
+		assert.Equal(t, -1, detail.VariationIndex)
+		assert.Equal(t, ldreason.NewEvalReasonOff(), detail.Reason)
+	})
+}
+
+func TestDefaultIsReturnedIfFlagReturnsWrongType(t *testing.T) {
+	jsonFlag := ldbuilders.NewFlagBuilder("key").SingleVariation(ldvalue.ObjectBuild().Build()).Build()
+
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &jsonFlag)
+
+		v1a, err1a := p.client.BoolVariation(jsonFlag.Key, evalTestUser, false)
+		v1b, detail1, err1b := p.client.BoolVariationDetail(jsonFlag.Key, evalTestUser, false)
+		assert.NoError(t, err1a)
+		assert.NoError(t, err1b)
+		assert.False(t, v1a)
+		assert.False(t, v1b)
+		assert.Equal(t, ldreason.EvalErrorWrongType, detail1.Reason.GetErrorKind())
+
+		v2a, err2a := p.client.IntVariation(jsonFlag.Key, evalTestUser, -1)
+		v2b, detail2, err2b := p.client.IntVariationDetail(jsonFlag.Key, evalTestUser, -1)
+		assert.NoError(t, err2a)
+		assert.NoError(t, err2b)
+		assert.Equal(t, -1, v2a)
+		assert.Equal(t, -1, v2b)
+		assert.Equal(t, ldreason.EvalErrorWrongType, detail2.Reason.GetErrorKind())
+
+		v3a, err3a := p.client.Float64Variation(jsonFlag.Key, evalTestUser, -1)
+		v3b, detail3, err3b := p.client.Float64VariationDetail(jsonFlag.Key, evalTestUser, -1)
+		assert.NoError(t, err3a)
+		assert.NoError(t, err3b)
+		assert.Equal(t, float64(-1), v3a)
+		assert.Equal(t, float64(-1), v3b)
+		assert.Equal(t, ldreason.EvalErrorWrongType, detail3.Reason.GetErrorKind())
+
+		v4a, err4a := p.client.StringVariation(jsonFlag.Key, evalTestUser, "x")
+		v4b, detail4, err4b := p.client.StringVariationDetail(jsonFlag.Key, evalTestUser, "x")
+		assert.NoError(t, err4a)
+		assert.NoError(t, err4b)
+		assert.Equal(t, "x", v4a)
+		assert.Equal(t, "x", v4b)
+		assert.Equal(t, ldreason.EvalErrorWrongType, detail4.Reason.GetErrorKind())
+	})
 }
 
 func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
@@ -391,20 +457,17 @@ func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 		Version(1).
 		Build()
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, "on", value)
+		value, err := p.client.StringVariation(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, "on", value)
 
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-
-	e := events[0].(ldevents.FeatureRequestEvent)
-	assert.True(t, e.TrackEvents)
-	assert.Equal(t, ldreason.NewEvalReasonRuleMatch(0, "rule-id"), e.Reason)
+		e := p.requireSingleEvent(t)
+		assert.True(t, e.TrackEvents)
+		assert.Equal(t, ldreason.NewEvalReasonRuleMatch(0, "rule-id"), e.Reason)
+	})
 }
 
 func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *testing.T) {
@@ -423,20 +486,17 @@ func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *test
 		Version(1).
 		Build()
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, "on", value)
+		value, err := p.client.StringVariation(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, "on", value)
 
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-
-	e := events[0].(ldevents.FeatureRequestEvent)
-	assert.False(t, e.TrackEvents)
-	assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
+		e := p.requireSingleEvent(t)
+		assert.False(t, e.TrackEvents)
+		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
+	})
 }
 
 func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
@@ -448,20 +508,17 @@ func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 		Version(1).
 		Build()
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, "on", value)
+		value, err := p.client.StringVariation(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, "on", value)
 
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-
-	e := events[0].(ldevents.FeatureRequestEvent)
-	assert.True(t, e.TrackEvents)
-	assert.Equal(t, ldreason.NewEvalReasonFallthrough(), e.Reason)
+		e := p.requireSingleEvent(t)
+		assert.True(t, e.TrackEvents)
+		assert.Equal(t, ldreason.NewEvalReasonFallthrough(), e.Reason)
+	})
 }
 
 func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testing.T) {
@@ -472,20 +529,17 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testi
 		Version(1).
 		Build()
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, "on", value)
+		value, err := p.client.StringVariation(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, "on", value)
 
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-
-	e := events[0].(ldevents.FeatureRequestEvent)
-	assert.False(t, e.TrackEvents)
-	assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
+		e := p.requireSingleEvent(t)
+		assert.False(t, e.TrackEvents)
+		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
+	})
 }
 
 func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthrough(t *testing.T) {
@@ -498,51 +552,41 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 		Version(1).
 		Build()
 
-	client := makeTestClient()
-	defer client.Close()
-	upsertFlag(client.store, &flag)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag)
 
-	value, err := client.StringVariation(flag.Key, evalTestUser, "default")
-	assert.NoError(t, err)
-	assert.Equal(t, "off", value)
+		value, err := p.client.StringVariation(flag.Key, evalTestUser, "default")
+		assert.NoError(t, err)
+		assert.Equal(t, "off", value)
 
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-
-	e := events[0].(ldevents.FeatureRequestEvent)
-	assert.False(t, e.TrackEvents)
-	assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
+		e := p.requireSingleEvent(t)
+		assert.False(t, e.TrackEvents)
+		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
+	})
 }
 
 func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		_, err := p.client.StringVariation("flagKey", evalTestUser, "x")
+		assert.Error(t, err)
 
-	_, err := client.StringVariation("flagKey", evalTestUser, "x")
-	assert.Error(t, err)
-
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 1, len(events))
-
-	e := events[0].(ldevents.FeatureRequestEvent)
-	expectedEvent := ldevents.FeatureRequestEvent{
-		BaseEvent: ldevents.BaseEvent{
-			CreationDate: e.CreationDate,
-			User:         ldevents.User(evalTestUser),
-		},
-		Key:       "flagKey",
-		Version:   ldevents.NoVersion,
-		Value:     ldvalue.String("x"),
-		Variation: ldevents.NoVariation,
-		Default:   ldvalue.String("x"),
-	}
-	assert.Equal(t, expectedEvent, e)
+		e := p.requireSingleEvent(t)
+		expectedEvent := ldevents.FeatureRequestEvent{
+			BaseEvent: ldevents.BaseEvent{
+				CreationDate: e.CreationDate,
+				User:         ldevents.User(evalTestUser),
+			},
+			Key:       "flagKey",
+			Version:   ldevents.NoVersion,
+			Value:     ldvalue.String("x"),
+			Variation: ldevents.NoVariation,
+			Default:   ldvalue.String("x"),
+		}
+		assert.Equal(t, expectedEvent, e)
+	})
 }
 
 func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
 	flag0 := ldbuilders.NewFlagBuilder("flag0").
 		On(true).
 		FallthroughVariation(1).
@@ -554,166 +598,85 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 		FallthroughVariation(1).
 		Variations(ldvalue.String("c"), ldvalue.String("d")).
 		Build()
-	upsertFlag(client.store, &flag0)
-	upsertFlag(client.store, &flag1)
 
-	user := lduser.NewUser("userKey")
-	_, err := client.StringVariation(flag0.Key, user, "x")
-	assert.NoError(t, err)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		upsertFlag(p.store, &flag0)
+		upsertFlag(p.store, &flag1)
 
-	events := client.eventProcessor.(*testEventProcessor).events
-	assert.Equal(t, 2, len(events))
+		user := lduser.NewUser("userKey")
+		_, err := p.client.StringVariation(flag0.Key, user, "x")
+		assert.NoError(t, err)
 
-	e0 := events[0].(ldevents.FeatureRequestEvent)
-	expected0 := ldevents.FeatureRequestEvent{
-		BaseEvent: ldevents.BaseEvent{
-			CreationDate: e0.CreationDate,
-			User:         ldevents.User(user),
-		},
-		Key:       flag1.Key,
-		Version:   flag1.Version,
-		Value:     ldvalue.String("d"),
-		Variation: 1,
-		Default:   ldvalue.Null(),
-		PrereqOf:  ldvalue.NewOptionalString(flag0.Key),
-	}
-	assert.Equal(t, expected0, e0)
+		events := p.events.events
+		assert.Len(t, events, 2)
+		e0 := events[0].(ldevents.FeatureRequestEvent)
+		expected0 := ldevents.FeatureRequestEvent{
+			BaseEvent: ldevents.BaseEvent{
+				CreationDate: e0.CreationDate,
+				User:         ldevents.User(user),
+			},
+			Key:       flag1.Key,
+			Version:   flag1.Version,
+			Value:     ldvalue.String("d"),
+			Variation: 1,
+			Default:   ldvalue.Null(),
+			PrereqOf:  ldvalue.NewOptionalString(flag0.Key),
+		}
+		assert.Equal(t, expected0, e0)
 
-	e1 := events[1].(ldevents.FeatureRequestEvent)
-	expected1 := ldevents.FeatureRequestEvent{
-		BaseEvent: ldevents.BaseEvent{
-			CreationDate: e1.CreationDate,
-			User:         ldevents.User(user),
-		},
-		Key:       flag0.Key,
-		Version:   flag0.Version,
-		Value:     ldvalue.String("b"),
-		Variation: 1,
-		Default:   ldvalue.String("x"),
-	}
-	assert.Equal(t, expected1, e1)
+		e1 := events[1].(ldevents.FeatureRequestEvent)
+		expected1 := ldevents.FeatureRequestEvent{
+			BaseEvent: ldevents.BaseEvent{
+				CreationDate: e1.CreationDate,
+				User:         ldevents.User(user),
+			},
+			Key:       flag0.Key,
+			Version:   flag0.Version,
+			Value:     ldvalue.String("b"),
+			Variation: 1,
+			Default:   ldvalue.String("x"),
+		}
+		assert.Equal(t, expected1, e1)
+	})
 }
 
-func TestAllFlagsStateGetsState(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
+func TestEvalLogsWarningIfUserKeyIsEmpty(t *testing.T) {
+	flag := singleValueFlag("flagKey", ldvalue.Bool(true))
 
-	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
-	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
-		TrackEvents(true).DebugEventsUntilDate(1000).Build()
-	upsertFlag(client.store, &flag1)
-	upsertFlag(client.store, &flag2)
-
-	state := client.AllFlagsState(lduser.NewUser("userkey"))
-	assert.True(t, state.IsValid())
-
-	expectedString := `{
-		"key1":"value1",
-		"key2":"value2",
-		"$flagsState":{
-	  		"key1":{
-				"variation":0,"version":100,"reason":null
-			},
-			"key2": {
-				"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000,"reason":null
-			}
-		},
-		"$valid":true
-	}`
-	actualBytes, err := json.Marshal(state)
-	assert.NoError(t, err)
-	assert.JSONEq(t, expectedString, string(actualBytes))
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		_, _ = p.client.BoolVariation(flag.Key, lduser.NewUser(""), false)
+		assert.Len(t, p.mockLog.GetOutput(ldlog.Warn), 1)
+		assert.Contains(t, p.mockLog.GetOutput(ldlog.Warn)[0], "User key is blank")
+	})
 }
 
-func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
-	client := makeTestClient()
+func TestEvalErrorIfStoreReturnsError(t *testing.T) {
+	myError := errors.New("sorry")
+	store := sharedtest.NewCapturingDataStore(makeInMemoryDataStore())
+	_ = store.Init(nil)
+	store.SetFakeError(myError)
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.DataStore = singleDataStoreFactory{store}
+	})
 	defer client.Close()
 
-	flag1 := ldbuilders.NewFlagBuilder("server-side-1").Build()
-	flag2 := ldbuilders.NewFlagBuilder("server-side-2").Build()
-	flag3 := ldbuilders.NewFlagBuilder("client-side-1").SingleVariation(ldvalue.String("value1")).ClientSide(true).Build()
-	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).ClientSide(true).Build()
-	upsertFlag(client.store, &flag1)
-	upsertFlag(client.store, &flag2)
-	upsertFlag(client.store, &flag3)
-	upsertFlag(client.store, &flag4)
-
-	state := client.AllFlagsState(lduser.NewUser("userkey"), ClientSideOnly)
-	assert.True(t, state.IsValid())
-
-	expectedValues := map[string]ldvalue.Value{"client-side-1": ldvalue.String("value1"), "client-side-2": ldvalue.String("value2")}
-	assert.Equal(t, expectedValues, state.ToValuesMap())
+	value, err := client.BoolVariation("flag", evalTestUser, false)
+	assert.False(t, value)
+	assert.Equal(t, myError, err)
 }
 
-func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
+func TestEvalErrorIfStoreHasNonFlagObject(t *testing.T) {
+	key := "not-really-a-flag"
+	notAFlag := 9
 
-	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
-	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
-		TrackEvents(true).DebugEventsUntilDate(1000).Build()
-	upsertFlag(client.store, &flag1)
-	upsertFlag(client.store, &flag2)
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		p.store.Upsert(interfaces.DataKindFeatures(), key,
+			interfaces.StoreItemDescriptor{Version: 1, Item: notAFlag})
 
-	state := client.AllFlagsState(lduser.NewUser("userkey"), WithReasons)
-	assert.True(t, state.IsValid())
-
-	expectedString := `{
-		"key1":"value1",
-		"key2":"value2",
-		"$flagsState":{
-	  		"key1":{
-				"variation":0,"version":100,"reason":{"kind":"OFF"}
-			},
-			"key2": {
-				"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true,"debugEventsUntilDate":1000
-			}
-		},
-		"$valid":true
-	}`
-	actualBytes, err := json.Marshal(state)
-	assert.NoError(t, err)
-	assert.JSONEq(t, expectedString, string(actualBytes))
-}
-
-func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
-	client := makeTestClient()
-	defer client.Close()
-
-	futureTime := ldtime.UnixMillisNow() + 100000
-	futureTimeStr := strconv.FormatInt(int64(futureTime), 10)
-	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
-	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
-		TrackEvents(true).Build()
-	flag3 := ldbuilders.NewFlagBuilder("key3").Version(300).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value3")).
-		TrackEvents(false).DebugEventsUntilDate(futureTime).Build()
-	upsertFlag(client.store, &flag1)
-	upsertFlag(client.store, &flag2)
-	upsertFlag(client.store, &flag3)
-
-	state := client.AllFlagsState(lduser.NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
-	assert.True(t, state.IsValid())
-
-	expectedString := `{
-		"key1":"value1",
-		"key2":"value2",
-		"key3":"value3",
-		"$flagsState":{
-	  		"key1":{
-				"variation":0
-			},
-			"key2": {
-				"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true
-			},
-			"key3": {
-				"variation":1,"version":300,"reason":{"kind":"OFF"},"debugEventsUntilDate":` + futureTimeStr + `
-			}
-		},
-		"$valid":true
-	}`
-	actualBytes, err := json.Marshal(state)
-	assert.NoError(t, err)
-	assert.JSONEq(t, expectedString, string(actualBytes))
+		value, err := p.client.BoolVariation(key, evalTestUser, false)
+		assert.False(t, value)
+		assert.Error(t, err)
+	})
 }
 
 func TestUnknownFlagErrorLogging(t *testing.T) {
@@ -722,7 +685,8 @@ func TestUnknownFlagErrorLogging(t *testing.T) {
 }
 
 func TestMalformedFlagErrorLogging(t *testing.T) {
-	testEvalErrorLogging(t, makeMalformedFlag("bad-flag"), "", evalTestUser,
+	flag := ldbuilders.NewFlagBuilder("bad-flag").On(false).OffVariation(99).Build()
+	testEvalErrorLogging(t, &flag, "", evalTestUser,
 		"flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
@@ -741,7 +705,7 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 		value, _ := client.StringVariation(key, user, "default")
 		assert.Equal(t, "default", value)
 		if withLogging {
-			assert.Len(t, mockLoggers.GetAllOutput(), 1)
+			require.Len(t, mockLoggers.GetAllOutput(), 1)
 			assert.Regexp(t, expectedMessageRegex, mockLoggers.GetOutput(ldlog.Warn)[0])
 		} else {
 			assert.Len(t, mockLoggers.GetAllOutput(), 0)
@@ -749,4 +713,44 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 	}
 	runTest(false)
 	runTest(true)
+}
+
+func TestEvalReturnsDefaultIfClientAndStoreAreNotInitialized(t *testing.T) {
+	mockLoggers := sharedtest.NewMockLoggers()
+
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.DataSource = singleDataSourceFactory{mockDataSource{Initialized: false}}
+		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
+	})
+	defer client.Close()
+
+	value, err := client.BoolVariation("flagkey", evalTestUser, false)
+	require.Error(t, err)
+	assert.Equal(t, "feature flag evaluation called before LaunchDarkly client initialization completed",
+		err.Error())
+	assert.False(t, value)
+
+	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 0)
+}
+
+func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialized(t *testing.T) {
+	mockLoggers := sharedtest.NewMockLoggers()
+	flag := singleValueFlag("flagkey", ldvalue.Bool(true))
+	store := makeInMemoryDataStore()
+	_ = store.Init(nil)
+	_, _ = store.Upsert(interfaces.DataKindFeatures(), flag.GetKey(), sharedtest.FlagDescriptor(flag))
+
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.DataSource = singleDataSourceFactory{mockDataSource{Initialized: false}}
+		c.DataStore = singleDataStoreFactory{store}
+		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
+	})
+	defer client.Close()
+
+	value, err := client.BoolVariation(flag.GetKey(), evalTestUser, false)
+	assert.NoError(t, err)
+	assert.True(t, value)
+
+	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
+	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "using last known values")
 }

@@ -7,8 +7,8 @@ import (
 
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
+
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -34,7 +34,7 @@ func NewPersistentDataStoreWrapper(
 	dataStoreUpdates intf.DataStoreUpdates,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
-) interfaces.DataStore {
+) intf.DataStore {
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
 		myCache = cache.New(cacheTTL, 5*time.Minute)
@@ -94,9 +94,6 @@ func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (i
 	}
 	cacheKey := dataStoreCacheKey(kind, key)
 	if data, present := w.cache.Get(cacheKey); present {
-		if data == nil { // If present is true but data is nil, we have cached the absence of an item
-			return intf.StoreItemDescriptor{}.NotFound(), nil
-		}
 		if item, ok := data.(intf.StoreItemDescriptor); ok {
 			return item, nil
 		}
@@ -120,6 +117,7 @@ func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (i
 		return item, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemIntf)
+	// COVERAGE: there is no way to simulate this condition in unit tests; it should be impossible
 	return intf.StoreItemDescriptor{}.NotFound(), nil
 }
 
@@ -155,10 +153,15 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 		return items, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemsIntf)
+	// COVERAGE: there is no way to simulate this condition in unit tests; it should be impossible
 	return nil, nil
 }
 
-func (w *persistentDataStoreWrapper) Upsert(kind intf.StoreDataKind, key string, newItem intf.StoreItemDescriptor) error {
+func (w *persistentDataStoreWrapper) Upsert(
+	kind intf.StoreDataKind,
+	key string,
+	newItem intf.StoreItemDescriptor,
+) (bool, error) {
 	serializedItem := w.serialize(kind, newItem)
 	updated, err := w.core.Upsert(kind, key, serializedItem)
 	w.processError(err)
@@ -168,7 +171,7 @@ func (w *persistentDataStoreWrapper) Upsert(kind intf.StoreDataKind, key string,
 	// if the cache TTL is infinite, then it makes sense to update the cache always.
 	if err != nil {
 		if !w.hasCacheWithInfiniteTTL() {
-			return err
+			return updated, err
 		}
 	}
 	if w.cache != nil {
@@ -212,7 +215,7 @@ func (w *persistentDataStoreWrapper) Upsert(kind intf.StoreDataKind, key string,
 			}
 		}
 	}
-	return err
+	return updated, err
 }
 
 func (w *persistentDataStoreWrapper) IsInitialized() bool {
@@ -237,10 +240,8 @@ func (w *persistentDataStoreWrapper) IsInitialized() bool {
 		if w.cache != nil {
 			w.cache.Delete(initCheckedKey)
 		}
-	} else {
-		if w.cache != nil {
-			w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
-		}
+	} else if w.cache != nil {
+		w.cache.Set(initCheckedKey, "", cache.DefaultExpiration)
 	}
 	return newValue
 }
@@ -300,7 +301,7 @@ func dataStoreAllItemsCacheKey(kind intf.StoreDataKind) string {
 }
 
 func (w *persistentDataStoreWrapper) initCore(allData []intf.StoreCollection) error {
-	serializedAllData := make([]intf.StoreSerializedCollection, len(allData))
+	serializedAllData := make([]intf.StoreSerializedCollection, 0, len(allData))
 	for _, coll := range allData {
 		serializedAllData = append(serializedAllData, intf.StoreSerializedCollection{
 			Kind:  coll.Kind,
@@ -400,7 +401,11 @@ func (w *persistentDataStoreWrapper) deserialize(
 	return intf.StoreItemDescriptor{Version: serializedItemDesc.Version, Item: deserializedItemDesc.Item}, nil
 }
 
-func updateSingleItem(items []intf.StoreKeyedItemDescriptor, key string, newItem intf.StoreItemDescriptor) []intf.StoreKeyedItemDescriptor {
+func updateSingleItem(
+	items []intf.StoreKeyedItemDescriptor,
+	key string,
+	newItem intf.StoreItemDescriptor,
+) []intf.StoreKeyedItemDescriptor {
 	found := false
 	ret := make([]intf.StoreKeyedItemDescriptor, 0, len(items))
 	for _, item := range items {
