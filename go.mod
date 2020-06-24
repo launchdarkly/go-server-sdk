@@ -5,7 +5,6 @@ go 1.13
 require (
 	github.com/armon/go-metrics v0.3.3 // indirect
 	github.com/aws/aws-sdk-go v1.15.69
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/garyburd/redigo v1.4.0
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
@@ -26,8 +25,8 @@ require (
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-20200618014727-b6a546775c1d
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-20200604235929-335433cdd623
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-20200605001912-c8aded9abc93
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-alpha.3
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-alpha.2
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-alpha.2
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
