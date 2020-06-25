@@ -36,7 +36,7 @@ func NewPollingProcessor(
 	baseURI string,
 	pollInterval time.Duration,
 ) *PollingProcessor {
-	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), baseURI, true)
+	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), baseURI)
 	return newPollingProcessor(context, dataSourceUpdates, requestor, pollInterval)
 }
 

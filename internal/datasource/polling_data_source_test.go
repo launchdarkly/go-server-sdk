@@ -215,9 +215,8 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
-			req := newRequestorImpl(context, nil, ts.URL, true)
 
-			p := newPollingProcessor(context, dataSourceUpdates, req, time.Minute*30)
+			p := NewPollingProcessor(context, dataSourceUpdates, ts.URL, time.Minute*30)
 			defer p.Close()
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)

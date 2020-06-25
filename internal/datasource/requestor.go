@@ -2,7 +2,6 @@ package datasource
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -22,7 +21,6 @@ const (
 // requestor is the interface implemented by requestorImpl, used for testing purposes
 type requestor interface {
 	requestAll() (data allData, cached bool, err error)
-	requestResource(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error)
 }
 
 // requestorImpl is the internal implementation of getting flag/segment data from the LD polling endpoints.
@@ -45,24 +43,20 @@ func newRequestorImpl(
 	context interfaces.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
-	withCache bool,
 ) requestor {
-	httpClientToUse := httpClient
-	if httpClientToUse == nil {
-		httpClientToUse = context.GetHTTP().CreateHTTPClient()
+	if httpClient == nil {
+		httpClient = context.GetHTTP().CreateHTTPClient()
 	}
-	if withCache {
-		modifiedClient := *httpClientToUse
-		modifiedClient.Transport = &httpcache.Transport{
-			Cache:               httpcache.NewMemoryCache(),
-			MarkCachedResponses: true,
-			Transport:           httpClientToUse.Transport,
-		}
-		httpClientToUse = &modifiedClient
+
+	modifiedClient := *httpClient
+	modifiedClient.Transport = &httpcache.Transport{
+		Cache:               httpcache.NewMemoryCache(),
+		MarkCachedResponses: true,
+		Transport:           httpClient.Transport,
 	}
 
 	return &requestorImpl{
-		httpClient: httpClientToUse,
+		httpClient: &modifiedClient,
 		baseURI:    baseURI,
 		headers:    context.GetHTTP().GetDefaultHeaders(),
 		loggers:    context.GetLogging().GetLoggers(),
@@ -88,30 +82,6 @@ func (r *requestorImpl) requestAll() (allData, bool, error) {
 		return allData{}, false, malformedJSONError{jsonErr}
 	}
 	return data, cached, nil
-}
-
-func (r *requestorImpl) requestResource(
-	kind interfaces.StoreDataKind,
-	key string,
-) (interfaces.StoreItemDescriptor, error) {
-	var resource string
-	switch kind.GetName() {
-	case "segments":
-		resource = LatestSegmentsPath + "/" + key
-	case "features":
-		resource = LatestFlagsPath + "/" + key
-	default:
-		return interfaces.StoreItemDescriptor{}, fmt.Errorf("unexpected item type: %s", kind)
-	}
-	body, _, err := r.makeRequest(resource)
-	if err != nil {
-		return interfaces.StoreItemDescriptor{}, err
-	}
-	item, err := kind.Deserialize(body)
-	if err != nil {
-		return item, malformedJSONError{err}
-	}
-	return item, nil
 }
 
 func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
