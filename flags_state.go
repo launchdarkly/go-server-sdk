@@ -87,13 +87,13 @@ func hasFlagsStateOption(options []FlagsStateOption, value FlagsStateOption) boo
 
 func (s *FeatureFlagsState) addFlag(flag ldmodel.FeatureFlag, value ldvalue.Value, variation int,
 	reason ldreason.EvaluationReason, detailsOnlyIfTracked bool) {
-	meta := flagMetadata{DebugEventsUntilDate: flag.DebugEventsUntilDate}
+	meta := flagMetadata{}
 	if variation >= 0 {
 		meta.Variation = &variation
 	}
 	includeDetail := !detailsOnlyIfTracked || flag.TrackEvents
-	if !includeDetail && flag.DebugEventsUntilDate != nil {
-		includeDetail = *flag.DebugEventsUntilDate > ldtime.UnixMillisNow()
+	if !includeDetail && flag.DebugEventsUntilDate != 0 {
+		includeDetail = flag.DebugEventsUntilDate > ldtime.UnixMillisNow()
 	}
 	if includeDetail {
 		meta.Version = &flag.Version
@@ -101,6 +101,9 @@ func (s *FeatureFlagsState) addFlag(flag ldmodel.FeatureFlag, value ldvalue.Valu
 	}
 	if flag.TrackEvents { // omit this field if it's false, for brevity
 		meta.TrackEvents = &flag.TrackEvents
+	}
+	if flag.DebugEventsUntilDate != 0 {
+		meta.DebugEventsUntilDate = &flag.DebugEventsUntilDate
 	}
 	s.flagValues[flag.Key] = value
 	s.flagMetadata[flag.Key] = meta
