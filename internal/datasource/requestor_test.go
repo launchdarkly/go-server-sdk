@@ -63,7 +63,7 @@ func (r *mockRequestor) requestAll() (allData, bool, error) {
 
 func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
+		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
 		segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
 		expectedData := allData{
 			Flags:    map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
