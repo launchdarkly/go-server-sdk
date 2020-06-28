@@ -253,7 +253,7 @@ func createDataSource(
 	return factory.CreateDataSource(context, dataSourceUpdates)
 }
 
-// Identify reports details about a a user.
+// Identify reports details about a user.
 func (client *LDClient) Identify(user lduser.User) error {
 	if client.eventsDefault.disabled {
 		return nil

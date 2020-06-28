@@ -24,7 +24,7 @@ func withClientOfflineTestParams(callback func(clientExternalUpdatesTestParams))
 	p.mockLog = sharedtest.NewMockLoggers()
 	config := Config{
 		Offline:   true,
-		DataStore: singleDataStoreFactory{p.store},
+		DataStore: sharedtest.SingleDataStoreFactory{Instance: p.store},
 		Logging:   ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)

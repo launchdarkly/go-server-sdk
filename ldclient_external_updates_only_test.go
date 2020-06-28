@@ -27,7 +27,7 @@ func withClientExternalUpdatesTestParams(callback func(clientExternalUpdatesTest
 	p.mockLog = sharedtest.NewMockLoggers()
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
-		DataStore:  singleDataStoreFactory{p.store},
+		DataStore:  sharedtest.SingleDataStoreFactory{Instance: p.store},
 		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)
@@ -64,7 +64,7 @@ func TestClientExternalUpdatesMode(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flagkey").SingleVariation(ldvalue.Bool(true)).Build()
 
 		withClientExternalUpdatesTestParams(func(p clientExternalUpdatesTestParams) {
-			upsertFlag(p.store, &flag)
+			sharedtest.UpsertFlag(p.store, &flag)
 			result, err := p.client.BoolVariation(flag.Key, evalTestUser, false)
 			assert.NoError(t, err)
 			assert.True(t, result)

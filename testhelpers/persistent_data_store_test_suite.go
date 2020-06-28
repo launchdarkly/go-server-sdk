@@ -2,10 +2,16 @@ package testhelpers
 
 import (
 	"testing"
+	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -137,6 +143,8 @@ func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
 	t.Run("error returns", s.runErrorTests)
 	t.Run("prefix independence", s.runPrefixIndependenceTests)
 	t.Run("concurrent modification", s.runConcurrentModificationTests)
+
+	t.Run("LDClient end-to-end tests", s.runLDClientEndToEndTests)
 }
 
 func (s *PersistentDataStoreTestSuite) makeStore(prefix string) intf.PersistentDataStore {
@@ -662,4 +670,58 @@ func itemDescriptorsToMap(
 		ret[item.Key] = item.Item
 	}
 	return ret
+}
+
+func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t *testing.T) {
+	dataStoreFactory := s.storeFactoryFn("ldclient")
+
+	// This is a basic smoke test to verify that the data store component behaves correctly within an
+	// SDK client instance.
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.String("a")).Build()
+	data := []intf.StoreCollection{
+		{Kind: intf.DataKindFeatures(), Items: []intf.StoreKeyedItemDescriptor{
+			{Key: flag.Key, Item: sh.FlagDescriptor(flag)},
+		}},
+		{Kind: intf.DataKindSegments(), Items: nil},
+	}
+	dataSourceFactory := &sh.DataSourceFactoryThatExposesUpdater{ // allows us to simulate an update
+		UnderlyingFactory: sh.DataSourceFactoryWithData{Data: data},
+	}
+	user := lduser.NewUser("userkey")
+	mockLog := sh.NewMockLoggers()
+	config := ld.Config{
+		DataStore:  ldcomponents.PersistentDataStore(dataStoreFactory).NoCaching(),
+		DataSource: dataSourceFactory,
+		Events:     ldcomponents.NoEvents(),
+		Logging:    ldcomponents.Logging().Loggers(mockLog.Loggers),
+	}
+
+	client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
+	require.NoError(t, err)
+	defer client.Close() //nolint:errcheck
+
+	t.Run("get flag", func(t *testing.T) {
+		value, err := client.StringVariation(flag.Key, user, "")
+		assert.NoError(t, err)
+		assert.Equal(t, "a", value)
+	})
+
+	t.Run("get all flags", func(t *testing.T) {
+		state := client.AllFlagsState(user)
+		assert.Equal(t, map[string]ldvalue.Value{flag.Key: ldvalue.String("a")}, state.ToValuesMap())
+	})
+
+	t.Run("update flag", func(t *testing.T) {
+		// verify that an update is persisted
+		flagB := ldbuilders.NewFlagBuilder(flag.Key).Version(2).SingleVariation(ldvalue.String("b")).Build()
+		dataSourceFactory.DataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key,
+			sh.FlagDescriptor(flagB))
+		value, err := client.StringVariation(flag.Key, user, "")
+		assert.NoError(t, err)
+		assert.Equal(t, "b", value)
+	})
+
+	t.Run("no errors are logged", func(t *testing.T) {
+		assert.Len(t, mockLog.GetOutput(ldlog.Error), 0)
+	})
 }

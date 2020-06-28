@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testSdkKey = "test-sdk-key"
+
 type badFactory struct{ err error }
 
 func (f badFactory) CreateDataSource(c interfaces.ClientContext, u interfaces.DataSourceUpdates) (interfaces.DataSource, error) {
@@ -78,7 +80,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	err := client.Identify(user)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.IdentifyEvent)
 	assert.Equal(t, ldevents.User(user), e.User)
@@ -91,7 +93,7 @@ func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	err := client.Identify(lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 0, len(events))
 }
 
@@ -104,7 +106,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	err := client.TrackEvent(key, user)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEvent)
 	assert.Equal(t, ldevents.User(user), e.User)
@@ -123,7 +125,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	err := client.TrackData(key, user, data)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEvent)
 	assert.Equal(t, ldevents.User(user), e.User)
@@ -143,7 +145,7 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	err := client.TrackMetric(key, user, metric, data)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEvent)
 	assert.Equal(t, ldevents.User(user), e.User)
@@ -160,7 +162,7 @@ func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	err := client.TrackEvent("eventkey", lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 0, len(events))
 }
 
@@ -171,7 +173,7 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	err := client.TrackMetric("eventKey", lduser.NewUser(""), 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
-	events := client.eventProcessor.(*testEventProcessor).events
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 0, len(events))
 }
 
@@ -203,11 +205,11 @@ func TestTrackWithEventsDisabledDoesNotCauseError(t *testing.T) {
 }
 
 func TestMakeCustomClient_WithFailedInitialization(t *testing.T) {
-	dataSource := mockDataSource{Initialized: false, StartFn: startImmediately}
+	dataSource := sharedtest.MockDataSource{Initialized: false}
 
 	client, err := MakeCustomClient(testSdkKey, Config{
 		Logging:    sharedtest.TestLogging(),
-		DataSource: singleDataSourceFactory{dataSource},
+		DataSource: sharedtest.SingleDataSourceFactory{Instance: dataSource},
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
 
@@ -221,11 +223,13 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Offline:    false,
-		DataStore:  ldcomponents.InMemoryDataStore(),
-		DataSource: singleDataSourceFactory{mockDataSource{Initialized: true}},
-		Events:     singleEventProcessorFactory{&testEventProcessor{}},
-		Logging:    sharedtest.TestLogging(),
+		Offline:   false,
+		DataStore: ldcomponents.InMemoryDataStore(),
+		DataSource: sharedtest.SingleDataSourceFactory{
+			Instance: sharedtest.MockDataSource{Initialized: true},
+		},
+		Events:  sharedtest.SingleEventProcessorFactory{Instance: &sharedtest.CapturingEventProcessor{}},
+		Logging: sharedtest.TestLogging(),
 	}
 	if modConfig != nil {
 		modConfig(&config)
