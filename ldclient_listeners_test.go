@@ -25,8 +25,10 @@ import (
 // together correctly so that they work from an application's point of view.
 
 func clientDataSourceStatusProviderTest(action func(*LDClient, interfaces.DataSourceUpdates)) {
-	factoryWithUpdater := dataSourceFactoryThatExposesUpdater{
-		underlyingFactory: singleDataSourceFactory{mockDataSource{Initialized: true, StartFn: startImmediately}},
+	factoryWithUpdater := sharedtest.DataSourceFactoryThatExposesUpdater{
+		UnderlyingFactory: sharedtest.SingleDataSourceFactory{
+			Instance: sharedtest.MockDataSource{Initialized: true},
+		},
 	}
 	config := Config{
 		DataSource: &factoryWithUpdater,
@@ -35,7 +37,7 @@ func clientDataSourceStatusProviderTest(action func(*LDClient, interfaces.DataSo
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
-	action(client, factoryWithUpdater.dataSourceUpdates)
+	action(client, factoryWithUpdater.DataSourceUpdates)
 }
 
 func TestFlagTracker(t *testing.T) {
@@ -162,8 +164,10 @@ func TestDataSourceStatusProvider(t *testing.T) {
 }
 
 func clientDataStoreStatusProviderTest(action func(*LDClient, interfaces.DataStoreUpdates)) {
-	factoryWithUpdater := dataStoreFactoryThatExposesUpdater{
-		underlyingFactory: ldcomponents.PersistentDataStore(singlePersistentDataStoreFactory{sharedtest.NewMockPersistentDataStore()}),
+	factoryWithUpdater := sharedtest.DataStoreFactoryThatExposesUpdater{
+		UnderlyingFactory: ldcomponents.PersistentDataStore(
+			sharedtest.SinglePersistentDataStoreFactory{Instance: sharedtest.NewMockPersistentDataStore()},
+		),
 	}
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
@@ -173,7 +177,7 @@ func clientDataStoreStatusProviderTest(action func(*LDClient, interfaces.DataSto
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
-	action(client, factoryWithUpdater.dataStoreUpdates)
+	action(client, factoryWithUpdater.DataStoreUpdates)
 }
 
 func TestDataStoreStatusProvider(t *testing.T) {

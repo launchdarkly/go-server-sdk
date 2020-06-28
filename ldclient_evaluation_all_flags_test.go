@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
@@ -28,8 +29,8 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 		TrackEvents(true).DebugEventsUntilDate(1000).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
-		upsertFlag(p.store, &flag1)
-		upsertFlag(p.store, &flag2)
+		sharedtest.UpsertFlag(p.store, &flag1)
+		sharedtest.UpsertFlag(p.store, &flag2)
 
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"))
 		assert.True(t, state.IsValid())
@@ -60,10 +61,10 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).ClientSide(true).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
-		upsertFlag(p.store, &flag1)
-		upsertFlag(p.store, &flag2)
-		upsertFlag(p.store, &flag3)
-		upsertFlag(p.store, &flag4)
+		sharedtest.UpsertFlag(p.store, &flag1)
+		sharedtest.UpsertFlag(p.store, &flag2)
+		sharedtest.UpsertFlag(p.store, &flag3)
+		sharedtest.UpsertFlag(p.store, &flag4)
 
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"), ClientSideOnly)
 		assert.True(t, state.IsValid())
@@ -81,8 +82,8 @@ func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
 		TrackEvents(true).DebugEventsUntilDate(1000).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
-		upsertFlag(p.store, &flag1)
-		upsertFlag(p.store, &flag2)
+		sharedtest.UpsertFlag(p.store, &flag1)
+		sharedtest.UpsertFlag(p.store, &flag2)
 
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"), WithReasons)
 		assert.True(t, state.IsValid())
@@ -116,9 +117,9 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 		TrackEvents(false).DebugEventsUntilDate(futureTime).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
-		upsertFlag(p.store, &flag1)
-		upsertFlag(p.store, &flag2)
-		upsertFlag(p.store, &flag3)
+		sharedtest.UpsertFlag(p.store, &flag1)
+		sharedtest.UpsertFlag(p.store, &flag2)
+		sharedtest.UpsertFlag(p.store, &flag3)
 
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
 		assert.True(t, state.IsValid())
@@ -150,7 +151,9 @@ func TestAllFlagsStateReturnsInvalidStateIfClientAndStoreAreNotInitialized(t *te
 	mockLoggers := sharedtest.NewMockLoggers()
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = singleDataSourceFactory{mockDataSource{Initialized: false}}
+		c.DataSource = sharedtest.SingleDataSourceFactory{
+			Instance: sharedtest.MockDataSource{Initialized: false},
+		}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()
@@ -163,13 +166,15 @@ func TestAllFlagsStateReturnsInvalidStateIfClientAndStoreAreNotInitialized(t *te
 func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialized(t *testing.T) {
 	mockLoggers := sharedtest.NewMockLoggers()
 	flag := singleValueFlag("flagkey", ldvalue.Bool(true))
-	store := makeInMemoryDataStore()
+	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)
 	_, _ = store.Upsert(interfaces.DataKindFeatures(), flag.GetKey(), sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = singleDataSourceFactory{mockDataSource{Initialized: false}}
-		c.DataStore = singleDataStoreFactory{store}
+		c.DataSource = sharedtest.SingleDataSourceFactory{
+			Instance: sharedtest.MockDataSource{Initialized: false},
+		}
+		c.DataStore = sharedtest.SingleDataStoreFactory{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()
@@ -184,14 +189,16 @@ func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsI
 
 func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 	myError := errors.New("sorry")
-	store := sharedtest.NewCapturingDataStore(makeInMemoryDataStore())
+	store := sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	_ = store.Init(nil)
 	store.SetFakeError(myError)
 	mockLoggers := sharedtest.NewMockLoggers()
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = singleDataSourceFactory{mockDataSource{Initialized: true}}
-		c.DataStore = singleDataStoreFactory{store}
+		c.DataSource = sharedtest.SingleDataSourceFactory{
+			Instance: sharedtest.MockDataSource{Initialized: true},
+		}
+		c.DataStore = sharedtest.SingleDataStoreFactory{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()

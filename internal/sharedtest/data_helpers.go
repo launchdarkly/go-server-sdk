@@ -16,6 +16,11 @@ func SegmentDescriptor(s ldmodel.Segment) interfaces.StoreItemDescriptor {
 	return interfaces.StoreItemDescriptor{Version: s.Version, Item: &s}
 }
 
+// UpsertFlag is a shortcut for calling Upsert with a FeatureFlag.
+func UpsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {
+	_, _ = store.Upsert(interfaces.DataKindFeatures(), flag.Key, FlagDescriptor(*flag))
+}
+
 // DataSetBuilder is a helper for creating collections of flags and segments.
 type DataSetBuilder struct {
 	flags    []interfaces.StoreKeyedItemDescriptor
