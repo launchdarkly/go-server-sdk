@@ -17,10 +17,10 @@ COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
 ifeq ("$(LD_SKIP_DATABASE_TESTS)","")
   COVERAGE_ENFORCER_SKIP_FILES_EXTRA=
 else
-  COVERAGE_ENFORCER_SKIP_FILES_EXTRA=|ldconsul/|lddynamodb/|ldredis/
+  COVERAGE_ENFORCER_SKIP_FILES_EXTRA=ldconsul/|lddynamodb/|ldredis/
 endif
 COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 \
-	-skipfiles '(internal/sharedtest/|testhelpers/$(COVERAGE_ENFORCER_SKIP_FILES_EXTRA))' \
+	-skipfiles '(internal/sharedtest/$(COVERAGE_ENFORCER_SKIP_FILES_EXTRA))' \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
