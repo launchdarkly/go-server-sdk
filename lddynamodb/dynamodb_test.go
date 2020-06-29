@@ -50,7 +50,7 @@ func makeFailedStore() interfaces.PersistentDataStoreFactory {
 	return DataStore(testTableName)
 }
 
-func verifyFailedStoreError(t *testing.T, err error) {
+func verifyFailedStoreError(t assert.TestingT, err error) {
 	assert.Contains(t, err.Error(), "could not find region configuration")
 }
 
