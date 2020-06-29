@@ -19,9 +19,8 @@ import "io"
 // store has started working again.
 //
 // Whenever a new implementation of this interface is written, it should have unit tests that use
-// testhelpers.PersistentDataStoreTestSuite. This ensures that all of the interface methods are exercised
-// consistently in various scenarios that might be encountered in real SDK usage. It is not necessary to
-// use a real LDClient to do these tests.
+// testhelpers.storetest.PersistentDataStoreTestSuite. This ensures that all of the interface methods
+// are exercised consistently in various scenarios that might be encountered in real SDK usage.
 type PersistentDataStore interface {
 	io.Closer
 
