@@ -41,6 +41,14 @@ func TestDataKindFeatures(t *testing.T) {
 		assert.Equal(t, 2, flag.Version)
 	})
 
+	t.Run("serialize deleted item", func(t *testing.T) {
+		// It's important that the SDK provides a placeholder JSON object for deleted items, because most
+		// of our existing database integrations aren't able to store the version number separately from
+		// the JSON data.
+		bytes := kind.Serialize(StoreItemDescriptor{Version: 2, Item: nil})
+		assert.JSONEq(t, `{"version":2,"deleted":true}`, string(bytes))
+	})
+
 	t.Run("deserialize deleted item", func(t *testing.T) {
 		json := `{"key":"flagkey","version":2,"deleted":true}`
 		item, err := kind.Deserialize([]byte(json))
@@ -85,6 +93,14 @@ func TestDataKindSegments(t *testing.T) {
 		segment := item.Item.(*ldmodel.Segment)
 		assert.Equal(t, "segmentkey", segment.Key)
 		assert.Equal(t, 2, segment.Version)
+	})
+
+	t.Run("serialize deleted item", func(t *testing.T) {
+		// It's important that the SDK provides a placeholder JSON object for deleted items, because most
+		// of our existing database integrations aren't able to store the version number separately from
+		// the JSON data.
+		bytes := kind.Serialize(StoreItemDescriptor{Version: 2, Item: nil})
+		assert.JSONEq(t, `{"version":2,"deleted":true}`, string(bytes))
 	})
 
 	t.Run("deserialize deleted item", func(t *testing.T) {

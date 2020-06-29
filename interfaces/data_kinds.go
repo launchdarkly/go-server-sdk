@@ -1,6 +1,8 @@
 package interfaces
 
 import (
+	"fmt"
+
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
@@ -23,6 +25,9 @@ func (fk featureFlagStoreDataKind) GetName() string {
 
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (fk featureFlagStoreDataKind) Serialize(item StoreItemDescriptor) []byte {
+	if item.Item == nil {
+		return serializedDeletedItem(item.Version)
+	}
 	if flag, ok := item.Item.(*ldmodel.FeatureFlag); ok {
 		if bytes, err := modelSerialization.MarshalFeatureFlag(*flag); err == nil {
 			return bytes
@@ -66,6 +71,9 @@ func (sk segmentStoreDataKind) GetName() string {
 
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (sk segmentStoreDataKind) Serialize(item StoreItemDescriptor) []byte {
+	if item.Item == nil {
+		return serializedDeletedItem(item.Version)
+	}
 	if segment, ok := item.Item.(*ldmodel.Segment); ok {
 		if bytes, err := modelSerialization.MarshalSegment(*segment); err == nil {
 			return bytes
@@ -97,4 +105,11 @@ var dataKindSegments StoreDataKind = segmentStoreDataKind{}
 // DataKindSegments returns the StoreDataKind instance corresponding to user segment data.
 func DataKindSegments() StoreDataKind {
 	return dataKindSegments
+}
+
+func serializedDeletedItem(version int) []byte {
+	// It's important that the SDK provides a placeholder JSON object for deleted items, because most
+	// of our existing database integrations aren't able to store the version number separately from
+	// the JSON data.
+	return []byte(fmt.Sprintf(`{"version":%d,"deleted":true}`, version))
 }
