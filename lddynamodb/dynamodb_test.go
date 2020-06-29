@@ -16,7 +16,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/storetest"
 )
 
 const (
@@ -30,7 +30,7 @@ func TestDynamoDBDataStore(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testhelpers.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+	storetest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
 		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)

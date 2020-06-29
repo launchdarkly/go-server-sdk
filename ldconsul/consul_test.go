@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/storetest"
 )
 
 func TestConsulDataStore(t *testing.T) {
-	testhelpers.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+	storetest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
 		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)
