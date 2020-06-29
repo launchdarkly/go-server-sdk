@@ -62,8 +62,9 @@ type PersistentDataStoreTestSuite struct {
 	storeFactoryFn               func(string) intf.PersistentDataStoreFactory
 	clearDataFn                  func(string) error
 	errorStoreFactory            intf.PersistentDataStoreFactory
-	errorValidator               func(*testing.T, error)
+	errorValidator               func(assert.TestingT, error)
 	concurrentModificationHookFn func(store intf.PersistentDataStore, hook func())
+	includeBaseTests             bool
 	alwaysRun                    bool
 }
 
@@ -84,8 +85,9 @@ func NewPersistentDataStoreTestSuite(
 	clearDataFn func(prefix string) error,
 ) *PersistentDataStoreTestSuite {
 	return &PersistentDataStoreTestSuite{
-		storeFactoryFn: storeFactoryFn,
-		clearDataFn:    clearDataFn,
+		storeFactoryFn:   storeFactoryFn,
+		clearDataFn:      clearDataFn,
+		includeBaseTests: true,
 	}
 }
 
@@ -94,7 +96,7 @@ func NewPersistentDataStoreTestSuite(
 // function, if any, will be called to verify that it is the expected error.
 func (s *PersistentDataStoreTestSuite) ErrorStoreFactory(
 	errorStoreFactory intf.PersistentDataStoreFactory,
-	errorValidator func(*testing.T, error),
+	errorValidator func(assert.TestingT, error),
 ) *PersistentDataStoreTestSuite {
 	s.errorStoreFactory = errorStoreFactory
 	s.errorValidator = errorValidator
@@ -125,32 +127,36 @@ func (s *PersistentDataStoreTestSuite) AlwaysRun(alwaysRun bool) *PersistentData
 // Run runs the configured test suite.
 func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
 	if !s.alwaysRun && sh.ShouldSkipDatabaseTests() {
-		return
+		t.Skip("skipping due to LD_SKIP_DATABASE_TESTS=1") // COVERAGE: our CI test suite never skips the database tests
 	}
 
-	t.Run("Init", s.runInitTests)
-	t.Run("Get", s.runGetTests)
-	t.Run("Upsert", s.runUpsertTests)
-	t.Run("Delete", s.runDeleteTests)
+	if s.includeBaseTests { // PersistentDataStoreTestSuiteTest can disable these
+		t.Run("Init", s.runInitTests)
+		t.Run("Get", s.runGetTests)
+		t.Run("Upsert", s.runUpsertTests)
+		t.Run("Delete", s.runDeleteTests)
 
-	t.Run("IsStoreAvailable", func(t *testing.T) {
-		// The store should always be available during this test suite
-		s.withDefaultStore(func(store intf.PersistentDataStore) {
-			assert.True(t, store.IsStoreAvailable())
+		t.Run("IsStoreAvailable", func(t *testing.T) {
+			// The store should always be available during this test suite
+			s.withDefaultStore(func(store intf.PersistentDataStore) {
+				assert.True(t, store.IsStoreAvailable())
+			})
 		})
-	})
+	}
 
 	t.Run("error returns", s.runErrorTests)
 	t.Run("prefix independence", s.runPrefixIndependenceTests)
 	t.Run("concurrent modification", s.runConcurrentModificationTests)
 
-	t.Run("LDClient end-to-end tests", s.runLDClientEndToEndTests)
+	if s.includeBaseTests {
+		t.Run("LDClient end-to-end tests", s.runLDClientEndToEndTests)
+	}
 }
 
 func (s *PersistentDataStoreTestSuite) makeStore(prefix string) intf.PersistentDataStore {
 	store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(sh.NewSimpleTestContext(""))
 	if err != nil {
-		panic(err)
+		panic(err) // COVERAGE: can't cause this condition in PersistentDataStoreTestSuiteTest
 	}
 	return store
 }
@@ -158,14 +164,14 @@ func (s *PersistentDataStoreTestSuite) makeStore(prefix string) intf.PersistentD
 func (s *PersistentDataStoreTestSuite) clearData(prefix string) {
 	err := s.clearDataFn(prefix)
 	if err != nil {
-		panic(err)
+		panic(err) // COVERAGE: can't cause this condition in PersistentDataStoreTestSuiteTest
 	}
 }
 
 func (s *PersistentDataStoreTestSuite) initWithEmptyData(store intf.PersistentDataStore) {
 	err := store.Init(sh.MakeSerializedMockDataSet())
 	if err != nil {
-		panic(err)
+		panic(err) // COVERAGE: can't cause this condition in PersistentDataStoreTestSuiteTest
 	}
 }
 
@@ -554,7 +560,7 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t *testing.T) {
 	}
 	errorValidator := s.errorValidator
 	if errorValidator == nil {
-		errorValidator = func(*testing.T, error) {}
+		errorValidator = func(assert.TestingT, error) {}
 	}
 
 	store, err := s.errorStoreFactory.CreatePersistentDataStore(sh.NewSimpleTestContext(""))

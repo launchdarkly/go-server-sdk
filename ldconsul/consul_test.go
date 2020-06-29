@@ -26,7 +26,7 @@ func makeFailedStore() interfaces.PersistentDataStoreFactory {
 	return DataStore().Address("not-a-real-consul-host")
 }
 
-func verifyFailedStoreError(t *testing.T, err error) {
+func verifyFailedStoreError(t assert.TestingT, err error) {
 	assert.Contains(t, err.Error(), "no such host")
 }
 

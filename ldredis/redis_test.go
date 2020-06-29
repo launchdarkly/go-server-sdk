@@ -31,7 +31,7 @@ func makeFailedStore() interfaces.PersistentDataStoreFactory {
 	return DataStore().URL("redis://not-a-real-host")
 }
 
-func verifyFailedStoreError(t *testing.T, err error) {
+func verifyFailedStoreError(t assert.TestingT, err error) {
 	assert.Contains(t, err.Error(), "no such host")
 }
 
