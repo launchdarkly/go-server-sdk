@@ -39,7 +39,7 @@ func (fk featureFlagStoreDataKind) GetName() string {
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (fk featureFlagStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	if item.Item == nil {
-		return []byte(fmt.Sprintf(`{"version":%d,"deleted":true}`, item.Version))
+		return serializedDeletedItem(item.Version)
 	}
 	if flag, ok := item.Item.(*ldmodel.FeatureFlag); ok {
 		if bytes, err := modelSerialization.MarshalFeatureFlag(*flag); err == nil {
@@ -74,7 +74,7 @@ func (sk segmentStoreDataKind) GetName() string {
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (sk segmentStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	if item.Item == nil {
-		return []byte(fmt.Sprintf(`{"version":%d,"deleted":true}`, item.Version))
+		return serializedDeletedItem(item.Version)
 	}
 	if segment, ok := item.Item.(*ldmodel.Segment); ok {
 		if bytes, err := modelSerialization.MarshalSegment(*segment); err == nil {
@@ -99,4 +99,11 @@ func (sk segmentStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescri
 // String returns a human-readable string identifier.
 func (sk segmentStoreDataKind) String() string {
 	return sk.GetName()
+}
+
+func serializedDeletedItem(version int) []byte {
+	// It's important that the SDK provides a placeholder JSON object for deleted items, because most
+	// of our existing database integrations aren't able to store the version number separately from
+	// the JSON data.
+	return []byte(fmt.Sprintf(`{"version":%d,"deleted":true}`, version))
 }
