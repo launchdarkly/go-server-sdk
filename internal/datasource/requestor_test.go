@@ -40,10 +40,9 @@ type mockRequestResourceResponse struct {
 
 func newMockRequestor() *mockRequestor {
 	return &mockRequestor{
-		requestAllRespCh:      make(chan mockRequestAllResponse, 100),
-		requestResourceRespCh: make(chan mockRequestResourceResponse, 100),
-		pollsCh:               make(chan struct{}, 100),
-		closerCh:              make(chan struct{}),
+		requestAllRespCh: make(chan mockRequestAllResponse, 100),
+		pollsCh:          make(chan struct{}, 100),
+		closerCh:         make(chan struct{}),
 	}
 }
 
@@ -61,18 +60,6 @@ func (r *mockRequestor) requestAll() (allData, bool, error) {
 	}
 }
 
-func (r *mockRequestor) requestResource(
-	kind interfaces.StoreDataKind,
-	key string,
-) (interfaces.StoreItemDescriptor, error) {
-	select {
-	case resp := <-r.requestResourceRespCh:
-		return resp.item, resp.err
-	case <-r.closerCh:
-		return interfaces.StoreItemDescriptor{}, nil
-	}
-}
-
 func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
@@ -85,7 +72,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			ldservices.ServerSidePollingServiceHandler(expectedData),
 		)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
+			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
 
 			data, cached, err := r.requestAll()
 
@@ -101,7 +88,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("HTTP error response", func(t *testing.T) {
 		handler := httphelpers.HandlerWithStatus(500)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
+			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
 
 			data, cached, err := r.requestAll()
 
@@ -120,7 +107,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			closedServerURL = ts.URL
 		})
-		r := newRequestorImpl(basicClientContext(), nil, closedServerURL, true)
+		r := newRequestorImpl(basicClientContext(), nil, closedServerURL)
 
 		data, cached, err := r.requestAll()
 
@@ -132,7 +119,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("malformed data", func(t *testing.T) {
 		handler := httphelpers.HandlerWithResponse(200, nil, []byte("{"))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
+			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
 
 			data, cached, err := r.requestAll()
 
@@ -146,7 +133,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	})
 
 	t.Run("malformed base URI", func(t *testing.T) {
-		r := newRequestorImpl(basicClientContext(), nil, "::::", true)
+		r := newRequestorImpl(basicClientContext(), nil, "::::")
 
 		data, cached, err := r.requestAll()
 
@@ -166,7 +153,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL, true)
+			r := newRequestorImpl(context, nil, ts.URL)
 
 			_, _, err := r.requestAll()
 			assert.NoError(t, err)
@@ -184,7 +171,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL, true)
+			r := newRequestorImpl(context, nil, ts.URL)
 
 			_, _, err := r.requestAll()
 			assert.NoError(t, err)
@@ -195,190 +182,44 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	})
 }
 
-func TestRequestorImplRequestResource(t *testing.T) {
-	t.Run("success (flag)", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
-		handler, requestsCh := httphelpers.RecordingHandler(
-			httphelpers.HandlerWithJSONResponse(flag, nil),
-		)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
-
-			item, err := r.requestResource(interfaces.DataKindFeatures(), flag.Key)
-
-			assert.NoError(t, err)
-			assert.Equal(t, flag.Version, item.Version)
-			assert.Equal(t, &flag, item.Item)
-
-			req := <-requestsCh
-			assert.Equal(t, "/sdk/latest-flags/"+flag.Key, req.Request.URL.String())
-		})
-	})
-
-	t.Run("success (segment)", func(t *testing.T) {
-		segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
-		handler, requestsCh := httphelpers.RecordingHandler(
-			httphelpers.HandlerWithJSONResponse(segment, nil),
-		)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
-
-			item, err := r.requestResource(interfaces.DataKindSegments(), segment.Key)
-
-			assert.NoError(t, err)
-			assert.Equal(t, segment.Version, item.Version)
-			assert.Equal(t, &segment, item.Item)
-
-			req := <-requestsCh
-			assert.Equal(t, "/sdk/latest-segments/"+segment.Key, req.Request.URL.String())
-		})
-	})
-
-	t.Run("HTTP error response", func(t *testing.T) {
-		handler := httphelpers.HandlerWithStatus(500)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
-
-			item, err := r.requestResource(interfaces.DataKindFeatures(), "key")
-
-			assert.Error(t, err)
-			if he, ok := err.(httpStatusError); assert.True(t, ok) {
-				assert.Equal(t, 500, he.Code)
-			}
-			assert.Equal(t, interfaces.StoreItemDescriptor{}, item)
-		})
-	})
-
-	t.Run("malformed data", func(t *testing.T) {
-		handler := httphelpers.HandlerWithResponse(200, nil, []byte("{"))
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
-
-			item, err := r.requestResource(interfaces.DataKindFeatures(), "key")
-
-			require.Error(t, err)
-			if _, ok := err.(malformedJSONError); assert.True(t, ok) {
-				assert.Contains(t, err.Error(), "unexpected end of JSON input")
-			}
-			assert.Equal(t, interfaces.StoreItemDescriptor{}, item)
-		})
-	})
-
-	t.Run("unknown data kind", func(t *testing.T) {
-		handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
-
-			item, err := r.requestResource(sharedtest.MockData, "key")
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "unexpected item type")
-			assert.Equal(t, interfaces.StoreItemDescriptor{}, item)
-		})
-	})
-
-	t.Run("sends configured headers", func(t *testing.T) {
-		headers := make(http.Header)
-		headers.Set("my-header", "my-value")
-		handler, requestsCh := httphelpers.RecordingHandler(
-			httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil),
-		)
-		httpConfig := internal.HTTPConfigurationImpl{DefaultHeaders: headers}
-		context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
-
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL, true)
-
-			_, err := r.requestResource(interfaces.DataKindFeatures(), "key")
-			assert.NoError(t, err)
-
-			req := <-requestsCh
-			assert.Equal(t, "my-value", req.Request.Header.Get("my-header"))
-		})
-	})
-}
-
 func TestRequestorImplCaching(t *testing.T) {
-	t.Run("uses cache if withCache is true", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
-		expectedData := allData{
-			Flags: map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
-		}
-		etag := "123"
-		handler, requestsCh := httphelpers.RecordingHandler(
-			httphelpers.SequentialHandler(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("ETag", etag)
-					w.Header().Set("Cache-Control", "max-age=0")
-					ldservices.ServerSidePollingServiceHandler(expectedData).ServeHTTP(w, r)
-				}),
-				httphelpers.HandlerWithStatus(304),
-			),
-		)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, true)
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
+	expectedData := allData{
+		Flags: map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
+	}
+	etag := "123"
+	handler, requestsCh := httphelpers.RecordingHandler(
+		httphelpers.SequentialHandler(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("ETag", etag)
+				w.Header().Set("Cache-Control", "max-age=0")
+				ldservices.ServerSidePollingServiceHandler(expectedData).ServeHTTP(w, r)
+			}),
+			httphelpers.HandlerWithStatus(304),
+		),
+	)
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		r := newRequestorImpl(basicClientContext(), nil, ts.URL)
 
-			data1, cached1, err1 := r.requestAll()
+		data1, cached1, err1 := r.requestAll()
 
-			assert.NoError(t, err1)
-			assert.False(t, cached1)
-			assert.Equal(t, expectedData, data1)
+		assert.NoError(t, err1)
+		assert.False(t, cached1)
+		assert.Equal(t, expectedData, data1)
 
-			req1 := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", req1.Request.URL.String())
-			assert.Equal(t, "", req1.Request.Header.Get("If-None-Match"))
+		req1 := <-requestsCh
+		assert.Equal(t, "/sdk/latest-all", req1.Request.URL.String())
+		assert.Equal(t, "", req1.Request.Header.Get("If-None-Match"))
 
-			data2, cached2, err2 := r.requestAll()
+		data2, cached2, err2 := r.requestAll()
 
-			assert.NoError(t, err2)
-			assert.True(t, cached2)
-			assert.Equal(t, allData{}, data2) // for cached data, requestAll doesn't bother parsing the body
+		assert.NoError(t, err2)
+		assert.True(t, cached2)
+		assert.Equal(t, allData{}, data2) // for cached data, requestAll doesn't bother parsing the body
 
-			req2 := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", req2.Request.URL.String())
-			assert.Equal(t, etag, req2.Request.Header.Get("If-None-Match"))
-		})
-	})
-
-	t.Run("does not use cache if withCache is false", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
-		expectedData := allData{
-			Flags: map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
-		}
-		etag := "123"
-		handler, requestsCh := httphelpers.RecordingHandler(
-			httphelpers.SequentialHandler(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("ETag", etag)
-					w.Header().Set("Cache-Control", "max-age=0")
-					ldservices.ServerSidePollingServiceHandler(expectedData).ServeHTTP(w, r)
-				}),
-				ldservices.ServerSidePollingServiceHandler(expectedData),
-			),
-		)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, false)
-
-			data1, cached1, err1 := r.requestAll()
-
-			assert.NoError(t, err1)
-			assert.False(t, cached1)
-			assert.Equal(t, expectedData, data1)
-
-			req1 := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", req1.Request.URL.String())
-			assert.Equal(t, "", req1.Request.Header.Get("If-None-Match"))
-
-			data2, cached2, err2 := r.requestAll()
-
-			assert.NoError(t, err2)
-			assert.False(t, cached2)
-			assert.Equal(t, expectedData, data2)
-
-			req2 := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", req2.Request.URL.String())
-			assert.Equal(t, "", req2.Request.Header.Get("If-None-Match"))
-		})
+		req2 := <-requestsCh
+		assert.Equal(t, "/sdk/latest-all", req2.Request.URL.String())
+		assert.Equal(t, etag, req2.Request.Header.Get("If-None-Match"))
 	})
 }
 
@@ -390,7 +231,7 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
 
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		r := newRequestorImpl(context, nil, ts.URL, false)
+		r := newRequestorImpl(context, nil, ts.URL)
 
 		_, _, _ = r.requestAll()
 
