@@ -26,6 +26,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
 
@@ -148,7 +150,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	client.dataStoreStatusBroadcaster = internal.NewDataStoreStatusBroadcaster()
-	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
+	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
 	store, err := getDataStoreFactory(config).CreateDataStore(clientContext, dataStoreUpdates)
 	if err != nil {
 		return nil, err
@@ -157,11 +159,11 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	dataProvider := interfaces.NewDataStoreEvaluatorDataProvider(store, loggers)
 	client.evaluator = ldeval.NewEvaluator(dataProvider)
-	client.dataStoreStatusProvider = internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
+	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
 	client.flagChangeEventBroadcaster = internal.NewFlagChangeEventBroadcaster()
-	dataSourceUpdates := internal.NewDataSourceUpdatesImpl(
+	dataSourceUpdates := datasource.NewDataSourceUpdatesImpl(
 		store,
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
@@ -187,7 +189,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if err != nil {
 		return nil, err
 	}
-	client.dataSourceStatusProvider = internal.NewDataSourceStatusProviderImpl(
+	client.dataSourceStatusProvider = datasource.NewDataSourceStatusProviderImpl(
 		client.dataSourceStatusBroadcaster,
 		dataSourceUpdates,
 	)
@@ -201,7 +203,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	)
 
 	client.dataSource.Start(closeWhenReady)
-	if waitFor > 0 && client.dataSource != internal.NewNullDataSource() {
+	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
 		timeout := time.After(waitFor)
@@ -241,7 +243,7 @@ func createDataSource(
 	if config.Offline {
 		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-		return internal.NewNullDataSource(), nil
+		return datasource.NewNullDataSource(), nil
 	}
 	factory := config.DataSource
 	if factory == nil {

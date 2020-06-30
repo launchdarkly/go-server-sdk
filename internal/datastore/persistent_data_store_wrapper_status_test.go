@@ -1,4 +1,4 @@
-package internal
+package datastore
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -30,12 +31,12 @@ type dataStoreStatusTestParams struct {
 	store            intf.DataStore
 	core             *sharedtest.MockPersistentDataStore
 	dataStoreUpdates *DataStoreUpdatesImpl
-	broadcaster      *DataStoreStatusBroadcaster
+	broadcaster      *internal.DataStoreStatusBroadcaster
 }
 
 func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStatusTestParams)) {
 	params := dataStoreStatusTestParams{}
-	params.broadcaster = NewDataStoreStatusBroadcaster()
+	params.broadcaster = internal.NewDataStoreStatusBroadcaster()
 	defer params.broadcaster.Close()
 	params.dataStoreUpdates = NewDataStoreUpdatesImpl(params.broadcaster)
 	params.core = sharedtest.NewMockPersistentDataStore()

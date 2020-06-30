@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"sort"

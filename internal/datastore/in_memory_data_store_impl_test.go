@@ -1,4 +1,4 @@
-package internal
+package datastore
 
 import (
 	"fmt"
@@ -63,7 +63,7 @@ func forAllDataKinds(t *testing.T, test func(*testing.T, interfaces.StoreDataKin
 func testInMemoryDataStoreInit(t *testing.T) {
 	t.Run("makes store initialized", func(t *testing.T) {
 		store := makeInMemoryStore()
-		allData := NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("key").Build()).Build()
+		allData := sharedtest.NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("key").Build()).Build()
 
 		require.NoError(t, store.Init(allData))
 
@@ -74,7 +74,7 @@ func testInMemoryDataStoreInit(t *testing.T) {
 		store := makeInMemoryStore()
 		flag1 := ldbuilders.NewFlagBuilder("key1").Build()
 		segment1 := ldbuilders.NewSegmentBuilder("key1").Build()
-		allData1 := NewDataSetBuilder().Flags(flag1).Segments(segment1).Build()
+		allData1 := sharedtest.NewDataSetBuilder().Flags(flag1).Segments(segment1).Build()
 
 		require.NoError(t, store.Init(allData1))
 
@@ -87,7 +87,7 @@ func testInMemoryDataStoreInit(t *testing.T) {
 
 		flag2 := ldbuilders.NewFlagBuilder("key2").Build()
 		segment2 := ldbuilders.NewSegmentBuilder("key2").Build()
-		allData2 := NewDataSetBuilder().Flags(flag2).Segments(segment2).Build()
+		allData2 := sharedtest.NewDataSetBuilder().Flags(flag2).Segments(segment2).Build()
 
 		require.NoError(t, store.Init(allData2))
 
@@ -105,7 +105,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
 		t.Run("found", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 			item := makeItem("key", 1, false)
 			_, err := store.Upsert(kind, "key", item)
 			assert.NoError(t, err)
@@ -119,7 +119,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 			mockLog := sharedtest.NewMockLoggers()
 			mockLog.Loggers.SetMinLevel(ldlog.Info)
 			store := NewInMemoryDataStore(mockLog.Loggers)
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			result, err := store.Get(kind, unknownKey)
 			assert.NoError(t, err)
@@ -132,7 +132,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 			mockLog := sharedtest.NewMockLoggers()
 			mockLog.Loggers.SetMinLevel(ldlog.Debug)
 			store := NewInMemoryDataStore(mockLog.Loggers)
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			result, err := store.Get(kind, unknownKey)
 			assert.NoError(t, err)
@@ -152,7 +152,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 
 func testInMemoryDataStoreGetAll(t *testing.T) {
 	store := makeInMemoryStore()
-	require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+	require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 	result, err := store.GetAll(interfaces.DataKindFeatures())
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func testInMemoryDataStoreGetAll(t *testing.T) {
 	require.NoError(t, err)
 
 	sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
-	expected := extractCollections(NewDataSetBuilder().Flags(flag1, flag2).Segments(segment1).Build())
+	expected := extractCollections(sharedtest.NewDataSetBuilder().Flags(flag1, flag2).Segments(segment1).Build())
 	assert.Equal(t, expected, [][]interfaces.StoreKeyedItemDescriptor{flags, segments})
 
 	result, err = store.GetAll(unknownDataKind{})
@@ -186,7 +186,7 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
 		t.Run("newer version", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
 			updated, err := store.Upsert(kind, "key", item1)
@@ -205,7 +205,7 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 
 		t.Run("older version", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
 			updated, err := store.Upsert(kind, "key", item1)
@@ -224,7 +224,7 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 
 		t.Run("same version", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
 			updated, err := store.Upsert(kind, "key", item1)
@@ -247,7 +247,7 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
 		t.Run("newer version", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
 			updated, err := store.Upsert(kind, "key", item1)
@@ -266,7 +266,7 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 
 		t.Run("older version", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
 			updated, err := store.Upsert(kind, "key", item1)
@@ -285,7 +285,7 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 
 		t.Run("same version", func(t *testing.T) {
 			store := makeInMemoryStore()
-			require.NoError(t, store.Init(NewDataSetBuilder().Build()))
+			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
 			item1 := makeItem("key", 10, false)
 			updated, err := store.Upsert(kind, "key", item1)

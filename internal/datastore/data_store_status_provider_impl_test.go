@@ -1,11 +1,13 @@
-package internal
+package datastore
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -18,7 +20,7 @@ type dataStoreStatusProviderTestParams struct {
 func dataStoreStatusProviderTest(action func(dataStoreStatusProviderTestParams)) {
 	p := dataStoreStatusProviderTestParams{}
 	p.dataStore = sharedtest.NewCapturingDataStore(NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-	broadcaster := NewDataStoreStatusBroadcaster()
+	broadcaster := internal.NewDataStoreStatusBroadcaster()
 	defer broadcaster.Close()
 	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
 	p.dataStoreUpdates = dataStoreUpdates

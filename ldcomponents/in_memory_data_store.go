@@ -3,7 +3,7 @@ package ldcomponents
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 )
 
 type inMemoryDataStoreFactory struct{}
@@ -15,7 +15,7 @@ func (f inMemoryDataStoreFactory) CreateDataStore(
 ) (interfaces.DataStore, error) {
 	loggers := context.GetLogging().GetLoggers()
 	loggers.SetPrefix("InMemoryDataStore:")
-	return internal.NewInMemoryDataStore(loggers), nil
+	return datastore.NewInMemoryDataStore(loggers), nil
 }
 
 // DiagnosticDescription implementation

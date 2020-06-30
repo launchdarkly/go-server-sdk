@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"strings"
@@ -261,7 +261,7 @@ func verifyDependencyAffectedItems(
 }
 
 func makeDependencyOrderingDataSourceTestData() []intf.StoreCollection {
-	return NewDataSetBuilder().
+	return sharedtest.NewDataSetBuilder().
 		Flags(
 			ldbuilders.NewFlagBuilder("a").AddPrerequisite("b", 0).AddPrerequisite("c", 0).Build(),
 			ldbuilders.NewFlagBuilder("b").AddPrerequisite("c", 0).AddPrerequisite("e", 0).Build(),

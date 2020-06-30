@@ -7,7 +7,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -26,7 +26,7 @@ func basicClientContext() interfaces.ClientContext {
 }
 
 func makeInMemoryDataStore() interfaces.DataStore {
-	return internal.NewInMemoryDataStore(sharedtest.NewTestLoggers())
+	return datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 
 func upsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {

@@ -5,7 +5,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 )
 
 // PersistentDataStoreDefaultCacheTime is the default amount of time that recently read or updated items
@@ -104,7 +104,7 @@ func (b *PersistentDataStoreBuilder) CreateDataStore(
 	if err != nil {
 		return nil, err
 	}
-	return internal.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL,
+	return datastore.NewPersistentDataStoreWrapper(core, dataStoreUpdates, b.cacheTTL,
 		context.GetLogging().GetLoggers()), nil
 }
 

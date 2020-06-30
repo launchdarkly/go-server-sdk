@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"errors"
@@ -14,6 +14,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -23,19 +25,19 @@ type dataSourceUpdatesImplTestParams struct {
 	store                   *sharedtest.CapturingDataStore
 	dataStoreStatusProvider intf.DataStoreStatusProvider
 	dataSourceUpdates       *DataSourceUpdatesImpl
-	flagChangeBroadcaster   *FlagChangeEventBroadcaster
+	flagChangeBroadcaster   *internal.FlagChangeEventBroadcaster
 	mockLoggers             *sharedtest.MockLoggers
 }
 
 func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	p := dataSourceUpdatesImplTestParams{}
 	p.mockLoggers = sharedtest.NewMockLoggers()
-	p.store = sharedtest.NewCapturingDataStore(NewInMemoryDataStore(p.mockLoggers.Loggers))
-	dataStoreUpdates := NewDataStoreUpdatesImpl(nil)
-	p.dataStoreStatusProvider = NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
-	dataSourceStatusBroadcaster := NewDataSourceStatusBroadcaster()
+	p.store = sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
+	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(nil)
+	p.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
+	dataSourceStatusBroadcaster := internal.NewDataSourceStatusBroadcaster()
 	defer dataSourceStatusBroadcaster.Close()
-	p.flagChangeBroadcaster = NewFlagChangeEventBroadcaster()
+	p.flagChangeBroadcaster = internal.NewFlagChangeEventBroadcaster()
 	defer p.flagChangeBroadcaster.Close()
 	p.dataSourceUpdates = NewDataSourceUpdatesImpl(
 		p.store,
@@ -56,7 +58,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 	t.Run("Init", func(t *testing.T) {
 		t.Run("passes data to store", func(t *testing.T) {
 			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
-				inputData := NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("a").Build())
+				inputData := sharedtest.NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("a").Build())
 
 				result := p.dataSourceUpdates.Init(inputData.Build())
 				assert.True(t, result)
@@ -69,7 +71,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				p.store.SetFakeError(storeError)
 
-				result := p.dataSourceUpdates.Init(NewDataSetBuilder().Build())
+				result := p.dataSourceUpdates.Init(sharedtest.NewDataSetBuilder().Build())
 				assert.False(t, result)
 				assert.Equal(t, intf.DataSourceErrorKindStoreError, p.dataSourceUpdates.GetLastStatus().LastError.Kind)
 
@@ -77,15 +79,15 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.Equal(t, []string{expectedStoreErrorMessage}, log1)
 
 				// does not log a redundant message if the next update also fails
-				assert.False(t, p.dataSourceUpdates.Init(NewDataSetBuilder().Build()))
+				assert.False(t, p.dataSourceUpdates.Init(sharedtest.NewDataSetBuilder().Build()))
 				log2 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, log1, log2)
 
 				// does log the message again if there's another failure later after a success
 				p.store.SetFakeError(nil)
-				assert.True(t, p.dataSourceUpdates.Init(NewDataSetBuilder().Build()))
+				assert.True(t, p.dataSourceUpdates.Init(sharedtest.NewDataSetBuilder().Build()))
 				p.store.SetFakeError(storeError)
-				assert.False(t, p.dataSourceUpdates.Init(NewDataSetBuilder().Build()))
+				assert.False(t, p.dataSourceUpdates.Init(sharedtest.NewDataSetBuilder().Build()))
 				log3 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, []string{expectedStoreErrorMessage, expectedStoreErrorMessage}, log3)
 			})
@@ -235,7 +237,7 @@ func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
 func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 	t.Run("sends events on init for newly added flags", func(t *testing.T) {
 		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
-			builder := NewDataSetBuilder().
+			builder := sharedtest.NewDataSetBuilder().
 				Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()).
 				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
 
@@ -255,7 +257,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 
 	t.Run("sends event on update for newly added flag", func(t *testing.T) {
 		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
-			builder := NewDataSetBuilder().
+			builder := sharedtest.NewDataSetBuilder().
 				Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()).
 				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
 
@@ -272,7 +274,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 
 	t.Run("sends events on init for updated flags", func(t *testing.T) {
 		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
-			builder := NewDataSetBuilder().
+			builder := sharedtest.NewDataSetBuilder().
 				Flags(
 					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
 					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),
@@ -300,7 +302,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 
 	t.Run("sends event on update for updated flag", func(t *testing.T) {
 		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
-			builder := NewDataSetBuilder().
+			builder := sharedtest.NewDataSetBuilder().
 				Flags(
 					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
 					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),
@@ -320,7 +322,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 
 	t.Run("does not send event on update if item was not really updated", func(t *testing.T) {
 		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
-			builder := NewDataSetBuilder().
+			builder := sharedtest.NewDataSetBuilder().
 				Flags(
 					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
 					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),

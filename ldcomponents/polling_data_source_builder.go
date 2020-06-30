@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 )
 
 // DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI.
@@ -88,7 +88,7 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 ) (interfaces.DataSource, error) {
 	context.GetLogging().GetLoggers().Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
-	pp := internal.NewPollingProcessor(context, dataSourceUpdates, b.baseURI, b.pollInterval)
+	pp := datasource.NewPollingProcessor(context, dataSourceUpdates, b.baseURI, b.pollInterval)
 	return pp, nil
 }
 

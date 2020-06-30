@@ -1,4 +1,4 @@
-package internal
+package datasource
 
 import (
 	"testing"
@@ -6,8 +6,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
@@ -18,12 +21,12 @@ type dataSourceStatusProviderImplTestParams struct {
 
 func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTestParams)) {
 	p := dataSourceStatusProviderImplTestParams{}
-	statusBroadcaster := NewDataSourceStatusBroadcaster()
+	statusBroadcaster := internal.NewDataSourceStatusBroadcaster()
 	defer statusBroadcaster.Close()
-	flagBroadcaster := NewFlagChangeEventBroadcaster()
+	flagBroadcaster := internal.NewFlagChangeEventBroadcaster()
 	defer flagBroadcaster.Close()
-	store := NewInMemoryDataStore(sharedtest.NewTestLoggers())
-	dataStoreStatusProvider := NewDataStoreStatusProviderImpl(store, nil)
+	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
+	dataStoreStatusProvider := datastore.NewDataStoreStatusProviderImpl(store, nil)
 	p.dataSourceUpdates = NewDataSourceUpdatesImpl(store, dataStoreStatusProvider, statusBroadcaster, flagBroadcaster,
 		0, sharedtest.NewTestLoggers())
 	p.dataSourceStatusProvider = NewDataSourceStatusProviderImpl(statusBroadcaster, p.dataSourceUpdates)
