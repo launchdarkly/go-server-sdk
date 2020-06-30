@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestInMemoryDataStore(t *testing.T) {

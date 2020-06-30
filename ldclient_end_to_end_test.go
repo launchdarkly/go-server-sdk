@@ -12,10 +12,12 @@ import (
 	"github.com/launchdarkly/go-test-helpers/ldservices"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	shared "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	shared "gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +26,11 @@ import (
 const (
 	initializationFailedErrorMessage = "LaunchDarkly client initialization failed"
 	pollingModeWarningMessage        = "You should only disable the streaming API if instructed to do so by LaunchDarkly support"
+)
+
+var (
+	alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
+	testUser       = lduser.NewUser("test-user-key")
 )
 
 // This file contains smoke tests for a complete SDK instance running against embedded HTTP servers. We have many

@@ -10,13 +10,13 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/storetest"
 )
 
 const redisURL = "redis://localhost:6379"
 
 func TestRedisDataStore(t *testing.T) {
-	sharedtest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
+	storetest.NewPersistentDataStoreTestSuite(makeTestStore, clearTestData).
 		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)
@@ -31,7 +31,7 @@ func makeFailedStore() interfaces.PersistentDataStoreFactory {
 	return DataStore().URL("redis://not-a-real-host")
 }
 
-func verifyFailedStoreError(t *testing.T, err error) {
+func verifyFailedStoreError(t assert.TestingT, err error) {
 	assert.Contains(t, err.Error(), "no such host")
 }
 

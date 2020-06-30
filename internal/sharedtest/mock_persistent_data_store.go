@@ -7,19 +7,23 @@ import (
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-type mockDatabaseInstance struct { //nolint:unused // it is used in test code
+// MockDatabaseInstance can be used with MockPersistentDataStore to simulate multiple data store
+// instances sharing the same underlying data space.
+type MockDatabaseInstance struct {
 	dataByPrefix   map[string]map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor
 	initedByPrefix map[string]*bool
 }
 
-func newMockDatabaseInstance() *mockDatabaseInstance { //nolint:deadcode,unused // it is used in test code
-	return &mockDatabaseInstance{
+// NewMockDatabaseInstance creates an instance of MockDatabaseInstance.
+func NewMockDatabaseInstance() *MockDatabaseInstance {
+	return &MockDatabaseInstance{
 		dataByPrefix:   make(map[string]map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor),
 		initedByPrefix: make(map[string]*bool),
 	}
 }
 
-func (db *mockDatabaseInstance) Clear(prefix string) {
+// Clear removes all shared data.
+func (db *MockDatabaseInstance) Clear(prefix string) {
 	for _, m := range db.dataByPrefix[prefix] {
 		for k := range m {
 			delete(m, k)
@@ -59,9 +63,10 @@ func NewMockPersistentDataStore() *MockPersistentDataStore {
 	return m
 }
 
-//nolint:deadcode,unused // it is used in test code
-func newMockPersistentDataStoreWithPrefix(
-	db *mockDatabaseInstance,
+// NewMockPersistentDataStoreWithPrefix creates a test implementation of a persistent data store that uses
+// a MockDatabaseInstance to simulate a shared database.
+func NewMockPersistentDataStoreWithPrefix(
+	db *MockDatabaseInstance,
 	prefix string,
 ) *MockPersistentDataStore {
 	m := &MockPersistentDataStore{available: true}
@@ -132,6 +137,24 @@ func (m *MockPersistentDataStore) SetFakeError(fakeError error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.fakeError = fakeError
+}
+
+// SetPersistOnlyAsString sets whether the mock data store should behave like our Redis implementation,
+// where the item version is *not* persisted separately from the serialized item string (so the latter must
+// be parsed to get the version). If this is false (the default), it behaves instead like our DynamoDB
+// implementation, where the version metadata exists separately from the serialized string.
+func (m *MockPersistentDataStore) SetPersistOnlyAsString(value bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.persistOnlyAsString = value
+}
+
+// SetTestTxHook sets a callback function that will be called during updates, to support the concurrent
+// modification tests in PersistentDataStoreTestSuite.
+func (m *MockPersistentDataStore) SetTestTxHook(hook func()) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.testTxHook = hook
 }
 
 func (m *MockPersistentDataStore) startQuery() {

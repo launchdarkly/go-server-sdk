@@ -12,9 +12,9 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 type fileDataSourceTestParams struct {
