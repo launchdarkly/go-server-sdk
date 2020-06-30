@@ -7,7 +7,7 @@ import (
 	c "github.com/hashicorp/consul/api"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 // Implementation notes:
@@ -52,16 +52,16 @@ func newConsulDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) (*
 }
 
 func (store *consulDataStoreImpl) Get(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-) (interfaces.StoreSerializedItemDescriptor, error) {
+) (ldstoretypes.SerializedItemDescriptor, error) {
 	item, _, err := store.getInternal(kind, key)
 	return item, err
 }
 
 func (store *consulDataStoreImpl) GetAll(
-	kind interfaces.StoreDataKind,
-) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+	kind ldstoretypes.DataKind,
+) ([]ldstoretypes.KeyedSerializedItemDescriptor, error) {
 	kv := store.client.KV()
 	pairs, _, err := kv.List(store.collectionKey(kind), nil)
 
@@ -69,17 +69,17 @@ func (store *consulDataStoreImpl) GetAll(
 		return nil, fmt.Errorf("list failed for %s: %s", kind, err)
 	}
 
-	results := make([]interfaces.StoreKeyedSerializedItemDescriptor, 0, len(pairs))
+	results := make([]ldstoretypes.KeyedSerializedItemDescriptor, 0, len(pairs))
 	for _, pair := range pairs {
-		results = append(results, interfaces.StoreKeyedSerializedItemDescriptor{
+		results = append(results, ldstoretypes.KeyedSerializedItemDescriptor{
 			Key:  store.itemKeyFromCombinedKey(kind, pair.Key),
-			Item: interfaces.StoreSerializedItemDescriptor{SerializedItem: pair.Value},
+			Item: ldstoretypes.SerializedItemDescriptor{SerializedItem: pair.Value},
 		})
 	}
 	return results, nil
 }
 
-func (store *consulDataStoreImpl) Init(allData []interfaces.StoreSerializedCollection) error {
+func (store *consulDataStoreImpl) Init(allData []ldstoretypes.SerializedCollection) error {
 	kv := store.client.KV()
 
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
@@ -123,9 +123,9 @@ func (store *consulDataStoreImpl) Init(allData []interfaces.StoreSerializedColle
 }
 
 func (store *consulDataStoreImpl) Upsert(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	newItem interfaces.StoreSerializedItemDescriptor,
+	newItem ldstoretypes.SerializedItemDescriptor,
 ) (bool, error) {
 	// We will potentially keep retrying to store indefinitely until someone's write succeeds
 	for {
@@ -199,10 +199,10 @@ func (store *consulDataStoreImpl) Close() error {
 }
 
 func (store *consulDataStoreImpl) getInternal(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
 ) (
-	retrievedItem interfaces.StoreSerializedItemDescriptor,
+	retrievedItem ldstoretypes.SerializedItemDescriptor,
 	modifyIndex uint64,
 	err error,
 ) {
@@ -213,10 +213,10 @@ func (store *consulDataStoreImpl) getInternal(
 	pair, _, err := kv.Get(store.combinedItemKey(kind, key), nil)
 
 	if err != nil || pair == nil {
-		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), defaultModifyIndex, err
+		return ldstoretypes.SerializedItemDescriptor{}.NotFound(), defaultModifyIndex, err
 	}
 
-	itemDesc := interfaces.StoreSerializedItemDescriptor{SerializedItem: pair.Value}
+	itemDesc := ldstoretypes.SerializedItemDescriptor{SerializedItem: pair.Value}
 	return itemDesc, pair.ModifyIndex, nil
 }
 
@@ -247,15 +247,15 @@ func batchOperations(kv *c.KV, ops []*c.KVTxnOp) error {
 	return nil
 }
 
-func (store *consulDataStoreImpl) collectionKey(kind interfaces.StoreDataKind) string {
+func (store *consulDataStoreImpl) collectionKey(kind ldstoretypes.DataKind) string {
 	return store.prefix + "/" + kind.GetName()
 }
 
-func (store *consulDataStoreImpl) combinedItemKey(kind interfaces.StoreDataKind, k string) string {
+func (store *consulDataStoreImpl) combinedItemKey(kind ldstoretypes.DataKind, k string) string {
 	return store.prefix + "/" + kind.GetName() + "/" + k
 }
 
-func (store *consulDataStoreImpl) itemKeyFromCombinedKey(kind interfaces.StoreDataKind, combinedKey string) string {
+func (store *consulDataStoreImpl) itemKeyFromCombinedKey(kind ldstoretypes.DataKind, combinedKey string) string {
 	return strings.TrimPrefix(combinedKey, store.collectionKey(kind)+"/")
 }
 

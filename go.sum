@@ -80,7 +80,10 @@ github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfn
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
+github.com/launchdarkly-labs/go-coverage-enforcer v0.0.0-20200610003341-8bc77dea293c h1:efBUku8Iniz1FsNaOpr8Q2Nb3zqclxRcmLkyoskWxik=
 github.com/launchdarkly-labs/go-coverage-enforcer v0.0.0-20200610003341-8bc77dea293c/go.mod h1:fJXIR7UJYgdXVmLM40NGl/dbs2Smv+iESsaT9uC4v/s=
+github.com/launchdarkly-labs/go-coverage-enforcer v1.1.0 h1:uuTEUz+8H9XCCyao4pETPjN2Ufc2QQfWFsJwtBabqss=
+github.com/launchdarkly-labs/go-coverage-enforcer v1.1.0/go.mod h1:fJXIR7UJYgdXVmLM40NGl/dbs2Smv+iESsaT9uC4v/s=
 github.com/launchdarkly/eventsource v0.0.0-20190617224151-6b837031c9ca/go.mod h1:y6+/PY1Az/AQyjCMsFt5mOZq1tfM0/KOQRS4f0pVe3M=
 github.com/launchdarkly/eventsource v1.4.2 h1:qLWR3FgHrFpdeHH8lJjBjxdFaZ2U+UG4zBemh/H9xJk=
 github.com/launchdarkly/eventsource v1.4.2/go.mod h1:nX3/XHrcN2ou8HBgjqBTdv22Gl5KoMnzviwrwyGZh+k=
@@ -134,6 +137,7 @@ github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
+github.com/stretchr/objx v0.1.1 h1:2vfRuCMp5sSVIDSqO8oNnWJq7mPa6KVP3iPIwFBuy8A=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=

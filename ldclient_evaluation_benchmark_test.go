@@ -11,6 +11,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
@@ -52,7 +53,7 @@ func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCas
 	// benchmarks will include the overhead of calling Get on the store.
 	testFlags := makeEvalBenchmarkFlags(bc, variations)
 	for _, ff := range testFlags {
-		env.client.store.Upsert(interfaces.DataKindFeatures(), ff.Key, sharedtest.FlagDescriptor(*ff))
+		env.client.store.Upsert(datakinds.Features, ff.Key, sharedtest.FlagDescriptor(*ff))
 	}
 
 	env.evalUser = makeEvalBenchmarkUser(bc)

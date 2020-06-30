@@ -5,11 +5,13 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
 type kindAndKey struct {
-	kind interfaces.StoreDataKind
+	kind st.DataKind
 	key  string
 }
 
@@ -25,14 +27,14 @@ func (s kindAndKeySet) contains(value kindAndKey) bool {
 	return ok
 }
 
-func computeDependenciesFrom(kind interfaces.StoreDataKind, fromItem interfaces.StoreItemDescriptor) kindAndKeySet {
-	if kind == interfaces.DataKindFeatures() {
+func computeDependenciesFrom(kind st.DataKind, fromItem st.ItemDescriptor) kindAndKeySet {
+	if kind == ldstoreimpl.Features() {
 		if flag, ok := fromItem.Item.(*ldmodel.FeatureFlag); ok {
 			var ret kindAndKeySet
 			if len(flag.Prerequisites) > 0 {
 				ret = make(kindAndKeySet, len(flag.Prerequisites))
 				for _, p := range flag.Prerequisites {
-					ret.add(kindAndKey{interfaces.DataKindFeatures(), p.Key})
+					ret.add(kindAndKey{ldstoreimpl.Features(), p.Key})
 				}
 			}
 			for _, r := range flag.Rules {
@@ -43,7 +45,7 @@ func computeDependenciesFrom(kind interfaces.StoreDataKind, fromItem interfaces.
 								if ret == nil {
 									ret = make(kindAndKeySet)
 								}
-								ret.add(kindAndKey{interfaces.DataKindSegments(), v.StringValue()})
+								ret.add(kindAndKey{datakinds.Segments, v.StringValue()})
 							}
 						}
 					}
@@ -55,13 +57,13 @@ func computeDependenciesFrom(kind interfaces.StoreDataKind, fromItem interfaces.
 	return nil
 }
 
-func sortCollectionsForDataStoreInit(allData []interfaces.StoreCollection) []interfaces.StoreCollection {
-	colls := make([]interfaces.StoreCollection, 0, len(allData))
+func sortCollectionsForDataStoreInit(allData []st.Collection) []st.Collection {
+	colls := make([]st.Collection, 0, len(allData))
 	for _, coll := range allData {
 		if doesDataKindSupportDependencies(coll.Kind) {
-			itemsOut := make([]interfaces.StoreKeyedItemDescriptor, 0, len(coll.Items))
+			itemsOut := make([]st.KeyedItemDescriptor, 0, len(coll.Items))
 			addItemsInDependencyOrder(coll.Kind, coll.Items, &itemsOut)
-			colls = append(colls, interfaces.StoreCollection{Kind: coll.Kind, Items: itemsOut})
+			colls = append(colls, st.Collection{Kind: coll.Kind, Items: itemsOut})
 		} else {
 			colls = append(colls, coll)
 		}
@@ -72,16 +74,16 @@ func sortCollectionsForDataStoreInit(allData []interfaces.StoreCollection) []int
 	return colls
 }
 
-func doesDataKindSupportDependencies(kind interfaces.StoreDataKind) bool {
-	return kind == interfaces.DataKindFeatures() //nolint:megacheck
+func doesDataKindSupportDependencies(kind st.DataKind) bool {
+	return kind == datakinds.Features //nolint:megacheck
 }
 
 func addItemsInDependencyOrder(
-	kind interfaces.StoreDataKind,
-	itemsIn []interfaces.StoreKeyedItemDescriptor,
-	out *[]interfaces.StoreKeyedItemDescriptor,
+	kind st.DataKind,
+	itemsIn []st.KeyedItemDescriptor,
+	out *[]st.KeyedItemDescriptor,
 ) {
-	remainingItems := make(map[string]interfaces.StoreItemDescriptor, len(itemsIn))
+	remainingItems := make(map[string]st.ItemDescriptor, len(itemsIn))
 	for _, item := range itemsIn {
 		remainingItems[item.Key] = item.Item
 	}
@@ -95,10 +97,10 @@ func addItemsInDependencyOrder(
 }
 
 func addWithDependenciesFirst(
-	kind interfaces.StoreDataKind,
+	kind st.DataKind,
 	startingKey string,
-	remainingItems map[string]interfaces.StoreItemDescriptor,
-	out *[]interfaces.StoreKeyedItemDescriptor,
+	remainingItems map[string]st.ItemDescriptor,
+	out *[]st.KeyedItemDescriptor,
 ) {
 	startItem := remainingItems[startingKey]
 	delete(remainingItems, startingKey) // we won't need to visit this item again
@@ -109,12 +111,12 @@ func addWithDependenciesFirst(
 			}
 		}
 	}
-	*out = append(*out, interfaces.StoreKeyedItemDescriptor{Key: startingKey, Item: startItem})
+	*out = append(*out, st.KeyedItemDescriptor{Key: startingKey, Item: startItem})
 }
 
 // Logic for ensuring that segments are processed before features; if we get any other data types that
 // haven't been accounted for here, they'll come after those two in an arbitrary order.
-func dataKindPriority(kind interfaces.StoreDataKind) int {
+func dataKindPriority(kind st.DataKind) int {
 	switch kind.GetName() {
 	case "segments":
 		return 0
@@ -137,9 +139,9 @@ func newDependencyTracker() *dependencyTracker {
 
 // Updates the dependency graph when an item has changed.
 func (d *dependencyTracker) updateDependenciesFrom(
-	kind interfaces.StoreDataKind,
+	kind st.DataKind,
 	fromKey string,
-	fromItem interfaces.StoreItemDescriptor,
+	fromItem st.ItemDescriptor,
 ) {
 	fromWhat := kindAndKey{kind, fromKey}
 	updatedDependencies := computeDependenciesFrom(kind, fromItem)

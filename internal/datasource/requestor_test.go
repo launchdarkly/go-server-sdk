@@ -9,7 +9,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
@@ -35,7 +35,7 @@ type mockRequestAllResponse struct {
 }
 
 type mockRequestResourceResponse struct {
-	item interfaces.StoreItemDescriptor
+	item ldstoretypes.ItemDescriptor
 	err  error
 }
 

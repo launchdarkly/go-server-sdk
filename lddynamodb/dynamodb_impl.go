@@ -42,7 +42,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 const (
@@ -92,7 +92,7 @@ func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) 
 	return store, nil
 }
 
-func (store *dynamoDBDataStore) Init(allData []interfaces.StoreSerializedCollection) error {
+func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection) error {
 	// Start by reading the existing keys; we will later delete any of these that weren't in allData.
 	unusedOldKeys, err := store.readExistingKeys(allData)
 	if err != nil {
@@ -162,14 +162,14 @@ func (store *dynamoDBDataStore) IsInitialized() bool {
 }
 
 func (store *dynamoDBDataStore) GetAll(
-	kind interfaces.StoreDataKind,
-) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
-	var results []interfaces.StoreKeyedSerializedItemDescriptor
+	kind ldstoretypes.DataKind,
+) ([]ldstoretypes.KeyedSerializedItemDescriptor, error) {
+	var results []ldstoretypes.KeyedSerializedItemDescriptor
 	err := store.client.QueryPages(store.makeQueryForKind(kind),
 		func(out *dynamodb.QueryOutput, lastPage bool) bool {
 			for _, item := range out.Items {
 				if key, serializedItemDesc, ok := store.decodeItem(item); ok {
-					results = append(results, interfaces.StoreKeyedSerializedItemDescriptor{
+					results = append(results, ldstoretypes.KeyedSerializedItemDescriptor{
 						Key:  key,
 						Item: serializedItemDesc,
 					})
@@ -184,9 +184,9 @@ func (store *dynamoDBDataStore) GetAll(
 }
 
 func (store *dynamoDBDataStore) Get(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-) (interfaces.StoreSerializedItemDescriptor, error) {
+) (ldstoretypes.SerializedItemDescriptor, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
@@ -196,7 +196,7 @@ func (store *dynamoDBDataStore) Get(
 		},
 	})
 	if err != nil {
-		return interfaces.StoreSerializedItemDescriptor{}.NotFound(),
+		return ldstoretypes.SerializedItemDescriptor{}.NotFound(),
 			fmt.Errorf("failed to get %s key %s: %s", kind, key, err)
 	}
 
@@ -204,20 +204,20 @@ func (store *dynamoDBDataStore) Get(
 		if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 			store.loggers.Debugf("Item not found (key=%s)", key)
 		}
-		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
+		return ldstoretypes.SerializedItemDescriptor{}.NotFound(), nil
 	}
 
 	if _, serializedItemDesc, ok := store.decodeItem(result.Item); ok {
 		return serializedItemDesc, nil
 	}
-	return interfaces.StoreSerializedItemDescriptor{}.NotFound(), // COVERAGE: can't cause this in unit tests
+	return ldstoretypes.SerializedItemDescriptor{}.NotFound(), // COVERAGE: can't cause this in unit tests
 		fmt.Errorf("invalid data for %s key %s: %s", kind, key, err)
 }
 
 func (store *dynamoDBDataStore) Upsert(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	newItem interfaces.StoreSerializedItemDescriptor,
+	newItem ldstoretypes.SerializedItemDescriptor,
 ) (bool, error) {
 	av := store.encodeItem(kind, key, newItem)
 
@@ -282,7 +282,7 @@ func (store *dynamoDBDataStore) prefixedNamespace(baseNamespace string) string {
 	return store.prefix + ":" + baseNamespace
 }
 
-func (store *dynamoDBDataStore) namespaceForKind(kind interfaces.StoreDataKind) string {
+func (store *dynamoDBDataStore) namespaceForKind(kind ldstoretypes.DataKind) string {
 	return store.prefixedNamespace(kind.GetName())
 }
 
@@ -290,7 +290,7 @@ func (store *dynamoDBDataStore) initedKey() string {
 	return store.prefixedNamespace("$inited")
 }
 
-func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.StoreDataKind) *dynamodb.QueryInput {
+func (store *dynamoDBDataStore) makeQueryForKind(kind ldstoretypes.DataKind) *dynamodb.QueryInput {
 	return &dynamodb.QueryInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
@@ -306,7 +306,7 @@ func (store *dynamoDBDataStore) makeQueryForKind(kind interfaces.StoreDataKind) 
 }
 
 func (store *dynamoDBDataStore) readExistingKeys(
-	newData []interfaces.StoreSerializedCollection,
+	newData []ldstoretypes.SerializedCollection,
 ) (map[namespaceAndKey]bool, error) {
 	keys := make(map[namespaceAndKey]bool)
 	for _, coll := range newData {
@@ -359,7 +359,7 @@ func batchWriteRequests(
 
 func (store *dynamoDBDataStore) decodeItem(
 	av map[string]*dynamodb.AttributeValue,
-) (string, interfaces.StoreSerializedItemDescriptor, bool) {
+) (string, ldstoretypes.SerializedItemDescriptor, bool) {
 	keyValue := av[tableSortKey]
 	versionValue := av[versionAttribute]
 	itemJSONValue := av[itemJSONAttribute]
@@ -367,18 +367,18 @@ func (store *dynamoDBDataStore) decodeItem(
 		versionValue != nil && versionValue.N != nil &&
 		itemJSONValue != nil && itemJSONValue.S != nil {
 		v, _ := strconv.Atoi(*versionValue.N)
-		return *keyValue.S, interfaces.StoreSerializedItemDescriptor{
+		return *keyValue.S, ldstoretypes.SerializedItemDescriptor{
 			Version:        v,
 			SerializedItem: []byte(*itemJSONValue.S),
 		}, true
 	}
-	return "", interfaces.StoreSerializedItemDescriptor{}, false // COVERAGE: no way to cause this in unit tests
+	return "", ldstoretypes.SerializedItemDescriptor{}, false // COVERAGE: no way to cause this in unit tests
 }
 
 func (store *dynamoDBDataStore) encodeItem(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	item interfaces.StoreSerializedItemDescriptor,
+	item ldstoretypes.SerializedItemDescriptor,
 ) map[string]*dynamodb.AttributeValue {
 	return map[string]*dynamodb.AttributeValue{
 		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(store.namespaceForKind(kind))},

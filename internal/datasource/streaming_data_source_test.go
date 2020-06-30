@@ -17,6 +17,7 @@ import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
 	"github.com/stretchr/testify/assert"
@@ -123,7 +124,7 @@ func TestStreamProcessor(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
 			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
 
-			p.updates.DataStore.WaitForUpsert(t, interfaces.DataKindFeatures(), "my-flag", 3, timeout)
+			p.updates.DataStore.WaitForUpsert(t, datakinds.Features, "my-flag", 3, timeout)
 		})
 	})
 
@@ -131,7 +132,7 @@ func TestStreamProcessor(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
 			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
 
-			p.updates.DataStore.WaitForDelete(t, interfaces.DataKindSegments(), "my-flag", 4, timeout)
+			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-flag", 4, timeout)
 		})
 	})
 
@@ -139,7 +140,7 @@ func TestStreamProcessor(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
 			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
 
-			p.updates.DataStore.WaitForUpsert(t, interfaces.DataKindSegments(), "my-segment", 7, timeout)
+			p.updates.DataStore.WaitForUpsert(t, datakinds.Features, "my-segment", 7, timeout)
 		})
 	})
 
@@ -147,7 +148,7 @@ func TestStreamProcessor(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
 			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
 
-			p.updates.DataStore.WaitForDelete(t, interfaces.DataKindSegments(), "my-segment", 8, timeout)
+			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-segment", 8, timeout)
 		})
 	})
 }

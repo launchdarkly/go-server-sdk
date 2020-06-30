@@ -1,4 +1,4 @@
-package interfaces
+package datakinds
 
 import (
 	"fmt"
@@ -9,14 +9,15 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
-func TestDataKinds(t *testing.T) {
-	assert.Equal(t, []StoreDataKind{DataKindFeatures(), DataKindSegments()}, StoreDataKinds())
+func TestAllKinds(t *testing.T) {
+	assert.Equal(t, []ldstoretypes.DataKind{Features, Segments}, AllDataKinds())
 }
 
 func TestDataKindFeatures(t *testing.T) {
-	kind := DataKindFeatures()
+	kind := Features
 
 	t.Run("name", func(t *testing.T) {
 		assert.Equal(t, "features", kind.GetName())
@@ -25,7 +26,7 @@ func TestDataKindFeatures(t *testing.T) {
 
 	t.Run("serialize", func(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flagkey").Version(2).Build()
-		bytes := kind.Serialize(StoreItemDescriptor{Version: flag.Version, Item: &flag})
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag})
 		assert.Contains(t, string(bytes), `"key":"flagkey"`)
 		assert.Contains(t, string(bytes), `"version":2`)
 	})
@@ -41,6 +42,14 @@ func TestDataKindFeatures(t *testing.T) {
 		assert.Equal(t, 2, flag.Version)
 	})
 
+	t.Run("serialize deleted item", func(t *testing.T) {
+		// It's important that the SDK provides a placeholder JSON object for deleted items, because most
+		// of our existing database integrations aren't able to store the version number separately from
+		// the JSON data.
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 2, Item: nil})
+		assert.JSONEq(t, `{"version":2,"deleted":true}`, string(bytes))
+	})
+
 	t.Run("deserialize deleted item", func(t *testing.T) {
 		json := `{"key":"flagkey","version":2,"deleted":true}`
 		item, err := kind.Deserialize([]byte(json))
@@ -50,7 +59,7 @@ func TestDataKindFeatures(t *testing.T) {
 	})
 
 	t.Run("will not serialize wrong type", func(t *testing.T) {
-		bytes := kind.Serialize(StoreItemDescriptor{Version: 1, Item: "not a flag"})
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 1, Item: "not a flag"})
 		assert.Nil(t, bytes)
 	})
 
@@ -63,7 +72,7 @@ func TestDataKindFeatures(t *testing.T) {
 }
 
 func TestDataKindSegments(t *testing.T) {
-	kind := DataKindSegments()
+	kind := Segments
 
 	t.Run("name", func(t *testing.T) {
 		assert.Equal(t, "segments", kind.GetName())
@@ -72,7 +81,7 @@ func TestDataKindSegments(t *testing.T) {
 
 	t.Run("serialize", func(t *testing.T) {
 		segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(2).Build()
-		bytes := kind.Serialize(StoreItemDescriptor{Version: segment.Version, Item: &segment})
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: segment.Version, Item: &segment})
 		assert.Contains(t, string(bytes), `"key":"segmentkey"`)
 		assert.Contains(t, string(bytes), `"version":2`)
 	})
@@ -87,6 +96,14 @@ func TestDataKindSegments(t *testing.T) {
 		assert.Equal(t, 2, segment.Version)
 	})
 
+	t.Run("serialize deleted item", func(t *testing.T) {
+		// It's important that the SDK provides a placeholder JSON object for deleted items, because most
+		// of our existing database integrations aren't able to store the version number separately from
+		// the JSON data.
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 2, Item: nil})
+		assert.JSONEq(t, `{"version":2,"deleted":true}`, string(bytes))
+	})
+
 	t.Run("deserialize deleted item", func(t *testing.T) {
 		json := `{"key":"segmentkey","version":2,"deleted":true}`
 		item, err := kind.Deserialize([]byte(json))
@@ -96,7 +113,7 @@ func TestDataKindSegments(t *testing.T) {
 	})
 
 	t.Run("will not serialize wrong type", func(t *testing.T) {
-		bytes := kind.Serialize(StoreItemDescriptor{Version: 1, Item: "not a flag"})
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 1, Item: "not a flag"})
 		assert.Nil(t, bytes)
 	})
 

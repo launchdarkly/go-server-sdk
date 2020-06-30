@@ -3,7 +3,7 @@ package datastore
 import (
 	"errors"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 type unknownDataKind struct{}
@@ -12,10 +12,10 @@ func (k unknownDataKind) GetName() string {
 	return "unknown"
 }
 
-func (k unknownDataKind) Serialize(item interfaces.StoreItemDescriptor) []byte {
+func (k unknownDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	return nil
 }
 
-func (k unknownDataKind) Deserialize(data []byte) (interfaces.StoreItemDescriptor, error) {
-	return interfaces.StoreItemDescriptor{}, errors.New("not implemented")
+func (k unknownDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	return ldstoretypes.ItemDescriptor{}, errors.New("not implemented")
 }

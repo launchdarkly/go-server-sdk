@@ -14,6 +14,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/memberlist v0.2.2 // indirect
 	github.com/hashicorp/serf v0.8.1 // indirect
+	github.com/launchdarkly-labs/go-coverage-enforcer v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.4.2
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
 	github.com/launchdarkly/go-test-helpers v1.1.3

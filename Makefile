@@ -17,7 +17,7 @@ COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
 ifeq ("$(LD_SKIP_DATABASE_TESTS)","")
   COVERAGE_ENFORCER_SKIP_FILES_EXTRA=
 else
-  COVERAGE_ENFORCER_SKIP_FILES_EXTRA=ldconsul/|lddynamodb/|ldredis/
+  COVERAGE_ENFORCER_SKIP_FILES_EXTRA=|ldconsul/|lddynamodb/|ldredis/
 endif
 COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 \
 	-skipfiles '(internal/sharedtest/$(COVERAGE_ENFORCER_SKIP_FILES_EXTRA))' \
@@ -40,8 +40,8 @@ test:
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
-	if [ -z "$(which go-coverage-enforcer)" ]; then go get github.com/launchdarkly-labs/go-coverage-enforcer; fi
-	go-coverage-enforcer $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
+	if [ -x "$(GOPATH)/bin/go-coverage-enforcer)" ]; then go get github.com/launchdarkly-labs/go-coverage-enforcer; fi
+	$(GOPATH)/bin/go-coverage-enforcer $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
 	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
 	go tool cover -html $(COVERAGE_PROFILE_RAW) -o $(COVERAGE_PROFILE_RAW_HTML)
 

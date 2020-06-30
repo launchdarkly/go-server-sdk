@@ -6,7 +6,7 @@ import (
 	r "github.com/garyburd/redigo/redis"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 // Internal implementation of the PersistentDataStore interface for Redis.
@@ -55,7 +55,7 @@ func newRedisDataStoreImpl(
 	return impl
 }
 
-func (store *redisDataStoreImpl) Init(allData []interfaces.StoreSerializedCollection) error {
+func (store *redisDataStoreImpl) Init(allData []ldstoretypes.SerializedCollection) error {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -79,9 +79,9 @@ func (store *redisDataStoreImpl) Init(allData []interfaces.StoreSerializedCollec
 }
 
 func (store *redisDataStoreImpl) Get(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-) (interfaces.StoreSerializedItemDescriptor, error) {
+) (ldstoretypes.SerializedItemDescriptor, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -92,17 +92,17 @@ func (store *redisDataStoreImpl) Get(
 			if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 				store.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetName())
 			}
-			return interfaces.StoreSerializedItemDescriptor{}.NotFound(), nil
+			return ldstoretypes.SerializedItemDescriptor{}.NotFound(), nil
 		}
-		return interfaces.StoreSerializedItemDescriptor{}.NotFound(), err
+		return ldstoretypes.SerializedItemDescriptor{}.NotFound(), err
 	}
 
-	return interfaces.StoreSerializedItemDescriptor{Version: 0, SerializedItem: []byte(jsonStr)}, nil
+	return ldstoretypes.SerializedItemDescriptor{Version: 0, SerializedItem: []byte(jsonStr)}, nil
 }
 
 func (store *redisDataStoreImpl) GetAll(
-	kind interfaces.StoreDataKind,
-) ([]interfaces.StoreKeyedSerializedItemDescriptor, error) {
+	kind ldstoretypes.DataKind,
+) ([]ldstoretypes.KeyedSerializedItemDescriptor, error) {
 	c := store.getConn()
 	defer c.Close() // nolint:errcheck
 
@@ -112,20 +112,20 @@ func (store *redisDataStoreImpl) GetAll(
 		return nil, err
 	}
 
-	results := make([]interfaces.StoreKeyedSerializedItemDescriptor, 0, len(values))
+	results := make([]ldstoretypes.KeyedSerializedItemDescriptor, 0, len(values))
 	for k, v := range values {
-		results = append(results, interfaces.StoreKeyedSerializedItemDescriptor{
+		results = append(results, ldstoretypes.KeyedSerializedItemDescriptor{
 			Key:  k,
-			Item: interfaces.StoreSerializedItemDescriptor{Version: 0, SerializedItem: []byte(v)},
+			Item: ldstoretypes.SerializedItemDescriptor{Version: 0, SerializedItem: []byte(v)},
 		})
 	}
 	return results, nil
 }
 
 func (store *redisDataStoreImpl) Upsert(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	newItem interfaces.StoreSerializedItemDescriptor,
+	newItem ldstoretypes.SerializedItemDescriptor,
 ) (bool, error) {
 	baseKey := store.featuresKey(kind)
 	for {
@@ -206,7 +206,7 @@ func (store *redisDataStoreImpl) Close() error {
 	return store.pool.Close()
 }
 
-func (store *redisDataStoreImpl) featuresKey(kind interfaces.StoreDataKind) string {
+func (store *redisDataStoreImpl) featuresKey(kind ldstoretypes.DataKind) string {
 	return store.prefix + ":" + kind.GetName()
 }
 

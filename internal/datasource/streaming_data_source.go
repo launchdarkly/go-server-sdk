@@ -13,6 +13,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in
@@ -136,7 +138,7 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 
 type parsedPath struct {
 	key  string
-	kind interfaces.StoreDataKind
+	kind ldstoretypes.DataKind
 }
 
 func parsePath(path string) (parsedPath, error) {
@@ -146,10 +148,10 @@ func parsePath(path string) (parsedPath, error) {
 	}
 	switch {
 	case strings.HasPrefix(path, "/segments/"):
-		parsedPath.kind = interfaces.DataKindSegments()
+		parsedPath.kind = datakinds.Segments
 		parsedPath.key = strings.TrimPrefix(path, "/segments/")
 	case strings.HasPrefix(path, "/flags/"):
-		parsedPath.kind = interfaces.DataKindFeatures()
+		parsedPath.kind = datakinds.Features
 		parsedPath.key = strings.TrimPrefix(path, "/flags/")
 	default:
 		// An unrecognized path isn't an error; we'll just leave parsedPath.kind as nil, indicating that
@@ -265,7 +267,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				if path.kind == nil {
 					break // ignore unrecognized item type
 				}
-				deletedItem := interfaces.StoreItemDescriptor{Version: data.Version, Item: nil}
+				deletedItem := ldstoretypes.ItemDescriptor{Version: data.Version, Item: nil}
 				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, deletedItem) {
 					storeUpdateFailed("streaming deletion of " + path.key)
 				}

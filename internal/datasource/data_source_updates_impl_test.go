@@ -14,7 +14,9 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
@@ -100,11 +102,11 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		t.Run("passes data to store", func(t *testing.T) {
 			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
 				flag := ldbuilders.NewFlagBuilder("key").Version(1).Build()
-				itemDesc := intf.StoreItemDescriptor{Version: 1, Item: &flag}
-				result := p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc)
+				itemDesc := st.ItemDescriptor{Version: 1, Item: &flag}
+				result := p.dataSourceUpdates.Upsert(datakinds.Features, flag.Key, itemDesc)
 				assert.True(t, result)
 
-				p.store.WaitForUpsert(t, intf.DataKindFeatures(), flag.Key, itemDesc.Version, time.Second)
+				p.store.WaitForUpsert(t, datakinds.Features, flag.Key, itemDesc.Version, time.Second)
 			})
 		})
 
@@ -113,8 +115,8 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				p.store.SetFakeError(storeError)
 
 				flag := ldbuilders.NewFlagBuilder("key").Version(1).Build()
-				itemDesc := intf.StoreItemDescriptor{Version: 1, Item: &flag}
-				result := p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc)
+				itemDesc := st.ItemDescriptor{Version: 1, Item: &flag}
+				result := p.dataSourceUpdates.Upsert(datakinds.Features, flag.Key, itemDesc)
 				assert.False(t, result)
 				assert.Equal(t, intf.DataSourceErrorKindStoreError, p.dataSourceUpdates.GetLastStatus().LastError.Kind)
 
@@ -122,15 +124,15 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 				assert.Equal(t, []string{expectedStoreErrorMessage}, log1)
 
 				// does not log a redundant message if the next update also fails
-				assert.False(t, p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc))
+				assert.False(t, p.dataSourceUpdates.Upsert(datakinds.Features, flag.Key, itemDesc))
 				log2 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, log1, log2)
 
 				// does log the message again if there's another failure later after a success
 				p.store.SetFakeError(nil)
-				assert.True(t, p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc))
+				assert.True(t, p.dataSourceUpdates.Upsert(datakinds.Features, flag.Key, itemDesc))
 				p.store.SetFakeError(storeError)
-				assert.False(t, p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag.Key, itemDesc))
+				assert.False(t, p.dataSourceUpdates.Upsert(datakinds.Features, flag.Key, itemDesc))
 				log3 := p.mockLoggers.GetOutput(ldlog.Warn)
 				assert.Equal(t, []string{expectedStoreErrorMessage, expectedStoreErrorMessage}, log3)
 			})
@@ -266,7 +268,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 			ch := p.flagChangeBroadcaster.AddListener()
 
 			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
-			p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+			p.dataSourceUpdates.Upsert(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
 			sharedtest.ExpectFlagChangeEvents(t, ch, "flag2")
 		})
@@ -314,7 +316,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 			ch := p.flagChangeBroadcaster.AddListener()
 
 			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(2).Build()
-			p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+			p.dataSourceUpdates.Upsert(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
 			sharedtest.ExpectFlagChangeEvents(t, ch, "flag2")
 		})
@@ -333,7 +335,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 			ch := p.flagChangeBroadcaster.AddListener()
 
 			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
-			p.dataSourceUpdates.Upsert(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+			p.dataSourceUpdates.Upsert(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
 			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch)
 		})

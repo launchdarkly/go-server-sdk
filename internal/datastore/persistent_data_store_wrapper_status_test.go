@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
@@ -61,7 +63,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		withDataStoreStatusTestParams(mode, func(p dataStoreStatusTestParams) {
 			myError := errors.New("sorry")
 			p.core.SetFakeError(myError)
-			_, err := p.store.Get(intf.DataKindFeatures(), "key")
+			_, err := p.store.Get(datakinds.Features, "key")
 			require.Equal(t, myError, err)
 
 			status := p.dataStoreUpdates.getStatus()
@@ -74,7 +76,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		withDataStoreStatusTestParams(mode, func(p dataStoreStatusTestParams) {
 			myError := errors.New("sorry")
 			p.core.SetFakeError(myError)
-			_, err := p.store.GetAll(intf.DataKindFeatures())
+			_, err := p.store.GetAll(datakinds.Features)
 			require.Equal(t, myError, err)
 
 			status := p.dataStoreUpdates.getStatus()
@@ -90,7 +92,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			myError := errors.New("sorry")
 			p.core.SetFakeError(myError)
 			p.core.SetAvailable(false)
-			_, err := p.store.GetAll(intf.DataKindFeatures())
+			_, err := p.store.GetAll(datakinds.Features)
 			require.Equal(t, myError, err)
 
 			updatedStatus := consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
@@ -98,7 +100,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 			// Trigger another error, just to show that it will *not* publish a redundant status update since it
 			// is already in a failed state - the consumeStatusWithTimeout call below will get the success update
-			_, err = p.store.GetAll(intf.DataKindFeatures())
+			_, err = p.store.GetAll(datakinds.Features)
 			require.Equal(t, myError, err)
 			assert.Len(t, statusCh, 0)
 
@@ -123,7 +125,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			myError := errors.New("sorry")
 			p.core.SetFakeError(myError)
 			p.core.SetAvailable(false)
-			_, err := p.store.GetAll(intf.DataKindFeatures())
+			_, err := p.store.GetAll(datakinds.Features)
 			require.Equal(t, myError, err)
 
 			updatedStatus := consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
@@ -131,14 +133,14 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 			// While the store is still down, try to update it - the update goes into the cache
 			flag := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
-			_, err = p.store.Upsert(intf.DataKindFeatures(), flag.Key, sharedtest.FlagDescriptor(flag))
+			_, err = p.store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
 			assert.Equal(t, myError, err)
-			cachedFlag, err := p.store.Get(intf.DataKindFeatures(), flag.Key)
+			cachedFlag, err := p.store.Get(datakinds.Features, flag.Key)
 			assert.NoError(t, err)
 			assert.Equal(t, &flag, cachedFlag.Item)
 
 			// Verify that this update did not go into the underlying data yet
-			assert.Equal(t, intf.StoreSerializedItemDescriptor{}.NotFound(), p.core.ForceGet(intf.DataKindFeatures(), flag.Key))
+			assert.Equal(t, ldstoretypes.SerializedItemDescriptor{}.NotFound(), p.core.ForceGet(datakinds.Features, flag.Key))
 
 			// Now simulate the store coming back up
 			p.core.SetFakeError(nil)
@@ -149,7 +151,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			assert.Equal(t, intf.DataStoreStatus{Available: true}, updatedStatus)
 
 			// Once that has happened, the cache should have been written to the store
-			assert.Equal(t, flag.Version, p.core.ForceGet(intf.DataKindFeatures(), flag.Key).Version)
+			assert.Equal(t, flag.Version, p.core.ForceGet(datakinds.Features, flag.Key).Version)
 		})
 	})
 }

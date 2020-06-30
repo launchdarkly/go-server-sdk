@@ -1,6 +1,9 @@
 package sharedtest
 
-import "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+import (
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+)
 
 // SingleDataSourceFactory is a test implementation of DataSourceFactory that always returns the same
 // pre-existing instance.
@@ -33,7 +36,7 @@ func (f *DataSourceFactoryThatExposesUpdater) CreateDataSource( //nolint:golint
 // DataSourceFactoryWithData is a test implementation of DataSourceFactory that will cause the data
 // source to provide a specific set of data when it starts.
 type DataSourceFactoryWithData struct {
-	Data []interfaces.StoreCollection
+	Data []ldstoretypes.Collection
 }
 
 func (f DataSourceFactoryWithData) CreateDataSource( //nolint:golint
@@ -44,7 +47,7 @@ func (f DataSourceFactoryWithData) CreateDataSource( //nolint:golint
 }
 
 type dataSourceWithData struct {
-	data              []interfaces.StoreCollection
+	data              []ldstoretypes.Collection
 	dataSourceUpdates interfaces.DataSourceUpdates
 	inited            bool
 }

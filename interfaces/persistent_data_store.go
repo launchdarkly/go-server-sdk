@@ -1,6 +1,10 @@
 package interfaces
 
-import "io"
+import (
+	"io"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+)
 
 // PersistentDataStore is an interface for a data store that holds feature flags and related data in a
 // serialized form.
@@ -31,34 +35,34 @@ type PersistentDataStore interface {
 	// The update should be done atomically. If it cannot be done atomically, then the store
 	// must first add or update each item in the same order that they are given in the input
 	// data, and then delete any previously stored items that were not in the input data.
-	Init(allData []StoreSerializedCollection) error
+	Init(allData []ldstoretypes.SerializedCollection) error
 
 	// Get retrieves an item from the specified collection, if available.
 	//
-	// If the specified key does not exist in the collection, it should return a StoreSerializedItemDescriptor
+	// If the specified key does not exist in the collection, it should return a SerializedItemDescriptor
 	// with a Version of -1 and an Item of nil.
 	//
 	// If the item has been deleted and the store contains a placeholder, it should return that
 	// placeholder rather than filtering it out.
-	Get(kind StoreDataKind, key string) (StoreSerializedItemDescriptor, error)
+	Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.SerializedItemDescriptor, error)
 
 	// GetAll retrieves all items from the specified collection.
 	//
 	// If the store contains placeholders for deleted items, it should include them in the results,
 	// not filter them out.
-	GetAll(kind StoreDataKind) ([]StoreKeyedSerializedItemDescriptor, error)
+	GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedSerializedItemDescriptor, error)
 
 	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
 	// updated if the existing version is less than the new version.
 	//
-	// The SDK may pass StoreSerializedItemDescriptor that represents a placeholder for a deleted item. In
+	// The SDK may pass a SerializedItemDescriptor that represents a placeholder for a deleted item. In
 	// that case, assuming the version is greater than any existing version of that item, the store should
 	// retain that placeholder rather than simply not storing anything.
 	//
 	// The method returns the updated item if the update was successful; or, if the update was not
 	// successful because the store contained an equal or higher version, it returns the item that is
 	// in the store.
-	Upsert(kind StoreDataKind, key string, item StoreSerializedItemDescriptor) (bool, error)
+	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.SerializedItemDescriptor) (bool, error)
 
 	// IsInitialized returns true if the data store contains a data set, meaning that Init has been
 	// called at least once.

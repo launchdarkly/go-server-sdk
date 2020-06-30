@@ -4,20 +4,20 @@ import (
 	"sync"
 	"time"
 
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 // MockDatabaseInstance can be used with MockPersistentDataStore to simulate multiple data store
 // instances sharing the same underlying data space.
 type MockDatabaseInstance struct {
-	dataByPrefix   map[string]map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor
+	dataByPrefix   map[string]map[ldstoretypes.DataKind]map[string]ldstoretypes.SerializedItemDescriptor
 	initedByPrefix map[string]*bool
 }
 
 // NewMockDatabaseInstance creates an instance of MockDatabaseInstance.
 func NewMockDatabaseInstance() *MockDatabaseInstance {
 	return &MockDatabaseInstance{
-		dataByPrefix:   make(map[string]map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor),
+		dataByPrefix:   make(map[string]map[ldstoretypes.DataKind]map[string]ldstoretypes.SerializedItemDescriptor),
 		initedByPrefix: make(map[string]*bool),
 	}
 }
@@ -36,7 +36,7 @@ func (db *MockDatabaseInstance) Clear(prefix string) {
 
 // MockPersistentDataStore is a test implementation of PersistentDataStore.
 type MockPersistentDataStore struct {
-	data                map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor
+	data                map[ldstoretypes.DataKind]map[string]ldstoretypes.SerializedItemDescriptor
 	persistOnlyAsString bool
 	fakeError           error
 	available           bool
@@ -49,8 +49,8 @@ type MockPersistentDataStore struct {
 	lock                sync.Mutex
 }
 
-func newData() map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor {
-	return map[intf.StoreDataKind]map[string]intf.StoreSerializedItemDescriptor{
+func newData() map[ldstoretypes.DataKind]map[string]ldstoretypes.SerializedItemDescriptor {
+	return map[ldstoretypes.DataKind]map[string]ldstoretypes.SerializedItemDescriptor{
 		MockData:      {},
 		MockOtherData: {},
 	}
@@ -91,20 +91,23 @@ func (m *MockPersistentDataStore) EnableInstrumentedQueries(queryDelay time.Dura
 }
 
 // ForceGet retrieves a serialized item directly from the test data with no other processing.
-func (m *MockPersistentDataStore) ForceGet(kind intf.StoreDataKind, key string) intf.StoreSerializedItemDescriptor {
+func (m *MockPersistentDataStore) ForceGet(
+	kind ldstoretypes.DataKind,
+	key string,
+) ldstoretypes.SerializedItemDescriptor {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if ret, ok := m.data[kind][key]; ok {
 		return ret
 	}
-	return intf.StoreSerializedItemDescriptor{}.NotFound()
+	return ldstoretypes.SerializedItemDescriptor{}.NotFound()
 }
 
 // ForceSet directly modifies an item in the test data.
 func (m *MockPersistentDataStore) ForceSet(
-	kind intf.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	item intf.StoreSerializedItemDescriptor,
+	item ldstoretypes.SerializedItemDescriptor,
 ) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -112,7 +115,7 @@ func (m *MockPersistentDataStore) ForceSet(
 }
 
 // ForceRemove deletes an item from the test data.
-func (m *MockPersistentDataStore) ForceRemove(kind intf.StoreDataKind, key string) {
+func (m *MockPersistentDataStore) ForceRemove(kind ldstoretypes.DataKind, key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.data[kind], key)
@@ -167,7 +170,7 @@ func (m *MockPersistentDataStore) startQuery() {
 }
 
 // Init is a standard PersistentDataStore method.
-func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection) error {
+func (m *MockPersistentDataStore) Init(allData []ldstoretypes.SerializedCollection) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
@@ -180,7 +183,7 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection)
 	}
 	for _, coll := range allData {
 		AssertNotNil(coll.Kind)
-		itemsMap := make(map[string]intf.StoreSerializedItemDescriptor)
+		itemsMap := make(map[string]ldstoretypes.SerializedItemDescriptor)
 		for _, item := range coll.Items {
 			itemsMap[item.Key] = m.storableItem(item.Item)
 		}
@@ -191,22 +194,27 @@ func (m *MockPersistentDataStore) Init(allData []intf.StoreSerializedCollection)
 }
 
 // Get is a standard PersistentDataStore method.
-func (m *MockPersistentDataStore) Get(kind intf.StoreDataKind, key string) (intf.StoreSerializedItemDescriptor, error) {
+func (m *MockPersistentDataStore) Get(
+	kind ldstoretypes.DataKind,
+	key string,
+) (ldstoretypes.SerializedItemDescriptor, error) {
 	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
-		return intf.StoreSerializedItemDescriptor{}.NotFound(), m.fakeError
+		return ldstoretypes.SerializedItemDescriptor{}.NotFound(), m.fakeError
 	}
 	m.startQuery()
 	if item, ok := m.data[kind][key]; ok {
 		return m.retrievedItem(item), nil
 	}
-	return intf.StoreSerializedItemDescriptor{}.NotFound(), nil
+	return ldstoretypes.SerializedItemDescriptor{}.NotFound(), nil
 }
 
 // GetAll is a standard PersistentDataStore method.
-func (m *MockPersistentDataStore) GetAll(kind intf.StoreDataKind) ([]intf.StoreKeyedSerializedItemDescriptor, error) {
+func (m *MockPersistentDataStore) GetAll(
+	kind ldstoretypes.DataKind,
+) ([]ldstoretypes.KeyedSerializedItemDescriptor, error) {
 	AssertNotNil(kind)
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -214,18 +222,18 @@ func (m *MockPersistentDataStore) GetAll(kind intf.StoreDataKind) ([]intf.StoreK
 		return nil, m.fakeError
 	}
 	m.startQuery()
-	ret := []intf.StoreKeyedSerializedItemDescriptor{}
+	ret := []ldstoretypes.KeyedSerializedItemDescriptor{}
 	for k, v := range m.data[kind] {
-		ret = append(ret, intf.StoreKeyedSerializedItemDescriptor{Key: k, Item: m.retrievedItem(v)})
+		ret = append(ret, ldstoretypes.KeyedSerializedItemDescriptor{Key: k, Item: m.retrievedItem(v)})
 	}
 	return ret, nil
 }
 
 // Upsert is a standard PersistentDataStore method.
 func (m *MockPersistentDataStore) Upsert(
-	kind intf.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	newItem intf.StoreSerializedItemDescriptor,
+	newItem ldstoretypes.SerializedItemDescriptor,
 ) (bool, error) {
 	AssertNotNil(kind)
 	m.lock.Lock()
@@ -276,22 +284,22 @@ func (m *MockPersistentDataStore) Close() error {
 }
 
 func (m *MockPersistentDataStore) retrievedItem(
-	item intf.StoreSerializedItemDescriptor,
-) intf.StoreSerializedItemDescriptor {
+	item ldstoretypes.SerializedItemDescriptor,
+) ldstoretypes.SerializedItemDescriptor {
 	if m.persistOnlyAsString {
 		// This simulates the kind of store implementation that can't track metadata separately
-		return intf.StoreSerializedItemDescriptor{Version: 0, SerializedItem: item.SerializedItem}
+		return ldstoretypes.SerializedItemDescriptor{Version: 0, SerializedItem: item.SerializedItem}
 	}
 	return item
 }
 
 func (m *MockPersistentDataStore) storableItem(
-	item intf.StoreSerializedItemDescriptor,
-) intf.StoreSerializedItemDescriptor {
+	item ldstoretypes.SerializedItemDescriptor,
+) ldstoretypes.SerializedItemDescriptor {
 	if item.Deleted && !m.persistOnlyAsString {
 		// This simulates the kind of store implementation that *can* track metadata separately, so we don't
 		// have to persist the placeholder string for deleted items
-		return intf.StoreSerializedItemDescriptor{Version: item.Version, Deleted: true}
+		return ldstoretypes.SerializedItemDescriptor{Version: item.Version, Deleted: true}
 	}
 	return item
 }

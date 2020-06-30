@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
@@ -35,22 +37,22 @@ func makeInMemoryStore() interfaces.DataStore {
 	return NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 
-func extractCollections(allData []interfaces.StoreCollection) [][]interfaces.StoreKeyedItemDescriptor {
-	ret := [][]interfaces.StoreKeyedItemDescriptor{}
+func extractCollections(allData []ldstoretypes.Collection) [][]ldstoretypes.KeyedItemDescriptor {
+	ret := [][]ldstoretypes.KeyedItemDescriptor{}
 	for _, coll := range allData {
 		ret = append(ret, coll.Items)
 	}
 	return ret
 }
 
-type dataItemCreator func(key string, version int, otherProperty bool) interfaces.StoreItemDescriptor
+type dataItemCreator func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor
 
-func forAllDataKinds(t *testing.T, test func(*testing.T, interfaces.StoreDataKind, dataItemCreator)) {
-	test(t, interfaces.DataKindFeatures(), func(key string, version int, otherProperty bool) interfaces.StoreItemDescriptor {
+func forAllDataKinds(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, dataItemCreator)) {
+	test(t, datakinds.Features, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
 		flag := ldbuilders.NewFlagBuilder(key).Version(version).On(otherProperty).Build()
 		return sharedtest.FlagDescriptor(flag)
 	})
-	test(t, interfaces.DataKindSegments(), func(key string, version int, otherProperty bool) interfaces.StoreItemDescriptor {
+	test(t, datakinds.Segments, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
 		segment := ldbuilders.NewSegmentBuilder(key).Build()
 		segment.Version = version // SegmentBuilder doesn't currently have a Version method
 		if otherProperty {
@@ -78,12 +80,12 @@ func testInMemoryDataStoreInit(t *testing.T) {
 
 		require.NoError(t, store.Init(allData1))
 
-		flags, err := store.GetAll(interfaces.DataKindFeatures())
+		flags, err := store.GetAll(datakinds.Features)
 		require.NoError(t, err)
-		segments, err := store.GetAll(interfaces.DataKindSegments())
+		segments, err := store.GetAll(datakinds.Segments)
 		require.NoError(t, err)
 		sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
-		assert.Equal(t, extractCollections(allData1), [][]interfaces.StoreKeyedItemDescriptor{flags, segments})
+		assert.Equal(t, extractCollections(allData1), [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
 
 		flag2 := ldbuilders.NewFlagBuilder("key2").Build()
 		segment2 := ldbuilders.NewSegmentBuilder("key2").Build()
@@ -91,18 +93,18 @@ func testInMemoryDataStoreInit(t *testing.T) {
 
 		require.NoError(t, store.Init(allData2))
 
-		flags, err = store.GetAll(interfaces.DataKindFeatures())
+		flags, err = store.GetAll(datakinds.Features)
 		require.NoError(t, err)
-		segments, err = store.GetAll(interfaces.DataKindSegments())
+		segments, err = store.GetAll(datakinds.Segments)
 		require.NoError(t, err)
-		assert.Equal(t, extractCollections(allData2), [][]interfaces.StoreKeyedItemDescriptor{flags, segments})
+		assert.Equal(t, extractCollections(allData2), [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
 	})
 }
 
 func testInMemoryDataStoreGet(t *testing.T) {
 	const unknownKey = "unknown-key"
 
-	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
+	forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem dataItemCreator) {
 		t.Run("found", func(t *testing.T) {
 			store := makeInMemoryStore()
 			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
@@ -123,7 +125,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 
 			result, err := store.Get(kind, unknownKey)
 			assert.NoError(t, err)
-			assert.Equal(t, interfaces.StoreItemDescriptor{}.NotFound(), result)
+			assert.Equal(t, ldstoretypes.ItemDescriptor{}.NotFound(), result)
 
 			assert.Len(t, mockLog.GetAllOutput(), 0)
 		})
@@ -136,7 +138,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 
 			result, err := store.Get(kind, unknownKey)
 			assert.NoError(t, err)
-			assert.Equal(t, interfaces.StoreItemDescriptor{}.NotFound(), result)
+			assert.Equal(t, ldstoretypes.ItemDescriptor{}.NotFound(), result)
 
 			assert.Len(t, mockLog.GetAllOutput(), 1)
 			assert.Equal(t,
@@ -154,28 +156,28 @@ func testInMemoryDataStoreGetAll(t *testing.T) {
 	store := makeInMemoryStore()
 	require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
 
-	result, err := store.GetAll(interfaces.DataKindFeatures())
+	result, err := store.GetAll(datakinds.Features)
 	require.NoError(t, err)
 	assert.Len(t, result, 0)
 
 	flag1 := ldbuilders.NewFlagBuilder("flag1").Build()
 	flag2 := ldbuilders.NewFlagBuilder("flag2").Build()
 	segment1 := ldbuilders.NewSegmentBuilder("segment1").Build()
-	_, err = store.Upsert(interfaces.DataKindFeatures(), flag1.Key, sharedtest.FlagDescriptor(flag1))
+	_, err = store.Upsert(datakinds.Features, flag1.Key, sharedtest.FlagDescriptor(flag1))
 	require.NoError(t, err)
-	_, err = store.Upsert(interfaces.DataKindFeatures(), flag2.Key, sharedtest.FlagDescriptor(flag2))
+	_, err = store.Upsert(datakinds.Features, flag2.Key, sharedtest.FlagDescriptor(flag2))
 	require.NoError(t, err)
-	_, err = store.Upsert(interfaces.DataKindSegments(), segment1.Key, sharedtest.SegmentDescriptor(segment1))
+	_, err = store.Upsert(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1))
 	require.NoError(t, err)
 
-	flags, err := store.GetAll(interfaces.DataKindFeatures())
+	flags, err := store.GetAll(datakinds.Features)
 	require.NoError(t, err)
-	segments, err := store.GetAll(interfaces.DataKindSegments())
+	segments, err := store.GetAll(datakinds.Segments)
 	require.NoError(t, err)
 
 	sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
 	expected := extractCollections(sharedtest.NewDataSetBuilder().Flags(flag1, flag2).Segments(segment1).Build())
-	assert.Equal(t, expected, [][]interfaces.StoreKeyedItemDescriptor{flags, segments})
+	assert.Equal(t, expected, [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
 
 	result, err = store.GetAll(unknownDataKind{})
 	require.NoError(t, err)
@@ -183,7 +185,7 @@ func testInMemoryDataStoreGetAll(t *testing.T) {
 }
 
 func testInMemoryDataStoreUpsert(t *testing.T) {
-	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
+	forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem dataItemCreator) {
 		t.Run("newer version", func(t *testing.T) {
 			store := makeInMemoryStore()
 			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
@@ -244,7 +246,7 @@ func testInMemoryDataStoreUpsert(t *testing.T) {
 }
 
 func testInMemoryDataStoreDelete(t *testing.T) {
-	forAllDataKinds(t, func(t *testing.T, kind interfaces.StoreDataKind, makeItem dataItemCreator) {
+	forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem dataItemCreator) {
 		t.Run("newer version", func(t *testing.T) {
 			store := makeInMemoryStore()
 			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
@@ -254,7 +256,7 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, updated)
 
-			item1a := interfaces.StoreItemDescriptor{Version: item1.Version + 1, Item: nil}
+			item1a := ldstoretypes.ItemDescriptor{Version: item1.Version + 1, Item: nil}
 			updated, err = store.Upsert(kind, "key", item1a)
 			require.NoError(t, err)
 			assert.True(t, updated)
@@ -273,7 +275,7 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, updated)
 
-			item1a := interfaces.StoreItemDescriptor{Version: item1.Version - 1, Item: nil}
+			item1a := ldstoretypes.ItemDescriptor{Version: item1.Version - 1, Item: nil}
 			updated, err = store.Upsert(kind, "key", item1a)
 			require.NoError(t, err)
 			assert.False(t, updated)
@@ -292,7 +294,7 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, updated)
 
-			item1a := interfaces.StoreItemDescriptor{Version: item1.Version, Item: nil}
+			item1a := ldstoretypes.ItemDescriptor{Version: item1.Version, Item: nil}
 			updated, err = store.Upsert(kind, "key", item1a)
 			require.NoError(t, err)
 			assert.False(t, updated)
