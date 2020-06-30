@@ -12,6 +12,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
@@ -22,7 +24,7 @@ import (
 func assertEqualsSerializedItem(
 	t *testing.T,
 	item sh.MockDataItem,
-	serializedItemDesc intf.StoreSerializedItemDescriptor,
+	serializedItemDesc st.SerializedItemDescriptor,
 ) {
 	// This allows for the fact that a PersistentDataStore may not be able to get the item version without
 	// deserializing it, so we allow the version to be zero.
@@ -34,8 +36,8 @@ func assertEqualsSerializedItem(
 
 func assertEqualsDeletedItem(
 	t *testing.T,
-	expected intf.StoreSerializedItemDescriptor,
-	actual intf.StoreSerializedItemDescriptor,
+	expected st.SerializedItemDescriptor,
+	actual st.SerializedItemDescriptor,
 ) {
 	// As above, the PersistentDataStore may not have separate access to the version and deleted state;
 	// PersistentDataStoreWrapper compensates for this when it deserializes the item.
@@ -45,7 +47,7 @@ func assertEqualsDeletedItem(
 	} else {
 		itemDesc, err := sh.MockData.Deserialize(actual.SerializedItem)
 		assert.NoError(t, err)
-		assert.Equal(t, intf.StoreItemDescriptor{Version: expected.Version}, itemDesc)
+		assert.Equal(t, st.ItemDescriptor{Version: expected.Version}, itemDesc)
 	}
 }
 
@@ -570,9 +572,9 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	t.Run("Init", func(t *testing.T) {
-		allData := []intf.StoreSerializedCollection{
-			{Kind: intf.DataKindFeatures()},
-			{Kind: intf.DataKindSegments()},
+		allData := []st.SerializedCollection{
+			{Kind: datakinds.Features},
+			{Kind: datakinds.Segments},
 		}
 		err := store.Init(allData)
 		require.Error(t, err)
@@ -580,24 +582,24 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t *testing.T) {
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		_, err := store.Get(intf.DataKindFeatures(), "key")
+		_, err := store.Get(datakinds.Features, "key")
 		require.Error(t, err)
 		errorValidator(t, err)
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		_, err := store.GetAll(intf.DataKindFeatures())
+		_, err := store.GetAll(datakinds.Features)
 		require.Error(t, err)
 		errorValidator(t, err)
 	})
 
 	t.Run("Upsert", func(t *testing.T) {
 		desc := sh.FlagDescriptor(ldbuilders.NewFlagBuilder("key").Build())
-		sdesc := intf.StoreSerializedItemDescriptor{
+		sdesc := st.SerializedItemDescriptor{
 			Version:        1,
-			SerializedItem: intf.DataKindFeatures().Serialize(desc),
+			SerializedItem: datakinds.Features.Serialize(desc),
 		}
-		_, err := store.Upsert(intf.DataKindFeatures(), "key", sdesc)
+		_, err := store.Upsert(datakinds.Features, "key", sdesc)
 		require.Error(t, err)
 		errorValidator(t, err)
 	})
@@ -649,7 +651,7 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t *testing
 		_, err := store1.Upsert(sh.MockData, key, makeItemWithVersion(10).ToSerializedItemDescriptor())
 		assert.NoError(t, err)
 
-		var result intf.StoreSerializedItemDescriptor
+		var result st.SerializedItemDescriptor
 		result, err = store1.Get(sh.MockData, key)
 		assert.NoError(t, err)
 		assertEqualsSerializedItem(t, makeItemWithVersion(10), result)
@@ -663,7 +665,7 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t *testing
 		assert.NoError(t, err)
 		assert.False(t, updated)
 
-		var result intf.StoreSerializedItemDescriptor
+		var result st.SerializedItemDescriptor
 		result, err = store1.Get(sh.MockData, key)
 		assert.NoError(t, err)
 		assertEqualsSerializedItem(t, makeItemWithVersion(3), result)
@@ -671,9 +673,9 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t *testing
 }
 
 func itemDescriptorsToMap(
-	items []intf.StoreKeyedSerializedItemDescriptor,
-) map[string]intf.StoreSerializedItemDescriptor {
-	ret := make(map[string]intf.StoreSerializedItemDescriptor)
+	items []st.KeyedSerializedItemDescriptor,
+) map[string]st.SerializedItemDescriptor {
+	ret := make(map[string]st.SerializedItemDescriptor)
 	for _, item := range items {
 		ret[item.Key] = item.Item
 	}
@@ -709,11 +711,11 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t *testing.T) {
 	flag := makeFlagThatReturnsVariationForSegmentMatch(1, goodVariation1)
 	segment := makeSegmentThatMatchesUserKeys(1, userKey)
 
-	data := []intf.StoreCollection{
-		{Kind: intf.DataKindFeatures(), Items: []intf.StoreKeyedItemDescriptor{
+	data := []st.Collection{
+		{Kind: datakinds.Features, Items: []st.KeyedItemDescriptor{
 			{Key: flagKey, Item: sh.FlagDescriptor(flag)},
 		}},
-		{Kind: intf.DataKindSegments(), Items: []intf.StoreKeyedItemDescriptor{
+		{Kind: datakinds.Segments, Items: []st.KeyedItemDescriptor{
 			{Key: segmentKey, Item: sh.SegmentDescriptor(segment)},
 		}},
 	}
@@ -750,7 +752,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t *testing.T) {
 
 	t.Run("update flag", func(t *testing.T) {
 		flagv2 := makeFlagThatReturnsVariationForSegmentMatch(2, goodVariation2)
-		dataSourceFactory.DataSourceUpdates.Upsert(intf.DataKindFeatures(), flagKey,
+		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Features, flagKey,
 			sh.FlagDescriptor(flagv2))
 
 		flagShouldHaveValueForUser(user, goodValue2)
@@ -759,22 +761,22 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t *testing.T) {
 
 	t.Run("update segment", func(t *testing.T) {
 		segmentv2 := makeSegmentThatMatchesUserKeys(2, userKey, otherUserKey)
-		dataSourceFactory.DataSourceUpdates.Upsert(intf.DataKindSegments(), segmentKey,
+		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Segments, segmentKey,
 			sh.SegmentDescriptor(segmentv2))
 		flagShouldHaveValueForUser(otherUser, goodValue2) // otherUser is now matched by the segment
 	})
 
 	t.Run("delete segment", func(t *testing.T) {
 		// deleting the segment should cause the flag that uses it to stop matching
-		dataSourceFactory.DataSourceUpdates.Upsert(intf.DataKindSegments(), segmentKey,
-			intf.StoreItemDescriptor{Version: 3, Item: nil})
+		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Segments, segmentKey,
+			st.ItemDescriptor{Version: 3, Item: nil})
 		flagShouldHaveValueForUser(user, badValue)
 	})
 
 	t.Run("delete flag", func(t *testing.T) {
 		// deleting the flag should cause the flag to become unknown
-		dataSourceFactory.DataSourceUpdates.Upsert(intf.DataKindFeatures(), flagKey,
-			intf.StoreItemDescriptor{Version: 3, Item: nil})
+		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Features, flagKey,
+			st.ItemDescriptor{Version: 3, Item: nil})
 		value, detail, err := client.JSONVariationDetail(flagKey, user, ldvalue.Null())
 		assert.Error(t, err)
 		assert.Equal(t, ldvalue.Null(), value)

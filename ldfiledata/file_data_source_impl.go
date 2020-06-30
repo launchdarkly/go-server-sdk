@@ -17,6 +17,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
 
 type fileDataSource struct {
@@ -145,10 +147,10 @@ type fileData struct {
 }
 
 func insertData(
-	all map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor,
-	kind interfaces.StoreDataKind,
+	all map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor,
+	kind ldstoretypes.DataKind,
 	key string,
-	data interfaces.StoreItemDescriptor,
+	data ldstoretypes.ItemDescriptor,
 ) error {
 	if _, exists := all[kind][key]; exists {
 		return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
@@ -180,17 +182,17 @@ func detectJSON(rawData []byte) bool {
 	return strings.HasPrefix(strings.TrimLeftFunc(string(rawData), unicode.IsSpace), "{")
 }
 
-func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error) {
-	all := map[interfaces.StoreDataKind]map[string]interfaces.StoreItemDescriptor{
-		interfaces.DataKindFeatures(): {},
-		interfaces.DataKindSegments(): {},
+func mergeFileData(allFileData ...fileData) ([]ldstoretypes.Collection, error) {
+	all := map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
+		datakinds.Features: {},
+		datakinds.Segments: {},
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				ff := f
-				data := interfaces.StoreItemDescriptor{Version: f.Version, Item: &ff}
-				if err := insertData(all, interfaces.DataKindFeatures(), key, data); err != nil {
+				data := ldstoretypes.ItemDescriptor{Version: f.Version, Item: &ff}
+				if err := insertData(all, datakinds.Features, key, data); err != nil {
 					return nil, err
 				}
 			}
@@ -198,8 +200,8 @@ func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error
 		if d.FlagValues != nil {
 			for key, value := range *d.FlagValues {
 				flag := makeFlagWithValue(key, value)
-				data := interfaces.StoreItemDescriptor{Version: flag.Version, Item: flag}
-				if err := insertData(all, interfaces.DataKindFeatures(), key, data); err != nil {
+				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
+				if err := insertData(all, datakinds.Features, key, data); err != nil {
 					return nil, err
 				}
 			}
@@ -207,20 +209,20 @@ func mergeFileData(allFileData ...fileData) ([]interfaces.StoreCollection, error
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				ss := s
-				data := interfaces.StoreItemDescriptor{Version: s.Version, Item: &ss}
-				if err := insertData(all, interfaces.DataKindSegments(), key, data); err != nil {
+				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &ss}
+				if err := insertData(all, datakinds.Segments, key, data); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
-	ret := []interfaces.StoreCollection{}
+	ret := []ldstoretypes.Collection{}
 	for kind, itemsMap := range all {
-		items := make([]interfaces.StoreKeyedItemDescriptor, 0, len(itemsMap))
+		items := make([]ldstoretypes.KeyedItemDescriptor, 0, len(itemsMap))
 		for k, v := range itemsMap {
-			items = append(items, interfaces.StoreKeyedItemDescriptor{Key: k, Item: v})
+			items = append(items, ldstoretypes.KeyedItemDescriptor{Key: k, Item: v})
 		}
-		ret = append(ret, interfaces.StoreCollection{Kind: kind, Items: items})
+		ret = append(ret, ldstoretypes.Collection{Kind: kind, Items: items})
 	}
 	return ret, nil
 }

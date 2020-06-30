@@ -7,7 +7,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
@@ -97,23 +98,23 @@ func checkForHTTPError(statusCode int, url string) error {
 func makeAllStoreData(
 	flags map[string]*ldmodel.FeatureFlag,
 	segments map[string]*ldmodel.Segment,
-) []interfaces.StoreCollection {
-	flagsColl := make([]interfaces.StoreKeyedItemDescriptor, 0, len(flags))
+) []st.Collection {
+	flagsColl := make([]st.KeyedItemDescriptor, 0, len(flags))
 	for key, flag := range flags {
-		flagsColl = append(flagsColl, interfaces.StoreKeyedItemDescriptor{
+		flagsColl = append(flagsColl, st.KeyedItemDescriptor{
 			Key:  key,
 			Item: sharedtest.FlagDescriptor(*flag),
 		})
 	}
-	segmentsColl := make([]interfaces.StoreKeyedItemDescriptor, 0, len(segments))
+	segmentsColl := make([]st.KeyedItemDescriptor, 0, len(segments))
 	for key, segment := range segments {
-		segmentsColl = append(segmentsColl, interfaces.StoreKeyedItemDescriptor{
+		segmentsColl = append(segmentsColl, st.KeyedItemDescriptor{
 			Key:  key,
 			Item: sharedtest.SegmentDescriptor(*segment),
 		})
 	}
-	return []interfaces.StoreCollection{
-		interfaces.StoreCollection{Kind: interfaces.DataKindFeatures(), Items: flagsColl},
-		interfaces.StoreCollection{Kind: interfaces.DataKindSegments(), Items: segmentsColl},
+	return []st.Collection{
+		st.Collection{Kind: datakinds.Features, Items: flagsColl},
+		st.Collection{Kind: datakinds.Segments, Items: segmentsColl},
 	}
 }

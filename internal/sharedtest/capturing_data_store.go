@@ -11,12 +11,14 @@ import (
 
 	"github.com/launchdarkly/go-test-helpers/ldservices"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
 
 type upsertParams struct {
-	kind interfaces.StoreDataKind
+	kind ldstoretypes.DataKind
 	key  string
-	item interfaces.StoreItemDescriptor
+	item ldstoretypes.ItemDescriptor
 }
 
 // CapturingDataStore is a DataStore implementation that records update operations for testing.
@@ -24,7 +26,7 @@ type CapturingDataStore struct {
 	realStore               interfaces.DataStore
 	statusMonitoringEnabled bool
 	fakeError               error
-	inits                   chan []interfaces.StoreCollection
+	inits                   chan []ldstoretypes.Collection
 	upserts                 chan upsertParams
 	lock                    sync.Mutex
 }
@@ -33,14 +35,14 @@ type CapturingDataStore struct {
 func NewCapturingDataStore(realStore interfaces.DataStore) *CapturingDataStore {
 	return &CapturingDataStore{
 		realStore:               realStore,
-		inits:                   make(chan []interfaces.StoreCollection, 10),
+		inits:                   make(chan []ldstoretypes.Collection, 10),
 		upserts:                 make(chan upsertParams, 10),
 		statusMonitoringEnabled: true,
 	}
 }
 
 // Init is a standard DataStore method.
-func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
+func (d *CapturingDataStore) Init(allData []ldstoretypes.Collection) error {
 	for _, coll := range allData {
 		AssertNotNil(coll.Kind)
 	}
@@ -52,16 +54,16 @@ func (d *CapturingDataStore) Init(allData []interfaces.StoreCollection) error {
 }
 
 // Get is a standard DataStore method.
-func (d *CapturingDataStore) Get(kind interfaces.StoreDataKind, key string) (interfaces.StoreItemDescriptor, error) {
+func (d *CapturingDataStore) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
 	AssertNotNil(kind)
 	if d.fakeError != nil {
-		return interfaces.StoreItemDescriptor{}.NotFound(), d.fakeError
+		return ldstoretypes.ItemDescriptor{}.NotFound(), d.fakeError
 	}
 	return d.realStore.Get(kind, key)
 }
 
 // GetAll is a standard DataStore method.
-func (d *CapturingDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces.StoreKeyedItemDescriptor, error) {
+func (d *CapturingDataStore) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	AssertNotNil(kind)
 	if d.fakeError != nil {
 		return nil, d.fakeError
@@ -71,9 +73,9 @@ func (d *CapturingDataStore) GetAll(kind interfaces.StoreDataKind) ([]interfaces
 
 // Upsert in this test type does nothing but capture its parameters.
 func (d *CapturingDataStore) Upsert(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	newItem interfaces.StoreItemDescriptor,
+	newItem ldstoretypes.ItemDescriptor,
 ) (bool, error) {
 	AssertNotNil(kind)
 	d.upserts <- upsertParams{kind, key, newItem}
@@ -119,7 +121,7 @@ func (d *CapturingDataStore) SetFakeError(fakeError error) {
 func (d *CapturingDataStore) WaitForNextInit(
 	t *testing.T,
 	timeout time.Duration,
-) []interfaces.StoreCollection {
+) []ldstoretypes.Collection {
 	select {
 	case inited := <-d.inits:
 		return inited
@@ -147,7 +149,7 @@ func (d *CapturingDataStore) WaitForInit(
 // WaitForUpsert waits for an Upsert call and verifies that it matches the expected data.
 func (d *CapturingDataStore) WaitForUpsert(
 	t *testing.T,
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
 	version int,
 	timeout time.Duration,
@@ -166,7 +168,7 @@ func (d *CapturingDataStore) WaitForUpsert(
 // WaitForDelete waits for an Upsert call that is expected to delete a data item.
 func (d *CapturingDataStore) WaitForDelete(
 	t *testing.T,
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
 	version int,
 	timeout time.Duration,
@@ -185,15 +187,15 @@ func (d *CapturingDataStore) WaitForDelete(
 func assertReceivedInitDataEquals(
 	t *testing.T,
 	expected *ldservices.ServerSDKData,
-	received []interfaces.StoreCollection,
+	received []ldstoretypes.Collection,
 ) {
 	assert.Equal(t, 2, len(received))
 	for _, coll := range received {
 		var itemsMap map[string]interface{}
 		switch coll.Kind {
-		case interfaces.DataKindFeatures():
+		case datakinds.Features:
 			itemsMap = expected.FlagsMap
-		case interfaces.DataKindSegments():
+		case datakinds.Segments:
 			itemsMap = expected.SegmentsMap
 		default:
 			assert.Fail(t, "received unknown data kind: %s", coll.Kind)

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	s "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
@@ -125,13 +126,13 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 
 		item, err := w.Get(s.MockData, itemv1.Key)
 		require.NoError(t, err)
-		require.Equal(t, intf.StoreItemDescriptor{}.NotFound(), item)
+		require.Equal(t, st.ItemDescriptor{}.NotFound(), item)
 
 		core.ForceSet(s.MockData, itemv1.Key, itemv1.ToSerializedItemDescriptor())
 		item, err = w.Get(s.MockData, itemv1.Key)
 		require.NoError(t, err)
 		if mode.isCached() {
-			require.Equal(t, intf.StoreItemDescriptor{}.NotFound(), item) // the cache retains a nil result
+			require.Equal(t, st.ItemDescriptor{}.NotFound(), item) // the cache retains a nil result
 		} else {
 			require.Equal(t, itemv1.ToItemDescriptor(), item) // no caching, calls getter
 		}
@@ -139,8 +140,8 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 
 	testWithMockPersistentDataStore(t, "deleted item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 		key := "item"
-		deletedItemDesc := intf.StoreItemDescriptor{Version: 1}
-		serializedDeletedItemDesc := intf.StoreSerializedItemDescriptor{Version: 1}
+		deletedItemDesc := st.ItemDescriptor{Version: 1}
+		serializedDeletedItemDesc := st.SerializedItemDescriptor{Version: 1}
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
 
 		core.ForceSet(s.MockData, key, serializedDeletedItemDesc)
@@ -160,7 +161,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 
 	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 		key := "item"
-		core.ForceSet(s.MockData, key, intf.StoreSerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
+		core.ForceSet(s.MockData, key, st.SerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
 
 		_, err := w.Get(s.MockData, key)
 		require.Error(t, err)
@@ -246,18 +247,18 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 		require.NoError(t, err)
 		require.Equal(t, 2, len(items))
 		sort.Slice(items, func(i, j int) bool { return items[i].Key < items[j].Key })
-		assert.Equal(t, []intf.StoreKeyedItemDescriptor{item1.ToKeyedItemDescriptor(), item2.ToKeyedItemDescriptor()}, items)
+		assert.Equal(t, []st.KeyedItemDescriptor{item1.ToKeyedItemDescriptor(), item2.ToKeyedItemDescriptor()}, items)
 
 		items, err = w.GetAll(s.MockOtherData)
 		require.NoError(t, err)
 		require.Equal(t, 1, len(items))
-		assert.Equal(t, []intf.StoreKeyedItemDescriptor{otherItem1.ToKeyedItemDescriptor()}, items)
+		assert.Equal(t, []st.KeyedItemDescriptor{otherItem1.ToKeyedItemDescriptor()}, items)
 	})
 
 	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 		item1 := s.MockDataItem{Key: "item1", Version: 1}
 		core.ForceSet(s.MockData, item1.Key, item1.ToSerializedItemDescriptor())
-		core.ForceSet(s.MockData, "item2", intf.StoreSerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
+		core.ForceSet(s.MockData, "item2", st.SerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
 
 		_, err := w.GetAll(s.MockData)
 		require.Error(t, err)
@@ -394,7 +395,7 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 		key := "item"
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
-		deletedv2 := intf.StoreItemDescriptor{Version: 2}
+		deletedv2 := st.ItemDescriptor{Version: 2}
 
 		updated, err := w.Upsert(s.MockData, key, itemv1.ToItemDescriptor())
 		require.NoError(t, err)
@@ -420,7 +421,7 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
 		key := "item"
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
-		deletedv1 := intf.StoreItemDescriptor{Version: 1}
+		deletedv1 := st.ItemDescriptor{Version: 1}
 
 		updated, err := w.Upsert(s.MockData, key, itemv2.ToItemDescriptor())
 		require.NoError(t, err)
@@ -506,7 +507,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 				core.SetFakeError(myError)
 				err := w.Init(s.MakeMockDataSet(itemv1))
 				assert.Equal(t, myError, err)
-				assert.Equal(t, intf.StoreSerializedItemDescriptor{}.NotFound(), core.ForceGet(s.MockData, key)) // underlying store does not have data
+				assert.Equal(t, st.SerializedItemDescriptor{}.NotFound(), core.ForceGet(s.MockData, key)) // underlying store does not have data
 
 				core.SetFakeError(nil)
 				result, err := w.GetAll(s.MockData)
@@ -544,7 +545,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 				core.SetFakeError(myError)
 				err := w.Init(s.MakeMockDataSet(itemv1))
 				assert.Equal(t, myError, err)
-				assert.Equal(t, intf.StoreSerializedItemDescriptor{}.NotFound(), core.ForceGet(s.MockData, key)) // underlying store does not have data
+				assert.Equal(t, st.SerializedItemDescriptor{}.NotFound(), core.ForceGet(s.MockData, key)) // underlying store does not have data
 
 				core.SetFakeError(nil)
 				result, err := w.GetAll(s.MockData)

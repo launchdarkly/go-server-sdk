@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
@@ -44,11 +46,11 @@ func TestFlagTracker(t *testing.T) {
 	t.Run("sends flag change events", func(t *testing.T) {
 		clientDataSourceStatusProviderTest(func(client *LDClient, updates interfaces.DataSourceUpdates) {
 			flag1v1 := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
-			allData := []interfaces.StoreCollection{
-				{Kind: interfaces.DataKindFeatures(), Items: []interfaces.StoreKeyedItemDescriptor{
+			allData := []ldstoretypes.Collection{
+				{Kind: datakinds.Features, Items: []ldstoretypes.KeyedItemDescriptor{
 					{Key: flag1v1.Key, Item: sharedtest.FlagDescriptor(flag1v1)},
 				}},
-				{Kind: interfaces.DataKindSegments(), Items: nil},
+				{Kind: datakinds.Segments, Items: nil},
 			}
 			_ = updates.Init(allData)
 
@@ -59,14 +61,14 @@ func TestFlagTracker(t *testing.T) {
 			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch2)
 
 			flag1v2 := ldbuilders.NewFlagBuilder(flag1v1.Key).Version(2).Build()
-			_ = updates.Upsert(interfaces.DataKindFeatures(), flag1v1.Key, sharedtest.FlagDescriptor(flag1v2))
+			_ = updates.Upsert(datakinds.Features, flag1v1.Key, sharedtest.FlagDescriptor(flag1v2))
 
 			sharedtest.ExpectFlagChangeEvents(t, ch1, flag1v1.Key)
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flag1v1.Key)
 
 			client.GetFlagTracker().RemoveFlagChangeListener(ch1)
 			flag1v3 := ldbuilders.NewFlagBuilder(flag1v1.Key).Version(3).Build()
-			_ = updates.Upsert(interfaces.DataKindFeatures(), flag1v1.Key, sharedtest.FlagDescriptor(flag1v3))
+			_ = updates.Upsert(datakinds.Features, flag1v1.Key, sharedtest.FlagDescriptor(flag1v3))
 
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flag1v1.Key)
 			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
@@ -81,11 +83,11 @@ func TestFlagTracker(t *testing.T) {
 			Variations(ldvalue.Bool(false), ldvalue.Bool(true)).On(false).OffVariation(0).Build()
 
 		clientDataSourceStatusProviderTest(func(client *LDClient, updates interfaces.DataSourceUpdates) {
-			initialData := []interfaces.StoreCollection{
-				{Kind: interfaces.DataKindFeatures(), Items: []interfaces.StoreKeyedItemDescriptor{
+			initialData := []ldstoretypes.Collection{
+				{Kind: datakinds.Features, Items: []ldstoretypes.KeyedItemDescriptor{
 					{Key: alwaysFalseFlag.Key, Item: sharedtest.FlagDescriptor(alwaysFalseFlag)},
 				}},
-				{Kind: interfaces.DataKindSegments(), Items: nil},
+				{Kind: datakinds.Segments, Items: nil},
 			}
 			_ = updates.Init(initialData)
 
@@ -104,7 +106,7 @@ func TestFlagTracker(t *testing.T) {
 				On(true).FallthroughVariation(0).
 				AddTarget(1, user.GetKey()).
 				Build()
-			_ = updates.Upsert(interfaces.DataKindFeatures(), flagKey, sharedtest.FlagDescriptor(flagIsTrueForMyUserOnly))
+			_ = updates.Upsert(datakinds.Features, flagKey, sharedtest.FlagDescriptor(flagIsTrueForMyUserOnly))
 
 			// ch1 receives a value change event
 			event1 := <-ch1

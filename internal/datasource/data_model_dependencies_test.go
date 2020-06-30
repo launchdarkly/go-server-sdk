@@ -11,7 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
@@ -19,7 +20,7 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("key").Build()
 	assert.Len(
 		t,
-		computeDependenciesFrom(intf.DataKindFeatures(), sharedtest.FlagDescriptor(flag1)),
+		computeDependenciesFrom(datakinds.Features, sharedtest.FlagDescriptor(flag1)),
 		0,
 	)
 
@@ -41,13 +42,13 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 	assert.Equal(
 		t,
 		kindAndKeySet{
-			{intf.DataKindFeatures(), "flag2"}:    true,
-			{intf.DataKindFeatures(), "flag3"}:    true,
-			{intf.DataKindSegments(), "segment1"}: true,
-			{intf.DataKindSegments(), "segment2"}: true,
-			{intf.DataKindSegments(), "segment3"}: true,
+			{datakinds.Features, "flag2"}:    true,
+			{datakinds.Features, "flag3"}:    true,
+			{datakinds.Segments, "segment1"}: true,
+			{datakinds.Segments, "segment2"}: true,
+			{datakinds.Segments, "segment3"}: true,
 		},
-		computeDependenciesFrom(intf.DataKindFeatures(), sharedtest.FlagDescriptor(flag2)),
+		computeDependenciesFrom(datakinds.Features, sharedtest.FlagDescriptor(flag2)),
 	)
 
 	flag3 := ldbuilders.NewFlagBuilder("key").
@@ -61,10 +62,10 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 	assert.Equal(
 		t,
 		kindAndKeySet{
-			{intf.DataKindSegments(), "segment1"}: true,
-			{intf.DataKindSegments(), "segment2"}: true,
+			{datakinds.Segments, "segment1"}: true,
+			{datakinds.Segments, "segment2"}: true,
 		},
-		computeDependenciesFrom(intf.DataKindFeatures(), sharedtest.FlagDescriptor(flag3)),
+		computeDependenciesFrom(datakinds.Features, sharedtest.FlagDescriptor(flag3)),
 	)
 }
 
@@ -72,7 +73,7 @@ func TestComputeDependenciesFromSegment(t *testing.T) {
 	segment := ldbuilders.NewSegmentBuilder("segment").Build()
 	assert.Len(
 		t,
-		computeDependenciesFrom(intf.DataKindSegments(), intf.StoreItemDescriptor{Version: segment.Version, Item: &segment}),
+		computeDependenciesFrom(datakinds.Segments, st.ItemDescriptor{Version: segment.Version, Item: &segment}),
 		0,
 	)
 }
@@ -80,7 +81,7 @@ func TestComputeDependenciesFromSegment(t *testing.T) {
 func TestComputeDependenciesFromUnknownDataKind(t *testing.T) {
 	assert.Len(
 		t,
-		computeDependenciesFrom(sharedtest.MockData, intf.StoreItemDescriptor{Version: 1, Item: "x"}),
+		computeDependenciesFrom(sharedtest.MockData, st.ItemDescriptor{Version: 1, Item: "x"}),
 		0,
 	)
 }
@@ -88,7 +89,7 @@ func TestComputeDependenciesFromUnknownDataKind(t *testing.T) {
 func TestComputeDependenciesFromNullItem(t *testing.T) {
 	assert.Len(
 		t,
-		computeDependenciesFrom(intf.DataKindFeatures(), intf.StoreItemDescriptor{Version: 1, Item: nil}),
+		computeDependenciesFrom(datakinds.Features, st.ItemDescriptor{Version: 1, Item: nil}),
 		0,
 	)
 }
@@ -103,22 +104,22 @@ func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
 	item1 := sharedtest.MockDataItem{Key: "item1"}
 	item2 := sharedtest.MockDataItem{Key: "item2"}
 	flag := ldbuilders.NewFlagBuilder("a").Build()
-	inputData := []intf.StoreCollection{
-		{sharedtest.MockData, []intf.StoreKeyedItemDescriptor{
+	inputData := []st.Collection{
+		{sharedtest.MockData, []st.KeyedItemDescriptor{
 			{item1.Key, item1.ToItemDescriptor()},
 			{item2.Key, item2.ToItemDescriptor()},
 		}},
-		{intf.DataKindFeatures(), []intf.StoreKeyedItemDescriptor{
+		{datakinds.Features, []st.KeyedItemDescriptor{
 			{"a", sharedtest.FlagDescriptor(flag)},
 		}},
-		{intf.DataKindSegments(), nil},
+		{datakinds.Segments, nil},
 	}
 	sortedData := sortCollectionsForDataStoreInit(inputData)
 
 	// the unknown data kind appears last, and the ordering of its items is unchanged
 	assert.Len(t, sortedData, 3)
-	assert.Equal(t, intf.DataKindSegments(), sortedData[0].Kind)
-	assert.Equal(t, intf.DataKindFeatures(), sortedData[1].Kind)
+	assert.Equal(t, datakinds.Segments, sortedData[0].Kind)
+	assert.Equal(t, datakinds.Features, sortedData[1].Kind)
 	assert.Equal(t, sharedtest.MockData, sortedData[2].Kind)
 	assert.Equal(t, inputData[0].Items, sortedData[2].Items)
 }
@@ -127,7 +128,7 @@ func TestDependencyTrackerReturnsSingleValueResultForUnknownItem(t *testing.T) {
 	dt := newDependencyTracker()
 
 	// a change to any item with no known depenencies affects only itself
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag1", kindAndKey{intf.DataKindFeatures(), "flag1"})
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1", kindAndKey{datakinds.Features, "flag1"})
 }
 
 func TestDependencyTrackerBuildsGraph(t *testing.T) {
@@ -142,7 +143,7 @@ func TestDependencyTrackerBuildsGraph(t *testing.T) {
 			),
 		).
 		Build()
-	dt.updateDependenciesFrom(intf.DataKindFeatures(), flag1.Key, intf.StoreItemDescriptor{Version: flag1.Version, Item: &flag1})
+	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
 	flag2 := ldbuilders.NewFlagBuilder("flag2").
 		AddPrerequisite("flag4", 0).
@@ -152,36 +153,36 @@ func TestDependencyTrackerBuildsGraph(t *testing.T) {
 			),
 		).
 		Build()
-	dt.updateDependenciesFrom(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+	dt.updateDependenciesFrom(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
 	// a change to flag1 affects only flag1
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag1",
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1",
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 
 	// a change to flag2 affects flag2 and flag1
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag2",
-		kindAndKey{intf.DataKindFeatures(), "flag2"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag2",
+		kindAndKey{datakinds.Features, "flag2"},
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 
 	// a change to flag3 affects flag3 and flag1
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag3",
-		kindAndKey{intf.DataKindFeatures(), "flag3"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
+		kindAndKey{datakinds.Features, "flag3"},
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 
 	// a change to segment1 affects segment1 and flag1
-	verifyDependencyAffectedItems(t, dt, intf.DataKindSegments(), "segment1",
-		kindAndKey{intf.DataKindSegments(), "segment1"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment1",
+		kindAndKey{datakinds.Segments, "segment1"},
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 
 	// a change to segment2 affects segment2, flag1, and flag2
-	verifyDependencyAffectedItems(t, dt, intf.DataKindSegments(), "segment2",
-		kindAndKey{intf.DataKindSegments(), "segment2"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
-		kindAndKey{intf.DataKindFeatures(), "flag2"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment2",
+		kindAndKey{datakinds.Segments, "segment2"},
+		kindAndKey{datakinds.Features, "flag1"},
+		kindAndKey{datakinds.Features, "flag2"},
 	)
 }
 
@@ -191,36 +192,36 @@ func TestDependencyTrackerUpdatesGraph(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag3", 0).
 		Build()
-	dt.updateDependenciesFrom(intf.DataKindFeatures(), flag1.Key, intf.StoreItemDescriptor{Version: flag1.Version, Item: &flag1})
+	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
 	flag2 := ldbuilders.NewFlagBuilder("flag2").
 		AddPrerequisite("flag3", 0).
 		Build()
-	dt.updateDependenciesFrom(intf.DataKindFeatures(), flag2.Key, intf.StoreItemDescriptor{Version: flag2.Version, Item: &flag2})
+	dt.updateDependenciesFrom(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
 	// at this point, a change to flag3 affects flag3, flag2, and flag1
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag3",
-		kindAndKey{intf.DataKindFeatures(), "flag3"},
-		kindAndKey{intf.DataKindFeatures(), "flag2"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
+		kindAndKey{datakinds.Features, "flag3"},
+		kindAndKey{datakinds.Features, "flag2"},
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 
 	// now make it so flag1 now depends on flag4 instead of flag2
 	flag1v2 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag4", 0).
 		Build()
-	dt.updateDependenciesFrom(intf.DataKindFeatures(), flag1.Key, intf.StoreItemDescriptor{Version: flag1v2.Version, Item: &flag1v2})
+	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1v2.Version, Item: &flag1v2})
 
 	// now, a change to flag3 affects flag3 and flag2
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag3",
-		kindAndKey{intf.DataKindFeatures(), "flag3"},
-		kindAndKey{intf.DataKindFeatures(), "flag2"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
+		kindAndKey{datakinds.Features, "flag3"},
+		kindAndKey{datakinds.Features, "flag2"},
 	)
 
 	// and a change to flag4 affects flag4 and flag1
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag4",
-		kindAndKey{intf.DataKindFeatures(), "flag4"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag4",
+		kindAndKey{datakinds.Features, "flag4"},
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 }
 
@@ -230,24 +231,24 @@ func TestDependencyTrackerResetsGraph(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag3", 0).
 		Build()
-	dt.updateDependenciesFrom(intf.DataKindFeatures(), flag1.Key, intf.StoreItemDescriptor{Version: flag1.Version, Item: &flag1})
+	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag3",
-		kindAndKey{intf.DataKindFeatures(), "flag3"},
-		kindAndKey{intf.DataKindFeatures(), "flag1"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
+		kindAndKey{datakinds.Features, "flag3"},
+		kindAndKey{datakinds.Features, "flag1"},
 	)
 
 	dt.reset()
 
-	verifyDependencyAffectedItems(t, dt, intf.DataKindFeatures(), "flag3",
-		kindAndKey{intf.DataKindFeatures(), "flag3"},
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
+		kindAndKey{datakinds.Features, "flag3"},
 	)
 }
 
 func verifyDependencyAffectedItems(
 	t *testing.T,
 	dt *dependencyTracker,
-	kind intf.StoreDataKind,
+	kind st.DataKind,
 	key string,
 	expected ...kindAndKey,
 ) {
@@ -260,7 +261,7 @@ func verifyDependencyAffectedItems(
 	assert.Equal(t, expectedSet, result)
 }
 
-func makeDependencyOrderingDataSourceTestData() []intf.StoreCollection {
+func makeDependencyOrderingDataSourceTestData() []st.Collection {
 	return sharedtest.NewDataSetBuilder().
 		Flags(
 			ldbuilders.NewFlagBuilder("a").AddPrerequisite("b", 0).AddPrerequisite("c", 0).Build(),
@@ -276,15 +277,15 @@ func makeDependencyOrderingDataSourceTestData() []intf.StoreCollection {
 		Build()
 }
 
-func verifySortedData(t *testing.T, sortedData []intf.StoreCollection, inputData []intf.StoreCollection) {
+func verifySortedData(t *testing.T, sortedData []st.Collection, inputData []st.Collection) {
 	assert.Len(t, sortedData, len(inputData))
 
-	assert.Equal(t, intf.DataKindSegments(), sortedData[0].Kind) // Segments should always be first
-	assert.Equal(t, intf.DataKindFeatures(), sortedData[1].Kind)
+	assert.Equal(t, datakinds.Segments, sortedData[0].Kind) // Segments should always be first
+	assert.Equal(t, datakinds.Features, sortedData[1].Kind)
 
 	inputDataMap := fullDataSetToMap(inputData)
-	assert.Len(t, sortedData[0].Items, len(inputDataMap[intf.DataKindSegments()]))
-	assert.Len(t, sortedData[1].Items, len(inputDataMap[intf.DataKindFeatures()]))
+	assert.Len(t, sortedData[0].Items, len(inputDataMap[datakinds.Segments]))
+	assert.Len(t, sortedData[1].Items, len(inputDataMap[datakinds.Features]))
 
 	flags := sortedData[1].Items
 	findFlagIndex := func(key string) int {

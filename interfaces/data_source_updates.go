@@ -1,5 +1,7 @@
 package interfaces
 
+import "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+
 // DataSourceUpdates is an interface that a data source implementation will use to push data into the SDK.
 //
 // Application code does not need to use this type. It is for data source implementations.
@@ -13,12 +15,12 @@ type DataSourceUpdates interface {
 	// and set the data source state to DataSourceStateInterrupted with an error of
 	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
 	// return false to indicate that the operation failed.
-	Init(allData []StoreCollection) bool
+	Init(allData []ldstoretypes.Collection) bool
 
 	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
 	// updated if the existing version is less than the new version.
 	//
-	// To mark an item as deleted, pass a StoreItemDescriptor with a nil Item and a nonzero version
+	// To mark an item as deleted, pass an ItemDescriptor with a nil Item and a nonzero version
 	// number. Deletions must be versioned so that they do not overwrite a later update in case updates
 	// are received out of order.
 	//
@@ -26,7 +28,7 @@ type DataSourceUpdates interface {
 	// and set the data source state to DataSourceStateInterrupted with an error of
 	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
 	// return false to indicate that the operation failed.
-	Upsert(kind StoreDataKind, key string, item StoreItemDescriptor) bool
+	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool
 
 	// UpdateStatus informs the SDK of a change in the data source's status.
 	//

@@ -26,9 +26,11 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
 // Version is the client version.
@@ -157,7 +159,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	client.store = store
 
-	dataProvider := interfaces.NewDataStoreEvaluatorDataProvider(store, loggers)
+	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
 	client.evaluator = ldeval.NewEvaluator(dataProvider)
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
@@ -399,7 +401,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		return FeatureFlagsState{valid: false}
 	}
 
-	items, err := client.store.GetAll(interfaces.DataKindFeatures())
+	items, err := client.store.GetAll(datakinds.Features)
 	if err != nil {
 		client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
@@ -655,7 +657,7 @@ func (client *LDClient) evaluateInternal(
 		}
 	}
 
-	itemDesc, storeErr := client.store.Get(interfaces.DataKindFeatures(), key)
+	itemDesc, storeErr := client.store.Get(datakinds.Features, key)
 
 	if storeErr != nil {
 		client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)

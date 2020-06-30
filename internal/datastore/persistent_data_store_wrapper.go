@@ -10,6 +10,8 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
 
 // persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.
@@ -61,7 +63,7 @@ func NewPersistentDataStoreWrapper(
 	return w
 }
 
-func (w *persistentDataStoreWrapper) Init(allData []intf.StoreCollection) error {
+func (w *persistentDataStoreWrapper) Init(allData []st.Collection) error {
 	err := w.initCore(allData)
 	if w.cache != nil {
 		w.cache.Flush()
@@ -86,7 +88,7 @@ func (w *persistentDataStoreWrapper) Init(allData []intf.StoreCollection) error 
 	return err
 }
 
-func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (intf.StoreItemDescriptor, error) {
+func (w *persistentDataStoreWrapper) Get(kind st.DataKind, key string) (st.ItemDescriptor, error) {
 	if w.cache == nil {
 		item, err := w.getAndDeserializeItem(kind, key)
 		w.processError(err)
@@ -94,7 +96,7 @@ func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (i
 	}
 	cacheKey := dataStoreCacheKey(kind, key)
 	if data, present := w.cache.Get(cacheKey); present {
-		if item, ok := data.(intf.StoreItemDescriptor); ok {
+		if item, ok := data.(st.ItemDescriptor); ok {
 			return item, nil
 		}
 	}
@@ -111,17 +113,17 @@ func (w *persistentDataStoreWrapper) Get(kind intf.StoreDataKind, key string) (i
 		return nil, err
 	})
 	if err != nil || itemIntf == nil {
-		return intf.StoreItemDescriptor{}.NotFound(), err
+		return st.ItemDescriptor{}.NotFound(), err
 	}
-	if item, ok := itemIntf.(intf.StoreItemDescriptor); ok { // singleflight.Group.Do returns value as interface{}
+	if item, ok := itemIntf.(st.ItemDescriptor); ok { // singleflight.Group.Do returns value as interface{}
 		return item, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemIntf)
 	// COVERAGE: there is no way to simulate this condition in unit tests; it should be impossible
-	return intf.StoreItemDescriptor{}.NotFound(), nil
+	return st.ItemDescriptor{}.NotFound(), nil
 }
 
-func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.StoreKeyedItemDescriptor, error) {
+func (w *persistentDataStoreWrapper) GetAll(kind st.DataKind) ([]st.KeyedItemDescriptor, error) {
 	if w.cache == nil {
 		items, err := w.getAllAndDeserialize(kind)
 		w.processError(err)
@@ -130,7 +132,7 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 	// Check whether we have a cache item for the entire data set
 	cacheKey := dataStoreAllItemsCacheKey(kind)
 	if data, present := w.cache.Get(cacheKey); present {
-		if items, ok := data.([]intf.StoreKeyedItemDescriptor); ok {
+		if items, ok := data.([]st.KeyedItemDescriptor); ok {
 			return items, nil
 		}
 	}
@@ -149,7 +151,7 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 	if err != nil {
 		return nil, err
 	}
-	if items, ok := itemsIntf.([]intf.StoreKeyedItemDescriptor); ok { // singleflight.Group.Do returns value as interface{}
+	if items, ok := itemsIntf.([]st.KeyedItemDescriptor); ok { // singleflight.Group.Do returns value as interface{}
 		return items, err
 	}
 	w.loggers.Errorf("data store query returned unexpected type %T", itemsIntf)
@@ -158,9 +160,9 @@ func (w *persistentDataStoreWrapper) GetAll(kind intf.StoreDataKind) ([]intf.Sto
 }
 
 func (w *persistentDataStoreWrapper) Upsert(
-	kind intf.StoreDataKind,
+	kind st.DataKind,
 	key string,
-	newItem intf.StoreItemDescriptor,
+	newItem st.ItemDescriptor,
 ) (bool, error) {
 	serializedItem := w.serialize(kind, newItem)
 	updated, err := w.core.Upsert(kind, key, serializedItem)
@@ -186,7 +188,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 				// even if the underlying store is unavailable).
 				if w.hasCacheWithInfiniteTTL() {
 					if data, present := w.cache.Get(allCacheKey); present {
-						if items, ok := data.([]intf.StoreKeyedItemDescriptor); ok {
+						if items, ok := data.([]st.KeyedItemDescriptor); ok {
 							w.cache.Set(allCacheKey, updateSingleItem(items, key, newItem), cache.DefaultExpiration)
 						}
 					}
@@ -205,9 +207,9 @@ func (w *persistentDataStoreWrapper) Upsert(
 			// cached data to repopulate the store later if it starts working again.
 			if w.hasCacheWithInfiniteTTL() {
 				w.cache.Set(cacheKey, newItem, cache.DefaultExpiration)
-				cachedItems := []intf.StoreKeyedItemDescriptor{}
+				cachedItems := []st.KeyedItemDescriptor{}
 				if data, present := w.cache.Get(allCacheKey); present {
-					if items, ok := data.([]intf.StoreKeyedItemDescriptor); ok {
+					if items, ok := data.([]st.KeyedItemDescriptor); ok {
 						cachedItems = items
 					}
 				}
@@ -263,13 +265,13 @@ func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 		// If we're in infinite cache mode, then we can assume the cache has a full set of current
 		// flag data (since presumably the data source has still been running) and we can just
 		// write the contents of the cache to the underlying data store.
-		kinds := intf.StoreDataKinds()
-		allData := make([]intf.StoreCollection, 0, len(kinds))
+		kinds := datakinds.AllDataKinds()
+		allData := make([]st.Collection, 0, len(kinds))
 		for _, kind := range kinds {
 			allCacheKey := dataStoreAllItemsCacheKey(kind)
 			if data, present := w.cache.Get(allCacheKey); present {
-				if items, ok := data.([]intf.StoreKeyedItemDescriptor); ok {
-					allData = append(allData, intf.StoreCollection{Kind: kind, Items: items})
+				if items, ok := data.([]st.KeyedItemDescriptor); ok {
+					allData = append(allData, st.Collection{Kind: kind, Items: items})
 				}
 			}
 		}
@@ -292,18 +294,18 @@ func (w *persistentDataStoreWrapper) hasCacheWithInfiniteTTL() bool {
 	return w.cache != nil && w.cacheTTL < 0
 }
 
-func dataStoreCacheKey(kind intf.StoreDataKind, key string) string {
+func dataStoreCacheKey(kind st.DataKind, key string) string {
 	return kind.GetName() + ":" + key
 }
 
-func dataStoreAllItemsCacheKey(kind intf.StoreDataKind) string {
+func dataStoreAllItemsCacheKey(kind st.DataKind) string {
 	return "all:" + kind.GetName()
 }
 
-func (w *persistentDataStoreWrapper) initCore(allData []intf.StoreCollection) error {
-	serializedAllData := make([]intf.StoreSerializedCollection, 0, len(allData))
+func (w *persistentDataStoreWrapper) initCore(allData []st.Collection) error {
+	serializedAllData := make([]st.SerializedCollection, 0, len(allData))
 	for _, coll := range allData {
-		serializedAllData = append(serializedAllData, intf.StoreSerializedCollection{
+		serializedAllData = append(serializedAllData, st.SerializedCollection{
 			Kind:  coll.Kind,
 			Items: w.serializeAll(coll.Kind, coll.Items),
 		})
@@ -314,28 +316,28 @@ func (w *persistentDataStoreWrapper) initCore(allData []intf.StoreCollection) er
 }
 
 func (w *persistentDataStoreWrapper) getAndDeserializeItem(
-	kind intf.StoreDataKind,
+	kind st.DataKind,
 	key string,
-) (intf.StoreItemDescriptor, error) {
+) (st.ItemDescriptor, error) {
 	serializedItem, err := w.core.Get(kind, key)
 	if err == nil {
 		return w.deserialize(kind, serializedItem)
 	}
-	return intf.StoreItemDescriptor{}.NotFound(), err
+	return st.ItemDescriptor{}.NotFound(), err
 }
 
 func (w *persistentDataStoreWrapper) getAllAndDeserialize(
-	kind intf.StoreDataKind,
-) ([]intf.StoreKeyedItemDescriptor, error) {
+	kind st.DataKind,
+) ([]st.KeyedItemDescriptor, error) {
 	serializedItems, err := w.core.GetAll(kind)
 	if err == nil {
-		ret := make([]intf.StoreKeyedItemDescriptor, 0, len(serializedItems))
+		ret := make([]st.KeyedItemDescriptor, 0, len(serializedItems))
 		for _, serializedItem := range serializedItems {
 			item, err := w.deserialize(kind, serializedItem.Item)
 			if err != nil {
 				return nil, err
 			}
-			ret = append(ret, intf.StoreKeyedItemDescriptor{Key: serializedItem.Key, Item: item})
+			ret = append(ret, st.KeyedItemDescriptor{Key: serializedItem.Key, Item: item})
 		}
 		return ret, nil
 	}
@@ -343,11 +345,11 @@ func (w *persistentDataStoreWrapper) getAllAndDeserialize(
 }
 
 func (w *persistentDataStoreWrapper) cacheItems(
-	kind intf.StoreDataKind,
-	items []intf.StoreKeyedItemDescriptor,
+	kind st.DataKind,
+	items []st.KeyedItemDescriptor,
 ) {
 	if w.cache != nil {
-		copyOfItems := make([]intf.StoreKeyedItemDescriptor, len(items))
+		copyOfItems := make([]st.KeyedItemDescriptor, len(items))
 		copy(copyOfItems, items)
 		w.cache.Set(dataStoreAllItemsCacheKey(kind), copyOfItems, cache.DefaultExpiration)
 
@@ -358,11 +360,11 @@ func (w *persistentDataStoreWrapper) cacheItems(
 }
 
 func (w *persistentDataStoreWrapper) serialize(
-	kind intf.StoreDataKind,
-	item intf.StoreItemDescriptor,
-) intf.StoreSerializedItemDescriptor {
+	kind st.DataKind,
+	item st.ItemDescriptor,
+) st.SerializedItemDescriptor {
 	isDeleted := item.Item == nil
-	return intf.StoreSerializedItemDescriptor{
+	return st.SerializedItemDescriptor{
 		Version:        item.Version,
 		Deleted:        isDeleted,
 		SerializedItem: kind.Serialize(item),
@@ -370,12 +372,12 @@ func (w *persistentDataStoreWrapper) serialize(
 }
 
 func (w *persistentDataStoreWrapper) serializeAll(
-	kind intf.StoreDataKind,
-	items []intf.StoreKeyedItemDescriptor,
-) []intf.StoreKeyedSerializedItemDescriptor {
-	ret := make([]intf.StoreKeyedSerializedItemDescriptor, 0, len(items))
+	kind st.DataKind,
+	items []st.KeyedItemDescriptor,
+) []st.KeyedSerializedItemDescriptor {
+	ret := make([]st.KeyedSerializedItemDescriptor, 0, len(items))
 	for _, item := range items {
-		ret = append(ret, intf.StoreKeyedSerializedItemDescriptor{
+		ret = append(ret, st.KeyedSerializedItemDescriptor{
 			Key:  item.Key,
 			Item: w.serialize(kind, item.Item),
 		})
@@ -384,40 +386,40 @@ func (w *persistentDataStoreWrapper) serializeAll(
 }
 
 func (w *persistentDataStoreWrapper) deserialize(
-	kind intf.StoreDataKind,
-	serializedItemDesc intf.StoreSerializedItemDescriptor,
-) (intf.StoreItemDescriptor, error) {
+	kind st.DataKind,
+	serializedItemDesc st.SerializedItemDescriptor,
+) (st.ItemDescriptor, error) {
 	if serializedItemDesc.Deleted || serializedItemDesc.SerializedItem == nil {
-		return intf.StoreItemDescriptor{Version: serializedItemDesc.Version}, nil
+		return st.ItemDescriptor{Version: serializedItemDesc.Version}, nil
 	}
 	deserializedItemDesc, err := kind.Deserialize(serializedItemDesc.SerializedItem)
 	if err != nil {
-		return intf.StoreItemDescriptor{}.NotFound(), err
+		return st.ItemDescriptor{}.NotFound(), err
 	}
 	if serializedItemDesc.Version == 0 || serializedItemDesc.Version == deserializedItemDesc.Version {
 		return deserializedItemDesc, nil
 	}
 	// If the store gave us a version number that isn't what was encoded in the object, trust it
-	return intf.StoreItemDescriptor{Version: serializedItemDesc.Version, Item: deserializedItemDesc.Item}, nil
+	return st.ItemDescriptor{Version: serializedItemDesc.Version, Item: deserializedItemDesc.Item}, nil
 }
 
 func updateSingleItem(
-	items []intf.StoreKeyedItemDescriptor,
+	items []st.KeyedItemDescriptor,
 	key string,
-	newItem intf.StoreItemDescriptor,
-) []intf.StoreKeyedItemDescriptor {
+	newItem st.ItemDescriptor,
+) []st.KeyedItemDescriptor {
 	found := false
-	ret := make([]intf.StoreKeyedItemDescriptor, 0, len(items))
+	ret := make([]st.KeyedItemDescriptor, 0, len(items))
 	for _, item := range items {
 		if item.Key == key {
-			ret = append(ret, intf.StoreKeyedItemDescriptor{Key: key, Item: newItem})
+			ret = append(ret, st.KeyedItemDescriptor{Key: key, Item: newItem})
 			found = true
 		} else {
 			ret = append(ret, item)
 		}
 	}
 	if !found {
-		ret = append(ret, intf.StoreKeyedItemDescriptor{Key: key, Item: newItem})
+		ret = append(ret, st.KeyedItemDescriptor{Key: key, Item: newItem})
 	}
 	return ret
 }

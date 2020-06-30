@@ -8,6 +8,8 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
@@ -672,8 +674,8 @@ func TestEvalErrorIfStoreHasNonFlagObject(t *testing.T) {
 	notAFlag := 9
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
-		p.store.Upsert(interfaces.DataKindFeatures(), key,
-			interfaces.StoreItemDescriptor{Version: 1, Item: notAFlag})
+		p.store.Upsert(datakinds.Features, key,
+			ldstoretypes.ItemDescriptor{Version: 1, Item: notAFlag})
 
 		value, err := p.client.BoolVariation(key, evalTestUser, false)
 		assert.False(t, value)
@@ -742,7 +744,7 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	flag := singleValueFlag("flagkey", ldvalue.Bool(true))
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)
-	_, _ = store.Upsert(interfaces.DataKindFeatures(), flag.GetKey(), sharedtest.FlagDescriptor(flag))
+	_, _ = store.Upsert(datakinds.Features, flag.GetKey(), sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.SingleDataSourceFactory{

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 // MockDataSourceUpdates is a mock implementation of DataSourceUpdates for testing data sources.
@@ -39,7 +40,7 @@ func NewMockDataSourceUpdates(realStore interfaces.DataStore) *MockDataSourceUpd
 }
 
 // Init in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataSourceUpdates) Init(allData []interfaces.StoreCollection) bool {
+func (d *MockDataSourceUpdates) Init(allData []ldstoretypes.Collection) bool {
 	for _, coll := range allData {
 		AssertNotNil(coll.Kind)
 	}
@@ -49,9 +50,9 @@ func (d *MockDataSourceUpdates) Init(allData []interfaces.StoreCollection) bool 
 
 // Upsert in this test implementation, delegates to d.DataStore.CapturedUpdates.
 func (d *MockDataSourceUpdates) Upsert(
-	kind interfaces.StoreDataKind,
+	kind ldstoretypes.DataKind,
 	key string,
-	newItem interfaces.StoreItemDescriptor,
+	newItem ldstoretypes.ItemDescriptor,
 ) bool {
 	AssertNotNil(kind)
 	_, err := d.DataStore.Upsert(kind, key, newItem)

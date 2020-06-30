@@ -7,7 +7,9 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
 
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
@@ -51,15 +53,15 @@ func NewDataSourceUpdatesImpl(
 }
 
 //nolint:golint,stylecheck // no doc comment for standard method
-func (d *DataSourceUpdatesImpl) Init(allData []intf.StoreCollection) bool {
-	var oldData map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor
+func (d *DataSourceUpdatesImpl) Init(allData []st.Collection) bool {
+	var oldData map[st.DataKind]map[string]st.ItemDescriptor
 
 	if d.flagChangeEventBroadcaster.HasListeners() {
 		// Query the existing data if any, so that after the update we can send events for whatever was changed
-		oldData = make(map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor)
-		for _, kind := range intf.StoreDataKinds() {
+		oldData = make(map[st.DataKind]map[string]st.ItemDescriptor)
+		for _, kind := range datakinds.AllDataKinds() {
 			if items, err := d.store.GetAll(kind); err == nil {
-				m := make(map[string]intf.StoreItemDescriptor)
+				m := make(map[string]st.ItemDescriptor)
 				for _, item := range items {
 					m[item.Key] = item.Item
 				}
@@ -88,9 +90,9 @@ func (d *DataSourceUpdatesImpl) Init(allData []intf.StoreCollection) bool {
 
 //nolint:golint,stylecheck // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Upsert(
-	kind intf.StoreDataKind,
+	kind st.DataKind,
 	key string,
-	item intf.StoreItemDescriptor,
+	item st.ItemDescriptor,
 ) bool {
 	updated, err := d.store.Upsert(kind, key, item)
 	didNotGetError := d.maybeUpdateError(err)
@@ -234,13 +236,13 @@ func (d *DataSourceUpdatesImpl) waitFor(desiredState intf.DataSourceState, timeo
 
 func (d *DataSourceUpdatesImpl) sendChangeEvents(affectedItems kindAndKeySet) {
 	for item := range affectedItems {
-		if item.kind == intf.DataKindFeatures() {
+		if item.kind == datakinds.Features {
 			d.flagChangeEventBroadcaster.Broadcast(intf.FlagChangeEvent{Key: item.key})
 		}
 	}
 }
 
-func (d *DataSourceUpdatesImpl) updateDependencyTrackerFromFullDataSet(allData []intf.StoreCollection) {
+func (d *DataSourceUpdatesImpl) updateDependencyTrackerFromFullDataSet(allData []st.Collection) {
 	d.dependencyTracker.reset()
 	for _, coll := range allData {
 		for _, item := range coll.Items {
@@ -249,10 +251,10 @@ func (d *DataSourceUpdatesImpl) updateDependencyTrackerFromFullDataSet(allData [
 	}
 }
 
-func fullDataSetToMap(allData []intf.StoreCollection) map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor {
-	ret := make(map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor, len(allData))
+func fullDataSetToMap(allData []st.Collection) map[st.DataKind]map[string]st.ItemDescriptor {
+	ret := make(map[st.DataKind]map[string]st.ItemDescriptor, len(allData))
 	for _, coll := range allData {
-		m := make(map[string]intf.StoreItemDescriptor, len(coll.Items))
+		m := make(map[string]st.ItemDescriptor, len(coll.Items))
 		for _, item := range coll.Items {
 			m[item.Key] = item.Item
 		}
@@ -262,11 +264,11 @@ func fullDataSetToMap(allData []intf.StoreCollection) map[intf.StoreDataKind]map
 }
 
 func (d *DataSourceUpdatesImpl) computeChangedItemsForFullDataSet(
-	oldDataMap map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor,
-	newDataMap map[intf.StoreDataKind]map[string]intf.StoreItemDescriptor,
+	oldDataMap map[st.DataKind]map[string]st.ItemDescriptor,
+	newDataMap map[st.DataKind]map[string]st.ItemDescriptor,
 ) kindAndKeySet {
 	affectedItems := make(kindAndKeySet)
-	for _, kind := range intf.StoreDataKinds() {
+	for _, kind := range datakinds.AllDataKinds() {
 		oldItems := oldDataMap[kind]
 		newItems := newDataMap[kind]
 		allKeys := make([]string, 0, len(oldItems)+len(newItems))

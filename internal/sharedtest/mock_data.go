@@ -7,21 +7,21 @@ import (
 	"strconv"
 	"strings"
 
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 // MakeMockDataSet constructs a data set to be passed to a data store's Init method.
-func MakeMockDataSet(items ...MockDataItem) []intf.StoreCollection {
-	itemsColl := intf.StoreCollection{
+func MakeMockDataSet(items ...MockDataItem) []ldstoretypes.Collection {
+	itemsColl := ldstoretypes.Collection{
 		Kind:  MockData,
-		Items: []intf.StoreKeyedItemDescriptor{},
+		Items: []ldstoretypes.KeyedItemDescriptor{},
 	}
-	otherItemsColl := intf.StoreCollection{
+	otherItemsColl := ldstoretypes.Collection{
 		Kind:  MockOtherData,
-		Items: []intf.StoreKeyedItemDescriptor{},
+		Items: []ldstoretypes.KeyedItemDescriptor{},
 	}
 	for _, item := range items {
-		d := intf.StoreKeyedItemDescriptor{
+		d := ldstoretypes.KeyedItemDescriptor{
 			Key:  item.Key,
 			Item: item.ToItemDescriptor(),
 		}
@@ -31,21 +31,21 @@ func MakeMockDataSet(items ...MockDataItem) []intf.StoreCollection {
 			itemsColl.Items = append(itemsColl.Items, d)
 		}
 	}
-	return []intf.StoreCollection{itemsColl, otherItemsColl}
+	return []ldstoretypes.Collection{itemsColl, otherItemsColl}
 }
 
 // MakeSerializedMockDataSet constructs a data set to be passed to a persistent data store's Init method.
-func MakeSerializedMockDataSet(items ...MockDataItem) []intf.StoreSerializedCollection {
-	itemsColl := intf.StoreSerializedCollection{
+func MakeSerializedMockDataSet(items ...MockDataItem) []ldstoretypes.SerializedCollection {
+	itemsColl := ldstoretypes.SerializedCollection{
 		Kind:  MockData,
-		Items: []intf.StoreKeyedSerializedItemDescriptor{},
+		Items: []ldstoretypes.KeyedSerializedItemDescriptor{},
 	}
-	otherItemsColl := intf.StoreSerializedCollection{
+	otherItemsColl := ldstoretypes.SerializedCollection{
 		Kind:  MockOtherData,
-		Items: []intf.StoreKeyedSerializedItemDescriptor{},
+		Items: []ldstoretypes.KeyedSerializedItemDescriptor{},
 	}
 	for _, item := range items {
-		d := intf.StoreKeyedSerializedItemDescriptor{
+		d := ldstoretypes.KeyedSerializedItemDescriptor{
 			Key:  item.Key,
 			Item: item.ToSerializedItemDescriptor(),
 		}
@@ -55,7 +55,7 @@ func MakeSerializedMockDataSet(items ...MockDataItem) []intf.StoreSerializedColl
 			itemsColl.Items = append(itemsColl.Items, d)
 		}
 	}
-	return []intf.StoreSerializedCollection{itemsColl, otherItemsColl}
+	return []ldstoretypes.SerializedCollection{itemsColl, otherItemsColl}
 }
 
 // MockDataItem is a test replacement for FeatureFlag/Segment.
@@ -68,18 +68,18 @@ type MockDataItem struct {
 }
 
 // ToItemDescriptor converts the test item to a StoreItemDescriptor.
-func (m MockDataItem) ToItemDescriptor() intf.StoreItemDescriptor {
-	return intf.StoreItemDescriptor{Version: m.Version, Item: m}
+func (m MockDataItem) ToItemDescriptor() ldstoretypes.ItemDescriptor {
+	return ldstoretypes.ItemDescriptor{Version: m.Version, Item: m}
 }
 
 // ToKeyedItemDescriptor converts the test item to a StoreKeyedItemDescriptor.
-func (m MockDataItem) ToKeyedItemDescriptor() intf.StoreKeyedItemDescriptor {
-	return intf.StoreKeyedItemDescriptor{Key: m.Key, Item: m.ToItemDescriptor()}
+func (m MockDataItem) ToKeyedItemDescriptor() ldstoretypes.KeyedItemDescriptor {
+	return ldstoretypes.KeyedItemDescriptor{Key: m.Key, Item: m.ToItemDescriptor()}
 }
 
 // ToSerializedItemDescriptor converts the test item to a StoreSerializedItemDescriptor.
-func (m MockDataItem) ToSerializedItemDescriptor() intf.StoreSerializedItemDescriptor {
-	return intf.StoreSerializedItemDescriptor{
+func (m MockDataItem) ToSerializedItemDescriptor() ldstoretypes.SerializedItemDescriptor {
+	return ldstoretypes.SerializedItemDescriptor{
 		Version:        m.Version,
 		Deleted:        m.Deleted,
 		SerializedItem: MockData.Serialize(m.ToItemDescriptor()),
@@ -104,7 +104,7 @@ func (sk mockDataKind) String() string {
 	return sk.GetName()
 }
 
-func (sk mockDataKind) Serialize(item intf.StoreItemDescriptor) []byte {
+func (sk mockDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	if item.Item == nil {
 		return []byte(fmt.Sprintf("DELETED:%d", item.Version))
 	}
@@ -114,30 +114,30 @@ func (sk mockDataKind) Serialize(item intf.StoreItemDescriptor) []byte {
 	return nil
 }
 
-func (sk mockDataKind) Deserialize(data []byte) (intf.StoreItemDescriptor, error) {
+func (sk mockDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	if data == nil {
-		return intf.StoreItemDescriptor{}.NotFound(), errors.New("tried to deserialize nil data")
+		return ldstoretypes.ItemDescriptor{}.NotFound(), errors.New("tried to deserialize nil data")
 	}
 	s := string(data)
 	if strings.HasPrefix(s, "DELETED:") {
 		v, _ := strconv.Atoi(strings.TrimPrefix(s, "DELETED:"))
-		return intf.StoreItemDescriptor{Version: v}, nil
+		return ldstoretypes.ItemDescriptor{Version: v}, nil
 	}
 	fields := strings.Split(s, ",")
 	if len(fields) == 5 {
 		v, _ := strconv.Atoi(fields[1])
 		itemIsOther := fields[4] == "true"
 		if itemIsOther != sk.isOther {
-			return intf.StoreItemDescriptor{}.NotFound(), errors.New("got data item of wrong kind")
+			return ldstoretypes.ItemDescriptor{}.NotFound(), errors.New("got data item of wrong kind")
 		}
 		isDeleted := fields[2] == "true"
 		if isDeleted {
-			return intf.StoreItemDescriptor{Version: v}, nil
+			return ldstoretypes.ItemDescriptor{Version: v}, nil
 		}
 		m := MockDataItem{Key: fields[0], Version: v, Name: fields[3], IsOtherKind: itemIsOther}
-		return intf.StoreItemDescriptor{Version: v, Item: m}, nil
+		return ldstoretypes.ItemDescriptor{Version: v, Item: m}, nil
 	}
-	return intf.StoreItemDescriptor{}.NotFound(), fmt.Errorf(`not a valid MockDataItem: "%s"`, data)
+	return ldstoretypes.ItemDescriptor{}.NotFound(), fmt.Errorf(`not a valid MockDataItem: "%s"`, data)
 }
 
 // MockOtherData is an instance of ld.StoreDataKind corresponding to another flavor of MockDataItem.

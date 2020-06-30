@@ -1,22 +1,35 @@
-package interfaces
+package datakinds
 
 import (
 	"fmt"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
+
+// This file defines the StoreDataKind implementations corresponding to our two top-level data model
+// types, FeatureFlag and Segment (both of which are defined in go-server-sdk-evaluation). We access
+// these objects directly throughout the SDK. We also export them indirectly in the package
+// ldcomponents/ldstoreimpl, because they may be needed by external code that is implementing a
+// custom data store.
 
 //nolint:gochecknoglobals // global used as a constant for efficiency
 var modelSerialization = ldmodel.NewJSONDataModelSerialization()
 
-// StoreDataKinds returns a list of supported StoreDataKinds. Among other things, this list might
-// be used by data stores to know what data (namespaces) to expect.
-func StoreDataKinds() []StoreDataKind {
-	return []StoreDataKind{dataKindFeatures, dataKindSegments}
-}
-
-// featureFlagStoreDataKind implements StoreDataKind
+// Type aliases for our two implementations of StoreDataKind
 type featureFlagStoreDataKind struct{}
+type segmentStoreDataKind struct{}
+
+// Features is the global StoreDataKind instance for feature flags.
+var Features ldstoretypes.DataKind = featureFlagStoreDataKind{} //nolint:gochecknoglobals
+
+// Segments is the global StoreDataKind instance for segments.
+var Segments ldstoretypes.DataKind = segmentStoreDataKind{} //nolint:gochecknoglobals
+
+// AllDataKinds returns all the supported data StoreDataKinds.
+func AllDataKinds() []ldstoretypes.DataKind {
+	return []ldstoretypes.DataKind{Features, Segments}
+}
 
 // GetName returns the unique namespace identifier for feature flag objects.
 func (fk featureFlagStoreDataKind) GetName() string {
@@ -24,7 +37,7 @@ func (fk featureFlagStoreDataKind) GetName() string {
 }
 
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
-func (fk featureFlagStoreDataKind) Serialize(item StoreItemDescriptor) []byte {
+func (fk featureFlagStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	if item.Item == nil {
 		return serializedDeletedItem(item.Version)
 	}
@@ -37,15 +50,15 @@ func (fk featureFlagStoreDataKind) Serialize(item StoreItemDescriptor) []byte {
 }
 
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
-func (fk featureFlagStoreDataKind) Deserialize(data []byte) (StoreItemDescriptor, error) {
+func (fk featureFlagStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	flag, err := modelSerialization.UnmarshalFeatureFlag(data)
 	if err != nil {
-		return StoreItemDescriptor{}, err
+		return ldstoretypes.ItemDescriptor{}, err
 	}
 	if flag.Deleted {
-		return StoreItemDescriptor{flag.Version, nil}, nil
+		return ldstoretypes.ItemDescriptor{Version: flag.Version, Item: nil}, nil
 	}
-	return StoreItemDescriptor{flag.Version, &flag}, nil
+	return ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}, nil
 }
 
 // String returns a human-readable string identifier.
@@ -53,24 +66,13 @@ func (fk featureFlagStoreDataKind) String() string {
 	return fk.GetName()
 }
 
-//nolint:gochecknoglobals // global used as a constant for efficiency
-var dataKindFeatures StoreDataKind = featureFlagStoreDataKind{}
-
-// DataKindFeatures returns the StoreDataKind instance corresponding to feature flag data.
-func DataKindFeatures() StoreDataKind {
-	return dataKindFeatures
-}
-
-// segmentStoreDataKind implements StoreDataKind and provides methods to build storage engine for segments.
-type segmentStoreDataKind struct{}
-
 // GetName returns the unique namespace identifier for segment objects.
 func (sk segmentStoreDataKind) GetName() string {
 	return "segments"
 }
 
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
-func (sk segmentStoreDataKind) Serialize(item StoreItemDescriptor) []byte {
+func (sk segmentStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	if item.Item == nil {
 		return serializedDeletedItem(item.Version)
 	}
@@ -83,28 +85,20 @@ func (sk segmentStoreDataKind) Serialize(item StoreItemDescriptor) []byte {
 }
 
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
-func (sk segmentStoreDataKind) Deserialize(data []byte) (StoreItemDescriptor, error) {
+func (sk segmentStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	segment, err := modelSerialization.UnmarshalSegment(data)
 	if err != nil {
-		return StoreItemDescriptor{}, err
+		return ldstoretypes.ItemDescriptor{}, err
 	}
 	if segment.Deleted {
-		return StoreItemDescriptor{segment.Version, nil}, nil
+		return ldstoretypes.ItemDescriptor{Version: segment.Version, Item: nil}, nil
 	}
-	return StoreItemDescriptor{segment.Version, &segment}, nil
+	return ldstoretypes.ItemDescriptor{Version: segment.Version, Item: &segment}, nil
 }
 
 // String returns a human-readable string identifier.
 func (sk segmentStoreDataKind) String() string {
 	return sk.GetName()
-}
-
-//nolint:gochecknoglobals // global used as a constant for efficiency
-var dataKindSegments StoreDataKind = segmentStoreDataKind{}
-
-// DataKindSegments returns the StoreDataKind instance corresponding to user segment data.
-func DataKindSegments() StoreDataKind {
-	return dataKindSegments
 }
 
 func serializedDeletedItem(version int) []byte {
