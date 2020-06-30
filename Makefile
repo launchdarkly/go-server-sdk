@@ -14,7 +14,15 @@ COVERAGE_PROFILE_RAW=./build/coverage_raw.out
 COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
 COVERAGE_PROFILE_FILTERED=./build/coverage.out
 COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
-COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 -skipfiles sharedtest/ -skipcode "// COVERAGE" -packagestats -filestats -showcode
+ifeq ("$(LD_SKIP_DATABASE_TESTS)","")
+  COVERAGE_ENFORCER_SKIP_FILES=sharedtest/
+else
+  COVERAGE_ENFORCER_SKIP_FILES='(sharedtest/|ldconsul/|lddynamodb/|ldredis/)'
+endif
+COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 \
+	-skipfiles $(COVERAGE_ENFORCER_SKIP_FILES) \
+	-skipcode "// COVERAGE" \
+	-packagestats -filestats -showcode
 
 .PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
 
@@ -33,7 +41,7 @@ test:
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	if [ -z "$(which go-coverage-enforcer)" ]; then go get github.com/launchdarkly-labs/go-coverage-enforcer; fi
-	go-coverage-enforcer $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW) || true  # "|| true" so the build won't fail now while we're still improving coverage
+	go-coverage-enforcer $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
 	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
 	go tool cover -html $(COVERAGE_PROFILE_RAW) -o $(COVERAGE_PROFILE_RAW_HTML)
 

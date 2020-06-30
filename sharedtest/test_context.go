@@ -51,6 +51,11 @@ func TestHTTPConfig() interfaces.HTTPConfiguration {
 	return testHTTPConfiguration{}
 }
 
+// TestHTTPConfigWithHeaders returns a basic HTTPConfiguration with the specified HTTP headers.
+func TestHTTPConfigWithHeaders(headers http.Header) interfaces.HTTPConfiguration {
+	return testHTTPConfiguration{headers}
+}
+
 // TestLogging returns a LoggingConfigurationFactory corresponding to NewTestLoggers().
 func TestLogging() interfaces.LoggingConfigurationFactory {
 	return testLoggingConfigurationFactory{}
@@ -58,14 +63,20 @@ func TestLogging() interfaces.LoggingConfigurationFactory {
 
 // TestLoggingConfig returns a LoggingConfiguration corresponding to NewTestLoggers().
 func TestLoggingConfig() interfaces.LoggingConfiguration {
-	return testLoggingConfiguration{}
+	return testLoggingConfiguration{NewTestLoggers()}
 }
 
-type testHTTPConfiguration struct{}
+// TestLoggingConfigWithLoggers returns a LoggingConfiguration with the specified Loggers.
+func TestLoggingConfigWithLoggers(loggers ldlog.Loggers) interfaces.LoggingConfiguration {
+	return testLoggingConfiguration{loggers}
+}
+
+type testHTTPConfiguration struct{ headers http.Header }
+
 type testHTTPConfigurationFactory struct{}
 
 func (c testHTTPConfiguration) GetDefaultHeaders() http.Header {
-	return nil
+	return c.headers
 }
 
 func (c testHTTPConfiguration) CreateHTTPClient() *http.Client {
@@ -79,7 +90,10 @@ func (c testHTTPConfigurationFactory) CreateHTTPConfiguration(
 	return testHTTPConfiguration{}, nil
 }
 
-type testLoggingConfiguration struct{}
+type testLoggingConfiguration struct {
+	loggers ldlog.Loggers
+}
+
 type testLoggingConfigurationFactory struct{}
 
 func (c testLoggingConfiguration) IsLogEvaluationErrors() bool {
@@ -95,13 +109,13 @@ func (c testLoggingConfiguration) GetLogDataSourceOutageAsErrorAfter() time.Dura
 }
 
 func (c testLoggingConfiguration) GetLoggers() ldlog.Loggers {
-	return NewTestLoggers()
+	return c.loggers
 }
 
 func (c testLoggingConfigurationFactory) CreateLoggingConfiguration(
 	basicConfig interfaces.BasicConfiguration,
 ) (interfaces.LoggingConfiguration, error) {
-	return testLoggingConfiguration{}, nil
+	return testLoggingConfiguration{NewTestLoggers()}, nil
 }
 
 type contextWithDiagnostics struct {

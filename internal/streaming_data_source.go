@@ -2,7 +2,7 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -141,6 +141,9 @@ type parsedPath struct {
 
 func parsePath(path string) (parsedPath, error) {
 	parsedPath := parsedPath{}
+	if path == "" {
+		return parsedPath, errors.New("missing item path")
+	}
 	switch {
 	case strings.HasPrefix(path, "/segments/"):
 		parsedPath.kind = interfaces.DataKindSegments()
@@ -149,7 +152,8 @@ func parsePath(path string) (parsedPath, error) {
 		parsedPath.kind = interfaces.DataKindFeatures()
 		parsedPath.key = strings.TrimPrefix(path, "/flags/")
 	default:
-		return parsedPath, fmt.Errorf("unrecognized path %s", path)
+		// An unrecognized path isn't an error; we'll just leave parsedPath.kind as nil, indicating that
+		// we should ignore this item.
 	}
 	return parsedPath, nil
 }
@@ -158,9 +162,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
 		for range stream.Events {
-		}
+		} // COVERAGE: no way to cause this condition in unit tests
 		if stream.Errors != nil {
-			for range stream.Errors {
+			for range stream.Errors { // COVERAGE: no way to cause this condition in unit tests
 			}
 		}
 	}()
@@ -169,8 +173,13 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 		select {
 		case event, ok := <-stream.Events:
 			if !ok {
+				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
+				// only happens when we have received from sp.halt, in which case we return immediately
+				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
+				// this point. Still, in case the channel is somehow closed unexpectedly, we do want to
+				// terminate the loop.
 				sp.loggers.Info("Event stream closed")
-				return // The stream only gets closed without an error happening if we're being shut down externally
+				return
 			}
 			sp.logConnectionResult(true)
 
@@ -230,6 +239,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					gotMalformedEvent(event, err)
 					break
 				}
+				if path.kind == nil {
+					break // ignore unrecognized item type
+				}
 				item, err := path.kind.Deserialize(patch.Data)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -249,6 +261,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
+				}
+				if path.kind == nil {
+					break // ignore unrecognized item type
 				}
 				deletedItem := interfaces.StoreItemDescriptor{Version: data.Version, Item: nil}
 				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, deletedItem) {
@@ -275,7 +290,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				if newStoreStatus.NeedsRefresh {
 					// The store is telling us that it can't guarantee that all of the latest data was cached.
 					// So we'll restart the stream to ensure a full refresh.
-					sp.loggers.Warn("Restarting stream to refresh data after feature store outage")
+					sp.loggers.Warn("Restarting stream to refresh data after data store outage")
 					stream.Restart()
 				}
 				// All of the updates were cached and have been written to the store, so we don't need to
@@ -301,7 +316,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	sp.logConnectionStarted()
 
 	initialRetryDelay := sp.initialReconnectDelay
-	if initialRetryDelay <= 0 {
+	if initialRetryDelay <= 0 { // COVERAGE: can't cause this condition in unit tests
 		initialRetryDelay = defaultStreamRetryDelay
 	}
 

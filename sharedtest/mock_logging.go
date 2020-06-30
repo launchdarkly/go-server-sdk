@@ -3,8 +3,12 @@ package sharedtest
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 )
@@ -70,6 +74,18 @@ func (ml *MockLoggers) GetAllOutput() []MockLogItem {
 	ret := make([]MockLogItem, len(ml.allOutput))
 	copy(ret, ml.allOutput)
 	return ret
+}
+
+// AssertHasMessageMatching asserts that there is a log message of thiss level that matches this regex.
+func (ml *MockLoggers) AssertHasMessageMatching(t *testing.T, level ldlog.LogLevel, pattern string) {
+	r := regexp.MustCompile(pattern)
+	for _, line := range ml.GetOutput(level) {
+		if r.MatchString(line) {
+			return
+		}
+	}
+	assert.Fail(t, "log did not contain expected message", "level: %s, pattern: %s, messages: %v",
+		level, pattern, ml.GetOutput(level))
 }
 
 func (ml *MockLoggers) logLine(level ldlog.LogLevel, line string) {
