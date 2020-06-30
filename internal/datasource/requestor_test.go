@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -62,7 +63,7 @@ func (r *mockRequestor) requestAll() (allData, bool, error) {
 
 func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
+		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
 		segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
 		expectedData := allData{
 			Flags:    map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
@@ -183,7 +184,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 }
 
 func TestRequestorImplCaching(t *testing.T) {
-	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
+	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
 	expectedData := allData{
 		Flags: map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
 	}

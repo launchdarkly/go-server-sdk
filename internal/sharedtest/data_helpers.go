@@ -56,21 +56,14 @@ func (d *DataSetBuilder) Segments(segments ...ldmodel.Segment) *DataSetBuilder {
 	return d
 }
 
-// hacky type aliasing to let us use ldservices.SDKData with real data model objects
-type flagAsSDKData ldmodel.FeatureFlag
-type segmentAsSDKData ldmodel.Segment
-
-func (f flagAsSDKData) GetKey() string    { return f.Key }
-func (s segmentAsSDKData) GetKey() string { return s.Key }
-
 // ToServerSDKData converts the data set to the format used by the ldservices helpers.
 func (d *DataSetBuilder) ToServerSDKData() *ldservices.ServerSDKData {
 	ret := ldservices.NewServerSDKData()
 	for _, f := range d.flags {
-		ret.Flags(flagAsSDKData(*(f.Item.Item.(*ldmodel.FeatureFlag))))
+		ret.Flags(f.Item.Item.(*ldmodel.FeatureFlag))
 	}
 	for _, s := range d.segments {
-		ret.Segments(segmentAsSDKData(*(s.Item.Item.(*ldmodel.Segment))))
+		ret.Segments(s.Item.Item.(*ldmodel.Segment))
 	}
 	return ret
 }
