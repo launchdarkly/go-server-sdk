@@ -4,6 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
+
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest/dynamodbtest"
 
@@ -26,17 +31,40 @@ import (
 // hits the database.
 
 func testClientWithPersistentStore(t *testing.T, factory interfaces.PersistentDataStoreFactory) {
-	flag := singleValueFlag("flagkey", ldvalue.String("a"))
+	flagKey, segmentKey, userKey, otherUserKey := "flagkey", "segmentkey", "userkey", "otheruser"
+	goodValue1, goodValue2, badValue := ldvalue.String("good"), ldvalue.String("better"), ldvalue.String("bad")
+	goodVariation1, goodVariation2, badVariation := 0, 1, 2
+	user, otherUser := lduser.NewUser(userKey), lduser.NewUser(otherUserKey)
+
+	makeFlagThatReturnsVariationForSegmentMatch := func(version int, variation int) ldmodel.FeatureFlag {
+		return ldbuilders.NewFlagBuilder(flagKey).Version(version).
+			On(true).
+			Variations(goodValue1, goodValue2, badValue).
+			FallthroughVariation(badVariation).
+			AddRule(ldbuilders.NewRuleBuilder().Variation(variation).Clauses(
+				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String(segmentKey)),
+			)).
+			Build()
+	}
+	makeSegmentThatMatchesUserKeys := func(version int, keys ...string) ldmodel.Segment {
+		return ldbuilders.NewSegmentBuilder(segmentKey).Version(version).
+			Included(keys...).
+			Build()
+	}
+	flag := makeFlagThatReturnsVariationForSegmentMatch(1, goodVariation1)
+	segment := makeSegmentThatMatchesUserKeys(1, userKey)
+
 	data := []interfaces.StoreCollection{
 		{Kind: interfaces.DataKindFeatures(), Items: []interfaces.StoreKeyedItemDescriptor{
-			{Key: flag.Key, Item: sharedtest.FlagDescriptor(flag)},
+			{Key: flagKey, Item: sharedtest.FlagDescriptor(flag)},
 		}},
-		{Kind: interfaces.DataKindSegments(), Items: nil},
+		{Kind: interfaces.DataKindSegments(), Items: []interfaces.StoreKeyedItemDescriptor{
+			{Key: segmentKey, Item: sharedtest.SegmentDescriptor(segment)},
+		}},
 	}
 	dataSourceFactory := &dataSourceFactoryThatExposesUpdater{ // allows us to simulate an update
 		underlyingFactory: dataSourceFactoryWithData{data: data},
 	}
-	user := lduser.NewUser("userkey")
 	mockLog := sharedtest.NewMockLoggers()
 	config := Config{
 		DataStore:  ldcomponents.PersistentDataStore(factory).NoCaching(),
@@ -49,23 +77,46 @@ func testClientWithPersistentStore(t *testing.T, factory interfaces.PersistentDa
 	require.NoError(t, err)
 	defer client.Close()
 
-	// verify that the client can get the flag from the store
-	value, err := client.StringVariation(flag.Key, user, "")
-	assert.NoError(t, err)
-	assert.Equal(t, "a", value)
+	flagShouldHaveValueForUser := func(u lduser.User, expectedValue ldvalue.Value) {
+		value, err := client.JSONVariation(flagKey, u, ldvalue.Null())
+		assert.NoError(t, err)
+		assert.Equal(t, expectedValue, value)
+	}
+
+	// verify that the client can get the flag from the store and evaluate it
+	flagShouldHaveValueForUser(user, goodValue1)
+	flagShouldHaveValueForUser(otherUser, badValue)
 
 	// verify that the client can get all flags
 	state := client.AllFlagsState(user)
-	assert.Equal(t, map[string]ldvalue.Value{flag.Key: ldvalue.String("a")}, state.ToValuesMap())
+	assert.Equal(t, map[string]ldvalue.Value{flagKey: goodValue1}, state.ToValuesMap())
 
 	// verify that an update is persisted
-	flagB := singleValueFlag(flag.Key, ldvalue.String("b"))
-	flagB.Version = 2
-	dataSourceFactory.dataSourceUpdates.Upsert(interfaces.DataKindFeatures(), flag.Key,
-		sharedtest.FlagDescriptor(flagB))
-	value, err = client.StringVariation(flag.Key, user, "")
-	assert.NoError(t, err)
-	assert.Equal(t, "b", value)
+	flagv2 := makeFlagThatReturnsVariationForSegmentMatch(2, goodVariation2)
+	dataSourceFactory.dataSourceUpdates.Upsert(interfaces.DataKindFeatures(), flagKey,
+		sharedtest.FlagDescriptor(flagv2))
+
+	flagShouldHaveValueForUser(user, goodValue2)
+	flagShouldHaveValueForUser(otherUser, badValue)
+
+	segmentv2 := makeSegmentThatMatchesUserKeys(2, userKey, otherUserKey)
+	dataSourceFactory.dataSourceUpdates.Upsert(interfaces.DataKindSegments(), segmentKey,
+		sharedtest.SegmentDescriptor(segmentv2))
+	flagShouldHaveValueForUser(otherUser, goodValue2) // otherUser is now matched by the segment
+
+	// verify that a deletion is persisted
+	// deleting the segment should cause the flag that uses it to stop matching
+	dataSourceFactory.dataSourceUpdates.Upsert(interfaces.DataKindSegments(), segmentKey,
+		interfaces.StoreItemDescriptor{Version: 3, Item: nil})
+	flagShouldHaveValueForUser(user, badValue)
+
+	// deleting the flag should cause the flag to become unknown
+	dataSourceFactory.dataSourceUpdates.Upsert(interfaces.DataKindFeatures(), flagKey,
+		interfaces.StoreItemDescriptor{Version: 3, Item: nil})
+	value, detail, err := client.JSONVariationDetail(flagKey, user, ldvalue.Null())
+	assert.Error(t, err)
+	assert.Equal(t, ldvalue.Null(), value)
+	assert.Equal(t, ldreason.EvalErrorFlagNotFound, detail.Reason.GetErrorKind())
 
 	assert.Len(t, mockLog.GetOutput(ldlog.Error), 0)
 }
