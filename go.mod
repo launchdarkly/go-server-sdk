@@ -21,8 +21,8 @@ require (
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-alpha.3
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-alpha.3
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-alpha.3
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.1
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.1
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.1
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
