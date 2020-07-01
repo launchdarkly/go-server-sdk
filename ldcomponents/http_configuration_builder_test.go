@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 
+	helpers "github.com/launchdarkly/go-test-helpers"
 	"github.com/launchdarkly/go-test-helpers/httphelpers"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
@@ -46,13 +48,25 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		assert.Equal(t, 1*time.Second, transport.ExpectContinueTimeout)
 	})
 
-	t.Run("can set CA certs", func(t *testing.T) {
+	t.Run("CACert", func(t *testing.T) {
 		httphelpers.WithSelfSignedServer(httphelpers.HandlerWithStatus(200), func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 			_, err := HTTPConfiguration().
 				CACert(certData).
 				CreateHTTPConfiguration(basicConfig)
 			require.NoError(t, err)
+		})
+	})
 
+	t.Run("CACert with invalid certificate", func(t *testing.T) {
+		badCertData := []byte("no")
+		_, err := HTTPConfiguration().
+			CACert(badCertData).
+			CreateHTTPConfiguration(basicConfig)
+		require.Error(t, err)
+	})
+
+	t.Run("CACertFile", func(t *testing.T) {
+		httphelpers.WithSelfSignedServer(httphelpers.HandlerWithStatus(200), func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 			sharedtest.WithTempFileContaining(certData, func(filename string) {
 				_, err := HTTPConfiguration().
 					CACertFile(filename).
@@ -62,14 +76,8 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		})
 	})
 
-	t.Run("bad CA certs are rejected", func(t *testing.T) {
+	t.Run("CACertFile with invalid certificate", func(t *testing.T) {
 		badCertData := []byte("no")
-
-		_, err := HTTPConfiguration().
-			CACert(badCertData).
-			CreateHTTPConfiguration(basicConfig)
-		require.Error(t, err)
-
 		sharedtest.WithTempFileContaining(badCertData, func(filename string) {
 			_, err := HTTPConfiguration().
 				CACertFile(filename).
@@ -78,7 +86,17 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		})
 	})
 
-	t.Run("can set connect timeout", func(t *testing.T) {
+	t.Run("CACertFile with missing file", func(t *testing.T) {
+		helpers.WithTempFile(func(filename string) {
+			_ = os.Remove(filename)
+			_, err := HTTPConfiguration().
+				CACertFile(filename).
+				CreateHTTPConfiguration(basicConfig)
+			require.Error(t, err)
+		})
+	})
+
+	t.Run("ConnectTimeout", func(t *testing.T) {
 		timeout := 700 * time.Millisecond
 		c1, err := HTTPConfiguration().
 			ConnectTimeout(timeout).
@@ -98,12 +116,24 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 	})
 
-	t.Run("can set proxy URL", func(t *testing.T) {
-		url, err := url.Parse("https://fake-proxy")
+	t.Run("HTTPClientFactory", func(t *testing.T) {
+		hc := &http.Client{Timeout: time.Hour}
+
+		c, err := HTTPConfiguration().
+			HTTPClientFactory(func() *http.Client { return hc }).
+			CreateHTTPConfiguration(basicConfig)
+		require.NoError(t, err)
+
+		assert.Equal(t, hc, c.CreateHTTPClient())
+	})
+
+	t.Run("ProxyURL", func(t *testing.T) {
+		proxyURL := "https://fake-proxy"
+		parsedURL, err := url.Parse(proxyURL)
 		require.NoError(t, err)
 
 		c, err := HTTPConfiguration().
-			ProxyURL(*url).
+			ProxyURL(proxyURL).
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
 
@@ -115,10 +145,19 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		require.NotNil(t, transport.Proxy)
 		urlOut, err := transport.Proxy(&http.Request{})
 		require.NoError(t, err)
-		assert.Equal(t, url, urlOut)
+		assert.Equal(t, parsedURL, urlOut)
 	})
 
-	t.Run("can set User-Agent", func(t *testing.T) {
+	t.Run("ProxyURL with invalid URL", func(t *testing.T) {
+		proxyURL := ":///"
+
+		_, err := HTTPConfiguration().
+			ProxyURL(proxyURL).
+			CreateHTTPConfiguration(basicConfig)
+		require.Error(t, err)
+	})
+
+	t.Run("User-Agent", func(t *testing.T) {
 		c, err := HTTPConfiguration().
 			UserAgent("extra").
 			CreateHTTPConfiguration(basicConfig)
@@ -128,7 +167,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		assert.Equal(t, "GoClient/"+internal.SDKVersion+" extra", headers.Get("User-Agent"))
 	})
 
-	t.Run("can set wrapper identifier", func(t *testing.T) {
+	t.Run("Wrapper", func(t *testing.T) {
 		c1, err := HTTPConfiguration().
 			Wrapper("FancySDK", "").
 			CreateHTTPConfiguration(basicConfig)
@@ -144,16 +183,5 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 		headers2 := c2.GetDefaultHeaders()
 		assert.Equal(t, "FancySDK/2.0", headers2.Get("X-LaunchDarkly-Wrapper"))
-	})
-
-	t.Run("can set client factory", func(t *testing.T) {
-		hc := &http.Client{Timeout: time.Hour}
-
-		c, err := HTTPConfiguration().
-			HTTPClientFactory(func() *http.Client { return hc }).
-			CreateHTTPConfiguration(basicConfig)
-		require.NoError(t, err)
-
-		assert.Equal(t, hc, c.CreateHTTPClient())
 	})
 }

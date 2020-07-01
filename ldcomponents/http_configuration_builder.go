@@ -33,6 +33,7 @@ type HTTPConfigurationBuilder struct {
 	connectTimeout    time.Duration
 	httpClientFactory func() *http.Client
 	httpOptions       []ldhttp.TransportOption
+	proxyURL          string
 	userAgent         string
 	wrapperIdentifier string
 }
@@ -51,6 +52,9 @@ func HTTPConfiguration() *HTTPConfigurationBuilder {
 }
 
 // CACert specifies a CA certificate to be added to the trusted root CA list for HTTPS requests.
+//
+// If the certificate is not valid, the LDClient constructor will return an error when you try to create
+// the client.
 func (b *HTTPConfigurationBuilder) CACert(certData []byte) *HTTPConfigurationBuilder {
 	b.httpOptions = append(b.httpOptions, ldhttp.CACertOption(certData))
 	return b
@@ -58,6 +62,9 @@ func (b *HTTPConfigurationBuilder) CACert(certData []byte) *HTTPConfigurationBui
 
 // CACertFile specifies a CA certificate to be added to the trusted root CA list for HTTPS requests,
 // reading the certificate data from a file in PEM format.
+//
+// If the certificate is not valid or the file does not exist, the LDClient constructor will return an
+// error when you try to create the client.
 func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfigurationBuilder {
 	b.httpOptions = append(b.httpOptions, ldhttp.CACertFileOption(filePath))
 	return b
@@ -86,10 +93,11 @@ func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) 
 
 // HTTPClientFactory specifies a function for creating each HTTP client instance that is used by the SDK.
 //
-// If you use this option, it overrides any other settings that you may have specified with ConnectTimeout
-// or HTTPOptions. The SDK may modify the client properties after the client is created (for instance, to
-// add caching),  but will not replace the underlying Transport, and will not modify any timeout
-// properties you set.
+// If you use this option, it overrides any other settings that you may have specified with ConnectTimeout,
+// ProxyURL, or HTTPOptions; you are responsible for setting up any desired custom configuration on the
+// HTTP client. The SDK may modify the client properties after the client is created (for instance, to
+// add caching),  but will not replace the underlying Transport, and will not modify any timeout properties
+// you set.
 func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *http.Client) *HTTPConfigurationBuilder {
 	b.httpClientFactory = httpClientFactory
 	return b
@@ -97,8 +105,11 @@ func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *h
 
 // ProxyURL specifies a proxy URL to be used for all requests. This overrides any setting of the
 // HTTP_PROXY, HTTPS_PROXY, or NO_PROXY environment variables.
-func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL url.URL) *HTTPConfigurationBuilder {
-	b.httpOptions = append(b.httpOptions, ldhttp.ProxyOption(proxyURL))
+//
+// If the string is not a valid URL, the LDClient constructor will return an error when you try to create
+// the client.
+func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL string) *HTTPConfigurationBuilder {
+	b.proxyURL = proxyURL
 	return b
 }
 
@@ -143,6 +154,9 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 	if b.httpClientFactory != nil {
 		return false // for a custom client configuration, we have no way to know how it works
 	}
+	if b.proxyURL != "" {
+		return true
+	}
 	for _, option := range b.httpOptions {
 		if reflect.TypeOf(option) == reflect.TypeOf(ldhttp.ProxyOption(url.URL{})) {
 			return true
@@ -166,11 +180,20 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
 	}
 
+	transportOpts := b.httpOptions
+
+	if b.proxyURL != "" {
+		u, err := url.Parse(b.proxyURL)
+		if err != nil {
+			return nil, err
+		}
+		transportOpts = append(transportOpts, ldhttp.ProxyOption(*u))
+	}
+
 	clientFactory := b.httpClientFactory
 	if clientFactory == nil {
-		allOpts := []ldhttp.TransportOption{ldhttp.ConnectTimeoutOption(b.connectTimeout)}
-		allOpts = append(allOpts, b.httpOptions...)
-		transport, _, err := ldhttp.NewHTTPTransport(allOpts...)
+		transportOpts = append(transportOpts, ldhttp.ConnectTimeoutOption(b.connectTimeout))
+		transport, _, err := ldhttp.NewHTTPTransport(transportOpts...)
 		if err != nil {
 			return nil, err
 		}

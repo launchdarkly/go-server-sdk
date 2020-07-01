@@ -8,7 +8,6 @@ package proxytest
 
 import (
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -65,11 +64,8 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 	// to connect directly to the nonexistent host "badhost" instead and get an error.
 	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(ldservices.NewServerSDKData()))
 	httphelpers.WithServer(handler, func(proxy *httptest.Server) {
-		proxyURL, err := url.Parse(proxy.URL)
-		require.NoError(t, err)
-
 		config := ld.Config{}
-		config.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(*proxyURL)
+		config.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(proxy.URL)
 		config.Logging = sharedtest.TestLogging()
 		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
 		config.Events = ldcomponents.NoEvents()
