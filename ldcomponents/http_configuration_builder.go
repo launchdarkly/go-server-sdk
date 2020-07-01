@@ -154,6 +154,9 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 	if b.httpClientFactory != nil {
 		return false // for a custom client configuration, we have no way to know how it works
 	}
+	if b.proxyURL != "" {
+		return true
+	}
 	for _, option := range b.httpOptions {
 		if reflect.TypeOf(option) == reflect.TypeOf(ldhttp.ProxyOption(url.URL{})) {
 			return true
