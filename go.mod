@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/memberlist v0.2.2 // indirect
 	github.com/launchdarkly/eventsource v1.4.2
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
-	github.com/launchdarkly/go-test-helpers v1.1.3
+	github.com/launchdarkly/go-test-helpers v1.2.0
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1 // indirect
