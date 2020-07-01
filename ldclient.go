@@ -26,7 +26,11 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
 // Version is the client version.
@@ -148,20 +152,20 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	client.dataStoreStatusBroadcaster = internal.NewDataStoreStatusBroadcaster()
-	dataStoreUpdates := internal.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
+	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
 	store, err := getDataStoreFactory(config).CreateDataStore(clientContext, dataStoreUpdates)
 	if err != nil {
 		return nil, err
 	}
 	client.store = store
 
-	dataProvider := interfaces.NewDataStoreEvaluatorDataProvider(store, loggers)
+	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
 	client.evaluator = ldeval.NewEvaluator(dataProvider)
-	client.dataStoreStatusProvider = internal.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
+	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
 	client.flagChangeEventBroadcaster = internal.NewFlagChangeEventBroadcaster()
-	dataSourceUpdates := internal.NewDataSourceUpdatesImpl(
+	dataSourceUpdates := datasource.NewDataSourceUpdatesImpl(
 		store,
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
@@ -187,7 +191,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if err != nil {
 		return nil, err
 	}
-	client.dataSourceStatusProvider = internal.NewDataSourceStatusProviderImpl(
+	client.dataSourceStatusProvider = datasource.NewDataSourceStatusProviderImpl(
 		client.dataSourceStatusBroadcaster,
 		dataSourceUpdates,
 	)
@@ -201,7 +205,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	)
 
 	client.dataSource.Start(closeWhenReady)
-	if waitFor > 0 && client.dataSource != internal.NewNullDataSource() {
+	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
 		timeout := time.After(waitFor)
@@ -241,7 +245,7 @@ func createDataSource(
 	if config.Offline {
 		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-		return internal.NewNullDataSource(), nil
+		return datasource.NewNullDataSource(), nil
 	}
 	factory := config.DataSource
 	if factory == nil {
@@ -251,7 +255,7 @@ func createDataSource(
 	return factory.CreateDataSource(context, dataSourceUpdates)
 }
 
-// Identify reports details about a a user.
+// Identify reports details about a user.
 func (client *LDClient) Identify(user lduser.User) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -261,7 +265,7 @@ func (client *LDClient) Identify(user lduser.User) error {
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := client.eventsDefault.factory.NewIdentifyEvent(ldevents.User(user))
-	client.eventProcessor.SendEvent(evt)
+	client.eventProcessor.RecordIdentifyEvent(evt)
 	return nil
 }
 
@@ -292,7 +296,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(
+	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEvent(
 			eventName,
 			ldevents.User(user),
@@ -321,7 +325,7 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(
+	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEvent(
 			eventName,
 			ldevents.User(user),
@@ -397,7 +401,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 		return FeatureFlagsState{valid: false}
 	}
 
-	items, err := client.store.GetAll(interfaces.DataKindFeatures())
+	items, err := client.store.GetAll(datakinds.Features)
 	if err != nil {
 		client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return FeatureFlagsState{valid: false}
@@ -608,7 +612,7 @@ func (client *LDClient) variation(
 				"",
 			)
 		}
-		client.eventProcessor.SendEvent(evt)
+		client.eventProcessor.RecordFeatureRequestEvent(evt)
 	}
 
 	return result, err
@@ -653,7 +657,7 @@ func (client *LDClient) evaluateInternal(
 		}
 	}
 
-	itemDesc, storeErr := client.store.Get(interfaces.DataKindFeatures(), key)
+	itemDesc, storeErr := client.store.Get(datakinds.Features, key)
 
 	if storeErr != nil {
 		client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)

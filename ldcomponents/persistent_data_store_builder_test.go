@@ -11,7 +11,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestPersistentDataStoreBuilder(t *testing.T) {
@@ -28,7 +29,7 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 
 		context := sharedtest.NewSimpleTestContext("")
 		broadcaster := internal.NewDataStoreStatusBroadcaster()
-		dataStoreUpdates := internal.NewDataStoreUpdatesImpl(broadcaster)
+		dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(broadcaster)
 
 		store, err := f.CreateDataStore(context, dataStoreUpdates)
 		assert.NoError(t, err)

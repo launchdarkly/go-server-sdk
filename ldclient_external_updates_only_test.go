@@ -10,9 +10,9 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 type clientExternalUpdatesTestParams struct {
@@ -23,11 +23,11 @@ type clientExternalUpdatesTestParams struct {
 
 func withClientExternalUpdatesTestParams(callback func(clientExternalUpdatesTestParams)) {
 	p := clientExternalUpdatesTestParams{}
-	p.store = internal.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
 	p.mockLog = sharedtest.NewMockLoggers()
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
-		DataStore:  singleDataStoreFactory{p.store},
+		DataStore:  sharedtest.SingleDataStoreFactory{Instance: p.store},
 		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)
@@ -64,7 +64,7 @@ func TestClientExternalUpdatesMode(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flagkey").SingleVariation(ldvalue.Bool(true)).Build()
 
 		withClientExternalUpdatesTestParams(func(p clientExternalUpdatesTestParams) {
-			upsertFlag(p.store, &flag)
+			sharedtest.UpsertFlag(p.store, &flag)
 			result, err := p.client.BoolVariation(flag.Key, evalTestUser, false)
 			assert.NoError(t, err)
 			assert.True(t, result)

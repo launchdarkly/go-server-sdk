@@ -9,9 +9,12 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
+
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 // This file contains tests for all of the event broadcaster/listener functionality in the client, plus
@@ -24,8 +27,10 @@ import (
 // together correctly so that they work from an application's point of view.
 
 func clientDataSourceStatusProviderTest(action func(*LDClient, interfaces.DataSourceUpdates)) {
-	factoryWithUpdater := dataSourceFactoryThatExposesUpdater{
-		underlyingFactory: singleDataSourceFactory{mockDataSource{Initialized: true, StartFn: startImmediately}},
+	factoryWithUpdater := sharedtest.DataSourceFactoryThatExposesUpdater{
+		UnderlyingFactory: sharedtest.SingleDataSourceFactory{
+			Instance: sharedtest.MockDataSource{Initialized: true},
+		},
 	}
 	config := Config{
 		DataSource: &factoryWithUpdater,
@@ -34,18 +39,18 @@ func clientDataSourceStatusProviderTest(action func(*LDClient, interfaces.DataSo
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
-	action(client, factoryWithUpdater.dataSourceUpdates)
+	action(client, factoryWithUpdater.DataSourceUpdates)
 }
 
 func TestFlagTracker(t *testing.T) {
 	t.Run("sends flag change events", func(t *testing.T) {
 		clientDataSourceStatusProviderTest(func(client *LDClient, updates interfaces.DataSourceUpdates) {
 			flag1v1 := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
-			allData := []interfaces.StoreCollection{
-				{Kind: interfaces.DataKindFeatures(), Items: []interfaces.StoreKeyedItemDescriptor{
+			allData := []ldstoretypes.Collection{
+				{Kind: datakinds.Features, Items: []ldstoretypes.KeyedItemDescriptor{
 					{Key: flag1v1.Key, Item: sharedtest.FlagDescriptor(flag1v1)},
 				}},
-				{Kind: interfaces.DataKindSegments(), Items: nil},
+				{Kind: datakinds.Segments, Items: nil},
 			}
 			_ = updates.Init(allData)
 
@@ -56,14 +61,14 @@ func TestFlagTracker(t *testing.T) {
 			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch2)
 
 			flag1v2 := ldbuilders.NewFlagBuilder(flag1v1.Key).Version(2).Build()
-			_ = updates.Upsert(interfaces.DataKindFeatures(), flag1v1.Key, sharedtest.FlagDescriptor(flag1v2))
+			_ = updates.Upsert(datakinds.Features, flag1v1.Key, sharedtest.FlagDescriptor(flag1v2))
 
 			sharedtest.ExpectFlagChangeEvents(t, ch1, flag1v1.Key)
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flag1v1.Key)
 
 			client.GetFlagTracker().RemoveFlagChangeListener(ch1)
 			flag1v3 := ldbuilders.NewFlagBuilder(flag1v1.Key).Version(3).Build()
-			_ = updates.Upsert(interfaces.DataKindFeatures(), flag1v1.Key, sharedtest.FlagDescriptor(flag1v3))
+			_ = updates.Upsert(datakinds.Features, flag1v1.Key, sharedtest.FlagDescriptor(flag1v3))
 
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flag1v1.Key)
 			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
@@ -78,11 +83,11 @@ func TestFlagTracker(t *testing.T) {
 			Variations(ldvalue.Bool(false), ldvalue.Bool(true)).On(false).OffVariation(0).Build()
 
 		clientDataSourceStatusProviderTest(func(client *LDClient, updates interfaces.DataSourceUpdates) {
-			initialData := []interfaces.StoreCollection{
-				{Kind: interfaces.DataKindFeatures(), Items: []interfaces.StoreKeyedItemDescriptor{
+			initialData := []ldstoretypes.Collection{
+				{Kind: datakinds.Features, Items: []ldstoretypes.KeyedItemDescriptor{
 					{Key: alwaysFalseFlag.Key, Item: sharedtest.FlagDescriptor(alwaysFalseFlag)},
 				}},
-				{Kind: interfaces.DataKindSegments(), Items: nil},
+				{Kind: datakinds.Segments, Items: nil},
 			}
 			_ = updates.Init(initialData)
 
@@ -101,7 +106,7 @@ func TestFlagTracker(t *testing.T) {
 				On(true).FallthroughVariation(0).
 				AddTarget(1, user.GetKey()).
 				Build()
-			_ = updates.Upsert(interfaces.DataKindFeatures(), flagKey, sharedtest.FlagDescriptor(flagIsTrueForMyUserOnly))
+			_ = updates.Upsert(datakinds.Features, flagKey, sharedtest.FlagDescriptor(flagIsTrueForMyUserOnly))
 
 			// ch1 receives a value change event
 			event1 := <-ch1
@@ -161,8 +166,10 @@ func TestDataSourceStatusProvider(t *testing.T) {
 }
 
 func clientDataStoreStatusProviderTest(action func(*LDClient, interfaces.DataStoreUpdates)) {
-	factoryWithUpdater := dataStoreFactoryThatExposesUpdater{
-		underlyingFactory: ldcomponents.PersistentDataStore(singlePersistentDataStoreFactory{sharedtest.NewMockPersistentDataStore()}),
+	factoryWithUpdater := sharedtest.DataStoreFactoryThatExposesUpdater{
+		UnderlyingFactory: ldcomponents.PersistentDataStore(
+			sharedtest.SinglePersistentDataStoreFactory{Instance: sharedtest.NewMockPersistentDataStore()},
+		),
 	}
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
@@ -172,7 +179,7 @@ func clientDataStoreStatusProviderTest(action func(*LDClient, interfaces.DataSto
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
-	action(client, factoryWithUpdater.dataStoreUpdates)
+	action(client, factoryWithUpdater.DataStoreUpdates)
 }
 
 func TestDataStoreStatusProvider(t *testing.T) {

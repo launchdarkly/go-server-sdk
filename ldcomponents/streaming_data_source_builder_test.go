@@ -7,8 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestStreamingDataSourceBuilder(t *testing.T) {
@@ -43,13 +44,13 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 
 		s := StreamingDataSource().BaseURI(baseURI).InitialReconnectDelay(delay)
 
-		dsu := sharedtest.NewMockDataSourceUpdates(internal.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		ds, err := s.CreateDataSource(basicClientContext(), dsu)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()
 
-		sp := ds.(*internal.StreamProcessor)
+		sp := ds.(*datasource.StreamProcessor)
 		assert.Equal(t, baseURI, sp.GetBaseURI())
 		assert.Equal(t, delay, sp.GetInitialReconnectDelay())
 	})

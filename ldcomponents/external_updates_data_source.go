@@ -3,7 +3,7 @@ package ldcomponents
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 )
 
 type nullDataSourceFactory struct{}
@@ -35,7 +35,7 @@ func (f nullDataSourceFactory) CreateDataSource(
 	if dataSourceUpdates != nil {
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 	}
-	return internal.NewNullDataSource(), nil
+	return datasource.NewNullDataSource(), nil
 }
 
 // DiagnosticDescription implementation

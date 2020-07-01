@@ -5,8 +5,9 @@ import (
 	"os"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -72,12 +73,12 @@ segments:
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
 
-			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
+			flagItem, err := p.updates.DataStore.Get(datakinds.Features, "my-flag")
 			require.NoError(t, err)
 			require.NotNil(t, flagItem.Item)
 			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
 
-			segmentItem, err := p.updates.DataStore.Get(interfaces.DataKindSegments(), "my-segment")
+			segmentItem, err := p.updates.DataStore.Get(datakinds.Segments, "my-segment")
 			require.NoError(t, err)
 			require.NotNil(t, segmentItem.Item)
 			assert.Empty(t, segmentItem.Item.(*ldmodel.Segment).Rules)
@@ -92,7 +93,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
 
-			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
+			flagItem, err := p.updates.DataStore.Get(datakinds.Features, "my-flag")
 			require.NoError(t, err)
 			require.NotNil(t, flagItem.Item)
 			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
@@ -120,12 +121,12 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 				p.waitForStart()
 				require.True(t, p.dataSource.IsInitialized())
 
-				flagItem1, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag1")
+				flagItem1, err := p.updates.DataStore.Get(datakinds.Features, "my-flag1")
 				require.NoError(t, err)
 				require.NotNil(t, flagItem1.Item)
 				assert.True(t, flagItem1.Item.(*ldmodel.FeatureFlag).On)
 
-				flagItem2, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag2")
+				flagItem2, err := p.updates.DataStore.Get(datakinds.Features, "my-flag2")
 				require.NoError(t, err)
 				require.NotNil(t, flagItem2.Item)
 				assert.True(t, flagItem2.Item.(*ldmodel.FeatureFlag).On)
@@ -198,7 +199,7 @@ flagValues:
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
-			flagItem, err := p.updates.DataStore.Get(interfaces.DataKindFeatures(), "my-flag")
+			flagItem, err := p.updates.DataStore.Get(datakinds.Features, "my-flag")
 			require.NoError(t, err)
 			require.NotNil(t, flagItem.Item)
 			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flagItem.Item.(*ldmodel.FeatureFlag).Variations)

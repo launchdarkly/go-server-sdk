@@ -12,9 +12,10 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
 )
 
 type fileDataSourceTestParams struct {
@@ -93,7 +94,7 @@ func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() 
 }
 
 func hasFlag(t *testing.T, store interfaces.DataStore, key string, test func(ldmodel.FeatureFlag) bool) bool {
-	flagItem, err := store.Get(interfaces.DataKindFeatures(), key)
+	flagItem, err := store.Get(datakinds.Features, key)
 	if assert.NoError(t, err) && flagItem.Item != nil {
 		return test(*(flagItem.Item.(*ldmodel.FeatureFlag)))
 	}

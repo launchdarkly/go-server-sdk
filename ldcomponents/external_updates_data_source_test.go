@@ -7,17 +7,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestExternalUpdatesOnly(t *testing.T) {
-	dsu := sharedtest.NewMockDataSourceUpdates(internal.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	ds, err := ExternalUpdatesOnly().CreateDataSource(basicClientContext(), dsu)
 	require.NoError(t, err)
 	defer ds.Close()
 
-	assert.Equal(t, internal.NewNullDataSource(), ds)
+	assert.Equal(t, datasource.NewNullDataSource(), ds)
 	assert.True(t, ds.IsInitialized())
 
 	dsu.RequireStatusOf(t, interfaces.DataSourceStateValid)
