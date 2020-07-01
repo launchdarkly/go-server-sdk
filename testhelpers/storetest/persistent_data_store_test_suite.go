@@ -24,7 +24,7 @@ import (
 )
 
 func assertEqualsSerializedItem(
-	t testbox.TestingT,
+	t assert.TestingT,
 	item sh.MockDataItem,
 	serializedItemDesc st.SerializedItemDescriptor,
 ) {
@@ -37,7 +37,7 @@ func assertEqualsSerializedItem(
 }
 
 func assertEqualsDeletedItem(
-	t testbox.TestingT,
+	t assert.TestingT,
 	expected st.SerializedItemDescriptor,
 	actual st.SerializedItemDescriptor,
 ) {
