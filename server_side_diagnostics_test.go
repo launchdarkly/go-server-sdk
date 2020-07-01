@@ -3,7 +3,6 @@ package ldclient
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -127,8 +126,7 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		})
 	doTest(
 		func(c *Config) {
-			proxyURL, _ := url.Parse("http://proxyhost")
-			c.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(*proxyURL)
+			c.HTTP = ldcomponents.HTTPConfiguration().ProxyURL("http://proxyhost")
 		},
 		func(b ldvalue.ObjectBuilder) {
 			b.Set("usingProxy", ldvalue.Bool(true))
