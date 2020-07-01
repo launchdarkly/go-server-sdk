@@ -11,6 +11,10 @@ type DataSourceFactory interface {
 	// client is closed.
 	//
 	// If the factory returns an error, creation of the LDClient fails.
+	//
+	// The dataSourceUpdates parameter is an object that the DataSource can use to push status
+	// updates into the SDK. It should always call dataSourceUpdates.UpdateStatus to report when
+	// it is working correctly or when it encounters an error.
 	CreateDataSource(
 		context ClientContext,
 		dataSourceUpdates DataSourceUpdates,

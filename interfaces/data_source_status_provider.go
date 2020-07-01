@@ -11,15 +11,40 @@ import (
 //
 // An implementation of this interface is returned by LDClient.GetDataSourceStatusProvider().
 // Application code never needs to implement this interface.
+//
+// There are three ways to interact with the data source status. One is to simply get the current status;
+// if its State property is DataSourceStateValid, then the SDK is able to receive feature flag updates.
+//
+//     status := client.GetDataSourceStatusProvider().GetStatus()
+//     isValid = status.State == interfaces.DataSourceStateValid
+//
+// Second, you can use AddStatusListener to get a channel that provides a status update whenever the
+// connection has an error or starts working again.
+//
+//     statusCh := client.GetDataSourceStatusProvider().AddStatusListener()
+//     go func() {
+//         for newStatus := range statusCh {
+//             log.Printf("data source status is now: %+v", newStatus)
+//         }
+//     }()
+//
+// Third, you can use WaitFor to block until the data source has the desired status. For instance, if you
+// did not want to wait for a connection when you originally created the client, you could set the
+// timeout to zero so that the connection happens in the background. Then, when you need to do something
+// that requires a valid connection (possibly on another goroutine), you can wait until it is valid.
+//
+//     client, _ := ld.MakeCustomClient(sdkKey, config, 0)
+//
+//     // later...
+//     inited := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 10 * time.Second)
+//     if !inited {
+//         // do whatever is appropriate if initialization has timed out
+//     }
 type DataSourceStatusProvider interface {
 	// GetStatus returns the current status of the data source.
 	//
 	// All of the built-in data source implementations are guaranteed to update this status whenever they
 	// successfully initialize, encounter an error, or recover after an error.
-	//
-	// For a custom data source implementation, it is the responsibility of the data source to report its
-	// status via DataSourceUpdates; if it does not do so, the status will always be reported as
-	// DataSourceStateInitializing.
 	GetStatus() DataSourceStatus
 
 	// AddStatusListener subscribes for notifications of status changes. The returned channel will receive a
@@ -29,7 +54,8 @@ type DataSourceStatusProvider interface {
 	// an explanation of the meaning of each property and what could cause it to change.
 	//
 	// It is the caller's responsibility to consume values from the channel. Allowing values to accumulate in
-	// the channel can cause an SDK goroutine to be blocked.
+	// the channel can cause an SDK goroutine to be blocked. If you no longer need the channel, call
+	// RemoveStatusListener.
 	AddStatusListener() <-chan DataSourceStatus
 
 	// RemoveStatusListener unsubscribes from notifications of status changes. The specified channel must be
