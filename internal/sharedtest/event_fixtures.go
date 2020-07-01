@@ -22,7 +22,15 @@ type CapturingEventProcessor struct {
 	Events []ldevents.Event
 }
 
-func (c *CapturingEventProcessor) SendEvent(e ldevents.Event) { //nolint:golint
+func (c *CapturingEventProcessor) RecordFeatureRequestEvent(e ldevents.FeatureRequestEvent) { //nolint:golint
+	c.Events = append(c.Events, e)
+}
+
+func (c *CapturingEventProcessor) RecordIdentifyEvent(e ldevents.IdentifyEvent) { //nolint:golint
+	c.Events = append(c.Events, e)
+}
+
+func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEvent) { //nolint:golint
 	c.Events = append(c.Events, e)
 }
 

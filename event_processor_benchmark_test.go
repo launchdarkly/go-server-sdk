@@ -133,7 +133,7 @@ func BenchmarkFeatureRequestEventsSummaryOnly(b *testing.B) {
 				Variation: variation,
 				Value:     value,
 			}
-			env.eventProcessor.SendEvent(event)
+			env.eventProcessor.RecordFeatureRequestEvent(event)
 		}
 		env.eventProcessor.Flush()
 		env.waitUntilEventsSent()
@@ -156,7 +156,7 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 				Value:       value,
 				TrackEvents: true,
 			}
-			env.eventProcessor.SendEvent(event)
+			env.eventProcessor.RecordFeatureRequestEvent(event)
 		}
 		env.eventProcessor.Flush()
 		env.waitUntilEventsSent()
@@ -176,7 +176,7 @@ func BenchmarkCustomEvents(b *testing.B) {
 				Key:  "event-key",
 				Data: data,
 			}
-			env.eventProcessor.SendEvent(event)
+			env.eventProcessor.RecordCustomEvent(event)
 		}
 		env.eventProcessor.Flush()
 		env.waitUntilEventsSent()

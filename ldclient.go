@@ -265,7 +265,7 @@ func (client *LDClient) Identify(user lduser.User) error {
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	evt := client.eventsDefault.factory.NewIdentifyEvent(ldevents.User(user))
-	client.eventProcessor.SendEvent(evt)
+	client.eventProcessor.RecordIdentifyEvent(evt)
 	return nil
 }
 
@@ -296,7 +296,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(
+	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEvent(
 			eventName,
 			ldevents.User(user),
@@ -325,7 +325,7 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 		client.loggers.Warn("Track called with empty/nil user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.SendEvent(
+	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEvent(
 			eventName,
 			ldevents.User(user),
@@ -612,7 +612,7 @@ func (client *LDClient) variation(
 				"",
 			)
 		}
-		client.eventProcessor.SendEvent(evt)
+		client.eventProcessor.RecordFeatureRequestEvent(evt)
 	}
 
 	return result, err

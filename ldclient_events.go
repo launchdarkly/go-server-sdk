@@ -74,7 +74,7 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 				params.PrerequisiteResult.Reason,
 				params.TargetFlagKey,
 			)
-			client.eventProcessor.SendEvent(event)
+			client.eventProcessor.RecordFeatureRequestEvent(event)
 		},
 	}
 }

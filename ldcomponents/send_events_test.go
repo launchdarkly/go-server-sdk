@@ -118,7 +118,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 
 		ef := ldevents.NewEventFactory(false, nil)
 		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
-		ep.SendEvent(ce)
+		ep.RecordCustomEvent(ce)
 		ep.Flush()
 
 		r := <-requestsCh
@@ -164,7 +164,7 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 
 		ef := ldevents.NewEventFactory(false, nil)
 		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
-		ep.SendEvent(ie)
+		ep.RecordIdentifyEvent(ie)
 		ep.Flush()
 
 		r := <-requestsCh
@@ -190,8 +190,8 @@ func TestEventsCapacity(t *testing.T) {
 
 		ef := ldevents.NewEventFactory(false, nil)
 		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
-		ep.SendEvent(ie)
-		ep.SendEvent(ie) // 2nd event will be dropped
+		ep.RecordIdentifyEvent(ie)
+		ep.RecordIdentifyEvent(ie) // 2nd event will be dropped
 		ep.Flush()
 
 		r := <-requestsCh
@@ -212,7 +212,7 @@ func TestEventsInlineUsers(t *testing.T) {
 
 		ef := ldevents.NewEventFactory(false, nil)
 		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
-		ep.SendEvent(ce)
+		ep.RecordCustomEvent(ce)
 		ep.Flush()
 
 		r := <-requestsCh
@@ -234,7 +234,7 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 
 		ef := ldevents.NewEventFactory(false, nil)
 		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build()))
-		ep.SendEvent(ie)
+		ep.RecordIdentifyEvent(ie)
 		ep.Flush()
 
 		r := <-requestsCh
