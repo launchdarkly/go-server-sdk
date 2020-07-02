@@ -14,15 +14,15 @@ require (
 	github.com/hashicorp/memberlist v0.2.2 // indirect
 	github.com/launchdarkly/eventsource v1.4.2
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
-	github.com/launchdarkly/go-test-helpers v1.1.3
+	github.com/launchdarkly/go-test-helpers v1.2.0
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-alpha.3
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-alpha.3
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-alpha.3
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.1
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.1
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.1
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

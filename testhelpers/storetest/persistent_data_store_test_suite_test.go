@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/launchdarkly/go-test-helpers/testbox"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
@@ -37,10 +38,10 @@ func (f mockStoreFactory) CreatePersistentDataStore(context interfaces.ClientCon
 func TestPersistentDataStoreTestSuite(t *testing.T) {
 	db := sh.NewMockDatabaseInstance()
 
-	baseSuite := func(persistOnlyAsString bool) *PersistentDataStoreTestSuite {
+	baseSuite := func(persistOnlyAsString bool, fakeError error) *PersistentDataStoreTestSuite {
 		return NewPersistentDataStoreTestSuite(
 			func(prefix string) interfaces.PersistentDataStoreFactory {
-				return mockStoreFactory{db, prefix, persistOnlyAsString, nil}
+				return mockStoreFactory{db, prefix, persistOnlyAsString, fakeError}
 			},
 			func(prefix string) error {
 				db.Clear(prefix)
@@ -50,7 +51,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 	}
 
 	runTests := func(t *testing.T, persistOnlyAsString bool) {
-		baseSuite(persistOnlyAsString).
+		baseSuite(persistOnlyAsString, nil).
 			ConcurrentModificationHook(
 				func(store interfaces.PersistentDataStore, hook func()) {
 					store.(*sh.MockPersistentDataStore).SetTestTxHook(hook)
@@ -66,28 +67,51 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 		runTests(t, true)
 	})
 
-	t.Run("with deliberate errors and error validator", func(t *testing.T) {
+	t.Run("causing deliberate errors makes tests fail", func(t *testing.T) {
 		fakeError := errors.New("sorry")
-		s := baseSuite(false).
+		s := baseSuite(false, fakeError)
+		r := testbox.SandboxTest(s.runInternal)
+		assert.True(t, r.Failed, "test should have failed")
+	})
+
+	t.Run("ErrorStoreFactory test for deliberate errors", func(t *testing.T) {
+		fakeError := errors.New("sorry")
+		s := baseSuite(false, nil).
+			ErrorStoreFactory(
+				mockStoreFactory{db, "errorprefix", false, fakeError},
+				nil,
+			)
+		s.Run(t)
+	})
+
+	t.Run("ErrorStoreFactory test calls error validator", func(t *testing.T) {
+		fakeError := errors.New("sorry")
+		called := false
+		s := baseSuite(false, nil).
 			ErrorStoreFactory(
 				mockStoreFactory{db, "errorprefix", false, fakeError},
 				func(t assert.TestingT, err error) {
+					called = true
 					assert.Equal(t, fakeError, err)
 				},
 			)
 		s.includeBaseTests = false
 		s.Run(t)
+		assert.True(t, called)
 	})
 
-	t.Run("with deliberate errors and no error validator", func(t *testing.T) {
+	t.Run("ErrorStoreFactory test fails if error validator fails", func(t *testing.T) {
 		fakeError := errors.New("sorry")
-		s := baseSuite(false).
+		s := baseSuite(false, nil).
 			ErrorStoreFactory(
 				mockStoreFactory{db, "errorprefix", false, fakeError},
-				nil,
+				func(t assert.TestingT, err error) {
+					assert.NotEqual(t, fakeError, err)
+				},
 			)
 		s.includeBaseTests = false
-		s.Run(t)
+		r := testbox.SandboxTest(s.runInternal)
+		assert.True(t, r.Failed, "test should have failed")
 	})
 
 	t.Run("skip if LD_SKIP_DATABASE_TESTS is set", func(t *testing.T) {
@@ -95,7 +119,8 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 		oldValue := os.Getenv(varName)
 		os.Setenv(varName, "1")
 		defer os.Setenv(varName, oldValue)
-		baseSuite(false).AlwaysRun(false).Run(t)
-		assert.Fail(t, "should not have reached this line (test should have been skipped)")
+		s := baseSuite(false, nil).AlwaysRun(false)
+		r := testbox.SandboxTest(s.runInternal)
+		assert.True(t, r.Skipped, "test should have been skipped")
 	})
 }

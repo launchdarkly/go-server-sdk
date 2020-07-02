@@ -6,7 +6,7 @@ releasableBranches:
   - name: v4
 
 publications:
-  - url: https://godoc.org/github.com/launchdarkly/go-server-sdk
+  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk
     description: documentation
 
 sdk:

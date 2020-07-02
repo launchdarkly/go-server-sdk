@@ -1,6 +1,6 @@
 # LaunchDarkly Server-side SDK for Go
 
-[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk) [![Documentation](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5?status.svg)](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5)
+[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5)
 
 ## This is a prerelease branch
 
@@ -51,7 +51,7 @@ Feature flag data can be kept in a persistent store using Redis, Consul, or Dyna
 
 ## Learn more
 
-Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference).
+Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference) or our [code-generated API documentation](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5).
 
 ## Testing
 

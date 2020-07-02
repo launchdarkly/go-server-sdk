@@ -1,11 +1,3 @@
-// Package ldclient is the main package for the LaunchDarkly SDK.
-//
-// This package contains the types and methods that most applications will use. The most commonly
-// used other packages in go-server-sdk are "ldcomponents" (configuration builders), and database
-// integrations such as "ldredis" and "lddynamodb".
-//
-// Other types that are commonly used with the SDK are in the go-sdk-common repository
-// (https://godoc.org/gopkg.in/launchdarkly/go-sdk-common.v2).
 package ldclient
 
 import (
@@ -33,12 +25,24 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
-// Version is the client version.
+// Version is the SDK version.
 const Version = internal.SDKVersion
 
-// LDClient is the LaunchDarkly client. Client instances are thread-safe.
-// Applications should instantiate a single instance for the lifetime
-// of their application.
+// LDClient is the LaunchDarkly client.
+//
+// This object evaluates feature flags, generates analytics events, and communicates with
+// LaunchDarkly services. Applications should instantiate a single instance for the lifetime
+// of their application and share it wherever feature flags need to be evaluated; all LDClient
+// methods are safe to be called concurrently from multiple goroutines.
+//
+// Some advanced client features are grouped together in API facades that are accessed through
+// an LDClient method, such as GetDataSourceStatusProvider().
+//
+// When an application is shutting down or no longer needs to use the LDClient instance, it
+// should call Close() to ensure that all of its connections and goroutines are shut down and
+// that any pending analytics events have been delivered.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go
 type LDClient struct {
 	sdkKey                      string
 	loggers                     ldlog.Loggers
@@ -60,33 +64,51 @@ type LDClient struct {
 
 // Initialization errors
 var (
+	// MakeClient and MakeCustomClient will return this error if the SDK was not able to establish a
+	// LaunchDarkly connection within the specified time interval. In this case, the LDClient will still
+	// continue trying to connect in the background.
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
-	ErrInitializationFailed  = errors.New("LaunchDarkly client initialization failed")
-	ErrClientNotInitialized  = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed") //nolint:lll
+
+	// MakeClient and MakeCustomClient will return this error if the SDK detected an error that makes it
+	// impossible for a LaunchDarkly connection to succeed. Currently, the only such condition is if the
+	// SDK key is invalid, since an invalid SDK key will never become valid.
+	ErrInitializationFailed = errors.New("LaunchDarkly client initialization failed")
+
+	// This error is returned by the Variation/VariationDetail methods if feature flags are not available
+	// because the client has not successfully initialized. In this case, the result value will be whatever
+	// default value was specified by the application.
+	ErrClientNotInitialized = errors.New("feature flag evaluation called before LaunchDarkly client initialization completed") //nolint:lll
 )
 
 // MakeClient creates a new client instance that connects to LaunchDarkly with the default configuration.
 //
-// For advanced configuration options, use MakeCustomClient.
+// For advanced configuration options, use MakeCustomClient. Calling MakeClient is exactly equivalent to
+// calling MakeCustomClient with the config parameter set to an empty value, ld.Config{}.
 //
 // Unless it is configured to be offline with Config.Offline or ldcomponents.ExternalUpdatesOnly(), the client
 // will begin attempting to connect to LaunchDarkly as soon as you call this constructor. The constructor will
 // return when it successfully connects, or when the timeout set by the waitFor parameter expires, whichever
-// comes first. If it has not succeeded in connecting when the timeout elapses, you will receive the client in
-// an uninitialized state where feature flags will return  default values; it will still continue trying to
-// connect in the background. You can detect whether initialization has succeeded by calling Initialized().
+// comes first.
 //
-// If you prefer to have the constructor return immediately, and then wait for initialization to finish
-// at some other point, you can use GetDataSourceStatusProvider() as follows:
+// If the connection succeeded, the first return value is the client instance, and the error value is nil.
 //
-//     // create the client but do not wait
-//     client = ld.MakeClient(sdkKey, 0)
+// If the timeout elapsed without a successful connection, it still returns a client instance-- in an
+// uninitialized state, where feature flags will return default values-- and the error value is
+// ErrInitializationTimeout. In this case, it will still continue trying to connect in the background.
 //
-//     // later, possibly on another goroutine:
-//     inited := client.GetDataSourceStatusProvider().WaitFor(DataSourceStateValid, 10 * time.Second)
-//     if !inited {
-//         // do whatever is appropriate if initialization has timed out
-//     }
+// If there was an unrecoverable error such that it cannot succeed by retrying-- for instance, the SDK key is
+// invalid-- it will return a client instance in an uninitialized state, and the error value is
+// ErrInitializationFailed.
+//
+// If you set waitFor to zero, the function will return immediately after creating the client instance, and
+// do any further initialization in the background.
+//
+// The only time it returns nil instead of a client instance is if the client cannot be created at all due to
+// an invalid configuration. This is rare, but could happen if for instance you specified a custom TLS
+// certificate file that did not contain a valid certificate.
+//
+// For more about the difference between an initialized and uninitialized client, and other ways to monitor
+// the client's status, see LDClient.Initialized() and LDClient.GetDataSourceStatusProvider().
 func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 	// COVERAGE: this constructor cannot be called in unit tests because it uses the default base
 	// URI and will attempt to make a live connection to LaunchDarkly.
@@ -95,34 +117,34 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 
 // MakeCustomClient creates a new client instance that connects to LaunchDarkly with a custom configuration.
 //
-// The config parameter allows customization of all SDK properties; some of these are represented directly as fields in
-// Config, while others are set by builder methods on a more specific configuration object. For instance, to use polling
-// mode instead of streaming, configure the polling interval, and use a non-default HTTP timeout for all HTTP requests:
-//
-//     config := ld.Config{
-//         DataSource: ldcomponents.PollingDataSource().PollInterval(45 * time.Minute),
-//         Timeout: 4 * time.Second,
-//     }
-//     client, err := ld.MakeCustomClient(sdkKey, config, 5 * time.Second)
+// The config parameter allows customization of all SDK properties; some of these are represented directly as
+// fields in Config, while others are set by builder methods on a more specific configuration object. See
+// Config for details.
 //
 // Unless it is configured to be offline with Config.Offline or ldcomponents.ExternalUpdatesOnly(), the client
 // will begin attempting to connect to LaunchDarkly as soon as you call this constructor. The constructor will
 // return when it successfully connects, or when the timeout set by the waitFor parameter expires, whichever
-// comes first. If it has not succeeded in connecting when the timeout elapses, you will receive the client in
-// an uninitialized state where feature flags will return  default values; it will still continue trying to
-// connect in the background. You can detect whether initialization has succeeded by calling Initialized().
+// comes first.
 //
-// If you prefer to have the constructor return immediately, and then wait for initialization to finish
-// at some other point, you can use GetDataSourceStatusProvider() as follows:
+// If the connection succeeded, the first return value is the client instance, and the error value is nil.
 //
-//     // create the client but do not wait
-//     client = ld.MakeCustomClient(sdkKey, config, 0)
+// If the timeout elapsed without a successful connection, it still returns a client instance-- in an
+// uninitialized state, where feature flags will return default values-- and the error value is
+// ErrInitializationTimeout. In this case, it will still continue trying to connect in the background.
 //
-//     // later, possibly on another goroutine:
-//     inited := client.GetDataSourceStatusProvider().WaitFor(DataSourceStateValid, 10 * time.Second)
-//     if !inited {
-//         // do whatever is appropriate if initialization has timed out
-//     }
+// If there was an unrecoverable error such that it cannot succeed by retrying-- for instance, the SDK key is
+// invalid-- it will return a client instance in an uninitialized state, and the error value is
+// ErrInitializationFailed.
+//
+// If you set waitFor to zero, the function will return immediately after creating the client instance, and
+// do any further initialization in the background.
+//
+// The only time it returns nil instead of a client instance is if the client cannot be created at all due to
+// an invalid configuration. This is rare, but could happen if for instance you specified a custom TLS
+// certificate file that did not contain a valid certificate.
+//
+// For more about the difference between an initialized and uninitialized client, and other ways to monitor
+// the client's status, see LDClient.Initialized() and LDClient.GetDataSourceStatusProvider().
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	closeWhenReady := make(chan struct{})
 
@@ -256,6 +278,8 @@ func createDataSource(
 }
 
 // Identify reports details about a user.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#identify
 func (client *LDClient) Identify(user lduser.User) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -275,6 +299,8 @@ func (client *LDClient) Identify(user lduser.User) error {
 // it normally corresponds to the event name of a metric that you have created through the
 // LaunchDarkly dashboard. If you want to associate additional data with this event, use TrackData
 // or TrackMetric.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
 func (client *LDClient) TrackEvent(eventName string, user lduser.User) error {
 	return client.TrackData(eventName, user, ldvalue.Null())
 }
@@ -288,6 +314,8 @@ func (client *LDClient) TrackEvent(eventName string, user lduser.User) error {
 // The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 // will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
 // instead). To send a numeric value for experimentation, use TrackMetric.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
 func (client *LDClient) TrackData(eventName string, user lduser.User, data ldvalue.Value) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -317,6 +345,8 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 //
 // The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 // will be sent with the event. If no such value is needed, use ldvalue.Null().
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
 func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricValue float64, data ldvalue.Value) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -337,12 +367,20 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 }
 
 // IsOffline returns whether the LaunchDarkly client is in offline mode.
+//
+// This is only true if you explicitly set the Config.Offline property to true, to force the client to
+// be offline. It does not mean that the client is having a problem connecting to LaunchDarkly. To detect
+// the status of a client that is configured to be online, use Initialized() or
+// GetDataSourceStatusProvider().
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#offline-mode
 func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
-// SecureModeHash generates the secure mode hash value for a user
-// See https://github.com/launchdarkly/js-client#secure-mode
+// SecureModeHash generates the secure mode hash value for a user.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#secure-mode-hash
 func (client *LDClient) SecureModeHash(user lduser.User) string {
 	key := []byte(client.sdkKey)
 	h := hmac.New(sha256.New, key)
@@ -351,6 +389,17 @@ func (client *LDClient) SecureModeHash(user lduser.User) string {
 }
 
 // Initialized returns whether the LaunchDarkly client is initialized.
+//
+// If this value is true, it means the client has succeeded at some point in connecting to LaunchDarkly and
+// has received feature flag data. It could still have encountered a connection problem after that point, so
+// this does not guarantee that the flags are up to date; if you need to know its status in more detail, use
+// GetDataSourceStatusProvider.
+//
+// If this value is false, it means the client has not yet connected to LaunchDarkly, or has permanently
+// failed. See MakeClient for the reasons that this could happen. In this state, feature flag evaluations
+// will always return default values-- unless you are using a database integration and feature flags had
+// already been stored in the database by a successfully connected SDK in the past. You can use
+// GetDataSourceStatusProvider to get information on errors, or to wait for a successful retry.
 func (client *LDClient) Initialized() bool {
 	return client.dataSource.IsInitialized()
 }
@@ -372,6 +421,8 @@ func (client *LDClient) Close() error {
 // Flush tells the client that all pending analytics events (if any) should be delivered as soon
 // as possible. Flushing is asynchronous, so this method will return before it is complete.
 // However, if you call Close(), events are guaranteed to be sent before that method returns.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#flush
 func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
 }
@@ -383,6 +434,8 @@ func (client *LDClient) Flush() {
 //
 // The most common use case for this method is to bootstrap a set of client-side feature flags
 // from a back-end service.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#all-flags
 func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOption) FeatureFlagsState {
 	valid := true
 	if client.IsOffline() {
@@ -434,6 +487,8 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal bool) (bool, error) {
 	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, false)
 	return detail.Value.BoolValue(), err
@@ -441,6 +496,8 @@ func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal b
 
 // BoolVariationDetail is the same as BoolVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
 func (client *LDClient) BoolVariationDetail(
 	key string,
 	user lduser.User,
@@ -456,6 +513,8 @@ func (client *LDClient) BoolVariationDetail(
 // has no off variation.
 //
 // If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal int) (int, error) {
 	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, false)
 	return detail.Value.IntValue(), err
@@ -463,6 +522,8 @@ func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal in
 
 // IntVariationDetail is the same as IntVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
 func (client *LDClient) IntVariationDetail(
 	key string,
 	user lduser.User,
@@ -476,6 +537,8 @@ func (client *LDClient) IntVariationDetail(
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVal float64) (float64, error) {
 	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, false)
 	return detail.Value.Float64Value(), err
@@ -483,6 +546,8 @@ func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVa
 
 // Float64VariationDetail is the same as Float64Variation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
 func (client *LDClient) Float64VariationDetail(
 	key string,
 	user lduser.User,
@@ -496,6 +561,8 @@ func (client *LDClient) Float64VariationDetail(
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
 // no off variation.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal string) (string, error) {
 	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, false)
 	return detail.Value.StringValue(), err
@@ -503,6 +570,8 @@ func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal
 
 // StringVariationDetail is the same as StringVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
 func (client *LDClient) StringVariationDetail(
 	key string,
 	user lduser.User,
@@ -533,6 +602,8 @@ func (client *LDClient) StringVariationDetail(
 //     resultAsRawJSON := result.AsRaw()
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, error) {
 	detail, err := client.variation(key, user, defaultVal, false, false)
 	return detail.Value, err
@@ -540,6 +611,8 @@ func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal l
 
 // JSONVariationDetail is the same as JSONVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
 func (client *LDClient) JSONVariationDetail(
 	key string,
 	user lduser.User,
@@ -555,6 +628,8 @@ func (client *LDClient) JSONVariationDetail(
 // streaming connection (the default) or poll requests. The DataSourceStatusProvider has methods
 // for checking whether the data source is (as far as the SDK knows) currently operational and tracking
 // changes in this status.
+//
+// See the DataSourceStatusProvider interface for more about this functionality.
 func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 	return client.dataSourceStatusProvider
 }
@@ -565,11 +640,15 @@ func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatu
 // SDK knows) currently operational, tracking changes in this status, and getting cache statistics. These
 // are only relevant for a persistent data store; if you are using an in-memory data store, then this
 // method will always report that the store is operational.
+//
+// See the DataStoreStatusProvider interface for more about this functionality.
 func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return client.dataStoreStatusProvider
 }
 
 // GetFlagTracker returns an interface for tracking changes in feature flag configurations.
+//
+// See the FlagTracker interface for more about this functionality.
 func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
 }
