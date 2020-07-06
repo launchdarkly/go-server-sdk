@@ -2,7 +2,6 @@ package storetest
 
 import (
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +46,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 				db.Clear(prefix)
 				return nil
 			},
-		).AlwaysRun(true)
+		)
 	}
 
 	runTests := func(t *testing.T, persistOnlyAsString bool) {
@@ -112,15 +111,5 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 		s.includeBaseTests = false
 		r := testbox.SandboxTest(s.runInternal)
 		assert.True(t, r.Failed, "test should have failed")
-	})
-
-	t.Run("skip if LD_SKIP_DATABASE_TESTS is set", func(t *testing.T) {
-		varName := "LD_SKIP_DATABASE_TESTS"
-		oldValue := os.Getenv(varName)
-		os.Setenv(varName, "1")
-		defer os.Setenv(varName, oldValue)
-		s := baseSuite(false, nil).AlwaysRun(false)
-		r := testbox.SandboxTest(s.runInternal)
-		assert.True(t, r.Skipped, "test should have been skipped")
 	})
 }

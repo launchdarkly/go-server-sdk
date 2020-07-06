@@ -1,11 +1,13 @@
-// Package testhelpers contains types and functions that may be useful in testing SDK functionality.
+// Package testhelpers contains types and functions that may be useful in testing SDK functionality or
+// custom integrations.
 //
-// Currently, this consists of only the storetest subpackage, which is meant to be used by any
-// implementation of a persistent data store. If you are writing your own database integration, use this
-// test suite to ensure that it is being fully tested in the same way that all of the built-in ones are
-// tested.
+// Its subpackage storetest is meant to be used by any implementation of a persistent data store.
 //
-// The APIs in this package and its subpackages are supported as part of the SDK. Purely internal test
-// helpers that are likely to change when SDK implementation details change should not be in this package,
-// but instead in internal/sharedtest.
+// The APIs in this package and its subpackages are supported as part of the SDK.
 package testhelpers
+
+// Implementation note: the types and functions in this package are mainly meant for external use, but may
+// be useful in SDK tests. Anything that is *only* for SDK tests should be in internal/sharedtest instead.
+// Avoid putting anything here that depends on any packages other than interfaces, since then it might not
+// be possible to use it in other areas of the SDK without causing a cyclic reference (that's why storetest
+// is a separate package, so it can reference the main package).

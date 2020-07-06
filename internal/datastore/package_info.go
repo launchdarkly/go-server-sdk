@@ -2,6 +2,6 @@
 // implementations (in-memory vs. cached persistent store) and related functionality. These types are
 // not visible from outside of the SDK.
 //
-// This does not include implementations of specific database integrations such as Redis, which are in
-// the ldconsul, lddynamodb, and ldredis packages.
+// This does not include implementations of specific database integrations such as Redis. Those are
+// implemented in separate repositories such as https://github.com/launchdarkly/go-server-sdk-redis.
 package datastore

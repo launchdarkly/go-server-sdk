@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldredis"
 
 	"github.com/stretchr/testify/assert"
 
@@ -62,12 +59,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 
 	// data store configuration
 	doTest(func(c *Config) { c.DataStore = ldcomponents.InMemoryDataStore() }, func(b ldvalue.ObjectBuilder) {})
-	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(ldconsul.DataStore()) },
-		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Consul")) })
-	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(lddynamodb.DataStore("table-name")) },
-		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("DynamoDB")) })
-	doTest(func(c *Config) { c.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore()) },
-		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Redis")) })
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
 		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryWithoutDiagnosticDescription{} },

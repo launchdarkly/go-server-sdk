@@ -16,6 +16,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,7 +72,6 @@ type PersistentDataStoreTestSuite struct {
 	errorValidator               func(assert.TestingT, error)
 	concurrentModificationHookFn func(store intf.PersistentDataStore, hook func())
 	includeBaseTests             bool
-	alwaysRun                    bool
 }
 
 // NewPersistentDataStoreTestSuite creates a PersistentDataStoreTestSuite for testing some
@@ -123,23 +123,12 @@ func (s *PersistentDataStoreTestSuite) ConcurrentModificationHook(
 	return s
 }
 
-// AlwaysRun specifies whether this test suite should always be run even if the environment variable
-// LD_SKIP_DATABASE_TESTS is set.
-func (s *PersistentDataStoreTestSuite) AlwaysRun(alwaysRun bool) *PersistentDataStoreTestSuite {
-	s.alwaysRun = alwaysRun
-	return s
-}
-
 // Run runs the configured test suite.
 func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
 	s.runInternal(testbox.RealTest(t))
 }
 
 func (s *PersistentDataStoreTestSuite) runInternal(t testbox.TestingT) {
-	if !s.alwaysRun && sh.ShouldSkipDatabaseTests() {
-		t.Skip("skipping due to LD_SKIP_DATABASE_TESTS=1") // COVERAGE: our CI test suite never skips the database tests
-	}
-
 	if s.includeBaseTests { // PersistentDataStoreTestSuiteTest can disable these
 		t.Run("Init", s.runInitTests)
 		t.Run("Get", s.runGetTests)
@@ -164,7 +153,7 @@ func (s *PersistentDataStoreTestSuite) runInternal(t testbox.TestingT) {
 }
 
 func (s *PersistentDataStoreTestSuite) makeStore(prefix string) intf.PersistentDataStore {
-	store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(sh.NewSimpleTestContext(""))
+	store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(testhelpers.NewSimpleClientContext(""))
 	if err != nil {
 		panic(err) // COVERAGE: can't cause this condition in PersistentDataStoreTestSuiteTest
 	}
