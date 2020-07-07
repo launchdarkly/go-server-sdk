@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
@@ -15,13 +16,13 @@ import (
 type clientOfflineTestParams struct {
 	client  *LDClient
 	store   interfaces.DataStore
-	mockLog *sharedtest.MockLoggers
+	mockLog *ldlogtest.MockLog
 }
 
 func withClientOfflineTestParams(callback func(clientExternalUpdatesTestParams)) {
 	p := clientExternalUpdatesTestParams{}
 	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
-	p.mockLog = sharedtest.NewMockLoggers()
+	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		Offline:   true,
 		DataStore: sharedtest.SingleDataStoreFactory{Instance: p.store},

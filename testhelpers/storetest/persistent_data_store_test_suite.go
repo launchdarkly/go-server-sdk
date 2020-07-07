@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -21,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/go-test-helpers/testbox"
+	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 )
 
 func assertEqualsSerializedItem(
@@ -716,7 +717,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	dataSourceFactory := &sh.DataSourceFactoryThatExposesUpdater{ // allows us to simulate an update
 		UnderlyingFactory: &sh.DataSourceFactoryWithData{Data: data},
 	}
-	mockLog := sh.NewMockLoggers()
+	mockLog := ldlogtest.NewMockLog()
 	config := ld.Config{
 		DataStore:  ldcomponents.PersistentDataStore(dataStoreFactory).NoCaching(),
 		DataSource: dataSourceFactory,

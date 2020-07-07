@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestLoggingConfigurationBuilder(t *testing.T) {
@@ -41,14 +41,14 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 	})
 
 	t.Run("Loggers", func(t *testing.T) {
-		mockLoggers := sharedtest.NewMockLoggers()
+		mockLoggers := ldlogtest.NewMockLog()
 		c, err := Logging().Loggers(mockLoggers.Loggers).CreateLoggingConfiguration(basicConfig)
 		require.NoError(t, err)
 		assert.Equal(t, mockLoggers.Loggers, c.GetLoggers())
 	})
 
 	t.Run("MinLevel", func(t *testing.T) {
-		mockLoggers := sharedtest.NewMockLoggers()
+		mockLoggers := ldlogtest.NewMockLog()
 		c, err := Logging().Loggers(mockLoggers.Loggers).MinLevel(ldlog.Error).CreateLoggingConfiguration(basicConfig)
 		require.NoError(t, err)
 		c.GetLoggers().Info("suppress this message")
