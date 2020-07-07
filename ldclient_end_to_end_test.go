@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/ldservices"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
@@ -44,10 +45,10 @@ func assertNoMoreRequests(t *testing.T, requestsCh <-chan httphelpers.HTTPReques
 
 func TestClientStartsInStreamingMode(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
-		logCapture := shared.NewMockLoggers()
+		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
 			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
@@ -76,7 +77,7 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
-		logCapture := shared.NewMockLoggers()
+		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
 			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
@@ -108,11 +109,11 @@ func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 
 func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 	failThenSucceedHandler := httphelpers.SequentialHandler(httphelpers.HandlerWithStatus(503), streamHandler)
 	handler, requestsCh := httphelpers.RecordingHandler(failThenSucceedHandler)
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
-		logCapture := shared.NewMockLoggers()
+		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
 			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
@@ -145,7 +146,7 @@ func TestClientStartsInPollingMode(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(pollServer *httptest.Server) {
-		logCapture := shared.NewMockLoggers()
+		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
 			DataSource: ldcomponents.PollingDataSource().BaseURI(pollServer.URL),
@@ -174,7 +175,7 @@ func TestClientStartsInPollingMode(t *testing.T) {
 func TestClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(pollServer *httptest.Server) {
-		logCapture := shared.NewMockLoggers()
+		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
 			DataSource: ldcomponents.PollingDataSource().BaseURI(pollServer.URL),
@@ -208,9 +209,9 @@ func TestClientSendsEventWithoutDiagnostics(t *testing.T) {
 	eventsHandler, eventRequestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(eventsServer *httptest.Server) {
 		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-			logCapture := shared.NewMockLoggers()
+			logCapture := ldlogtest.NewMockLog()
 
 			config := Config{
 				DataSource:       ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
@@ -243,7 +244,7 @@ func TestClientSendsDiagnostics(t *testing.T) {
 	eventsHandler, eventRequestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(eventsServer *httptest.Server) {
 		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
 			config := Config{
 				DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
@@ -268,7 +269,7 @@ func TestClientSendsDiagnostics(t *testing.T) {
 
 func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 		config := Config{
@@ -289,14 +290,14 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 
 func TestClientStartupTimesOut(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data, nil)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 	slowHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(300 * time.Millisecond)
 		streamHandler.ServeHTTP(w, r)
 	})
 
 	httphelpers.WithServer(slowHandler, func(streamServer *httptest.Server) {
-		logCapture := shared.NewMockLoggers()
+		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
 			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/launchdarkly/go-test-helpers/testbox"
+	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"

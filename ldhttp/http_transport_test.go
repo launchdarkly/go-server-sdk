@@ -10,10 +10,11 @@ import (
 	"reflect"
 	"testing"
 
-	helpers "github.com/launchdarkly/go-test-helpers"
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	helpers "github.com/launchdarkly/go-test-helpers/v2"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 )
 
 // See also: proxytest/http_transport_proxy_test.go

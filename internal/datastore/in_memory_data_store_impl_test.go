@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
@@ -118,7 +119,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 		})
 
 		t.Run("not found", func(t *testing.T) {
-			mockLog := sharedtest.NewMockLoggers()
+			mockLog := ldlogtest.NewMockLog()
 			mockLog.Loggers.SetMinLevel(ldlog.Info)
 			store := NewInMemoryDataStore(mockLog.Loggers)
 			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
@@ -131,7 +132,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 		})
 
 		t.Run("not found - debug logging", func(t *testing.T) {
-			mockLog := sharedtest.NewMockLoggers()
+			mockLog := ldlogtest.NewMockLog()
 			mockLog.Loggers.SetMinLevel(ldlog.Debug)
 			store := NewInMemoryDataStore(mockLog.Loggers)
 			require.NoError(t, store.Init(sharedtest.NewDataSetBuilder().Build()))
@@ -142,7 +143,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 
 			assert.Len(t, mockLog.GetAllOutput(), 1)
 			assert.Equal(t,
-				sharedtest.MockLogItem{
+				ldlogtest.MockLogItem{
 					Level:   ldlog.Debug,
 					Message: fmt.Sprintf(`Key %s not found in "%s"`, unknownKey, kind.GetName()),
 				},
