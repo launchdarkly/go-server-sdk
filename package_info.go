@@ -5,9 +5,7 @@
 //
 // Subpackages in the same repository provide additional functionality for specific features of the
 // client. Most applications that need to change any configuration settings will use the ldcomponents
-// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents); integrations
-// with other services such as databases can be found in ldconsul, lddynamodb, ldfiledata, and
-// ldredis.
+// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents).
 //
 // The SDK also uses types from the go-sdk-common.v2 repository and its subpackages
 // (https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2) that represent standard data structures

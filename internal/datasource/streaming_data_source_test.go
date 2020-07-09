@@ -3,16 +3,16 @@ package datasource
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/ldservices"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -32,33 +32,33 @@ const (
 )
 
 type streamingTestParams struct {
-	events       chan<- eventsource.Event
-	updates      *sharedtest.MockDataSourceUpdates
-	streamCloser io.Closer
-	requests     <-chan httphelpers.HTTPRequestInfo
-	mockLog      *sharedtest.MockLoggers
+	events   chan<- eventsource.Event
+	updates  *sharedtest.MockDataSourceUpdates
+	stream   httphelpers.SSEStreamControl
+	requests <-chan httphelpers.HTTPRequestInfo
+	mockLog  *ldlogtest.MockLog
 }
 
 func runStreamingTest(
 	t *testing.T,
-	initialEvent eventsource.Event,
+	initialData *ldservices.ServerSDKData,
 	test func(streamingTestParams),
 ) {
-	runStreamingTestWithConfiguration(t, initialEvent, nil, test)
+	runStreamingTestWithConfiguration(t, initialData, nil, test)
 }
 
 func runStreamingTestWithConfiguration(
 	t *testing.T,
-	initialEvent eventsource.Event,
+	initialData *ldservices.ServerSDKData,
 	configureUpdates func(*sharedtest.MockDataSourceUpdates),
 	test func(streamingTestParams),
 ) {
 	events := make(chan eventsource.Event, 1000)
-	streamHandler, streamCloser := ldservices.ServerSideStreamingServiceHandler(initialEvent, events)
+	streamHandler, stream := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 
 	// We provide a second stream handler so that if the first stream gets explicitly closed by a test,
 	// we'll be able to able to reconnect (a closed stream handler can't be reused)
-	extraStreamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialEvent, nil)
+	extraStreamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 
 	handler, requestsCh := httphelpers.RecordingHandler(
 		httphelpers.SequentialHandler(streamHandler, extraStreamHandler),
@@ -66,7 +66,7 @@ func runStreamingTestWithConfiguration(
 
 	headers := make(http.Header)
 	headers.Set(streamProcessorTestHeaderName, streamProcessorTestHeaderValue)
-	mockLog := sharedtest.NewMockLoggers()
+	mockLog := ldlogtest.NewMockLog()
 	mockLog.Loggers.SetMinLevel(ldlog.Debug)
 	context := sharedtest.NewTestContext("", sharedtest.TestHTTPConfigWithHeaders(headers),
 		sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers))
@@ -96,7 +96,7 @@ func runStreamingTestWithConfiguration(
 				return
 			}
 
-			params := streamingTestParams{events, dataSourceUpdates, streamCloser, requestsCh, mockLog}
+			params := streamingTestParams{events, dataSourceUpdates, stream, requestsCh, mockLog}
 			test(params)
 		})
 	})
@@ -104,7 +104,9 @@ func runStreamingTestWithConfiguration(
 
 func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
-	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2)).Segments(ldservices.FlagOrSegment("my-segment", 2))
+	initialData := ldservices.NewServerSDKData().
+		Flags(ldservices.FlagOrSegment("my-flag", 2)).
+		Segments(ldservices.FlagOrSegment("my-segment", 2))
 	timeout := 3 * time.Second
 
 	t.Run("configured headers are passed in request", func(t *testing.T) {
@@ -122,7 +124,8 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("patch flag", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`})
 
 			p.updates.DataStore.WaitForUpsert(t, datakinds.Features, "my-flag", 3, timeout)
 		})
@@ -130,7 +133,8 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("delete flag", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
+				Data: `{"path": "/flags/my-flag", "version": 4}`})
 
 			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-flag", 4, timeout)
 		})
@@ -138,7 +142,8 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("patch segment", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`})
 
 			p.updates.DataStore.WaitForUpsert(t, datakinds.Features, "my-segment", 7, timeout)
 		})
@@ -146,7 +151,8 @@ func TestStreamProcessor(t *testing.T) {
 
 	t.Run("delete segment", func(t *testing.T) {
 		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/segments/my-segment", "version": 8}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
+				Data: `{"path": "/segments/my-segment", "version": 8}`})
 
 			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-segment", 8, timeout)
 		})
@@ -178,68 +184,69 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 
 	t.Run("dropped connection", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.streamCloser.Close()
+			p.stream.EndAll()
 			<-time.After(300 * time.Millisecond)
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Warn, ".*Error in stream connection")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, ".*Error in stream connection")
 		})
 	})
 
 	t.Run("put with malformed JSON", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", putEvent, `{"path": "/", "data": }"`)
+			p.stream.Send(httphelpers.SSEEvent{Event: putEvent, Data: `{"path": "/", "data": }"`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*malformed JSON data.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*malformed JSON data.*will restart")
 		})
 	})
 
 	t.Run("put with well-formed JSON but malformed data model item", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", putEvent,
-				`{"path": "/", "data": {"flags": {"flagkey": {"key": [], "version": true}}, "segments": {}}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: putEvent,
+				Data: `{"path": "/", "data": {"flags": {"flagkey": {"key": [], "version": true}}, "segments": {}}}`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*malformed JSON data.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*malformed JSON data.*will restart")
 		})
 	})
 
 	t.Run("patch with omitted path", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"data": {"key": "flagkey"}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"data": {"key": "flagkey"}}`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*missing item path.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*missing item path.*will restart")
 		})
 	})
 
 	t.Run("patch with malformed JSON", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"path":"/flags/flagkey"`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent, Data: `{"path":"/flags/flagkey"`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*malformed JSON data.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*malformed JSON data.*will restart")
 		})
 	})
 
 	t.Run("patch with well-formed JSON but malformed data model item", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", patchEvent,
-				`{"path":"/flags/flagkey", "data": {"key": [], "version": true}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path":"/flags/flagkey", "data": {"key": [], "version": true}}`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*malformed JSON data.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*malformed JSON data.*will restart")
 		})
 	})
 
 	t.Run("delete with omitted path", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"version": 8}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent, Data: `{"version": 8}`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*missing item path.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*missing item path.*will restart")
 		})
 	})
 
 	t.Run("patch with malformed JSON", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path":"/flags/flagkey"`)
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent, Data: `{"path":"/flags/flagkey"`})
 			expectRestart(t, p)
-			p.mockLog.AssertHasMessageMatching(t, ldlog.Error, ".*malformed JSON data.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*malformed JSON data.*will restart")
 		})
 	})
 }
@@ -276,21 +283,23 @@ func TestStreamProcessorUnrecognizedDataIsIgnored(t *testing.T) {
 
 	t.Run("patch with unrecognized path", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", patchEvent, `{"path": "/wrong", "data": {"key": "flagkey"}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path": "/wrong", "data": {"key": "flagkey"}}`})
 			expectNoRestart(t, p)
 		})
 	})
 
 	t.Run("delete with unrecognized path", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/wrong", "version": 8}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
+				Data: `{"path": "/wrong", "version": 8}`})
 			expectNoRestart(t, p)
 		})
 	})
 
 	t.Run("unknown message type", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
-			p.events <- ldservices.NewSSEEvent("", "weird-event", `x`)
+			p.stream.Send(httphelpers.SSEEvent{Event: "weird-event", Data: `x`})
 			expectNoRestart(t, p)
 		})
 	})
@@ -313,7 +322,7 @@ func TestStreamProcessorStoreUpdateFailureWithStatusTracking(t *testing.T) {
 		}
 
 		p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid) // the initial connection
-		p.mockLog.AssertHasMessageMatching(t, ldlog.Error,
+		p.mockLog.AssertMessageMatch(t, true, ldlog.Error,
 			".*Failed to store.*will try again once data store is working")
 
 		p.updates.DataStore.SetFakeError(nil)
@@ -327,14 +336,14 @@ func TestStreamProcessorStoreUpdateFailureWithStatusTracking(t *testing.T) {
 			return
 		}
 
-		p.mockLog.AssertHasMessageMatching(t, ldlog.Warn, "Restarting stream.*after data store outage")
+		p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, "Restarting stream.*after data store outage")
 	}
 
 	t.Run("Init fails on put", func(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
 			p.updates.DataStore.SetFakeError(fakeError)
 
-			p.events <- ldservices.NewServerSDKData() // this is encoded as a put event
+			p.stream.Send(ldservices.NewServerSDKData().ToPutEvent())
 
 			expectStoreFailureAndRecovery(t, p)
 		})
@@ -344,8 +353,8 @@ func TestStreamProcessorStoreUpdateFailureWithStatusTracking(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
 			p.updates.DataStore.SetFakeError(fakeError)
 
-			p.events <- ldservices.NewSSEEvent("", patchEvent,
-				`{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path": "/flags/my-flag", "data": {"key": "my-flag", "version": 3}}`})
 
 			expectStoreFailureAndRecovery(t, p)
 		})
@@ -355,7 +364,8 @@ func TestStreamProcessorStoreUpdateFailureWithStatusTracking(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
 			p.updates.DataStore.SetFakeError(fakeError)
 
-			p.events <- ldservices.NewSSEEvent("", deleteEvent, `{"path": "/flags/my-flag", "version": 4}`)
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
+				Data: `{"path": "/flags/my-flag", "version": 4}`})
 
 			expectStoreFailureAndRecovery(t, p)
 		})
@@ -380,7 +390,7 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 
 		p.updates.DataStore.SetFakeError(fakeError)
 
-		p.events <- initialData // this is encoded as a put event
+		p.stream.Send(initialData.ToPutEvent())
 
 		select {
 		case <-p.requests:
@@ -390,7 +400,7 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 			return
 		}
 
-		p.mockLog.AssertHasMessageMatching(t, ldlog.Error, "Failed to store.*will restart stream")
+		p.mockLog.AssertMessageMatch(t, true, ldlog.Error, "Failed to store.*will restart stream")
 	})
 }
 
@@ -428,7 +438,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 
 func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData, nil)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 	sequentialHandler := httphelpers.SequentialHandler(
 		httphelpers.HandlerWithStatus(statusCode), // fails the first time
 		streamHandler, // then gets a valid stream
@@ -490,7 +500,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 }
 
 func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(ldservices.NewServerSDKData(), nil)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(ldservices.NewServerSDKData().ToPutEvent())
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -516,7 +526,10 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 
 func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 1))
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData, nil)
+	updatedData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	streamHandler1, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
+	streamHandler2, _ := ldservices.ServerSideStreamingServiceHandler(updatedData.ToPutEvent())
+	streamHandler := httphelpers.SequentialHandler(streamHandler1, streamHandler2)
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(updates *sharedtest.MockDataSourceUpdates) {
@@ -529,15 +542,12 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 			// Wait until the stream has received data and put it in the store
 			updates.DataStore.WaitForInit(t, initialData, 3*time.Second)
 
-			// Change the stream's initialData so we'll get different data the next time it restarts
-			initialData.Flags(ldservices.FlagOrSegment("my-flag", 2))
-
 			// Make the data store simulate an outage and recovery with NeedsRefresh: true
 			updates.UpdateStoreStatus(interfaces.DataStoreStatus{Available: false})
 			updates.UpdateStoreStatus(interfaces.DataStoreStatus{Available: true, NeedsRefresh: true})
 
-			// When the stream restarts, it'll call Init with the refreshed data
-			updates.DataStore.WaitForInit(t, initialData, 3*time.Second)
+			// When the stream restarts, it'll call Init with the updated data from streamHandler1
+			updates.DataStore.WaitForInit(t, updatedData, 3*time.Second)
 		})
 	})
 }

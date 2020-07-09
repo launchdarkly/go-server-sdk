@@ -12,9 +12,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
 )

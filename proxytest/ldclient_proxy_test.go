@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/ldservices"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"

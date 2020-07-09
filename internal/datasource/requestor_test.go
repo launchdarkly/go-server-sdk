@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
@@ -16,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/ldservices"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 )
 
 // this mock is not used in the tests in this file; it's used in the polling/streaming data source tests
@@ -165,7 +166,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	})
 
 	t.Run("logs debug message", func(t *testing.T) {
-		mockLog := sharedtest.NewMockLoggers()
+		mockLog := ldlogtest.NewMockLog()
 		mockLog.Loggers.SetMinLevel(ldlog.Debug)
 		logConfig := internal.LoggingConfigurationImpl{Loggers: mockLog.Loggers}
 		context := sharedtest.NewTestContext(testSDKKey, sharedtest.TestHTTPConfig(), logConfig)

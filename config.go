@@ -42,12 +42,18 @@ type Config struct {
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
 	//
-	// If nil, the default is ldcomponents.InMemoryDataStore(). The other option is to use a persistent data
-	// store-- that is, a database integration. These all use ldcomponents.PersistentDataStore(), plus an
-	// adapter for the specific database. The SDK provides adapters for Consul, DynamoDB, and Redis, but
-	// you could also define your own by implementing the PersistentDataStore interface.
+	// If nil, the default is ldcomponents.InMemoryDataStore().
+	//
+	// The other option is to use a persistent data store-- that is, a database integration. These all use
+	// ldcomponents.PersistentDataStore(), plus an adapter for the specific database. LaunchDarkly provides
+	// adapters for several databases, as described in the Reference Guide:
+	// https://docs.launchdarkly.com/sdk/concepts/feature-store
+	//
+	// You could also define your own database integration by implementing the PersistentDataStore interface.
 	//
 	//     // example: use Redis, with default properties
+	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis"
+	//
 	//     config.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore())
 	DataStore interfaces.DataStoreFactory
 
