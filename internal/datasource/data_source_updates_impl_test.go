@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -28,12 +29,12 @@ type dataSourceUpdatesImplTestParams struct {
 	dataStoreStatusProvider intf.DataStoreStatusProvider
 	dataSourceUpdates       *DataSourceUpdatesImpl
 	flagChangeBroadcaster   *internal.FlagChangeEventBroadcaster
-	mockLoggers             *sharedtest.MockLoggers
+	mockLoggers             *ldlogtest.MockLog
 }
 
 func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	p := dataSourceUpdatesImplTestParams{}
-	p.mockLoggers = sharedtest.NewMockLoggers()
+	p.mockLoggers = ldlogtest.NewMockLog()
 	p.store = sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
 	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(nil)
 	p.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)

@@ -47,7 +47,7 @@ set HTTPS_PROXY=http://user:pass@web-proxy.domain.com:8080
 
 ## Database integrations
 
-Feature flag data can be kept in a persistent store using Redis, Consul, or DynamoDB. These adapters are implemented in the subpackages `redis`, `ldconsul`, and `lddynamodb`; to use them, call the `New...DataStoreFactory` function provided by the subpackage, and put the returned object in the `DataStoreFactory` field of your client configuration. See the subpackages and the [SDK reference guide](https://docs.launchdarkly.com/docs/using-a-persistent-feature-store) for more information.
+Feature flag data can be kept in a persistent store using a database integration; LaunchDarkly provides integrations for several databases, such as Redis, which are provided in separate packages. See the [SDK reference guide](https://docs.launchdarkly.com/docs/using-a-persistent-feature-store) for more information.
 
 ## Learn more
 

@@ -3,26 +3,19 @@ module gopkg.in/launchdarkly/go-server-sdk.v5
 go 1.13
 
 require (
-	github.com/armon/go-metrics v0.3.3 // indirect
-	github.com/aws/aws-sdk-go v1.15.69
 	github.com/fsnotify/fsnotify v1.4.7
-	github.com/garyburd/redigo v1.4.0
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
-	github.com/hashicorp/consul/api v1.3.0
-	github.com/hashicorp/go-msgpack v1.1.5 // indirect
-	github.com/hashicorp/go-uuid v1.0.2 // indirect
-	github.com/hashicorp/memberlist v0.2.2 // indirect
-	github.com/launchdarkly/eventsource v1.4.2
+	github.com/launchdarkly/eventsource v1.4.3
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
-	github.com/launchdarkly/go-test-helpers v1.2.0
-	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
+	github.com/launchdarkly/go-test-helpers/v2 v2.2.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.1
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.1
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.1
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.2
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.2
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.2
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

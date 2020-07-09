@@ -13,6 +13,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
 	"github.com/stretchr/testify/assert"
@@ -148,7 +149,7 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 }
 
 func TestAllFlagsStateReturnsInvalidStateIfClientAndStoreAreNotInitialized(t *testing.T) {
-	mockLoggers := sharedtest.NewMockLoggers()
+	mockLoggers := ldlogtest.NewMockLog()
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.SingleDataSourceFactory{
@@ -164,7 +165,7 @@ func TestAllFlagsStateReturnsInvalidStateIfClientAndStoreAreNotInitialized(t *te
 }
 
 func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialized(t *testing.T) {
-	mockLoggers := sharedtest.NewMockLoggers()
+	mockLoggers := ldlogtest.NewMockLog()
 	flag := singleValueFlag("flagkey", ldvalue.Bool(true))
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)
@@ -192,7 +193,7 @@ func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 	store := sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	_ = store.Init(nil)
 	store.SetFakeError(myError)
-	mockLoggers := sharedtest.NewMockLoggers()
+	mockLoggers := ldlogtest.NewMockLog()
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.SingleDataSourceFactory{

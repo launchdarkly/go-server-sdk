@@ -15,6 +15,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,14 +56,14 @@ type clientEvalTestParams struct {
 	client  *LDClient
 	store   interfaces.DataStore
 	events  *sharedtest.CapturingEventProcessor
-	mockLog *sharedtest.MockLoggers
+	mockLog *ldlogtest.MockLog
 }
 
 func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 	p := clientEvalTestParams{}
 	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
 	p.events = &sharedtest.CapturingEventProcessor{}
-	p.mockLog = sharedtest.NewMockLoggers()
+	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		Offline:   false,
 		DataStore: sharedtest.SingleDataStoreFactory{Instance: p.store},
@@ -696,7 +697,7 @@ func TestMalformedFlagErrorLogging(t *testing.T) {
 
 func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User, expectedMessageRegex string) {
 	runTest := func(withLogging bool) {
-		mockLoggers := sharedtest.NewMockLoggers()
+		mockLoggers := ldlogtest.NewMockLog()
 		client := makeTestClientWithConfig(func(c *Config) {
 			c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers).MinLevel(ldlog.Warn).LogEvaluationErrors(withLogging)
 		})
@@ -720,7 +721,7 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 }
 
 func TestEvalReturnsDefaultIfClientAndStoreAreNotInitialized(t *testing.T) {
-	mockLoggers := sharedtest.NewMockLoggers()
+	mockLoggers := ldlogtest.NewMockLog()
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.SingleDataSourceFactory{
@@ -740,7 +741,7 @@ func TestEvalReturnsDefaultIfClientAndStoreAreNotInitialized(t *testing.T) {
 }
 
 func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialized(t *testing.T) {
-	mockLoggers := sharedtest.NewMockLoggers()
+	mockLoggers := ldlogtest.NewMockLog()
 	flag := singleValueFlag("flagkey", ldvalue.Bool(true))
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)

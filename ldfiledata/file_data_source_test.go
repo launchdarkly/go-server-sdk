@@ -10,6 +10,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -21,7 +22,7 @@ import (
 type fileDataSourceTestParams struct {
 	dataSource     interfaces.DataSource
 	updates        *sharedtest.MockDataSourceUpdates
-	mockLog        *sharedtest.MockLoggers
+	mockLog        *ldlogtest.MockLog
 	closeWhenReady chan struct{}
 }
 
@@ -32,7 +33,7 @@ func (p fileDataSourceTestParams) waitForStart() {
 
 func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
-	mockLog := sharedtest.NewMockLoggers()
+	mockLog := ldlogtest.NewMockLog()
 	logConfig, _ := ldcomponents.Logging().Loggers(mockLog.Loggers).
 		CreateLoggingConfiguration(interfaces.BasicConfiguration{})
 	testContext := sharedtest.NewTestContext("", nil, logConfig)

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
@@ -121,7 +122,7 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 }
 
 func TestIdentifyWithEventsDisabledDoesNotCauseError(t *testing.T) {
-	mockLog := sharedtest.NewMockLoggers()
+	mockLog := ldlogtest.NewMockLog()
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.Events = ldcomponents.NoEvents()
 		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
@@ -134,7 +135,7 @@ func TestIdentifyWithEventsDisabledDoesNotCauseError(t *testing.T) {
 }
 
 func TestTrackWithEventsDisabledDoesNotCauseError(t *testing.T) {
-	mockLog := sharedtest.NewMockLoggers()
+	mockLog := ldlogtest.NewMockLog()
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.Events = ldcomponents.NoEvents()
 		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)

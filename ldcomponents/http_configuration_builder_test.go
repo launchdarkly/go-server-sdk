@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	helpers "github.com/launchdarkly/go-test-helpers"
-	"github.com/launchdarkly/go-test-helpers/httphelpers"
+	helpers "github.com/launchdarkly/go-test-helpers/v2"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
