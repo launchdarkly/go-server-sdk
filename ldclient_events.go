@@ -54,7 +54,6 @@ func getEventProcessorFactory(config Config) interfaces.EventProcessorFactory {
 type eventsScope struct {
 	disabled                  bool
 	factory                   ldevents.EventFactory
-	processor                 ldevents.EventProcessor
 	prerequisiteEventRecorder ldeval.PrerequisiteFlagEventRecorder
 }
 
