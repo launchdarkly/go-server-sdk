@@ -171,5 +171,14 @@ type LDClientInterface interface {
 	// (config.Events = ldcomponents.NoEvents()), you cannot re-enable them with this method. It is only
 	// useful for temporarily disabling events on a client that had them enabled, or re-enabling them on
 	// an LDClientInterface that was the result of WithEventsDisabled(true).
+	//
+	//     // Assuming you did not disable events when creating the client,
+	//     // this evaluation generates an event:
+	//     value, err := client.BoolVariation("flagkey1", user, false)
+	//
+	//     // Now we want to do some evaluations without events
+	//     tempClient := client.WithEventsDisabled(true)
+	//     value, err = tempClient.BoolVariation("flagkey2", user, false)
+	//     value, err = tempClient.BoolVariation("flagkey3", user, false)
 	WithEventsDisabled(eventsDisabled bool) LDClientInterface
 }
