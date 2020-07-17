@@ -1,6 +1,8 @@
 package ldclient
 
 import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
@@ -19,11 +21,10 @@ import (
 // delivers the event data to LaunchDarkly, either as a full event or in summary data. The implementation
 // of that logic is all in go-sdk-events (since it can be used outside of the SDK, as in ld-relay).
 //
-// In the current implementation, these event objects are structs which are then cast to the common Event
-// interface, which necessarily means they are allocated on the heap. If events are completely disabled
-// (config.Events = ldcomponents.NoEvents()), we can avoid this overhead by not creating these ephemeral
-// objects at all. Even though NoEvents is just another implementation of EventProcessorFactory, we can
-// detect its special nature using the hidden interface method "IsNullEventProcessorFactory".
+// When events are disabled, the EventProcessor is a null implementation that does nothing. It is safe to
+// use that object, but LDClient still refrains from doing so if it knows events are disabled so that we
+// can avoid a little bit of computational overhead. That's the reason for the IsNullEventProcessorFactory
+// method.
 
 type nullEventProcessorFactoryDescription interface {
 	IsNullEventProcessorFactory() bool
@@ -77,4 +78,97 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 			client.eventProcessor.RecordFeatureRequestEvent(event)
 		},
 	}
+}
+
+// This implementation of interfaces.LDClientInterface delegates all client operations to the
+// underlying LDClient, but suppresses the generation of analytics events.
+type clientEventsDisabledDecorator struct {
+	client *LDClient
+	scope  eventsScope
+}
+
+func newClientEventsDisabledDecorator(client *LDClient) interfaces.LDClientInterface {
+	return &clientEventsDisabledDecorator{client: client, scope: newDisabledEventsScope()}
+}
+
+func (c *clientEventsDisabledDecorator) BoolVariation(key string, user lduser.User, defaultVal bool) (bool, error) {
+	detail, err := c.client.variation(key, user, ldvalue.Bool(defaultVal), true, c.scope)
+	return detail.Value.BoolValue(), err
+}
+
+func (c *clientEventsDisabledDecorator) BoolVariationDetail(key string, user lduser.User, defaultVal bool) (
+	bool, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variation(key, user, ldvalue.Bool(defaultVal), true, c.scope)
+	return detail.Value.BoolValue(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) IntVariation(key string, user lduser.User, defaultVal int) (int, error) {
+	detail, err := c.client.variation(key, user, ldvalue.Int(defaultVal), true, c.scope)
+	return detail.Value.IntValue(), err
+}
+
+func (c *clientEventsDisabledDecorator) IntVariationDetail(key string, user lduser.User, defaultVal int) (
+	int, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variation(key, user, ldvalue.Int(defaultVal), true, c.scope)
+	return detail.Value.IntValue(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) Float64Variation(key string, user lduser.User, defaultVal float64) (
+	float64, error) {
+	detail, err := c.client.variation(key, user, ldvalue.Float64(defaultVal), true, c.scope)
+	return detail.Value.Float64Value(), err
+}
+
+func (c *clientEventsDisabledDecorator) Float64VariationDetail(key string, user lduser.User, defaultVal float64) (
+	float64, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variation(key, user, ldvalue.Float64(defaultVal), true, c.scope)
+	return detail.Value.Float64Value(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) StringVariation(key string, user lduser.User, defaultVal string) (
+	string, error) {
+	detail, err := c.client.variation(key, user, ldvalue.String(defaultVal), true, c.scope)
+	return detail.Value.StringValue(), err
+}
+
+func (c *clientEventsDisabledDecorator) StringVariationDetail(key string, user lduser.User, defaultVal string) (
+	string, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variation(key, user, ldvalue.String(defaultVal), true, c.scope)
+	return detail.Value.StringValue(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) JSONVariation(key string, user lduser.User, defaultVal ldvalue.Value) (
+	ldvalue.Value, error) {
+	detail, err := c.client.variation(key, user, defaultVal, true, c.scope)
+	return detail.Value, err
+}
+
+func (c *clientEventsDisabledDecorator) JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (
+	ldvalue.Value, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variation(key, user, defaultVal, true, c.scope)
+	return detail.Value, detail, err
+}
+
+func (c *clientEventsDisabledDecorator) Identify(user lduser.User) error {
+	return nil
+}
+
+func (c *clientEventsDisabledDecorator) TrackEvent(eventName string, user lduser.User) error {
+	return nil
+}
+
+func (c *clientEventsDisabledDecorator) TrackData(eventName string, user lduser.User, data ldvalue.Value) error {
+	return nil
+}
+
+func (c *clientEventsDisabledDecorator) TrackMetric(eventName string, user lduser.User, metricValue float64,
+	data ldvalue.Value) error {
+	return nil
+}
+
+func (c *clientEventsDisabledDecorator) WithEventsDisabled(disabled bool) interfaces.LDClientInterface {
+	if disabled {
+		return c
+	}
+	return c.client
 }

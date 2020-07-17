@@ -58,6 +58,7 @@ type LDClient struct {
 	flagTracker                 interfaces.FlagTracker
 	eventsDefault               eventsScope
 	eventsWithReasons           eventsScope
+	withEventsDisabled          interfaces.LDClientInterface
 	logEvaluationErrors         bool
 	offline                     bool
 }
@@ -166,7 +167,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	loggers := clientContext.GetLogging().GetLoggers()
 	loggers.Infof("Starting LaunchDarkly client %s", Version)
 
-	client := LDClient{
+	client := &LDClient{
 		sdkKey:              sdkKey,
 		loggers:             loggers,
 		logEvaluationErrors: clientContext.GetLogging().IsLogEvaluationErrors(),
@@ -204,9 +205,12 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.eventsDefault = newDisabledEventsScope()
 		client.eventsWithReasons = newDisabledEventsScope()
 	} else {
-		client.eventsDefault = newEventsScope(&client, false)
-		client.eventsWithReasons = newEventsScope(&client, true)
+		client.eventsDefault = newEventsScope(client, false)
+		client.eventsWithReasons = newEventsScope(client, true)
 	}
+	// Pre-create the WithEventsDisabled object so that if an application ends up calling WithEventsDisabled
+	// frequently, it won't be causing an allocation each time.
+	client.withEventsDisabled = newClientEventsDisabledDecorator(client)
 
 	dataSource, err := createDataSource(config, clientContext, dataSourceUpdates)
 	client.dataSource = dataSource
@@ -236,20 +240,20 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			case <-closeWhenReady:
 				if !client.dataSource.IsInitialized() {
 					loggers.Warn("LaunchDarkly client initialization failed")
-					return &client, ErrInitializationFailed
+					return client, ErrInitializationFailed
 				}
 
 				loggers.Info("Successfully initialized LaunchDarkly client!")
-				return &client, nil
+				return client, nil
 			case <-timeout:
 				loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
 				go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
-				return &client, ErrInitializationTimeout
+				return client, ErrInitializationTimeout
 			}
 		}
 	}
 	go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
-	return &client, nil
+	return client, nil
 }
 
 func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
@@ -490,7 +494,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal bool) (bool, error) {
-	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, false)
+	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, client.eventsDefault)
 	return detail.Value.BoolValue(), err
 }
 
@@ -503,7 +507,7 @@ func (client *LDClient) BoolVariationDetail(
 	user lduser.User,
 	defaultVal bool,
 ) (bool, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, true)
+	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.BoolValue(), detail, err
 }
 
@@ -516,7 +520,7 @@ func (client *LDClient) BoolVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal int) (int, error) {
-	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, false)
+	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, client.eventsDefault)
 	return detail.Value.IntValue(), err
 }
 
@@ -529,7 +533,7 @@ func (client *LDClient) IntVariationDetail(
 	user lduser.User,
 	defaultVal int,
 ) (int, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, true)
+	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.IntValue(), detail, err
 }
 
@@ -540,7 +544,7 @@ func (client *LDClient) IntVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVal float64) (float64, error) {
-	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, false)
+	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, client.eventsDefault)
 	return detail.Value.Float64Value(), err
 }
 
@@ -553,7 +557,7 @@ func (client *LDClient) Float64VariationDetail(
 	user lduser.User,
 	defaultVal float64,
 ) (float64, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, true)
+	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.Float64Value(), detail, err
 }
 
@@ -564,7 +568,7 @@ func (client *LDClient) Float64VariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal string) (string, error) {
-	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, false)
+	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, client.eventsDefault)
 	return detail.Value.StringValue(), err
 }
 
@@ -577,7 +581,7 @@ func (client *LDClient) StringVariationDetail(
 	user lduser.User,
 	defaultVal string,
 ) (string, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, true)
+	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.StringValue(), detail, err
 }
 
@@ -605,7 +609,7 @@ func (client *LDClient) StringVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
 func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, error) {
-	detail, err := client.variation(key, user, defaultVal, false, false)
+	detail, err := client.variation(key, user, defaultVal, false, client.eventsDefault)
 	return detail.Value, err
 }
 
@@ -618,7 +622,7 @@ func (client *LDClient) JSONVariationDetail(
 	user lduser.User,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, defaultVal, false, true)
+	detail, err := client.variation(key, user, defaultVal, false, client.eventsWithReasons)
 	return detail.Value, detail, err
 }
 
@@ -653,20 +657,38 @@ func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
 }
 
+// WithEventsDisabled returns a decorator for the LDClient that implements the same basic operations
+// but will not generate any analytics events.
+//
+// If events were already disabled, this is just the same LDClient. Otherwise, it is an object whose
+// Variation methods use the same LDClient to evaluate feature flags, but without generating any
+// events, and whose Identify/Track/Custom methods do nothing. Neither evaluation counts nor user
+// properties will be sent to LaunchDarkly for any operations done with this object.
+//
+// You can use this to suppress events within some particular area of your code where you do not want
+// evaluations to affect your dashboard statistics, or do not want to incur the overhead of processing
+// the events.
+//
+// Note that if the original client configuration already had events disabled
+// (config.Events = ldcomponents.NoEvents()), you cannot re-enable them with this method. It is only
+// useful for temporarily disabling events on a client that had them enabled.
+func (client *LDClient) WithEventsDisabled(disabled bool) interfaces.LDClientInterface {
+	if !disabled || client.eventsDefault.disabled {
+		return client
+	}
+	return client.withEventsDisabled
+}
+
 // Generic method for evaluating a feature flag for a given user.
 func (client *LDClient) variation(
 	key string,
 	user lduser.User,
 	defaultVal ldvalue.Value,
 	checkType bool,
-	sendReasonsInEvents bool,
+	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
 	if client.IsOffline() {
 		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
-	}
-	eventsScope := client.eventsDefault
-	if sendReasonsInEvents {
-		eventsScope = client.eventsWithReasons
 	}
 	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventsScope)
 	if err != nil {
