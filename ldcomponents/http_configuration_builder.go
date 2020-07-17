@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -77,8 +76,6 @@ func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfiguratio
 // SDK client (the waitFor parameter to MakeClient); that is the total length of time that MakeClient
 // will wait regardless of how many connection attempts are required.
 //
-// This is equivalent to calling HTTPOptions(ldhttp.ConnectTimeoutOption(connectTimeout)).
-//
 //     config := ld.Config{
 //         HTTP: ldcomponents.ConnectTimeout(),
 //     }
@@ -93,11 +90,10 @@ func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) 
 
 // HTTPClientFactory specifies a function for creating each HTTP client instance that is used by the SDK.
 //
-// If you use this option, it overrides any other settings that you may have specified with ConnectTimeout,
-// ProxyURL, or HTTPOptions; you are responsible for setting up any desired custom configuration on the
-// HTTP client. The SDK may modify the client properties after the client is created (for instance, to
-// add caching),  but will not replace the underlying Transport, and will not modify any timeout properties
-// you set.
+// If you use this option, it overrides any other settings that you may have specified with ConnectTimeout
+// or ProxyURL; you are responsible for setting up any desired custom configuration on the HTTP client. The
+// SDK may modify the client properties after the client is created (for instance, to add caching), but
+// will not replace the underlying Transport, and will not modify any timeout properties you set.
 func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *http.Client) *HTTPConfigurationBuilder {
 	b.httpClientFactory = httpClientFactory
 	return b
@@ -156,11 +152,6 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 	}
 	if b.proxyURL != "" {
 		return true
-	}
-	for _, option := range b.httpOptions {
-		if reflect.TypeOf(option) == reflect.TypeOf(ldhttp.ProxyOption(url.URL{})) {
-			return true
-		}
 	}
 	return false
 }
