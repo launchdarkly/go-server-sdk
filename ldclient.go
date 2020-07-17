@@ -17,6 +17,7 @@ import (
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
@@ -431,16 +432,17 @@ func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
 }
 
-// AllFlagsState returns an object that encapsulates the state of all feature flags for a
-// given user, including the flag values and also metadata that can be used on the front end.
-// You may pass any combination of ClientSideOnly, WithReasons, and DetailsOnlyForTrackedFlags
-// as optional parameters to control what data is included.
+// AllFlagsState returns an object that encapsulates the state of all feature flags for a given user.
+// This includes the flag values, and also metadata that can be used on the front end.
 //
-// The most common use case for this method is to bootstrap a set of client-side feature flags
-// from a back-end service.
+// The most common use case for this method is to bootstrap a set of client-side feature flags from a
+// back-end service.
+//
+// You may pass any combination of flagstate.ClientSideOnly, flagstate.WithReasons, and
+// flagstate.DetailsOnlyForTrackedFlags as optional parameters to control what data is included.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#all-flags
-func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOption) FeatureFlagsState {
+func (client *LDClient) AllFlagsState(user lduser.User, options ...flagstate.Option) flagstate.AllFlags {
 	valid := true
 	if client.IsOffline() {
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
@@ -455,19 +457,24 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 	}
 
 	if !valid {
-		return FeatureFlagsState{valid: false}
+		return flagstate.AllFlags{}
 	}
 
 	items, err := client.store.GetAll(datakinds.Features)
 	if err != nil {
 		client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
-		return FeatureFlagsState{valid: false}
+		return flagstate.AllFlags{}
 	}
 
-	state := newFeatureFlagsState()
-	clientSideOnly := hasFlagsStateOption(options, ClientSideOnly)
-	withReasons := hasFlagsStateOption(options, WithReasons)
-	detailsOnlyIfTracked := hasFlagsStateOption(options, DetailsOnlyForTrackedFlags)
+	clientSideOnly := false
+	for _, o := range options {
+		if o == flagstate.OptionClientSideOnly() {
+			clientSideOnly = true
+			break
+		}
+	}
+
+	state := flagstate.NewAllFlagsBuilder(options...)
 	for _, item := range items {
 		if item.Item.Item != nil {
 			if flag, ok := item.Item.Item.(*ldmodel.FeatureFlag); ok {
@@ -475,16 +482,22 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...FlagsStateOpt
 					continue
 				}
 				result := client.evaluator.Evaluate(flag, user, nil)
-				var reason ldreason.EvaluationReason
-				if withReasons {
-					reason = result.Reason
-				}
-				state.addFlag(*flag, result.Value, result.VariationIndex, reason, detailsOnlyIfTracked)
+				state.AddFlag(
+					item.Key,
+					flagstate.FlagState{
+						Value:                result.Value,
+						Variation:            result.VariationIndex,
+						Reason:               result.Reason,
+						Version:              flag.Version,
+						TrackEvents:          flag.TrackEvents,
+						DebugEventsUntilDate: flag.DebugEventsUntilDate,
+					},
+				)
 			}
 		}
 	}
 
-	return state
+	return state.Build()
 }
 
 // BoolVariation returns the value of a boolean feature flag for a given user.

@@ -4,6 +4,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 )
 
 // LDClientEvaluations defines the basic feature flag evaluation methods implemented by LDClient.
@@ -97,7 +98,18 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
 	JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (
 		ldvalue.Value, ldreason.EvaluationDetail, error)
-	// AllFlagsState(user lduser.User, options ...FlagsStateOption) FeatureFlagsState
+
+	// AllFlagsState returns an object that encapsulates the state of all feature flags for a given user.
+	// This includes the flag values, and also metadata that can be used on the front end.
+	//
+	// The most common use case for this method is to bootstrap a set of client-side feature flags from a
+	// back-end service.
+	//
+	// You may pass any combination of flagstate.ClientSideOnly, flagstate.WithReasons, and
+	// flagstate.DetailsOnlyForTrackedFlags as optional parameters to control what data is included.
+	//
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#all-flags
+	AllFlagsState(user lduser.User, options ...flagstate.Option) flagstate.AllFlags
 }
 
 // LDClientEvents defines the methods implemented by LDClient that are specifically for generating
