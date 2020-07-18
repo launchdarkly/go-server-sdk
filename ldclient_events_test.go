@@ -184,6 +184,9 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 			checkEvents(func() { ci.TrackEvent("eventkey", user) })
 			checkEvents(func() { ci.TrackData("eventkey", user, ldvalue.Bool(true)) })
 			checkEvents(func() { ci.TrackMetric("eventkey", user, 1.5, ldvalue.Null()) })
+
+			state := ci.AllFlagsState(user)
+			assert.True(t, state.IsValid())
 		})
 	}
 

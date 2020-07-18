@@ -7,6 +7,7 @@ import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
 
@@ -147,6 +148,14 @@ func (c *clientEventsDisabledDecorator) JSONVariationDetail(key string, user ldu
 	ldvalue.Value, ldreason.EvaluationDetail, error) {
 	detail, err := c.client.variation(key, user, defaultVal, true, c.scope)
 	return detail.Value, detail, err
+}
+
+func (c *clientEventsDisabledDecorator) AllFlagsState(
+	user lduser.User,
+	options ...flagstate.Option,
+) flagstate.AllFlags {
+	// Currently AllFlagsState never generates events anyway, so nothing is different here
+	return c.client.AllFlagsState(user, options...)
 }
 
 func (c *clientEventsDisabledDecorator) Identify(user lduser.User) error {
