@@ -1,26 +1,39 @@
 package redisuniversal
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/go-redis/redis"
-	"gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
-	"os"
-	"os/signal"
-	"time"
+"encoding/json"
+"strings"
+"fmt"
+"os"
+"os/signal"
+"time"
+
+"github.com/go-redis/redis"
+"gopkg.in/launchdarkly/go-server-sdk.v4"
+"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
 )
 
-type cache struct {
+type redisStoreCore struct {
 	loggers ldlog.Loggers
 	config  Options
 	client  redis.UniversalClient
+	clusterMode bool
 }
 
-func newRedisCache(options Options, loggers ldlog.Loggers) cache {
+const hashTag = "{ld}."
+
+func newRedisStoreCore(options Options, loggers ldlog.Loggers) *redisStoreCore {
 	loggers.SetPrefix("RedisFeatureStore:")
-	client := redis.NewUniversalClient(options.CacheOpts)
+	client := redis.NewUniversalClient(options.RedisOpts)
+
+	// ping the server so we know we are good
+	err := client.Ping().Err()
+	if err != nil {
+		loggers.Error("could not ping redis server: %v", err)
+		return nil
+	}
+
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, os.Kill)
 	go func() {
@@ -32,22 +45,48 @@ func newRedisCache(options Options, loggers ldlog.Loggers) cache {
 	if options.MaxRetryCount == 0 {
 		options.MaxRetryCount = defaultRetryCount
 	}
-	return cache{
+	if options.CacheTTL == 0 {
+		options.CacheTTL = DefaultCacheTTL
+	}
+	var clusterMode bool
+	if len(options.RedisOpts.Addrs) > 1 {
+		clusterMode = true
+	}
+
+	return &redisStoreCore{
 		loggers: loggers,
 		client:  client,
 		config:  options,
+		clusterMode: clusterMode,
 	}
 }
-func (c cache) featuresKey(kind ldclient.VersionedDataKind) string {
-	return c.config.CachePrefix + ":" + kind.GetNamespace()
+func (c *redisStoreCore) featuresKey(kind ldclient.VersionedDataKind) string {
+	return c.hashTagKey(c.config.Prefix + ":" + kind.GetNamespace())
 }
 
-func (c cache) initedKey() string {
-	return c.config.CachePrefix + ":" + initedKey
+func (c *redisStoreCore) initedKey() string {
+	return c.config.Prefix + ":" + initedKey
 }
 
-func (c cache) GetInternal(kind ldclient.VersionedDataKind, key string) (ldclient.VersionedData, error) {
-	jsonStr, err := c.client.HGet(c.featuresKey(kind), key).Result()
+// We use a hashtag in order to keep all keys in the same node (and hash slot) so we can perform
+// and use watch ... exec without issues. Only in ClusterMode
+func (c *redisStoreCore) hashTagKey(key string) string {
+	if c.clusterMode {
+		return hashTag + key
+	}
+	return key
+}
+
+// Removing the hashtag from the key
+func (c *redisStoreCore) cleanHashTagKey(key string) string {
+	if c.clusterMode {
+		return strings.Replace(key, hashTag, "",-1)
+	}
+	return key
+}
+
+func (c *redisStoreCore) GetInternal(kind ldclient.VersionedDataKind, key string) (ldclient.VersionedData, error) {
+	jsonStr, err := c.client.HGet(c.featuresKey(kind), c.hashTagKey(key)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			c.loggers.Debugf("Key: %s not found in \"%s\"", key, kind.GetNamespace())
@@ -63,7 +102,7 @@ func (c cache) GetInternal(kind ldclient.VersionedDataKind, key string) (ldclien
 	return item, nil
 }
 
-func (c cache) GetAllInternal(kind ldclient.VersionedDataKind) (map[string]ldclient.VersionedData, error) {
+func (c *redisStoreCore) GetAllInternal(kind ldclient.VersionedDataKind) (map[string]ldclient.VersionedData, error) {
 	values, err := c.client.HGetAll(c.featuresKey(kind)).Result()
 	if err != nil && err != redis.Nil {
 		return nil, err
@@ -76,12 +115,12 @@ func (c cache) GetAllInternal(kind ldclient.VersionedDataKind) (map[string]ldcli
 			return nil, fmt.Errorf("failed to unmarshal %s: %s", kind, err)
 		}
 
-		results[k] = item
+		results[c.cleanHashTagKey(k)] = item
 	}
 	return results, nil
 }
 
-func (c cache) UpsertInternal(kind ldclient.VersionedDataKind, newItem ldclient.VersionedData) (ldclient.VersionedData, error) {
+func (c *redisStoreCore) UpsertInternal(kind ldclient.VersionedDataKind, newItem ldclient.VersionedData) (ldclient.VersionedData, error) {
 	baseKey := c.featuresKey(kind)
 	key := newItem.GetKey()
 	var item ldclient.VersionedData
@@ -114,7 +153,7 @@ func (c cache) UpsertInternal(kind ldclient.VersionedDataKind, newItem ldclient.
 			}
 
 			result, err := tx.TxPipelined(func(pipe redis.Pipeliner) error {
-				err = pipe.HSet(baseKey, key, data).Err()
+				err = pipe.HSet(baseKey, c.hashTagKey(key), data).Err()
 				if err == nil {
 					result, err := pipe.Exec()
 					// if exec returned nothing, it means the watch was triggered and we should retry
@@ -144,16 +183,25 @@ func (c cache) UpsertInternal(kind ldclient.VersionedDataKind, newItem ldclient.
 	return nil, retryErr
 }
 
-func (c cache) InitializedInternal() bool {
+func (c *redisStoreCore) InitializedInternal() bool {
 	inited, _ := c.client.Exists(c.initedKey()).Result()
 	return inited == 1
 }
 
-func (c cache) GetCacheTTL() time.Duration {
+func (c *redisStoreCore) IsStoreAvailable() bool {
+	_, err := c.client.Exists(c.initedKey()).Result()
+	return err == nil
+}
+
+func (c *redisStoreCore) GetCacheTTL() time.Duration {
 	return c.config.CacheTTL
 }
 
-func (c cache) InitInternal(allData map[ldclient.VersionedDataKind]map[string]ldclient.VersionedData) error {
+func (c *redisStoreCore) GetDiagnosticsComponentTypeName() string {
+	return "Redis"
+}
+
+func (c *redisStoreCore) InitInternal(allData map[ldclient.VersionedDataKind]map[string]ldclient.VersionedData) error {
 	pipe := c.client.Pipeline()
 	for kind, items := range allData {
 		baseKey := c.featuresKey(kind)
@@ -167,7 +215,7 @@ func (c cache) InitInternal(allData map[ldclient.VersionedDataKind]map[string]ld
 				return fmt.Errorf("failed to marshal %s key %s: %s", kind, k, jsonErr)
 			}
 
-			if err := pipe.HSet(baseKey, k, data).Err(); err != nil {
+			if err := pipe.HSet(baseKey, c.hashTagKey(k), data).Err(); err != nil {
 				return err
 			}
 		}

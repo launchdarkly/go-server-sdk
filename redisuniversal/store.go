@@ -1,21 +1,27 @@
 package redisuniversal
 
 import (
-	"github.com/go-redis/redis"
-	"gopkg.in/launchdarkly/go-server-sdk.v4"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
-	"time"
+"github.com/go-redis/redis"
+"gopkg.in/launchdarkly/go-server-sdk.v4"
+"gopkg.in/launchdarkly/go-server-sdk.v4/ldlog"
+"gopkg.in/launchdarkly/go-server-sdk.v4/utils"
+"time"
 )
 
 const (
 	initedKey         = "$inited"
 	defaultRetryCount = 10
+	// DefaultCacheTTL is the default amount of time that recently read or updated items will
+	// be cached in memory, if you use NewRedisFeatureStoreWithDefaults. You can specify otherwise
+	// with the CacheTTL option. If you are using the other constructors, their "timeout"
+	// parameter serves the same purpose and there is no default.
+	DefaultCacheTTL = 15 * time.Second
 )
 
+// Options will hold all the configuration values used in the RedisStoreCore
 type Options struct {
-	CacheOpts     *redis.UniversalOptions
-	CachePrefix   string
+	RedisOpts     *redis.UniversalOptions
+	Prefix   	string
 	CacheTTL      time.Duration
 	MaxRetryCount int
 }
@@ -26,11 +32,12 @@ type featureStore struct {
 	wrapper *utils.FeatureStoreWrapper
 }
 
+// NewRedisFeatureStoreFactory returns a factory function for a Redis-backed feature store.
 func NewRedisFeatureStoreFactory(config Options) (ldclient.FeatureStoreFactory, error) {
 	return func(ldConfig ldclient.Config) (ldclient.FeatureStore, error) {
 		return featureStore{
 			loggers: ldConfig.Loggers,
-			wrapper: utils.NewFeatureStoreWrapperWithConfig(newRedisCache(config, ldConfig.Loggers), ldclient.Config{}),
+			wrapper: utils.NewFeatureStoreWrapperWithConfig(newRedisStoreCore(config, ldConfig.Loggers), ldConfig),
 		}, nil
 	}, nil
 }
@@ -58,3 +65,4 @@ func (s featureStore) Upsert(kind ldclient.VersionedDataKind, item ldclient.Vers
 func (s featureStore) Initialized() bool {
 	return s.wrapper.Initialized()
 }
+

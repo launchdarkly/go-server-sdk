@@ -34,6 +34,10 @@
   version = "1.4.0"
 
 [[constraint]]
+  name = "github.com/go-redis/redis"
+  version = "v6.15.8"
+
+[[constraint]]
   branch = "master"
   name = "github.com/gregjones/httpcache"
 
