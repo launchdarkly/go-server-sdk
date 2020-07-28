@@ -375,7 +375,11 @@ func (client *LDClient) AllFlagsState(user User, options ...FlagsStateOption) Fe
 	detailsOnlyIfTracked := hasFlagsStateOption(options, DetailsOnlyForTrackedFlags)
 	for _, item := range items {
 		if flag, ok := item.(*FeatureFlag); ok {
-			if clientSideOnly && !flag.ClientSide {
+			clientSideFlag := flag.ClientSide
+			if flag.ClientSideAvailability != nil {
+				clientSideFlag = flag.ClientSideAvailability.UsingEnvironmentID
+			}
+			if clientSideOnly && !clientSideFlag {
 				continue
 			}
 			result, _ := flag.EvaluateDetail(user, client.store, false)
