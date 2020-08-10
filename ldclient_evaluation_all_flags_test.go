@@ -1,10 +1,10 @@
 package ldclient
 
 import (
-	"encoding/json"
 	"errors"
-	"strconv"
 	"testing"
+
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 
 	"github.com/stretchr/testify/assert"
@@ -36,30 +37,31 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"))
 		assert.True(t, state.IsValid())
 
-		expectedString := `{
-			"key1":"value1",
-			"key2":"value2",
-			"$flagsState":{
-				"key1":{
-					"variation":0,"version":100,"reason":null
-				},
-				"key2": {
-					"variation":1,"version":200,"trackEvents":true,"debugEventsUntilDate":1000,"reason":null
-				}
-			},
-			"$valid":true
-		}`
-		actualBytes, err := json.Marshal(state)
-		assert.NoError(t, err)
-		assert.JSONEq(t, expectedString, string(actualBytes))
+		expected := flagstate.NewAllFlagsBuilder().
+			AddFlag("key1", flagstate.FlagState{
+				Value:     ldvalue.String("value1"),
+				Variation: 0,
+				Version:   100,
+			}).
+			AddFlag("key2", flagstate.FlagState{
+				Value:                ldvalue.String("value2"),
+				Variation:            1,
+				Version:              200,
+				TrackEvents:          true,
+				DebugEventsUntilDate: ldtime.UnixMillisecondTime(1000),
+			}).
+			Build()
+		assert.Equal(t, expected, state)
 	})
 }
 
 func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("server-side-1").Build()
 	flag2 := ldbuilders.NewFlagBuilder("server-side-2").Build()
-	flag3 := ldbuilders.NewFlagBuilder("client-side-1").SingleVariation(ldvalue.String("value1")).ClientSide(true).Build()
-	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).ClientSide(true).Build()
+	flag3 := ldbuilders.NewFlagBuilder("client-side-1").SingleVariation(ldvalue.String("value1")).
+		ClientSideUsingEnvironmentID(true).Build()
+	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).
+		ClientSideUsingEnvironmentID(true).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		sharedtest.UpsertFlag(p.store, &flag1)
@@ -67,7 +69,7 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 		sharedtest.UpsertFlag(p.store, &flag3)
 		sharedtest.UpsertFlag(p.store, &flag4)
 
-		state := p.client.AllFlagsState(lduser.NewUser("userkey"), ClientSideOnly)
+		state := p.client.AllFlagsState(lduser.NewUser("userkey"), flagstate.OptionClientSideOnly())
 		assert.True(t, state.IsValid())
 
 		expectedValues := map[string]ldvalue.Value{"client-side-1": ldvalue.String("value1"), "client-side-2": ldvalue.String("value2")}
@@ -76,75 +78,33 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 }
 
 func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
-	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).
+	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).On(false).OffVariation(0).
 		Variations(ldvalue.String("value1")).Build()
-	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).
-		Variations(ldvalue.String("x"), ldvalue.String("value2")).
-		TrackEvents(true).DebugEventsUntilDate(1000).Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).On(true).FallthroughVariation(1).
+		Variations(ldvalue.String("x"), ldvalue.String("value2")).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		sharedtest.UpsertFlag(p.store, &flag1)
 		sharedtest.UpsertFlag(p.store, &flag2)
 
-		state := p.client.AllFlagsState(lduser.NewUser("userkey"), WithReasons)
+		state := p.client.AllFlagsState(lduser.NewUser("userkey"), flagstate.OptionWithReasons())
 		assert.True(t, state.IsValid())
 
-		expectedString := `{
-			"key1":"value1",
-			"key2":"value2",
-			"$flagsState":{
-				"key1":{
-					"variation":0,"version":100,"reason":{"kind":"OFF"}
-				},
-				"key2": {
-					"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true,"debugEventsUntilDate":1000
-				}
-			},
-			"$valid":true
-		}`
-		actualBytes, err := json.Marshal(state)
-		assert.NoError(t, err)
-		assert.JSONEq(t, expectedString, string(actualBytes))
-	})
-}
-
-func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
-	futureTime := ldtime.UnixMillisNow() + 100000
-	futureTimeStr := strconv.FormatInt(int64(futureTime), 10)
-	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
-	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
-		TrackEvents(true).Build()
-	flag3 := ldbuilders.NewFlagBuilder("key3").Version(300).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value3")).
-		TrackEvents(false).DebugEventsUntilDate(futureTime).Build()
-
-	withClientEvalTestParams(func(p clientEvalTestParams) {
-		sharedtest.UpsertFlag(p.store, &flag1)
-		sharedtest.UpsertFlag(p.store, &flag2)
-		sharedtest.UpsertFlag(p.store, &flag3)
-
-		state := p.client.AllFlagsState(lduser.NewUser("userkey"), WithReasons, DetailsOnlyForTrackedFlags)
-		assert.True(t, state.IsValid())
-
-		expectedString := `{
-			"key1":"value1",
-			"key2":"value2",
-			"key3":"value3",
-			"$flagsState":{
-				"key1":{
-					"variation":0
-				},
-				"key2": {
-					"variation":1,"version":200,"reason":{"kind":"OFF"},"trackEvents":true
-				},
-				"key3": {
-					"variation":1,"version":300,"reason":{"kind":"OFF"},"debugEventsUntilDate":` + futureTimeStr + `
-				}
-			},
-			"$valid":true
-		}`
-		actualBytes, err := json.Marshal(state)
-		assert.NoError(t, err)
-		assert.JSONEq(t, expectedString, string(actualBytes))
+		expected := flagstate.NewAllFlagsBuilder(flagstate.OptionWithReasons()).
+			AddFlag("key1", flagstate.FlagState{
+				Value:     ldvalue.String("value1"),
+				Variation: 0,
+				Version:   100,
+				Reason:    ldreason.NewEvalReasonOff(),
+			}).
+			AddFlag("key2", flagstate.FlagState{
+				Value:     ldvalue.String("value2"),
+				Variation: 1,
+				Version:   200,
+				Reason:    ldreason.NewEvalReasonFallthrough(),
+			}).
+			Build()
+		assert.Equal(t, expected, state)
 	})
 }
 
