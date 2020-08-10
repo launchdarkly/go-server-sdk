@@ -478,7 +478,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...flagstate.Opt
 	for _, item := range items {
 		if item.Item.Item != nil {
 			if flag, ok := item.Item.Item.(*ldmodel.FeatureFlag); ok {
-				if clientSideOnly && !flag.ClientSide {
+				if clientSideOnly && !flag.ClientSideAvailability.UsingEnvironmentID {
 					continue
 				}
 				result := client.evaluator.Evaluate(flag, user, nil)

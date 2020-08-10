@@ -58,8 +58,10 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("server-side-1").Build()
 	flag2 := ldbuilders.NewFlagBuilder("server-side-2").Build()
-	flag3 := ldbuilders.NewFlagBuilder("client-side-1").SingleVariation(ldvalue.String("value1")).ClientSide(true).Build()
-	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).ClientSide(true).Build()
+	flag3 := ldbuilders.NewFlagBuilder("client-side-1").SingleVariation(ldvalue.String("value1")).
+		ClientSideUsingEnvironmentID(true).Build()
+	flag4 := ldbuilders.NewFlagBuilder("client-side-2").SingleVariation(ldvalue.String("value2")).
+		ClientSideUsingEnvironmentID(true).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		sharedtest.UpsertFlag(p.store, &flag1)
