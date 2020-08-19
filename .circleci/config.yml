@@ -14,6 +14,7 @@ workflows:
       - go-test:
           name: Go 1.13
           docker-image: cimg/go:1.13
+      - go-non-module-test
       - go-test-windows:
           name: Windows
       - benchmarks
@@ -82,6 +83,14 @@ jobs:
       - store_artifacts:
           path: /tmp/circle-artifacts
 
+  go-non-module-test:
+    docker:
+      - image: cimg/go:1.14
+
+    steps:
+      - checkout
+      - run: ./scripts/test-non-module-build.sh
+        
   go-test-windows:
     executor:
       name: win/vs2019
