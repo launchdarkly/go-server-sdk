@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
@@ -130,7 +129,7 @@ func BenchmarkFeatureRequestEventsSummaryOnly(b *testing.B) {
 					User:         ldevents.EventUser{User: user},
 				},
 				Key:       env.targetFeatureKey,
-				Variation: variation,
+				Variation: ldvalue.NewOptionalInt(variation),
 				Value:     value,
 			}
 			env.eventProcessor.RecordFeatureRequestEvent(event)
@@ -152,7 +151,7 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 					User:         ldevents.EventUser{User: user},
 				},
 				Key:         env.targetFeatureKey,
-				Variation:   variation,
+				Variation:   ldvalue.NewOptionalInt(variation),
 				Value:       value,
 				TrackEvents: true,
 			}

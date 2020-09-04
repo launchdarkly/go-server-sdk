@@ -67,13 +67,11 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 	return eventsScope{
 		factory: factory,
 		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
-			event := factory.NewSuccessfulEvalEvent(
+			event := factory.NewEvalEvent(
 				params.PrerequisiteFlag,
 				ldevents.User(params.User),
-				params.PrerequisiteResult.VariationIndex,
-				params.PrerequisiteResult.Value,
+				params.PrerequisiteResult,
 				ldvalue.Null(),
-				params.PrerequisiteResult.Reason,
 				params.TargetFlagKey,
 			)
 			client.eventProcessor.RecordFeatureRequestEvent(event)

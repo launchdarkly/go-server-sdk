@@ -40,12 +40,12 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 		expected := flagstate.NewAllFlagsBuilder().
 			AddFlag("key1", flagstate.FlagState{
 				Value:     ldvalue.String("value1"),
-				Variation: 0,
+				Variation: ldvalue.NewOptionalInt(0),
 				Version:   100,
 			}).
 			AddFlag("key2", flagstate.FlagState{
 				Value:                ldvalue.String("value2"),
-				Variation:            1,
+				Variation:            ldvalue.NewOptionalInt(1),
 				Version:              200,
 				TrackEvents:          true,
 				DebugEventsUntilDate: ldtime.UnixMillisecondTime(1000),
@@ -93,13 +93,13 @@ func TestAllFlagsStateGetsStateWithReasons(t *testing.T) {
 		expected := flagstate.NewAllFlagsBuilder(flagstate.OptionWithReasons()).
 			AddFlag("key1", flagstate.FlagState{
 				Value:     ldvalue.String("value1"),
-				Variation: 0,
+				Variation: ldvalue.NewOptionalInt(0),
 				Version:   100,
 				Reason:    ldreason.NewEvalReasonOff(),
 			}).
 			AddFlag("key2", flagstate.FlagState{
 				Value:     ldvalue.String("value2"),
-				Variation: 1,
+				Variation: ldvalue.NewOptionalInt(1),
 				Version:   200,
 				Reason:    ldreason.NewEvalReasonFallthrough(),
 			}).

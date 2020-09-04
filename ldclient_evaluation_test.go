@@ -100,9 +100,9 @@ func assertEvalEvent(
 			User:         ldevents.User(user),
 		},
 		Key:       flag.Key,
-		Version:   flag.Version,
+		Version:   ldvalue.NewOptionalInt(flag.Version),
 		Value:     value,
-		Variation: variation,
+		Variation: ldvalue.NewOptionalInt(variation),
 		Default:   defaultVal,
 		Reason:    reason,
 	}
@@ -136,9 +136,8 @@ func TestBoolVariation(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
-			assert.Equal(t, expected, detail.Value.BoolValue())
-			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Bool(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
 
 			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Bool(expected),
 				expectedVariationForSingleValueFlag, ldvalue.Bool(defaultVal), detail.Reason)
@@ -173,9 +172,8 @@ func TestIntVariation(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
-			assert.Equal(t, expected, detail.Value.IntValue())
-			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Int(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
 
 			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Int(expected),
 				expectedVariationForSingleValueFlag, ldvalue.Int(defaultVal), detail.Reason)
@@ -240,9 +238,8 @@ func TestFloat64Variation(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
-			assert.Equal(t, expected, detail.Value.Float64Value())
-			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Float64(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
 
 			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.Float64(expected),
 				expectedVariationForSingleValueFlag, ldvalue.Float64(defaultVal), detail.Reason)
@@ -277,9 +274,8 @@ func TestStringVariation(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
-			assert.Equal(t, expected, detail.Value.StringValue())
-			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.String(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
 
 			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, ldvalue.String(expected),
 				expectedVariationForSingleValueFlag, ldvalue.String(defaultVal), detail.Reason)
@@ -317,9 +313,8 @@ func TestJSONRawVariation(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, expectedRaw, actual.AsRaw())
-			assert.Equal(t, expectedRaw, detail.Value.AsRaw())
-			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Parse(expectedRaw), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
 
 			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser,
 				ldvalue.CopyArbitraryValue(expectedValue), expectedVariationForSingleValueFlag,
@@ -355,9 +350,8 @@ func TestJSONVariation(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
-			assert.Equal(t, expected, detail.Value)
-			assert.Equal(t, expectedVariationForSingleValueFlag, detail.VariationIndex)
-			assert.Equal(t, expectedReasonForSingleValueFlag, detail.Reason)
+			assert.Equal(t, ldreason.NewEvaluationDetail(expected, expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
 
 			assertEvalEvent(t, p.requireSingleEvent(t), flag, evalTestUser, expected,
 				expectedVariationForSingleValueFlag, defaultVal, detail.Reason)
@@ -378,7 +372,7 @@ func TestEvaluatingUnknownFlagReturnsDefaultWithDetail(t *testing.T) {
 		_, detail, err := p.client.StringVariationDetail("flagKey", evalTestUser, "default")
 		assert.Error(t, err)
 		assert.Equal(t, ldvalue.String("default"), detail.Value)
-		assert.Equal(t, -1, detail.VariationIndex)
+		assert.Equal(t, ldvalue.OptionalInt{}, detail.VariationIndex)
 		assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorFlagNotFound), detail.Reason)
 		assert.True(t, detail.IsDefaultValue())
 	})
@@ -405,7 +399,7 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNilWithDetail(t *testing.T) {
 		_, detail, err := p.client.StringVariationDetail(flag.Key, evalTestUser, "default")
 		assert.NoError(t, err)
 		assert.Equal(t, ldvalue.String("default"), detail.Value)
-		assert.Equal(t, -1, detail.VariationIndex)
+		assert.Equal(t, ldvalue.OptionalInt{}, detail.VariationIndex)
 		assert.Equal(t, ldreason.NewEvalReasonOff(), detail.Reason)
 	})
 }
@@ -581,11 +575,9 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 				CreationDate: e.CreationDate,
 				User:         ldevents.User(evalTestUser),
 			},
-			Key:       "flagKey",
-			Version:   ldevents.NoVersion,
-			Value:     ldvalue.String("x"),
-			Variation: ldevents.NoVariation,
-			Default:   ldvalue.String("x"),
+			Key:     "flagKey",
+			Value:   ldvalue.String("x"),
+			Default: ldvalue.String("x"),
 		}
 		assert.Equal(t, expectedEvent, e)
 	})
@@ -621,9 +613,9 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 				User:         ldevents.User(user),
 			},
 			Key:       flag1.Key,
-			Version:   flag1.Version,
+			Version:   ldvalue.NewOptionalInt(flag1.Version),
 			Value:     ldvalue.String("d"),
-			Variation: 1,
+			Variation: ldvalue.NewOptionalInt(1),
 			Default:   ldvalue.Null(),
 			PrereqOf:  ldvalue.NewOptionalString(flag0.Key),
 		}
@@ -636,9 +628,9 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 				User:         ldevents.User(user),
 			},
 			Key:       flag0.Key,
-			Version:   flag0.Version,
+			Version:   ldvalue.NewOptionalInt(flag0.Version),
 			Value:     ldvalue.String("b"),
-			Variation: 1,
+			Variation: ldvalue.NewOptionalInt(1),
 			Default:   ldvalue.String("x"),
 		}
 		assert.Equal(t, expected1, e1)

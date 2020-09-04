@@ -19,3 +19,7 @@ require (
 	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.3
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
+
+replace gopkg.in/launchdarkly/go-sdk-common.v2 => /Users/elibishop/work/go-sdk-common-private
+replace gopkg.in/launchdarkly/go-sdk-events.v1 => /Users/elibishop/work/go-sdk-events-private
+replace gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 => /Users/elibishop/work/go-server-sdk-evaluation-private
