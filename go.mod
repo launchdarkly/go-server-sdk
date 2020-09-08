@@ -14,12 +14,8 @@ require (
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.3
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.2
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.3
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.5
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.3
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.4
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
-
-replace gopkg.in/launchdarkly/go-sdk-common.v2 => /Users/elibishop/work/go-sdk-common-private
-replace gopkg.in/launchdarkly/go-sdk-events.v1 => /Users/elibishop/work/go-sdk-events-private
-replace gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 => /Users/elibishop/work/go-server-sdk-evaluation-private
