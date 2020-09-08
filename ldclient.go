@@ -724,11 +724,6 @@ func (client *LDClient) variation(
 				"",
 			)
 		}
-		if flag == nil {
-
-		} else {
-
-		}
 		client.eventProcessor.RecordFeatureRequestEvent(evt)
 	}
 
