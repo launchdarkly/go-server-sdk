@@ -7,10 +7,13 @@ workflows:
   workflow:
     jobs:
       - go-test:
+          name: Go 1.15
+          docker-image: cimg/go:1.15
+          run-lint: true
+          with-coverage: true
+      - go-test:
           name: Go 1.14
           docker-image: cimg/go:1.14
-          with-coverage: true
-          run-lint: true
       - go-test:
           name: Go 1.13
           docker-image: cimg/go:1.13
