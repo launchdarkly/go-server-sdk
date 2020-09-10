@@ -11,12 +11,16 @@ workflows:
       # compatible with 1.12 and above. So, until a future version where we drop older versions, we
       # won't run the linter in 1.12 and above.
       - go-test:
+          name: Go 1.15
+          docker-image: cimg/go:1.15
+          run-lint: false
+      - go-test:
           name: Go 1.14
-          docker-image: circleci/golang:1.14
+          docker-image: cimg/go:1.14
           run-lint: false
       - go-test:
           name: Go 1.13
-          docker-image: circleci/golang:1.13
+          docker-image: cimg/go:1.13
           run-lint: false
       - go-test:
           name: Go 1.12
@@ -59,9 +63,9 @@ jobs:
       - image: consul
       - image: amazon/dynamodb-local
 
-    working_directory: /go/src/gopkg.in/launchdarkly/go-server-sdk.v4
-
     steps:
+      - mkdir -p $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
+      - cd $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
       - when:
