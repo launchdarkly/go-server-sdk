@@ -64,8 +64,8 @@ jobs:
       - image: amazon/dynamodb-local
 
     steps:
-      - mkdir -p $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
-      - cd $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
+      - run: mkdir -p $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
+      - run: cd $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
       - when:
