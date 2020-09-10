@@ -13,14 +13,17 @@ workflows:
       - go-test:
           name: Go 1.15
           docker-image: cimg/go:1.15
+          gopath: /home/circleci/go
           run-lint: false
       - go-test:
           name: Go 1.14
           docker-image: cimg/go:1.14
+          gopath: /home/circleci/go
           run-lint: false
       - go-test:
           name: Go 1.13
           docker-image: cimg/go:1.13
+          gopath: /home/circleci/go
           run-lint: false
       - go-test:
           name: Go 1.12
@@ -50,6 +53,9 @@ jobs:
         default: true
       docker-image:
         type: string
+      gopath:
+        type: string
+        default: /go
 
     docker:
       - image: <<parameters.docker-image>>
@@ -62,10 +68,10 @@ jobs:
       - image: redis
       - image: consul
       - image: amazon/dynamodb-local
+      
+      - working_directory: <<parameters.gopath>>/src/gopkg.in/launchdarkly/go-server-sdk.v4
 
     steps:
-      - run: mkdir -p $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
-      - run: cd $GOPATH/src/gopkg.in/launchdarkly/go-server-sdk.v4
       - checkout
       - run: go get -u $COMMON_GO_PACKAGES
       - when:
