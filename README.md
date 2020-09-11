@@ -12,7 +12,7 @@ The `v5` branch currently contains prerelease code for development of Go SDK 5.0
  
 ## Supported Go versions
 
-This version of the LaunchDarkly SDK has been tested with Go 1.13 and higher.
+This version of the LaunchDarkly SDK has been tested with Go 1.14 and higher.
 
 ## Getting started
 
