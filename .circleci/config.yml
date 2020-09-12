@@ -14,9 +14,6 @@ workflows:
       - go-test:
           name: Go 1.14
           docker-image: cimg/go:1.14
-      - go-test:
-          name: Go 1.13
-          docker-image: cimg/go:1.13
       - go-non-module-test
       - go-test-windows:
           name: Windows
