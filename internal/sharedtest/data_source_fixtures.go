@@ -5,19 +5,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
-// SingleDataSourceFactory is a test implementation of DataSourceFactory that always returns the same
-// pre-existing instance.
-type SingleDataSourceFactory struct {
-	Instance interfaces.DataSource
-}
-
-func (f SingleDataSourceFactory) CreateDataSource( //nolint:golint
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
-	return f.Instance, nil
-}
-
 // DataSourceFactoryThatExposesUpdater is a test implementation of DataSourceFactory that captures the
 // DataSourceUpdates instance provided by LDClient.
 type DataSourceFactoryThatExposesUpdater struct {
@@ -66,26 +53,47 @@ func (d *dataSourceWithData) Start(closeWhenReady chan<- struct{}) {
 	close(closeWhenReady)
 }
 
-// MockDataSource is a test implementation of DataSource that allows tests to control its initialization
-// behavior.
-type MockDataSource struct {
+// DataSourceThatIsAlwaysInitialized returns a test DataSourceFactory that produces a data source
+// that immediately reports success on startup, although it does not provide any data.
+func DataSourceThatIsAlwaysInitialized() interfaces.DataSourceFactory {
+	return singleDataSourceFactory{mockDataSource{Initialized: true}}
+}
+
+// DataSourceThatNeverInitializes returns a test DataSourceFactory that produces a data source
+// that immediately starts up in a failed state and does not provide any data.
+func DataSourceThatNeverInitializes() interfaces.DataSourceFactory {
+	return singleDataSourceFactory{mockDataSource{Initialized: false}}
+}
+
+type singleDataSourceFactory struct {
+	Instance interfaces.DataSource
+}
+
+func (f singleDataSourceFactory) CreateDataSource(
+	context interfaces.ClientContext,
+	dataSourceUpdates interfaces.DataSourceUpdates,
+) (interfaces.DataSource, error) {
+	return f.Instance, nil
+}
+
+type mockDataSource struct {
 	Initialized bool
 	CloseFn     func() error
 	StartFn     func(chan<- struct{})
 }
 
-func (u MockDataSource) IsInitialized() bool { //nolint:golint
+func (u mockDataSource) IsInitialized() bool {
 	return u.Initialized
 }
 
-func (u MockDataSource) Close() error { //nolint:golint
+func (u mockDataSource) Close() error {
 	if u.CloseFn == nil {
 		return nil
 	}
 	return u.CloseFn()
 }
 
-func (u MockDataSource) Start(closeWhenReady chan<- struct{}) { //nolint:golint
+func (u mockDataSource) Start(closeWhenReady chan<- struct{}) {
 	if u.StartFn == nil {
 		close(closeWhenReady)
 	} else {

@@ -70,11 +70,9 @@ func TestSecureModeHash(t *testing.T) {
 }
 
 func TestMakeCustomClientWithFailedInitialization(t *testing.T) {
-	dataSource := sharedtest.MockDataSource{Initialized: false}
-
 	client, err := MakeCustomClient(testSdkKey, Config{
 		Logging:    sharedtest.TestLogging(),
-		DataSource: sharedtest.SingleDataSourceFactory{Instance: dataSource},
+		DataSource: sharedtest.DataSourceThatNeverInitializes(),
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
 
@@ -88,13 +86,11 @@ func makeTestClient() *LDClient {
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
-		Offline:   false,
-		DataStore: ldcomponents.InMemoryDataStore(),
-		DataSource: sharedtest.SingleDataSourceFactory{
-			Instance: sharedtest.MockDataSource{Initialized: true},
-		},
-		Events:  sharedtest.SingleEventProcessorFactory{Instance: &sharedtest.CapturingEventProcessor{}},
-		Logging: sharedtest.TestLogging(),
+		Offline:    false,
+		DataStore:  ldcomponents.InMemoryDataStore(),
+		DataSource: sharedtest.DataSourceThatIsAlwaysInitialized(),
+		Events:     sharedtest.SingleEventProcessorFactory{Instance: &sharedtest.CapturingEventProcessor{}},
+		Logging:    sharedtest.TestLogging(),
 	}
 	if modConfig != nil {
 		modConfig(&config)

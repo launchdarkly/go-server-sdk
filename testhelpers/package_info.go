@@ -1,7 +1,9 @@
 // Package testhelpers contains types and functions that may be useful in testing SDK functionality or
 // custom integrations.
 //
-// Its subpackage storetest is meant to be used by any implementation of a persistent data store.
+// It contains two subpackages: ldtestdata, which provides a test fixture for setting flag values
+// programmatically, and storetest, which provides a standard test suite for custom persistent data
+// store implementations.
 //
 // The APIs in this package and its subpackages are supported as part of the SDK.
 package testhelpers

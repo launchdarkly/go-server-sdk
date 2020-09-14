@@ -1,5 +1,8 @@
 // Package ldfiledata allows the LaunchDarkly client to read feature flag data from a file.
 //
+// This is different from ldtestdata.DataSource, which allows you to simulate flag configurations
+// programmatically rather than using a file.
+//
 // To use the file-based data source in your SDK configuration, call ldfiledata.DataSource to obtain a
 // configurable object that you will use as the configuration's DataSource:
 //
