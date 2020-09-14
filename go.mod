@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
+	github.com/launchdarkly-labs/go-coverage-enforcer v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.4.3
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
 	github.com/launchdarkly/go-test-helpers/v2 v2.2.0
@@ -14,8 +15,8 @@ require (
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.3
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.2
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.3
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.0.0-beta.5
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.0-beta.3
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.0.0-beta.5
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

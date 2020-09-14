@@ -15,20 +15,21 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
 
-type upsertParams struct {
-	kind ldstoretypes.DataKind
-	key  string
-	item ldstoretypes.ItemDescriptor
-}
-
 // CapturingDataStore is a DataStore implementation that records update operations for testing.
 type CapturingDataStore struct {
 	realStore               interfaces.DataStore
 	statusMonitoringEnabled bool
 	fakeError               error
 	inits                   chan []ldstoretypes.Collection
-	upserts                 chan upsertParams
+	upserts                 chan UpsertParams
 	lock                    sync.Mutex
+}
+
+// UpsertParams holds the parameters of an Upsert operation captured by CapturingDataStore.
+type UpsertParams struct {
+	Kind ldstoretypes.DataKind
+	Key  string
+	Item ldstoretypes.ItemDescriptor
 }
 
 // NewCapturingDataStore creates an instance of CapturingDataStore.
@@ -36,7 +37,7 @@ func NewCapturingDataStore(realStore interfaces.DataStore) *CapturingDataStore {
 	return &CapturingDataStore{
 		realStore:               realStore,
 		inits:                   make(chan []ldstoretypes.Collection, 10),
-		upserts:                 make(chan upsertParams, 10),
+		upserts:                 make(chan UpsertParams, 10),
 		statusMonitoringEnabled: true,
 	}
 }
@@ -78,7 +79,7 @@ func (d *CapturingDataStore) Upsert(
 	newItem ldstoretypes.ItemDescriptor,
 ) (bool, error) {
 	AssertNotNil(kind)
-	d.upserts <- upsertParams{kind, key, newItem}
+	d.upserts <- UpsertParams{kind, key, newItem}
 	updated, _ := d.realStore.Upsert(kind, key, newItem)
 	d.lock.Lock()
 	defer d.lock.Unlock()
@@ -146,6 +147,20 @@ func (d *CapturingDataStore) WaitForInit(
 	}
 }
 
+// WaitForNextUpsert waits for an Upsert call.
+func (d *CapturingDataStore) WaitForNextUpsert(
+	t *testing.T,
+	timeout time.Duration,
+) UpsertParams {
+	select {
+	case upserted := <-d.upserts:
+		return upserted
+	case <-time.After(timeout):
+		require.Fail(t, "timed out before receiving expected update")
+		return UpsertParams{}
+	}
+}
+
 // WaitForUpsert waits for an Upsert call and verifies that it matches the expected data.
 func (d *CapturingDataStore) WaitForUpsert(
 	t *testing.T,
@@ -153,16 +168,13 @@ func (d *CapturingDataStore) WaitForUpsert(
 	key string,
 	version int,
 	timeout time.Duration,
-) {
-	select {
-	case upserted := <-d.upserts:
-		assert.Equal(t, key, upserted.key)
-		assert.Equal(t, version, upserted.item.Version)
-		assert.NotNil(t, upserted.item.Item)
-		break
-	case <-time.After(timeout):
-		require.Fail(t, "timed out before receiving expected update")
-	}
+) UpsertParams {
+	upserted := d.WaitForNextUpsert(t, timeout)
+	assert.Equal(t, kind, upserted.Kind)
+	assert.Equal(t, key, upserted.Key)
+	assert.Equal(t, version, upserted.Item.Version)
+	assert.NotNil(t, upserted.Item.Item)
+	return upserted
 }
 
 // WaitForDelete waits for an Upsert call that is expected to delete a data item.
@@ -173,15 +185,11 @@ func (d *CapturingDataStore) WaitForDelete(
 	version int,
 	timeout time.Duration,
 ) {
-	select {
-	case upserted := <-d.upserts:
-		assert.Equal(t, key, upserted.key)
-		assert.Equal(t, version, upserted.item.Version)
-		assert.Nil(t, upserted.item.Item)
-		break
-	case <-time.After(timeout):
-		require.Fail(t, "timed out before receiving expected deletion")
-	}
+	upserted := d.WaitForNextUpsert(t, timeout)
+	assert.Equal(t, kind, upserted.Kind)
+	assert.Equal(t, key, upserted.Key)
+	assert.Equal(t, version, upserted.Item.Version)
+	assert.Nil(t, upserted.Item.Item)
 }
 
 func assertReceivedInitDataEquals(

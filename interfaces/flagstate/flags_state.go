@@ -39,11 +39,11 @@ type FlagState struct {
 	// Value is the result of evaluating the flag for the specified user.
 	Value ldvalue.Value
 
-	// Variation is the variation index that was selected for the specified user. This is -1 if
-	// evaluation failed.
-	Variation int
+	// Variation is the variation index that was selected for the specified user.
+	Variation ldvalue.OptionalInt
 
-	// Version is the flag's version number when it was evaluated.
+	// Version is the flag's version number when it was evaluated. This is an int rather than an OptionalInt
+	// because a flag always has a version and nonexistent flag keys are not included in AllFlags.
 	Version int
 
 	// Reason is the evaluation reason from evaluating the flag.
@@ -140,9 +140,9 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 	for key, flag := range a.flags {
 		b.WriteName(key)
 		b.BeginObject()
-		if flag.Variation >= 0 {
+		if flag.Variation.IsDefined() {
 			b.WriteName("variation")
-			b.WriteInt(flag.Variation)
+			b.WriteInt(flag.Variation.IntValue())
 		}
 		b.WriteName("version")
 		b.WriteInt(flag.Version)

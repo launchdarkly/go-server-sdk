@@ -14,6 +14,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
 type clientExternalUpdatesTestParams struct {
@@ -65,7 +66,7 @@ func TestClientExternalUpdatesMode(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flagkey").SingleVariation(ldvalue.Bool(true)).Build()
 
 		withClientExternalUpdatesTestParams(func(p clientExternalUpdatesTestParams) {
-			sharedtest.UpsertFlag(p.store, &flag)
+			_, _ = p.store.Upsert(ldstoreimpl.Features(), flag.Key, sharedtest.FlagDescriptor(flag))
 			result, err := p.client.BoolVariation(flag.Key, evalTestUser, false)
 			assert.NoError(t, err)
 			assert.True(t, result)

@@ -136,7 +136,7 @@ func TestStreamProcessor(t *testing.T) {
 			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
 				Data: `{"path": "/flags/my-flag", "version": 4}`})
 
-			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-flag", 4, timeout)
+			p.updates.DataStore.WaitForDelete(t, datakinds.Features, "my-flag", 4, timeout)
 		})
 	})
 
@@ -145,7 +145,7 @@ func TestStreamProcessor(t *testing.T) {
 			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
 				Data: `{"path": "/segments/my-segment", "data": {"key": "my-segment", "version": 7}}`})
 
-			p.updates.DataStore.WaitForUpsert(t, datakinds.Features, "my-segment", 7, timeout)
+			p.updates.DataStore.WaitForUpsert(t, datakinds.Segments, "my-segment", 7, timeout)
 		})
 	})
 

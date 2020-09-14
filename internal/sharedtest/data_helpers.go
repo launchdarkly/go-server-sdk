@@ -3,7 +3,6 @@ package sharedtest
 import (
 	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 )
@@ -16,11 +15,6 @@ func FlagDescriptor(f ldmodel.FeatureFlag) ldstoretypes.ItemDescriptor {
 // SegmentDescriptor is a shortcut for creating a StoreItemDescriptor from a segment.
 func SegmentDescriptor(s ldmodel.Segment) ldstoretypes.ItemDescriptor {
 	return ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
-}
-
-// UpsertFlag is a shortcut for calling Upsert with a FeatureFlag.
-func UpsertFlag(store interfaces.DataStore, flag *ldmodel.FeatureFlag) {
-	_, _ = store.Upsert(datakinds.Features, flag.Key, FlagDescriptor(*flag))
 }
 
 // DataSetBuilder is a helper for creating collections of flags and segments.
@@ -66,6 +60,21 @@ func (d *DataSetBuilder) ToServerSDKData() *ldservices.ServerSDKData {
 	}
 	for _, s := range d.segments {
 		ret.Segments(s.Item.Item.(*ldmodel.Segment))
+	}
+	return ret
+}
+
+// DataSetToMap converts the data format for Init into a map of maps.
+func DataSetToMap(
+	allData []ldstoretypes.Collection,
+) map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor {
+	ret := make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor, len(allData))
+	for _, coll := range allData {
+		itemsMap := make(map[string]ldstoretypes.ItemDescriptor, len(coll.Items))
+		for _, item := range coll.Items {
+			itemsMap[item.Key] = item.Item
+		}
+		ret[coll.Kind] = itemsMap
 	}
 	return ret
 }

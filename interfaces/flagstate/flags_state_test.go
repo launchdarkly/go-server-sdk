@@ -72,9 +72,8 @@ func TestAllFlagsJSON(t *testing.T) {
 			valid: true,
 			flags: map[string]FlagState{
 				"flag1": {
-					Value:     ldvalue.String("value1"),
-					Variation: -1,
-					Version:   1000,
+					Value:   ldvalue.String("value1"),
+					Version: 1000,
 				},
 			},
 		}
@@ -96,7 +95,7 @@ func TestAllFlagsJSON(t *testing.T) {
 			flags: map[string]FlagState{
 				"flag1": {
 					Value:                ldvalue.String("value1"),
-					Variation:            1,
+					Variation:            ldvalue.NewOptionalInt(1),
 					Version:              1000,
 					Reason:               ldreason.NewEvalReasonFallthrough(),
 					TrackEvents:          true,
@@ -127,13 +126,12 @@ func TestAllFlagsBuilder(t *testing.T) {
 
 		flag1 := FlagState{
 			Value:     ldvalue.String("value1"),
-			Variation: 1,
+			Variation: ldvalue.NewOptionalInt(1),
 			Version:   1000,
 			Reason:    ldreason.NewEvalReasonFallthrough(),
 		}
 		flag2 := FlagState{
 			Value:                ldvalue.String("value2"),
-			Variation:            -1,
 			Version:              2000,
 			Reason:               ldreason.NewEvalReasonError(ldreason.EvalErrorException),
 			TrackEvents:          true,
@@ -158,13 +156,12 @@ func TestAllFlagsBuilder(t *testing.T) {
 
 		flag1 := FlagState{
 			Value:     ldvalue.String("value1"),
-			Variation: 1,
+			Variation: ldvalue.NewOptionalInt(1),
 			Version:   1000,
 			Reason:    ldreason.NewEvalReasonFallthrough(),
 		}
 		flag2 := FlagState{
 			Value:                ldvalue.String("value2"),
-			Variation:            -1,
 			Version:              2000,
 			Reason:               ldreason.NewEvalReasonError(ldreason.EvalErrorException),
 			TrackEvents:          true,
@@ -185,13 +182,12 @@ func TestAllFlagsBuilder(t *testing.T) {
 
 		flag1 := FlagState{
 			Value:     ldvalue.String("value1"),
-			Variation: 1,
+			Variation: ldvalue.NewOptionalInt(1),
 			Version:   1000,
 			Reason:    ldreason.NewEvalReasonFallthrough(),
 		}
 		flag2 := FlagState{
 			Value:                ldvalue.String("value2"),
-			Variation:            -1,
 			Version:              2000,
 			Reason:               ldreason.NewEvalReasonError(ldreason.EvalErrorException),
 			TrackEvents:          true,
@@ -199,14 +195,14 @@ func TestAllFlagsBuilder(t *testing.T) {
 		}
 		flag3 := FlagState{
 			Value:                ldvalue.String("value3"),
-			Variation:            3,
+			Variation:            ldvalue.NewOptionalInt(3),
 			Version:              3000,
 			Reason:               ldreason.NewEvalReasonFallthrough(),
 			DebugEventsUntilDate: ldtime.UnixMillisNow() - 1,
 		}
 		flag4 := FlagState{
 			Value:                ldvalue.String("value4"),
-			Variation:            4,
+			Variation:            ldvalue.NewOptionalInt(4),
 			Version:              4000,
 			Reason:               ldreason.NewEvalReasonFallthrough(),
 			DebugEventsUntilDate: ldtime.UnixMillisNow() + 10000,

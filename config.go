@@ -52,7 +52,7 @@ type Config struct {
 	// You could also define your own database integration by implementing the PersistentDataStore interface.
 	//
 	//     // example: use Redis, with default properties
-	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis"
+	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
 	//     config.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore())
 	DataStore interfaces.DataStoreFactory

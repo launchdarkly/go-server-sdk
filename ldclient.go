@@ -706,7 +706,7 @@ func (client *LDClient) variation(
 	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventsScope)
 	if err != nil {
 		result.Value = defaultVal
-		result.VariationIndex = -1
+		result.VariationIndex = ldvalue.OptionalInt{}
 	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
 		result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
 	}
@@ -716,13 +716,11 @@ func (client *LDClient) variation(
 		if flag == nil {
 			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.User(user), defaultVal, result.Reason)
 		} else {
-			evt = eventsScope.factory.NewSuccessfulEvalEvent(
+			evt = eventsScope.factory.NewEvalEvent(
 				flag,
 				ldevents.User(user),
-				result.VariationIndex,
-				result.Value,
+				result,
 				defaultVal,
-				result.Reason,
 				"",
 			)
 		}
@@ -801,15 +799,13 @@ func (client *LDClient) evaluateInternal(
 	}
 	if detail.IsDefaultValue() {
 		detail.Value = defaultVal
-		detail.VariationIndex = -1
 	}
 	return detail, feature, nil
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {
 	return ldreason.EvaluationDetail{
-		Value:          jsonValue,
-		VariationIndex: -1,
-		Reason:         ldreason.NewEvalReasonError(errorKind),
+		Value:  jsonValue,
+		Reason: ldreason.NewEvalReasonError(errorKind),
 	}
 }
