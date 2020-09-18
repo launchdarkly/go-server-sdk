@@ -2,10 +2,6 @@
 
 [![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5)
 
-## This is a prerelease branch
-
-The `v5` branch currently contains prerelease code for development of Go SDK 5.0.0. For the source code of the latest release of Go SDK 4.x, see the [`v4` branch](https://github.com/launchdarkly/go-server-sdk/tree/v4).
-
 ## LaunchDarkly overview
 
 [LaunchDarkly](https://www.launchdarkly.com) is a feature management platform that serves over 100 billion feature flags daily to help teams build better software, faster. [Get started](https://docs.launchdarkly.com/docs/getting-started) using LaunchDarkly today!
