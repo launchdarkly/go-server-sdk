@@ -621,15 +621,6 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 	})
 }
 
-func TestEvalLogsWarningIfUserKeyIsEmpty(t *testing.T) {
-	withClientEvalTestParams(func(p clientEvalTestParams) {
-		p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
-		_, _ = p.client.BoolVariation(evalFlagKey, lduser.NewUser(""), false)
-		assert.Len(t, p.mockLog.GetOutput(ldlog.Warn), 1)
-		assert.Contains(t, p.mockLog.GetOutput(ldlog.Warn)[0], "User key is blank")
-	})
-}
-
 func TestEvalErrorIfStoreReturnsError(t *testing.T) {
 	myError := errors.New("sorry")
 	store := sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
@@ -667,7 +658,7 @@ func TestUnknownFlagErrorLogging(t *testing.T) {
 func TestMalformedFlagErrorLogging(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("bad-flag").On(false).OffVariation(99).Build()
 	testEvalErrorLogging(t, &flag, "", evalTestUser,
-		"flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
+		"Flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
 func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User, expectedMessageRegex string) {

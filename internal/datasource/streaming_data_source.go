@@ -180,7 +180,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
 				// this point. Still, in case the channel is somehow closed unexpectedly, we do want to
 				// terminate the loop.
-				sp.loggers.Info("Event stream closed")
 				return
 			}
 			sp.logConnectionResult(true)
@@ -419,7 +418,6 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 //nolint:golint,stylecheck // no doc comment for standard method
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
-		sp.loggers.Info("Closing event stream")
 		close(sp.halt)
 		if sp.storeStatusCh != nil {
 			sp.dataSourceUpdates.GetDataStoreStatusProvider().RemoveStatusListener(sp.storeStatusCh)
