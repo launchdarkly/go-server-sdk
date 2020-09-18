@@ -244,7 +244,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 					return client, ErrInitializationFailed
 				}
 
-				loggers.Info("Successfully initialized LaunchDarkly client!")
+				loggers.Info("Initialized LaunchDarkly client")
 				return client, nil
 			case <-timeout:
 				loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
@@ -326,7 +326,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 		return nil
 	}
 	if user.GetKey() == "" {
-		client.loggers.Warn("Track called with empty/nil user key!")
+		client.loggers.Warn("Track called with empty user key!")
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.RecordCustomEvent(
@@ -741,10 +741,6 @@ func (client *LDClient) evaluateInternal(
 	// THIS IS A HIGH-TRAFFIC CODE PATH so performance tuning is important. Please see CONTRIBUTING.md for guidelines
 	// to keep in mind during any changes to the evaluation logic.
 
-	if user.GetKey() == "" {
-		client.loggers.Warnf("User key is blank when evaluating flag: %s. Flag evaluation will proceed, but the user will not be stored in LaunchDarkly.", key) //nolint:lll
-	}
-
 	var feature *ldmodel.FeatureFlag
 	var storeErr error
 	var ok bool
@@ -794,7 +790,7 @@ func (client *LDClient) evaluateInternal(
 
 	detail := client.evaluator.Evaluate(feature, user, eventsScope.prerequisiteEventRecorder)
 	if detail.Reason.GetKind() == ldreason.EvalReasonError && client.logEvaluationErrors {
-		client.loggers.Warnf("flag evaluation for %s failed with error %s, default value was returned",
+		client.loggers.Warnf("Flag evaluation for %s failed with error %s, default value was returned",
 			key, detail.Reason.GetErrorKind())
 	}
 	if detail.IsDefaultValue() {
