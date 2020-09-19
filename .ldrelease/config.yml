@@ -3,6 +3,7 @@ repo:
   private: go-server-sdk-private
 
 releasableBranches:
+  - name: v5
   - name: v4
 
 publications:
