@@ -432,5 +432,6 @@ func (w *persistentDataStoreWrapper) processError(err error) {
 		// w.statusLock every time we do anything. So we'll just do nothing here.
 		return
 	}
+	w.loggers.Errorf("Data store returned error: %s", err.Error())
 	w.statusPoller.UpdateAvailability(false)
 }

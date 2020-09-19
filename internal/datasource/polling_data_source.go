@@ -78,7 +78,6 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 		for {
 			select {
 			case <-pp.quit:
-				pp.loggers.Info("Polling has been shut down")
 				return
 			case <-ticker.C:
 				if err := pp.poll(); err != nil {
