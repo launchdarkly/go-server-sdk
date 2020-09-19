@@ -2,6 +2,55 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.0.0] - 2020-09-18
+This is a major rewrite that introduces a cleaner API design, adds new features, and makes the SDK code easier to maintain and extend. See the [Go 4.x to 5.0 migration guide](https://docs.launchdarkly.com/sdk/server-side/go/migration-4-to-5) for an in-depth look at the changes in this version; the following is a summary.
+ 
+### Added:
+- You can tell the SDK to notify you whenever a feature flag&#39;s configuration has changed (either in general, or in terms of its result for a specific user), using [`LDClient.GetFlagTracker()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5#LDClient.GetFlagTracker).
+- You can monitor the status of the SDK&#39;s data source (which normally means the streaming connection to the LaunchDarkly service) with [`LDClient.GetDataSourceStatusProvider()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5?tab=doc#LDClient.GetDataSourceStatusProvider). This allows you to check the current connection status, and to be notified if this status changes.
+- You can monitor the status of a persistent data store with [`LDClient.GetDataStoreStatusProvider()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5?tab=doc#LDClient.GetDataStoreStatusProvider). This allows you to check whether database updates are succeeding, to be notified if this status changes, and to get caching statistics.
+- [`LDClient.WithEventsDisabled()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5?tab=doc#LDClient.WithEventsDisabled) is a decorator that allows you to temporarily turn off analytics events even if events are enabled in your configuration.
+- `LDConfig.Logging` is a new configuration category for options related to logging. See [`ldcomponents.Logging()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents#Logging) and [`ldcomponents.NoLogging()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents#NoLogging).
+- The [`testhelpers/ldtestdata`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/ldtestdata) package provides an alternative to `ldfiledata` for simulating feature flag data in test code.
+- The object returned by `AllFlagsState()` can now be constructed (such as for testing purposes) with `flagstate.NewAllFlagsBuilder()`.
+- In [`interfaces`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/interfaces), `LDClientInterface`, `LDClientEvaluations`, and `LDClientEvents` are new interfaces describing the existing methods of `LDClient`. These may be useful for creating mocks in testing.
+ 
+### Changed _(breaking changes from 4.x)_:
+- The `User` and `UserBuilder` types are now in the package [`gopkg.in/launchdarkly/go-sdk-common.v2/lduser`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/lduser). Users can no longer be created as inline structs; you must use `lduser.NewUser`, `lduser.NewAnonymousUser`, or `lduser.NewUserBuilder`.
+- The `EvaluationDetail` and `EvaluationReason` types are now in the package [`gopkg.in/launchdarkly/go-sdk-common.v2/ldreason`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/ldreason).
+- [`EvaluationDetail.VariationIndex`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/ldreason#EvaluationDetail) now uses the type [`ldvalue.OptionalInt`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue#OptionalInt) instead of the `*int` pointer type.
+- [`EvaluationReason`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/ldreason#EvaluationReason) is now a struct rather than an interface, and is just one type rather than having separate types for each `Kind`.
+- The `ldlog.Loggers` abstraction is now in the package [`gopkg.in/launchdarkly/go-sdk-common.v2/ldlog`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/ldlog).
+- Configuration properties that are specific to one mode of operation are no longer represented as fields in `Config`, but as builder methods on a component that is provided by the new `ldcomponents` package and is then placed in `Config`. For instance, instead of setting `Capacity: 1000`, you would now set `Events: ldcomponents.SendEvents().Capacity(1000)`; to disable events, instead of setting `SendEvents: false`, you would set `Events: ldcomponents.NoEvents()` (note that `NoEvents` does not allow you to set `Capacity`, since that would be meaningless if events are disabled). Similarly, to disable streaming and use polling, set `DataSource: ldcomponents.PollingDataSource()` which then provides optional methods for configuring polling. See `Config` and `ldcomponents` for more details.
+- The database integrations that were formerly in the `redis`, `lddynamodb`, and `ldconsul` subpackages have been moved to their own repositories: [go-server-sdk-redis-redigo](https://github.com/launchdarkly/go-server-sdk-redis-redigo), [go-server-sdk-dynamodb](https://github.com/launchdarkly/go-server-sdk-dynamodb), and [go-server-sdk-consul](https://github.com/launchdarkly/go-server-sdk-consul). This removes the transitive dependencies on Redigo, AWS, etc.— which would otherwise be loaded for all Go modules that reference the SDK, even if you do not reference the subpackages that use them— and also allows fixes or new features to be released for those integrations without requiring a new SDK release.
+- The configuration syntax for the database integrations has changed so that they now use a builder pattern, instead of a factory function with option arguments, and must be used in combination with [`ldcomponents.PersistentDataStore`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents#PersistentDataStore). See the new repositories for documentation and examples.
+- The [`ldfiledata`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata) integration now also uses a builder pattern for configuration.
+- Types related to [`LDClient.AllFlagsState()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5#LDClient.AllFlagsState) are now in the [`interfaces/flagstate`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate) package, and their names have changed as follows: `FeatureFlagsState` is now `flagstate.AllFlags`; `ClientSideOnly` is now `flagstate.OptionClientSideOnly()`; `DetailsOnlyForTrackedFlags is now `flagstate.OptionDetailsOnlyForTrackedFlags()`.
+- The component interfaces `FeatureStore` and `UpdateProcessor` have been renamed to `DataStore` and `DataSource`. The factory interfaces for these components now receive SDK configuration options in a different way that does not expose other components&#39; configurations to each other.
+- The `PersistentDataStore` interface for creating your own database integrations has been simplified by moving all of the serialization and caching logic into the main SDK code.
+- `FeatureFlag`, `Segment`, and other data model types are now in the package `gopkg.in/launchdarkly/go-server-sdk-evaluation.v1`. Application code will not normally need to refer to these types.
+- All types related to the low-level handling of analytics events are now in the package `gopkg.in/launchdarkly/go-sdk-events.v1`. Application code will not normally need to refer to these types.
+ 
+### Changed (requirements/dependencies/build):
+- The lowest supported Go version is 1.14.
+- Code coverage reports and benchmarks are now generated in every build. Unit test coverage of the entire SDK codebase has been greatly improved.
+ 
+### Changed (behavioral changes):
+- If analytics events are disabled, the SDK now avoids generating any analytics event objects internally. Previously they were created and then discarded, causing unnecessary heap churn.
+- Network failures and server errors for streaming or polling requests were previously logged at `ERROR` level in most cases but sometimes at `WARN` level. They are now all at `WARN` level, but with a new behavior: if connection failures continue without a successful retry for a certain amount of time, the SDK will log a special `ERROR`-level message to warn you that this is not just a brief outage. The amount of time is one minute by default, but can be changed with the new [`LogDataSourceOutageAsErrorAfter`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents#LoggingConfigurationBuilder.LogDataSourceOutageAsErrorAfter) option in `LoggingConfigurationBuilder`.
+- Reading a `User` from JSON with `json.Unmarshal` now returns an error if the `key` property is missing or null.
+ 
+### Changed (performance improvements):
+- Improved the performance of flag evaluations when there is a very long user target list in a feature flag or user segment, by representing the user key collection internally as a map.
+- Evaluation of rules involving regex matches, date/time values, and semantic versions, has been speeded up by pre-parsing the values in the rules. Also, parsing of date/time values and semantic versions in user attributes now uses a faster implementation and does not make any heap allocations.
+- Evaluation of rules involving an equality match to multiple values (such as &#34;name is one of X, Y, Z&#34;) has been speeded up by converting the list of values to a map.
+- Many internal methods have been rewritten to reduce the number of heap allocations in general.
+ 
+### Removed:
+- `DefaultConfig` was removed since it is no longer necessary: an empty `Config{}` is valid and will provide all of the documented default behavior. If you need to access the default value for a property, use the corresponding constant, such as `ldcomponents.DefaultEventsCapacity`.
+- The `sharedtest` subpackage, which contains test helpers for the SDK itself, is now internal and cannot be used from application code. Test helpers that were meant to be public are now in the `testhelpers` subpackage.
+- Removed all types, fields, and methods that were deprecated as of the most recent 4.x release.
+
 ## [4.17.3] - 2020-07-29
 ### Added:
 - The SDK now recognizes a `clientSideAvailability` property which may be sent by LaunchDarkly services as an alternate way of indicating whether a flag is enabled for use by client-side JavaScript SDKs. This change does not introduce any new SDK functionality.
