@@ -80,7 +80,11 @@ func TestRequestorImplRequestAll(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.False(t, cached)
-			assert.Equal(t, expectedData, data)
+
+			// Comparing the JSON serializations here rather than directly comparing the flag/segment structs, because
+			// flags deserialized from JSON will always have [] instead of nil for an empty slice, whereas ldbuilders
+			// can leave fields nil.
+			sharedtest.AssertValuesJSONEqual(t, expectedData, data)
 
 			req := <-requestsCh
 			assert.Equal(t, "/sdk/latest-all", req.Request.URL.String())
