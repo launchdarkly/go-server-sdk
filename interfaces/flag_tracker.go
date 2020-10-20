@@ -12,13 +12,13 @@ import (
 type FlagTracker interface {
 	// AddFlagChangeListener subscribes for notifications of feature flag changes in general.
 	//
-	// The returned channel will receive a new FlagChaneEvent value whenever the SDK receives any change to
+	// The returned channel will receive a new FlagChangeEvent value whenever the SDK receives any change to
 	// any feature flag's configuration, or to a user segment that is referenced by a feature flag. If the
 	// updated flag is used as a prerequisite for other flags, the SDK assumes that those flags may now
 	// behave differently and sends flag change events for them as well.
 	//
 	// Note that this does not necessarily mean the flag's value has changed for any particular user, only that
-	// some part of the flag configuration was changed so that it <i>may</i> return a different value than it
+	// some part of the flag configuration was changed so that it may return a different value than it
 	// previously returned for some user. If you want to track flag value changes, use
 	// AddFlagValueChangeListener instead.
 	//

@@ -1,6 +1,7 @@
 package datakinds
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -47,7 +48,8 @@ func TestDataKindFeatures(t *testing.T) {
 		// of our existing database integrations aren't able to store the version number separately from
 		// the JSON data.
 		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 2, Item: nil})
-		assert.JSONEq(t, `{"version":2,"deleted":true}`, string(bytes))
+		expected, _ := json.Marshal(ldmodel.FeatureFlag{Key: deletedItemPlaceholderKey, Version: 2, Deleted: true})
+		assert.JSONEq(t, string(expected), string(bytes))
 	})
 
 	t.Run("deserialize deleted item", func(t *testing.T) {
@@ -101,7 +103,8 @@ func TestDataKindSegments(t *testing.T) {
 		// of our existing database integrations aren't able to store the version number separately from
 		// the JSON data.
 		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 2, Item: nil})
-		assert.JSONEq(t, `{"version":2,"deleted":true}`, string(bytes))
+		expected, _ := json.Marshal(ldmodel.Segment{Key: deletedItemPlaceholderKey, Version: 2, Deleted: true})
+		assert.JSONEq(t, string(expected), string(bytes))
 	})
 
 	t.Run("deserialize deleted item", func(t *testing.T) {
