@@ -6,7 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
 	github.com/kr/pretty v0.2.1 // indirect
-	github.com/launchdarkly/eventsource v1.4.3
+	github.com/launchdarkly/eventsource v1.6.2
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
 	github.com/launchdarkly/go-test-helpers/v2 v2.2.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
