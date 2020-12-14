@@ -21,25 +21,28 @@ func TestParsePutData(t *testing.T) {
   "segment1": {"key": "segment1","version": 3}
  }
 }`
+	expectedAllData := sharedtest.NewDataSetBuilder().
+		Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
+			ldbuilders.NewFlagBuilder("flag2").Version(2).Build()).
+		Segments(ldbuilders.NewSegmentBuilder("segment1").Version(3).Build()).
+		Build()
+
 	t.Run("valid", func(t *testing.T) {
 		input := []byte(`{"path": "/", "data": ` + allDataJSON + `}`)
-		expected := sharedtest.NewDataSetBuilder().
-			Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
-				ldbuilders.NewFlagBuilder("flag2").Version(2).Build()).
-			Segments(ldbuilders.NewSegmentBuilder("segment1").Version(3).Build()).
-			Build()
 
 		result, err := parsePutData(input)
 		require.NoError(t, err)
 
 		assert.Equal(t, "/", result.Path)
-		assert.Equal(t, sharedtest.NormalizeDataSet(expected), sharedtest.NormalizeDataSet(result.Data))
+		assert.Equal(t, sharedtest.NormalizeDataSet(expectedAllData), sharedtest.NormalizeDataSet(result.Data))
 	})
 
 	t.Run("missing path", func(t *testing.T) {
-		input := []byte(`{"data": {` + allDataJSON + `}}`)
-		_, err := parsePutData(input)
-		require.Error(t, err)
+		input := []byte(`{"data": ` + allDataJSON + `}`)
+		result, err := parsePutData(input)
+		require.NoError(t, err) // we don't consider this an error; some versions of Relay don't send a path
+		assert.Equal(t, "", result.Path)
+		assert.Equal(t, sharedtest.NormalizeDataSet(expectedAllData), sharedtest.NormalizeDataSet(result.Data))
 	})
 
 	t.Run("missing data", func(t *testing.T) {
