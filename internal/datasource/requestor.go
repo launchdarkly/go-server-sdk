@@ -1,14 +1,16 @@
 package datasource
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/gregjones/httpcache"
-
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+
+	"github.com/gregjones/httpcache"
+
+	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
 )
 
 // SDK endpoints
@@ -20,7 +22,7 @@ const (
 
 // requestor is the interface implemented by requestorImpl, used for testing purposes
 type requestor interface {
-	requestAll() (data allData, cached bool, err error)
+	requestAll() (data []ldstoretypes.Collection, cached bool, err error)
 }
 
 // requestorImpl is the internal implementation of getting flag/segment data from the LD polling endpoints.
@@ -63,23 +65,23 @@ func newRequestorImpl(
 	}
 }
 
-func (r *requestorImpl) requestAll() (allData, bool, error) {
+func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	var data allData
 	body, cached, err := r.makeRequest(LatestAllPath)
 	if err != nil {
-		return allData{}, false, err
+		return nil, false, err
 	}
 	if cached {
-		return allData{}, true, nil
+		return nil, true, nil
 	}
-	jsonErr := json.Unmarshal(body, &data)
 
-	if jsonErr != nil {
-		return allData{}, false, malformedJSONError{jsonErr}
+	reader := jreader.NewReader(body)
+	data := parseAllStoreDataFromJSONReader(&reader)
+	if err := reader.Error(); err != nil {
+		return nil, false, malformedJSONError{err}
 	}
 	return data, cached, nil
 }

@@ -6,19 +6,15 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+
+	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
 )
 
 // This interface is implemented only by the SDK's own ClientContext implementation.
 type hasDiagnosticsManager interface {
 	GetDiagnosticsManager() *ldevents.DiagnosticsManager
-}
-
-type allData struct {
-	Flags    map[string]*ldmodel.FeatureFlag `json:"flags"`
-	Segments map[string]*ldmodel.Segment     `json:"segments"`
 }
 
 type httpStatusError struct {
@@ -93,27 +89,45 @@ func checkForHTTPError(statusCode int, url string) error {
 	return nil
 }
 
-// makeAllStoreData returns a data set that can be used to initialize a data store
-func makeAllStoreData(
-	flags map[string]*ldmodel.FeatureFlag,
-	segments map[string]*ldmodel.Segment,
-) []st.Collection {
-	flagsColl := make([]st.KeyedItemDescriptor, 0, len(flags))
-	for key, flag := range flags {
-		flagsColl = append(flagsColl, st.KeyedItemDescriptor{
-			Key:  key,
-			Item: st.ItemDescriptor{Version: flag.Version, Item: flag},
-		})
+// This method parses a JSON data structure representing a full set of SDK data. For example:
+//
+// {
+//   "flags": {
+//     "flag1": { "key": "flag1", "version": 1, ...etc. },
+//     "flag2": { "key": "flag2", "version": 1, ...etc. },
+//   },
+//   "segments": {
+//     "segment1": { "key", "segment1", "version": 1, ...etc. }
+//   }
+// }
+//
+// Even though this is map-like, we don't return the data as a map, because the SDK does not need to
+// manipulate it as a map. Our data store API instead expects a list of Collections, each of which has
+// a list of data items, so that's what we build here.
+//
+// This representation makes up the entirety of a polling response for PollingDataSource, and is a
+// subset of the stream data for StreamingDataSource.
+func parseAllStoreDataFromJSONReader(r *jreader.Reader) []st.Collection {
+	var ret []st.Collection
+	for dataObj := r.Object(); dataObj.Next(); {
+		var dataKind datakinds.DataKindInternal
+		switch string(dataObj.Name()) {
+		case "flags":
+			dataKind = datakinds.Features
+		case "segments":
+			dataKind = datakinds.Segments
+		default: // unrecognized category, skip it
+			continue
+		}
+		coll := st.Collection{Kind: dataKind}
+		for keysToItemsObj := r.Object(); keysToItemsObj.Next(); {
+			key := string(keysToItemsObj.Name())
+			item, err := dataKind.DeserializeFromJSONReader(r)
+			if err == nil {
+				coll.Items = append(coll.Items, st.KeyedItemDescriptor{Key: key, Item: item})
+			}
+		}
+		ret = append(ret, coll)
 	}
-	segmentsColl := make([]st.KeyedItemDescriptor, 0, len(segments))
-	for key, segment := range segments {
-		segmentsColl = append(segmentsColl, st.KeyedItemDescriptor{
-			Key:  key,
-			Item: st.ItemDescriptor{Version: segment.Version, Item: segment},
-		})
-	}
-	return []st.Collection{
-		st.Collection{Kind: datakinds.Features, Items: flagsColl},
-		st.Collection{Kind: datakinds.Segments, Items: segmentsColl},
-	}
+	return ret
 }

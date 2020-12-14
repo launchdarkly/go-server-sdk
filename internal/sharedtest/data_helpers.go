@@ -1,6 +1,8 @@
 package sharedtest
 
 import (
+	"sort"
+
 	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
@@ -77,4 +79,16 @@ func DataSetToMap(
 		ret[coll.Kind] = itemsMap
 	}
 	return ret
+}
+
+// NormalizeDataSet sorts the data set by kind and key for test determinacy.
+func NormalizeDataSet(in []ldstoretypes.Collection) []ldstoretypes.Collection {
+	out := append([]ldstoretypes.Collection(nil), in...)
+	sort.Slice(out, func(a, b int) bool { return out[a].Kind.GetName() < out[b].Kind.GetName() })
+	for i := range out {
+		newItems := append([]ldstoretypes.KeyedItemDescriptor(nil), out[i].Items...)
+		sort.Slice(newItems, func(a, b int) bool { return newItems[a].Key < newItems[b].Key })
+		out[i].Items = newItems
+	}
+	return out
 }

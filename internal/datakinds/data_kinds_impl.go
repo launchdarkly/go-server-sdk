@@ -1,8 +1,10 @@
 package datakinds
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+
+	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 )
 
 // This file defines the StoreDataKind implementations corresponding to our two top-level data model
@@ -27,10 +29,10 @@ type featureFlagStoreDataKind struct{}
 type segmentStoreDataKind struct{}
 
 // Features is the global StoreDataKind instance for feature flags.
-var Features ldstoretypes.DataKind = featureFlagStoreDataKind{} //nolint:gochecknoglobals
+var Features DataKindInternal = featureFlagStoreDataKind{} //nolint:gochecknoglobals
 
 // Segments is the global StoreDataKind instance for segments.
-var Segments ldstoretypes.DataKind = segmentStoreDataKind{} //nolint:gochecknoglobals
+var Segments DataKindInternal = segmentStoreDataKind{} //nolint:gochecknoglobals
 
 // AllDataKinds returns all the supported data StoreDataKinds.
 func AllDataKinds() []ldstoretypes.DataKind {
@@ -60,6 +62,17 @@ func (fk featureFlagStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) [
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (fk featureFlagStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	flag, err := modelSerialization.UnmarshalFeatureFlag(data)
+	return maybeFlag(flag, err)
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (fk featureFlagStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
+	ldstoretypes.ItemDescriptor, error) {
+	flag := ldmodel.UnmarshalFeatureFlagFromJSONReader(reader)
+	return maybeFlag(flag, reader.Error())
+}
+
+func maybeFlag(flag ldmodel.FeatureFlag, err error) (ldstoretypes.ItemDescriptor, error) {
 	if err != nil {
 		return ldstoretypes.ItemDescriptor{}, err
 	}
@@ -97,6 +110,16 @@ func (sk segmentStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byt
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (sk segmentStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	segment, err := modelSerialization.UnmarshalSegment(data)
+	return maybeSegment(segment, err)
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (sk segmentStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (ldstoretypes.ItemDescriptor, error) {
+	segment := ldmodel.UnmarshalSegmentFromJSONReader(reader)
+	return maybeSegment(segment, reader.Error())
+}
+
+func maybeSegment(segment ldmodel.Segment, err error) (ldstoretypes.ItemDescriptor, error) {
 	if err != nil {
 		return ldstoretypes.ItemDescriptor{}, err
 	}
