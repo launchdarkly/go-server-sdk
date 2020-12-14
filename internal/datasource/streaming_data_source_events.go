@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	putDataRequiredProperties    = []string{"path", "data"}    //nolint:gochecknoglobals
+	putDataRequiredProperties    = []string{"data"}            //nolint:gochecknoglobals
 	patchDataRequiredProperties  = []string{"path", "data"}    //nolint:gochecknoglobals
 	deleteDataRequiredProperties = []string{"path", "version"} //nolint:gochecknoglobals
 )
@@ -19,6 +19,9 @@ var (
 // This is the logical representation of the data in the "put" event. In the JSON representation,
 // the "data" property is actually a map of maps, but the schema we use internally is a list of
 // lists instead.
+//
+// The "path" property is normally always "/"; the LD streaming service sends this property, but
+// some versions of Relay do not, so we do not require it.
 //
 // Example JSON representation:
 //
