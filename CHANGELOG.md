@@ -2,6 +2,16 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.1.0] - 2020-12-17
+### Added:
+- The SDK now has an optional integration with the [EasyJSON](https://github.com/mailru/easyjson) library to increase the efficiency of JSON encoding and decoding. This is enabled if you add the build tag `launchdarkly_easyjson` to your build (`go build -tags launchdarkly_easyjson`); no other changes are required. If you do not set the build tag, the SDK does not reference any EasyJSON code.
+
+### Changed:
+- The SDK&#39;s default JSON encoding and decoding logic has been changed to use the new LaunchDarkly library [go-jsonstream](https://github.com/launchdarkly/go-jsonstream) instead of Go&#39;s built-in `encoding/json`. This should reduce spikes in CPU and memory usage that could occur when the SDK is receiving JSON data from LaunchDarkly or from a database, especially in environments with many feature flags or complex flag configurations. There is also the option to use EasyJSON as described above, but even without that, the new implementation is much more efficient than `encoding/json`; depending on the size of the data, it can reduce execution time and heap allocations during JSON parsing by roughly 50%.
+
+### Fixed:
+- Removed an extra newline from the &#34;Reconnecting in...&#34; message that is logged for stream reconnections.
+
 ## [5.0.2] - 2020-10-20
 ### Fixed:
 - When serializing JSON representations for _deleted_ flags and segments, properties with default values (such as false booleans or empty arrays) were being dropped entirely to save bandwidth. However, these representations may be consumed by SDKs other than the Go SDK, and some of the LaunchDarkly SDKs do not tolerate missing properties (PHP in particular), so this has been fixed to remain consistent with the less efficient behavior of Go SDK 4.x. This is very similar to a bug that was fixed in the 5.0.1 release, but it only affects deleted items; we store a placeholder for these (a tombstone) and the JSON for this was being created in a different code path from the one that was fixed.
