@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
-
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -20,9 +17,11 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/launchdarkly/eventsource"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -213,7 +212,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
 				Data: `{"data": {"key": "flagkey"}}`})
 			expectRestart(t, p)
-			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*missing item path.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*a required property \"path\" was missing.*will restart")
 		})
 	})
 
@@ -238,7 +237,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 		runStreamingTest(t, ldservices.NewServerSDKData(), func(p streamingTestParams) {
 			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent, Data: `{"version": 8}`})
 			expectRestart(t, p)
-			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*missing item path.*will restart")
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*a required property \"path\" was missing.*will restart")
 		})
 	})
 

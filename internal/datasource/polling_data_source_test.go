@@ -8,14 +8,12 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
-
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,15 +46,9 @@ func TestPollingProcessorInitialization(t *testing.T) {
 
 	r := newMockRequestor()
 	defer r.Close()
-	resp := mockRequestAllResponse{
-		data: allData{
-			Flags:    map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
-			Segments: map[string]*ldmodel.Segment{segment.Key: &segment},
-		},
-	}
+	expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
+	resp := mockRequestAllResponse{data: expectedData.Build()}
 	r.requestAllRespCh <- resp
-
-	expectedData := ldservices.NewServerSDKData().Flags(&flag).Segments(&segment)
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
@@ -74,7 +66,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 
 		assert.True(t, p.IsInitialized())
 
-		dataSourceUpdates.DataStore.WaitForInit(t, expectedData, 2*time.Second)
+		dataSourceUpdates.DataStore.WaitForInit(t, expectedData.ToServerSDKData(), 2*time.Second)
 
 		for i := 0; i < 2; i++ {
 			r.requestAllRespCh <- resp

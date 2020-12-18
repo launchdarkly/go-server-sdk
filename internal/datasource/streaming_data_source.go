@@ -1,20 +1,17 @@
 package datasource
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
-	es "github.com/launchdarkly/eventsource"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+
+	es "github.com/launchdarkly/eventsource"
 )
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in
@@ -77,22 +74,6 @@ type StreamProcessor struct {
 	closeOnce                  sync.Once
 }
 
-type putData struct {
-	Path string  `json:"path"`
-	Data allData `json:"data"`
-}
-
-type patchData struct {
-	Path string `json:"path"`
-	// This could be a flag or a segment, or something else, depending on the path
-	Data json.RawMessage `json:"data"`
-}
-
-type deleteData struct {
-	Path    string `json:"path"`
-	Version int    `json:"version"`
-}
-
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
 	context interfaces.ClientContext,
@@ -134,30 +115,6 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 		sp.storeStatusCh = sp.dataSourceUpdates.GetDataStoreStatusProvider().AddStatusListener()
 	}
 	go sp.subscribe(closeWhenReady)
-}
-
-type parsedPath struct {
-	key  string
-	kind ldstoretypes.DataKind
-}
-
-func parsePath(path string) (parsedPath, error) {
-	parsedPath := parsedPath{}
-	if path == "" {
-		return parsedPath, errors.New("missing item path")
-	}
-	switch {
-	case strings.HasPrefix(path, "/segments/"):
-		parsedPath.kind = datakinds.Segments
-		parsedPath.key = strings.TrimPrefix(path, "/segments/")
-	case strings.HasPrefix(path, "/flags/"):
-		parsedPath.kind = datakinds.Features
-		parsedPath.key = strings.TrimPrefix(path, "/flags/")
-	default:
-		// An unrecognized path isn't an error; we'll just leave parsedPath.kind as nil, indicating that
-		// we should ignore this item.
-	}
-	return parsedPath, nil
 }
 
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
@@ -218,57 +175,43 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			switch event.Event() {
 			case putEvent:
-				var put putData
-				if err := json.Unmarshal([]byte(event.Data()), &put); err != nil {
+				sp.loggers.Infof("got put: %s", event.Data())
+				put, err := parsePutData([]byte(event.Data()))
+				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
-				if sp.dataSourceUpdates.Init(makeAllStoreData(put.Data.Flags, put.Data.Segments)) {
+				if sp.dataSourceUpdates.Init(put.Data) {
 					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				} else {
 					storeUpdateFailed("initial streaming data")
 				}
 
 			case patchEvent:
-				var patch patchData
-				if err := json.Unmarshal([]byte(event.Data()), &patch); err != nil {
-					gotMalformedEvent(event, err)
-					break
-				}
-				path, err := parsePath(patch.Path)
+				patch, err := parsePatchData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
-				if path.kind == nil {
+				if patch.Kind == nil {
 					break // ignore unrecognized item type
 				}
-				item, err := path.kind.Deserialize(patch.Data)
-				if err != nil {
-					gotMalformedEvent(event, err)
-					break
-				}
-				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, item) {
-					storeUpdateFailed("streaming update of " + path.key)
+				if !sp.dataSourceUpdates.Upsert(patch.Kind, patch.Key, patch.Data) {
+					storeUpdateFailed("streaming update of " + patch.Key)
 				}
 
 			case deleteEvent:
-				var data deleteData
-				if err := json.Unmarshal([]byte(event.Data()), &data); err != nil {
-					gotMalformedEvent(event, err)
-					break
-				}
-				path, err := parsePath(data.Path)
+				del, err := parseDeleteData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
-				if path.kind == nil {
+				if del.Kind == nil {
 					break // ignore unrecognized item type
 				}
-				deletedItem := ldstoretypes.ItemDescriptor{Version: data.Version, Item: nil}
-				if !sp.dataSourceUpdates.Upsert(path.kind, path.key, deletedItem) {
-					storeUpdateFailed("streaming deletion of " + path.key)
+				deletedItem := ldstoretypes.ItemDescriptor{Version: del.Version, Item: nil}
+				if !sp.dataSourceUpdates.Upsert(del.Kind, del.Key, deletedItem) {
+					storeUpdateFailed("streaming deletion of " + del.Key)
 				}
 
 			default:

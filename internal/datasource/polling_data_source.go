@@ -135,7 +135,7 @@ func (pp *PollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		pp.dataSourceUpdates.Init(makeAllStoreData(allData.Flags, allData.Segments))
+		pp.dataSourceUpdates.Init(allData)
 	}
 	return nil
 }

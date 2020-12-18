@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
-
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
@@ -19,6 +16,9 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	shared "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,6 +49,7 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
+		defer logCapture.DumpIfTestFailed(t)
 
 		config := Config{
 			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),

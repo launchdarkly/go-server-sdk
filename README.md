@@ -45,6 +45,12 @@ set HTTPS_PROXY=http://user:pass@web-proxy.domain.com:8080
 
 Feature flag data can be kept in a persistent store using a database integration; LaunchDarkly provides integrations for several databases, such as Redis, which are provided in separate packages. See the [SDK reference guide](https://docs.launchdarkly.com/docs/using-a-persistent-feature-store) for more information.
 
+## Integration with easyjson
+
+The SDK frequently reads and writes JSON data when it communicates with LaunchDarkly services or uses a persistent data store. By default, it uses LaunchDarkly's open-source JSON library [`go-jsonstream`](https://github.com/launchdarkly/go-jsonstream), which is considerably faster than Go's built-in `encoding/json` and does not depend on any third-party code. However, the SDK can optionally integrate with the third-party library [`easyjson`](https://github.com/mailru/easyjson), which may be even faster in some cases, without requiring any changes in your code. To enable this, set the build tag `launchdarkly_easyjson` when you run `go build`. The `easyjson` library is still under development and has some potential compatibility issues; see its documentation for more details.
+
+If you do not set the `launchdarkly_easyjson` build tag, the SDK does not use any code from `easyjson`.
+
 ## Learn more
 
 Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference) or our [code-generated API documentation](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5).

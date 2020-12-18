@@ -9,16 +9,15 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // this mock is not used in the tests in this file; it's used in the polling/streaming data source tests
@@ -30,7 +29,7 @@ type mockRequestor struct {
 }
 
 type mockRequestAllResponse struct {
-	data   allData
+	data   []ldstoretypes.Collection
 	cached bool
 	err    error
 }
@@ -52,13 +51,13 @@ func (r *mockRequestor) Close() {
 	close(r.closerCh)
 }
 
-func (r *mockRequestor) requestAll() (allData, bool, error) {
+func (r *mockRequestor) requestAll() ([]ldstoretypes.Collection, bool, error) {
 	select {
 	case resp := <-r.requestAllRespCh:
 		r.pollsCh <- struct{}{}
 		return resp.data, resp.cached, resp.err
 	case <-r.closerCh:
-		return allData{}, false, nil
+		return nil, false, nil
 	}
 }
 
@@ -66,12 +65,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
 		segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
-		expectedData := allData{
-			Flags:    map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
-			Segments: map[string]*ldmodel.Segment{segment.Key: &segment},
-		}
+		expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
 		handler, requestsCh := httphelpers.RecordingHandler(
-			ldservices.ServerSidePollingServiceHandler(expectedData),
+			ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
 		)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
@@ -81,10 +77,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			assert.NoError(t, err)
 			assert.False(t, cached)
 
-			// Comparing the JSON serializations here rather than directly comparing the flag/segment structs, because
-			// flags deserialized from JSON will always have [] instead of nil for an empty slice, whereas ldbuilders
-			// can leave fields nil.
-			sharedtest.AssertValuesJSONEqual(t, expectedData, data)
+			assert.Equal(t, sharedtest.NormalizeDataSet(expectedData.Build()), sharedtest.NormalizeDataSet(data))
 
 			req := <-requestsCh
 			assert.Equal(t, "/sdk/latest-all", req.Request.URL.String())
@@ -103,7 +96,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 				assert.Equal(t, 500, he.Code)
 			}
 			assert.False(t, cached)
-			assert.Equal(t, allData{}, data)
+			assert.Nil(t, data)
 		})
 	})
 
@@ -119,7 +112,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.False(t, cached)
-		assert.Equal(t, allData{}, data)
+		assert.Nil(t, data)
 	})
 
 	t.Run("malformed data", func(t *testing.T) {
@@ -130,11 +123,10 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			data, cached, err := r.requestAll()
 
 			require.Error(t, err)
-			if _, ok := err.(malformedJSONError); assert.True(t, ok) {
-				assert.Contains(t, err.Error(), "unexpected end of JSON input")
-			}
+			_, ok := err.(malformedJSONError)
+			assert.True(t, ok)
 			assert.False(t, cached)
-			assert.Equal(t, allData{}, data)
+			assert.Nil(t, data)
 		})
 	})
 
@@ -146,7 +138,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing protocol scheme")
 		assert.False(t, cached)
-		assert.Equal(t, allData{}, data)
+		assert.Nil(t, data)
 	})
 
 	t.Run("sends configured headers", func(t *testing.T) {
@@ -190,16 +182,14 @@ func TestRequestorImplRequestAll(t *testing.T) {
 
 func TestRequestorImplCaching(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
-	expectedData := allData{
-		Flags: map[string]*ldmodel.FeatureFlag{flag.Key: &flag},
-	}
+	expectedData := sharedtest.NewDataSetBuilder().Flags(flag)
 	etag := "123"
 	handler, requestsCh := httphelpers.RecordingHandler(
 		httphelpers.SequentialHandler(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("ETag", etag)
 				w.Header().Set("Cache-Control", "max-age=0")
-				ldservices.ServerSidePollingServiceHandler(expectedData).ServeHTTP(w, r)
+				ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()).ServeHTTP(w, r)
 			}),
 			httphelpers.HandlerWithStatus(304),
 		),
@@ -211,7 +201,7 @@ func TestRequestorImplCaching(t *testing.T) {
 
 		assert.NoError(t, err1)
 		assert.False(t, cached1)
-		assert.Equal(t, expectedData, data1)
+		assert.Equal(t, sharedtest.NormalizeDataSet(expectedData.Build()), sharedtest.NormalizeDataSet(data1))
 
 		req1 := <-requestsCh
 		assert.Equal(t, "/sdk/latest-all", req1.Request.URL.String())
@@ -221,7 +211,7 @@ func TestRequestorImplCaching(t *testing.T) {
 
 		assert.NoError(t, err2)
 		assert.True(t, cached2)
-		assert.Equal(t, allData{}, data2) // for cached data, requestAll doesn't bother parsing the body
+		assert.Nil(t, data2) // for cached data, requestAll doesn't bother parsing the body
 
 		req2 := <-requestsCh
 		assert.Equal(t, "/sdk/latest-all", req2.Request.URL.String())

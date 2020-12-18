@@ -3,7 +3,7 @@ package flagstate
 import (
 	"fmt"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/jsonstream"
+	"gopkg.in/launchdarkly/go-jsonstream.v1/jwriter"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -126,43 +126,27 @@ func (a AllFlags) ToValuesMap() map[string]ldvalue.Value {
 // MarshalJSON implements a custom JSON serialization for AllFlags, to produce the correct data structure
 // for "bootstrapping" the LaunchDarkly JavaScript client.
 func (a AllFlags) MarshalJSON() ([]byte, error) {
-	var b jsonstream.JSONBuffer
-	b.Grow(200)
-	b.BeginObject()
-	b.WriteName("$valid")
-	b.WriteBool(a.valid)
+	w := jwriter.NewWriter()
+	obj := w.Object()
+	obj.Name("$valid").Bool(a.valid)
 	for key, flag := range a.flags {
-		b.WriteName(key)
-		flag.Value.WriteToJSONBuffer(&b)
+		flag.Value.WriteToJSONWriter(obj.Name(key))
 	}
-	b.WriteName("$flagsState")
-	b.BeginObject()
+	stateObj := obj.Name("$flagsState").Object()
 	for key, flag := range a.flags {
-		b.WriteName(key)
-		b.BeginObject()
-		if flag.Variation.IsDefined() {
-			b.WriteName("variation")
-			b.WriteInt(flag.Variation.IntValue())
+		flagObj := stateObj.Name(key).Object()
+		flagObj.Maybe("variation", flag.Variation.IsDefined()).Int(flag.Variation.IntValue())
+		flagObj.Name("version").Int(flag.Version)
+		if flag.Reason.IsDefined() {
+			flag.Reason.WriteToJSONWriter(flagObj.Name("reason"))
 		}
-		b.WriteName("version")
-		b.WriteInt(flag.Version)
-		if flag.Reason.GetKind() != "" {
-			b.WriteName("reason")
-			flag.Reason.WriteToJSONBuffer(&b)
-		}
-		if flag.TrackEvents {
-			b.WriteName("trackEvents")
-			b.WriteBool(true)
-		}
-		if flag.DebugEventsUntilDate > 0 {
-			b.WriteName("debugEventsUntilDate")
-			b.WriteUint64(uint64(flag.DebugEventsUntilDate))
-		}
-		b.EndObject()
+		flagObj.Maybe("trackEvents", flag.TrackEvents).Bool(flag.TrackEvents)
+		flagObj.Maybe("debugEventsUntilDate", flag.DebugEventsUntilDate > 0).Float64(float64(flag.DebugEventsUntilDate))
+		flagObj.End()
 	}
-	b.EndObject()
-	b.EndObject()
-	return b.Get()
+	stateObj.End()
+	obj.End()
+	return w.Bytes(), w.Error()
 }
 
 // NewAllFlagsBuilder creates a builder for constructing an AllFlags instance. This is normally done only by
