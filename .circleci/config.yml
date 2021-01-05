@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@1.0.0
+  win: circleci/windows@2.4.0
 
 workflows:
   workflow:
@@ -93,7 +93,7 @@ jobs:
         
   go-test-windows:
     executor:
-      name: win/vs2019
+      name: win/default
       shell: powershell.exe
 
     environment:
@@ -101,6 +101,15 @@ jobs:
 
     steps:
       - checkout
+      - run: 
+          name: download Go 1.14.13
+          command: |
+            $ErrorActionPreference = "Stop"
+            $installerUrl = "https://golang.org/dl/go1.14.13.windows-amd64.msi"
+            (New-Object System.Net.WebClient).DownloadFile($installerUrl, "go1.14.13.windows-amd64.msi")
+      - run:
+          name: install Go 1.14.13
+          command: Start-Process msiexec.exe -Wait -ArgumentList "/I go1.14.13.windows-amd64.msi /quiet"
       - run: go version
       - run:
           name: build and test
