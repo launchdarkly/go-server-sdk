@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.1.1] - 2021-01-04
+### Fixed:
+- Parsing a `User` from JSON failed if there was a `privateAttributeNames` property whose value was `null`. This has been fixed so that it behaves the same as if the property had a value of `[]` or if it was not present at all.
+
 ## [5.1.0] - 2020-12-17
 ### Added:
 - The SDK now has an optional integration with the [EasyJSON](https://github.com/mailru/easyjson) library to increase the efficiency of JSON encoding and decoding. This is enabled if you add the build tag `launchdarkly_easyjson` to your build (`go build -tags launchdarkly_easyjson`); no other changes are required. If you do not set the build tag, the SDK does not reference any EasyJSON code.
