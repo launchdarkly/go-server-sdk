@@ -95,10 +95,8 @@ func (fw *fileWatcher) setupWatches() error {
 
 func (fw *fileWatcher) waitForEvents(closeCh <-chan struct{}, retryCh <-chan struct{}) bool {
 	for {
-		fw.loggers.Warn("waitForEvents")
 		select {
 		case <-closeCh:
-			fw.loggers.Error("got close")
 			err := fw.watcher.Close()
 			if err != nil { // COVERAGE: can't simulate this condition in unit tests
 				fw.loggers.Errorf("Error closing Watcher: %s", err)
