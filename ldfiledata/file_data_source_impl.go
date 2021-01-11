@@ -83,6 +83,9 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 // and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
 // be modified.
 func (fs *fileDataSource) reload() {
+	if fs.closeReloaderCh != nil {
+		fs.loggers.Info("Reloading flag data after detecting a change")
+	}
 	filesData := make([]fileData, 0)
 	for _, path := range fs.absFilePaths {
 		data, err := readFile(path)
