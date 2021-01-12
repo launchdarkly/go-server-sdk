@@ -80,6 +80,18 @@ func TestMakeCustomClientWithFailedInitialization(t *testing.T) {
 	assert.Equal(t, err, ErrInitializationFailed)
 }
 
+func TestInvalidCharacterInSDKKey(t *testing.T) {
+	badKey := "my-bad-key\n"
+
+	_, err := MakeClient(badKey, time.Minute)
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "my-bad-key") // message shouldn't include the key value
+
+	_, err = MakeCustomClient(badKey, Config{}, time.Minute)
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "my-bad-key")
+}
+
 func makeTestClient() *LDClient {
 	return makeTestClientWithConfig(nil)
 }
