@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.1.2] - 2021-01-11
+### Fixed:
+- If you provide an SDK key that contains an invalid character such as a newline, `MakeClient` or `MakeCustomClient` will fail immediately with the error message `SDK key contains invalid characters`. Previously, it would try to use the invalid key in an HTTP request to LaunchDarkly, and the resulting error message (produced by the Go standard library) would be `net/http: invalid header field value [xxx] for key Authorization`, where `[xxx]` was the key you had provided; that could be undesirable if for instance it was a real key that you had accidentally added a newline to, causing the actual SDK key to be visible in the error message in your application log.
+- The `ldfilewatch` package, for using the file data source in auto-update mode, produced some unnecessary and cryptic log messages such as `waitForEvents` and `got close`. These have been removed. Instead, the file data source now logs the message `Reloading flag data after detecting a change` (at Info level) if a file has been updated. ([#48](https://github.com/launchdarkly/go-server-sdk/issues/48))
+
 ## [5.1.1] - 2021-01-04
 ### Fixed:
 - Parsing a `User` from JSON failed if there was a `privateAttributeNames` property whose value was `null`. This has been fixed so that it behaves the same as if the property had a value of `[]` or if it was not present at all.
