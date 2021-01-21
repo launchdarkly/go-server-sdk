@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.1.3] - 2021-01-20
+### Fixed:
+- When using semantic version operators, semantic version strings were being rejected by the SDK if they contained a zero digit in any position _after_ the first character of a numeric version component. For instance, `0.1.2` and `1.2.3` were accepted, and `01.2.3` was correctly rejected (leading zeroes for nonzero values are not allowed), but `10.2.3` was incorrectly rejected. This would cause the flag/segment clause to incorrectly return a &#34;match&#34; or &#34;no match&#34; result depending on how the clause was written.
+
 ## [5.1.2] - 2021-01-11
 ### Fixed:
 - If you provide an SDK key that contains an invalid character such as a newline, `MakeClient` or `MakeCustomClient` will fail immediately with the error message `SDK key contains invalid characters`. Previously, it would try to use the invalid key in an HTTP request to LaunchDarkly, and the resulting error message (produced by the Go standard library) would be `net/http: invalid header field value [xxx] for key Authorization`, where `[xxx]` was the key you had provided; that could be undesirable if for instance it was a real key that you had accidentally added a newline to, causing the actual SDK key to be visible in the error message in your application log.
