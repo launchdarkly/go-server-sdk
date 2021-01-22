@@ -175,7 +175,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			switch event.Event() {
 			case putEvent:
-				sp.loggers.Infof("got put: %s", event.Data())
 				put, err := parsePutData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
