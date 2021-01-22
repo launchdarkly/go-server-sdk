@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.1.4] - 2021-01-21
+### Fixed:
+- Starting in version 5.1.0, an Info-level log message `got put: {DATA}` was being logged upon making a stream connection, where `{DATA}` was the JSON representation of all of the feature flag data received from LaunchDarkly. This was unintentional and has been removed.
+
 ## [5.1.3] - 2021-01-20
 ### Fixed:
 - When using semantic version operators, semantic version strings were being rejected by the SDK if they contained a zero digit in any position _after_ the first character of a numeric version component. For instance, `0.1.2` and `1.2.3` were accepted, and `01.2.3` was correctly rejected (leading zeroes for nonzero values are not allowed), but `10.2.3` was incorrectly rejected. This would cause the flag/segment clause to incorrectly return a &#34;match&#34; or &#34;no match&#34; result depending on how the clause was written.
