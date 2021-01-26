@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.2.0] - 2021-01-26
+### Added:
+- Added the `Alias` method to `LDClient`. This can be used to associate two user objects for analytics purposes with an alias event.
+
 ## [5.1.4] - 2021-01-21
 ### Fixed:
 - Starting in version 5.1.0, an Info-level log message `got put: {DATA}` was being logged upon making a stream connection, where `{DATA}` was the JSON representation of all of the feature flag data received from LaunchDarkly. This was unintentional and has been removed.
