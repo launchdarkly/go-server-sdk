@@ -41,6 +41,37 @@ func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	assert.Equal(t, 0, len(events))
 }
 
+func TestAliasSendsAliasEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	currentUser := lduser.NewUser("current")
+	previousUser := lduser.NewUser("previous")
+	err := client.Alias(currentUser, previousUser)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.AliasEvent)
+	assert.Equal(t, "current", e.CurrentKey)
+	assert.Equal(t, "user", e.CurrentKind)
+	assert.Equal(t, "previous", e.PreviousKey)
+	assert.Equal(t, "user", e.PreviousKind)
+}
+
+func TestAliasWithEmptyUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	currentUser := lduser.NewUser("")
+	previousUser := lduser.NewUser("")
+	err := client.Alias(currentUser, previousUser)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	assert.Equal(t, 0, len(events))
+}
+
 func TestTrackEventSendsCustomEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()

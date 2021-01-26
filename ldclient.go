@@ -298,6 +298,41 @@ func (client *LDClient) Identify(user lduser.User) error {
 	return nil
 }
 
+func getUserKind(anonymous bool) string {
+	if anonymous {
+		return "anonymousUser"
+	}
+	return "user"
+}
+
+// Alias associates two users for analytics purposes.
+//
+// This can be helpful in the situation where a person is represented by multiple
+// LaunchDarkly users. This may happen, for example, when a person initially logs into
+// an application-- the person might be represented by an anonymous user prior to logging
+// in and a different user after logging in, as denoted by a different user key.
+func (client *LDClient) Alias(currentUser lduser.User, previousUser lduser.User) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
+	if currentUser.GetKey() == "" {
+		client.loggers.Warn("Alias called with empty user key for currentUser!")
+		return nil
+	}
+	if previousUser.GetKey() == "" {
+		client.loggers.Warn("Alias called with empty user key for previousUser!")
+		return nil
+	}
+	client.eventProcessor.RecordAliasEvent(
+		client.eventsDefault.factory.NewAliasEvent(
+			previousUser.GetKey(),
+			getUserKind(previousUser.GetAnonymous()),
+			currentUser.GetKey(),
+			getUserKind(currentUser.GetAnonymous()),
+		))
+	return nil
+}
+
 // TrackEvent reports that a user has performed an event.
 //
 // The eventName parameter is defined by the application and will be shown in analytics reports;
