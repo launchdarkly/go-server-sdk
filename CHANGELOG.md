@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.2.1] - 2021-02-11
+### Fixed:
+- When deserializing feature flags from JSON, an explicit null value for the `rollout` property (as opposed to just omitting the property) was being treated as an error. The LaunchDarkly service endpoints do not ever send `rollout: null`, but it should be considered valid if encountered in JSON from some other source.
+
 ## [5.2.0] - 2021-01-26
 ### Added:
 - Added the `Alias` method to `LDClient`. This can be used to associate two user objects for analytics purposes with an alias event.
