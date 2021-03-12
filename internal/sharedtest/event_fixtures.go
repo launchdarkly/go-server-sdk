@@ -19,7 +19,7 @@ func (f SingleEventProcessorFactory) CreateEventProcessor( //nolint:golint
 
 // CapturingEventProcessor is a test implementation of EventProcessor that accumulates all events.
 type CapturingEventProcessor struct {
-	Events []ldevents.Event
+	Events []interface{}
 }
 
 func (c *CapturingEventProcessor) RecordFeatureRequestEvent(e ldevents.FeatureRequestEvent) { //nolint:golint
@@ -31,6 +31,10 @@ func (c *CapturingEventProcessor) RecordIdentifyEvent(e ldevents.IdentifyEvent) 
 }
 
 func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEvent) { //nolint:golint
+	c.Events = append(c.Events, e)
+}
+
+func (c *CapturingEventProcessor) RecordAliasEvent(e ldevents.AliasEvent) { //nolint:golint
 	c.Events = append(c.Events, e)
 }
 

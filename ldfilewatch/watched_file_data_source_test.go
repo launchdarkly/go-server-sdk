@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
@@ -21,6 +23,7 @@ import (
 type fileDataSourceTestParams struct {
 	dataSource     interfaces.DataSource
 	updates        *sharedtest.MockDataSourceUpdates
+	mockLog        *ldlogtest.MockLog
 	closeWhenReady chan struct{}
 }
 
@@ -31,16 +34,20 @@ func (p fileDataSourceTestParams) waitForStart() {
 
 func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
-	testContext := sharedtest.NewTestContext("", nil, sharedtest.TestLoggingConfig())
+	p.closeWhenReady = make(chan struct{})
+	p.mockLog = ldlogtest.NewMockLog()
+	logConfig, _ := ldcomponents.Logging().Loggers(p.mockLog.Loggers).
+		CreateLoggingConfiguration(interfaces.BasicConfiguration{})
+	testContext := sharedtest.NewTestContext("", nil, logConfig)
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
-	updates := sharedtest.NewMockDataSourceUpdates(store)
-	dataSource, err := factory.CreateDataSource(testContext, updates)
+	p.updates = sharedtest.NewMockDataSourceUpdates(store)
+	dataSource, err := factory.CreateDataSource(testContext, p.updates)
 	if err != nil {
 		panic(err)
 	}
 	defer dataSource.Close()
 	p.dataSource = dataSource
-	action(fileDataSourceTestParams{dataSource, updates, make(chan struct{})})
+	action(p)
 }
 
 func withTempDir(action func(dirPath string)) {
@@ -147,6 +154,7 @@ flags:
 					return !f.On
 				})
 			})
+			p.mockLog.AssertMessageMatch(t, true, ldlog.Info, "Reloading flag data after detecting a change")
 		})
 	})
 }

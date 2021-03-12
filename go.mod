@@ -15,9 +15,9 @@ require (
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ghodss/yaml.v1 v1.0.0
-	gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.0-alpha.1
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.2.0-alpha.1
-	gopkg.in/launchdarkly/go-sdk-events.v1 v1.0.1-alpha.5
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.1.0-alpha.3
+	gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.0
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.2.2
+	gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.0
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.1.2
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

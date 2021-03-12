@@ -2,6 +2,41 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.2.1] - 2021-02-11
+### Fixed:
+- When deserializing feature flags from JSON, an explicit null value for the `rollout` property (as opposed to just omitting the property) was being treated as an error. The LaunchDarkly service endpoints do not ever send `rollout: null`, but it should be considered valid if encountered in JSON from some other source.
+
+## [5.2.0] - 2021-01-26
+### Added:
+- Added the `Alias` method to `LDClient`. This can be used to associate two user objects for analytics purposes with an alias event.
+
+## [5.1.4] - 2021-01-21
+### Fixed:
+- Starting in version 5.1.0, an Info-level log message `got put: {DATA}` was being logged upon making a stream connection, where `{DATA}` was the JSON representation of all of the feature flag data received from LaunchDarkly. This was unintentional and has been removed.
+
+## [5.1.3] - 2021-01-20
+### Fixed:
+- When using semantic version operators, semantic version strings were being rejected by the SDK if they contained a zero digit in any position _after_ the first character of a numeric version component. For instance, `0.1.2` and `1.2.3` were accepted, and `01.2.3` was correctly rejected (leading zeroes for nonzero values are not allowed), but `10.2.3` was incorrectly rejected. This would cause the flag/segment clause to incorrectly return a &#34;match&#34; or &#34;no match&#34; result depending on how the clause was written.
+
+## [5.1.2] - 2021-01-11
+### Fixed:
+- If you provide an SDK key that contains an invalid character such as a newline, `MakeClient` or `MakeCustomClient` will fail immediately with the error message `SDK key contains invalid characters`. Previously, it would try to use the invalid key in an HTTP request to LaunchDarkly, and the resulting error message (produced by the Go standard library) would be `net/http: invalid header field value [xxx] for key Authorization`, where `[xxx]` was the key you had provided; that could be undesirable if for instance it was a real key that you had accidentally added a newline to, causing the actual SDK key to be visible in the error message in your application log.
+- The `ldfilewatch` package, for using the file data source in auto-update mode, produced some unnecessary and cryptic log messages such as `waitForEvents` and `got close`. These have been removed. Instead, the file data source now logs the message `Reloading flag data after detecting a change` (at Info level) if a file has been updated. ([#48](https://github.com/launchdarkly/go-server-sdk/issues/48))
+
+## [5.1.1] - 2021-01-04
+### Fixed:
+- Parsing a `User` from JSON failed if there was a `privateAttributeNames` property whose value was `null`. This has been fixed so that it behaves the same as if the property had a value of `[]` or if it was not present at all.
+
+## [5.1.0] - 2020-12-17
+### Added:
+- The SDK now has an optional integration with the [EasyJSON](https://github.com/mailru/easyjson) library to increase the efficiency of JSON encoding and decoding. This is enabled if you add the build tag `launchdarkly_easyjson` to your build (`go build -tags launchdarkly_easyjson`); no other changes are required. If you do not set the build tag, the SDK does not reference any EasyJSON code.
+
+### Changed:
+- The SDK&#39;s default JSON encoding and decoding logic has been changed to use the new LaunchDarkly library [go-jsonstream](https://github.com/launchdarkly/go-jsonstream) instead of Go&#39;s built-in `encoding/json`. This should reduce spikes in CPU and memory usage that could occur when the SDK is receiving JSON data from LaunchDarkly or from a database, especially in environments with many feature flags or complex flag configurations. There is also the option to use EasyJSON as described above, but even without that, the new implementation is much more efficient than `encoding/json`; depending on the size of the data, it can reduce execution time and heap allocations during JSON parsing by roughly 50%.
+
+### Fixed:
+- Removed an extra newline from the &#34;Reconnecting in...&#34; message that is logged for stream reconnections.
+
 ## [5.0.2] - 2020-10-20
 ### Fixed:
 - When serializing JSON representations for _deleted_ flags and segments, properties with default values (such as false booleans or empty arrays) were being dropped entirely to save bandwidth. However, these representations may be consumed by SDKs other than the Go SDK, and some of the LaunchDarkly SDKs do not tolerate missing properties (PHP in particular), so this has been fixed to remain consistent with the less efficient behavior of Go SDK 4.x. This is very similar to a bug that was fixed in the 5.0.1 release, but it only affects deleted items; we store a placeholder for these (a tombstone) and the JSON for this was being created in a different code path from the one that was fixed.

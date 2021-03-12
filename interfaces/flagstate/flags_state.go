@@ -128,24 +128,20 @@ func (a AllFlags) ToValuesMap() map[string]ldvalue.Value {
 func (a AllFlags) MarshalJSON() ([]byte, error) {
 	w := jwriter.NewWriter()
 	obj := w.Object()
-	obj.Bool("$valid", a.valid)
+	obj.Name("$valid").Bool(a.valid)
 	for key, flag := range a.flags {
-		flag.Value.WriteToJSONWriter(obj.Property(key))
+		flag.Value.WriteToJSONWriter(obj.Name(key))
 	}
-	stateObj := obj.Object("$flagsState")
+	stateObj := obj.Name("$flagsState").Object()
 	for key, flag := range a.flags {
-		flagObj := stateObj.Object(key)
-		flagObj.OptInt("variation", flag.Variation.IsDefined(), flag.Variation.IntValue())
-		flagObj.Int("version", flag.Version)
+		flagObj := stateObj.Name(key).Object()
+		flagObj.Maybe("variation", flag.Variation.IsDefined()).Int(flag.Variation.IntValue())
+		flagObj.Name("version").Int(flag.Version)
 		if flag.Reason.IsDefined() {
-			flag.Reason.WriteToJSONWriter(flagObj.Property("reason"))
+			flag.Reason.WriteToJSONWriter(flagObj.Name("reason"))
 		}
-		if flag.TrackEvents {
-			flagObj.Bool("trackEvents", true)
-		}
-		if flag.DebugEventsUntilDate > 0 {
-			flagObj.Float64("debugEventsUntilDate", float64(flag.DebugEventsUntilDate))
-		}
+		flagObj.Maybe("trackEvents", flag.TrackEvents).Bool(flag.TrackEvents)
+		flagObj.Maybe("debugEventsUntilDate", flag.DebugEventsUntilDate > 0).Float64(float64(flag.DebugEventsUntilDate))
 		flagObj.End()
 	}
 	stateObj.End()
