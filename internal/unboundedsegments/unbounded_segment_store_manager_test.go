@@ -35,7 +35,7 @@ func TestPollingDetectsStaleStatus(t *testing.T) {
 	store := &sharedtest.MockUnboundedSegmentStore{}
 	store.SetMetadataToCurrentTime()
 
-	impl := NewUnboundedSegmentStoreManager(store, time.Millisecond*10, time.Millisecond*50)
+	impl := NewUnboundedSegmentStoreManager(store, time.Millisecond*10, time.Millisecond*100)
 	defer impl.Close()
 
 	statusCh := impl.getBroadcaster().AddListener()
@@ -65,10 +65,10 @@ func TestPollingDetectsStaleStatus(t *testing.T) {
 		interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
 
 	shouldUpdate.Store(false)
-	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, impl.getStatus, time.Millisecond*100,
+	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, impl.getStatus, time.Millisecond*200,
 		interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: true})
 
 	shouldUpdate.Store(true)
-	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, impl.getStatus, time.Millisecond*100,
+	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, impl.getStatus, time.Millisecond*200,
 		interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
 }

@@ -128,18 +128,20 @@ func (s *UnboundedSegmentStoreTestSuite) runUserMembershipTests(t testbox.Testin
 }
 
 func (s *UnboundedSegmentStoreTestSuite) withStoreAndEmptyData(
-	t require.TestingT,
+	t testbox.TestingT,
 	action func(interfaces.UnboundedSegmentStore),
 ) {
 	require.NoError(t, s.clearDataFn(""))
 
-	store, err := s.storeFactoryFn("").CreateUnboundedSegmentStore(testhelpers.NewSimpleClientContext(""))
-	require.NoError(t, err)
-	defer func() {
-		_ = store.Close()
-	}()
+	testhelpers.WithMockLoggingContext(t, func(context interfaces.ClientContext) {
+		store, err := s.storeFactoryFn("").CreateUnboundedSegmentStore(context)
+		require.NoError(t, err)
+		defer func() {
+			_ = store.Close()
+		}()
 
-	action(store)
+		action(store)
+	})
 }
 
 func assertEqualMembership(
