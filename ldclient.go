@@ -22,6 +22,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/unboundedsegments"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
@@ -45,23 +46,25 @@ const Version = internal.SDKVersion
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go
 type LDClient struct {
-	sdkKey                      string
-	loggers                     ldlog.Loggers
-	eventProcessor              ldevents.EventProcessor
-	dataSource                  interfaces.DataSource
-	store                       interfaces.DataStore
-	evaluator                   ldeval.Evaluator
-	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
-	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
-	dataStoreStatusBroadcaster  *internal.DataStoreStatusBroadcaster
-	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
-	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
-	flagTracker                 interfaces.FlagTracker
-	eventsDefault               eventsScope
-	eventsWithReasons           eventsScope
-	withEventsDisabled          interfaces.LDClientInterface
-	logEvaluationErrors         bool
-	offline                     bool
+	sdkKey                              string
+	loggers                             ldlog.Loggers
+	eventProcessor                      ldevents.EventProcessor
+	dataSource                          interfaces.DataSource
+	store                               interfaces.DataStore
+	evaluator                           ldeval.Evaluator
+	dataSourceStatusBroadcaster         *internal.DataSourceStatusBroadcaster
+	dataSourceStatusProvider            interfaces.DataSourceStatusProvider
+	dataStoreStatusBroadcaster          *internal.DataStoreStatusBroadcaster
+	dataStoreStatusProvider             interfaces.DataStoreStatusProvider
+	flagChangeEventBroadcaster          *internal.FlagChangeEventBroadcaster
+	flagTracker                         interfaces.FlagTracker
+	unboundedSegmentStoreManager        *unboundedsegments.UnboundedSegmentStoreManager
+	unboundedSegmentStoreStatusProvider interfaces.UnboundedSegmentStoreStatusProvider
+	eventsDefault                       eventsScope
+	eventsWithReasons                   eventsScope
+	withEventsDisabled                  interfaces.LDClientInterface
+	logEvaluationErrors                 bool
+	offline                             bool
 }
 
 // Initialization errors
@@ -148,6 +151,15 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 // For more about the difference between an initialized and uninitialized client, and other ways to monitor
 // the client's status, see LDClient.Initialized() and LDClient.GetDataSourceStatusProvider().
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
+	// Ensure that any intermediate components we create will be disposed of if we return an error
+	client := &LDClient{sdkKey: sdkKey}
+	clientValid := false
+	defer func() {
+		if !clientValid {
+			_ = client.Close()
+		}
+	}()
+
 	closeWhenReady := make(chan struct{})
 
 	eventProcessorFactory := getEventProcessorFactory(config)
@@ -168,12 +180,10 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	loggers := clientContext.GetLogging().GetLoggers()
 	loggers.Infof("Starting LaunchDarkly client %s", Version)
 
-	client := &LDClient{
-		sdkKey:              sdkKey,
-		loggers:             loggers,
-		logEvaluationErrors: clientContext.GetLogging().IsLogEvaluationErrors(),
-		offline:             config.Offline,
-	}
+	client.loggers = loggers
+	client.logEvaluationErrors = clientContext.GetLogging().IsLogEvaluationErrors()
+
+	client.offline = config.Offline
 
 	client.dataStoreStatusBroadcaster = internal.NewDataStoreStatusBroadcaster()
 	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
@@ -182,6 +192,22 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return nil, err
 	}
 	client.store = store
+
+	ubsConfig, err := getUnboundedSegmentsConfigurationFactory(config).CreateUnboundedSegmentsConfiguration(clientContext)
+	if err != nil {
+		return nil, err
+	}
+	ubsStore := ubsConfig.GetStore()
+	if ubsStore != nil {
+		client.unboundedSegmentStoreManager = unboundedsegments.NewUnboundedSegmentStoreManager(
+			ubsStore,
+			ubsConfig.GetStatusPollInterval(),
+			ubsConfig.GetStaleAfter(),
+		)
+	}
+	client.unboundedSegmentStoreStatusProvider = unboundedsegments.NewUnboundedSegmentStoreStatusProviderImpl(
+		client.unboundedSegmentStoreManager,
+	)
 
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
 	client.evaluator = ldeval.NewEvaluator(dataProvider)
@@ -231,6 +257,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
+	clientValid = true
 	client.dataSource.Start(closeWhenReady)
 	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
@@ -262,6 +289,13 @@ func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
 		return ldcomponents.InMemoryDataStore()
 	}
 	return config.DataStore
+}
+
+func getUnboundedSegmentsConfigurationFactory(config Config) interfaces.UnboundedSegmentsConfigurationFactory {
+	if config.UnboundedSegments == nil {
+		return ldcomponents.UnboundedSegments(nil)
+	}
+	return config.UnboundedSegments
 }
 
 func createDataSource(
@@ -449,12 +483,31 @@ func (client *LDClient) Initialized() bool {
 // been sent.
 func (client *LDClient) Close() error {
 	client.loggers.Info("Closing LaunchDarkly client")
-	_ = client.eventProcessor.Close()
-	_ = client.dataSource.Close()
-	_ = client.store.Close()
-	client.dataSourceStatusBroadcaster.Close()
-	client.dataStoreStatusBroadcaster.Close()
-	client.flagChangeEventBroadcaster.Close()
+
+	// Normally all of the following components exist; but they could be nil if we errored out
+	// partway through the MakeCustomClient constructor, in which case we want to close whatever
+	// did get created so far.
+	if client.eventProcessor != nil {
+		_ = client.eventProcessor.Close()
+	}
+	if client.dataSource != nil {
+		_ = client.dataSource.Close()
+	}
+	if client.store != nil {
+		_ = client.store.Close()
+	}
+	if client.dataSourceStatusBroadcaster != nil {
+		client.dataSourceStatusBroadcaster.Close()
+	}
+	if client.dataStoreStatusBroadcaster != nil {
+		client.dataStoreStatusBroadcaster.Close()
+	}
+	if client.flagChangeEventBroadcaster != nil {
+		client.flagChangeEventBroadcaster.Close()
+	}
+	if client.unboundedSegmentStoreManager != nil {
+		client.unboundedSegmentStoreManager.Close()
+	}
 	return nil
 }
 
@@ -689,7 +742,7 @@ func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatu
 // GetDataStoreStatusProvider returns an interface for tracking the status of a persistent data store.
 //
 // The DataStoreStatusProvider has methods for checking whether the data store is (as far as the SDK
-// SDK knows) currently operational, tracking changes in this status, and getting cache statistics. These
+// knows) currently operational, tracking changes in this status, and getting cache statistics. These
 // are only relevant for a persistent data store; if you are using an in-memory data store, then this
 // method will always report that the store is operational.
 //
@@ -703,6 +756,17 @@ func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusP
 // See the FlagTracker interface for more about this functionality.
 func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
+}
+
+// GetUnboundedSegmentStoreStatusProvider returns an interface for tracking the status of an
+// unbounded segment store.
+//
+// The UnboundedSegmentStoreStatusProvider has methods for checking whether the unbounded segment store
+// is (as far as the SDK knows) currently operational and tracking changes in this status.
+//
+// See the UnboundedSegmentStoreStatusProvider interface for more about this functionality.
+func (client *LDClient) GetUnboundedSegmentStoreStatusProvider() interfaces.UnboundedSegmentStoreStatusProvider {
+	return client.unboundedSegmentStoreStatusProvider
 }
 
 // WithEventsDisabled returns a decorator for the LDClient that implements the same basic operations

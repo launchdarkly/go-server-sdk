@@ -204,3 +204,66 @@ func (b *FlagChangeEventBroadcaster) Close() {
 	}
 	b.subscribers = nil
 }
+
+// UnboundedSegmentStoreStatusBroadcaster is the internal implementation of publish-subscribe for
+// UnboundedSegmentStoreStatus values.
+type UnboundedSegmentStoreStatusBroadcaster struct {
+	subscribers []chan interfaces.UnboundedSegmentStoreStatus
+	lock        sync.Mutex
+}
+
+// NewUnboundedSegmentStoreStatusBroadcaster creates an instance of UnboundedSegmentStoreStatusBroadcaster.
+func NewUnboundedSegmentStoreStatusBroadcaster() *UnboundedSegmentStoreStatusBroadcaster {
+	return &UnboundedSegmentStoreStatusBroadcaster{}
+}
+
+// AddListener creates a new channel for listening to broadcast values. This is created with a small
+// channel buffer, but it is the consumer's responsibility to consume the channel to avoid blocking an
+// SDK goroutine.
+func (b *UnboundedSegmentStoreStatusBroadcaster) AddListener() <-chan interfaces.UnboundedSegmentStoreStatus {
+	ch := make(chan interfaces.UnboundedSegmentStoreStatus, subscriberChannelBufferLength)
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.subscribers = append(b.subscribers, ch)
+	return ch
+}
+
+// RemoveListener stops broadcasting to a channel that was created with AddListener.
+func (b *UnboundedSegmentStoreStatusBroadcaster) RemoveListener(ch <-chan interfaces.UnboundedSegmentStoreStatus) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	ss := b.subscribers
+	for i, s := range ss {
+		if s == ch {
+			copy(ss[i:], ss[i+1:])
+			ss[len(ss)-1] = nil
+			b.subscribers = ss[:len(ss)-1]
+			close(s)
+			break
+		}
+	}
+}
+
+// Broadcast broadcasts a new value to the registered listeners, if any.
+func (b *UnboundedSegmentStoreStatusBroadcaster) Broadcast(value interfaces.UnboundedSegmentStoreStatus) {
+	var ss []chan interfaces.UnboundedSegmentStoreStatus
+	b.lock.Lock()
+	if len(b.subscribers) > 0 {
+		ss = make([]chan interfaces.UnboundedSegmentStoreStatus, len(b.subscribers))
+		copy(ss, b.subscribers)
+	}
+	b.lock.Unlock()
+	for _, ch := range ss {
+		ch <- value
+	}
+}
+
+// Close closes all currently registered listener channels.
+func (b *UnboundedSegmentStoreStatusBroadcaster) Close() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	for _, s := range b.subscribers {
+		close(s)
+	}
+	b.subscribers = nil
+}

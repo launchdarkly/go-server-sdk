@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -31,6 +32,10 @@ type clientListenersTestParams struct {
 }
 
 func clientListenersTest(action func(clientListenersTestParams)) {
+	clientListenersTestWithConfig(nil, action)
+}
+
+func clientListenersTestWithConfig(configAction func(*Config), action func(clientListenersTestParams)) {
 	testData := ldtestdata.DataSource()
 	factoryWithUpdater := &sharedtest.DataStoreFactoryThatExposesUpdater{
 		UnderlyingFactory: ldcomponents.PersistentDataStore(
@@ -42,6 +47,9 @@ func clientListenersTest(action func(clientListenersTestParams)) {
 		DataStore:  factoryWithUpdater,
 		Events:     ldcomponents.NoEvents(),
 		Logging:    sharedtest.TestLogging(),
+	}
+	if configAction != nil {
+		configAction(&config)
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
@@ -179,5 +187,45 @@ func TestDataStoreStatusProvider(t *testing.T) {
 				assert.Fail(t, "timed out waiting for new status")
 			}
 		})
+	})
+}
+
+func TestUnboundedSegmentsStoreStatusProvider(t *testing.T) {
+	t.Run("returns unavailable status when not configured", func(t *testing.T) {
+		clientListenersTest(func(p clientListenersTestParams) {
+			assert.Equal(t, interfaces.UnboundedSegmentStoreStatus{},
+				p.client.GetUnboundedSegmentStoreStatusProvider().GetStatus())
+		})
+	})
+
+	t.Run("sends status updates", func(t *testing.T) {
+		store := &sharedtest.MockUnboundedSegmentStore{}
+		store.SetMetadataToCurrentTime()
+		storeFactory := sharedtest.SingleUnboundedSegmentStoreFactory{Store: store}
+		clientListenersTestWithConfig(
+			func(c *Config) {
+				c.UnboundedSegments = ldcomponents.UnboundedSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)
+			},
+			func(p clientListenersTestParams) {
+				statusCh := p.client.GetUnboundedSegmentStoreStatusProvider().AddStatusListener()
+
+				sharedtest.ExpectUnboundedSegmentStoreStatus(
+					t,
+					statusCh,
+					p.client.GetUnboundedSegmentStoreStatusProvider().GetStatus,
+					time.Second,
+					interfaces.UnboundedSegmentStoreStatus{Available: true},
+				)
+
+				store.SetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("failing"))
+
+				sharedtest.ExpectUnboundedSegmentStoreStatus(
+					t,
+					statusCh,
+					p.client.GetUnboundedSegmentStoreStatusProvider().GetStatus,
+					time.Second,
+					interfaces.UnboundedSegmentStoreStatus{Available: false},
+				)
+			})
 	})
 }

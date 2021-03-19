@@ -53,7 +53,6 @@ func PersistentDataStore(persistentDataStoreFactory interfaces.PersistentDataSto
 //         ).CacheSeconds(15),
 //     }
 //
-//
 // In this example, URL() is an option specifically for the Redis integration, whereas CacheSeconds() is
 // an option that can be used for any persistent data store.
 type PersistentDataStoreBuilder struct {
