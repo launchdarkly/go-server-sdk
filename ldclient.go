@@ -203,6 +203,9 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			ubsStore,
 			ubsConfig.GetStatusPollInterval(),
 			ubsConfig.GetStaleAfter(),
+			ubsConfig.GetUserCacheSize(),
+			ubsConfig.GetUserCacheTime(),
+			loggers,
 		)
 	}
 	client.unboundedSegmentStoreStatusProvider = unboundedsegments.NewUnboundedSegmentStoreStatusProviderImpl(
@@ -210,7 +213,12 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	)
 
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
-	client.evaluator = ldeval.NewEvaluator(dataProvider)
+	if client.unboundedSegmentStoreManager == nil {
+		client.evaluator = ldeval.NewEvaluator(dataProvider)
+	} else {
+		client.evaluator = ldeval.NewEvaluatorWithUnboundedSegments(dataProvider,
+			unboundedsegments.NewUnboundedSegmentProviderImpl(client.unboundedSegmentStoreManager))
+	}
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()

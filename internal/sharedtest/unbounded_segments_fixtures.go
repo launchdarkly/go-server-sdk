@@ -24,9 +24,12 @@ func (f SingleUnboundedSegmentStoreFactory) CreateUnboundedSegmentStore(interfac
 // MockUnboundedSegmentStore is a minimal mock implementation of UnboundedSegmentStore. Currently it only
 // supports specifying the metadata and simulating an error for metadata queries.
 type MockUnboundedSegmentStore struct {
-	metadata    interfaces.UnboundedSegmentStoreMetadata
-	metadataErr error
-	lock        sync.Mutex
+	metadata          interfaces.UnboundedSegmentStoreMetadata
+	metadataErr       error
+	memberships       map[string]interfaces.UnboundedSegmentMembership
+	membershipQueries []string
+	membershipErr     error
+	lock              sync.Mutex
 }
 
 func (m *MockUnboundedSegmentStore) Close() error { //nolint:golint
@@ -40,7 +43,7 @@ func (m *MockUnboundedSegmentStore) GetMetadata() (interfaces.UnboundedSegmentSt
 	return md, err
 }
 
-func (m *MockUnboundedSegmentStore) SetMetadataState( //nolint:golint
+func (m *MockUnboundedSegmentStore) TestSetMetadataState( //nolint:golint
 	md interfaces.UnboundedSegmentStoreMetadata,
 	err error,
 ) {
@@ -49,14 +52,44 @@ func (m *MockUnboundedSegmentStore) SetMetadataState( //nolint:golint
 	m.lock.Unlock()
 }
 
-func (m *MockUnboundedSegmentStore) SetMetadataToCurrentTime() { //nolint:golint
-	m.SetMetadataState(interfaces.UnboundedSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisNow()}, nil)
+func (m *MockUnboundedSegmentStore) TestSetMetadataToCurrentTime() { //nolint:golint
+	m.TestSetMetadataState(interfaces.UnboundedSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisNow()}, nil)
 }
 
 func (m *MockUnboundedSegmentStore) GetUserMembership( //nolint:golint
 	userHash string,
 ) (interfaces.UnboundedSegmentMembership, error) {
-	return nil, nil
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.membershipQueries = append(m.membershipQueries, userHash)
+	if m.membershipErr != nil {
+		return nil, m.membershipErr
+	}
+	return m.memberships[userHash], nil
+}
+
+func (m *MockUnboundedSegmentStore) TestSetMembership( //nolint:golint
+	userHash string,
+	membership interfaces.UnboundedSegmentMembership,
+) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.memberships == nil {
+		m.memberships = make(map[string]interfaces.UnboundedSegmentMembership)
+	}
+	m.memberships[userHash] = membership
+}
+
+func (m *MockUnboundedSegmentStore) TestSetMembershipError(err error) { //nolint:golint
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.membershipErr = err
+}
+
+func (m *MockUnboundedSegmentStore) TestGetMembershipQueries() []string { //nolint:golint
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return append([]string(nil), m.membershipQueries...)
 }
 
 // ExpectUnboundedSegmentStoreStatus waits for a status value to appear in a channel and also verifies that it

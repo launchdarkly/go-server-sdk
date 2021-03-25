@@ -200,7 +200,7 @@ func TestUnboundedSegmentsStoreStatusProvider(t *testing.T) {
 
 	t.Run("sends status updates", func(t *testing.T) {
 		store := &sharedtest.MockUnboundedSegmentStore{}
-		store.SetMetadataToCurrentTime()
+		store.TestSetMetadataToCurrentTime()
 		storeFactory := sharedtest.SingleUnboundedSegmentStoreFactory{Store: store}
 		clientListenersTestWithConfig(
 			func(c *Config) {
@@ -217,7 +217,7 @@ func TestUnboundedSegmentsStoreStatusProvider(t *testing.T) {
 					interfaces.UnboundedSegmentStoreStatus{Available: true},
 				)
 
-				store.SetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("failing"))
+				store.TestSetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("failing"))
 
 				sharedtest.ExpectUnboundedSegmentStoreStatus(
 					t,

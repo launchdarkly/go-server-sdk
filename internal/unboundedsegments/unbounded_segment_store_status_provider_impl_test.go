@@ -11,19 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetStatus(t *testing.T) {
-	store := &sharedtest.MockUnboundedSegmentStore{}
-	store.SetMetadataToCurrentTime()
-
-	manager := NewUnboundedSegmentStoreManager(store, time.Second, time.Second)
-	defer manager.Close()
-	provider := NewUnboundedSegmentStoreStatusProviderImpl(manager)
-
-	status := provider.GetStatus()
-	assert.True(t, status.Available)
-	assert.False(t, status.Stale)
-}
-
 func TestGetStatusWhenNoStoreExists(t *testing.T) {
 	provider := NewUnboundedSegmentStoreStatusProviderImpl(nil)
 
@@ -33,25 +20,23 @@ func TestGetStatusWhenNoStoreExists(t *testing.T) {
 }
 
 func TestStatusListener(t *testing.T) {
-	store := &sharedtest.MockUnboundedSegmentStore{}
-	store.SetMetadataToCurrentTime()
+	storeManagerTest(t).run(func(p *storeManagerTestParams) {
+		provider := NewUnboundedSegmentStoreStatusProviderImpl(p.manager)
+		p.store.TestSetMetadataToCurrentTime()
 
-	manager := NewUnboundedSegmentStoreManager(store, time.Millisecond*10, time.Second)
-	defer manager.Close()
-	provider := NewUnboundedSegmentStoreStatusProviderImpl(manager)
+		statusCh := provider.AddStatusListener()
 
-	statusCh := provider.AddStatusListener()
+		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
+			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
 
-	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
-		interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+		p.store.TestSetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("sorry"))
+		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
+			interfaces.UnboundedSegmentStoreStatus{Available: false, Stale: false})
 
-	store.SetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("sorry"))
-	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
-		interfaces.UnboundedSegmentStoreStatus{Available: false, Stale: false})
-
-	store.SetMetadataToCurrentTime()
-	sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
-		interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+		p.store.TestSetMetadataToCurrentTime()
+		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
+			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+	})
 }
 
 func TestStatusListenerWhenNoStoreExists(t *testing.T) {
