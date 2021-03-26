@@ -17,8 +17,12 @@ require (
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/ghodss/yaml.v1 v1.0.0
 	gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.0
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.3.0-alpha.1
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.2.2
 	gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.0
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.3.0-alpha.1
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.2.0
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
+
+replace gopkg.in/launchdarkly/go-sdk-common.v2 => github.com/launchdarkly/go-sdk-common-private/v2 v2.2.3-0.20210323175925-2f53ef23e94c
+
+replace gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 => github.com/launchdarkly/go-server-sdk-evaluation-private v1.2.1-0.20210323201644-112b8c0df0c7

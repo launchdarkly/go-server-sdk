@@ -9,8 +9,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/bigsegments"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/unboundedsegments"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/ldtestdata"
@@ -19,10 +19,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const unboundedSegmentKey = "segmentkey"
+const bigSegmentKey = "segmentkey"
 
-func addUnboundedSegmentAndFlag(testData *ldtestdata.TestDataSource) {
-	segment := ldbuilders.NewSegmentBuilder(unboundedSegmentKey).
+func addBigSegmentAndFlag(testData *ldtestdata.TestDataSource) {
+	segment := ldbuilders.NewSegmentBuilder(bigSegmentKey).
 		Unbounded(true).
 		Generation(1).
 		Build()
@@ -37,72 +37,72 @@ func addUnboundedSegmentAndFlag(testData *ldtestdata.TestDataSource) {
 	testData.UsePreconfiguredFlag(flag)
 }
 
-func doUnboundedSegmentsTest(
+func doBigSegmentsTest(
 	t *testing.T,
-	action func(client *LDClient, ubsStore *sharedtest.MockUnboundedSegmentStore),
+	action func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore),
 ) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
 	testData := ldtestdata.DataSource()
-	ubsStore := &sharedtest.MockUnboundedSegmentStore{}
-	ubsStore.TestSetMetadataToCurrentTime()
+	bsStore := &sharedtest.MockBigSegmentStore{}
+	bsStore.TestSetMetadataToCurrentTime()
 
-	addUnboundedSegmentAndFlag(testData)
+	addBigSegmentAndFlag(testData)
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = testData
-		c.UnboundedSegments = ldcomponents.UnboundedSegments(
-			sharedtest.SingleUnboundedSegmentStoreFactory{Store: ubsStore},
+		c.BigSegments = ldcomponents.BigSegments(
+			sharedtest.SingleBigSegmentStoreFactory{Store: bsStore},
 		)
 		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
 	})
 	defer client.Close()
 
-	action(client, ubsStore)
+	action(client, bsStore)
 }
 
-func TestEvalWithUnboundedSegments(t *testing.T) {
+func TestEvalWithBigSegments(t *testing.T) {
 	t.Run("user not found", func(t *testing.T) {
-		doUnboundedSegmentsTest(t, func(client *LDClient, ubsStore *sharedtest.MockUnboundedSegmentStore) {
+		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)
 			assert.False(t, value)
-			assert.Equal(t, ldreason.UnboundedSegmentsHealthy, detail.Reason.GetUnboundedSegmentsStatus())
+			assert.Equal(t, ldreason.BigSegmentsHealthy, detail.Reason.GetBigSegmentsStatus())
 		})
 	})
 
 	t.Run("user found", func(t *testing.T) {
-		doUnboundedSegmentsTest(t, func(client *LDClient, ubsStore *sharedtest.MockUnboundedSegmentStore) {
-			ubsStore.TestSetMembership(unboundedsegments.HashForUserKey(evalTestUser.GetKey()),
-				ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{unboundedSegmentKey + ":1"}, nil))
+		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
+			bsStore.TestSetMembership(bigsegments.HashForUserKey(evalTestUser.GetKey()),
+				ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{bigSegmentKey + ":1"}, nil))
 
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)
 			assert.True(t, value)
-			assert.Equal(t, ldreason.UnboundedSegmentsHealthy, detail.Reason.GetUnboundedSegmentsStatus())
+			assert.Equal(t, ldreason.BigSegmentsHealthy, detail.Reason.GetBigSegmentsStatus())
 		})
 	})
 
 	t.Run("store error", func(t *testing.T) {
-		doUnboundedSegmentsTest(t, func(client *LDClient, ubsStore *sharedtest.MockUnboundedSegmentStore) {
-			ubsStore.TestSetMembershipError(errors.New("sorry"))
+		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
+			bsStore.TestSetMembershipError(errors.New("sorry"))
 
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)
 			assert.False(t, value)
-			assert.Equal(t, ldreason.UnboundedSegmentsStoreError, detail.Reason.GetUnboundedSegmentsStatus())
+			assert.Equal(t, ldreason.BigSegmentsStoreError, detail.Reason.GetBigSegmentsStatus())
 		})
 	})
 
 	t.Run("store not configured", func(t *testing.T) {
-		// deliberately not using a configuration with an unbounded segment store here
+		// deliberately not using a configuration with a big segment store here
 		withClientEvalTestParams(func(p clientEvalTestParams) {
-			addUnboundedSegmentAndFlag(p.data)
+			addBigSegmentAndFlag(p.data)
 
 			value, detail, err := p.client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)
 			assert.False(t, value)
-			assert.Equal(t, ldreason.UnboundedSegmentsNotConfigured, detail.Reason.GetUnboundedSegmentsStatus())
+			assert.Equal(t, ldreason.BigSegmentsNotConfigured, detail.Reason.GetBigSegmentsStatus())
 		})
 	})
 }

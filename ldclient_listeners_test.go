@@ -190,41 +190,41 @@ func TestDataStoreStatusProvider(t *testing.T) {
 	})
 }
 
-func TestUnboundedSegmentsStoreStatusProvider(t *testing.T) {
+func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 	t.Run("returns unavailable status when not configured", func(t *testing.T) {
 		clientListenersTest(func(p clientListenersTestParams) {
-			assert.Equal(t, interfaces.UnboundedSegmentStoreStatus{},
-				p.client.GetUnboundedSegmentStoreStatusProvider().GetStatus())
+			assert.Equal(t, interfaces.BigSegmentStoreStatus{},
+				p.client.GetBigSegmentStoreStatusProvider().GetStatus())
 		})
 	})
 
 	t.Run("sends status updates", func(t *testing.T) {
-		store := &sharedtest.MockUnboundedSegmentStore{}
+		store := &sharedtest.MockBigSegmentStore{}
 		store.TestSetMetadataToCurrentTime()
-		storeFactory := sharedtest.SingleUnboundedSegmentStoreFactory{Store: store}
+		storeFactory := sharedtest.SingleBigSegmentStoreFactory{Store: store}
 		clientListenersTestWithConfig(
 			func(c *Config) {
-				c.UnboundedSegments = ldcomponents.UnboundedSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)
+				c.BigSegments = ldcomponents.BigSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)
 			},
 			func(p clientListenersTestParams) {
-				statusCh := p.client.GetUnboundedSegmentStoreStatusProvider().AddStatusListener()
+				statusCh := p.client.GetBigSegmentStoreStatusProvider().AddStatusListener()
 
-				sharedtest.ExpectUnboundedSegmentStoreStatus(
+				sharedtest.ExpectBigSegmentStoreStatus(
 					t,
 					statusCh,
-					p.client.GetUnboundedSegmentStoreStatusProvider().GetStatus,
+					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
 					time.Second,
-					interfaces.UnboundedSegmentStoreStatus{Available: true},
+					interfaces.BigSegmentStoreStatus{Available: true},
 				)
 
-				store.TestSetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("failing"))
+				store.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{}, errors.New("failing"))
 
-				sharedtest.ExpectUnboundedSegmentStoreStatus(
+				sharedtest.ExpectBigSegmentStoreStatus(
 					t,
 					statusCh,
-					p.client.GetUnboundedSegmentStoreStatusProvider().GetStatus,
+					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
 					time.Second,
-					interfaces.UnboundedSegmentStoreStatus{Available: false},
+					interfaces.BigSegmentStoreStatus{Available: false},
 				)
 			})
 	})

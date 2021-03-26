@@ -1,4 +1,4 @@
-package unboundedsegments
+package bigsegments
 
 import (
 	"errors"
@@ -13,61 +13,61 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUnboundedSegmentProviderUserNotFound(t *testing.T) {
+func TestBigSegmentProviderUserNotFound(t *testing.T) {
 	storeManagerTest(t).run(func(p *storeManagerTestParams) {
-		provider := NewUnboundedSegmentProviderImpl(p.manager)
+		provider := NewBigSegmentProviderImpl(p.manager)
 
 		membership, status := provider.GetUserMembership("userkey1")
 		assert.Nil(t, membership)
-		assert.Equal(t, ldreason.UnboundedSegmentsHealthy, status)
+		assert.Equal(t, ldreason.BigSegmentsHealthy, status)
 	})
 }
 
-func TestUnboundedSegmentProviderUserFoundAndStoreNotStale(t *testing.T) {
+func TestBigSegmentProviderUserFoundAndStoreNotStale(t *testing.T) {
 	key := "userkey1"
 	hash := HashForUserKey(key)
-	expectedMembership := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
+	expectedMembership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 
 	storeManagerTest(t).run(func(p *storeManagerTestParams) {
-		provider := NewUnboundedSegmentProviderImpl(p.manager)
+		provider := NewBigSegmentProviderImpl(p.manager)
 		p.store.TestSetMembership(hash, expectedMembership)
 
 		membership, status := provider.GetUserMembership(key)
 		assert.Equal(t, expectedMembership, membership)
-		assert.Equal(t, ldreason.UnboundedSegmentsHealthy, status)
+		assert.Equal(t, ldreason.BigSegmentsHealthy, status)
 	})
 }
 
-func TestUnboundedSegmentProviderUserFoundAndStoreStale(t *testing.T) {
+func TestBigSegmentProviderUserFoundAndStoreStale(t *testing.T) {
 	key := "userkey1"
 	hash := HashForUserKey(key)
-	expectedMembership := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
+	expectedMembership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 
 	p := storeManagerTest(t)
 	p.staleTime = time.Millisecond * 100
 	p.run(func(p *storeManagerTestParams) {
-		provider := NewUnboundedSegmentProviderImpl(p.manager)
+		provider := NewBigSegmentProviderImpl(p.manager)
 		statusCh := p.manager.getBroadcaster().AddListener()
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: true})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: true})
 		p.store.TestSetMembership(hash, expectedMembership)
 
 		membership, status := provider.GetUserMembership(key)
 		assert.Equal(t, expectedMembership, membership)
-		assert.Equal(t, ldreason.UnboundedSegmentsStale, status)
+		assert.Equal(t, ldreason.BigSegmentsStale, status)
 	})
 }
 
-func TestUnboundedSegmentProviderStoreError(t *testing.T) {
+func TestBigSegmentProviderStoreError(t *testing.T) {
 	storeManagerTest(t).run(func(p *storeManagerTestParams) {
-		provider := NewUnboundedSegmentProviderImpl(p.manager)
+		provider := NewBigSegmentProviderImpl(p.manager)
 		fakeError := errors.New("sorry")
 		p.store.TestSetMembershipError(fakeError)
 
 		membership, status := provider.GetUserMembership("userkey1")
 		assert.Nil(t, membership)
-		assert.Equal(t, ldreason.UnboundedSegmentsStoreError, status)
+		assert.Equal(t, ldreason.BigSegmentsStoreError, status)
 	})
 }

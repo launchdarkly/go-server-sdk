@@ -1,4 +1,4 @@
-package unboundedsegments
+package bigsegments
 
 import (
 	"errors"
@@ -16,7 +16,7 @@ func TestStoreIsQueriedWithHashedUserKey(t *testing.T) {
 	storeManagerTest(t).run(func(p *storeManagerTestParams) {
 		userKey := "userkey"
 		userHash := HashForUserKey(userKey)
-		expectedMembership := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
+		expectedMembership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 		p.store.TestSetMembership(userHash, expectedMembership)
 
 		p.assertMembership(userKey, expectedMembership)
@@ -28,7 +28,7 @@ func TestStoreCachesUser(t *testing.T) {
 	storeManagerTest(t).run(func(p *storeManagerTestParams) {
 		userKey := "userkey"
 		userHash := HashForUserKey(userKey)
-		expectedMembership := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
+		expectedMembership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 		p.store.TestSetMembership(userHash, expectedMembership)
 
 		p.assertMembership(userKey, expectedMembership)
@@ -54,17 +54,17 @@ func TestStoreEvictsLeastRecentUserFromCache(t *testing.T) {
 	p.run(func(p *storeManagerTestParams) {
 		userKey1 := "userkey1"
 		userHash1 := HashForUserKey(userKey1)
-		expectedMembership1 := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes1"}, []string{"no1"})
+		expectedMembership1 := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes1"}, []string{"no1"})
 		p.store.TestSetMembership(userHash1, expectedMembership1)
 
 		userKey2 := "userkey2"
 		userHash2 := HashForUserKey(userKey2)
-		expectedMembership2 := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes2"}, []string{"no2"})
+		expectedMembership2 := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes2"}, []string{"no2"})
 		p.store.TestSetMembership(userHash2, expectedMembership2)
 
 		userKey3 := "userkey3"
 		userHash3 := HashForUserKey(userKey3)
-		expectedMembership3 := ldstoreimpl.NewUnboundedSegmentMembershipFromSegmentRefs([]string{"yes3"}, []string{"no3"})
+		expectedMembership3 := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{"yes3"}, []string{"no3"})
 		p.store.TestSetMembership(userHash3, expectedMembership3)
 
 		p.assertMembership(userKey1, expectedMembership1)
@@ -91,16 +91,16 @@ func TestPollingDetectsAvailabilityChanges(t *testing.T) {
 	storeManagerTest(t).run(func(p *storeManagerTestParams) {
 		statusCh := p.manager.getBroadcaster().AddListener()
 
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 
-		p.store.TestSetMetadataState(interfaces.UnboundedSegmentStoreMetadata{}, errors.New("sorry"))
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
-			interfaces.UnboundedSegmentStoreStatus{Available: false, Stale: false})
+		p.store.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{}, errors.New("sorry"))
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
+			interfaces.BigSegmentStoreStatus{Available: false, Stale: false})
 
 		p.store.TestSetMetadataToCurrentTime()
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 	})
 }
 
@@ -131,15 +131,15 @@ func TestPollingDetectsStaleStatus(t *testing.T) {
 			}
 		}()
 
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Second,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 
 		shouldUpdate.Store(false)
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Millisecond*200,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: true})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Millisecond*200,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: true})
 
 		shouldUpdate.Store(true)
-		sharedtest.ExpectUnboundedSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Millisecond*200,
-			interfaces.UnboundedSegmentStoreStatus{Available: true, Stale: false})
+		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, p.manager.getStatus, time.Millisecond*200,
+			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 	})
 }

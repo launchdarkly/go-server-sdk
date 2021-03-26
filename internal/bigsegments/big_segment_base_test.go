@@ -1,4 +1,4 @@
-package unboundedsegments
+package bigsegments
 
 import (
 	"testing"
@@ -12,8 +12,8 @@ import (
 
 type storeManagerTestParams struct {
 	t             *testing.T
-	store         *sharedtest.MockUnboundedSegmentStore
-	manager       *UnboundedSegmentStoreManager
+	store         *sharedtest.MockBigSegmentStore
+	manager       *BigSegmentStoreManager
 	pollInterval  time.Duration
 	staleTime     time.Duration
 	userCacheSize int
@@ -24,7 +24,7 @@ type storeManagerTestParams struct {
 func storeManagerTest(t *testing.T) *storeManagerTestParams {
 	return &storeManagerTestParams{
 		t:             t,
-		store:         &sharedtest.MockUnboundedSegmentStore{},
+		store:         &sharedtest.MockBigSegmentStore{},
 		pollInterval:  time.Millisecond * 10,
 		staleTime:     time.Hour,
 		userCacheSize: 1000,
@@ -35,14 +35,14 @@ func storeManagerTest(t *testing.T) *storeManagerTestParams {
 
 func (p *storeManagerTestParams) run(action func(*storeManagerTestParams)) {
 	defer p.mockLog.DumpIfTestFailed(p.t)
-	p.manager = NewUnboundedSegmentStoreManager(p.store, p.pollInterval, p.staleTime,
+	p.manager = NewBigSegmentStoreManager(p.store, p.pollInterval, p.staleTime,
 		p.userCacheSize, p.userCacheTime, p.mockLog.Loggers)
 	p.store.TestSetMetadataToCurrentTime()
 	defer p.manager.Close()
 	action(p)
 }
 
-func (p *storeManagerTestParams) assertMembership(userKey string, expected interfaces.UnboundedSegmentMembership) {
+func (p *storeManagerTestParams) assertMembership(userKey string, expected interfaces.BigSegmentMembership) {
 	membership, ok := p.manager.getUserMembership(userKey)
 	assert.True(p.t, ok)
 	assert.Equal(p.t, expected, membership)

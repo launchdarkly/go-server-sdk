@@ -19,10 +19,10 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/bigsegments"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/unboundedsegments"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
@@ -46,25 +46,25 @@ const Version = internal.SDKVersion
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go
 type LDClient struct {
-	sdkKey                              string
-	loggers                             ldlog.Loggers
-	eventProcessor                      ldevents.EventProcessor
-	dataSource                          interfaces.DataSource
-	store                               interfaces.DataStore
-	evaluator                           ldeval.Evaluator
-	dataSourceStatusBroadcaster         *internal.DataSourceStatusBroadcaster
-	dataSourceStatusProvider            interfaces.DataSourceStatusProvider
-	dataStoreStatusBroadcaster          *internal.DataStoreStatusBroadcaster
-	dataStoreStatusProvider             interfaces.DataStoreStatusProvider
-	flagChangeEventBroadcaster          *internal.FlagChangeEventBroadcaster
-	flagTracker                         interfaces.FlagTracker
-	unboundedSegmentStoreManager        *unboundedsegments.UnboundedSegmentStoreManager
-	unboundedSegmentStoreStatusProvider interfaces.UnboundedSegmentStoreStatusProvider
-	eventsDefault                       eventsScope
-	eventsWithReasons                   eventsScope
-	withEventsDisabled                  interfaces.LDClientInterface
-	logEvaluationErrors                 bool
-	offline                             bool
+	sdkKey                        string
+	loggers                       ldlog.Loggers
+	eventProcessor                ldevents.EventProcessor
+	dataSource                    interfaces.DataSource
+	store                         interfaces.DataStore
+	evaluator                     ldeval.Evaluator
+	dataSourceStatusBroadcaster   *internal.DataSourceStatusBroadcaster
+	dataSourceStatusProvider      interfaces.DataSourceStatusProvider
+	dataStoreStatusBroadcaster    *internal.DataStoreStatusBroadcaster
+	dataStoreStatusProvider       interfaces.DataStoreStatusProvider
+	flagChangeEventBroadcaster    *internal.FlagChangeEventBroadcaster
+	flagTracker                   interfaces.FlagTracker
+	bigSegmentStoreManager        *bigsegments.BigSegmentStoreManager
+	bigSegmentStoreStatusProvider interfaces.BigSegmentStoreStatusProvider
+	eventsDefault                 eventsScope
+	eventsWithReasons             eventsScope
+	withEventsDisabled            interfaces.LDClientInterface
+	logEvaluationErrors           bool
+	offline                       bool
 }
 
 // Initialization errors
@@ -193,31 +193,31 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	client.store = store
 
-	ubsConfig, err := getUnboundedSegmentsConfigurationFactory(config).CreateUnboundedSegmentsConfiguration(clientContext)
+	bsConfig, err := getBigSegmentsConfigurationFactory(config).CreateBigSegmentsConfiguration(clientContext)
 	if err != nil {
 		return nil, err
 	}
-	ubsStore := ubsConfig.GetStore()
-	if ubsStore != nil {
-		client.unboundedSegmentStoreManager = unboundedsegments.NewUnboundedSegmentStoreManager(
-			ubsStore,
-			ubsConfig.GetStatusPollInterval(),
-			ubsConfig.GetStaleAfter(),
-			ubsConfig.GetUserCacheSize(),
-			ubsConfig.GetUserCacheTime(),
+	bsStore := bsConfig.GetStore()
+	if bsStore != nil {
+		client.bigSegmentStoreManager = bigsegments.NewBigSegmentStoreManager(
+			bsStore,
+			bsConfig.GetStatusPollInterval(),
+			bsConfig.GetStaleAfter(),
+			bsConfig.GetUserCacheSize(),
+			bsConfig.GetUserCacheTime(),
 			loggers,
 		)
 	}
-	client.unboundedSegmentStoreStatusProvider = unboundedsegments.NewUnboundedSegmentStoreStatusProviderImpl(
-		client.unboundedSegmentStoreManager,
+	client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
+		client.bigSegmentStoreManager,
 	)
 
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
-	if client.unboundedSegmentStoreManager == nil {
+	if client.bigSegmentStoreManager == nil {
 		client.evaluator = ldeval.NewEvaluator(dataProvider)
 	} else {
-		client.evaluator = ldeval.NewEvaluatorWithUnboundedSegments(dataProvider,
-			unboundedsegments.NewUnboundedSegmentProviderImpl(client.unboundedSegmentStoreManager))
+		client.evaluator = ldeval.NewEvaluatorWithBigSegments(dataProvider,
+			bigsegments.NewBigSegmentProviderImpl(client.bigSegmentStoreManager))
 	}
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
@@ -299,11 +299,11 @@ func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
 	return config.DataStore
 }
 
-func getUnboundedSegmentsConfigurationFactory(config Config) interfaces.UnboundedSegmentsConfigurationFactory {
-	if config.UnboundedSegments == nil {
-		return ldcomponents.UnboundedSegments(nil)
+func getBigSegmentsConfigurationFactory(config Config) interfaces.BigSegmentsConfigurationFactory {
+	if config.BigSegments == nil {
+		return ldcomponents.BigSegments(nil)
 	}
-	return config.UnboundedSegments
+	return config.BigSegments
 }
 
 func createDataSource(
@@ -513,8 +513,8 @@ func (client *LDClient) Close() error {
 	if client.flagChangeEventBroadcaster != nil {
 		client.flagChangeEventBroadcaster.Close()
 	}
-	if client.unboundedSegmentStoreManager != nil {
-		client.unboundedSegmentStoreManager.Close()
+	if client.bigSegmentStoreManager != nil {
+		client.bigSegmentStoreManager.Close()
 	}
 	return nil
 }
@@ -766,15 +766,15 @@ func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
 }
 
-// GetUnboundedSegmentStoreStatusProvider returns an interface for tracking the status of an
-// unbounded segment store.
+// GetBigSegmentStoreStatusProvider returns an interface for tracking the status of a big
+// segment store.
 //
-// The UnboundedSegmentStoreStatusProvider has methods for checking whether the unbounded segment store
+// The BigSegmentStoreStatusProvider has methods for checking whether the big segment store
 // is (as far as the SDK knows) currently operational and tracking changes in this status.
 //
-// See the UnboundedSegmentStoreStatusProvider interface for more about this functionality.
-func (client *LDClient) GetUnboundedSegmentStoreStatusProvider() interfaces.UnboundedSegmentStoreStatusProvider {
-	return client.unboundedSegmentStoreStatusProvider
+// See the BigSegmentStoreStatusProvider interface for more about this functionality.
+func (client *LDClient) GetBigSegmentStoreStatusProvider() interfaces.BigSegmentStoreStatusProvider {
+	return client.bigSegmentStoreStatusProvider
 }
 
 // WithEventsDisabled returns a decorator for the LDClient that implements the same basic operations

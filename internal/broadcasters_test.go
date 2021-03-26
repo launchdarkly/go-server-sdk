@@ -25,9 +25,9 @@ func TestFlagChangeEventBroadcaster(t *testing.T) {
 		func() interface{} { return interfaces.FlagChangeEvent{Key: "flag"} })
 }
 
-func TestUnboundedSegmentStoreStatusBroadcaster(t *testing.T) {
-	testBroadcasterGenerically(t, NewUnboundedSegmentStoreStatusBroadcaster,
-		func() interface{} { return interfaces.UnboundedSegmentStoreStatus{Available: true} })
+func TestBigSegmentStoreStatusBroadcaster(t *testing.T) {
+	testBroadcasterGenerically(t, NewBigSegmentStoreStatusBroadcaster,
+		func() interface{} { return interfaces.BigSegmentStoreStatus{Available: true} })
 }
 
 // Runs a standard test suite that should work for any of our broadcaster types.

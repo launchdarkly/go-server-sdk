@@ -24,8 +24,12 @@ github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1 h1:Iz5cg9mB/0vt5llZE+J0iGQ5+O/
 github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1/go.mod h1:hKWfH/hga5oslM2mRkDZi+14u2h1dFsmgbvSM9qF8pk=
 github.com/launchdarkly/go-ntlmssp v1.0.1 h1:snB77118TQvf9tfHrkSyrIop/UX5e5VD2D2mv7Kh3wE=
 github.com/launchdarkly/go-ntlmssp v1.0.1/go.mod h1:/cq3t2JyALD7GdVF5BEWcEuGlIGa44FZ4v4CVk7vuCY=
+github.com/launchdarkly/go-sdk-common-private/v2 v2.2.3-0.20210323175925-2f53ef23e94c h1:TITiCfbEiVy8R+qy0QRZeTeuQGKfUTsQsBqtjLSL7ew=
+github.com/launchdarkly/go-sdk-common-private/v2 v2.2.3-0.20210323175925-2f53ef23e94c/go.mod h1:Fht0iTasUXh2xiDA8IJSmlSGbyQ1GNpmt97lXYz6+p8=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=
 github.com/launchdarkly/go-semver v1.0.2/go.mod h1:xFmMwXba5Mb+3h72Z+VeSs9ahCvKo2QFUTHRNHVqR28=
+github.com/launchdarkly/go-server-sdk-evaluation-private v1.2.1-0.20210323201644-112b8c0df0c7 h1:PZu2xsvBGVKPZ0DxKBHWNLMq3moGpdzLaube+nYTseU=
+github.com/launchdarkly/go-server-sdk-evaluation-private v1.2.1-0.20210323201644-112b8c0df0c7/go.mod h1:RDJXXpuEph/S3VeO50Z88d/fvMFXeraJxq/eF6ruueY=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0 h1:L3kGILP/6ewikhzhdNkHy1b5y4zs50LueWenVF0sBbs=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
 github.com/mailru/easyjson v0.7.6 h1:8yTIVnZgCoiM1TgqoeTl+LfU5Jg6/xL3QhGQnimLYnA=
