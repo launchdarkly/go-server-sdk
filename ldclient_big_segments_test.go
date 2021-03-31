@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
@@ -20,6 +21,12 @@ import (
 )
 
 const bigSegmentKey = "segmentkey"
+
+// The definition of this function has to be kept in sync with the equivalent function in
+// go-server-sdk-evaluation.
+func makeBigSegmentRef(segmentKey string, generation int) string {
+	return fmt.Sprintf("%s.g%d", segmentKey, generation)
+}
 
 func addBigSegmentAndFlag(testData *ldtestdata.TestDataSource) {
 	segment := ldbuilders.NewSegmentBuilder(bigSegmentKey).
@@ -73,8 +80,9 @@ func TestEvalWithBigSegments(t *testing.T) {
 
 	t.Run("user found", func(t *testing.T) {
 		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
-			bsStore.TestSetMembership(bigsegments.HashForUserKey(evalTestUser.GetKey()),
-				ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs([]string{bigSegmentKey + ":1"}, nil))
+			membership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(
+				[]string{makeBigSegmentRef(bigSegmentKey, 1)}, nil)
+			bsStore.TestSetMembership(bigsegments.HashForUserKey(evalTestUser.GetKey()), membership)
 
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)
