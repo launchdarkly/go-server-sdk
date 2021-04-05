@@ -21,3 +21,7 @@ require (
 	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.1.2
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
+
+replace gopkg.in/launchdarkly/go-sdk-common.v2 => github.com/launchdarkly/go-sdk-common-private/v2 v2.2.3-0.20210319203906-533467f10d12
+
+replace gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 => github.com/launchdarkly/go-server-sdk-evaluation-private v1.2.1-0.20210401223049-7ae0873842ae
