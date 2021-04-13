@@ -12,6 +12,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/bigsegments"
 
 	"github.com/launchdarkly/ccache"
+
 	"golang.org/x/sync/singleflight"
 )
 
@@ -125,14 +126,12 @@ func (w *BigSegmentStoreWrapper) GetUserMembership(
 			w.loggers.Error("BigSegmentStoreWrapper got wrong value type from request - this should not be possible")
 			return nil, ldreason.BigSegmentsStoreError
 		}
-	} else {
-		if entry.Value() != nil { // nil is a cached "not found" state
-			if membership, ok := entry.Value().(interfaces.BigSegmentMembership); ok {
-				result = membership
-			} else {
-				w.loggers.Error("BigSegmentStoreWrapper got wrong value type from cache - this should not be possible")
-				return nil, ldreason.BigSegmentsStoreError // COVERAGE: can't cause this condition in unit tests
-			}
+	} else if entry.Value() != nil { // nil is a cached "not found" state
+		if membership, ok := entry.Value().(interfaces.BigSegmentMembership); ok {
+			result = membership
+		} else {
+			w.loggers.Error("BigSegmentStoreWrapper got wrong value type from cache - this should not be possible")
+			return nil, ldreason.BigSegmentsStoreError // COVERAGE: can't cause this condition in unit tests
 		}
 	}
 

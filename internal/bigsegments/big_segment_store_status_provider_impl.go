@@ -36,12 +36,12 @@ func (b *bigSegmentStoreStatusProviderImpl) GetStatus() interfaces.BigSegmentSto
 	return b.getStatusFn()
 }
 
-func (u *bigSegmentStoreStatusProviderImpl) AddStatusListener() <-chan interfaces.BigSegmentStoreStatus {
-	return u.broadcaster.AddListener()
+func (b *bigSegmentStoreStatusProviderImpl) AddStatusListener() <-chan interfaces.BigSegmentStoreStatus {
+	return b.broadcaster.AddListener()
 }
 
-func (u *bigSegmentStoreStatusProviderImpl) RemoveStatusListener(
+func (b *bigSegmentStoreStatusProviderImpl) RemoveStatusListener(
 	ch <-chan interfaces.BigSegmentStoreStatus,
 ) {
-	u.broadcaster.RemoveListener(ch)
+	b.broadcaster.RemoveListener(ch)
 }
