@@ -46,25 +46,26 @@ const Version = internal.SDKVersion
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go
 type LDClient struct {
-	sdkKey                        string
-	loggers                       ldlog.Loggers
-	eventProcessor                ldevents.EventProcessor
-	dataSource                    interfaces.DataSource
-	store                         interfaces.DataStore
-	evaluator                     ldeval.Evaluator
-	dataSourceStatusBroadcaster   *internal.DataSourceStatusBroadcaster
-	dataSourceStatusProvider      interfaces.DataSourceStatusProvider
-	dataStoreStatusBroadcaster    *internal.DataStoreStatusBroadcaster
-	dataStoreStatusProvider       interfaces.DataStoreStatusProvider
-	flagChangeEventBroadcaster    *internal.FlagChangeEventBroadcaster
-	flagTracker                   interfaces.FlagTracker
-	bigSegmentStoreManager        *bigsegments.BigSegmentStoreManager
-	bigSegmentStoreStatusProvider interfaces.BigSegmentStoreStatusProvider
-	eventsDefault                 eventsScope
-	eventsWithReasons             eventsScope
-	withEventsDisabled            interfaces.LDClientInterface
-	logEvaluationErrors           bool
-	offline                       bool
+	sdkKey                           string
+	loggers                          ldlog.Loggers
+	eventProcessor                   ldevents.EventProcessor
+	dataSource                       interfaces.DataSource
+	store                            interfaces.DataStore
+	evaluator                        ldeval.Evaluator
+	dataSourceStatusBroadcaster      *internal.DataSourceStatusBroadcaster
+	dataSourceStatusProvider         interfaces.DataSourceStatusProvider
+	dataStoreStatusBroadcaster       *internal.DataStoreStatusBroadcaster
+	dataStoreStatusProvider          interfaces.DataStoreStatusProvider
+	flagChangeEventBroadcaster       *internal.FlagChangeEventBroadcaster
+	flagTracker                      interfaces.FlagTracker
+	bigSegmentStoreStatusBroadcaster *internal.BigSegmentStoreStatusBroadcaster
+	bigSegmentStoreStatusProvider    interfaces.BigSegmentStoreStatusProvider
+	bigSegmentStoreWrapper           *ldstoreimpl.BigSegmentStoreWrapper
+	eventsDefault                    eventsScope
+	eventsWithReasons                eventsScope
+	withEventsDisabled               interfaces.LDClientInterface
+	logEvaluationErrors              bool
+	offline                          bool
 }
 
 // Initialization errors
@@ -198,27 +199,34 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return nil, err
 	}
 	bsStore := bsConfig.GetStore()
+	client.bigSegmentStoreStatusBroadcaster = internal.NewBigSegmentStoreStatusBroadcaster()
 	if bsStore != nil {
-		client.bigSegmentStoreManager = bigsegments.NewBigSegmentStoreManager(
+		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapper(
 			bsStore,
+			client.bigSegmentStoreStatusBroadcaster.Broadcast,
 			bsConfig.GetStatusPollInterval(),
 			bsConfig.GetStaleAfter(),
 			bsConfig.GetUserCacheSize(),
 			bsConfig.GetUserCacheTime(),
 			loggers,
 		)
+		client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
+			client.bigSegmentStoreWrapper.GetStatus,
+			client.bigSegmentStoreStatusBroadcaster,
+		)
+	} else {
+		client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
+			nil, client.bigSegmentStoreStatusBroadcaster,
+		)
 	}
-	client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
-		client.bigSegmentStoreManager,
-	)
 
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
-	if client.bigSegmentStoreManager == nil {
+	if client.bigSegmentStoreWrapper == nil {
 		client.evaluator = ldeval.NewEvaluator(dataProvider)
 	} else {
-		client.evaluator = ldeval.NewEvaluatorWithBigSegments(dataProvider,
-			bigsegments.NewBigSegmentProviderImpl(client.bigSegmentStoreManager))
+		client.evaluator = ldeval.NewEvaluatorWithBigSegments(dataProvider, client.bigSegmentStoreWrapper)
 	}
+
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
@@ -513,8 +521,11 @@ func (client *LDClient) Close() error {
 	if client.flagChangeEventBroadcaster != nil {
 		client.flagChangeEventBroadcaster.Close()
 	}
-	if client.bigSegmentStoreManager != nil {
-		client.bigSegmentStoreManager.Close()
+	if client.bigSegmentStoreStatusBroadcaster != nil {
+		client.bigSegmentStoreStatusBroadcaster.Close()
+	}
+	if client.bigSegmentStoreWrapper != nil {
+		client.bigSegmentStoreWrapper.Close()
 	}
 	return nil
 }

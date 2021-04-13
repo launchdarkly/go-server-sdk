@@ -13,39 +13,35 @@ import (
 // any status updates, but this API object still exists so your app won't crash if you try to use
 // GetStatus or AddStatusListener.
 type bigSegmentStoreStatusProviderImpl struct {
-	manager     *BigSegmentStoreManager
+	getStatusFn func() interfaces.BigSegmentStoreStatus
 	broadcaster *internal.BigSegmentStoreStatusBroadcaster
 }
 
 // NewBigSegmentStoreStatusProviderImpl creates the internal implementation of
 // BigSegmentStoreStatusProvider. The manager parameter can be nil if there is no big segment store.
 func NewBigSegmentStoreStatusProviderImpl(
-	manager *BigSegmentStoreManager,
+	getStatusFn func() interfaces.BigSegmentStoreStatus,
+	broadcaster *internal.BigSegmentStoreStatusBroadcaster,
 ) interfaces.BigSegmentStoreStatusProvider {
-	if manager == nil {
-		return &bigSegmentStoreStatusProviderImpl{
-			broadcaster: internal.NewBigSegmentStoreStatusBroadcaster(),
-		}
-	}
 	return &bigSegmentStoreStatusProviderImpl{
-		manager:     manager,
-		broadcaster: manager.getBroadcaster(),
+		getStatusFn: getStatusFn,
+		broadcaster: broadcaster,
 	}
 }
 
-func (u *bigSegmentStoreStatusProviderImpl) GetStatus() interfaces.BigSegmentStoreStatus {
-	if u.manager == nil {
+func (b *bigSegmentStoreStatusProviderImpl) GetStatus() interfaces.BigSegmentStoreStatus {
+	if b.getStatusFn == nil {
 		return interfaces.BigSegmentStoreStatus{Available: false}
 	}
-	return u.manager.getStatus()
+	return b.getStatusFn()
 }
 
-func (u *bigSegmentStoreStatusProviderImpl) AddStatusListener() <-chan interfaces.BigSegmentStoreStatus {
-	return u.broadcaster.AddListener()
+func (b *bigSegmentStoreStatusProviderImpl) AddStatusListener() <-chan interfaces.BigSegmentStoreStatus {
+	return b.broadcaster.AddListener()
 }
 
-func (u *bigSegmentStoreStatusProviderImpl) RemoveStatusListener(
+func (b *bigSegmentStoreStatusProviderImpl) RemoveStatusListener(
 	ch <-chan interfaces.BigSegmentStoreStatus,
 ) {
-	u.broadcaster.RemoveListener(ch)
+	b.broadcaster.RemoveListener(ch)
 }
