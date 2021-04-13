@@ -1,18 +1,18 @@
 package bigsegments
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetStatusWhenNoStoreExists(t *testing.T) {
-	provider := NewBigSegmentStoreStatusProviderImpl(nil)
+func TestGetStatusWhenStatusFunctionIsUndefined(t *testing.T) {
+	provider := NewBigSegmentStoreStatusProviderImpl(nil, nil)
 
 	status := provider.GetStatus()
 	assert.False(t, status.Available)
@@ -20,28 +20,18 @@ func TestGetStatusWhenNoStoreExists(t *testing.T) {
 }
 
 func TestStatusListener(t *testing.T) {
-	storeManagerTest(t).run(func(p *storeManagerTestParams) {
-		provider := NewBigSegmentStoreStatusProviderImpl(p.manager)
-		p.store.TestSetMetadataToCurrentTime()
+	broadcaster := internal.NewBigSegmentStoreStatusBroadcaster()
+	defer broadcaster.Close()
+	provider := NewBigSegmentStoreStatusProviderImpl(nil, broadcaster)
 
-		statusCh := provider.AddStatusListener()
+	ch1 := provider.AddStatusListener()
+	ch2 := provider.AddStatusListener()
+	ch3 := provider.AddStatusListener()
+	provider.RemoveStatusListener(ch2)
 
-		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
-			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
-
-		p.store.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{}, errors.New("sorry"))
-		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
-			interfaces.BigSegmentStoreStatus{Available: false, Stale: false})
-
-		p.store.TestSetMetadataToCurrentTime()
-		sharedtest.ExpectBigSegmentStoreStatus(t, statusCh, provider.GetStatus, time.Second,
-			interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
-	})
-}
-
-func TestStatusListenerWhenNoStoreExists(t *testing.T) {
-	provider := NewBigSegmentStoreStatusProviderImpl(nil)
-
-	statusCh := provider.AddStatusListener()
-	assert.NotNil(t, statusCh) // nothing will be sent on this channel, but there should be one
+	status := interfaces.BigSegmentStoreStatus{Available: false, Stale: false}
+	broadcaster.Broadcast(status)
+	sharedtest.ExpectBigSegmentStoreStatus(t, ch1, nil, time.Second, status)
+	sharedtest.ExpectBigSegmentStoreStatus(t, ch3, nil, time.Second, status)
+	assert.Len(t, ch2, 0)
 }
