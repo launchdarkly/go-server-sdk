@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.3.0] - 2021-04-22
+### Added:
+- When using the file data source, `ldfiledata.DataSourceBuilder.DuplicateKeysHandling` allows you to specify that duplicate flag keys should _not_ cause an error as they normally would.
+
 ## [5.2.1] - 2021-02-11
 ### Fixed:
 - When deserializing feature flags from JSON, an explicit null value for the `rollout` property (as opposed to just omitting the property) was being treated as an error. The LaunchDarkly service endpoints do not ever send `rollout: null`, but it should be considered valid if encountered in JSON from some other source.
