@@ -22,21 +22,23 @@ import (
 )
 
 type fileDataSource struct {
-	dataSourceUpdates interfaces.DataSourceUpdates
-	absFilePaths      []string
-	reloaderFactory   ReloaderFactory
-	loggers           ldlog.Loggers
-	isInitialized     bool
-	readyCh           chan<- struct{}
-	readyOnce         sync.Once
-	closeOnce         sync.Once
-	closeReloaderCh   chan struct{}
+	dataSourceUpdates     interfaces.DataSourceUpdates
+	absFilePaths          []string
+	duplicateKeysHandling DuplicateKeysHandling
+	reloaderFactory       ReloaderFactory
+	loggers               ldlog.Loggers
+	isInitialized         bool
+	readyCh               chan<- struct{}
+	readyOnce             sync.Once
+	closeOnce             sync.Once
+	closeReloaderCh       chan struct{}
 }
 
 func newFileDataSourceImpl(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 	filePaths []string,
+	duplicateKeysHandling DuplicateKeysHandling,
 	reloaderFactory ReloaderFactory,
 ) (interfaces.DataSource, error) {
 	abs, err := absFilePaths(filePaths)
@@ -46,10 +48,11 @@ func newFileDataSourceImpl(
 	}
 
 	fs := &fileDataSource{
-		dataSourceUpdates: dataSourceUpdates,
-		absFilePaths:      abs,
-		reloaderFactory:   reloaderFactory,
-		loggers:           context.GetLogging().GetLoggers(),
+		dataSourceUpdates:     dataSourceUpdates,
+		absFilePaths:          abs,
+		duplicateKeysHandling: duplicateKeysHandling,
+		reloaderFactory:       reloaderFactory,
+		loggers:               context.GetLogging().GetLoggers(),
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil
@@ -102,7 +105,7 @@ func (fs *fileDataSource) reload() {
 			return
 		}
 	}
-	storeData, err := mergeFileData(filesData...)
+	storeData, err := mergeFileData(fs.duplicateKeysHandling, filesData...)
 	if err == nil {
 		if fs.dataSourceUpdates.Init(storeData) {
 			fs.signalStartComplete(true)
@@ -154,9 +157,15 @@ func insertData(
 	kind ldstoretypes.DataKind,
 	key string,
 	data ldstoretypes.ItemDescriptor,
+	duplicateKeysHandling DuplicateKeysHandling,
 ) error {
 	if _, exists := all[kind][key]; exists {
-		return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
+		switch duplicateKeysHandling {
+		case DuplicateKeysIgnoreAllButFirst:
+			return nil
+		default:
+			return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
+		}
 	}
 	all[kind][key] = data
 	return nil
@@ -185,7 +194,10 @@ func detectJSON(rawData []byte) bool {
 	return strings.HasPrefix(strings.TrimLeftFunc(string(rawData), unicode.IsSpace), "{")
 }
 
-func mergeFileData(allFileData ...fileData) ([]ldstoretypes.Collection, error) {
+func mergeFileData(
+	duplicateKeysHandling DuplicateKeysHandling,
+	allFileData ...fileData,
+) ([]ldstoretypes.Collection, error) {
 	all := map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
 		datakinds.Features: {},
 		datakinds.Segments: {},
@@ -195,7 +207,7 @@ func mergeFileData(allFileData ...fileData) ([]ldstoretypes.Collection, error) {
 			for key, f := range *d.Flags {
 				ff := f
 				data := ldstoretypes.ItemDescriptor{Version: f.Version, Item: &ff}
-				if err := insertData(all, datakinds.Features, key, data); err != nil {
+				if err := insertData(all, datakinds.Features, key, data, duplicateKeysHandling); err != nil {
 					return nil, err
 				}
 			}
@@ -204,7 +216,7 @@ func mergeFileData(allFileData ...fileData) ([]ldstoretypes.Collection, error) {
 			for key, value := range *d.FlagValues {
 				flag := makeFlagWithValue(key, value)
 				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
-				if err := insertData(all, datakinds.Features, key, data); err != nil {
+				if err := insertData(all, datakinds.Features, key, data, duplicateKeysHandling); err != nil {
 					return nil, err
 				}
 			}
@@ -213,7 +225,7 @@ func mergeFileData(allFileData ...fileData) ([]ldstoretypes.Collection, error) {
 			for key, s := range *d.Segments {
 				ss := s
 				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &ss}
-				if err := insertData(all, datakinds.Segments, key, data); err != nil {
+				if err := insertData(all, datakinds.Segments, key, data, duplicateKeysHandling); err != nil {
 					return nil, err
 				}
 			}

@@ -16,6 +16,7 @@ import (
 type TestDataSource struct {
 	currentFlags    map[string]ldstoretypes.ItemDescriptor
 	currentBuilders map[string]*FlagBuilder
+	currentSegments map[string]ldstoretypes.ItemDescriptor
 	instances       []*testDataSourceImpl
 	lock            sync.Mutex
 }
@@ -30,6 +31,7 @@ func DataSource() *TestDataSource {
 	return &TestDataSource{
 		currentFlags:    make(map[string]ldstoretypes.ItemDescriptor),
 		currentBuilders: make(map[string]*FlagBuilder),
+		currentSegments: make(map[string]ldstoretypes.ItemDescriptor),
 	}
 }
 
@@ -125,6 +127,38 @@ func (t *TestDataSource) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *TestDat
 	return t
 }
 
+// UsePreconfiguredSegment copies a full user segment data model object into the test data.
+//
+// It immediately propagates the flag change to any LDClient instance(s) that you have already
+// configured to use this TestDataSource. If no LDClient has been started yet, it simply adds
+// this flag to the test data which will be provided to any LDClient that you subsequently
+// configure.
+//
+// This method is currently the only way to inject user segment data, since there is no builder
+// API for segments. It is mainly intended for the SDK's own tests of user segment functionality,
+// since application tests that need to produce a desired evaluation state could do so more easily
+// by just setting flag values.
+//
+// To construct an instance of ldmodel.Segment, rather than accessing the fields directly it is
+// recommended to use the builder API in gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders.
+func (t *TestDataSource) UsePreconfiguredSegment(segment ldmodel.Segment) *TestDataSource {
+	t.lock.Lock()
+	oldItem := t.currentSegments[segment.Key]
+	newSegment := segment
+	newSegment.Version = oldItem.Version + 1
+	newItem := ldstoretypes.ItemDescriptor{Version: newSegment.Version, Item: &newSegment}
+	t.currentSegments[segment.Key] = newItem
+	instances := make([]*testDataSourceImpl, len(t.instances))
+	copy(instances, t.instances)
+	t.lock.Unlock()
+
+	for _, instance := range instances {
+		instance.updates.Upsert(ldstoreimpl.Segments(), segment.Key, newItem)
+	}
+
+	return t
+}
+
 func (t *TestDataSource) updateInternal(
 	key string,
 	makeFlag func(int) ldmodel.FeatureFlag,
@@ -163,12 +197,16 @@ func (t *TestDataSource) makeInitData() []ldstoretypes.Collection {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	flags := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentFlags))
+	segments := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentSegments))
 	for key, item := range t.currentFlags {
 		flags = append(flags, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
 	}
+	for key, item := range t.currentSegments {
+		segments = append(segments, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
+	}
 	return []ldstoretypes.Collection{
 		{Kind: ldstoreimpl.Features(), Items: flags},
-		{Kind: ldstoreimpl.Segments(), Items: nil},
+		{Kind: ldstoreimpl.Segments(), Items: segments},
 	}
 }
 

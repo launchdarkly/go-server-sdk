@@ -9,6 +9,19 @@ import (
 // detecting when data files should be reloaded. Its standard implementation is in the ldfilewatch package.
 type ReloaderFactory func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error
 
+// DuplicateKeysHandling is a parameter type used with DataSourceBuilder.DuplicateKeysHandling.
+type DuplicateKeysHandling string
+
+const (
+	// DuplicateKeysFail is an option for DataSourceBuilder.DuplicateKeysHandling, meaning that data loading
+	// should fail if keys are duplicated across files. This is the default behavior.
+	DuplicateKeysFail DuplicateKeysHandling = "fail"
+
+	// DuplicateKeysIgnoreAllButFirst is an option for DataSourceBuilder.DuplicateKeysHandling, meaning that
+	// if keys are duplicated across files the first occurrence will be used.
+	DuplicateKeysIgnoreAllButFirst DuplicateKeysHandling = "ignore"
+)
+
 // DataSourceBuilder is a builder for configuring the file-based data source.
 //
 // Obtain an instance of this type by calling DataSource(). After calling its methods to specify any
@@ -21,13 +34,22 @@ type ReloaderFactory func(paths []string, loggers ldlog.Loggers, reload func(), 
 // You do not need to call the builder's CreatePersistentDataSource() method yourself; that will be
 // done by the SDK.
 type DataSourceBuilder struct {
-	filePaths       []string
-	reloaderFactory ReloaderFactory
+	filePaths             []string
+	duplicateKeysHandling DuplicateKeysHandling
+	reloaderFactory       ReloaderFactory
 }
 
 // DataSource returns a configurable builder for a file-based data source.
 func DataSource() *DataSourceBuilder {
-	return &DataSourceBuilder{}
+	return &DataSourceBuilder{duplicateKeysHandling: DuplicateKeysFail}
+}
+
+// DuplicateKeysHandling specifies how to handle keys that are duplicated across files.
+//
+// If this is not specified, or if you set it to an unrecognized value, the default is DuplicateKeysFail.
+func (b *DataSourceBuilder) DuplicateKeysHandling(duplicateKeysHandling DuplicateKeysHandling) *DataSourceBuilder {
+	b.duplicateKeysHandling = duplicateKeysHandling
+	return b
 }
 
 // FilePaths specifies the input data files. The paths may be any number of absolute or relative file paths.
@@ -55,5 +77,6 @@ func (b *DataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	return newFileDataSourceImpl(context, dataSourceUpdates, b.filePaths, b.reloaderFactory)
+	return newFileDataSourceImpl(context, dataSourceUpdates, b.filePaths,
+		b.duplicateKeysHandling, b.reloaderFactory)
 }

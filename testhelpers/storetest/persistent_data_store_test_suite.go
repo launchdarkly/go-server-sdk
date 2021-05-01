@@ -12,12 +12,12 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,7 +153,7 @@ func (s *PersistentDataStoreTestSuite) runInternal(t testbox.TestingT) {
 	}
 }
 
-func (s *PersistentDataStoreTestSuite) clearData(t testbox.TestingT, prefix string) {
+func (s *PersistentDataStoreTestSuite) clearData(t require.TestingT, prefix string) {
 	require.NoError(t, s.clearDataFn(prefix))
 }
 
@@ -168,7 +168,7 @@ func (s *PersistentDataStoreTestSuite) withStore(
 	prefix string,
 	action func(intf.PersistentDataStore),
 ) {
-	withMockLoggingContext(t, func(context interfaces.ClientContext) {
+	testhelpers.WithMockLoggingContext(t, func(context intf.ClientContext) {
 		store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(context)
 		require.NoError(t, err)
 		defer func() {
@@ -182,7 +182,10 @@ func (s *PersistentDataStoreTestSuite) withDefaultStore(t testbox.TestingT, acti
 	s.withStore(t, "", action)
 }
 
-func (s *PersistentDataStoreTestSuite) withDefaultInitedStore(t testbox.TestingT, action func(intf.PersistentDataStore)) {
+func (s *PersistentDataStoreTestSuite) withDefaultInitedStore(
+	t testbox.TestingT,
+	action func(intf.PersistentDataStore),
+) {
 	s.clearData(t, "")
 	s.withDefaultStore(t, func(store intf.PersistentDataStore) {
 		s.initWithEmptyData(store)
@@ -457,8 +460,8 @@ func (s *PersistentDataStoreTestSuite) runPrefixIndependenceTests(t testbox.Test
 		s.clearData(t, prefix1)
 		s.clearData(t, prefix2)
 
-		s.withStore(t, prefix1, func(store1 interfaces.PersistentDataStore) {
-			s.withStore(t, prefix2, func(store2 interfaces.PersistentDataStore) {
+		s.withStore(t, prefix1, func(store1 intf.PersistentDataStore) {
+			s.withStore(t, prefix2, func(store2 intf.PersistentDataStore) {
 				t.Run(name, func(t testbox.TestingT) {
 					test(t, store1, store2)
 				})
@@ -620,8 +623,8 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t testbox.
 	}
 
 	s.clearData(t, "")
-	s.withStore(t, "", func(store1 interfaces.PersistentDataStore) {
-		s.withStore(t, "", func(store2 interfaces.PersistentDataStore) {
+	s.withStore(t, "", func(store1 intf.PersistentDataStore) {
+		s.withStore(t, "", func(store2 intf.PersistentDataStore) {
 			setupStore1 := func(initialVersion int) {
 				allData := sh.MakeSerializedMockDataSet(makeItemWithVersion(initialVersion))
 				require.NoError(t, store1.Init(allData))

@@ -126,40 +126,40 @@ func (b *FlagChangeEventBroadcaster) Broadcast(value interfaces.FlagChangeEvent)
 // Close closes all currently registered listener channels.
 func (b *FlagChangeEventBroadcaster) Close() { b.g.close() }
 
-// UnboundedSegmentStoreStatusBroadcaster is the internal implementation of publish-subscribe for
-// UnboundedSegmentStoreStatus values.
-type UnboundedSegmentStoreStatusBroadcaster struct {
+// BigSegmentStoreStatusBroadcaster is the internal implementation of publish-subscribe for
+// BigSegmentStoreStatus values.
+type BigSegmentStoreStatusBroadcaster struct {
 	g *genericBroadcaster
 }
 
-// NewUnboundedSegmentStoreStatusBroadcaster creates an instance of UnboundedSegmentStoreStatusBroadcaster.
-func NewUnboundedSegmentStoreStatusBroadcaster() *UnboundedSegmentStoreStatusBroadcaster {
-	return &UnboundedSegmentStoreStatusBroadcaster{
-		g: newGenericBroadcaster(chan interfaces.UnboundedSegmentStoreStatus(nil),
-			(<-chan interfaces.UnboundedSegmentStoreStatus)(nil)),
+// NewBigSegmentStoreStatusBroadcaster creates an instance of BigSegmentStoreStatusBroadcaster.
+func NewBigSegmentStoreStatusBroadcaster() *BigSegmentStoreStatusBroadcaster {
+	return &BigSegmentStoreStatusBroadcaster{
+		g: newGenericBroadcaster(chan interfaces.BigSegmentStoreStatus(nil),
+			(<-chan interfaces.BigSegmentStoreStatus)(nil)),
 	}
 }
 
 // AddListener creates a new channel for listening to broadcast values. This is created with a small
 // channel buffer, but it is the consumer's responsibility to consume the channel to avoid blocking an
 // SDK goroutine.
-func (b *UnboundedSegmentStoreStatusBroadcaster) AddListener() <-chan interfaces.UnboundedSegmentStoreStatus {
-	ch, _ := b.g.addListenerInternal().(<-chan interfaces.UnboundedSegmentStoreStatus)
+func (b *BigSegmentStoreStatusBroadcaster) AddListener() <-chan interfaces.BigSegmentStoreStatus {
+	ch, _ := b.g.addListenerInternal().(<-chan interfaces.BigSegmentStoreStatus)
 	return ch
 }
 
 // RemoveListener stops broadcasting to a channel that was created with AddListener.
-func (b *UnboundedSegmentStoreStatusBroadcaster) RemoveListener(ch <-chan interfaces.UnboundedSegmentStoreStatus) {
+func (b *BigSegmentStoreStatusBroadcaster) RemoveListener(ch <-chan interfaces.BigSegmentStoreStatus) {
 	b.g.removeListenerInternal(ch)
 }
 
 // Broadcast broadcasts a new value to the registered listeners, if any.
-func (b *UnboundedSegmentStoreStatusBroadcaster) Broadcast(value interfaces.UnboundedSegmentStoreStatus) {
+func (b *BigSegmentStoreStatusBroadcaster) Broadcast(value interfaces.BigSegmentStoreStatus) {
 	b.g.broadcastInternal(value)
 }
 
 // Close closes all currently registered listener channels.
-func (b *UnboundedSegmentStoreStatusBroadcaster) Close() { b.g.close() }
+func (b *BigSegmentStoreStatusBroadcaster) Close() { b.g.close() }
 
 // genericBroadcaster is our reflection-based generalized implementation of broadcasters.
 type genericBroadcaster struct {

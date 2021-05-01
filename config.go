@@ -21,6 +21,25 @@ import (
 // The interfaces are defined separately from the built-in component implementations because you could also
 // define your own implementation, for custom SDK integrations.
 type Config struct {
+	// Provides configuration of the SDK's big segments feature.
+	//
+	// "Big segments" are a specific type of user segments. For more information, read the LaunchDarkly
+	// documentation about user segments: https://docs.launchdarkly.com/home/users
+	//
+	// If you are using this feature, you will normally specify a database implementation that matches how
+	// the LaunchDarkly Relay Proxy is configured, since the Relay Proxy manages the big segment data.
+	//
+	// If nil, there is no implementation and big segments cannot be evaluated. In this case, any flag
+	// evaluation that references a big segment will behave as if no users are included in any big
+	// segments, and the EvaluationReason associated with any such flag evaluation will return
+	// ldreason.BigSegmentsStoreNotConfigured from its GetBigSegmentsStatus() method.
+	//
+	//     // example: use Redis, with default properties
+	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
+	//
+	//     config.BigSegmentStore = ldcomponents.BigSegments(ldredis.DataStore())
+	BigSegments interfaces.BigSegmentsConfigurationFactory
+
 	// Sets the implementation of DataSource for receiving feature flag updates.
 	//
 	// If nil, the default is ldcomponents.StreamingDataSource(); see that method for an explanation of how to
