@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
@@ -13,7 +14,6 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,15 +74,11 @@ segments:
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
 
-			flagItem, err := p.updates.DataStore.Get(datakinds.Features, "my-flag")
-			require.NoError(t, err)
-			require.NotNil(t, flagItem.Item)
-			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
+			flag := requireFlag(t, p.updates.DataStore, "my-flag")
+			assert.True(t, flag.On)
 
-			segmentItem, err := p.updates.DataStore.Get(datakinds.Segments, "my-segment")
-			require.NoError(t, err)
-			require.NotNil(t, segmentItem.Item)
-			assert.Empty(t, segmentItem.Item.(*ldmodel.Segment).Rules)
+			segment := requireSegment(t, p.updates.DataStore, "my-segment")
+			assert.Empty(t, segment.Rules)
 		})
 	})
 }
@@ -94,10 +90,8 @@ func TestNewFileDataSourceJson(t *testing.T) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
 
-			flagItem, err := p.updates.DataStore.Get(datakinds.Features, "my-flag")
-			require.NoError(t, err)
-			require.NotNil(t, flagItem.Item)
-			assert.True(t, flagItem.Item.(*ldmodel.FeatureFlag).On)
+			flag := requireFlag(t, p.updates.DataStore, "my-flag")
+			assert.True(t, flag.On)
 		})
 	})
 }
@@ -122,15 +116,11 @@ func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
 				p.waitForStart()
 				require.True(t, p.dataSource.IsInitialized())
 
-				flagItem1, err := p.updates.DataStore.Get(datakinds.Features, "my-flag1")
-				require.NoError(t, err)
-				require.NotNil(t, flagItem1.Item)
-				assert.True(t, flagItem1.Item.(*ldmodel.FeatureFlag).On)
+				flag1 := requireFlag(t, p.updates.DataStore, "my-flag1")
+				assert.True(t, flag1.On)
 
-				flagItem2, err := p.updates.DataStore.Get(datakinds.Features, "my-flag2")
-				require.NoError(t, err)
-				require.NotNil(t, flagItem2.Item)
-				assert.True(t, flagItem2.Item.(*ldmodel.FeatureFlag).On)
+				flag2 := requireFlag(t, p.updates.DataStore, "my-flag2")
+				assert.True(t, flag2.On)
 			})
 		})
 	})
@@ -149,9 +139,32 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 				withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 					p.waitForStart()
 					require.False(t, p.dataSource.IsInitialized())
+
+					p.mockLog.AssertMessageMatch(t, true, ldlog.Error, "specified by multiple files")
 				})
 			})
 		}
+	})
+}
+
+func TestDuplicateKeysHandlingCanSuppressErrors(t *testing.T) {
+	file1Data := `{"flags": {"flag1": {"on": true}, "flag2": {"on": false}}, "segments": {"segment1": {}}}`
+	file2Data := `{"flags": {"flag2": {"on": true}}}`
+
+	sharedtest.WithTempFileContaining([]byte(file1Data), func(filename1 string) {
+		sharedtest.WithTempFileContaining([]byte(file2Data), func(filename2 string) {
+			factory := DataSource().FilePaths(filename1, filename2).
+				DuplicateKeysHandling(DuplicateKeysIgnoreAllButFirst)
+			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+				p.waitForStart()
+				require.True(t, p.dataSource.IsInitialized())
+
+				flag2 := requireFlag(t, p.updates.DataStore, "flag2")
+				assert.False(t, flag2.On)
+
+				p.mockLog.AssertMessageMatch(t, false, ldlog.Error, "specified by multiple files")
+			})
+		})
 	})
 }
 
@@ -200,10 +213,9 @@ flagValues:
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
 			require.True(t, p.dataSource.IsInitialized())
-			flagItem, err := p.updates.DataStore.Get(datakinds.Features, "my-flag")
-			require.NoError(t, err)
-			require.NotNil(t, flagItem.Item)
-			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flagItem.Item.(*ldmodel.FeatureFlag).Variations)
+
+			flag := requireFlag(t, p.updates.DataStore, "my-flag")
+			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flag.Variations)
 		})
 	})
 }
@@ -219,4 +231,18 @@ func TestReloaderFailureDoesNotPreventStarting(t *testing.T) {
 		assert.True(t, p.dataSource.IsInitialized())
 		assert.Len(t, p.mockLog.GetOutput(ldlog.Error), 1)
 	})
+}
+
+func requireFlag(t *testing.T, store interfaces.DataStore, key string) *ldmodel.FeatureFlag {
+	item, err := store.Get(datakinds.Features, key)
+	require.NoError(t, err)
+	require.NotNil(t, item.Item)
+	return item.Item.(*ldmodel.FeatureFlag)
+}
+
+func requireSegment(t *testing.T, store interfaces.DataStore, key string) *ldmodel.Segment {
+	item, err := store.Get(datakinds.Segments, key)
+	require.NoError(t, err)
+	require.NotNil(t, item.Item)
+	return item.Item.(*ldmodel.Segment)
 }
