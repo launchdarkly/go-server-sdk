@@ -72,7 +72,8 @@
 //
 // It is also possible to specify both "flags" and "flagValues", if you want some flags to have simple
 // values and others to have complex behavior. However, it is an error to use the same flag key or
-// segment key more than once, either in a single file or across multiple files.
+// segment key more than once, either in a single file or across multiple files, unless you specify
+// otherwise with the DuplicateKeysHandling method.
 //
 // If the data source encounters any error in any file-- malformed content, a missing file, or a
 // duplicate key-- it will not load flags from any of the files.
