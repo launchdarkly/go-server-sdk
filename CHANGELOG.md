@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.4.0] - 2021-06-17
+### Added:
+- The SDK now supports the ability to control the proportion of traffic allocation to an experiment. This works in conjunction with a new platform feature now available to early access customers.
+
+## [5.3.1] - 2021-06-03
+### Fixed:
+- Fixed a bug in JSON parsing that could cause floating-point numbers (in flag variation values, rule values, or user attributes if a user is being parsed from JSON) to be read incorrectly if the number format included an exponent and did not include a decimal point (for instance, `1e5`). Since there are several equally valid number formats in JSON (so `1e5` is exactly equivalent to `100000`), whether this bug showed up would depend on the format chosen by whatever software had most recently converted the number to JSON before it was re-read, which is hard to predict, but it would only be likely to happen with either integers that had more than four trailing zeroes or floating-point numbers with leading zeroes.
+
 ## [5.3.0] - 2021-04-22
 ### Added:
 - When using the file data source, `ldfiledata.DataSourceBuilder.DuplicateKeysHandling` allows you to specify that duplicate flag keys should _not_ cause an error as they normally would.
