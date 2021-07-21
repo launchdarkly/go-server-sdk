@@ -19,6 +19,7 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/bigsegments"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
@@ -45,23 +46,26 @@ const Version = internal.SDKVersion
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go
 type LDClient struct {
-	sdkKey                      string
-	loggers                     ldlog.Loggers
-	eventProcessor              ldevents.EventProcessor
-	dataSource                  interfaces.DataSource
-	store                       interfaces.DataStore
-	evaluator                   ldeval.Evaluator
-	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
-	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
-	dataStoreStatusBroadcaster  *internal.DataStoreStatusBroadcaster
-	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
-	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
-	flagTracker                 interfaces.FlagTracker
-	eventsDefault               eventsScope
-	eventsWithReasons           eventsScope
-	withEventsDisabled          interfaces.LDClientInterface
-	logEvaluationErrors         bool
-	offline                     bool
+	sdkKey                           string
+	loggers                          ldlog.Loggers
+	eventProcessor                   ldevents.EventProcessor
+	dataSource                       interfaces.DataSource
+	store                            interfaces.DataStore
+	evaluator                        ldeval.Evaluator
+	dataSourceStatusBroadcaster      *internal.DataSourceStatusBroadcaster
+	dataSourceStatusProvider         interfaces.DataSourceStatusProvider
+	dataStoreStatusBroadcaster       *internal.DataStoreStatusBroadcaster
+	dataStoreStatusProvider          interfaces.DataStoreStatusProvider
+	flagChangeEventBroadcaster       *internal.FlagChangeEventBroadcaster
+	flagTracker                      interfaces.FlagTracker
+	bigSegmentStoreStatusBroadcaster *internal.BigSegmentStoreStatusBroadcaster
+	bigSegmentStoreStatusProvider    interfaces.BigSegmentStoreStatusProvider
+	bigSegmentStoreWrapper           *ldstoreimpl.BigSegmentStoreWrapper
+	eventsDefault                    eventsScope
+	eventsWithReasons                eventsScope
+	withEventsDisabled               interfaces.LDClientInterface
+	logEvaluationErrors              bool
+	offline                          bool
 }
 
 // Initialization errors
@@ -148,6 +152,15 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 // For more about the difference between an initialized and uninitialized client, and other ways to monitor
 // the client's status, see LDClient.Initialized() and LDClient.GetDataSourceStatusProvider().
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
+	// Ensure that any intermediate components we create will be disposed of if we return an error
+	client := &LDClient{sdkKey: sdkKey}
+	clientValid := false
+	defer func() {
+		if !clientValid {
+			_ = client.Close()
+		}
+	}()
+
 	closeWhenReady := make(chan struct{})
 
 	eventProcessorFactory := getEventProcessorFactory(config)
@@ -168,12 +181,10 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	loggers := clientContext.GetLogging().GetLoggers()
 	loggers.Infof("Starting LaunchDarkly client %s", Version)
 
-	client := &LDClient{
-		sdkKey:              sdkKey,
-		loggers:             loggers,
-		logEvaluationErrors: clientContext.GetLogging().IsLogEvaluationErrors(),
-		offline:             config.Offline,
-	}
+	client.loggers = loggers
+	client.logEvaluationErrors = clientContext.GetLogging().IsLogEvaluationErrors()
+
+	client.offline = config.Offline
 
 	client.dataStoreStatusBroadcaster = internal.NewDataStoreStatusBroadcaster()
 	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
@@ -183,8 +194,39 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	client.store = store
 
+	bsConfig, err := getBigSegmentsConfigurationFactory(config).CreateBigSegmentsConfiguration(clientContext)
+	if err != nil {
+		return nil, err
+	}
+	bsStore := bsConfig.GetStore()
+	client.bigSegmentStoreStatusBroadcaster = internal.NewBigSegmentStoreStatusBroadcaster()
+	if bsStore != nil {
+		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapper(
+			bsStore,
+			client.bigSegmentStoreStatusBroadcaster.Broadcast,
+			bsConfig.GetStatusPollInterval(),
+			bsConfig.GetStaleAfter(),
+			bsConfig.GetUserCacheSize(),
+			bsConfig.GetUserCacheTime(),
+			loggers,
+		)
+		client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
+			client.bigSegmentStoreWrapper.GetStatus,
+			client.bigSegmentStoreStatusBroadcaster,
+		)
+	} else {
+		client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
+			nil, client.bigSegmentStoreStatusBroadcaster,
+		)
+	}
+
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
-	client.evaluator = ldeval.NewEvaluator(dataProvider)
+	if client.bigSegmentStoreWrapper == nil {
+		client.evaluator = ldeval.NewEvaluator(dataProvider)
+	} else {
+		client.evaluator = ldeval.NewEvaluatorWithBigSegments(dataProvider, client.bigSegmentStoreWrapper)
+	}
+
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
 	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
@@ -231,6 +273,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
+	clientValid = true
 	client.dataSource.Start(closeWhenReady)
 	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
@@ -262,6 +305,13 @@ func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
 		return ldcomponents.InMemoryDataStore()
 	}
 	return config.DataStore
+}
+
+func getBigSegmentsConfigurationFactory(config Config) interfaces.BigSegmentsConfigurationFactory {
+	if config.BigSegments == nil {
+		return ldcomponents.BigSegments(nil)
+	}
+	return config.BigSegments
 }
 
 func createDataSource(
@@ -449,12 +499,34 @@ func (client *LDClient) Initialized() bool {
 // been sent.
 func (client *LDClient) Close() error {
 	client.loggers.Info("Closing LaunchDarkly client")
-	_ = client.eventProcessor.Close()
-	_ = client.dataSource.Close()
-	_ = client.store.Close()
-	client.dataSourceStatusBroadcaster.Close()
-	client.dataStoreStatusBroadcaster.Close()
-	client.flagChangeEventBroadcaster.Close()
+
+	// Normally all of the following components exist; but they could be nil if we errored out
+	// partway through the MakeCustomClient constructor, in which case we want to close whatever
+	// did get created so far.
+	if client.eventProcessor != nil {
+		_ = client.eventProcessor.Close()
+	}
+	if client.dataSource != nil {
+		_ = client.dataSource.Close()
+	}
+	if client.store != nil {
+		_ = client.store.Close()
+	}
+	if client.dataSourceStatusBroadcaster != nil {
+		client.dataSourceStatusBroadcaster.Close()
+	}
+	if client.dataStoreStatusBroadcaster != nil {
+		client.dataStoreStatusBroadcaster.Close()
+	}
+	if client.flagChangeEventBroadcaster != nil {
+		client.flagChangeEventBroadcaster.Close()
+	}
+	if client.bigSegmentStoreStatusBroadcaster != nil {
+		client.bigSegmentStoreStatusBroadcaster.Close()
+	}
+	if client.bigSegmentStoreWrapper != nil {
+		client.bigSegmentStoreWrapper.Close()
+	}
 	return nil
 }
 
@@ -689,7 +761,7 @@ func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatu
 // GetDataStoreStatusProvider returns an interface for tracking the status of a persistent data store.
 //
 // The DataStoreStatusProvider has methods for checking whether the data store is (as far as the SDK
-// SDK knows) currently operational, tracking changes in this status, and getting cache statistics. These
+// knows) currently operational, tracking changes in this status, and getting cache statistics. These
 // are only relevant for a persistent data store; if you are using an in-memory data store, then this
 // method will always report that the store is operational.
 //
@@ -703,6 +775,17 @@ func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusP
 // See the FlagTracker interface for more about this functionality.
 func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
+}
+
+// GetBigSegmentStoreStatusProvider returns an interface for tracking the status of a big
+// segment store.
+//
+// The BigSegmentStoreStatusProvider has methods for checking whether the big segment store
+// is (as far as the SDK knows) currently operational and tracking changes in this status.
+//
+// See the BigSegmentStoreStatusProvider interface for more about this functionality.
+func (client *LDClient) GetBigSegmentStoreStatusProvider() interfaces.BigSegmentStoreStatusProvider {
+	return client.bigSegmentStoreStatusProvider
 }
 
 // WithEventsDisabled returns a decorator for the LDClient that implements the same basic operations

@@ -138,7 +138,7 @@ func (s *PersistentDataStoreTestSuite) runInternal(t testbox.TestingT) {
 
 		t.Run("IsStoreAvailable", func(t testbox.TestingT) {
 			// The store should always be available during this test suite
-			s.withDefaultStore(func(store intf.PersistentDataStore) {
+			s.withDefaultStore(t, func(store intf.PersistentDataStore) {
 				assert.True(t, store.IsStoreAvailable())
 			})
 		})
@@ -153,19 +153,8 @@ func (s *PersistentDataStoreTestSuite) runInternal(t testbox.TestingT) {
 	}
 }
 
-func (s *PersistentDataStoreTestSuite) makeStore(prefix string) intf.PersistentDataStore {
-	store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(testhelpers.NewSimpleClientContext(""))
-	if err != nil {
-		panic(err) // COVERAGE: can't cause this condition in PersistentDataStoreTestSuiteTest
-	}
-	return store
-}
-
-func (s *PersistentDataStoreTestSuite) clearData(prefix string) {
-	err := s.clearDataFn(prefix)
-	if err != nil {
-		panic(err) // COVERAGE: can't cause this condition in PersistentDataStoreTestSuiteTest
-	}
+func (s *PersistentDataStoreTestSuite) clearData(t require.TestingT, prefix string) {
+	require.NoError(t, s.clearDataFn(prefix))
 }
 
 func (s *PersistentDataStoreTestSuite) initWithEmptyData(store intf.PersistentDataStore) {
@@ -174,24 +163,40 @@ func (s *PersistentDataStoreTestSuite) initWithEmptyData(store intf.PersistentDa
 	// cause an error, for tests that validate error handling.
 }
 
-func (s *PersistentDataStoreTestSuite) withDefaultStore(action func(intf.PersistentDataStore)) {
-	store := s.makeStore("")
-	defer store.Close() //nolint:errcheck
-	action(store)
+func (s *PersistentDataStoreTestSuite) withStore(
+	t testbox.TestingT,
+	prefix string,
+	action func(intf.PersistentDataStore),
+) {
+	testhelpers.WithMockLoggingContext(t, func(context intf.ClientContext) {
+		store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(context)
+		require.NoError(t, err)
+		defer func() {
+			_ = store.Close()
+		}()
+		action(store)
+	})
 }
 
-func (s *PersistentDataStoreTestSuite) withDefaultInitedStore(action func(intf.PersistentDataStore)) {
-	s.clearData("")
-	store := s.makeStore("")
-	defer store.Close() //nolint:errcheck
-	s.initWithEmptyData(store)
-	action(store)
+func (s *PersistentDataStoreTestSuite) withDefaultStore(t testbox.TestingT, action func(intf.PersistentDataStore)) {
+	s.withStore(t, "", action)
+}
+
+func (s *PersistentDataStoreTestSuite) withDefaultInitedStore(
+	t testbox.TestingT,
+	action func(intf.PersistentDataStore),
+) {
+	s.clearData(t, "")
+	s.withDefaultStore(t, func(store intf.PersistentDataStore) {
+		s.initWithEmptyData(store)
+		action(store)
+	})
 }
 
 func (s *PersistentDataStoreTestSuite) runInitTests(t testbox.TestingT) {
 	t.Run("store initialized after init", func(t testbox.TestingT) {
-		s.clearData("")
-		s.withDefaultStore(func(store intf.PersistentDataStore) {
+		s.clearData(t, "")
+		s.withDefaultStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "feature"}
 			allData := sh.MakeSerializedMockDataSet(item1)
 			require.NoError(t, store.Init(allData))
@@ -201,8 +206,8 @@ func (s *PersistentDataStoreTestSuite) runInitTests(t testbox.TestingT) {
 	})
 
 	t.Run("completely replaces previous data", func(t testbox.TestingT) {
-		s.clearData("")
-		s.withDefaultStore(func(store intf.PersistentDataStore) {
+		s.clearData(t, "")
+		s.withDefaultStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "first", Version: 1}
 			item2 := sh.MockDataItem{Key: "second", Version: 1}
 			otherItem1 := sh.MockDataItem{Key: "first", Version: 1, IsOtherKind: true}
@@ -237,9 +242,9 @@ func (s *PersistentDataStoreTestSuite) runInitTests(t testbox.TestingT) {
 	})
 
 	t.Run("one instance can detect if another instance has initialized the store", func(t testbox.TestingT) {
-		s.clearData("")
-		s.withDefaultStore(func(store1 intf.PersistentDataStore) {
-			s.withDefaultStore(func(store2 intf.PersistentDataStore) {
+		s.clearData(t, "")
+		s.withDefaultStore(t, func(store1 intf.PersistentDataStore) {
+			s.withDefaultStore(t, func(store2 intf.PersistentDataStore) {
 				assert.False(t, store1.IsInitialized())
 
 				s.initWithEmptyData(store2)
@@ -252,7 +257,7 @@ func (s *PersistentDataStoreTestSuite) runInitTests(t testbox.TestingT) {
 
 func (s *PersistentDataStoreTestSuite) runGetTests(t testbox.TestingT) {
 	t.Run("existing item", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "feature"}
 			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
@@ -265,7 +270,7 @@ func (s *PersistentDataStoreTestSuite) runGetTests(t testbox.TestingT) {
 	})
 
 	t.Run("nonexisting item", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			result, err := store.Get(sh.MockData, "no")
 			assert.NoError(t, err)
 			assert.Equal(t, -1, result.Version)
@@ -274,7 +279,7 @@ func (s *PersistentDataStoreTestSuite) runGetTests(t testbox.TestingT) {
 	})
 
 	t.Run("all items", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			result, err := store.GetAll(sh.MockData)
 			assert.NoError(t, err)
 			assert.Len(t, result, 0)
@@ -308,7 +313,7 @@ func (s *PersistentDataStoreTestSuite) runUpsertTests(t testbox.TestingT) {
 	}
 
 	t.Run("newer version", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			setupItem1(t, store)
 
 			item1a := sh.MockDataItem{Key: "feature", Version: item1.Version + 1, Name: "updated"}
@@ -323,7 +328,7 @@ func (s *PersistentDataStoreTestSuite) runUpsertTests(t testbox.TestingT) {
 	})
 
 	t.Run("older version", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			setupItem1(t, store)
 
 			item1a := sh.MockDataItem{Key: "feature", Version: item1.Version - 1, Name: "updated"}
@@ -338,7 +343,7 @@ func (s *PersistentDataStoreTestSuite) runUpsertTests(t testbox.TestingT) {
 	})
 
 	t.Run("same version", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			setupItem1(t, store)
 
 			item1a := sh.MockDataItem{Key: "feature", Version: item1.Version, Name: "updated"}
@@ -355,7 +360,7 @@ func (s *PersistentDataStoreTestSuite) runUpsertTests(t testbox.TestingT) {
 
 func (s *PersistentDataStoreTestSuite) runDeleteTests(t testbox.TestingT) {
 	t.Run("newer version", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "feature", Version: 10}
 			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
@@ -373,7 +378,7 @@ func (s *PersistentDataStoreTestSuite) runDeleteTests(t testbox.TestingT) {
 	})
 
 	t.Run("older version", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "feature", Version: 10}
 			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
@@ -391,7 +396,7 @@ func (s *PersistentDataStoreTestSuite) runDeleteTests(t testbox.TestingT) {
 	})
 
 	t.Run("same version", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "feature", Version: 10}
 			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
@@ -409,7 +414,7 @@ func (s *PersistentDataStoreTestSuite) runDeleteTests(t testbox.TestingT) {
 	})
 
 	t.Run("unknown item", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			deletedItem := sh.MockDataItem{Key: "feature", Version: 1, Deleted: true}
 			updated, err := store.Upsert(sh.MockData, deletedItem.Key, deletedItem.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
@@ -422,7 +427,7 @@ func (s *PersistentDataStoreTestSuite) runDeleteTests(t testbox.TestingT) {
 	})
 
 	t.Run("upsert older version after delete", func(t testbox.TestingT) {
-		s.withDefaultInitedStore(func(store intf.PersistentDataStore) {
+		s.withDefaultInitedStore(t, func(store intf.PersistentDataStore) {
 			item1 := sh.MockDataItem{Key: "feature", Version: 10}
 			updated, err := store.Upsert(sh.MockData, item1.Key, item1.ToSerializedItemDescriptor())
 			assert.NoError(t, err)
@@ -452,14 +457,15 @@ func (s *PersistentDataStoreTestSuite) runPrefixIndependenceTests(t testbox.Test
 	) {
 		prefix1 := "testprefix1"
 		prefix2 := "testprefix2"
-		s.clearData(prefix1)
-		s.clearData(prefix2)
-		store1 := s.makeStore(prefix1)
-		defer store1.Close() //nolint:errcheck
-		store2 := s.makeStore(prefix2)
-		defer store2.Close() //nolint:errcheck
-		t.Run(name, func(t testbox.TestingT) {
-			test(t, store1, store2)
+		s.clearData(t, prefix1)
+		s.clearData(t, prefix2)
+
+		s.withStore(t, prefix1, func(store1 intf.PersistentDataStore) {
+			s.withStore(t, prefix2, func(store2 intf.PersistentDataStore) {
+				t.Run(name, func(t testbox.TestingT) {
+					test(t, store1, store2)
+				})
+			})
 		})
 	}
 
@@ -610,60 +616,59 @@ func (s *PersistentDataStoreTestSuite) runConcurrentModificationTests(t testbox.
 		return
 	}
 
-	s.clearData("")
-	store1 := s.makeStore("")
-	defer store1.Close() //nolint:errcheck
-	store2 := s.makeStore("")
-	defer store2.Close() //nolint:errcheck
-
 	key := "foo"
 
 	makeItemWithVersion := func(version int) sh.MockDataItem {
 		return sh.MockDataItem{Key: key, Version: version}
 	}
 
-	setupStore1 := func(initialVersion int) {
-		allData := sh.MakeSerializedMockDataSet(makeItemWithVersion(initialVersion))
-		require.NoError(t, store1.Init(allData))
-	}
-
-	setupConcurrentModifierToWriteVersions := func(versionsToWrite ...int) {
-		i := 0
-		s.concurrentModificationHookFn(store1, func() {
-			if i < len(versionsToWrite) {
-				newItem := makeItemWithVersion(versionsToWrite[i])
-				_, err := store2.Upsert(sh.MockData, key, newItem.ToSerializedItemDescriptor())
-				require.NoError(t, err)
-				i++
+	s.clearData(t, "")
+	s.withStore(t, "", func(store1 intf.PersistentDataStore) {
+		s.withStore(t, "", func(store2 intf.PersistentDataStore) {
+			setupStore1 := func(initialVersion int) {
+				allData := sh.MakeSerializedMockDataSet(makeItemWithVersion(initialVersion))
+				require.NoError(t, store1.Init(allData))
 			}
+
+			setupConcurrentModifierToWriteVersions := func(versionsToWrite ...int) {
+				i := 0
+				s.concurrentModificationHookFn(store1, func() {
+					if i < len(versionsToWrite) {
+						newItem := makeItemWithVersion(versionsToWrite[i])
+						_, err := store2.Upsert(sh.MockData, key, newItem.ToSerializedItemDescriptor())
+						require.NoError(t, err)
+						i++
+					}
+				})
+			}
+
+			t.Run("upsert race condition against external client with lower version", func(t testbox.TestingT) {
+				setupStore1(1)
+				setupConcurrentModifierToWriteVersions(2, 3, 4)
+
+				_, err := store1.Upsert(sh.MockData, key, makeItemWithVersion(10).ToSerializedItemDescriptor())
+				assert.NoError(t, err)
+
+				var result st.SerializedItemDescriptor
+				result, err = store1.Get(sh.MockData, key)
+				assert.NoError(t, err)
+				assertEqualsSerializedItem(t, makeItemWithVersion(10), result)
+			})
+
+			t.Run("upsert race condition against external client with higher version", func(t testbox.TestingT) {
+				setupStore1(1)
+				setupConcurrentModifierToWriteVersions(3)
+
+				updated, err := store1.Upsert(sh.MockData, key, makeItemWithVersion(2).ToSerializedItemDescriptor())
+				assert.NoError(t, err)
+				assert.False(t, updated)
+
+				var result st.SerializedItemDescriptor
+				result, err = store1.Get(sh.MockData, key)
+				assert.NoError(t, err)
+				assertEqualsSerializedItem(t, makeItemWithVersion(3), result)
+			})
 		})
-	}
-
-	t.Run("upsert race condition against external client with lower version", func(t testbox.TestingT) {
-		setupStore1(1)
-		setupConcurrentModifierToWriteVersions(2, 3, 4)
-
-		_, err := store1.Upsert(sh.MockData, key, makeItemWithVersion(10).ToSerializedItemDescriptor())
-		assert.NoError(t, err)
-
-		var result st.SerializedItemDescriptor
-		result, err = store1.Get(sh.MockData, key)
-		assert.NoError(t, err)
-		assertEqualsSerializedItem(t, makeItemWithVersion(10), result)
-	})
-
-	t.Run("upsert race condition against external client with higher version", func(t testbox.TestingT) {
-		setupStore1(1)
-		setupConcurrentModifierToWriteVersions(3)
-
-		updated, err := store1.Upsert(sh.MockData, key, makeItemWithVersion(2).ToSerializedItemDescriptor())
-		assert.NoError(t, err)
-		assert.False(t, updated)
-
-		var result st.SerializedItemDescriptor
-		result, err = store1.Get(sh.MockData, key)
-		assert.NoError(t, err)
-		assertEqualsSerializedItem(t, makeItemWithVersion(3), result)
 	})
 }
 

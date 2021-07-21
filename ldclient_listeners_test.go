@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -31,6 +32,10 @@ type clientListenersTestParams struct {
 }
 
 func clientListenersTest(action func(clientListenersTestParams)) {
+	clientListenersTestWithConfig(nil, action)
+}
+
+func clientListenersTestWithConfig(configAction func(*Config), action func(clientListenersTestParams)) {
 	testData := ldtestdata.DataSource()
 	factoryWithUpdater := &sharedtest.DataStoreFactoryThatExposesUpdater{
 		UnderlyingFactory: ldcomponents.PersistentDataStore(
@@ -42,6 +47,9 @@ func clientListenersTest(action func(clientListenersTestParams)) {
 		DataStore:  factoryWithUpdater,
 		Events:     ldcomponents.NoEvents(),
 		Logging:    sharedtest.TestLogging(),
+	}
+	if configAction != nil {
+		configAction(&config)
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
@@ -179,5 +187,45 @@ func TestDataStoreStatusProvider(t *testing.T) {
 				assert.Fail(t, "timed out waiting for new status")
 			}
 		})
+	})
+}
+
+func TestBigSegmentsStoreStatusProvider(t *testing.T) {
+	t.Run("returns unavailable status when not configured", func(t *testing.T) {
+		clientListenersTest(func(p clientListenersTestParams) {
+			assert.Equal(t, interfaces.BigSegmentStoreStatus{},
+				p.client.GetBigSegmentStoreStatusProvider().GetStatus())
+		})
+	})
+
+	t.Run("sends status updates", func(t *testing.T) {
+		store := &sharedtest.MockBigSegmentStore{}
+		store.TestSetMetadataToCurrentTime()
+		storeFactory := sharedtest.SingleBigSegmentStoreFactory{Store: store}
+		clientListenersTestWithConfig(
+			func(c *Config) {
+				c.BigSegments = ldcomponents.BigSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)
+			},
+			func(p clientListenersTestParams) {
+				statusCh := p.client.GetBigSegmentStoreStatusProvider().AddStatusListener()
+
+				sharedtest.ExpectBigSegmentStoreStatus(
+					t,
+					statusCh,
+					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
+					time.Second,
+					interfaces.BigSegmentStoreStatus{Available: true},
+				)
+
+				store.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{}, errors.New("failing"))
+
+				sharedtest.ExpectBigSegmentStoreStatus(
+					t,
+					statusCh,
+					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
+					time.Second,
+					interfaces.BigSegmentStoreStatus{Available: false},
+				)
+			})
 	})
 }

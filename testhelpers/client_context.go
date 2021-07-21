@@ -1,7 +1,11 @@
 package testhelpers
 
 import (
+	"os"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
 
@@ -56,4 +60,27 @@ func (s SimpleClientContext) WithLogging(loggingConfig interfaces.LoggingConfigu
 	ret := s
 	ret.logging, _ = loggingConfig.CreateLoggingConfiguration(s.GetBasic())
 	return ret
+}
+
+// Fallible is a general interface for anything with a Failed method. This is used by test helpers to
+// generalize between *testing.T, assert.T, etc. when all that we care about is detecting test failure.
+type Fallible interface {
+	Failed() bool
+}
+
+// WithMockLoggingContext creates a ClientContext that writes to a MockLogger, executes the specified
+// action, and then dumps the captured output to the console only if there's been a test failure.
+func WithMockLoggingContext(t Fallible, action func(interfaces.ClientContext)) {
+	mockLog := ldlogtest.NewMockLog()
+	context := sharedtest.NewTestContext("", sharedtest.TestHTTPConfig(),
+		sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
+	)
+	defer func() {
+		if t.Failed() {
+			mockLog.Dump(os.Stdout)
+		}
+		// There's already a similar DumpLogIfTestFailed defined in the ldlogtest package, but it requires
+		// specifically a *testing.T.
+	}()
+	action(context)
 }
