@@ -29,7 +29,7 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 // See PersistentDataStoreBuilder for more on how this method is used.
 //
 // For more information on the available persistent data store implementations, see the reference
-// guide on "Using a persistent feature store": https://docs.launchdarkly.com/sdk/concepts/feature-store
+// guide on "Persistent data stores": https://docs.launchdarkly.com/sdk/concepts/data-stores
 func PersistentDataStore(persistentDataStoreFactory interfaces.PersistentDataStoreFactory) *PersistentDataStoreBuilder {
 	return &PersistentDataStoreBuilder{
 		persistentDataStoreFactory: persistentDataStoreFactory,

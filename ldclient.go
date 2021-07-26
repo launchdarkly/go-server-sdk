@@ -334,7 +334,7 @@ func createDataSource(
 
 // Identify reports details about a user.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#identify
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
 func (client *LDClient) Identify(user lduser.User) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -390,7 +390,7 @@ func (client *LDClient) Alias(currentUser lduser.User, previousUser lduser.User)
 // LaunchDarkly dashboard. If you want to associate additional data with this event, use TrackData
 // or TrackMetric.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 func (client *LDClient) TrackEvent(eventName string, user lduser.User) error {
 	return client.TrackData(eventName, user, ldvalue.Null())
 }
@@ -405,7 +405,7 @@ func (client *LDClient) TrackEvent(eventName string, user lduser.User) error {
 // will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
 // instead). To send a numeric value for experimentation, use TrackMetric.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 func (client *LDClient) TrackData(eventName string, user lduser.User, data ldvalue.Value) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -436,7 +436,7 @@ func (client *LDClient) TrackData(eventName string, user lduser.User, data ldval
 // The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 // will be sent with the event. If no such value is needed, use ldvalue.Null().
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricValue float64, data ldvalue.Value) error {
 	if client.eventsDefault.disabled {
 		return nil
@@ -463,14 +463,14 @@ func (client *LDClient) TrackMetric(eventName string, user lduser.User, metricVa
 // the status of a client that is configured to be online, use Initialized() or
 // GetDataSourceStatusProvider().
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#offline-mode
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/offline-mode#go
 func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
 // SecureModeHash generates the secure mode hash value for a user.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#secure-mode-hash
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/secure-mode#go
 func (client *LDClient) SecureModeHash(user lduser.User) string {
 	key := []byte(client.sdkKey)
 	h := hmac.New(sha256.New, key)
@@ -534,7 +534,7 @@ func (client *LDClient) Close() error {
 // as possible. Flushing is asynchronous, so this method will return before it is complete.
 // However, if you call Close(), events are guaranteed to be sent before that method returns.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#flush
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/flush#go
 func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
 }
@@ -548,7 +548,7 @@ func (client *LDClient) Flush() {
 // You may pass any combination of flagstate.ClientSideOnly, flagstate.WithReasons, and
 // flagstate.DetailsOnlyForTrackedFlags as optional parameters to control what data is included.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#all-flags
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/all-flags#go
 func (client *LDClient) AllFlagsState(user lduser.User, options ...flagstate.Option) flagstate.AllFlags {
 	valid := true
 	if client.IsOffline() {
@@ -612,7 +612,7 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...flagstate.Opt
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal bool) (bool, error) {
 	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, client.eventsDefault)
 	return detail.Value.BoolValue(), err
@@ -621,7 +621,7 @@ func (client *LDClient) BoolVariation(key string, user lduser.User, defaultVal b
 // BoolVariationDetail is the same as BoolVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) BoolVariationDetail(
 	key string,
 	user lduser.User,
@@ -638,7 +638,7 @@ func (client *LDClient) BoolVariationDetail(
 //
 // If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal int) (int, error) {
 	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, client.eventsDefault)
 	return detail.Value.IntValue(), err
@@ -647,7 +647,7 @@ func (client *LDClient) IntVariation(key string, user lduser.User, defaultVal in
 // IntVariationDetail is the same as IntVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) IntVariationDetail(
 	key string,
 	user lduser.User,
@@ -662,7 +662,7 @@ func (client *LDClient) IntVariationDetail(
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVal float64) (float64, error) {
 	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, client.eventsDefault)
 	return detail.Value.Float64Value(), err
@@ -671,7 +671,7 @@ func (client *LDClient) Float64Variation(key string, user lduser.User, defaultVa
 // Float64VariationDetail is the same as Float64Variation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) Float64VariationDetail(
 	key string,
 	user lduser.User,
@@ -686,7 +686,7 @@ func (client *LDClient) Float64VariationDetail(
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
 // no off variation.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal string) (string, error) {
 	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, client.eventsDefault)
 	return detail.Value.StringValue(), err
@@ -695,7 +695,7 @@ func (client *LDClient) StringVariation(key string, user lduser.User, defaultVal
 // StringVariationDetail is the same as StringVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) StringVariationDetail(
 	key string,
 	user lduser.User,
@@ -727,7 +727,7 @@ func (client *LDClient) StringVariationDetail(
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, error) {
 	detail, err := client.variation(key, user, defaultVal, false, client.eventsDefault)
 	return detail.Value, err
@@ -736,7 +736,7 @@ func (client *LDClient) JSONVariation(key string, user lduser.User, defaultVal l
 // JSONVariationDetail is the same as JSONVariation, but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) JSONVariationDetail(
 	key string,
 	user lduser.User,

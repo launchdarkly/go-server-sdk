@@ -13,7 +13,7 @@ type nullDataSourceFactory struct{}
 //
 // Storing this in LDConfig.DataSource causes the SDK not to retrieve feature flag data from LaunchDarkly,
 // regardless of any other configuration. This is normally done if you are using the Relay Proxy
-// (https://docs.launchdarkly.com/docs/the-relay-proxy) in "daemon mode", where an external process-- the
+// (https://docs.launchdarkly.com/home/relay-proxy) in "daemon mode", where an external process-- the
 // Relay Proxy-- connects to LaunchDarkly and populates a persistent data store with the feature flag data.
 // The data store could also be populated by another process that is running the LaunchDarkly SDK. If there
 // is no external process updating the data store, then the SDK will not have any feature flag data and
