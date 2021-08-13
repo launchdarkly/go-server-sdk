@@ -251,7 +251,7 @@ Note: if you are using the LaunchDarkly Relay Proxy to forward events, update th
 - The `HTTPClientFactory` property in `Config` allows you to customize the HTTP client instances used by the SDK. This could be used, for instance, to support a type of proxy behavior that is not built into the Go standard library, or for compatibility with frameworks such as Google App Engine that require special networking configuration.
 
 ### Fixed:
-- When using a custom attribute for rollout bucketing, the SDK now treats numeric values the same regardless of whether they are stored as `int` or `float64`, as long as the actual value is an integer. This is necessary to ensure consistent behavior because of the default behavior of JSON encoding in Go, which causes all numbers to become `float64` if they have been marshaled to JSON and then unmarshaled. As described in [the documentation for this feature](https://docs.launchdarkly.com/home/flags/targeting-users#section-percentage-rollouts), any floating-point value that has a fractional component is still disallowed.
+- When using a custom attribute for rollout bucketing, the SDK now treats numeric values the same regardless of whether they are stored as `int` or `float64`, as long as the actual value is an integer. This is necessary to ensure consistent behavior because of the default behavior of JSON encoding in Go, which causes all numbers to become `float64` if they have been marshaled to JSON and then unmarshaled. As described in [the documentation for this feature](https://docs.launchdarkly.com/home/flags/targeting-users#percentage-rollouts), any floating-point value that has a fractional component is still disallowed.
 
 ## [4.7.4] - 2019-05-06
 ### Fixed:
@@ -353,7 +353,7 @@ The Go client now depends on the latest release of 1.0.0 of LaunchDarkly fork of
 ## [4.0.0] - 2018-05-10
 
 ### Changed
-- To reduce the network bandwidth used for analytics events, feature request events are now sent as counters rather than individual events, and user details are now sent only at intervals rather than in each event. These behaviors can be modified through the LaunchDarkly UI and with the new configuration option `InlineUsersInEvents`. For more details, see [Analytics Data Stream Reference](https://docs.launchdarkly.com/v2.0/docs/analytics-data-stream-reference). <-- replace TKTK
+- To reduce the network bandwidth used for analytics events, feature request events are now sent as counters rather than individual events, and user details are now sent only at intervals rather than in each event. These behaviors can be modified through the LaunchDarkly UI and with the new configuration option `InlineUsersInEvents`. For more details, read [Data Export](https://docs.launchdarkly.com/home/data-export).
 - When sending analytics events, if there is a connection error or an HTTP 5xx response, the client will try to send the events again one more time after a one-second delay.
 - The `Close` method on the client now conforms to the `io.Closer` interface.
 
