@@ -66,7 +66,7 @@ type Config struct {
 	// The other option is to use a persistent data store-- that is, a database integration. These all use
 	// ldcomponents.PersistentDataStore(), plus an adapter for the specific database. LaunchDarkly provides
 	// adapters for several databases, as described in the Reference Guide:
-	// https://docs.launchdarkly.com/sdk/concepts/feature-store
+	// https://docs.launchdarkly.com/sdk/concepts/data-stores
 	//
 	// You could also define your own database integration by implementing the PersistentDataStore interface.
 	//
@@ -122,6 +122,6 @@ type Config struct {
 	// Sets whether this client is offline. An offline client will not make any network connections to LaunchDarkly,
 	// and will return default values for all feature flags.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#offline-mode
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/offline-mode#go
 	Offline bool
 }

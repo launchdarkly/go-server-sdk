@@ -14,13 +14,13 @@ type LDClientEvaluations interface {
 	// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 	// has no off variation.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	BoolVariation(key string, user lduser.User, defaultVal bool) (bool, error)
 
 	// BoolVariationDetail is the same as BoolVariation, but also returns further information about how
 	// the value was calculated. The "reason" data will also be included in analytics events.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	BoolVariationDetail(key string, user lduser.User, defaultVal bool) (bool, ldreason.EvaluationDetail, error)
 
 	// IntVariation returns the value of a feature flag (whose variations are integers) for the given user.
@@ -30,13 +30,13 @@ type LDClientEvaluations interface {
 	//
 	// If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	IntVariation(key string, user lduser.User, defaultVal int) (int, error)
 
 	// IntVariationDetail is the same as IntVariation, but also returns further information about how
 	// the value was calculated. The "reason" data will also be included in analytics events.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	IntVariationDetail(key string, user lduser.User, defaultVal int) (int, ldreason.EvaluationDetail, error)
 
 	// Float64Variation returns the value of a feature flag (whose variations are floats) for the given user.
@@ -44,13 +44,13 @@ type LDClientEvaluations interface {
 	// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 	// has no off variation.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	Float64Variation(key string, user lduser.User, defaultVal float64) (float64, error)
 
 	// Float64VariationDetail is the same as Float64Variation, but also returns further information about how
 	// the value was calculated. The "reason" data will also be included in analytics events.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	Float64VariationDetail(key string, user lduser.User, defaultVal float64) (float64, ldreason.EvaluationDetail, error)
 
 	// StringVariation returns the value of a feature flag (whose variations are strings) for the given user.
@@ -58,13 +58,13 @@ type LDClientEvaluations interface {
 	// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
 	// no off variation.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	StringVariation(key string, user lduser.User, defaultVal string) (string, error)
 
 	// StringVariationDetail is the same as StringVariation, but also returns further information about how
 	// the value was calculated. The "reason" data will also be included in analytics events.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	StringVariationDetail(key string, user lduser.User, defaultVal string) (string, ldreason.EvaluationDetail, error)
 
 	// JSONVariation returns the value of a feature flag for the given user, allowing the value to be
@@ -89,13 +89,13 @@ type LDClientEvaluations interface {
 	//
 	// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variation
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	JSONVariation(key string, user lduser.User, defaultVal ldvalue.Value) (ldvalue.Value, error)
 
 	// JSONVariationDetail is the same as JSONVariation, but also returns further information about how
 	// the value was calculated. The "reason" data will also be included in analytics events.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#variationdetail
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (
 		ldvalue.Value, ldreason.EvaluationDetail, error)
 
@@ -108,7 +108,7 @@ type LDClientEvaluations interface {
 	// You may pass any combination of flagstate.ClientSideOnly, flagstate.WithReasons, and
 	// flagstate.DetailsOnlyForTrackedFlags as optional parameters to control what data is included.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#all-flags
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/all-flags#go
 	AllFlagsState(user lduser.User, options ...flagstate.Option) flagstate.AllFlags
 }
 
@@ -117,7 +117,7 @@ type LDClientEvaluations interface {
 type LDClientEvents interface {
 	// Identify reports details about a user.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#identify
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
 	Identify(user lduser.User) error
 
 	// TrackEvent reports that a user has performed an event.
@@ -127,7 +127,7 @@ type LDClientEvents interface {
 	// LaunchDarkly dashboard. If you want to associate additional data with this event, use TrackData
 	// or TrackMetric.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackEvent(eventName string, user lduser.User) error
 
 	// TrackData reports that a user has performed an event, and associates it with custom data.
@@ -140,7 +140,7 @@ type LDClientEvents interface {
 	// will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
 	// instead). To send a numeric value for experimentation, use TrackMetric.
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackData(eventName string, user lduser.User, data ldvalue.Value) error
 
 	// TrackMetric reports that a user has performed an event, and associates it with a numeric value.
@@ -154,7 +154,7 @@ type LDClientEvents interface {
 	// The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
 	// will be sent with the event. If no such value is needed, use ldvalue.Null().
 	//
-	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go#track
+	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackMetric(eventName string, user lduser.User, metricValue float64, data ldvalue.Value) error
 }
 

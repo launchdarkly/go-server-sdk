@@ -44,7 +44,7 @@ func StreamingDataSource() *StreamingDataSourceBuilder {
 //
 // You will only need to change this value in the following cases:
 //
-// 1. You are using the Relay Proxy (https://docs.launchdarkly.com/docs/the-relay-proxy). Set BaseURI to the base URI of
+// 1. You are using the Relay Proxy (https://docs.launchdarkly.com/home/relay-proxy). Set BaseURI to the base URI of
 // the Relay Proxy instance.
 //
 // 2. You are connecting to a test server or anything else other than the standard LaunchDarkly service.
