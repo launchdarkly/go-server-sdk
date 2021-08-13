@@ -64,7 +64,7 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 
 ## [5.0.0] - 2020-09-18
 This is a major rewrite that introduces a cleaner API design, adds new features, and makes the SDK code easier to maintain and extend. See the [Go 4.x to 5.0 migration guide](https://docs.launchdarkly.com/sdk/server-side/go/migration-4-to-5) for an in-depth look at the changes in this version; the following is a summary.
- 
+
 ### Added:
 - You can tell the SDK to notify you whenever a feature flag&#39;s configuration has changed (either in general, or in terms of its result for a specific user), using [`LDClient.GetFlagTracker()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5#LDClient.GetFlagTracker).
 - You can monitor the status of the SDK&#39;s data source (which normally means the streaming connection to the LaunchDarkly service) with [`LDClient.GetDataSourceStatusProvider()`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5?tab=doc#LDClient.GetDataSourceStatusProvider). This allows you to check the current connection status, and to be notified if this status changes.
@@ -74,7 +74,7 @@ This is a major rewrite that introduces a cleaner API design, adds new features,
 - The [`testhelpers/ldtestdata`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/ldtestdata) package provides an alternative to `ldfiledata` for simulating feature flag data in test code.
 - The object returned by `AllFlagsState()` can now be constructed (such as for testing purposes) with `flagstate.NewAllFlagsBuilder()`.
 - In [`interfaces`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/interfaces), `LDClientInterface`, `LDClientEvaluations`, and `LDClientEvents` are new interfaces describing the existing methods of `LDClient`. These may be useful for creating mocks in testing.
- 
+
 ### Changed _(breaking changes from 4.x)_:
 - The `User` and `UserBuilder` types are now in the package [`gopkg.in/launchdarkly/go-sdk-common.v2/lduser`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/lduser). Users can no longer be created as inline structs; you must use `lduser.NewUser`, `lduser.NewAnonymousUser`, or `lduser.NewUserBuilder`.
 - The `EvaluationDetail` and `EvaluationReason` types are now in the package [`gopkg.in/launchdarkly/go-sdk-common.v2/ldreason`](https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/ldreason).
@@ -90,22 +90,22 @@ This is a major rewrite that introduces a cleaner API design, adds new features,
 - The `PersistentDataStore` interface for creating your own database integrations has been simplified by moving all of the serialization and caching logic into the main SDK code.
 - `FeatureFlag`, `Segment`, and other data model types are now in the package `gopkg.in/launchdarkly/go-server-sdk-evaluation.v1`. Application code will not normally need to refer to these types.
 - All types related to the low-level handling of analytics events are now in the package `gopkg.in/launchdarkly/go-sdk-events.v1`. Application code will not normally need to refer to these types.
- 
+
 ### Changed (requirements/dependencies/build):
 - The lowest supported Go version is 1.14.
 - Code coverage reports and benchmarks are now generated in every build. Unit test coverage of the entire SDK codebase has been greatly improved.
- 
+
 ### Changed (behavioral changes):
 - If analytics events are disabled, the SDK now avoids generating any analytics event objects internally. Previously they were created and then discarded, causing unnecessary heap churn.
 - Network failures and server errors for streaming or polling requests were previously logged at `ERROR` level in most cases but sometimes at `WARN` level. They are now all at `WARN` level, but with a new behavior: if connection failures continue without a successful retry for a certain amount of time, the SDK will log a special `ERROR`-level message to warn you that this is not just a brief outage. The amount of time is one minute by default, but can be changed with the new [`LogDataSourceOutageAsErrorAfter`](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents#LoggingConfigurationBuilder.LogDataSourceOutageAsErrorAfter) option in `LoggingConfigurationBuilder`.
 - Reading a `User` from JSON with `json.Unmarshal` now returns an error if the `key` property is missing or null.
- 
+
 ### Changed (performance improvements):
 - Improved the performance of flag evaluations when there is a very long user target list in a feature flag or user segment, by representing the user key collection internally as a map.
 - Evaluation of rules involving regex matches, date/time values, and semantic versions, has been speeded up by pre-parsing the values in the rules. Also, parsing of date/time values and semantic versions in user attributes now uses a faster implementation and does not make any heap allocations.
 - Evaluation of rules involving an equality match to multiple values (such as &#34;name is one of X, Y, Z&#34;) has been speeded up by converting the list of values to a map.
 - Many internal methods have been rewritten to reduce the number of heap allocations in general.
- 
+
 ### Removed:
 - `DefaultConfig` was removed since it is no longer necessary: an empty `Config{}` is valid and will provide all of the documented default behavior. If you need to access the default value for a property, use the corresponding constant, such as `ldcomponents.DefaultEventsCapacity`.
 - The `sharedtest` subpackage, which contains test helpers for the SDK itself, is now internal and cannot be used from application code. Test helpers that were meant to be public are now in the `testhelpers` subpackage.
@@ -224,7 +224,7 @@ Note: if you are using the LaunchDarkly Relay Proxy to forward events, update th
 ### Added:
 - In the `redis` subpackage, the new option `DialOptions` allows configuration of any [connection option supported by Redigo](https://godoc.org/github.com/garyburd/redigo/redis#DialOption), such as setting a password or enabling TLS. (Thanks, [D-Raiser](https://github.com/launchdarkly/go-server-sdk/pull/8)!) Note that it was already possible to specify a password or TLS as part of the Redis URL.
 - The new `Config` property `LogUserKeyInErrors`, if set to true, causes error log messages that are related to a specific user to include that user's key. This is false by default since user keys could be considered privileged information.
- 
+
 ### Changed:
 - If an error occurs during JSON serialization of user data in analytics events, previously all of the events that were going to be sent to LaunchDarkly at that point would be lost. Such an error could occur if a) the user's map of custom attributes was being modified by another goroutine, causing a concurrent modification panic, or b) a custom attribute value had a custom JSON marshaller that returned an error or caused a panic. The new behavior in these cases is that the SDK will log an error ("An error occurred while processing custom attributes ... the custom attributes for this user have been dropped from analytics data") and continue sending all of the event data except for the custom attributes for that user.
 
@@ -251,7 +251,7 @@ Note: if you are using the LaunchDarkly Relay Proxy to forward events, update th
 - The `HTTPClientFactory` property in `Config` allows you to customize the HTTP client instances used by the SDK. This could be used, for instance, to support a type of proxy behavior that is not built into the Go standard library, or for compatibility with frameworks such as Google App Engine that require special networking configuration.
 
 ### Fixed:
-- When using a custom attribute for rollout bucketing, the SDK now treats numeric values the same regardless of whether they are stored as `int` or `float64`, as long as the actual value is an integer. This is necessary to ensure consistent behavior because of the default behavior of JSON encoding in Go, which causes all numbers to become `float64` if they have been marshaled to JSON and then unmarshaled. As described in [the documentation for this feature](https://docs.launchdarkly.com/docs/targeting-users#section-percentage-rollouts), any floating-point value that has a fractional component is still disallowed.
+- When using a custom attribute for rollout bucketing, the SDK now treats numeric values the same regardless of whether they are stored as `int` or `float64`, as long as the actual value is an integer. This is necessary to ensure consistent behavior because of the default behavior of JSON encoding in Go, which causes all numbers to become `float64` if they have been marshaled to JSON and then unmarshaled. As described in [the documentation for this feature](https://docs.launchdarkly.com/home/flags/targeting-users#percentage-rollouts), any floating-point value that has a fractional component is still disallowed.
 
 ## [4.7.4] - 2019-05-06
 ### Fixed:
@@ -301,7 +301,7 @@ Since Go uses the repository name as part of the import path, to avoid breaking 
 
 ## [4.5.0] - 2018-11-14
 ### Added:
-- It is now possible to use DynamoDB or Consul as a persistent feature store, similar to the existing Redis integration. See the [`ldconsul`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul) and [`lddynamodb`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb) subpackages, and the reference guide to ["Using a persistent feature store"](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store).
+- It is now possible to use DynamoDB or Consul as a persistent feature store, similar to the existing Redis integration. See the [`ldconsul`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/ldconsul) and [`lddynamodb`](https://godoc.org/gopkg.in/launchdarkly/go-server-sdk.v5/lddynamodb) subpackages, and the reference guide to ["Persistent data stores"](https://docs.launchdarkly.com/sdk/concepts/data-stores).
 
 ## [4.4.0] - 2018-10-30
 ### Added:
@@ -353,7 +353,7 @@ The Go client now depends on the latest release of 1.0.0 of LaunchDarkly fork of
 ## [4.0.0] - 2018-05-10
 
 ### Changed
-- To reduce the network bandwidth used for analytics events, feature request events are now sent as counters rather than individual events, and user details are now sent only at intervals rather than in each event. These behaviors can be modified through the LaunchDarkly UI and with the new configuration option `InlineUsersInEvents`. For more details, see [Analytics Data Stream Reference](https://docs.launchdarkly.com/v2.0/docs/analytics-data-stream-reference).
+- To reduce the network bandwidth used for analytics events, feature request events are now sent as counters rather than individual events, and user details are now sent only at intervals rather than in each event. These behaviors can be modified through the LaunchDarkly UI and with the new configuration option `InlineUsersInEvents`. For more details, read [Data Export](https://docs.launchdarkly.com/home/data-export).
 - When sending analytics events, if there is a connection error or an HTTP 5xx response, the client will try to send the events again one more time after a one-second delay.
 - The `Close` method on the client now conforms to the `io.Closer` interface.
 
@@ -415,7 +415,7 @@ The Go client now depends on the latest release of 1.0.0 of LaunchDarkly fork of
 - New `SecureModeHash` function computes a hash suitable for the new LaunchDarkly JavaScript client's secure mode feature.
 
 ### Changed
-- The `Feature` data model has been replaced with `FeatureFlag`. 
+- The `Feature` data model has been replaced with `FeatureFlag`.
 
 ### Deprecated
 - The `Toggle` call has been deprecated in favor of `BoolVariation`.
