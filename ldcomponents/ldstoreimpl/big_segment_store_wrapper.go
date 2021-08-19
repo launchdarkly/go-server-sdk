@@ -40,7 +40,6 @@ type BigSegmentStoreWrapper struct {
 	haveStatus     bool
 	lastStatus     interfaces.BigSegmentStoreStatus
 	requests       singleflight.Group
-	controlCloser  chan struct{}
 	pollCloser     chan struct{}
 	pollingActive  bool
 	loggers        ldlog.Loggers
@@ -112,9 +111,6 @@ func (w *BigSegmentStoreWrapper) Close() {
 	if w.pollCloser != nil {
 		close(w.pollCloser)
 		w.pollCloser = nil
-	}
-	if w.controlCloser != nil {
-		close(w.controlCloser)
 	}
 	if w.userCache != nil {
 		w.userCache.Stop()
