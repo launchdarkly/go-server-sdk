@@ -26,6 +26,7 @@ func (f SingleBigSegmentStoreFactory) CreateBigSegmentStore(interfaces.ClientCon
 type MockBigSegmentStore struct {
 	metadata          interfaces.BigSegmentStoreMetadata
 	metadataErr       error
+	metadataQueries   chan struct{}
 	memberships       map[string]interfaces.BigSegmentMembership
 	membershipQueries []string
 	membershipErr     error
@@ -39,6 +40,9 @@ func (m *MockBigSegmentStore) Close() error { //nolint:golint
 func (m *MockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) { //nolint:golint
 	m.lock.Lock()
 	md, err := m.metadata, m.metadataErr
+	if m.metadataQueries != nil {
+		m.metadataQueries <- struct{}{}
+	}
 	m.lock.Unlock()
 	return md, err
 }
@@ -54,6 +58,15 @@ func (m *MockBigSegmentStore) TestSetMetadataState( //nolint:golint
 
 func (m *MockBigSegmentStore) TestSetMetadataToCurrentTime() { //nolint:golint
 	m.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisNow()}, nil)
+}
+
+func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nolint:golint
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.metadataQueries == nil {
+		m.metadataQueries = make(chan struct{})
+	}
+	return m.metadataQueries
 }
 
 func (m *MockBigSegmentStore) GetUserMembership( //nolint:golint

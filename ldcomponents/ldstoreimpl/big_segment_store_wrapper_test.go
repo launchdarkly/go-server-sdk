@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
@@ -20,39 +21,44 @@ func TestBigSegmentStoreWrapper(t *testing.T) {
 	t.Run("queries store with hashed user key", testBigSegmentStoreWrapperMembershipQuery)
 	t.Run("caches membership state", testBigSegmentStoreWrapperMembershipCaching)
 	t.Run("sends status updates", testBigSegmentStoreWrapperStatusUpdates)
+	t.Run("control methods", testBigSegmentStoreWrapperControlMethods)
 }
 
 type storeWrapperTestParams struct {
-	t             *testing.T
-	store         *sharedtest.MockBigSegmentStore
-	wrapper       *BigSegmentStoreWrapper
-	pollInterval  time.Duration
-	staleTime     time.Duration
-	userCacheSize int
-	userCacheTime time.Duration
-	statusCh      chan interfaces.BigSegmentStoreStatus
-	mockLog       *ldlogtest.MockLog
+	t        *testing.T
+	store    *sharedtest.MockBigSegmentStore
+	wrapper  *BigSegmentStoreWrapper
+	config   BigSegmentsConfigurationProperties
+	statusCh chan interfaces.BigSegmentStoreStatus
+	mockLog  *ldlogtest.MockLog
 }
 
 func storeWrapperTest(t *testing.T) *storeWrapperTestParams {
+	mockLog := ldlogtest.NewMockLog()
+	mockLog.Loggers.SetMinLevel(ldlog.Debug)
 	return &storeWrapperTestParams{
-		t:             t,
-		store:         &sharedtest.MockBigSegmentStore{},
-		pollInterval:  time.Millisecond * 10,
-		staleTime:     time.Hour,
-		userCacheSize: 1000,
-		userCacheTime: time.Hour,
-		statusCh:      make(chan interfaces.BigSegmentStoreStatus, 10),
-		mockLog:       ldlogtest.NewMockLog(),
+		t:     t,
+		store: &sharedtest.MockBigSegmentStore{},
+		config: BigSegmentsConfigurationProperties{
+			StatusPollInterval: time.Millisecond * 10,
+			StaleAfter:         time.Hour,
+			UserCacheSize:      1000,
+			UserCacheTime:      time.Hour,
+			StartPolling:       true,
+		},
+		statusCh: make(chan interfaces.BigSegmentStoreStatus, 10),
+		mockLog:  mockLog,
 	}
 }
 
 func (p *storeWrapperTestParams) run(action func(*storeWrapperTestParams)) {
 	defer p.mockLog.DumpIfTestFailed(p.t)
-	p.wrapper = NewBigSegmentStoreWrapper(
-		p.store,
+	config := p.config
+	config.Store = p.store
+	p.wrapper = NewBigSegmentStoreWrapperWithConfig(
+		config,
 		func(status interfaces.BigSegmentStoreStatus) { p.statusCh <- status },
-		p.pollInterval, p.staleTime, p.userCacheSize, p.userCacheTime, p.mockLog.Loggers,
+		p.mockLog.Loggers,
 	)
 	p.store.TestSetMetadataToCurrentTime()
 	defer p.wrapper.Close()
@@ -108,7 +114,7 @@ func testBigSegmentStoreWrapperMembershipCaching(t *testing.T) {
 
 	t.Run("least recent user is evicted from cache", func(t *testing.T) {
 		p := storeWrapperTest(t)
-		p.userCacheSize = 2
+		p.config.UserCacheSize = 2
 		p.run(func(p *storeWrapperTestParams) {
 			userKey1 := "userkey1"
 			userHash1 := bigsegments.HashForUserKey(userKey1)
@@ -164,7 +170,7 @@ func testBigSegmentStoreWrapperStatusUpdates(t *testing.T) {
 
 	t.Run("polling detects stale status", func(t *testing.T) {
 		p := storeWrapperTest(t)
-		p.staleTime = time.Millisecond * 100
+		p.config.StaleAfter = time.Millisecond * 100
 		p.run(func(p *storeWrapperTestParams) {
 			stopUpdater := make(chan struct{})
 			defer close(stopUpdater)
@@ -197,6 +203,54 @@ func testBigSegmentStoreWrapperStatusUpdates(t *testing.T) {
 			shouldUpdate.Store(true)
 			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Millisecond*200,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
+		})
+	})
+}
+
+func testBigSegmentStoreWrapperControlMethods(t *testing.T) {
+	t.Run("can turn polling on after initially paused", func(t *testing.T) {
+		p := storeWrapperTest(t)
+		queriesCh := p.store.TestGetMetadataQueriesCh()
+		p.config.StartPolling = false
+		p.run(func(p *storeWrapperTestParams) {
+			select {
+			case <-queriesCh:
+				require.Fail(t, "got unexpected status poll")
+			case <-time.After(time.Millisecond * 100):
+			}
+
+			p.wrapper.SetPollingActive(true)
+
+			select {
+			case <-queriesCh:
+				break
+			case <-time.After(time.Millisecond * 500):
+				require.Fail(t, "timed out waiting for status poll")
+			}
+		})
+	})
+
+	t.Run("can clear cache", func(t *testing.T) {
+		p := storeWrapperTest(t)
+		p.run(func(p *storeWrapperTestParams) {
+			userKey := "userkey"
+			userHash := bigsegments.HashForUserKey(userKey)
+
+			expectedMembership1 := NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
+			p.store.TestSetMembership(userHash, expectedMembership1)
+
+			p.assertMembership(userKey, expectedMembership1)
+			p.assertMembership(userKey, expectedMembership1)
+
+			p.assertUserHashesQueried(userHash) // only one query was done
+
+			expectedMembership2 := NewBigSegmentMembershipFromSegmentRefs([]string{"maybe"}, []string{"no"})
+			p.store.TestSetMembership(userHash, expectedMembership2)
+
+			p.wrapper.ClearCache()
+
+			p.assertMembership(userKey, expectedMembership2)
+			p.assertUserHashesQueried(userHash, userHash) // a second query was done
 		})
 	})
 }
