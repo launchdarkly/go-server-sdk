@@ -201,13 +201,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	bsStore := bsConfig.GetStore()
 	client.bigSegmentStoreStatusBroadcaster = internal.NewBigSegmentStoreStatusBroadcaster()
 	if bsStore != nil {
-		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapper(
-			bsStore,
+		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapperWithConfig(
+			ldstoreimpl.BigSegmentsConfigurationProperties{
+				Store:              bsStore,
+				StartPolling:       true,
+				StatusPollInterval: bsConfig.GetStatusPollInterval(),
+				StaleAfter:         bsConfig.GetStaleAfter(),
+				UserCacheSize:      bsConfig.GetUserCacheSize(),
+				UserCacheTime:      bsConfig.GetUserCacheTime(),
+			},
 			client.bigSegmentStoreStatusBroadcaster.Broadcast,
-			bsConfig.GetStatusPollInterval(),
-			bsConfig.GetStaleAfter(),
-			bsConfig.GetUserCacheSize(),
-			bsConfig.GetUserCacheTime(),
 			loggers,
 		)
 		client.bigSegmentStoreStatusProvider = bigsegments.NewBigSegmentStoreStatusProviderImpl(
