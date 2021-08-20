@@ -6,6 +6,9 @@ releasableBranches:
   - name: v5
   - name: v4
 
+template:
+  name: go
+
 publications:
   - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk
     description: documentation
