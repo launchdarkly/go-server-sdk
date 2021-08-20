@@ -28,27 +28,61 @@ import (
 // queries and polling the store's metadata to make sure it is not stale.
 //
 // To avoid unnecessarily exposing implementation details that are subject to change, this type
-// should not have any public methods other than GetUserMembership, GetStatus, and Close.
+// should not have any public methods that are not strictly necessary for its use by the SDK and by
+// the Relay Proxy.
 type BigSegmentStoreWrapper struct {
 	store          interfaces.BigSegmentStore
 	statusUpdateFn func(interfaces.BigSegmentStoreStatus)
 	staleTime      time.Duration
 	userCache      *ccache.Cache
 	cacheTTL       time.Duration
+	pollInterval   time.Duration
 	haveStatus     bool
 	lastStatus     interfaces.BigSegmentStoreStatus
 	requests       singleflight.Group
 	pollCloser     chan struct{}
+	pollingActive  bool
 	loggers        ldlog.Loggers
 	lock           sync.RWMutex
 }
 
-// NewBigSegmentStoreWrapper creates a BigSegmentStoreWrapper and starts polling the store's status.
+// NewBigSegmentStoreWrapperWithConfig creates a BigSegmentStoreWrapper.
+//
+// It also immediately begins polling the store status, unless config.StatusPollingInitiallyPaused
+// is true.
 //
 // The BigSegmentStoreWrapper takes ownership of the BigSegmentStore's lifecycle at this point, so
 // calling Close on the BigSegmentStoreWrapper will also close the store.
 //
 // If not nil, statusUpdateFn will be called whenever the store status has changed.
+func NewBigSegmentStoreWrapperWithConfig(
+	config BigSegmentsConfigurationProperties,
+	statusUpdateFn func(interfaces.BigSegmentStoreStatus),
+	loggers ldlog.Loggers,
+) *BigSegmentStoreWrapper {
+	pollCloser := make(chan struct{})
+	w := &BigSegmentStoreWrapper{
+		store:          config.Store,
+		statusUpdateFn: statusUpdateFn,
+		staleTime:      config.StaleAfter,
+		userCache:      ccache.New(ccache.Configure().MaxSize(int64(config.UserCacheSize))),
+		cacheTTL:       config.UserCacheTime,
+		pollInterval:   config.StatusPollInterval,
+		pollCloser:     pollCloser,
+		pollingActive:  config.StartPolling,
+		loggers:        loggers,
+	}
+
+	if config.StartPolling {
+		go w.runPollTask(config.StatusPollInterval, pollCloser)
+	}
+
+	return w
+}
+
+// NewBigSegmentStoreWrapper creates a BigSegmentStoreWrapper and starts polling the store's status.
+//
+// Deprecated: This is superseded by NewBigSegmentStoreWrapperWithConfig.
 func NewBigSegmentStoreWrapper(
 	store interfaces.BigSegmentStore,
 	statusUpdateFn func(interfaces.BigSegmentStoreStatus),
@@ -58,20 +92,17 @@ func NewBigSegmentStoreWrapper(
 	userCacheTime time.Duration,
 	loggers ldlog.Loggers,
 ) *BigSegmentStoreWrapper {
-	pollCloser := make(chan struct{})
-	w := &BigSegmentStoreWrapper{
-		store:          store,
-		statusUpdateFn: statusUpdateFn,
-		staleTime:      staleTime,
-		userCache:      ccache.New(ccache.Configure().MaxSize(int64(userCacheSize))),
-		cacheTTL:       userCacheTime,
-		pollCloser:     pollCloser,
-		loggers:        loggers,
-	}
-
-	go w.runPollTask(pollInterval, pollCloser)
-
-	return w
+	return NewBigSegmentStoreWrapperWithConfig(
+		BigSegmentsConfigurationProperties{
+			Store:              store,
+			StatusPollInterval: pollInterval,
+			StaleAfter:         staleTime,
+			UserCacheSize:      userCacheSize,
+			UserCacheTime:      userCacheTime,
+		},
+		statusUpdateFn,
+		loggers,
+	)
 }
 
 // Close shuts down the manager, the store, and the polling task.
@@ -163,6 +194,38 @@ func (w *BigSegmentStoreWrapper) GetStatus() interfaces.BigSegmentStoreStatus {
 	}
 
 	return w.pollStoreAndUpdateStatus()
+}
+
+// ClearCache invalidates the cache of per-user big segment state, so subsequent queries will get
+// the latest data.
+//
+// This is used by the Relay Proxy, but is not currently used by the SDK otherwise.
+func (w *BigSegmentStoreWrapper) ClearCache() {
+	w.lock.Lock()
+	if w.userCache != nil {
+		w.userCache.Clear()
+	}
+	w.lock.Unlock()
+	w.loggers.Debug("invalidated cache")
+}
+
+// SetPollingActive switches the polling task on or off.
+//
+// This is used by the Relay Proxy, but is not currently used by the SDK otherwise.
+func (w *BigSegmentStoreWrapper) SetPollingActive(active bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.pollingActive != active {
+		w.pollingActive = active
+		if active {
+			w.pollCloser = make(chan struct{})
+			go w.runPollTask(w.pollInterval, w.pollCloser)
+		} else if w.pollCloser != nil {
+			close(w.pollCloser)
+			w.pollCloser = nil
+		}
+		w.loggers.Debugf("setting status polling to %t", active)
+	}
 }
 
 func (w *BigSegmentStoreWrapper) pollStoreAndUpdateStatus() interfaces.BigSegmentStoreStatus {
