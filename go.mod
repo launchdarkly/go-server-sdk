@@ -19,6 +19,6 @@ require (
 	gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.1
 	gopkg.in/launchdarkly/go-sdk-common.v2 v2.4.0
 	gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.1
-	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.4.0
+	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.4.1
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
