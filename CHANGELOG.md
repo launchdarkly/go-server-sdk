@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.6.0] - 2021-08-20
+### Added:
+- Added support for better handling of updates in the Relay Proxy when using big segments. The only API changes for this are in the `ldstoreimpl` package, which is not meant for regular application use but is used by the Relay Proxy.
+
+### Fixed:
+- When using big segments, if a big segment store query for a user returned `nil`, the evaluator was treating that as an automatic exclusion for the user and skipping any rules that might exist in the segment. It should instead treat `nil` the same as an empty result.
+
 ## [5.5.0] - 2021-07-20
 ### Added:
 - The SDK now supports evaluation of Big Segments. An Early Access Program for creating and syncing Big Segments from customer data platforms is available to enterprise customers.
