@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
 // DefaultBigSegmentsUserCacheSize is the default value for
@@ -21,28 +22,6 @@ const DefaultBigSegmentsStatusPollInterval = time.Second * 5
 // DefaultBigSegmentsStaleAfter is the default value for
 // BigSegmentsConfigurationBuilder.StaleAfter.
 const DefaultBigSegmentsStaleAfter = time.Second * 120
-
-type bigSegmentsConfigurationImpl struct {
-	store              interfaces.BigSegmentStore
-	userCacheSize      int
-	userCacheTime      time.Duration
-	statusPollInterval time.Duration
-	staleAfter         time.Duration
-}
-
-func (c bigSegmentsConfigurationImpl) GetStore() interfaces.BigSegmentStore {
-	return c.store
-}
-
-func (c bigSegmentsConfigurationImpl) GetUserCacheSize() int { return c.userCacheSize }
-
-func (c bigSegmentsConfigurationImpl) GetUserCacheTime() time.Duration { return c.userCacheTime }
-
-func (c bigSegmentsConfigurationImpl) GetStatusPollInterval() time.Duration {
-	return c.statusPollInterval
-}
-
-func (c bigSegmentsConfigurationImpl) GetStaleAfter() time.Duration { return c.staleAfter }
 
 // BigSegmentsConfigurationBuilder contains methods for configuring the SDK's big segments behavior.
 //
@@ -63,7 +42,7 @@ func (c bigSegmentsConfigurationImpl) GetStaleAfter() time.Duration { return c.s
 // options other than the data store itself.
 type BigSegmentsConfigurationBuilder struct {
 	storeFactory interfaces.BigSegmentStoreFactory
-	config       bigSegmentsConfigurationImpl
+	config       ldstoreimpl.BigSegmentsConfigurationProperties
 }
 
 // BigSegments returns a configuration builder for the SDK's big segments feature.
@@ -92,11 +71,11 @@ type BigSegmentsConfigurationBuilder struct {
 func BigSegments(storeFactory interfaces.BigSegmentStoreFactory) *BigSegmentsConfigurationBuilder {
 	return &BigSegmentsConfigurationBuilder{
 		storeFactory: storeFactory,
-		config: bigSegmentsConfigurationImpl{
-			userCacheSize:      DefaultBigSegmentsUserCacheSize,
-			userCacheTime:      DefaultBigSegmentsUserCacheTime,
-			statusPollInterval: DefaultBigSegmentsStatusPollInterval,
-			staleAfter:         DefaultBigSegmentsStaleAfter,
+		config: ldstoreimpl.BigSegmentsConfigurationProperties{
+			UserCacheSize:      DefaultBigSegmentsUserCacheSize,
+			UserCacheTime:      DefaultBigSegmentsUserCacheTime,
+			StatusPollInterval: DefaultBigSegmentsStatusPollInterval,
+			StaleAfter:         DefaultBigSegmentsStaleAfter,
 		},
 	}
 }
@@ -117,7 +96,7 @@ func BigSegments(storeFactory interfaces.BigSegmentStoreFactory) *BigSegmentsCon
 func (b *BigSegmentsConfigurationBuilder) UserCacheSize(
 	userCacheSize int,
 ) *BigSegmentsConfigurationBuilder {
-	b.config.userCacheSize = userCacheSize
+	b.config.UserCacheSize = userCacheSize
 	return b
 }
 
@@ -130,7 +109,7 @@ func (b *BigSegmentsConfigurationBuilder) UserCacheSize(
 func (b *BigSegmentsConfigurationBuilder) UserCacheTime(
 	userCacheTime time.Duration,
 ) *BigSegmentsConfigurationBuilder {
-	b.config.userCacheTime = userCacheTime
+	b.config.UserCacheTime = userCacheTime
 	return b
 }
 
@@ -143,7 +122,7 @@ func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
 	if statusPollInterval <= 0 {
 		statusPollInterval = DefaultBigSegmentsStatusPollInterval
 	}
-	b.config.statusPollInterval = statusPollInterval
+	b.config.StatusPollInterval = statusPollInterval
 	return b
 }
 
@@ -162,7 +141,7 @@ func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
 func (b *BigSegmentsConfigurationBuilder) StaleAfter(
 	staleAfter time.Duration,
 ) *BigSegmentsConfigurationBuilder {
-	b.config.staleAfter = staleAfter
+	b.config.StaleAfter = staleAfter
 	return b
 }
 
@@ -176,7 +155,7 @@ func (b *BigSegmentsConfigurationBuilder) CreateBigSegmentsConfiguration(
 		if err != nil {
 			return nil, err
 		}
-		config.store = store
+		config.Store = store
 	}
 	return config, nil
 }

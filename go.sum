@@ -70,8 +70,8 @@ gopkg.in/launchdarkly/go-sdk-common.v2 v2.4.0 h1:uA7it+cSIDIF4AhLoaLvQ5h9TxvSSVm
 gopkg.in/launchdarkly/go-sdk-common.v2 v2.4.0/go.mod h1:P2+C6CHteys+lEDd6298QszCsMhjdYrfzBd6dg//CHA=
 gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.1 h1:LfbZsHTPwjzhDbJ/IjYs0oc8rWcbyJM7nN+Ce4ZdUVM=
 gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.1/go.mod h1:UETsxDtKpoDGUrwliXl1L7OG68zjOO0aagDI8OnvDRw=
-gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.4.0 h1:813bQeHC2RA8Ed2lmdnAzk4LHxEmvRkGSQ3WPAi4kMs=
-gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.4.0/go.mod h1:qzksXz/FZFSgeL5QaJVotUXvZ1wEBFnRvWyPf+DxZqs=
+gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.4.1 h1:4v47KQovSlRem1mJqMcloqaLGlkpKnniswdtWdnC8I0=
+gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.4.1/go.mod h1:qzksXz/FZFSgeL5QaJVotUXvZ1wEBFnRvWyPf+DxZqs=
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v2 v2.2.8/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v2 v2.3.0 h1:clyUAQHOM3G0M3f5vQj7LuJrETvjVot3Z5el9nffUtU=
