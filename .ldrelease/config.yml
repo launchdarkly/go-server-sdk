@@ -1,16 +1,23 @@
+version: 2
+
 repo:
   public: go-server-sdk
   private: go-server-sdk-private
 
-releasableBranches:
+branches:
   - name: v5
   - name: v4
 
-template:
-  name: go
+jobs:
+  - docker:
+      image: golang:1.14-buster
+    template:
+      name: go
+    env:
+      LD_RELEASE_GO_IMPORT_PATH: gopkg.in/launchdarkly/go-server-sdk.v5
 
 publications:
-  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk
+  - url: https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5
     description: documentation
 
 sdk:
