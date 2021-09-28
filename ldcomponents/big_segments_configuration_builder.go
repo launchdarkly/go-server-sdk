@@ -23,9 +23,9 @@ const DefaultBigSegmentsStatusPollInterval = time.Second * 5
 // BigSegmentsConfigurationBuilder.StaleAfter.
 const DefaultBigSegmentsStaleAfter = time.Second * 120
 
-// BigSegmentsConfigurationBuilder contains methods for configuring the SDK's big segments behavior.
+// BigSegmentsConfigurationBuilder contains methods for configuring the SDK's Big Segments behavior.
 //
-// "Big segments" are a specific type of user segments. For more information, read the LaunchDarkly
+// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 //
 // If you want to set non-default values for any of these properties, create a builder with
@@ -45,9 +45,9 @@ type BigSegmentsConfigurationBuilder struct {
 	config       ldstoreimpl.BigSegmentsConfigurationProperties
 }
 
-// BigSegments returns a configuration builder for the SDK's big segments feature.
+// BigSegments returns a configuration builder for the SDK's Big Segments feature.
 //
-// "Big segments" are a specific type of user segments. For more information, read the LaunchDarkly
+// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 //
 // After configuring this object, store it in the BigSegments field of your SDK configuration. For
@@ -66,7 +66,7 @@ type BigSegmentsConfigurationBuilder struct {
 // Redis integration, whereas UserCacheSize() is an option that can be used for any data store type.
 //
 // If you do not set Config.BigSegments-- or if you pass a nil storeFactory to this function-- the
-// big segments feature will be disabled, and any feature flags that reference a big segment will
+// Big Segments feature will be disabled, and any feature flags that reference a Big Segment will
 // behave as if the user was not included in the segment.
 func BigSegments(storeFactory interfaces.BigSegmentStoreFactory) *BigSegmentsConfigurationBuilder {
 	return &BigSegmentsConfigurationBuilder{
@@ -80,15 +80,15 @@ func BigSegments(storeFactory interfaces.BigSegmentStoreFactory) *BigSegmentsCon
 	}
 }
 
-// UserCacheSize sets the maximum number of users whose big segment state will be cached by the SDK
+// UserCacheSize sets the maximum number of users whose Big Segment state will be cached by the SDK
 // at any given time. The default value is DefaultBigSegmentsUserCacheSize.
 //
 // To reduce database traffic, the SDK maintains a least-recently-used cache by user key. When a feature
-// flag that references a big segment is evaluated for some user who is not currently in the cache, the
-// SDK queries the database for all big segment memberships of that user, and stores them together in a
+// flag that references a Big Segment is evaluated for some user who is not currently in the cache, the
+// SDK queries the database for all Big Segment memberships of that user, and stores them together in a
 // single cache entry. If the cache is full, the oldest entry is dropped.
 //
-// A higher value for UserCacheSize means that database queries for big segments will be done less often
+// A higher value for UserCacheSize means that database queries for Big Segments will be done less often
 // for recently-referenced users, if the application has many users, at the cost of increased memory
 // used by the cache.
 //
@@ -100,11 +100,11 @@ func (b *BigSegmentsConfigurationBuilder) UserCacheSize(
 	return b
 }
 
-// UserCacheTime sets the maximum length of time that the big segment state for a user will be cached
+// UserCacheTime sets the maximum length of time that the Big Segment state for a user will be cached
 // by the SDK. The default value is DefaultBigSegmentsUserCacheTime.
 //
 // See UserCacheSize for more about this cache. A higher value for UserCacheTime means that database queries
-// for the big segment state of any given user will be done less often, but that changes to segment
+// for the Big Segment state of any given user will be done less often, but that changes to segment
 // membership may not be detected as soon.
 func (b *BigSegmentsConfigurationBuilder) UserCacheTime(
 	userCacheTime time.Duration,
@@ -113,7 +113,7 @@ func (b *BigSegmentsConfigurationBuilder) UserCacheTime(
 	return b
 }
 
-// StatusPollInterval sets the interval at which the SDK will poll the big segment store to make sure
+// StatusPollInterval sets the interval at which the SDK will poll the Big Segment store to make sure
 // it is available and to determine how long ago it was updated. The default value is
 // DefaultBigSegmentsStatusPollInterval.
 func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
@@ -126,17 +126,17 @@ func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
 	return b
 }
 
-// StaleAfter sets the maximum length of time between updates of the big segments data before the data
+// StaleAfter sets the maximum length of time between updates of the Big Segments data before the data
 // is considered out of date. The default value is DefaultBigSegmentsStaleAfter.
 //
-// Normally, the LaunchDarkly Relay Proxy updates a timestamp in the big segments store at intervals to
+// Normally, the LaunchDarkly Relay Proxy updates a timestamp in the Big Segments store at intervals to
 // confirm that it is still in sync with the LaunchDarkly data, even if there have been no changes to the
 // data. If the timestamp falls behind the current time by the amount specified in StaleAfter, the SDK
 // assumes that something is not working correctly in this process and that the data may not be accurate.
 //
 // While in a stale state, the SDK will still continue using the last known data,
 // but LDClient.GetBigSegmentsStoreStatusProvider().GetStatus() will return true in its Stale property,
-// and any ldreason.EvaluationReason generated from a feature flag that references a big segment will
+// and any ldreason.EvaluationReason generated from a feature flag that references a Big Segment will
 // have an BigSegmentsStatus of ldreason.BigSegmentsStale.
 func (b *BigSegmentsConfigurationBuilder) StaleAfter(
 	staleAfter time.Duration,

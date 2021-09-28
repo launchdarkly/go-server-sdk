@@ -780,10 +780,10 @@ func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
 }
 
-// GetBigSegmentStoreStatusProvider returns an interface for tracking the status of a big
-// segment store.
+// GetBigSegmentStoreStatusProvider returns an interface for tracking the status of a Big
+// Segment store.
 //
-// The BigSegmentStoreStatusProvider has methods for checking whether the big segment store
+// The BigSegmentStoreStatusProvider has methods for checking whether the Big Segment store
 // is (as far as the SDK knows) currently operational and tracking changes in this status.
 //
 // See the BigSegmentStoreStatusProvider interface for more about this functionality.

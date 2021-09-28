@@ -9,7 +9,7 @@ import (
 // BigSegmentStoreManager, which exposes the methods that other SDK components need to access the store.
 //
 // We always create this component regardless of whether there really is a store. If there is no store (so
-// there is no BigSegmentStoreManager) then we won't actually be doing any big segments stuff, or sending
+// there is no BigSegmentStoreManager) then we won't actually be doing any Big Segments stuff, or sending
 // any status updates, but this API object still exists so your app won't crash if you try to use
 // GetStatus or AddStatusListener.
 type bigSegmentStoreStatusProviderImpl struct {
@@ -18,7 +18,7 @@ type bigSegmentStoreStatusProviderImpl struct {
 }
 
 // NewBigSegmentStoreStatusProviderImpl creates the internal implementation of
-// BigSegmentStoreStatusProvider. The manager parameter can be nil if there is no big segment store.
+// BigSegmentStoreStatusProvider. The manager parameter can be nil if there is no Big Segment store.
 func NewBigSegmentStoreStatusProviderImpl(
 	getStatusFn func() interfaces.BigSegmentStoreStatus,
 	broadcaster *internal.BigSegmentStoreStatusBroadcaster,
