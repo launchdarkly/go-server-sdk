@@ -14,22 +14,22 @@ type LoggingConfigurationImpl struct {
 	Loggers                         ldlog.Loggers
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (c LoggingConfigurationImpl) GetLogDataSourceOutageAsErrorAfter() time.Duration {
 	return c.LogDataSourceOutageAsErrorAfter
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (c LoggingConfigurationImpl) IsLogEvaluationErrors() bool {
 	return c.LogEvaluationErrors
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (c LoggingConfigurationImpl) IsLogUserKeyInErrors() bool {
 	return c.LogUserKeyInErrors
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (c LoggingConfigurationImpl) GetLoggers() ldlog.Loggers {
 	return c.Loggers
 }

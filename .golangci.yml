@@ -18,18 +18,17 @@ linters:
     - godox
     - gofmt
     - goimports
-    - golint
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - lll
     - megacheck
     - misspell
     - nakedret
     - nolintlint
     - prealloc
+    - revive
     - staticcheck
     - structcheck
     - stylecheck
