@@ -16,7 +16,7 @@ type SingleBigSegmentStoreFactory struct {
 	Store *MockBigSegmentStore
 }
 
-func (f SingleBigSegmentStoreFactory) CreateBigSegmentStore(interfaces.ClientContext) ( //nolint:golint
+func (f SingleBigSegmentStoreFactory) CreateBigSegmentStore(interfaces.ClientContext) ( //nolint:revive
 	interfaces.BigSegmentStore, error) {
 	return f.Store, nil
 }
@@ -33,11 +33,11 @@ type MockBigSegmentStore struct {
 	lock              sync.Mutex
 }
 
-func (m *MockBigSegmentStore) Close() error { //nolint:golint
+func (m *MockBigSegmentStore) Close() error { //nolint:revive
 	return nil
 }
 
-func (m *MockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) { //nolint:golint
+func (m *MockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) { //nolint:revive
 	m.lock.Lock()
 	md, err := m.metadata, m.metadataErr
 	if m.metadataQueries != nil {
@@ -47,7 +47,7 @@ func (m *MockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata,
 	return md, err
 }
 
-func (m *MockBigSegmentStore) TestSetMetadataState( //nolint:golint
+func (m *MockBigSegmentStore) TestSetMetadataState( //nolint:revive
 	md interfaces.BigSegmentStoreMetadata,
 	err error,
 ) {
@@ -56,11 +56,11 @@ func (m *MockBigSegmentStore) TestSetMetadataState( //nolint:golint
 	m.lock.Unlock()
 }
 
-func (m *MockBigSegmentStore) TestSetMetadataToCurrentTime() { //nolint:golint
+func (m *MockBigSegmentStore) TestSetMetadataToCurrentTime() { //nolint:revive
 	m.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisNow()}, nil)
 }
 
-func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nolint:golint
+func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nolint:revive
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.metadataQueries == nil {
@@ -69,7 +69,7 @@ func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nol
 	return m.metadataQueries
 }
 
-func (m *MockBigSegmentStore) GetUserMembership( //nolint:golint
+func (m *MockBigSegmentStore) GetUserMembership( //nolint:revive
 	userHash string,
 ) (interfaces.BigSegmentMembership, error) {
 	m.lock.Lock()
@@ -81,7 +81,7 @@ func (m *MockBigSegmentStore) GetUserMembership( //nolint:golint
 	return m.memberships[userHash], nil
 }
 
-func (m *MockBigSegmentStore) TestSetMembership( //nolint:golint
+func (m *MockBigSegmentStore) TestSetMembership( //nolint:revive
 	userHash string,
 	membership interfaces.BigSegmentMembership,
 ) {
@@ -93,13 +93,13 @@ func (m *MockBigSegmentStore) TestSetMembership( //nolint:golint
 	m.memberships[userHash] = membership
 }
 
-func (m *MockBigSegmentStore) TestSetMembershipError(err error) { //nolint:golint
+func (m *MockBigSegmentStore) TestSetMembershipError(err error) { //nolint:revive
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.membershipErr = err
 }
 
-func (m *MockBigSegmentStore) TestGetMembershipQueries() []string { //nolint:golint
+func (m *MockBigSegmentStore) TestGetMembershipQueries() []string { //nolint:revive
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	return append([]string(nil), m.membershipQueries...)

@@ -37,22 +37,22 @@ type BigSegmentsConfigurationProperties struct {
 	StartPolling bool
 }
 
-func (p BigSegmentsConfigurationProperties) GetStore() interfaces.BigSegmentStore { //nolint:golint
+func (p BigSegmentsConfigurationProperties) GetStore() interfaces.BigSegmentStore { //nolint:revive
 	return p.Store
 }
 
-func (p BigSegmentsConfigurationProperties) GetUserCacheSize() int { //nolint:golint
+func (p BigSegmentsConfigurationProperties) GetUserCacheSize() int { //nolint:revive
 	return p.UserCacheSize
 }
 
-func (p BigSegmentsConfigurationProperties) GetUserCacheTime() time.Duration { //nolint:golint
+func (p BigSegmentsConfigurationProperties) GetUserCacheTime() time.Duration { //nolint:revive
 	return p.UserCacheTime
 }
 
-func (p BigSegmentsConfigurationProperties) GetStatusPollInterval() time.Duration { //nolint:golint
+func (p BigSegmentsConfigurationProperties) GetStatusPollInterval() time.Duration { //nolint:revive
 	return p.StatusPollInterval
 }
 
-func (p BigSegmentsConfigurationProperties) GetStaleAfter() time.Duration { //nolint:golint
+func (p BigSegmentsConfigurationProperties) GetStaleAfter() time.Duration { //nolint:revive
 	return p.StaleAfter
 }

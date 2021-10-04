@@ -57,7 +57,7 @@ func newPollingProcessor(
 	return pp
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
@@ -140,7 +140,7 @@ func (pp *PollingProcessor) poll() error {
 	return nil
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) Close() error {
 	pp.closeOnce.Do(func() {
 		close(pp.quit)
@@ -148,7 +148,7 @@ func (pp *PollingProcessor) Close() error {
 	return nil
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) IsInitialized() bool {
 	return pp.isInitialized
 }
