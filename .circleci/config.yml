@@ -17,10 +17,6 @@ workflows:
       - go-test:
           name: Go 1.14
           docker-image: cimg/go:1.14
-      - go-non-module-test:
-          filters:
-            branches:
-              only: v5
       - go-test-windows:
           name: Windows
       - benchmarks
@@ -89,14 +85,6 @@ jobs:
       - store_artifacts:
           path: /tmp/circle-artifacts
 
-  go-non-module-test:
-    docker:
-      - image: cimg/go:1.14
-
-    steps:
-      - checkout
-      - run: ./scripts/test-non-module-build.sh
-        
   go-test-windows:
     executor:
       name: win/default
