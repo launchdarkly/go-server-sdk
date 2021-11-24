@@ -157,6 +157,37 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("Custom header set/get", func(t *testing.T) {
+		c, err := HTTPConfiguration().
+			Header("Custom-Header", "foo").
+			CreateHTTPConfiguration(basicConfig)
+		require.NoError(t, err)
+		headers := c.GetDefaultHeaders()
+		assert.Equal(t, "foo", headers.Get("Custom-Header"))
+	})
+
+	t.Run("Repeat assignments of custom header take latest value", func(t *testing.T) {
+		c, err := HTTPConfiguration().
+			Header("Custom-Header", "foo").
+			Header("Custom-Header", "bar").
+			Header("Custom-Header", "baz").
+			CreateHTTPConfiguration(basicConfig)
+		require.NoError(t, err)
+		headers := c.GetDefaultHeaders()
+		assert.Equal(t, "baz", headers.Get("Custom-Header"))
+	})
+
+	t.Run("Custom header values overwrite required headers", func(t *testing.T) {
+		c, err := HTTPConfiguration().
+			Header("User-Agent", "foo").
+			Header("Authorization", "bar").
+			CreateHTTPConfiguration(basicConfig)
+		require.NoError(t, err)
+		headers := c.GetDefaultHeaders()
+		assert.Equal(t, "foo", headers.Get("User-Agent"))
+		assert.Equal(t, "bar", headers.Get("Authorization"))
+	})
+
 	t.Run("User-Agent", func(t *testing.T) {
 		c, err := HTTPConfiguration().
 			UserAgent("extra").
