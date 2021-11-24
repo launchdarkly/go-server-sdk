@@ -10,17 +10,15 @@ import (
 	"testing"
 	"time"
 
-	helpers "github.com/launchdarkly/go-test-helpers/v2"
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
-	"github.com/stretchr/testify/require"
-
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	helpers "github.com/launchdarkly/go-test-helpers/v2"
+	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPConfigurationBuilder(t *testing.T) {
@@ -128,24 +126,50 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 	})
 
 	t.Run("ProxyURL", func(t *testing.T) {
-		proxyURL := "https://fake-proxy"
-		parsedURL, err := url.Parse(proxyURL)
-		require.NoError(t, err)
+		// Create a fake proxy server - really it's just an embedded HTTP server that always
+		// returns a 200 status, but the Go HTTP client doesn't know the difference. Seeing
+		// a request arrive at our server, with an absolute URL of http://example/ - instead
+		// of the request actually going to http://example/ - proves that the proxy setting
+		// was respected.
+		fakeTargetURL := "http://example/"
+		handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(200))
 
-		c, err := HTTPConfiguration().
-			ProxyURL(proxyURL).
-			CreateHTTPConfiguration(basicConfig)
-		require.NoError(t, err)
+		httphelpers.WithServer(handler, func(server *httptest.Server) {
+			c, err := HTTPConfiguration().
+				ProxyURL(server.URL).
+				CreateHTTPConfiguration(basicConfig)
+			require.NoError(t, err)
 
-		client := c.CreateHTTPClient()
+			client := c.CreateHTTPClient()
+			resp, err := client.Get(fakeTargetURL)
+			require.NoError(t, err)
+			assert.Equal(t, 200, resp.StatusCode)
 
-		require.NotNil(t, client.Transport)
-		transport := client.Transport.(*http.Transport)
-		require.NotNil(t, transport)
-		require.NotNil(t, transport.Proxy)
-		urlOut, err := transport.Proxy(&http.Request{})
-		require.NoError(t, err)
-		assert.Equal(t, parsedURL, urlOut)
+			r := <-requestsCh
+			assert.Equal(t, fakeTargetURL, r.Request.RequestURI)
+		})
+	})
+
+	t.Run("ProxyURL with basicauth", func(t *testing.T) {
+		// See comment in previous test
+		fakeTargetURL := "http://example/"
+		handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(200))
+
+		httphelpers.WithServer(handler, func(server *httptest.Server) {
+			parsedURL, _ := url.Parse(server.URL)
+			urlWithCredentials := "http://lucy:cat@" + parsedURL.Host
+			c, err := HTTPConfiguration().
+				ProxyURL(urlWithCredentials).
+				CreateHTTPConfiguration(basicConfig)
+			require.NoError(t, err)
+			client := c.CreateHTTPClient()
+			resp, err := client.Get(fakeTargetURL)
+			require.NoError(t, err)
+			assert.Equal(t, 200, resp.StatusCode)
+			r := <-requestsCh
+			assert.Equal(t, fakeTargetURL, r.Request.RequestURI)
+			assert.Equal(t, "Basic bHVjeTpjYXQ=", r.Request.Header.Get("Proxy-Authorization"))
+		})
 	})
 
 	t.Run("ProxyURL with invalid URL", func(t *testing.T) {
