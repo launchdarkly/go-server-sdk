@@ -652,16 +652,19 @@ func TestEvalErrorIfStoreHasNonFlagObject(t *testing.T) {
 
 func TestUnknownFlagErrorLogging(t *testing.T) {
 	testEvalErrorLogging(t, nil, "unknown-flag", evalTestUser,
+		"",
 		"unknown feature key: unknown-flag\\. Verify that this feature key exists\\. Returning default value")
 }
 
 func TestMalformedFlagErrorLogging(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("bad-flag").On(false).OffVariation(99).Build()
 	testEvalErrorLogging(t, &flag, "", evalTestUser,
+		`Invalid flag configuration.*"bad-flag".*nonexistent variation index 99`,
 		"Flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
-func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User, expectedMessageRegex string) {
+func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User,
+	expectedErrorRegex, expectedWarningRegex string) {
 	runTest := func(withLogging bool) {
 		mockLoggers := ldlogtest.NewMockLog()
 		testData := ldtestdata.DataSource()
@@ -677,11 +680,19 @@ func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, u
 
 		value, _ := client.StringVariation(key, user, "default")
 		assert.Equal(t, "default", value)
-		if withLogging {
-			require.Len(t, mockLoggers.GetAllOutput(), 1)
-			assert.Regexp(t, expectedMessageRegex, mockLoggers.GetOutput(ldlog.Warn)[0])
+
+		if expectedErrorRegex == "" {
+			require.Len(t, mockLoggers.GetOutput(ldlog.Error), 0)
 		} else {
-			assert.Len(t, mockLoggers.GetAllOutput(), 0)
+			require.Len(t, mockLoggers.GetOutput(ldlog.Error), 1)
+			assert.Regexp(t, expectedErrorRegex, mockLoggers.GetOutput(ldlog.Error)[0])
+		}
+
+		if withLogging {
+			require.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
+			assert.Regexp(t, expectedWarningRegex, mockLoggers.GetOutput(ldlog.Warn)[0])
+		} else {
+			assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 0)
 		}
 	}
 	runTest(false)
