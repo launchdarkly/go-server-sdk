@@ -224,11 +224,13 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
-	if client.bigSegmentStoreWrapper == nil {
-		client.evaluator = ldeval.NewEvaluator(dataProvider)
-	} else {
-		client.evaluator = ldeval.NewEvaluatorWithBigSegments(dataProvider, client.bigSegmentStoreWrapper)
+	evalOptions := []ldeval.EvaluatorOption{
+		ldeval.EvaluatorOptionErrorLogger(client.loggers.ForLevel(ldlog.Error)),
 	}
+	if client.bigSegmentStoreWrapper != nil {
+		evalOptions = append(evalOptions, ldeval.EvaluatorOptionBigSegmentProvider(client.bigSegmentStoreWrapper))
+	}
+	client.evaluator = ldeval.NewEvaluatorWithOptions(dataProvider, evalOptions...)
 
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
