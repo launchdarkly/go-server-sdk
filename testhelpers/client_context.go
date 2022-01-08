@@ -26,11 +26,11 @@ func NewSimpleClientContext(sdkKey string) SimpleClientContext {
 	return SimpleClientContext{sdkKey: sdkKey}
 }
 
-func (s SimpleClientContext) GetBasic() interfaces.BasicConfiguration { //nolint:golint
+func (s SimpleClientContext) GetBasic() interfaces.BasicConfiguration { //nolint:revive
 	return interfaces.BasicConfiguration{SDKKey: s.sdkKey, Offline: false}
 }
 
-func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:golint
+func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:revive
 	if s.http != nil {
 		return s.http
 	}
@@ -38,7 +38,7 @@ func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:g
 	return c
 }
 
-func (s SimpleClientContext) GetLogging() interfaces.LoggingConfiguration { //nolint:golint
+func (s SimpleClientContext) GetLogging() interfaces.LoggingConfiguration { //nolint:revive
 	if s.logging != nil {
 		return s.logging
 	}

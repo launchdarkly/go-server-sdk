@@ -8,14 +8,14 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
-// BigSegmentsConfiguration encapsulates the SDK's configuration with regard to big segments.
+// BigSegmentsConfiguration encapsulates the SDK's configuration with regard to Big Segments.
 //
-// "Big segments" are a specific type of user segments. For more information, read the LaunchDarkly
+// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 //
 // See ldcomponents.BigSegmentsConfigurationBuilder for more details on these properties.
 type BigSegmentsConfiguration interface {
-	// GetStore returns the data store instance that is used for big segments data.
+	// GetStore returns the data store instance that is used for Big Segments data.
 	GetStore() BigSegmentStore
 
 	// GetUserCacheSize returns the value set by BigSegmentsConfigurationBuilder.CacheSize.
@@ -49,9 +49,9 @@ type BigSegmentStoreFactory interface {
 }
 
 // BigSegmentStore is an interface for a read-only data store that allows querying of user
-// membership in big segments.
+// membership in Big Segments.
 //
-// "Big segments" are a specific type of user segments. For more information, read the LaunchDarkly
+// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 type BigSegmentStore interface {
 	io.Closer
@@ -62,7 +62,7 @@ type BigSegmentStore interface {
 
 	// GetUserMembership queries the store for a snapshot of the current segment state for a specific
 	// user. The userHash is a base64-encoded string produced by hashing the user key as defined by
-	// the big segments specification; the store implementation does not need to know the details
+	// the Big Segments specification; the store implementation does not need to know the details
 	// of how this is done, because it deals only with already-hashed keys, but the string can be
 	// assumed to only contain characters that are valid in base64.
 	GetUserMembership(userHash string) (BigSegmentMembership, error)
@@ -77,7 +77,7 @@ type BigSegmentStoreMetadata struct {
 
 // BigSegmentMembership is the return type of BigSegmentStore.GetUserMembership(). It is associated
 // with a single user, and provides the ability to check whether that user is included in or
-// excluded from any number of big segments.
+// excluded from any number of Big Segments.
 //
 // This is an immutable snapshot of the state for this user at the time GetBigSegmentMembership
 // was called. Calling CheckMembership should not cause the state to be queried again. The object

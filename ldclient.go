@@ -224,11 +224,13 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
-	if client.bigSegmentStoreWrapper == nil {
-		client.evaluator = ldeval.NewEvaluator(dataProvider)
-	} else {
-		client.evaluator = ldeval.NewEvaluatorWithBigSegments(dataProvider, client.bigSegmentStoreWrapper)
+	evalOptions := []ldeval.EvaluatorOption{
+		ldeval.EvaluatorOptionErrorLogger(client.loggers.ForLevel(ldlog.Error)),
 	}
+	if client.bigSegmentStoreWrapper != nil {
+		evalOptions = append(evalOptions, ldeval.EvaluatorOptionBigSegmentProvider(client.bigSegmentStoreWrapper))
+	}
+	client.evaluator = ldeval.NewEvaluatorWithOptions(dataProvider, evalOptions...)
 
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
@@ -780,10 +782,10 @@ func (client *LDClient) GetFlagTracker() interfaces.FlagTracker {
 	return client.flagTracker
 }
 
-// GetBigSegmentStoreStatusProvider returns an interface for tracking the status of a big
-// segment store.
+// GetBigSegmentStoreStatusProvider returns an interface for tracking the status of a Big
+// Segment store.
 //
-// The BigSegmentStoreStatusProvider has methods for checking whether the big segment store
+// The BigSegmentStoreStatusProvider has methods for checking whether the Big Segment store
 // is (as far as the SDK knows) currently operational and tracking changes in this status.
 //
 // See the BigSegmentStoreStatusProvider interface for more about this functionality.

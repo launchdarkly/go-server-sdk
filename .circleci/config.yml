@@ -7,17 +7,19 @@ workflows:
   workflow:
     jobs:
       - go-test:
-          name: Go 1.15
-          docker-image: cimg/go:1.15
+          name: Go 1.17
+          docker-image: cimg/go:1.17
           run-lint: true
           with-coverage: true
       - go-test:
+          name: Go 1.16
+          docker-image: cimg/go:1.16
+      - go-test:
+          name: Go 1.15
+          docker-image: cimg/go:1.15
+      - go-test:
           name: Go 1.14
           docker-image: cimg/go:1.14
-      - go-non-module-test:
-          filters:
-            branches:
-              only: v5
       - go-test-windows:
           name: Windows
       - benchmarks
@@ -86,14 +88,6 @@ jobs:
       - store_artifacts:
           path: /tmp/circle-artifacts
 
-  go-non-module-test:
-    docker:
-      - image: cimg/go:1.14
-
-    steps:
-      - checkout
-      - run: ./scripts/test-non-module-build.sh
-        
   go-test-windows:
     executor:
       name: win/default

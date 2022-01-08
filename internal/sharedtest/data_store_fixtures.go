@@ -8,7 +8,7 @@ type SingleDataStoreFactory struct {
 	Instance interfaces.DataStore
 }
 
-func (f SingleDataStoreFactory) CreateDataStore( //nolint:golint
+func (f SingleDataStoreFactory) CreateDataStore( //nolint:revive
 	context interfaces.ClientContext,
 	dataStoreUpdates interfaces.DataStoreUpdates,
 ) (interfaces.DataStore, error) {
@@ -22,7 +22,7 @@ type DataStoreFactoryThatExposesUpdater struct {
 	DataStoreUpdates  interfaces.DataStoreUpdates
 }
 
-func (f *DataStoreFactoryThatExposesUpdater) CreateDataStore( //nolint:golint
+func (f *DataStoreFactoryThatExposesUpdater) CreateDataStore( //nolint:revive
 	context interfaces.ClientContext,
 	dataStoreUpdates interfaces.DataStoreUpdates,
 ) (interfaces.DataStore, error) {
@@ -36,7 +36,7 @@ type SinglePersistentDataStoreFactory struct {
 	Instance interfaces.PersistentDataStore
 }
 
-func (f SinglePersistentDataStoreFactory) CreatePersistentDataStore( //nolint:golint
+func (f SinglePersistentDataStoreFactory) CreatePersistentDataStore( //nolint:revive
 	context interfaces.ClientContext,
 ) (interfaces.PersistentDataStore, error) {
 	return f.Instance, nil

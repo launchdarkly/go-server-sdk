@@ -35,8 +35,6 @@ To run the linter:
 make lint
 ```
 
-If you add any new dependencies to the SDK, use `dep ensure` to ensure that they are copied to `vendor/`.
-
 ### Testing
 
 To build the SDK and run all unit tests:

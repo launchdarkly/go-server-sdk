@@ -103,12 +103,12 @@ func NewStreamProcessor(
 	return sp
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) IsInitialized() bool {
 	return sp.isInitialized
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
 	if sp.dataSourceUpdates.GetDataStoreStatusProvider().IsStatusMonitoringEnabled() {
@@ -357,7 +357,7 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 	}
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		close(sp.halt)

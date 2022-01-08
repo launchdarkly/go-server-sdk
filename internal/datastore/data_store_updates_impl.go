@@ -10,7 +10,7 @@ import (
 // DataStoreUpdatesImpl is the internal implementation of DataStoreUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataStoreUpdatesImpl struct { //nolint:golint // yes, we know the package name resembles the type name
+type DataStoreUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
 	lastStatus  interfaces.DataStoreStatus
 	broadcaster *internal.DataStoreStatusBroadcaster
 	lock        sync.Mutex

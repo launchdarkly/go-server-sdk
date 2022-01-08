@@ -21,9 +21,9 @@ import (
 //
 // This component is exposed in the SDK's public API because it needs to be used by the LaunchDarkly
 // Relay Proxy as well (or any other component that is calling the evaluation engine in
-// go-server-sdk-evaluation directly and needs to provide the same big segment functionality as the
+// go-server-sdk-evaluation directly and needs to provide the same Big Segment functionality as the
 // SDK). It implements the BigSegmentProvider interface that go-server-sdk-evaluation uses to query
-// big segments (similar to how ldstoreimpl.NewDataStoreEvaluatorDataProvider provides an
+// Big Segments (similar to how ldstoreimpl.NewDataStoreEvaluatorDataProvider provides an
 // implementation of the DataProvider interface). It is also responsible for caching membership
 // queries and polling the store's metadata to make sure it is not stale.
 //
@@ -121,7 +121,7 @@ func (w *BigSegmentStoreWrapper) Close() {
 	_ = w.store.Close()
 }
 
-// GetUserMembership is called by the evaluator when it needs to get the big segment membership
+// GetUserMembership is called by the evaluator when it needs to get the Big Segment membership
 // state for a user.
 //
 // If there is a cached membership state for the user, it returns the cached state. Otherwise,
@@ -139,11 +139,11 @@ func (w *BigSegmentStoreWrapper) GetUserMembership(
 		// requesting it
 		value, err, _ := w.requests.Do(userKey, func() (interface{}, error) {
 			hash := bigsegments.HashForUserKey(userKey)
-			w.loggers.Debugf("querying big segment state for user hash %q", hash)
+			w.loggers.Debugf("querying Big Segment state for user hash %q", hash)
 			return w.store.GetUserMembership(hash)
 		})
 		if err != nil {
-			w.loggers.Errorf("big segment store returned error: %s", err)
+			w.loggers.Errorf("Big Segment store returned error: %s", err)
 			return nil, ldreason.BigSegmentsStoreError
 		}
 		if value == nil {
@@ -180,7 +180,7 @@ func (w *BigSegmentStoreWrapper) GetUserMembership(
 //
 // If we have not yet obtained that information (the poll task has not executed yet), then this method
 // immediately does a metadata query and waits for it to succeed or fail. This means that if an
-// application using big segments evaluates a feature flag immediately after creating the SDK
+// application using Big Segments evaluates a feature flag immediately after creating the SDK
 // client, before the first status poll has happened, that evaluation may block for however long it
 // takes to query the store.
 func (w *BigSegmentStoreWrapper) GetStatus() interfaces.BigSegmentStoreStatus {
@@ -196,7 +196,7 @@ func (w *BigSegmentStoreWrapper) GetStatus() interfaces.BigSegmentStoreStatus {
 	return w.pollStoreAndUpdateStatus()
 }
 
-// ClearCache invalidates the cache of per-user big segment state, so subsequent queries will get
+// ClearCache invalidates the cache of per-user Big Segment state, so subsequent queries will get
 // the latest data.
 //
 // This is used by the Relay Proxy, but is not currently used by the SDK otherwise.
@@ -230,16 +230,16 @@ func (w *BigSegmentStoreWrapper) SetPollingActive(active bool) {
 
 func (w *BigSegmentStoreWrapper) pollStoreAndUpdateStatus() interfaces.BigSegmentStoreStatus {
 	var newStatus interfaces.BigSegmentStoreStatus
-	w.loggers.Debug("querying big segment store metadata")
+	w.loggers.Debug("querying Big Segment store metadata")
 	metadata, err := w.store.GetMetadata()
 
 	w.lock.Lock()
 	if err == nil {
 		newStatus.Available = true
 		newStatus.Stale = w.isStale(metadata.LastUpToDate)
-		w.loggers.Debugf("big segment store was last updated at %d", metadata.LastUpToDate)
+		w.loggers.Debugf("Big Segment store was last updated at %d", metadata.LastUpToDate)
 	} else {
-		w.loggers.Errorf("big segment store status query returned error: %s", err)
+		w.loggers.Errorf("Big Segment store status query returned error: %s", err)
 		newStatus.Available = false
 	}
 	oldStatus := w.lastStatus
@@ -250,7 +250,7 @@ func (w *BigSegmentStoreWrapper) pollStoreAndUpdateStatus() interfaces.BigSegmen
 
 	if !hadStatus || (newStatus != oldStatus) {
 		w.loggers.Debugf(
-			"big segment store status has changed from %+v to %+v",
+			"Big Segment store status has changed from %+v to %+v",
 			oldStatus,
 			newStatus,
 		)

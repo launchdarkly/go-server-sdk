@@ -35,6 +35,7 @@ type HTTPConfigurationBuilder struct {
 	proxyURL          string
 	userAgent         string
 	wrapperIdentifier string
+	customHeaders     map[string]string
 }
 
 // HTTPConfiguration returns a configuration builder for the SDK's HTTP configuration.
@@ -47,6 +48,7 @@ type HTTPConfigurationBuilder struct {
 func HTTPConfiguration() *HTTPConfigurationBuilder {
 	return &HTTPConfigurationBuilder{
 		connectTimeout: DefaultConnectTimeout,
+		customHeaders:  make(map[string]string),
 	}
 }
 
@@ -104,8 +106,23 @@ func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *h
 //
 // If the string is not a valid URL, the LDClient constructor will return an error when you try to create
 // the client.
+//
+// To pass basic proxy credentials, use the format 'scheme://username:password@host:port'.
 func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL string) *HTTPConfigurationBuilder {
 	b.proxyURL = proxyURL
+	return b
+}
+
+// Header specifies a custom HTTP header that should be added to all requests. Repeated calls to Header with
+// the same key will overwrite previous entries.
+//
+// This may be helpful if you are using a gateway or proxy server that requires a specific header in
+// requests.
+//
+// Overwriting the User-Agent or Authorization headers is not recommended, as it can interfere with communication
+// to LaunchDarkly. To set a custom User Agent, see UserAgent.
+func (b *HTTPConfigurationBuilder) Header(key string, value string) *HTTPConfigurationBuilder {
+	b.customHeaders[key] = value
 	return b
 }
 
@@ -169,6 +186,12 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	headers.Set("User-Agent", userAgent)
 	if b.wrapperIdentifier != "" {
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
+	}
+
+	// For consistency with other SDKs, custom headers are allowed to overwrite headers such as
+	// User-Agent and Authorization.
+	for key, value := range b.customHeaders {
+		headers.Set(key, value)
 	}
 
 	transportOpts := b.httpOptions

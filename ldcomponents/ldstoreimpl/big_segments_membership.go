@@ -6,8 +6,8 @@ import (
 )
 
 // NewBigSegmentMembershipFromSegmentRefs creates a BigSegmentMembership based on the specified
-// lists of included and excluded segment references. This method is intended to be used by big
-// segment store implementations; application code does not need to use it.
+// lists of included and excluded segment references. This method is intended to be used by Big
+// Segment store implementations; application code does not need to use it.
 //
 // As described in interfaces.BigSegmentMembership, a segmentRef is not the same as the key
 // property in the segment data model; it includes the key but also versioning information that the

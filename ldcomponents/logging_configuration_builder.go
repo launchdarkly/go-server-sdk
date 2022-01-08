@@ -65,7 +65,9 @@ func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 
 // LogEvaluationErrors sets whether the client should log a warning message whenever a flag cannot be evaluated due
 // to an error (e.g. there is no flag with that key, or the user properties are invalid). By default, these messages
-// are not logged, although you can detect such errors programmatically using the VariationDetail methods.
+// are not logged, although you can detect such errors programmatically using the VariationDetail methods. The only
+// exception is that the SDK will always log any error involving invalid flag data, because such data should not be
+// possible and indicates that LaunchDarkly support assistance may be required.
 func (b *LoggingConfigurationBuilder) LogEvaluationErrors(logEvaluationErrors bool) *LoggingConfigurationBuilder {
 	b.config.LogEvaluationErrors = logEvaluationErrors
 	return b

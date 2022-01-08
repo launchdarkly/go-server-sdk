@@ -15,7 +15,7 @@ import (
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataSourceUpdatesImpl struct { //nolint:golint // yes, we know the package name resembles the type name
+type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
 	store                       intf.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
 	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
@@ -52,7 +52,7 @@ func NewDataSourceUpdatesImpl(
 	}
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Init(allData []st.Collection) bool {
 	var oldData map[st.DataKind]map[string]st.ItemDescriptor
 
@@ -88,7 +88,7 @@ func (d *DataSourceUpdatesImpl) Init(allData []st.Collection) bool {
 	return updated
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) Upsert(
 	kind st.DataKind,
 	key string,
@@ -138,7 +138,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateError(err error) bool {
 	return false
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) UpdateStatus(
 	newState intf.DataSourceState,
 	newError intf.DataSourceErrorInfo,
@@ -187,7 +187,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
 	return d.currentStatus, true
 }
 
-//nolint:golint,stylecheck // no doc comment for standard method
+//nolint:revive // no doc comment for standard method
 func (d *DataSourceUpdatesImpl) GetDataStoreStatusProvider() intf.DataStoreStatusProvider {
 	return d.dataStoreStatusProvider
 }

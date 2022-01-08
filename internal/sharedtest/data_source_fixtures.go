@@ -12,7 +12,7 @@ type DataSourceFactoryThatExposesUpdater struct {
 	DataSourceUpdates interfaces.DataSourceUpdates
 }
 
-func (f *DataSourceFactoryThatExposesUpdater) CreateDataSource( //nolint:golint
+func (f *DataSourceFactoryThatExposesUpdater) CreateDataSource( //nolint:revive
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
@@ -26,7 +26,7 @@ type DataSourceFactoryWithData struct {
 	Data []ldstoretypes.Collection
 }
 
-func (f DataSourceFactoryWithData) CreateDataSource( //nolint:golint
+func (f DataSourceFactoryWithData) CreateDataSource( //nolint:revive
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {

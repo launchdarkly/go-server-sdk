@@ -103,7 +103,7 @@ func TestEvalWithBigSegments(t *testing.T) {
 	})
 
 	t.Run("store not configured", func(t *testing.T) {
-		// deliberately not using a configuration with a big segment store here
+		// deliberately not using a configuration with a Big Segment store here
 		withClientEvalTestParams(func(p clientEvalTestParams) {
 			addBigSegmentAndFlag(p.data)
 
