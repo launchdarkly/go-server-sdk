@@ -2,6 +2,16 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.7.0] - 2022-01-07
+### Added:
+- `HTTPConfigurationBuilder.Header` allows adding custom HTTP headers to all of the SDK's requests.
+
+### Changed:
+- The SDK will now log a message at `Error` level whenever it detects flag data that should not be possible according to LaunchDarkly's validation rules (for instance, a rule that references a nonexistent variation index, or a circular reference in flag prerequisites). Previously, such messages were only logged at `Warn` level and only if `LoggingConfigurationBuilder.LogEvaluationErrors` was enabled; that is still the default behavior for other kinds of errors (such as "flag not found"), but malformed data is considered a more serious error because it should not be possible and may require assistance from LaunchDarkly support.
+
+### Fixed:
+- If the SDK detects a circular reference in flag prerequisites (for example, flag A has flag B as a prerequisite and vice versa), it will now refuse to evaluate the affected flags, returning the default value and an error reason of `MALFORMED_FLAG`. Previously, such a condition would cause infinite recursion and a stack overflow. LaunchDarkly does not allow circular references to be created in flag configurations, but under rare circumstances an SDK could incorrectly perceive such a state if it received updates out of order; or, the SDK could be configured to use data from a file that contained such references.
+
 ## [5.6.0] - 2021-08-20
 ### Added:
 - Added support for better handling of updates in the Relay Proxy when using big segments. The only API changes for this are in the `ldstoreimpl` package, which is not meant for regular application use but is used by the Relay Proxy.
