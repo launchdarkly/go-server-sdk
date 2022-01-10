@@ -10,6 +10,8 @@ import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
 
 	es "github.com/launchdarkly/eventsource"
 )
@@ -89,8 +91,8 @@ func NewStreamProcessor(
 		loggers:               context.GetLogging().GetLoggers(),
 		halt:                  make(chan struct{}),
 	}
-	if hdm, ok := context.(hasDiagnosticsManager); ok {
-		sp.diagnosticsManager = hdm.GetDiagnosticsManager()
+	if cci, ok := context.(*internal.ClientContextImpl); ok {
+		sp.diagnosticsManager = cci.DiagnosticsManager
 	}
 
 	sp.client = context.GetHTTP().CreateHTTPClient()
@@ -250,7 +252,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 }
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, _ := http.NewRequest("GET", sp.streamURI+"/all", nil)
+	req, _ := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
 	for k, vv := range sp.headers {
 		req.Header[k] = vv
 	}

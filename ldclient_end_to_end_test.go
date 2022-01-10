@@ -43,6 +43,30 @@ func assertNoMoreRequests(t *testing.T, requestsCh <-chan httphelpers.HTTPReques
 	assert.Equal(t, 0, len(requestsCh))
 }
 
+func TestDefaultDataSourceIsStreaming(t *testing.T) {
+	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
+	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+		defer logCapture.DumpIfTestFailed(t)
+
+		config := Config{
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
+	})
+}
+
 func TestClientStartsInStreamingMode(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
@@ -52,9 +76,9 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 		defer logCapture.DumpIfTestFailed(t)
 
 		config := Config{
-			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -81,9 +105,9 @@ func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
-			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -117,9 +141,9 @@ func TestClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
-			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -150,9 +174,10 @@ func TestClientStartsInPollingMode(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
-			DataSource: ldcomponents.PollingDataSource().BaseURI(pollServer.URL),
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSource:       ldcomponents.PollingDataSource(),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Polling: pollServer.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -179,9 +204,10 @@ func TestClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
-			DataSource: ldcomponents.PollingDataSource().BaseURI(pollServer.URL),
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSource:       ldcomponents.PollingDataSource(),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Polling: pollServer.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -215,10 +241,9 @@ func TestClientSendsEventWithoutDiagnostics(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
 
 			config := Config{
-				DataSource:       ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
 				DiagnosticOptOut: true,
-				Events:           ldcomponents.SendEvents().BaseURI(eventsServer.URL),
 				Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL, Events: eventsServer.URL},
 			}
 
 			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -248,9 +273,8 @@ func TestClientSendsDiagnostics(t *testing.T) {
 		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
 			config := Config{
-				DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
-				Events:     ldcomponents.SendEvents().BaseURI(eventsServer.URL),
-				Logging:    shared.TestLogging(),
+				Logging:          shared.TestLogging(),
+				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL, Events: eventsServer.URL},
 			}
 
 			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -274,10 +298,10 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 		config := Config{
-			DataSource: ldcomponents.StreamingDataSource().BaseURI(server.URL),
-			Events:     ldcomponents.NoEvents(),
-			HTTP:       ldcomponents.HTTPConfiguration().CACert(certData),
-			Logging:    shared.TestLogging(),
+			Events:           ldcomponents.NoEvents(),
+			HTTP:             ldcomponents.HTTPConfiguration().CACert(certData),
+			Logging:          shared.TestLogging(),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: server.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -301,9 +325,9 @@ func TestClientStartupTimesOut(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		config := Config{
-			DataSource: ldcomponents.StreamingDataSource().BaseURI(streamServer.URL),
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Millisecond*100)

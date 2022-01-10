@@ -23,4 +23,7 @@ type BasicConfiguration struct {
 
 	// Offline is true if the client was configured to be completely offline.
 	Offline bool
+
+	// ServiceEndpoints include any configured custom service URIs.
+	ServiceEndpoints ServiceEndpoints
 }

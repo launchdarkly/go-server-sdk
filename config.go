@@ -124,4 +124,46 @@ type Config struct {
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/offline-mode#go
 	Offline bool
+
+	// Provides configuration of custom service base URIs.
+	//
+	// Set this field only if you want to specify non-default values for any of the URIs. You may set
+	// individual values such as Streaming, or use the helper method ldcomponents.RelayProxyEndpoints().
+	//
+	// The default behavior, if you do not set any of these values, is that the SDK will connect to
+	// the standard endpoints in the LaunchDarkly production service. There are several use cases for
+	// changing these values:
+	//
+	// - You are using the LaunchDarkly Relay Proxy (https://docs.launchdarkly.com/home/advanced/relay-proxy).
+	// In this case, call ldcomponents.RelayProxyEndpoints and put its return value into
+	// Config.ServiceEndpoints. Note that this is not the same as a regular HTTP proxy, which would
+	// be set with ldcomponents.HTTPConfiguration().
+	//
+	//     config := ld.Config{
+	//         ServiceEndpoints: ldcomponents.RelayProxyEndpoints("http://my-relay-host:8080"),
+	//     }
+	//
+	//     // Or, if you want analytics events to be delivered directly to LaunchDarkly rather
+	//     // than having them forwarded through the Relay Proxy:
+	//     config := ld.Config{
+	//         ServiceEndpoints: ldcomponents.RelayProxyEndpoints("http://my-relay-host:8080").
+	//             WithoutEventForwarding(),
+	//     }
+	//
+	// - You are connecting to a private instance of LaunchDarkly, rather than the standard production
+	// services. In this case, there will be custom base URIs for each service, so you must set
+	// Streaming, Polling, and Events to whatever URIs that have been defined for your instance.
+	//
+	//     config := ld.Config{
+	//         ServiceEndpoints: interfaces.ServiceEndpoints{
+	//             Streaming: "https://some-subdomain-a.launchdarkly.com",
+	//             Polling: "https://some-subdomain-b.launchdarkly.com",
+	//             Events: "https://some-subdomain-c.launchdarkly.com",
+	//         },
+	//     }
+	//
+	// - You are connecting to a test fixture that simulates the service endpoints. In this case, you
+	// may set the base URIs to whatever you want, although the SDK will still set the URI paths to
+	// the expected paths for LaunchDarkly services.
+	ServiceEndpoints interfaces.ServiceEndpoints
 }

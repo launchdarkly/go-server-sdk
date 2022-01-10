@@ -67,6 +67,7 @@ func runStreamingTestWithConfiguration(
 	headers.Set(streamProcessorTestHeaderName, streamProcessorTestHeaderValue)
 	mockLog := ldlogtest.NewMockLog()
 	mockLog.Loggers.SetMinLevel(ldlog.Debug)
+	defer mockLog.DumpIfTestFailed(t)
 	context := sharedtest.NewTestContext("", sharedtest.TestHTTPConfigWithHeaders(headers),
 		sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers))
 
@@ -404,11 +405,18 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 }
 
 func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
+	mockLog := ldlogtest.NewMockLog()
+	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := sharedtest.NewClientContextWithDiagnostics(testSDKKey, nil, nil, diagnosticsManager)
+			context := internal.NewClientContextImpl(
+				interfaces.BasicConfiguration{SDKKey: testSDKKey},
+				sharedtest.TestHTTPConfig(),
+				sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
+			)
+			context.DiagnosticsManager = diagnosticsManager
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, time.Second)
 			defer sp.Close()
@@ -442,11 +450,18 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 		httphelpers.HandlerWithStatus(statusCode), // fails the first time
 		streamHandler, // then gets a valid stream
 	)
+	mockLog := ldlogtest.NewMockLog()
+	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := sharedtest.NewClientContextWithDiagnostics(testSDKKey, nil, nil, diagnosticsManager)
+			context := internal.NewClientContextImpl(
+				interfaces.BasicConfiguration{SDKKey: testSDKKey},
+				sharedtest.TestHTTPConfig(),
+				sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
+			)
+			context.DiagnosticsManager = diagnosticsManager
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
 			defer sp.Close()

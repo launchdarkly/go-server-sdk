@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
@@ -21,6 +20,7 @@ func NewSimpleTestContext(sdkKey string) interfaces.ClientContext {
 }
 
 // NewTestContext returns a basic implementation of interfaces.ClientContext for use in test code.
+// We can't use internal.NewClientContextImpl for this because of circular references.
 func NewTestContext(
 	sdkKey string,
 	http interfaces.HTTPConfiguration,
@@ -116,45 +116,4 @@ func (c testLoggingConfigurationFactory) CreateLoggingConfiguration(
 	basicConfig interfaces.BasicConfiguration,
 ) (interfaces.LoggingConfiguration, error) {
 	return testLoggingConfiguration{NewTestLoggers()}, nil
-}
-
-type contextWithDiagnostics struct {
-	sdkKey             string
-	headers            http.Header
-	httpClientFactory  func() *http.Client
-	diagnosticsManager *ldevents.DiagnosticsManager
-}
-
-func (c *contextWithDiagnostics) GetBasic() interfaces.BasicConfiguration {
-	return interfaces.BasicConfiguration{SDKKey: c.sdkKey}
-}
-
-func (c *contextWithDiagnostics) GetHTTP() interfaces.HTTPConfiguration {
-	return TestHTTPConfig()
-}
-
-func (c *contextWithDiagnostics) GetLogging() interfaces.LoggingConfiguration {
-	return TestLoggingConfig()
-}
-
-func (c *contextWithDiagnostics) CreateHTTPClient() *http.Client {
-	if c.httpClientFactory == nil {
-		return http.DefaultClient
-	}
-	return c.httpClientFactory()
-}
-
-func (c *contextWithDiagnostics) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
-	return c.diagnosticsManager
-}
-
-// NewClientContextWithDiagnostics returns a ClientContext implementation for testing that includes
-// a DiagnosticsManager.
-func NewClientContextWithDiagnostics(
-	sdkKey string,
-	headers http.Header,
-	httpClientFactory func() *http.Client,
-	diagnosticsManager *ldevents.DiagnosticsManager,
-) interfaces.ClientContext {
-	return &contextWithDiagnostics{sdkKey, headers, httpClientFactory, diagnosticsManager}
 }

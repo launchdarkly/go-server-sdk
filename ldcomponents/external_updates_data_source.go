@@ -43,9 +43,6 @@ func (f nullDataSourceFactory) DescribeConfiguration() ldvalue.Value {
 	// This information is only used for diagnostic events, and if we're able to send diagnostic events,
 	// then by definition we're not completely offline so we must be using daemon mode.
 	return ldvalue.ObjectBuild().
-		Set("streamingDisabled", ldvalue.Bool(false)).
-		Set("customBaseURI", ldvalue.Bool(false)).
-		Set("customStreamURI", ldvalue.Bool(false)).
 		Set("usingRelayDaemon", ldvalue.Bool(true)).
 		Build()
 }

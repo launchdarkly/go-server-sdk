@@ -5,17 +5,11 @@ import (
 	"net/http"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
 
 	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
 )
-
-// This interface is implemented only by the SDK's own ClientContext implementation.
-type hasDiagnosticsManager interface {
-	GetDiagnosticsManager() *ldevents.DiagnosticsManager
-}
 
 type httpStatusError struct {
 	Message string

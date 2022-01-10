@@ -109,8 +109,8 @@ func (b *PersistentDataStoreBuilder) CreateDataStore(
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *PersistentDataStoreBuilder) DescribeConfiguration() ldvalue.Value {
-	if dd, ok := b.persistentDataStoreFactory.(interfaces.DiagnosticDescription); ok {
-		return dd.DescribeConfiguration()
+	if dd, ok := b.persistentDataStoreFactory.(interfaces.DiagnosticDescription); ok { //nolint:staticcheck
+		return dd.DescribeConfiguration() //nolint:staticcheck
 	}
 	return ldvalue.String("custom")
 }

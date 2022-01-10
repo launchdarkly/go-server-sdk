@@ -165,17 +165,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	eventProcessorFactory := getEventProcessorFactory(config)
 
-	// Do not create a diagnostics manager if diagnostics are disabled, or if we're not using the standard event processor.
-	var diagnosticsManager *ldevents.DiagnosticsManager
-	if !config.DiagnosticOptOut {
-		if reflect.TypeOf(eventProcessorFactory) == reflect.TypeOf(ldcomponents.SendEvents()) {
-			diagnosticsManager = createDiagnosticsManager(sdkKey, config, waitFor)
-		}
-	}
-
-	clientContext, err := newClientContextFromConfig(sdkKey, config, diagnosticsManager)
+	clientContext, err := newClientContextFromConfig(sdkKey, config)
 	if err != nil {
 		return nil, err
+	}
+
+	// Do not create a diagnostics manager if diagnostics are disabled, or if we're not using the standard event processor.
+	if !config.DiagnosticOptOut {
+		if reflect.TypeOf(eventProcessorFactory) == reflect.TypeOf(ldcomponents.SendEvents()) {
+			clientContext.DiagnosticsManager = createDiagnosticsManager(clientContext, sdkKey, config, waitFor)
+		}
 	}
 
 	loggers := clientContext.GetLogging().GetLoggers()

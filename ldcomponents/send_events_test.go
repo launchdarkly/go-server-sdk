@@ -12,6 +12,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
@@ -35,13 +37,13 @@ func TestEventProcessorBuilder(t *testing.T) {
 
 	t.Run("BaseURI", func(t *testing.T) {
 		b := SendEvents()
-		assert.Equal(t, DefaultEventsBaseURI, b.baseURI)
+		assert.Equal(t, "", b.baseURI)
 
 		b.BaseURI("x")
 		assert.Equal(t, "x", b.baseURI)
 
 		b.BaseURI("")
-		assert.Equal(t, DefaultEventsBaseURI, b.baseURI)
+		assert.Equal(t, "", b.baseURI)
 	})
 
 	t.Run("Capacity", func(t *testing.T) {
@@ -139,7 +141,12 @@ func TestDefaultEventsConfigWithDiagnostics(t *testing.T) {
 		time.Now(),
 		nil,
 	)
-	context := sharedtest.NewClientContextWithDiagnostics("sdk-key", nil, nil, diagnosticsManager)
+	context := internal.NewClientContextImpl(
+		interfaces.BasicConfiguration{SDKKey: "sdk-key"},
+		sharedtest.TestHTTPConfig(),
+		sharedtest.TestLoggingConfig(),
+	)
+	context.DiagnosticsManager = diagnosticsManager
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		_, err := SendEvents().
 			BaseURI(server.URL).
