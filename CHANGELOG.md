@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.8.0] - 2022-01-10
+### Added:
+- `Config.ServiceEndpoints` provides a simpler way of setting custom service base URIs, if you are connecting to a LaunchDarkly Relay Proxy instance, a private LaunchDarkly instance, or a test fixture. Previously, this required setting a `BaseURI` property for each individual service (streaming, events, etc.). If using the Relay Proxy, simply remove any `BaseURI` calls in your SDK configuration and set the `ServiceEndpoints` property to `ldcomponents.RelayProxyEndpoints(myRelayProxyUri)` (use `RelayProxyEndpointsWithoutEvents` instead if your Relay Proxy instance does not have event forwarding enabled).
+
 ## [5.7.0] - 2022-01-07
 ### Added:
 - `HTTPConfigurationBuilder.Header` allows adding custom HTTP headers to all of the SDK's requests.
