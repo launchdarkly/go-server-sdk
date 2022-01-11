@@ -5,50 +5,37 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-// clientContextImpl is the SDK's standard implementation of interfaces.ClientContext.
-type clientContextImpl struct {
+// ClientContextImpl is the SDK's standard implementation of interfaces.ClientContext.
+type ClientContextImpl struct {
 	basic   interfaces.BasicConfiguration
 	http    interfaces.HTTPConfiguration
 	logging interfaces.LoggingConfiguration
 	// Used internally to share a diagnosticsManager instance between components.
-	diagnosticsManager *ldevents.DiagnosticsManager
-}
-
-// HasDiagnosticsManager is an interface that is implemented only by the SDK's own ClientContext
-// implementation, to allow component factories to access the DiagnosticsManager.
-type HasDiagnosticsManager interface {
-	GetDiagnosticsManager() *ldevents.DiagnosticsManager
+	DiagnosticsManager *ldevents.DiagnosticsManager
 }
 
 // NewClientContextImpl creates the SDK's standard implementation of interfaces.ClientContext.
 func NewClientContextImpl(
-	sdkKey string,
+	basic interfaces.BasicConfiguration,
 	http interfaces.HTTPConfiguration,
 	logging interfaces.LoggingConfiguration,
-	offline bool,
-	diagnosticsManager *ldevents.DiagnosticsManager,
-) interfaces.ClientContext {
-	return &clientContextImpl{
-		interfaces.BasicConfiguration{SDKKey: sdkKey, Offline: offline},
+) *ClientContextImpl {
+	return &ClientContextImpl{
+		basic,
 		http,
 		logging,
-		diagnosticsManager,
+		nil,
 	}
 }
 
-func (c *clientContextImpl) GetBasic() interfaces.BasicConfiguration {
+func (c *ClientContextImpl) GetBasic() interfaces.BasicConfiguration { //nolint:revive
 	return c.basic
 }
 
-func (c *clientContextImpl) GetHTTP() interfaces.HTTPConfiguration {
+func (c *ClientContextImpl) GetHTTP() interfaces.HTTPConfiguration { //nolint:revive
 	return c.http
 }
 
-func (c *clientContextImpl) GetLogging() interfaces.LoggingConfiguration {
+func (c *ClientContextImpl) GetLogging() interfaces.LoggingConfiguration { //nolint:revive
 	return c.logging
-}
-
-// This method is accessed by components like StreamProcessor by checking for a private interface.
-func (c *clientContextImpl) GetDiagnosticsManager() *ldevents.DiagnosticsManager {
-	return c.diagnosticsManager
 }

@@ -1,16 +1,16 @@
 package ldcomponents
 
 import (
-	"strings"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
 )
 
 // DefaultStreamingBaseURI is the default value for StreamingDataSourceBuilder.BaseURI.
-const DefaultStreamingBaseURI = "https://stream.launchdarkly.com"
+const DefaultStreamingBaseURI = endpoints.DefaultStreamingBaseURI
 
 // DefaultInitialReconnectDelay is the default value for StreamingDataSourceBuilder.InitialReconnectDelay.
 const DefaultInitialReconnectDelay = time.Second
@@ -35,25 +35,18 @@ type StreamingDataSourceBuilder struct {
 //     }
 func StreamingDataSource() *StreamingDataSourceBuilder {
 	return &StreamingDataSourceBuilder{
-		baseURI:               DefaultStreamingBaseURI,
 		initialReconnectDelay: DefaultInitialReconnectDelay,
 	}
 }
 
-// BaseURI sets a custom base URI for the streaming service.
+// BaseURI is a deprecated method for setting a custom base URI for the polling service.
 //
-// You will only need to change this value in the following cases:
+// If you set this deprecated option to a non-empty value, it overrides any value that was set
+// with ServiceEndpoints.
 //
-// 1. You are using the Relay Proxy (https://docs.launchdarkly.com/home/relay-proxy). Set BaseURI to the base URI of
-// the Relay Proxy instance.
-//
-// 2. You are connecting to a test server or anything else other than the standard LaunchDarkly service.
+// Deprecated: Use config.ServiceEndpoints instead.
 func (b *StreamingDataSourceBuilder) BaseURI(baseURI string) *StreamingDataSourceBuilder {
-	if baseURI == "" {
-		b.baseURI = DefaultStreamingBaseURI
-	} else {
-		b.baseURI = strings.TrimRight(baseURI, "/")
-	}
+	b.baseURI = baseURI
 	return b
 }
 
@@ -80,21 +73,34 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
+	configuredBaseURI := endpoints.SelectBaseURI(
+		context.GetBasic().ServiceEndpoints,
+		endpoints.StreamingService,
+		b.baseURI,
+		context.GetLogging().GetLoggers(),
+	)
+
 	return datasource.NewStreamProcessor(
 		context,
 		dataSourceUpdates,
-		b.baseURI,
+		configuredBaseURI,
 		b.initialReconnectDelay,
 	), nil
 }
 
-// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is obsolete and is not called by the SDK.
+//
+// Deprecated: This method will be removed in a future major version release.
 func (b *StreamingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	isCustomStreamURI := b.baseURI != DefaultStreamingBaseURI
+	return ldvalue.Null()
+}
+
+// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
+func (b *StreamingDataSourceBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("streamingDisabled", ldvalue.Bool(false)).
-		Set("customBaseURI", ldvalue.Bool(false)).
-		Set("customStreamURI", ldvalue.Bool(isCustomStreamURI)).
+		Set("customStreamURI", ldvalue.Bool(
+			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.StreamingService, b.baseURI))).
 		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Build()

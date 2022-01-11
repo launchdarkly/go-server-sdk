@@ -6,15 +6,12 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 )
 
 func newClientContextFromConfig(
 	sdkKey string,
 	config Config,
-	diagnosticsManager *ldevents.DiagnosticsManager,
-) (interfaces.ClientContext, error) {
+) (*internal.ClientContextImpl, error) {
 	if !stringIsValidHTTPHeaderValue(sdkKey) {
 		// We want to fail fast in this case, because if we got as far as trying to make an HTTP request
 		// to LaunchDarkly with a malformed key, the Go HTTP client unfortunately would include the
@@ -24,7 +21,11 @@ func newClientContextFromConfig(
 		return nil, errors.New("SDK key contains invalid characters")
 	}
 
-	basicConfig := interfaces.BasicConfiguration{SDKKey: sdkKey, Offline: config.Offline}
+	basicConfig := interfaces.BasicConfiguration{
+		SDKKey:           sdkKey,
+		Offline:          config.Offline,
+		ServiceEndpoints: config.ServiceEndpoints,
+	}
 
 	httpFactory := config.HTTP
 	if httpFactory == nil {
@@ -45,11 +46,9 @@ func newClientContextFromConfig(
 	}
 
 	return internal.NewClientContextImpl(
-		sdkKey,
+		basicConfig,
 		http,
 		logging,
-		config.Offline,
-		diagnosticsManager,
 	), nil
 }
 

@@ -10,26 +10,31 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
-func createDiagnosticsManager(sdkKey string, config Config, waitFor time.Duration) *ldevents.DiagnosticsManager {
+func createDiagnosticsManager(
+	context interfaces.ClientContext,
+	sdkKey string,
+	config Config,
+	waitFor time.Duration,
+) *ldevents.DiagnosticsManager {
 	id := ldevents.NewDiagnosticID(sdkKey)
 	return ldevents.NewDiagnosticsManager(
 		id,
-		makeDiagnosticConfigData(config, waitFor),
+		makeDiagnosticConfigData(context, config, waitFor),
 		makeDiagnosticSDKData(),
 		time.Now(),
 		nil,
 	)
 }
 
-func makeDiagnosticConfigData(config Config, waitFor time.Duration) ldvalue.Value {
+func makeDiagnosticConfigData(context interfaces.ClientContext, config Config, waitFor time.Duration) ldvalue.Value {
 	builder := ldvalue.ObjectBuild().
 		Set("startWaitMillis", durationToMillis(waitFor))
 
 	// Allow each pluggable component to describe its own relevant properties.
-	mergeComponentProperties(builder, config.HTTP, ldcomponents.HTTPConfiguration(), "")
-	mergeComponentProperties(builder, config.DataSource, ldcomponents.StreamingDataSource(), "")
-	mergeComponentProperties(builder, config.DataStore, ldcomponents.InMemoryDataStore(), "dataStoreType")
-	mergeComponentProperties(builder, config.Events, ldcomponents.SendEvents(), "")
+	mergeComponentProperties(builder, context, config.HTTP, ldcomponents.HTTPConfiguration(), "")
+	mergeComponentProperties(builder, context, config.DataSource, ldcomponents.StreamingDataSource(), "")
+	mergeComponentProperties(builder, context, config.DataStore, ldcomponents.InMemoryDataStore(), "dataStoreType")
+	mergeComponentProperties(builder, context, config.Events, ldcomponents.SendEvents(), "")
 
 	return builder.Build()
 }
@@ -57,12 +62,14 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolin
 // Attempts to add relevant configuration properties, if any, from a customizable component:
 // - If the component does not implement DiagnosticDescription, set the defaultPropertyName property to
 //   "custom".
-// - If it does implement DiagnosticDescription, call its DescribeConfiguration() method to get a value.
+// - If it does implement DiagnosticDescription or DiagnosticDescriptionExt, call the corresponding
+//   interface method to get a value.
 // - If the value is a string, then set the defaultPropertyName property to that value.
 // - If the value is an object, then copy all of its properties as long as they are ones we recognize
 //   and have the expected type.
 func mergeComponentProperties(
 	builder ldvalue.ObjectBuilder,
+	context interfaces.ClientContext,
 	component interface{},
 	defaultComponent interface{},
 	defaultPropertyName string,
@@ -70,21 +77,24 @@ func mergeComponentProperties(
 	if component == nil {
 		component = defaultComponent
 	}
-	if dd, ok := component.(interfaces.DiagnosticDescription); ok {
-		componentDesc := dd.DescribeConfiguration()
-		if !componentDesc.IsNull() {
-			if componentDesc.Type() == ldvalue.StringType && defaultPropertyName != "" {
-				builder.Set(defaultPropertyName, componentDesc)
-			} else if componentDesc.Type() == ldvalue.ObjectType {
-				componentDesc.Enumerate(func(i int, name string, value ldvalue.Value) bool {
-					if allowedType, ok := allowedDiagnosticComponentProperties[name]; ok {
-						if value.IsNull() || value.Type() == allowedType {
-							builder.Set(name, value)
-						}
+	var componentDesc ldvalue.Value
+	if dd, ok := component.(interfaces.DiagnosticDescriptionContext); ok {
+		componentDesc = dd.DescribeConfigurationContext(context)
+	} else if dd, ok := component.(interfaces.DiagnosticDescription); ok { //nolint:staticcheck // deprecated
+		componentDesc = dd.DescribeConfiguration() //nolint:staticcheck
+	}
+	if !componentDesc.IsNull() {
+		if componentDesc.Type() == ldvalue.StringType && defaultPropertyName != "" {
+			builder.Set(defaultPropertyName, componentDesc)
+		} else if componentDesc.Type() == ldvalue.ObjectType {
+			componentDesc.Enumerate(func(i int, name string, value ldvalue.Value) bool {
+				if allowedType, ok := allowedDiagnosticComponentProperties[name]; ok {
+					if value.IsNull() || value.Type() == allowedType {
+						builder.Set(name, value)
 					}
-					return true
-				})
-			}
+				}
+				return true
+			})
 		}
 	} else if defaultPropertyName != "" {
 		builder.Set(defaultPropertyName, ldvalue.String("custom"))

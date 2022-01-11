@@ -1,12 +1,12 @@
 package ldcomponents
 
 import (
-	"strings"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
 )
 
 // DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI.
@@ -38,25 +38,18 @@ type PollingDataSourceBuilder struct {
 //     }
 func PollingDataSource() *PollingDataSourceBuilder {
 	return &PollingDataSourceBuilder{
-		baseURI:      DefaultPollingBaseURI,
 		pollInterval: DefaultPollInterval,
 	}
 }
 
-// BaseURI sets a custom base URI for the polling service.
+// BaseURI is a deprecated method for setting a custom base URI for the polling service.
 //
-// You will only need to change this value in the following cases:
+// If you set this deprecated option to a non-empty value, it overrides any value that was set
+// with ServiceEndpoints.
 //
-// 1. You are using the Relay Proxy (https://docs.launchdarkly.com/home/relay-proxy). Set BaseURI to the base URI of
-// the Relay Proxy instance.
-//
-// 2. You are connecting to a test server or anything else other than the standard LaunchDarkly service.
+// Deprecated: Use config.ServiceEndpoints instead.
 func (b *PollingDataSourceBuilder) BaseURI(baseURI string) *PollingDataSourceBuilder {
-	if baseURI == "" {
-		b.baseURI = DefaultPollingBaseURI
-	} else {
-		b.baseURI = strings.TrimRight(baseURI, "/")
-	}
+	b.baseURI = baseURI
 	return b
 }
 
@@ -88,16 +81,29 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 ) (interfaces.DataSource, error) {
 	context.GetLogging().GetLoggers().Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
-	pp := datasource.NewPollingProcessor(context, dataSourceUpdates, b.baseURI, b.pollInterval)
+	configuredBaseURI := endpoints.SelectBaseURI(
+		context.GetBasic().ServiceEndpoints,
+		endpoints.PollingService,
+		b.baseURI,
+		context.GetLogging().GetLoggers(),
+	)
+	pp := datasource.NewPollingProcessor(context, dataSourceUpdates, configuredBaseURI, b.pollInterval)
 	return pp, nil
 }
 
-// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is obsolete and is not called by the SDK.
+//
+// Deprecated: This method will be removed in a future major version release.
 func (b *PollingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.Null()
+}
+
+// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
+func (b *PollingDataSourceBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("streamingDisabled", ldvalue.Bool(true)).
-		Set("customBaseURI", ldvalue.Bool(b.baseURI != DefaultPollingBaseURI)).
-		Set("customStreamURI", ldvalue.Bool(false)).
+		Set("customBaseURI", ldvalue.Bool(
+			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.PollingService, b.baseURI))).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Build()

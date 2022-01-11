@@ -15,13 +15,13 @@ import (
 func TestStreamingDataSourceBuilder(t *testing.T) {
 	t.Run("BaseURI", func(t *testing.T) {
 		s := StreamingDataSource()
-		assert.Equal(t, DefaultStreamingBaseURI, s.baseURI)
+		assert.Equal(t, "", s.baseURI)
 
 		s.BaseURI("x")
 		assert.Equal(t, "x", s.baseURI)
 
 		s.BaseURI("")
-		assert.Equal(t, DefaultStreamingBaseURI, s.baseURI)
+		assert.Equal(t, "", s.baseURI)
 	})
 
 	t.Run("InitialReconnectDelay", func(t *testing.T) {

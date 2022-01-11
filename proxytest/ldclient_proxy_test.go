@@ -1,4 +1,5 @@
-//+build proxytest2
+//go:build proxytest2
+// +build proxytest2
 
 // Note, the tests in this package must be run one at a time in separate "go test" invocations, because
 // (depending on the platform) Go may cache the value of HTTP_PROXY. Therefore, we have a separate build
@@ -16,6 +17,7 @@ import (
 	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
@@ -42,8 +44,9 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 
 		config := ld.Config{}
 		config.Logging = sharedtest.TestLogging()
-		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
+		config.DataSource = ldcomponents.PollingDataSource()
 		config.Events = ldcomponents.NoEvents()
+		config.ServiceEndpoints = interfaces.ServiceEndpoints{Polling: fakeBaseURL}
 
 		client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 		require.NoError(t, err)
@@ -67,8 +70,9 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 		config := ld.Config{}
 		config.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(proxy.URL)
 		config.Logging = sharedtest.TestLogging()
-		config.DataSource = ldcomponents.PollingDataSource().BaseURI(fakeBaseURL)
+		config.DataSource = ldcomponents.PollingDataSource()
 		config.Events = ldcomponents.NoEvents()
+		config.ServiceEndpoints = interfaces.ServiceEndpoints{Polling: fakeBaseURL}
 
 		client, err := ld.MakeCustomClient("sdkKey", config, 5*time.Second)
 		require.NoError(t, err)

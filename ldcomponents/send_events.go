@@ -1,7 +1,6 @@
 package ldcomponents
 
 import (
-	"strings"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
@@ -10,6 +9,7 @@ import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
 )
 
 const (
@@ -58,7 +58,6 @@ type EventProcessorBuilder struct {
 // To disable analytics events, use NoEvents instead of SendEvents.
 func SendEvents() *EventProcessorBuilder {
 	return &EventProcessorBuilder{
-		baseURI:                     DefaultEventsBaseURI,
 		capacity:                    DefaultEventsCapacity,
 		diagnosticRecordingInterval: DefaultDiagnosticRecordingInterval,
 		flushInterval:               DefaultFlushInterval,
@@ -72,8 +71,16 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 	context interfaces.ClientContext,
 ) (ldevents.EventProcessor, error) {
 	loggers := context.GetLogging().GetLoggers()
+
+	configuredBaseURI := endpoints.SelectBaseURI(
+		context.GetBasic().ServiceEndpoints,
+		endpoints.EventsService,
+		b.baseURI,
+		loggers,
+	)
+
 	eventSender := ldevents.NewServerSideEventSender(context.GetHTTP().CreateHTTPClient(),
-		context.GetBasic().SDKKey, b.baseURI, context.GetHTTP().GetDefaultHeaders(), loggers)
+		context.GetBasic().SDKKey, configuredBaseURI, context.GetHTTP().GetDefaultHeaders(), loggers)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,
@@ -87,13 +94,13 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 		UserKeysCapacity:            b.userKeysCapacity,
 		UserKeysFlushInterval:       b.userKeysFlushInterval,
 	}
-	if hdm, ok := context.(internal.HasDiagnosticsManager); ok {
-		eventsConfig.DiagnosticsManager = hdm.GetDiagnosticsManager()
+	if cci, ok := context.(*internal.ClientContextImpl); ok {
+		eventsConfig.DiagnosticsManager = cci.DiagnosticsManager
 	}
 	return ldevents.NewDefaultEventProcessor(eventsConfig), nil
 }
 
-// AllAttributesPrivate sets  or not all optional user attributes should be hidden from LaunchDarkly.
+// AllAttributesPrivate sets whether or not all optional user attributes should be hidden from LaunchDarkly.
 //
 // If this is true, all user attribute values (other than the key) will be private, not just the attributes
 // specified with PrivateAttributeNames or on a per-user basis with UserBuilder methods. By default, it is false.
@@ -102,20 +109,14 @@ func (b *EventProcessorBuilder) AllAttributesPrivate(value bool) *EventProcessor
 	return b
 }
 
-// BaseURI sets a custom base URI for the events service.
+// BaseURI is a deprecated method for setting a custom base URI for the events service.
 //
-// You will only need to change this value in the following cases:
+// If you set this deprecated option to a non-empty value, it overrides any value that was set
+// with ServiceEndpoints.
 //
-// 1. You are using the Relay Proxy (https://docs.launchdarkly.com/home/relay-proxy). Set BaseURI to the base URI of
-// the Relay Proxy instance.
-//
-// 2. You are connecting to a test server or anything else other than the standard LaunchDarkly service.
+// Deprecated: Use config.ServiceEndpoints instead.
 func (b *EventProcessorBuilder) BaseURI(baseURI string) *EventProcessorBuilder {
-	if baseURI == "" {
-		b.baseURI = DefaultEventsBaseURI
-	} else {
-		b.baseURI = strings.TrimRight(baseURI, "/")
-	}
+	b.baseURI = baseURI
 	return b
 }
 
@@ -197,11 +198,19 @@ func (b *EventProcessorBuilder) UserKeysFlushInterval(interval time.Duration) *E
 	return b
 }
 
-// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+// DescribeConfiguration is obsolete and is not called by the SDK.
+//
+// Deprecated: This method will be removed in a future major version release.
 func (b *EventProcessorBuilder) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.Null()
+}
+
+// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
+func (b *EventProcessorBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).
-		Set("customEventsURI", ldvalue.Bool(b.baseURI != "" && b.baseURI != DefaultEventsBaseURI)).
+		Set("customEventsURI", ldvalue.Bool(
+			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.EventsService, b.baseURI))).
 		Set("diagnosticRecordingIntervalMillis", durationToMillisValue(b.diagnosticRecordingInterval)).
 		Set("eventsCapacity", ldvalue.Int(b.capacity)).
 		Set("eventsFlushIntervalMillis", durationToMillisValue(b.flushInterval)).

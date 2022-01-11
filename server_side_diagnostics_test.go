@@ -7,28 +7,24 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 var testStartWaitMillis = time.Second * 10
 
 func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 	return ldvalue.ObjectBuild().
-		Set("customBaseURI", ldvalue.Bool(false)).
 		Set("customEventsURI", ldvalue.Bool(false)).
-		Set("customStreamURI", ldvalue.Bool(false)).
 		Set("dataStoreType", ldvalue.String("memory")).
 		Set("eventsCapacity", ldvalue.Int(ldcomponents.DefaultEventsCapacity)).
 		Set("connectTimeoutMillis", durationToMillis(ldcomponents.DefaultConnectTimeout)).
 		Set("socketTimeoutMillis", durationToMillis(ldcomponents.DefaultConnectTimeout)).
 		Set("eventsFlushIntervalMillis", durationToMillis(ldcomponents.DefaultFlushInterval)).
 		Set("startWaitMillis", durationToMillis(testStartWaitMillis)).
-		Set("streamingDisabled", ldvalue.Bool(false)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Set("allAttributesPrivate", ldvalue.Bool(false)).
 		Set("inlineUsersInEvents", ldvalue.Bool(false)).
@@ -45,12 +41,15 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		setConfig(&config)
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		setExpected(expected)
-		actual := makeDiagnosticConfigData(config, testStartWaitMillis)
+		context, _ := newClientContextFromConfig(testSdkKey, config)
+		actual := makeDiagnosticConfigData(context, config, testStartWaitMillis)
 		assert.JSONEq(t, expected.Build().JSONString(), actual.JSONString())
 	}
 	doTest := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
 		doTestWithoutStreamingDefaults(setConfig, func(b ldvalue.ObjectBuilder) {
-			b.Set("reconnectTimeMillis", timeMillis(ldcomponents.DefaultInitialReconnectDelay))
+			b.Set("customStreamURI", ldvalue.Bool(false)).
+				Set("reconnectTimeMillis", timeMillis(ldcomponents.DefaultInitialReconnectDelay)).
+				Set("streamingDisabled", ldvalue.Bool(false))
 			setExpected(b)
 		})
 	}
@@ -71,10 +70,16 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	}, func(b ldvalue.ObjectBuilder) {
 		b.Set("customStreamURI", ldvalue.Bool(true))
 	})
+	doTest(func(c *Config) {
+		c.ServiceEndpoints = interfaces.ServiceEndpoints{Streaming: "custom"}
+	}, func(b ldvalue.ObjectBuilder) {
+		b.Set("customStreamURI", ldvalue.Bool(true))
+	})
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Minute) },
 		func(b ldvalue.ObjectBuilder) { b.Set("reconnectTimeMillis", ldvalue.Int(60000)) })
 	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.PollingDataSource() }, func(b ldvalue.ObjectBuilder) {
 		b.Set("streamingDisabled", ldvalue.Bool(true))
+		b.Set("customBaseURI", ldvalue.Bool(false))
 		b.Set("pollingIntervalMillis", timeMillis(ldcomponents.DefaultPollInterval))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) {
@@ -83,6 +88,14 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		b.Set("streamingDisabled", ldvalue.Bool(true))
 		b.Set("customBaseURI", ldvalue.Bool(true))
 		b.Set("pollingIntervalMillis", timeMillis(time.Minute*99))
+	})
+	doTestWithoutStreamingDefaults(func(c *Config) {
+		c.DataSource = ldcomponents.PollingDataSource()
+		c.ServiceEndpoints = interfaces.ServiceEndpoints{Polling: "custom"}
+	}, func(b ldvalue.ObjectBuilder) {
+		b.Set("streamingDisabled", ldvalue.Bool(true))
+		b.Set("customBaseURI", ldvalue.Bool(true))
+		b.Set("pollingIntervalMillis", timeMillis(ldcomponents.DefaultPollInterval))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.ExternalUpdatesOnly() },
 		func(b ldvalue.ObjectBuilder) { b.Set("usingRelayDaemon", ldvalue.Bool(true)) })
@@ -96,6 +109,8 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().Capacity(99) },
 		func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().BaseURI("custom") },
+		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
+	doTest(func(c *Config) { c.ServiceEndpoints = interfaces.ServiceEndpoints{Events: "custom"} },
 		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().FlushInterval(time.Second) },
 		func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) })

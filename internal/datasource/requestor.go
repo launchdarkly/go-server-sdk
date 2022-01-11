@@ -7,17 +7,11 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
 
 	"github.com/gregjones/httpcache"
 
 	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
-)
-
-// SDK endpoints
-const (
-	LatestFlagsPath    = "/sdk/latest-flags"
-	LatestSegmentsPath = "/sdk/latest-segments"
-	LatestAllPath      = "/sdk/latest-all"
 )
 
 // requestor is the interface implemented by requestorImpl, used for testing purposes
@@ -70,7 +64,7 @@ func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	body, cached, err := r.makeRequest(LatestAllPath)
+	body, cached, err := r.makeRequest(endpoints.PollingRequestPath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -87,7 +81,7 @@ func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
 }
 
 func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
-	req, reqErr := http.NewRequest("GET", r.baseURI+resource, nil)
+	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		return nil, false, reqErr
 	}
