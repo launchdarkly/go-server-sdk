@@ -592,7 +592,14 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...flagstate.Opt
 				if clientSideOnly && !flag.ClientSideAvailability.UsingEnvironmentID {
 					continue
 				}
+
 				result := client.evaluator.Evaluate(flag, user, nil)
+
+				// Here we are applying the same logic used in EventFactory.NewEvalEvent (go-sdk-events package)
+				// to determine whether the evaluation involved an experiment, in which case both TrackEvents
+				// and TrackReason should be overridden.
+				requireExperimentData := flag.IsExperimentationEnabled(result.Reason)
+
 				state.AddFlag(
 					item.Key,
 					flagstate.FlagState{
@@ -600,7 +607,8 @@ func (client *LDClient) AllFlagsState(user lduser.User, options ...flagstate.Opt
 						Variation:            result.VariationIndex,
 						Reason:               result.Reason,
 						Version:              flag.Version,
-						TrackEvents:          flag.TrackEvents,
+						TrackEvents:          flag.TrackEvents || requireExperimentData,
+						TrackReason:          requireExperimentData,
 						DebugEventsUntilDate: flag.DebugEventsUntilDate,
 					},
 				)

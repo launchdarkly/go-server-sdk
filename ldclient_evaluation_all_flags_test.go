@@ -27,9 +27,15 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 		Variations(ldvalue.String("x"), ldvalue.String("value2")).
 		TrackEvents(true).DebugEventsUntilDate(1000).Build()
 
+	// flag3 has an experiment (evaluation is a fallthrough and TrackEventsFallthrough is on)
+	flag3 := ldbuilders.NewFlagBuilder("key3").Version(300).On(true).FallthroughVariation(1).
+		Variations(ldvalue.String("x"), ldvalue.String("value3")).
+		TrackEvents(false).TrackEventsFallthrough(true).Build()
+
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		p.data.UsePreconfiguredFlag(flag1)
 		p.data.UsePreconfiguredFlag(flag2)
+		p.data.UsePreconfiguredFlag(flag3)
 
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"))
 		assert.True(t, state.IsValid())
@@ -46,6 +52,14 @@ func TestAllFlagsStateGetsState(t *testing.T) {
 				Version:              200,
 				TrackEvents:          true,
 				DebugEventsUntilDate: ldtime.UnixMillisecondTime(1000),
+			}).
+			AddFlag("key3", flagstate.FlagState{
+				Value:       ldvalue.String("value3"),
+				Variation:   ldvalue.NewOptionalInt(1),
+				Version:     300,
+				Reason:      ldreason.NewEvalReasonFallthrough(),
+				TrackEvents: true,
+				TrackReason: true,
 			}).
 			Build()
 		assert.Equal(t, expected, state)
@@ -110,16 +124,28 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 
 func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	futureTime := ldtime.UnixMillisNow() + 100000
+
+	// flag1 does not get a reason because neither event tracking nor debugging is on and there's no experiment
 	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
+
+	// flag2 gets a reason because event tracking is on
 	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
 		TrackEvents(true).Build()
+
+	// flag3 gets a reason because debugging is on
 	flag3 := ldbuilders.NewFlagBuilder("key3").Version(300).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value3")).
 		TrackEvents(false).DebugEventsUntilDate(futureTime).Build()
+
+	// flag4 gets a reason because there's an experiment (evaluation is a fallthrough and TrackEventsFallthrough is on)
+	flag4 := ldbuilders.NewFlagBuilder("key4").Version(400).On(true).FallthroughVariation(1).
+		Variations(ldvalue.String("x"), ldvalue.String("value4")).
+		TrackEvents(false).TrackEventsFallthrough(true).Build()
 
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		p.data.UsePreconfiguredFlag(flag1)
 		p.data.UsePreconfiguredFlag(flag2)
 		p.data.UsePreconfiguredFlag(flag3)
+		p.data.UsePreconfiguredFlag(flag4)
 
 		state := p.client.AllFlagsState(lduser.NewUser("userkey"), flagstate.OptionWithReasons(),
 			flagstate.OptionDetailsOnlyForTrackedFlags())
@@ -144,6 +170,14 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 				Version:              300,
 				Reason:               ldreason.NewEvalReasonOff(),
 				DebugEventsUntilDate: futureTime,
+			}).
+			AddFlag("key4", flagstate.FlagState{
+				Value:       ldvalue.String("value4"),
+				Variation:   ldvalue.NewOptionalInt(1),
+				Version:     400,
+				Reason:      ldreason.NewEvalReasonFallthrough(),
+				TrackEvents: true,
+				TrackReason: true,
 			}).
 			Build()
 		assert.Equal(t, expected, state)
