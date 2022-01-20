@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.8.1] - 2022-01-19
+### Fixed:
+- When using `AllFlagsState` to produce bootstrap data for the JavaScript SDK, the Go SDK was not returning the correct metadata for evaluations that involved an experiment. As a result, the analytics events produced by the JavaScript SDK did not correctly reflect experimentation results.
+
 ## [5.8.0] - 2022-01-10
 ### Added:
 - `Config.ServiceEndpoints` provides a simpler way of setting custom service base URIs, if you are connecting to a LaunchDarkly Relay Proxy instance, a private LaunchDarkly instance, or a test fixture. Previously, this required setting a `BaseURI` property for each individual service (streaming, events, etc.). If using the Relay Proxy, simply remove any `BaseURI` calls in your SDK configuration and set the `ServiceEndpoints` property to `ldcomponents.RelayProxyEndpoints(myRelayProxyUri)` (use `RelayProxyEndpointsWithoutEvents` instead if your Relay Proxy instance does not have event forwarding enabled).
