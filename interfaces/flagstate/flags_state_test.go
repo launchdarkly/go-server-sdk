@@ -89,7 +89,7 @@ func TestAllFlagsJSON(t *testing.T) {
 }`, string(bytes))
 	})
 
-	t.Run("flag with all properties", func(t *testing.T) {
+	t.Run("flag with all properties except trackReason", func(t *testing.T) {
 		a := AllFlags{
 			valid: true,
 			flags: map[string]FlagState{
@@ -111,6 +111,32 @@ func TestAllFlagsJSON(t *testing.T) {
   "flag1": "value1",
   "$flagsState":{
     "flag1": {"variation":1,"version":1000,"reason":{"kind":"FALLTHROUGH"},"trackEvents":true,"debugEventsUntilDate":100000}
+  }
+}`, string(bytes))
+	})
+
+	t.Run("flag with trackReason", func(t *testing.T) {
+		a := AllFlags{
+			valid: true,
+			flags: map[string]FlagState{
+				"flag1": {
+					Value:       ldvalue.String("value1"),
+					Variation:   ldvalue.NewOptionalInt(1),
+					Version:     1000,
+					Reason:      ldreason.NewEvalReasonFallthrough(),
+					TrackEvents: true,
+					TrackReason: true,
+				},
+			},
+		}
+		bytes, err := a.MarshalJSON()
+		assert.NoError(t, err)
+		assert.JSONEq(t,
+			`{
+  "$valid":true,
+  "flag1": "value1",
+  "$flagsState":{
+    "flag1": {"variation":1,"version":1000,"reason":{"kind":"FALLTHROUGH"},"trackEvents":true,"trackReason":true}
   }
 }`, string(bytes))
 	})
@@ -165,6 +191,7 @@ func TestAllFlagsBuilder(t *testing.T) {
 			Version:              2000,
 			Reason:               ldreason.NewEvalReasonError(ldreason.EvalErrorException),
 			TrackEvents:          true,
+			TrackReason:          true,
 			DebugEventsUntilDate: ldtime.UnixMillisecondTime(100000),
 		}
 		b.AddFlag("flag1", flag1)
@@ -180,48 +207,68 @@ func TestAllFlagsBuilder(t *testing.T) {
 	t.Run("add flags with reasons only if tracked", func(t *testing.T) {
 		b := NewAllFlagsBuilder(OptionWithReasons(), OptionDetailsOnlyForTrackedFlags())
 
+		// flag1 should not get a reason
 		flag1 := FlagState{
 			Value:     ldvalue.String("value1"),
 			Variation: ldvalue.NewOptionalInt(1),
 			Version:   1000,
 			Reason:    ldreason.NewEvalReasonFallthrough(),
 		}
+
+		// flag2 does not get a reason because, even though DebugEventsUntilDate is set, debugging
+		// has already expired (the timestamp is in the past)
 		flag2 := FlagState{
 			Value:                ldvalue.String("value2"),
+			Variation:            ldvalue.NewOptionalInt(2),
 			Version:              2000,
-			Reason:               ldreason.NewEvalReasonError(ldreason.EvalErrorException),
-			TrackEvents:          true,
-			DebugEventsUntilDate: ldtime.UnixMillisecondTime(100000),
-		}
-		flag3 := FlagState{
-			Value:                ldvalue.String("value3"),
-			Variation:            ldvalue.NewOptionalInt(3),
-			Version:              3000,
 			Reason:               ldreason.NewEvalReasonFallthrough(),
-			DebugEventsUntilDate: ldtime.UnixMillisNow() - 1,
+			DebugEventsUntilDate: ldtime.UnixMillisecondTime(1),
 		}
+
+		// flag3 gets a reason because TrackEvents is true
+		flag3 := FlagState{
+			Value:       ldvalue.String("value3"),
+			Variation:   ldvalue.NewOptionalInt(3),
+			Version:     3000,
+			Reason:      ldreason.NewEvalReasonRuleMatch(3, "rule3"),
+			TrackEvents: true,
+		}
+
+		// flag4 gets a reason because DebugEventsUntilDate is set and is in the future
 		flag4 := FlagState{
 			Value:                ldvalue.String("value4"),
 			Variation:            ldvalue.NewOptionalInt(4),
 			Version:              4000,
-			Reason:               ldreason.NewEvalReasonFallthrough(),
+			Reason:               ldreason.NewEvalReasonRuleMatch(4, "rule4"),
 			DebugEventsUntilDate: ldtime.UnixMillisNow() + 10000,
 		}
+
+		// flag5 gets a reason because TrackReason is true
+		flag5 := FlagState{
+			Value:       ldvalue.String("value5"),
+			Variation:   ldvalue.NewOptionalInt(5),
+			Version:     5000,
+			Reason:      ldreason.NewEvalReasonRuleMatch(5, "rule5"),
+			TrackReason: true,
+		}
+
 		b.AddFlag("flag1", flag1)
 		b.AddFlag("flag2", flag2)
 		b.AddFlag("flag3", flag3)
 		b.AddFlag("flag4", flag4)
+		b.AddFlag("flag5", flag5)
 
-		flag1WithoutReason, flag3WithoutReason := flag1, flag3
+		flag1WithoutReason, flag2WithoutReason := flag1, flag2
 		flag1WithoutReason.Reason = ldreason.EvaluationReason{}
-		flag3WithoutReason.Reason = ldreason.EvaluationReason{}
+		flag2WithoutReason.Reason = ldreason.EvaluationReason{}
 
 		a := b.Build()
 		assert.Equal(t, map[string]FlagState{
 			"flag1": flag1WithoutReason,
-			"flag2": flag2,
-			"flag3": flag3WithoutReason,
+			"flag2": flag2WithoutReason,
+			"flag3": flag3,
 			"flag4": flag4,
+			"flag5": flag5,
 		}, a.flags)
 	})
 }

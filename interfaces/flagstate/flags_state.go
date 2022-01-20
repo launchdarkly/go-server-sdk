@@ -49,8 +49,15 @@ type FlagState struct {
 	// Reason is the evaluation reason from evaluating the flag.
 	Reason ldreason.EvaluationReason
 
-	// TrackEvents is true if full event tracking is enabled for this flag for data export.
+	// TrackEvents is true if a full feature event must be sent whenever evaluating this flag. This will be
+	// true if tracking was explicitly enabled for this flag for data export, or if the evaluation involved
+	// an experiment, or both.
 	TrackEvents bool
+
+	// TrackReason is true if the evaluation reason should always be included in any full feature event
+	// created for this flag, regardless of whether variationDetail was called. This will be true if the
+	// evaluation involved an experiment.
+	TrackReason bool
 
 	// DebugEventsUntilDate is non-zero if event debugging is enabled for this flag until the specified time.
 	DebugEventsUntilDate ldtime.UnixMillisecondTime
@@ -141,6 +148,7 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 			flag.Reason.WriteToJSONWriter(flagObj.Name("reason"))
 		}
 		flagObj.Maybe("trackEvents", flag.TrackEvents).Bool(flag.TrackEvents)
+		flagObj.Maybe("trackReason", flag.TrackReason).Bool(flag.TrackReason)
 		flagObj.Maybe("debugEventsUntilDate", flag.DebugEventsUntilDate > 0).Float64(float64(flag.DebugEventsUntilDate))
 		flagObj.End()
 	}
@@ -179,9 +187,12 @@ func (b *AllFlagsBuilder) Build() AllFlags {
 // The Reason property in the FlagState may or may not be recorded in the State, depending on the builder
 // options.
 func (b *AllFlagsBuilder) AddFlag(flagKey string, flag FlagState) *AllFlagsBuilder {
-	wantReason := b.options.withReasons
+	// To save bandwidth, we include evaluation reasons only if 1. the application explicitly said to
+	// include them or 2. they must be included because of experimentation
+	wantReason := b.options.withReasons || flag.TrackReason
 	if wantReason && b.options.detailsOnlyIfTracked {
-		if !flag.TrackEvents && !(flag.DebugEventsUntilDate != 0 && flag.DebugEventsUntilDate > ldtime.UnixMillisNow()) {
+		if !flag.TrackEvents && !flag.TrackReason &&
+			!(flag.DebugEventsUntilDate != 0 && flag.DebugEventsUntilDate > ldtime.UnixMillisNow()) {
 			wantReason = false
 		}
 	}
