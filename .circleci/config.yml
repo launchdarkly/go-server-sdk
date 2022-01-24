@@ -81,7 +81,13 @@ jobs:
           name: Process test results
           command: go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml
           when: always
-      
+
+      - run: make build-contract-tests
+      - run:
+          command: make start-contract-test-service
+          background: true
+      - run: TEST_HARNESS_PARAMS="-junit $CIRCLE_TEST_REPORTS/contract-tests-junit.xml" make run-contract-tests
+
       - store_test_results:
           path: /tmp/circle-reports
 
