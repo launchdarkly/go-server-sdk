@@ -199,7 +199,7 @@ func (b *AllFlagsBuilder) AddFlag(flagKey string, flag FlagState) *AllFlagsBuild
 			flag.OmitDetails = true
 		}
 	}
-	if !b.options.withReasons {
+	if !b.options.withReasons && !flag.TrackReason {
 		flag.Reason = ldreason.EvaluationReason{}
 	}
 	b.state.flags[flagKey] = flag
