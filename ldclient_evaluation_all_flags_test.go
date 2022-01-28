@@ -125,18 +125,18 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	futureTime := ldtime.UnixMillisNow() + 100000
 
-	// flag1 does not get a reason because neither event tracking nor debugging is on and there's no experiment
+	// flag1 does not get full detials because neither event tracking nor debugging is on and there's no experiment
 	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
 
-	// flag2 gets a reason because event tracking is on
+	// flag2 gets full details because event tracking is on
 	flag2 := ldbuilders.NewFlagBuilder("key2").Version(200).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value2")).
 		TrackEvents(true).Build()
 
-	// flag3 gets a reason because debugging is on
+	// flag3 gets full details because debugging is on
 	flag3 := ldbuilders.NewFlagBuilder("key3").Version(300).OffVariation(1).Variations(ldvalue.String("x"), ldvalue.String("value3")).
 		TrackEvents(false).DebugEventsUntilDate(futureTime).Build()
 
-	// flag4 gets a reason because there's an experiment (evaluation is a fallthrough and TrackEventsFallthrough is on)
+	// flag4 gets full details because there's an experiment (evaluation is a fallthrough and TrackEventsFallthrough is on)
 	flag4 := ldbuilders.NewFlagBuilder("key4").Version(400).On(true).FallthroughVariation(1).
 		Variations(ldvalue.String("x"), ldvalue.String("value4")).
 		TrackEvents(false).TrackEventsFallthrough(true).Build()
@@ -153,9 +153,11 @@ func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 
 		expected := flagstate.NewAllFlagsBuilder(flagstate.OptionWithReasons()).
 			AddFlag("key1", flagstate.FlagState{
-				Value:     ldvalue.String("value1"),
-				Variation: ldvalue.NewOptionalInt(0),
-				Version:   100,
+				Value:       ldvalue.String("value1"),
+				Variation:   ldvalue.NewOptionalInt(0),
+				Version:     100,
+				Reason:      ldreason.NewEvalReasonOff(),
+				OmitDetails: true,
 			}).
 			AddFlag("key2", flagstate.FlagState{
 				Value:       ldvalue.String("value2"),
