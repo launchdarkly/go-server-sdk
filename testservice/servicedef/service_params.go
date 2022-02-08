@@ -8,6 +8,8 @@ const (
 	CapabilityAllFlagsWithReasons                = "all-flags-with-reasons"
 	CapabilityAllFlagsClientSideOnly             = "all-flags-client-side-only"
 	CapabilityAllFlagsDetailsOnlyForTrackedFlags = "all-flags-details-only-for-tracked-flags"
+
+	CapabilityBigSegments = "big-segments"
 )
 
 type StatusRep struct {

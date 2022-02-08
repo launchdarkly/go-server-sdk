@@ -85,6 +85,9 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 	case servicedef.CommandFlushEvents:
 		c.sdk.Flush()
 		return nil, nil
+	case servicedef.CommandGetBigSegmentStoreStatus:
+		bigSegmentsStatus := c.sdk.GetBigSegmentStoreStatusProvider().GetStatus()
+		return servicedef.BigSegmentStoreStatusResponse(bigSegmentsStatus), nil
 	default:
 		return nil, BadRequestError{Message: fmt.Sprintf("unknown command %q", params.Command)}
 	}
@@ -203,6 +206,24 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		ret.DiagnosticOptOut = !config.Events.EnableDiagnostics
 	} else {
 		ret.Events = ldcomponents.NoEvents()
+	}
+
+	if config.BigSegments != nil {
+		fixture := &BigSegmentStoreFixture{service: &callbackService{baseURL: config.BigSegments.CallbackURI}}
+		builder := ldcomponents.BigSegments(fixture)
+		if config.BigSegments.UserCacheSize.IsDefined() {
+			builder.UserCacheSize(config.BigSegments.UserCacheSize.IntValue())
+		}
+		if config.BigSegments.UserCacheTimeMS.IsDefined() {
+			builder.UserCacheTime(time.Millisecond * time.Duration(config.BigSegments.UserCacheTimeMS))
+		}
+		if config.BigSegments.StaleAfterMS.IsDefined() {
+			builder.StaleAfter(time.Millisecond * time.Duration(config.BigSegments.StaleAfterMS))
+		}
+		if config.BigSegments.StatusPollIntervalMS.IsDefined() {
+			builder.StatusPollInterval(time.Millisecond * time.Duration(config.BigSegments.StatusPollIntervalMS))
+		}
+		ret.BigSegments = builder
 	}
 
 	return ret

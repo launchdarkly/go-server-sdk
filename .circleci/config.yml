@@ -41,6 +41,7 @@ jobs:
         environment:
           CIRCLE_TEST_REPORTS: /tmp/circle-reports
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
+          TEST_HARNESS_PARAMS: -junit /tmp/circle-reports/contract-tests-junit.xml
 
     steps:
       - checkout
@@ -86,7 +87,7 @@ jobs:
       - run:
           command: make start-contract-test-service
           background: true
-      - run: TEST_HARNESS_PARAMS="-junit $CIRCLE_TEST_REPORTS/contract-tests-junit.xml" make run-contract-tests
+      - run: make run-contract-tests
 
       - store_test_results:
           path: /tmp/circle-reports

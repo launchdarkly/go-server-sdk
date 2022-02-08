@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	CommandEvaluateFlag     = "evaluate"
-	CommandEvaluateAllFlags = "evaluateAll"
-	CommandIdentifyEvent    = "identifyEvent"
-	CommandCustomEvent      = "customEvent"
-	CommandAliasEvent       = "aliasEvent"
-	CommandFlushEvents      = "flushEvents"
+	CommandEvaluateFlag             = "evaluate"
+	CommandEvaluateAllFlags         = "evaluateAll"
+	CommandIdentifyEvent            = "identifyEvent"
+	CommandCustomEvent              = "customEvent"
+	CommandAliasEvent               = "aliasEvent"
+	CommandFlushEvents              = "flushEvents"
+	CommandGetBigSegmentStoreStatus = "getBigSegmentStoreStatus"
 )
 
 type ValueType string
@@ -74,4 +75,9 @@ type IdentifyEventParams struct {
 type AliasEventParams struct {
 	User         lduser.User `json:"user"`
 	PreviousUser lduser.User `json:"previousUser"`
+}
+
+type BigSegmentStoreStatusResponse struct {
+	Available bool `json:"available"`
+	Stale     bool `json:"stale"`
 }

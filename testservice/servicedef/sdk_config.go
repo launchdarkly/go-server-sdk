@@ -7,11 +7,13 @@ import (
 )
 
 type SDKConfigParams struct {
-	Credential      string                     `json:"credential"`
-	StartWaitTimeMS ldtime.UnixMillisecondTime `json:"startWaitTimeMs,omitempty"`
-	InitCanFail     bool                       `json:"initCanFail,omitempty"`
-	Streaming       *SDKConfigStreamingParams  `json:"streaming,omitempty"`
-	Events          *SDKConfigEventParams      `json:"events,omitempty"`
+	Credential          string                              `json:"credential"`
+	StartWaitTimeMS     ldtime.UnixMillisecondTime          `json:"startWaitTimeMs,omitempty"`
+	InitCanFail         bool                                `json:"initCanFail,omitempty"`
+	Streaming           *SDKConfigStreamingParams           `json:"streaming,omitempty"`
+	Events              *SDKConfigEventParams               `json:"events,omitempty"`
+	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
+	BigSegments         *SDKConfigBigSegmentsParams         `json:"bigSegments,omitempty"`
 }
 
 type SDKConfigStreamingParams struct {
@@ -27,4 +29,16 @@ type SDKConfigEventParams struct {
 	GlobalPrivateAttributes []lduser.UserAttribute     `json:"globalPrivateAttributes,omitempty"`
 	FlushIntervalMS         ldtime.UnixMillisecondTime `json:"flushIntervalMs,omitempty"`
 	InlineUsers             bool                       `json:"inlineUsers,omitempty"`
+}
+
+type SDKConfigPersistentDataStoreParams struct {
+	CallbackURI string `json:"callbackURI"`
+}
+
+type SDKConfigBigSegmentsParams struct {
+	CallbackURI          string                     `json:"callbackUri"`
+	UserCacheSize        ldvalue.OptionalInt        `json:"userCacheSize,omitempty"`
+	UserCacheTimeMS      ldtime.UnixMillisecondTime `json:"userCacheTimeMs,omitempty"`
+	StatusPollIntervalMS ldtime.UnixMillisecondTime `json:"statusPollIntervalMs,omitempty"`
+	StaleAfterMS         ldtime.UnixMillisecondTime `json:"staleAfterMs,omitempty"`
 }
