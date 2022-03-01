@@ -2,7 +2,7 @@ package interfaces
 
 import "regexp"
 
-var validTagKeyOrValueRegex = regexp.MustCompile("^[\\w.-]*$") //nolint:gochecknoglobals
+var validTagKeyOrValueRegex = regexp.MustCompile(`^[\w.-]*$`)
 
 // ApplicationTags is an immutable container for any values defined in Config.Tags. Applications will
 // normally never need to reference this type, but the SDK passes it to subcomponents as part of
