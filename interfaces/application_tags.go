@@ -1,5 +1,9 @@
 package interfaces
 
+import "regexp"
+
+var validTagKeyOrValueRegex = regexp.MustCompile("^[\\w.-]*$") //nolint:gochecknoglobals
+
 // ApplicationTags is an immutable container for any values defined in Config.Tags. Applications will
 // normally never need to reference this type, but the SDK passes it to subcomponents as part of
 // BasicConfiguration.
@@ -57,10 +61,5 @@ func NewApplicationTags(fromMap map[string][]string) (ApplicationTags, bool) {
 }
 
 func isValidTagKeyOrValue(s string) bool {
-	for _, ch := range s {
-		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && ch != '.' && ch != '-' && ch != '_' {
-			return false
-		}
-	}
-	return true
+	return validTagKeyOrValueRegex.MatchString(s)
 }

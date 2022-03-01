@@ -16,22 +16,23 @@ func TestApplicationTags(t *testing.T) {
 
 	t.Run("all strings valid", func(t *testing.T) {
 		tags, allValid := NewApplicationTags(map[string][]string{
-			"tag2": {"value2a", "value2b"},
+			"tag2": {"value-2.a", "value_2.b"},
 			"tag1": {"value1"},
 		})
 		assert.True(t, allValid)
 		assert.Equal(t, ApplicationTags{
 			all: map[string][]string{
-				"tag2": {"value2a", "value2b"},
+				"tag2": {"value-2.a", "value_2.b"},
 				"tag1": {"value1"},
 			},
 		}, tags)
 	})
 
-	t.Run("invalid key", func(t *testing.T) {
+	t.Run("invalid keys", func(t *testing.T) {
 		tags, allValid := NewApplicationTags(map[string][]string{
 			"tag2!!": {"value2a", "value2b"},
 			"tag1":   {"value1"},
+			"täg":    {"value"},
 		})
 		assert.False(t, allValid)
 		assert.Equal(t, ApplicationTags{
@@ -43,7 +44,7 @@ func TestApplicationTags(t *testing.T) {
 
 	t.Run("invalid value", func(t *testing.T) {
 		tags, allValid := NewApplicationTags(map[string][]string{
-			"tag2": {"value2a!!", "value2b"},
+			"tag2": {"value2a!!", "valüe", "value2b"},
 			"tag1": {"value1"},
 		})
 		assert.False(t, allValid)
