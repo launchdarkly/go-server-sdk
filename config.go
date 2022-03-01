@@ -166,4 +166,13 @@ type Config struct {
 	// may set the base URIs to whatever you want, although the SDK will still set the URI paths to
 	// the expected paths for LaunchDarkly services.
 	ServiceEndpoints interfaces.ServiceEndpoints
+
+	// A set of name and value strings to associate with this SDK instance.
+	//
+	//    config := ld.Config{
+	//        Tags: map[string][]string{
+	//            "application-id": []string{"billing"},
+	//        }
+	//    }
+	Tags map[string][]string
 }

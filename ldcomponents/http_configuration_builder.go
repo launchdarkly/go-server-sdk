@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -187,6 +188,9 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.wrapperIdentifier != "" {
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
 	}
+	if tagsHeaderValue := buildTagsHeaderValue(basicConfiguration.Tags); tagsHeaderValue != "" {
+		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
+	}
 
 	// For consistency with other SDKs, custom headers are allowed to overwrite headers such as
 	// User-Agent and Authorization.
@@ -223,4 +227,24 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		DefaultHeaders:    headers,
 		HTTPClientFactory: clientFactory,
 	}, nil
+}
+
+func buildTagsHeaderValue(tags interfaces.ApplicationTags) string {
+	keys := tags.Keys()
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	ret := ""
+	for _, key := range keys {
+		values := tags.Values(key)
+		sort.Strings(values)
+		for _, value := range values {
+			if ret != "" {
+				ret += ":"
+			}
+			ret += fmt.Sprintf("%s/%s", key, value)
+		}
+	}
+	return ret
 }

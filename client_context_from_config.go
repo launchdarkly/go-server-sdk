@@ -26,6 +26,8 @@ func newClientContextFromConfig(
 		Offline:          config.Offline,
 		ServiceEndpoints: config.ServiceEndpoints,
 	}
+	parsedTags, allTagsValid := interfaces.NewApplicationTags(config.Tags)
+	basicConfig.Tags = parsedTags
 
 	httpFactory := config.HTTP
 	if httpFactory == nil {
@@ -43,6 +45,9 @@ func newClientContextFromConfig(
 	logging, err := loggingFactory.CreateLoggingConfiguration(basicConfig)
 	if err != nil {
 		return nil, err
+	}
+	if !allTagsValid {
+		logging.GetLoggers().Warn("Some keys/values in Config.Tags contained invalid characters and were discarded")
 	}
 
 	return internal.NewClientContextImpl(

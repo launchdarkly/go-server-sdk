@@ -180,6 +180,7 @@ func (c *SDKClientEntity) evaluateAllFlags(p servicedef.EvaluateAllFlagsParams) 
 func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.Config {
 	ret := ld.Config{}
 	ret.Logging = ldcomponents.Logging().Loggers(sdkLog)
+	ret.Tags = config.Tags
 
 	if config.Streaming != nil {
 		ret.ServiceEndpoints.Streaming = config.Streaming.BaseURI
