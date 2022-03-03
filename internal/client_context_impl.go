@@ -2,7 +2,7 @@ package internal
 
 import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 
 // ClientContextImpl is the SDK's standard implementation of interfaces.ClientContext.

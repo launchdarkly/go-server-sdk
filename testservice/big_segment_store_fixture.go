@@ -2,8 +2,8 @@ package main
 
 import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	cf "gopkg.in/launchdarkly/go-server-sdk.v5/testservice/servicedef/callbackfixtures"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	cf "gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef/callbackfixtures"
 )
 
 type BigSegmentStoreFixture struct {

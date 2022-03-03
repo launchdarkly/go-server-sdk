@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 )
 
 // inMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.

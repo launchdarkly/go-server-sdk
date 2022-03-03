@@ -6,9 +6,9 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers"
 
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 

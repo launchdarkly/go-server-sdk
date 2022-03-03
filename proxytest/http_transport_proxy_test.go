@@ -1,3 +1,4 @@
+//go:build proxytest1
 // +build proxytest1
 
 // Note, the tests in this package must be run one at a time in separate "go test" invocations, because
@@ -17,7 +18,7 @@ import (
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldhttp"
 )
 
 func TestDefaultTransportUsesProxyEnvVars(t *testing.T) {

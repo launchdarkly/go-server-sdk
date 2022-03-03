@@ -3,9 +3,9 @@ package ldclient
 import (
 	"errors"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 )
 
 func newClientContextFromConfig(
