@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
 
 	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
 )

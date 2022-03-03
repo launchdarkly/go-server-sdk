@@ -1,6 +1,6 @@
-module gopkg.in/launchdarkly/go-server-sdk.v5
+module gopkg.in/launchdarkly/go-server-sdk.v6
 
-go 1.13
+go 1.16
 
 require (
 	github.com/fsnotify/fsnotify v1.4.7

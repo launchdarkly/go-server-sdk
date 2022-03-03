@@ -4,7 +4,7 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/flagstate"
 )
 
 // LDClientEvaluations defines the basic feature flag evaluation methods implemented by LDClient.

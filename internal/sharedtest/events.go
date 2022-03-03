@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 
 // ExpectFlagChangeEvents asserts that a channel receives flag change events for the specified keys (in

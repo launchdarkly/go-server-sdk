@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldhttp"
 )
 
 // DefaultConnectTimeout is the HTTP connection timeout that is used if HTTPConfigurationBuilder.ConnectTimeout

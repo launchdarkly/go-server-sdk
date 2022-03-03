@@ -11,11 +11,11 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/flagstate"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 )

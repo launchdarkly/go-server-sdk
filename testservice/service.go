@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testservice/servicedef"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
 
 	"github.com/gorilla/mux"
 )

@@ -8,10 +8,10 @@ import (
 	"os"
 	"time"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testservice/servicedef"
+	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/flagstate"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"

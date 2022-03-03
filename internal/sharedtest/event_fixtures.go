@@ -2,7 +2,7 @@ package sharedtest
 
 import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 
 // SingleEventProcessorFactory is a test implementation of EventProcessorFactory that always returns the same

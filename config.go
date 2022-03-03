@@ -1,7 +1,7 @@
 package ldclient
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
@@ -12,7 +12,7 @@ import (
 // Some of the Config fields are actually factories for subcomponents of the SDK. The types of these fields
 // are interfaces whose names end in "Factory"; the actual implementation types, which have methods for
 // configuring that subcomponent, are normally provided by corresponding functions in the ldcomponents
-// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents). For instance, to set
+// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents). For instance, to set
 // the Events field to a configuration in which the SDK will flush analytics events every 10 seconds:
 //
 //     var config ld.Config

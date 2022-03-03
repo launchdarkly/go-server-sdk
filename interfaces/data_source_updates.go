@@ -1,6 +1,6 @@
 package interfaces
 
-import "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+import "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 
 // DataSourceUpdates is an interface that a data source implementation will use to push data into the SDK.
 //

@@ -9,9 +9,9 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
 )
 
 // persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.

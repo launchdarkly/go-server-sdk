@@ -14,12 +14,12 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 )
 
 const testDataSourceOutageTimeout = 200 * time.Millisecond

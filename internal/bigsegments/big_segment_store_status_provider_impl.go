@@ -1,8 +1,8 @@
 package bigsegments
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
 )
 
 // This is the standard implementation of BigSegmentStoreStatusProvider. Most of the work is done by

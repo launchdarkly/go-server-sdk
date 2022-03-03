@@ -14,7 +14,7 @@ COVERAGE_PROFILE_RAW=./build/coverage_raw.out
 COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
 COVERAGE_PROFILE_FILTERED=./build/coverage.out
 COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
-COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v5 \
+COVERAGE_ENFORCER_FLAGS=-package gopkg.in/launchdarkly/go-server-sdk.v6 \
 	-skipfiles '(internal/sharedtest/$(COVERAGE_ENFORCER_SKIP_FILES_EXTRA))' \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
@@ -46,7 +46,7 @@ $(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
 	# note that -coverpkg=./... is necessary so it aggregates coverage to include inter-package references
 
 benchmarks:
-	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v5 -bench .
+	go test -benchmem '-run=^$$' gopkg.in/launchdarkly/go-server-sdk.v6 -bench .
 
 # See CONTRIBUTING.md regarding the use of the benchmark-allocs target. Notes about this implementation:
 # 1. We precompile the test code because otherwise the allocation traces will include the actions of the compiler itself.
@@ -64,7 +64,7 @@ benchmark-allocs:
 
 $(LINTER_VERSION_FILE):
 	rm -f $(LINTER)
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s $(GOLANGCI_LINT_VERSION)
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s $(GOLANGCI_LINT_VERSION)
 	touch $(LINTER_VERSION_FILE)
 
 lint: $(LINTER_VERSION_FILE)

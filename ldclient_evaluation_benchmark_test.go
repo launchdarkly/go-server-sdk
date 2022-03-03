@@ -10,10 +10,10 @@ import (
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 )
 
 // These benchmarks cover the LDClient evaluation flow, including looking up the target flag, applying all

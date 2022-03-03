@@ -3,8 +3,8 @@ package datastore
 import (
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
 )
 
 // DataStoreUpdatesImpl is the internal implementation of DataStoreUpdates. It is exported

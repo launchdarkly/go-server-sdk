@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 )
 
 // MakeMockDataSet constructs a data set to be passed to a data store's Init method.

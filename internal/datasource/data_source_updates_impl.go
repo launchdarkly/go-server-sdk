@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
 )
 
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported

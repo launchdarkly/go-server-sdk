@@ -3,7 +3,7 @@ package interfaces
 import (
 	"io"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 )
 
 // PersistentDataStore is an interface for a data store that holds feature flags and related data in a

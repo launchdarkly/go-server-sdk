@@ -3,7 +3,7 @@ package ldstoreimpl
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 
 // BigSegmentsConfigurationProperties encapsulates the SDK's configuration with regard to Big Segments.
