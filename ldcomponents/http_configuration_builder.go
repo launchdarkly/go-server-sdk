@@ -146,7 +146,7 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 }
 
 // DescribeConfiguration is internally by the SDK to inspect the configuration.
-func (b *HTTPConfigurationBuilder) DescribeConfiguration() ldvalue.Value {
+func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	builder := ldvalue.ObjectBuild()
 
 	builder.Set("connectTimeoutMillis", durationToMillisValue(b.connectTimeout))

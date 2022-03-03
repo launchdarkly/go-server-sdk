@@ -109,17 +109,6 @@ func (b *EventProcessorBuilder) AllAttributesPrivate(value bool) *EventProcessor
 	return b
 }
 
-// BaseURI is a deprecated method for setting a custom base URI for the events service.
-//
-// If you set this deprecated option to a non-empty value, it overrides any value that was set
-// with ServiceEndpoints.
-//
-// Deprecated: Use config.ServiceEndpoints instead.
-func (b *EventProcessorBuilder) BaseURI(baseURI string) *EventProcessorBuilder {
-	b.baseURI = baseURI
-	return b
-}
-
 // Capacity sets the capacity of the events buffer.
 //
 // The client buffers up to this many events in memory before flushing. If the capacity is exceeded before
@@ -198,15 +187,8 @@ func (b *EventProcessorBuilder) UserKeysFlushInterval(interval time.Duration) *E
 	return b
 }
 
-// DescribeConfiguration is obsolete and is not called by the SDK.
-//
-// Deprecated: This method will be removed in a future major version release.
-func (b *EventProcessorBuilder) DescribeConfiguration() ldvalue.Value {
-	return ldvalue.Null()
-}
-
-// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
-func (b *EventProcessorBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+func (b *EventProcessorBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).
 		Set("customEventsURI", ldvalue.Bool(

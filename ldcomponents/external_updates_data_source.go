@@ -39,7 +39,7 @@ func (f nullDataSourceFactory) CreateDataSource(
 }
 
 // DiagnosticDescription implementation
-func (f nullDataSourceFactory) DescribeConfiguration() ldvalue.Value {
+func (f nullDataSourceFactory) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	// This information is only used for diagnostic events, and if we're able to send diagnostic events,
 	// then by definition we're not completely offline so we must be using daemon mode.
 	return ldvalue.ObjectBuild().

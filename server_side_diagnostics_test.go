@@ -66,11 +66,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 	// data source configuration
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource() }, func(b ldvalue.ObjectBuilder) {})
 	doTest(func(c *Config) {
-		c.DataSource = ldcomponents.StreamingDataSource().BaseURI("custom")
-	}, func(b ldvalue.ObjectBuilder) {
-		b.Set("customStreamURI", ldvalue.Bool(true))
-	})
-	doTest(func(c *Config) {
 		c.ServiceEndpoints = interfaces.ServiceEndpoints{Streaming: "custom"}
 	}, func(b ldvalue.ObjectBuilder) {
 		b.Set("customStreamURI", ldvalue.Bool(true))
@@ -83,10 +78,10 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		b.Set("pollingIntervalMillis", timeMillis(ldcomponents.DefaultPollInterval))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) {
-		c.DataSource = ldcomponents.PollingDataSource().BaseURI("custom").PollInterval(time.Minute * 99)
+		c.DataSource = ldcomponents.PollingDataSource().PollInterval(time.Minute * 99)
 	}, func(b ldvalue.ObjectBuilder) {
 		b.Set("streamingDisabled", ldvalue.Bool(true))
-		b.Set("customBaseURI", ldvalue.Bool(true))
+		b.Set("customBaseURI", ldvalue.Bool(false))
 		b.Set("pollingIntervalMillis", timeMillis(time.Minute*99))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) {
@@ -108,8 +103,6 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b ldvalue.ObjectBuilder) { b.Set("diagnosticRecordingIntervalMillis", ldvalue.Int(99000)) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().Capacity(99) },
 		func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) })
-	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().BaseURI("custom") },
-		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
 	doTest(func(c *Config) { c.ServiceEndpoints = interfaces.ServiceEndpoints{Events: "custom"} },
 		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().FlushInterval(time.Second) },
@@ -158,7 +151,7 @@ type customStoreFactoryForDiagnostics struct {
 	name string
 }
 
-func (c customStoreFactoryForDiagnostics) DescribeConfiguration() ldvalue.Value {
+func (c customStoreFactoryForDiagnostics) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.String(c.name)
 }
 

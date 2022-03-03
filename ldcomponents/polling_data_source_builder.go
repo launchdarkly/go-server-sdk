@@ -42,17 +42,6 @@ func PollingDataSource() *PollingDataSourceBuilder {
 	}
 }
 
-// BaseURI is a deprecated method for setting a custom base URI for the polling service.
-//
-// If you set this deprecated option to a non-empty value, it overrides any value that was set
-// with ServiceEndpoints.
-//
-// Deprecated: Use config.ServiceEndpoints instead.
-func (b *PollingDataSourceBuilder) BaseURI(baseURI string) *PollingDataSourceBuilder {
-	b.baseURI = baseURI
-	return b
-}
-
 // PollInterval sets the interval at which the SDK will poll for feature flag updates.
 //
 // The default and minimum value is DefaultPollInterval. Values less than this will be set to the default.
@@ -91,15 +80,8 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 	return pp, nil
 }
 
-// DescribeConfiguration is obsolete and is not called by the SDK.
-//
-// Deprecated: This method will be removed in a future major version release.
-func (b *PollingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	return ldvalue.Null()
-}
-
-// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
-func (b *PollingDataSourceBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+func (b *PollingDataSourceBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("streamingDisabled", ldvalue.Bool(true)).
 		Set("customBaseURI", ldvalue.Bool(

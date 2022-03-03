@@ -6,18 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Note that we can't really test every event configuration option in these tests - they are tested in detail in
@@ -33,17 +30,6 @@ func TestEventProcessorBuilder(t *testing.T) {
 
 		b.AllAttributesPrivate(false)
 		assert.False(t, b.allAttributesPrivate)
-	})
-
-	t.Run("BaseURI", func(t *testing.T) {
-		b := SendEvents()
-		assert.Equal(t, "", b.baseURI)
-
-		b.BaseURI("x")
-		assert.Equal(t, "x", b.baseURI)
-
-		b.BaseURI("")
-		assert.Equal(t, "", b.baseURI)
 	})
 
 	t.Run("Capacity", func(t *testing.T) {
@@ -114,8 +100,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			BaseURI(server.URL).
-			CreateEventProcessor(basicClientContext())
+			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -141,15 +126,10 @@ func TestDefaultEventsConfigWithDiagnostics(t *testing.T) {
 		time.Now(),
 		nil,
 	)
-	context := internal.NewClientContextImpl(
-		interfaces.BasicConfiguration{SDKKey: "sdk-key"},
-		sharedtest.TestHTTPConfig(),
-		sharedtest.TestLoggingConfig(),
-	)
-	context.DiagnosticsManager = diagnosticsManager
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
+		context := makeTestContextWithBaseURIs(server.URL)
+		context.DiagnosticsManager = diagnosticsManager
 		_, err := SendEvents().
-			BaseURI(server.URL).
 			CreateEventProcessor(context)
 		require.NoError(t, err)
 
@@ -165,8 +145,7 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
 			AllAttributesPrivate(true).
-			BaseURI(server.URL).
-			CreateEventProcessor(basicClientContext())
+			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -190,9 +169,8 @@ func TestEventsCapacity(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			BaseURI(server.URL).
 			Capacity(1).
-			CreateEventProcessor(basicClientContext())
+			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -212,9 +190,8 @@ func TestEventsInlineUsers(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			BaseURI(server.URL).
 			InlineUsersInEvents(true).
-			CreateEventProcessor(basicClientContext())
+			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -234,9 +211,8 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			BaseURI(server.URL).
 			PrivateAttributeNames("name").
-			CreateEventProcessor(basicClientContext())
+			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)

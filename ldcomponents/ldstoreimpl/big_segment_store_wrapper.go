@@ -80,31 +80,6 @@ func NewBigSegmentStoreWrapperWithConfig(
 	return w
 }
 
-// NewBigSegmentStoreWrapper creates a BigSegmentStoreWrapper and starts polling the store's status.
-//
-// Deprecated: This is superseded by NewBigSegmentStoreWrapperWithConfig.
-func NewBigSegmentStoreWrapper(
-	store interfaces.BigSegmentStore,
-	statusUpdateFn func(interfaces.BigSegmentStoreStatus),
-	pollInterval time.Duration,
-	staleTime time.Duration,
-	userCacheSize int,
-	userCacheTime time.Duration,
-	loggers ldlog.Loggers,
-) *BigSegmentStoreWrapper {
-	return NewBigSegmentStoreWrapperWithConfig(
-		BigSegmentsConfigurationProperties{
-			Store:              store,
-			StatusPollInterval: pollInterval,
-			StaleAfter:         staleTime,
-			UserCacheSize:      userCacheSize,
-			UserCacheTime:      userCacheTime,
-		},
-		statusUpdateFn,
-		loggers,
-	)
-}
-
 // Close shuts down the manager, the store, and the polling task.
 func (w *BigSegmentStoreWrapper) Close() {
 	w.lock.Lock()
