@@ -175,26 +175,6 @@ func TestEventsCapacity(t *testing.T) {
 	})
 }
 
-func TestEventsInlineUsers(t *testing.T) {
-	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
-	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
-		ep, err := SendEvents().
-			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
-		require.NoError(t, err)
-
-		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
-		ep.RecordCustomEvent(ce)
-		ep.Flush()
-
-		r := <-requestsCh
-		var jsonData ldvalue.Value
-		_ = json.Unmarshal(r.Body, &jsonData)
-		assert.Equal(t, 1, jsonData.Count()) // no index event
-		assert.Equal(t, ldvalue.String("custom"), jsonData.GetByIndex(0).GetByKey("kind"))
-	})
-}
-
 func TestEventsSomeAttributesPrivate(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
