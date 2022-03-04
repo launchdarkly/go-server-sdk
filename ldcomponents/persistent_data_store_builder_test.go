@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPersistentDataStoreBuilder(t *testing.T) {
@@ -79,10 +79,10 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 
 	t.Run("diagnostic description", func(t *testing.T) {
 		f1 := PersistentDataStore(&mockPersistentDataStoreFactory{})
-		assert.Equal(t, ldvalue.String("custom"), f1.DescribeConfiguration())
+		assert.Equal(t, ldvalue.String("custom"), f1.DescribeConfiguration(basicClientContext()))
 
 		f2 := PersistentDataStore(&mockPersistentDataStoreFactoryWithDescription{ldvalue.String("MyDatabase")})
-		assert.Equal(t, ldvalue.String("MyDatabase"), f2.DescribeConfiguration())
+		assert.Equal(t, ldvalue.String("MyDatabase"), f2.DescribeConfiguration(basicClientContext()))
 	})
 }
 
@@ -109,6 +109,6 @@ func (m *mockPersistentDataStoreFactoryWithDescription) CreatePersistentDataStor
 	return nil, nil
 }
 
-func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration() ldvalue.Value {
+func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return m.description
 }

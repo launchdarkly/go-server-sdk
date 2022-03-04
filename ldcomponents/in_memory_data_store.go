@@ -19,7 +19,7 @@ func (f inMemoryDataStoreFactory) CreateDataStore(
 }
 
 // DiagnosticDescription implementation
-func (f inMemoryDataStoreFactory) DescribeConfiguration() ldvalue.Value {
+func (f inMemoryDataStoreFactory) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.String("memory")
 }
 

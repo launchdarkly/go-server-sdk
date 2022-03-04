@@ -78,10 +78,8 @@ func mergeComponentProperties(
 		component = defaultComponent
 	}
 	var componentDesc ldvalue.Value
-	if dd, ok := component.(interfaces.DiagnosticDescriptionContext); ok {
-		componentDesc = dd.DescribeConfigurationContext(context)
-	} else if dd, ok := component.(interfaces.DiagnosticDescription); ok { //nolint:staticcheck // deprecated
-		componentDesc = dd.DescribeConfiguration() //nolint:staticcheck
+	if dd, ok := component.(interfaces.DiagnosticDescription); ok {
+		componentDesc = dd.DescribeConfiguration(context)
 	}
 	if !componentDesc.IsNull() {
 		if componentDesc.Type() == ldvalue.StringType && defaultPropertyName != "" {

@@ -39,17 +39,6 @@ func StreamingDataSource() *StreamingDataSourceBuilder {
 	}
 }
 
-// BaseURI is a deprecated method for setting a custom base URI for the polling service.
-//
-// If you set this deprecated option to a non-empty value, it overrides any value that was set
-// with ServiceEndpoints.
-//
-// Deprecated: Use config.ServiceEndpoints instead.
-func (b *StreamingDataSourceBuilder) BaseURI(baseURI string) *StreamingDataSourceBuilder {
-	b.baseURI = baseURI
-	return b
-}
-
 // InitialReconnectDelay sets the initial reconnect delay for the streaming connection.
 //
 // The streaming service uses a backoff algorithm (with jitter) every time the connection needs to be
@@ -88,15 +77,8 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 	), nil
 }
 
-// DescribeConfiguration is obsolete and is not called by the SDK.
-//
-// Deprecated: This method will be removed in a future major version release.
-func (b *StreamingDataSourceBuilder) DescribeConfiguration() ldvalue.Value {
-	return ldvalue.Null()
-}
-
-// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
-func (b *StreamingDataSourceBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+func (b *StreamingDataSourceBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("streamingDisabled", ldvalue.Bool(false)).
 		Set("customStreamURI", ldvalue.Bool(
