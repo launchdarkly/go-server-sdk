@@ -79,9 +79,6 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 			return nil, c.sdk.TrackData(params.CustomEvent.EventKey, *params.CustomEvent.User, params.CustomEvent.Data)
 		}
 		return nil, c.sdk.TrackEvent(params.CustomEvent.EventKey, *params.CustomEvent.User)
-	case servicedef.CommandAliasEvent:
-		err := c.sdk.Alias(params.AliasEvent.User, params.AliasEvent.PreviousUser)
-		return nil, err
 	case servicedef.CommandFlushEvents:
 		c.sdk.Flush()
 		return nil, nil
@@ -194,8 +191,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		ret.ServiceEndpoints.Events = config.Events.BaseURI
 		builder := ldcomponents.SendEvents().
 			AllAttributesPrivate(config.Events.AllAttributesPrivate).
-			PrivateAttributeNames(config.Events.GlobalPrivateAttributes...).
-			InlineUsersInEvents(config.Events.InlineUsers)
+			PrivateAttributeNames(config.Events.GlobalPrivateAttributes...)
 		if config.Events.Capacity.IsDefined() {
 			builder.Capacity(config.Events.Capacity.IntValue())
 		}

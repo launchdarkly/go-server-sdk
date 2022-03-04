@@ -59,17 +59,6 @@ func TestEventProcessorBuilder(t *testing.T) {
 		assert.Equal(t, time.Hour, b.flushInterval)
 	})
 
-	t.Run("InlineUsersInEvents", func(t *testing.T) {
-		b := SendEvents()
-		assert.False(t, b.inlineUsersInEvents)
-
-		b.InlineUsersInEvents(true)
-		assert.True(t, b.inlineUsersInEvents)
-
-		b.InlineUsersInEvents(false)
-		assert.False(t, b.inlineUsersInEvents)
-	})
-
 	t.Run("PrivateAttributeNames", func(t *testing.T) {
 		b := SendEvents()
 		assert.Len(t, b.privateAttributeNames, 0)
@@ -190,7 +179,6 @@ func TestEventsInlineUsers(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			InlineUsersInEvents(true).
 			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 

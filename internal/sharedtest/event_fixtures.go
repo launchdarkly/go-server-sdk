@@ -34,7 +34,10 @@ func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEvent) { //
 	c.Events = append(c.Events, e)
 }
 
-func (c *CapturingEventProcessor) RecordAliasEvent(e ldevents.AliasEvent) { //nolint:revive
+// RecordAliasEvent is temporarily retained here even though alias events have been removed from the rest of
+// go-server-sdk, because we are not yet using the new version of ldevents, so the ldevents EventProcessor
+// interface that CapturingEventProcessor is implementing still needs to have this method.
+func (c *CapturingEventProcessor) RecordAliasEvent(e ldevents.AliasEvent) {
 	c.Events = append(c.Events, e)
 }
 

@@ -28,7 +28,6 @@ type SDKConfigEventParams struct {
 	AllAttributesPrivate    bool                       `json:"allAttributesPrivate,omitempty"`
 	GlobalPrivateAttributes []lduser.UserAttribute     `json:"globalPrivateAttributes,omitempty"`
 	FlushIntervalMS         ldtime.UnixMillisecondTime `json:"flushIntervalMs,omitempty"`
-	InlineUsers             bool                       `json:"inlineUsers,omitempty"`
 }
 
 type SDKConfigPersistentDataStoreParams struct {
