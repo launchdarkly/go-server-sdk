@@ -156,10 +156,6 @@ func (c *clientEventsDisabledDecorator) AllFlagsState(
 	return c.client.AllFlagsState(user, options...)
 }
 
-func (c *clientEventsDisabledDecorator) Alias(currentUser lduser.User, previousUser lduser.User) error {
-	return nil
-}
-
 func (c *clientEventsDisabledDecorator) Identify(user lduser.User) error {
 	return nil
 }

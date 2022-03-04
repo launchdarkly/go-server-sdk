@@ -59,17 +59,6 @@ func TestEventProcessorBuilder(t *testing.T) {
 		assert.Equal(t, time.Hour, b.flushInterval)
 	})
 
-	t.Run("InlineUsersInEvents", func(t *testing.T) {
-		b := SendEvents()
-		assert.False(t, b.inlineUsersInEvents)
-
-		b.InlineUsersInEvents(true)
-		assert.True(t, b.inlineUsersInEvents)
-
-		b.InlineUsersInEvents(false)
-		assert.False(t, b.inlineUsersInEvents)
-	})
-
 	t.Run("PrivateAttributeNames", func(t *testing.T) {
 		b := SendEvents()
 		assert.Len(t, b.privateAttributeNames, 0)
@@ -183,27 +172,6 @@ func TestEventsCapacity(t *testing.T) {
 		var jsonData ldvalue.Value
 		_ = json.Unmarshal(r.Body, &jsonData)
 		assert.Equal(t, 1, jsonData.Count())
-	})
-}
-
-func TestEventsInlineUsers(t *testing.T) {
-	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
-	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
-		ep, err := SendEvents().
-			InlineUsersInEvents(true).
-			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
-		require.NoError(t, err)
-
-		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
-		ep.RecordCustomEvent(ce)
-		ep.Flush()
-
-		r := <-requestsCh
-		var jsonData ldvalue.Value
-		_ = json.Unmarshal(r.Body, &jsonData)
-		assert.Equal(t, 1, jsonData.Count()) // no index event
-		assert.Equal(t, ldvalue.String("custom"), jsonData.GetByIndex(0).GetByKey("kind"))
 	})
 }
 

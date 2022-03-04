@@ -38,7 +38,6 @@ type EventProcessorBuilder struct {
 	capacity                    int
 	diagnosticRecordingInterval time.Duration
 	flushInterval               time.Duration
-	inlineUsersInEvents         bool
 	logUserKeyInErrors          bool
 	privateAttributeNames       []lduser.UserAttribute
 	userKeysCapacity            int
@@ -87,7 +86,6 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 		DiagnosticRecordingInterval: b.diagnosticRecordingInterval,
 		EventSender:                 eventSender,
 		FlushInterval:               b.flushInterval,
-		InlineUsersInEvents:         b.inlineUsersInEvents,
 		Loggers:                     loggers,
 		LogUserKeyInErrors:          b.logUserKeyInErrors,
 		PrivateAttributeNames:       b.privateAttributeNames,
@@ -144,15 +142,6 @@ func (b *EventProcessorBuilder) FlushInterval(interval time.Duration) *EventProc
 	return b
 }
 
-// InlineUsersInEvents sets whether to include full user details in every analytics event.
-//
-// The default is false: events will only include the user key, except for one "index" event that provides
-// the full details for the user.
-func (b *EventProcessorBuilder) InlineUsersInEvents(value bool) *EventProcessorBuilder {
-	b.inlineUsersInEvents = value
-	return b
-}
-
 // PrivateAttributeNames marks a set of attribute names as always private.
 //
 // Any users sent to LaunchDarkly with this configuration active will have attributes with these
@@ -196,7 +185,6 @@ func (b *EventProcessorBuilder) DescribeConfiguration(context interfaces.ClientC
 		Set("diagnosticRecordingIntervalMillis", durationToMillisValue(b.diagnosticRecordingInterval)).
 		Set("eventsCapacity", ldvalue.Int(b.capacity)).
 		Set("eventsFlushIntervalMillis", durationToMillisValue(b.flushInterval)).
-		Set("inlineUsersInEvents", ldvalue.Bool(b.inlineUsersInEvents)).
 		Set("userKeysCapacity", ldvalue.Int(b.userKeysCapacity)).
 		Set("userKeysFlushIntervalMillis", durationToMillisValue(b.userKeysFlushInterval)).
 		Build()

@@ -73,6 +73,12 @@ lint: $(LINTER_VERSION_FILE)
 
 TEMP_TEST_OUTPUT=/tmp/sse-contract-test-service.log
 
+# TEMPORARY: disable some contract tests that are no longer applicable in v6, because we don't yet have a
+# version of sdk-test-harness that knows about the new generation of SDKs that don't have these features.
+# The custom event tests are being skipped even though we still support custom events, because the way
+# those tests are currently implemented unfortunately relies on the inlineUsersInEvents feature.
+TEST_HARNESS_PARAMS=-skip 'events/user properties/inlineUsers=true' -skip 'events/alias' -skip 'events/custom'
+
 build-contract-tests:
 	@cd testservice && go mod tidy && go build
 
@@ -84,7 +90,7 @@ start-contract-test-service-bg:
 	@make start-contract-test-service >$(TEMP_TEST_OUTPUT) 2>&1
 
 run-contract-tests:
-	@curl -s https://raw.githubusercontent.com/launchdarkly/sdk-test-harness/v1.0.0/downloader/run.sh \
+	@curl -s https://raw.githubusercontent.com/launchdarkly/sdk-test-harness/v1.2.0/downloader/run.sh \
       | VERSION=v1 PARAMS="-url http://localhost:8000 -debug -stop-service-at-end $(TEST_HARNESS_PARAMS)" sh
 
 contract-tests: build-contract-tests start-contract-test-service-bg run-contract-tests
