@@ -14,7 +14,7 @@ type SDKConfigParams struct {
 	Events              *SDKConfigEventParams               `json:"events,omitempty"`
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	BigSegments         *SDKConfigBigSegmentsParams         `json:"bigSegments,omitempty"`
-	Tags                map[string][]string                 `json:"tags,omitempty"`
+	Tags                *SDKConfigTagsParams                `json:"tags,omitempty"`
 }
 
 type SDKConfigStreamingParams struct {
@@ -42,4 +42,9 @@ type SDKConfigBigSegmentsParams struct {
 	UserCacheTimeMS      ldtime.UnixMillisecondTime `json:"userCacheTimeMs,omitempty"`
 	StatusPollIntervalMS ldtime.UnixMillisecondTime `json:"statusPollIntervalMs,omitempty"`
 	StaleAfterMS         ldtime.UnixMillisecondTime `json:"staleAfterMs,omitempty"`
+}
+
+type SDKConfigTagsParams struct {
+	ApplicationID      ldvalue.OptionalString `json:"applicationId,omitempty"`
+	ApplicationVersion ldvalue.OptionalString `json:"applicationVersion,omitempty"`
 }

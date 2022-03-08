@@ -167,12 +167,9 @@ type Config struct {
 	// the expected paths for LaunchDarkly services.
 	ServiceEndpoints interfaces.ServiceEndpoints
 
-	// A set of name and value strings to associate with this SDK instance.
+	// Provides configuration of application metadata.
 	//
-	//    config := ld.Config{
-	//        Tags: map[string][]string{
-	//            "application-id": []string{"billing"},
-	//        }
-	//    }
-	Tags map[string][]string
+	// These properties are optional and informational. They may be used in LaunchDarkly analytics
+	// or other product features, but they do not affect feature flag evaluations.
+	ApplicationInfo interfaces.ApplicationInfo
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/testservice/servicedef"
@@ -180,7 +181,6 @@ func (c *SDKClientEntity) evaluateAllFlags(p servicedef.EvaluateAllFlagsParams) 
 func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.Config {
 	ret := ld.Config{}
 	ret.Logging = ldcomponents.Logging().Loggers(sdkLog)
-	ret.Tags = config.Tags
 
 	if config.Streaming != nil {
 		ret.ServiceEndpoints.Streaming = config.Streaming.BaseURI
@@ -225,6 +225,11 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 			builder.StatusPollInterval(time.Millisecond * time.Duration(config.BigSegments.StatusPollIntervalMS))
 		}
 		ret.BigSegments = builder
+	}
+
+	ret.ApplicationInfo = interfaces.ApplicationInfo{
+		ApplicationID:      config.Tags.ApplicationID.StringValue(),
+		ApplicationVersion: config.Tags.ApplicationVersion.StringValue(),
 	}
 
 	return ret

@@ -249,13 +249,10 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 		t.Run("some tags", func(t *testing.T) {
 			bc := basicConfig
-			bc.Tags, _ = interfaces.NewApplicationTags(map[string][]string{
-				"tag2": {"value2b", "value2a"},
-				"tag1": {"value1"},
-			})
+			bc.ApplicationInfo = interfaces.ApplicationInfo{ApplicationID: "appid", ApplicationVersion: "appver"}
 			c, err := HTTPConfiguration().CreateHTTPConfiguration(bc)
 			require.NoError(t, err)
-			assert.Equal(t, "tag1/value1:tag2/value2a:tag2/value2b", c.GetDefaultHeaders().Get("X-LaunchDarkly-Tags"))
+			assert.Equal(t, "application-id/appid application-version/appver", c.GetDefaultHeaders().Get("X-LaunchDarkly-Tags"))
 		})
 	})
 }

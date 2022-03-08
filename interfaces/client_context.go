@@ -27,6 +27,5 @@ type BasicConfiguration struct {
 	// ServiceEndpoints include any configured custom service URIs.
 	ServiceEndpoints ServiceEndpoints
 
-	// Tags include all valid tags that were specified in Config.Tags.
-	Tags ApplicationTags
+	ApplicationInfo ApplicationInfo
 }

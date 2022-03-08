@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
@@ -188,7 +188,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.wrapperIdentifier != "" {
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
 	}
-	if tagsHeaderValue := buildTagsHeaderValue(basicConfiguration.Tags); tagsHeaderValue != "" {
+	if tagsHeaderValue := buildTagsHeaderValue(basicConfiguration); tagsHeaderValue != "" {
 		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
 	}
 
@@ -229,22 +229,13 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	}, nil
 }
 
-func buildTagsHeaderValue(tags interfaces.ApplicationTags) string {
-	keys := tags.Keys()
-	if len(keys) == 0 {
-		return ""
+func buildTagsHeaderValue(basicConfig interfaces.BasicConfiguration) string {
+	var parts []string
+	if basicConfig.ApplicationInfo.ApplicationID != "" {
+		parts = append(parts, fmt.Sprintf("application-id/%s", basicConfig.ApplicationInfo.ApplicationID))
 	}
-	sort.Strings(keys)
-	ret := ""
-	for _, key := range keys {
-		values := tags.Values(key)
-		sort.Strings(values)
-		for _, value := range values {
-			if ret != "" {
-				ret += ":"
-			}
-			ret += fmt.Sprintf("%s/%s", key, value)
-		}
+	if basicConfig.ApplicationInfo.ApplicationVersion != "" {
+		parts = append(parts, fmt.Sprintf("application-version/%s", basicConfig.ApplicationInfo.ApplicationVersion))
 	}
-	return ret
+	return strings.Join(parts, " ")
 }
