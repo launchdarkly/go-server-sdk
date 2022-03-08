@@ -227,9 +227,11 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		ret.BigSegments = builder
 	}
 
-	ret.ApplicationInfo = interfaces.ApplicationInfo{
-		ApplicationID:      config.Tags.ApplicationID.StringValue(),
-		ApplicationVersion: config.Tags.ApplicationVersion.StringValue(),
+	if config.Tags != nil {
+		ret.ApplicationInfo = interfaces.ApplicationInfo{
+			ApplicationID:      config.Tags.ApplicationID.StringValue(),
+			ApplicationVersion: config.Tags.ApplicationVersion.StringValue(),
+		}
 	}
 
 	return ret
