@@ -27,5 +27,6 @@ type BasicConfiguration struct {
 	// ServiceEndpoints include any configured custom service URIs.
 	ServiceEndpoints ServiceEndpoints
 
+	// ApplicationInfo includes any configured application metadata.
 	ApplicationInfo ApplicationInfo
 }
