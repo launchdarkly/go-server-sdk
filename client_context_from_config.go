@@ -72,6 +72,7 @@ func stringIsValidHTTPHeaderValue(s string) bool {
 
 func validateTagValue(value, name string, loggers ldlog.Loggers) string {
 	if !validTagKeyOrValueRegex.MatchString(value) {
+		loggers.Warnf("Value of Config.%s contained invalid characters and was discarded", name)
 		return ""
 	}
 	return value
