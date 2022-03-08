@@ -9,6 +9,7 @@ import (
 	"time"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef"
@@ -220,6 +221,13 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 			builder.StatusPollInterval(time.Millisecond * time.Duration(config.BigSegments.StatusPollIntervalMS))
 		}
 		ret.BigSegments = builder
+	}
+
+	if config.Tags != nil {
+		ret.ApplicationInfo = interfaces.ApplicationInfo{
+			ApplicationID:      config.Tags.ApplicationID.StringValue(),
+			ApplicationVersion: config.Tags.ApplicationVersion.StringValue(),
+		}
 	}
 
 	return ret

@@ -29,6 +29,7 @@ var capabilities = []string{
 	servicedef.CapabilityAllFlagsDetailsOnlyForTrackedFlags,
 	servicedef.CapabilityAllFlagsWithReasons,
 	servicedef.CapabilityBigSegments,
+	servicedef.CapabilityTags,
 }
 
 // gets the specified environment variable, or the default if not set
