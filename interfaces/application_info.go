@@ -2,6 +2,9 @@ package interfaces
 
 // ApplicationInfo allows configuration of application metadata.
 //
+// Application metadata may be used in LaunchDarkly analytics or other product features, but does not
+// affect feature flag evaluations.
+//
 // If you want to set non-default values for any of these fields, set the ApplicationInfo field
 // in the SDK's Config struct.
 type ApplicationInfo struct {
