@@ -239,4 +239,20 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		headers2 := c2.GetDefaultHeaders()
 		assert.Equal(t, "FancySDK/2.0", headers2.Get("X-LaunchDarkly-Wrapper"))
 	})
+
+	t.Run("tags header", func(t *testing.T) {
+		t.Run("no tags", func(t *testing.T) {
+			c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)
+			require.NoError(t, err)
+			assert.Nil(t, c.GetDefaultHeaders().Values("X-LaunchDarkly-Tags"))
+		})
+
+		t.Run("some tags", func(t *testing.T) {
+			bc := basicConfig
+			bc.ApplicationInfo = interfaces.ApplicationInfo{ApplicationID: "appid", ApplicationVersion: "appver"}
+			c, err := HTTPConfiguration().CreateHTTPConfiguration(bc)
+			require.NoError(t, err)
+			assert.Equal(t, "application-id/appid application-version/appver", c.GetDefaultHeaders().Get("X-LaunchDarkly-Tags"))
+		})
+	})
 }

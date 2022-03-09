@@ -166,4 +166,10 @@ type Config struct {
 	// may set the base URIs to whatever you want, although the SDK will still set the URI paths to
 	// the expected paths for LaunchDarkly services.
 	ServiceEndpoints interfaces.ServiceEndpoints
+
+	// Provides configuration of application metadata.
+	//
+	// These properties are optional and informational. They may be used in LaunchDarkly analytics
+	// or other product features, but they do not affect feature flag evaluations.
+	ApplicationInfo interfaces.ApplicationInfo
 }

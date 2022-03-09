@@ -2,11 +2,15 @@ package ldclient
 
 import (
 	"errors"
+	"regexp"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 )
+
+var validTagKeyOrValueRegex = regexp.MustCompile(`(?s)^[\w.-]*$`)
 
 func newClientContextFromConfig(
 	sdkKey string,
@@ -27,20 +31,25 @@ func newClientContextFromConfig(
 		ServiceEndpoints: config.ServiceEndpoints,
 	}
 
-	httpFactory := config.HTTP
-	if httpFactory == nil {
-		httpFactory = ldcomponents.HTTPConfiguration()
-	}
-	http, err := httpFactory.CreateHTTPConfiguration(basicConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	loggingFactory := config.Logging
 	if loggingFactory == nil {
 		loggingFactory = ldcomponents.Logging()
 	}
 	logging, err := loggingFactory.CreateLoggingConfiguration(basicConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	basicConfig.ApplicationInfo.ApplicationID = validateTagValue(config.ApplicationInfo.ApplicationID,
+		"ApplicationID", logging.GetLoggers())
+	basicConfig.ApplicationInfo.ApplicationVersion = validateTagValue(config.ApplicationInfo.ApplicationVersion,
+		"ApplicationVersion", logging.GetLoggers())
+
+	httpFactory := config.HTTP
+	if httpFactory == nil {
+		httpFactory = ldcomponents.HTTPConfiguration()
+	}
+	http, err := httpFactory.CreateHTTPConfiguration(basicConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -59,4 +68,12 @@ func stringIsValidHTTPHeaderValue(s string) bool {
 		}
 	}
 	return true
+}
+
+func validateTagValue(value, name string, loggers ldlog.Loggers) string {
+	if value != "" && !validTagKeyOrValueRegex.MatchString(value) {
+		loggers.Warnf("Value of Config.%s contained invalid characters and was discarded", name)
+		return ""
+	}
+	return value
 }
