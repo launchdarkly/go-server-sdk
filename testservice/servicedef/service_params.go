@@ -10,6 +10,7 @@ const (
 	CapabilityAllFlagsDetailsOnlyForTrackedFlags = "all-flags-details-only-for-tracked-flags"
 
 	CapabilityBigSegments = "big-segments"
+	CapabilityTags        = "tags"
 )
 
 type StatusRep struct {
