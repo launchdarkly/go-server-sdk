@@ -167,9 +167,9 @@ type Config struct {
 	// the expected paths for LaunchDarkly services.
 	ServiceEndpoints interfaces.ServiceEndpoints
 
-	// Provides configuration of application metadata.
+	// Provides configuration of application metadata. See interfaces.ApplicationInfo.
 	//
-	// These properties are optional and informational. They may be used in LaunchDarkly analytics
-	// or other product features, but they do not affect feature flag evaluations.
+	// Application metadata may be used in LaunchDarkly analytics or other product features, but does not
+	// affect feature flag evaluations.
 	ApplicationInfo interfaces.ApplicationInfo
 }
