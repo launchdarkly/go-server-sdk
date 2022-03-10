@@ -3,9 +3,10 @@ package internal
 import (
 	"sync"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 )
 
 // flagTrackerImpl is the internal implementation of FlagTracker. It's not exported because
@@ -18,7 +19,7 @@ import (
 // mapping of this to the underlying channel which is necessary for unregistering it.
 type flagTrackerImpl struct {
 	broadcaster              *FlagChangeEventBroadcaster
-	evaluateFn               func(string, lduser.User, ldvalue.Value) ldvalue.Value
+	evaluateFn               func(string, ldcontext.Context, ldvalue.Value) ldvalue.Value
 	valueChangeSubscriptions map[<-chan interfaces.FlagValueChangeEvent]<-chan interfaces.FlagChangeEvent
 	lock                     sync.Mutex
 }
@@ -26,7 +27,7 @@ type flagTrackerImpl struct {
 // NewFlagTrackerImpl creates the internal implementation of FlagTracker.
 func NewFlagTrackerImpl(
 	broadcaster *FlagChangeEventBroadcaster,
-	evaluateFn func(flagKey string, user lduser.User, defaultValue ldvalue.Value) ldvalue.Value,
+	evaluateFn func(flagKey string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
 ) interfaces.FlagTracker {
 	return &flagTrackerImpl{
 		broadcaster:              broadcaster,
@@ -48,7 +49,7 @@ func (f *flagTrackerImpl) RemoveFlagChangeListener(listener <-chan interfaces.Fl
 // AddFlagValueChangeListener is a standard method of FlagTracker.
 func (f *flagTrackerImpl) AddFlagValueChangeListener(
 	flagKey string,
-	user lduser.User,
+	user ldcontext.Context,
 	defaultValue ldvalue.Value,
 ) <-chan interfaces.FlagValueChangeEvent {
 	valueCh := make(chan interfaces.FlagValueChangeEvent, subscriberChannelBufferLength)
@@ -77,9 +78,9 @@ func (f *flagTrackerImpl) RemoveFlagValueChangeListener(listener <-chan interfac
 func runValueChangeListener(
 	flagCh <-chan interfaces.FlagChangeEvent,
 	valueCh chan<- interfaces.FlagValueChangeEvent,
-	evaluateFn func(flagKey string, user lduser.User, defaultValue ldvalue.Value) ldvalue.Value,
+	evaluateFn func(flagKey string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
 	flagKey string,
-	user lduser.User,
+	user ldcontext.Context,
 	defaultValue ldvalue.Value,
 ) {
 	currentValue := evaluateFn(flagKey, user, defaultValue)

@@ -5,9 +5,9 @@ import (
 	"sort"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

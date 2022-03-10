@@ -3,10 +3,9 @@ package ldcomponents
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldattr"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/endpoints"
@@ -39,7 +38,7 @@ type EventProcessorBuilder struct {
 	diagnosticRecordingInterval time.Duration
 	flushInterval               time.Duration
 	logUserKeyInErrors          bool
-	privateAttributeNames       []lduser.UserAttribute
+	privateAttributeNames       []ldattr.Ref
 	userKeysCapacity            int
 	userKeysFlushInterval       time.Duration
 }
@@ -88,7 +87,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 		FlushInterval:               b.flushInterval,
 		Loggers:                     loggers,
 		LogUserKeyInErrors:          b.logUserKeyInErrors,
-		PrivateAttributeNames:       b.privateAttributeNames,
+		PrivateAttributes:           b.privateAttributeNames,
 		UserKeysCapacity:            b.userKeysCapacity,
 		UserKeysFlushInterval:       b.userKeysFlushInterval,
 	}
@@ -150,9 +149,9 @@ func (b *EventProcessorBuilder) FlushInterval(interval time.Duration) *EventProc
 //
 //     config := ld.Config{
 //         Events: ldcomponents.SendEvents().
-//             PrivateAttributeNames(lduser.EmailAttribute, lduser.UserAttribute("some-custom-attribute")),
+//             PrivateAttributeNames(lduser.EmailAttribute, ldcontext.ContextAttribute("some-custom-attribute")),
 //     }
-func (b *EventProcessorBuilder) PrivateAttributeNames(attributes ...lduser.UserAttribute) *EventProcessorBuilder {
+func (b *EventProcessorBuilder) PrivateAttributeNames(attributes ...ldattr.Ref) *EventProcessorBuilder {
 	b.privateAttributeNames = attributes
 	return b
 }

@@ -5,15 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-
-	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -118,69 +117,69 @@ func TestRuleConfig(t *testing.T) {
 	t.Run("simple match returning variation 0/true", func(t *testing.T) {
 		matchReturnsVariation0 := basicBool().On(true).FallthroughVariation(0).AddRule(
 			ldbuilders.NewRuleBuilder().ID("rule0").Variation(trueVar).Clauses(
-				ldbuilders.Clause(lduser.NameAttribute, ldmodel.OperatorIn, ldvalue.String("Lucy")),
+				ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("Lucy")),
 			),
 		)
 
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfMatch(lduser.NameAttribute, ldvalue.String("Lucy")).ThenReturn(true)
+			f.IfMatch("name", ldvalue.String("Lucy")).ThenReturn(true)
 		}, matchReturnsVariation0)
 
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfMatch(lduser.NameAttribute, ldvalue.String("Lucy")).ThenReturnIndex(0)
+			f.IfMatch("name", ldvalue.String("Lucy")).ThenReturnIndex(0)
 		}, matchReturnsVariation0)
 	})
 
 	t.Run("simple match returning variation 1/false", func(t *testing.T) {
 		matchReturnsVariation1 := basicBool().On(true).FallthroughVariation(0).AddRule(
 			ldbuilders.NewRuleBuilder().ID("rule0").Variation(falseVar).Clauses(
-				ldbuilders.Clause(lduser.NameAttribute, ldmodel.OperatorIn, ldvalue.String("Lucy")),
+				ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("Lucy")),
 			),
 		)
 
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfMatch(lduser.NameAttribute, ldvalue.String("Lucy")).ThenReturn(false)
+			f.IfMatch("name", ldvalue.String("Lucy")).ThenReturn(false)
 		}, matchReturnsVariation1)
 
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfMatch(lduser.NameAttribute, ldvalue.String("Lucy")).ThenReturnIndex(1)
+			f.IfMatch("name", ldvalue.String("Lucy")).ThenReturnIndex(1)
 		}, matchReturnsVariation1)
 	})
 
 	t.Run("negated match", func(t *testing.T) {
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfNotMatch(lduser.NameAttribute, ldvalue.String("Lucy")).ThenReturn(true)
+			f.IfNotMatch("name", ldvalue.String("Lucy")).ThenReturn(true)
 		}, basicBool().On(true).FallthroughVariation(0).AddRule(
 			ldbuilders.NewRuleBuilder().ID("rule0").Variation(trueVar).Clauses(
-				ldbuilders.Negate(ldbuilders.Clause(lduser.NameAttribute, ldmodel.OperatorIn, ldvalue.String("Lucy"))),
+				ldbuilders.Negate(ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("Lucy"))),
 			),
 		))
 	})
 
 	t.Run("multiple clauses", func(t *testing.T) {
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfMatch(lduser.NameAttribute, ldvalue.String("Lucy")).
-				AndMatch(lduser.CountryAttribute, ldvalue.String("gb")).
+			f.IfMatch("name", ldvalue.String("Lucy")).
+				AndMatch("country", ldvalue.String("gb")).
 				ThenReturn(true)
 		}, basicBool().On(true).FallthroughVariation(0).AddRule(
 			ldbuilders.NewRuleBuilder().ID("rule0").Variation(trueVar).Clauses(
-				ldbuilders.Clause(lduser.NameAttribute, ldmodel.OperatorIn, ldvalue.String("Lucy")),
-				ldbuilders.Clause(lduser.CountryAttribute, ldmodel.OperatorIn, ldvalue.String("gb")),
+				ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("Lucy")),
+				ldbuilders.Clause("country", ldmodel.OperatorIn, ldvalue.String("gb")),
 			),
 		))
 	})
 
 	t.Run("multiple rules", func(t *testing.T) {
 		verifyFlag(t, func(f *FlagBuilder) {
-			f.IfMatch(lduser.NameAttribute, ldvalue.String("Lucy")).ThenReturn(true).
-				IfMatch(lduser.NameAttribute, ldvalue.String("Mina")).ThenReturn(true)
+			f.IfMatch("name", ldvalue.String("Lucy")).ThenReturn(true).
+				IfMatch("name", ldvalue.String("Mina")).ThenReturn(true)
 		}, basicBool().On(true).FallthroughVariation(0).AddRule(
 			ldbuilders.NewRuleBuilder().ID("rule0").Variation(trueVar).Clauses(
-				ldbuilders.Clause(lduser.NameAttribute, ldmodel.OperatorIn, ldvalue.String("Lucy")),
+				ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("Lucy")),
 			),
 		).AddRule(
 			ldbuilders.NewRuleBuilder().ID("rule1").Variation(trueVar).Clauses(
-				ldbuilders.Clause(lduser.NameAttribute, ldmodel.OperatorIn, ldvalue.String("Mina")),
+				ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("Mina")),
 			),
 		))
 	})

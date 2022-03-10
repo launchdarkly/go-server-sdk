@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldattr"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
+	m "github.com/launchdarkly/go-test-helpers/v2/matchers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,8 +65,8 @@ func TestEventProcessorBuilder(t *testing.T) {
 		b := SendEvents()
 		assert.Len(t, b.privateAttributeNames, 0)
 
-		b.PrivateAttributeNames(lduser.NameAttribute, lduser.UserAttribute("other"))
-		assert.Equal(t, []lduser.UserAttribute{lduser.NameAttribute, lduser.UserAttribute("other")},
+		b.PrivateAttributeNames(ldattr.NewNameRef("name"), ldattr.NewNameRef("other"))
+		assert.Equal(t, []ldattr.Ref{ldattr.NewNameRef("name"), ldattr.NewNameRef("other")},
 			b.privateAttributeNames)
 	})
 
@@ -93,7 +95,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEvent("event-key", ldevents.User(lduser.NewUser("key")), ldvalue.Null(), false, 0)
+		ce := ef.NewCustomEvent("event-key", ldevents.Context(lduser.NewUser("key")), ldvalue.Null(), false, 0)
 		ep.RecordCustomEvent(ce)
 		ep.Flush()
 
@@ -138,7 +140,7 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
+		ie := ef.NewIdentifyEvent(ldevents.Context(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
 		ep.RecordIdentifyEvent(ie)
 		ep.Flush()
 
@@ -147,10 +149,14 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 		_ = json.Unmarshal(r.Body, &jsonData)
 		assert.Equal(t, 1, jsonData.Count())
 		event := jsonData.GetByIndex(0)
-		assert.Equal(t, ldvalue.String("identify"), event.GetByKey("kind"))
-		assert.Equal(t, ldvalue.String("user-key"), event.GetByKey("user").GetByKey("key"))
-		assert.Equal(t, ldvalue.Null(), event.GetByKey("user").GetByKey("name"))
-		assert.Equal(t, ldvalue.ArrayOf(ldvalue.String("name")), event.GetByKey("user").GetByKey("privateAttrs"))
+		m.In(t).Assert(event, m.AllOf(
+			m.JSONProperty("kind").Should(m.Equal("identify")),
+			m.JSONProperty("context").Should(m.AllOf(
+				m.JSONProperty("key").Should(m.Equal("user-key")),
+				m.JSONOptProperty("name").Should(m.BeNil()),
+				m.JSONProperty("_meta").Should(m.JSONProperty("redactedAttributes").Should(m.JSONStrEqual(`["name"]`))),
+			)),
+		))
 	})
 }
 
@@ -163,7 +169,7 @@ func TestEventsCapacity(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
+		ie := ef.NewIdentifyEvent(ldevents.Context(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
 		ep.RecordIdentifyEvent(ie)
 		ep.RecordIdentifyEvent(ie) // 2nd event will be dropped
 		ep.Flush()
@@ -179,12 +185,12 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			PrivateAttributeNames("name").
+			PrivateAttributeNames(ldattr.NewNameRef("name")).
 			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEvent(ldevents.User(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build()))
+		ie := ef.NewIdentifyEvent(ldevents.Context(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build()))
 		ep.RecordIdentifyEvent(ie)
 		ep.Flush()
 
@@ -193,10 +199,14 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 		_ = json.Unmarshal(r.Body, &jsonData)
 		assert.Equal(t, 1, jsonData.Count())
 		event := jsonData.GetByIndex(0)
-		assert.Equal(t, ldvalue.String("identify"), event.GetByKey("kind"))
-		assert.Equal(t, ldvalue.String("user-key"), event.GetByKey("user").GetByKey("key"))
-		assert.Equal(t, ldvalue.String("user-email"), event.GetByKey("user").GetByKey("email"))
-		assert.Equal(t, ldvalue.Null(), event.GetByKey("user").GetByKey("name"))
-		assert.Equal(t, ldvalue.ArrayOf(ldvalue.String("name")), event.GetByKey("user").GetByKey("privateAttrs"))
+		m.In(t).Assert(event, m.AllOf(
+			m.JSONProperty("kind").Should(m.Equal("identify")),
+			m.JSONProperty("context").Should(m.AllOf(
+				m.JSONProperty("key").Should(m.Equal("user-key")),
+				m.JSONProperty("email").Should(m.Equal("user-email")),
+				m.JSONOptProperty("name").Should(m.BeNil()),
+				m.JSONProperty("_meta").Should(m.JSONProperty("redactedAttributes").Should(m.JSONStrEqual(`["name"]`))),
+			)),
+		))
 	})
 }

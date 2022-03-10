@@ -5,15 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-
-	"github.com/stretchr/testify/assert"
-
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldtestdata"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // This file contains tests for all of the event broadcaster/listener functionality in the client, plus
@@ -100,7 +99,7 @@ func TestFlagTracker(t *testing.T) {
 			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
 
 			// make the flag true for the first user only, and broadcast a flag change event
-			p.testData.Update(p.testData.Flag(flagKey).VariationForUser(user.GetKey(), true))
+			p.testData.Update(p.testData.Flag(flagKey).VariationForUser(user.Key(), true))
 
 			// ch1 receives a value change event
 			event1 := <-ch1

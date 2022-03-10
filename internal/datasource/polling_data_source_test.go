@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"

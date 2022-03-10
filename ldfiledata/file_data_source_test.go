@@ -10,10 +10,10 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

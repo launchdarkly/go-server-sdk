@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 )
 
 const (
@@ -239,7 +238,7 @@ func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
 //     testData.Flag("flag").
 //         IfMatch(lduser.NameAttribute, ldvalue.String("Patsy"), ldvalue.String("Edina")).
 //             ThenReturn(true)
-func (f *FlagBuilder) IfMatch(attribute lduser.UserAttribute, values ...ldvalue.Value) *RuleBuilder {
+func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndMatch(attribute, values...)
 }
 
@@ -253,7 +252,7 @@ func (f *FlagBuilder) IfMatch(attribute lduser.UserAttribute, values ...ldvalue.
 //     testData.Flag("flag").
 //         IfNotMatch(lduser.NameAttribute, ldvalue.String("Saffron"), ldvalue.String("Bubble")).
 //         ThenReturn(true)
-func (f *FlagBuilder) IfNotMatch(attribute lduser.UserAttribute, values ...ldvalue.Value) *RuleBuilder {
+func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndNotMatch(attribute, values...)
 }
 
@@ -330,7 +329,7 @@ func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder
 //         IfMatch(lduser.NameAttribute, ldvalue.String("Patsy")).
 //             AndMatch(lduser.CountryAttribute, ldvalue.String("gb")).
 //             ThenReturn(true)
-func (r *RuleBuilder) AndMatch(attribute lduser.UserAttribute, values ...ldvalue.Value) *RuleBuilder {
+func (r *RuleBuilder) AndMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	r.clauses = append(r.clauses, ldbuilders.Clause(attribute, ldmodel.OperatorIn, values...))
 	return r
 }
@@ -344,7 +343,7 @@ func (r *RuleBuilder) AndMatch(attribute lduser.UserAttribute, values ...ldvalue
 //             AndNotMatch(lduser.CountryAttribute, ldvalue.String("gb")).
 //             ThenReturn(true)
 func (r *RuleBuilder) AndNotMatch(
-	attribute lduser.UserAttribute,
+	attribute string,
 	values ...ldvalue.Value,
 ) *RuleBuilder {
 	r.clauses = append(r.clauses, ldbuilders.Negate(ldbuilders.Clause(attribute, ldmodel.OperatorIn, values...)))

@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldtime"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"

@@ -1,7 +1,7 @@
 package internal
 
 import (
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 

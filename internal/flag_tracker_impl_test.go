@@ -4,12 +4,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFlagChangeListeners(t *testing.T) {
@@ -44,14 +46,14 @@ func TestFlagValueChangeListener(t *testing.T) {
 
 	broadcaster := NewFlagChangeEventBroadcaster()
 	defer broadcaster.Close()
-	tracker := NewFlagTrackerImpl(broadcaster, func(flag string, user lduser.User, defaultValue ldvalue.Value) ldvalue.Value {
+	tracker := NewFlagTrackerImpl(broadcaster, func(flag string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
 		resultLock.Lock()
 		defer resultLock.Unlock()
-		return resultMap[user.GetKey()]
+		return resultMap[user.Key()]
 	})
 
-	resultMap[user.GetKey()] = ldvalue.Bool(false)
-	resultMap[otherUser.GetKey()] = ldvalue.Bool(false)
+	resultMap[user.Key()] = ldvalue.Bool(false)
+	resultMap[otherUser.Key()] = ldvalue.Bool(false)
 
 	ch1 := tracker.AddFlagValueChangeListener(flagKey, user, ldvalue.Null())
 	ch2 := tracker.AddFlagValueChangeListener(flagKey, user, ldvalue.Null())
@@ -64,7 +66,7 @@ func TestFlagValueChangeListener(t *testing.T) {
 
 	// make the flag true for the first user only, and broadcast a flag change event
 	resultLock.Lock()
-	resultMap[user.GetKey()] = ldvalue.Bool(true)
+	resultMap[user.Key()] = ldvalue.Bool(true)
 	resultLock.Unlock()
 	broadcaster.Broadcast(intf.FlagChangeEvent{Key: flagKey})
 

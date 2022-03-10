@@ -1,11 +1,11 @@
 package ldclient
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v2"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/flagstate"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
@@ -69,7 +69,7 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
 			event := factory.NewEvalEvent(
 				params.PrerequisiteFlag,
-				ldevents.User(params.User),
+				ldevents.Context(params.Context),
 				params.PrerequisiteResult,
 				ldvalue.Null(),
 				params.TargetFlagKey,
@@ -90,85 +90,93 @@ func newClientEventsDisabledDecorator(client *LDClient) interfaces.LDClientInter
 	return &clientEventsDisabledDecorator{client: client, scope: newDisabledEventsScope()}
 }
 
-func (c *clientEventsDisabledDecorator) BoolVariation(key string, user lduser.User, defaultVal bool) (bool, error) {
+func (c *clientEventsDisabledDecorator) BoolVariation(
+	key string,
+	user ldcontext.Context,
+	defaultVal bool,
+) (bool, error) {
 	detail, err := c.client.variation(key, user, ldvalue.Bool(defaultVal), true, c.scope)
 	return detail.Value.BoolValue(), err
 }
 
-func (c *clientEventsDisabledDecorator) BoolVariationDetail(key string, user lduser.User, defaultVal bool) (
+func (c *clientEventsDisabledDecorator) BoolVariationDetail(key string, user ldcontext.Context, defaultVal bool) (
 	bool, ldreason.EvaluationDetail, error) {
 	detail, err := c.client.variation(key, user, ldvalue.Bool(defaultVal), true, c.scope)
 	return detail.Value.BoolValue(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) IntVariation(key string, user lduser.User, defaultVal int) (int, error) {
+func (c *clientEventsDisabledDecorator) IntVariation(key string, user ldcontext.Context, defaultVal int) (int, error) {
 	detail, err := c.client.variation(key, user, ldvalue.Int(defaultVal), true, c.scope)
 	return detail.Value.IntValue(), err
 }
 
-func (c *clientEventsDisabledDecorator) IntVariationDetail(key string, user lduser.User, defaultVal int) (
+func (c *clientEventsDisabledDecorator) IntVariationDetail(key string, user ldcontext.Context, defaultVal int) (
 	int, ldreason.EvaluationDetail, error) {
 	detail, err := c.client.variation(key, user, ldvalue.Int(defaultVal), true, c.scope)
 	return detail.Value.IntValue(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) Float64Variation(key string, user lduser.User, defaultVal float64) (
+func (c *clientEventsDisabledDecorator) Float64Variation(key string, user ldcontext.Context, defaultVal float64) (
 	float64, error) {
 	detail, err := c.client.variation(key, user, ldvalue.Float64(defaultVal), true, c.scope)
 	return detail.Value.Float64Value(), err
 }
 
-func (c *clientEventsDisabledDecorator) Float64VariationDetail(key string, user lduser.User, defaultVal float64) (
+func (c *clientEventsDisabledDecorator) Float64VariationDetail(key string, user ldcontext.Context, defaultVal float64) (
 	float64, ldreason.EvaluationDetail, error) {
 	detail, err := c.client.variation(key, user, ldvalue.Float64(defaultVal), true, c.scope)
 	return detail.Value.Float64Value(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) StringVariation(key string, user lduser.User, defaultVal string) (
+func (c *clientEventsDisabledDecorator) StringVariation(key string, user ldcontext.Context, defaultVal string) (
 	string, error) {
 	detail, err := c.client.variation(key, user, ldvalue.String(defaultVal), true, c.scope)
 	return detail.Value.StringValue(), err
 }
 
-func (c *clientEventsDisabledDecorator) StringVariationDetail(key string, user lduser.User, defaultVal string) (
+func (c *clientEventsDisabledDecorator) StringVariationDetail(key string, user ldcontext.Context, defaultVal string) (
 	string, ldreason.EvaluationDetail, error) {
 	detail, err := c.client.variation(key, user, ldvalue.String(defaultVal), true, c.scope)
 	return detail.Value.StringValue(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) JSONVariation(key string, user lduser.User, defaultVal ldvalue.Value) (
+func (c *clientEventsDisabledDecorator) JSONVariation(key string, user ldcontext.Context, defaultVal ldvalue.Value) (
 	ldvalue.Value, error) {
 	detail, err := c.client.variation(key, user, defaultVal, true, c.scope)
 	return detail.Value, err
 }
 
-func (c *clientEventsDisabledDecorator) JSONVariationDetail(key string, user lduser.User, defaultVal ldvalue.Value) (
+func (c *clientEventsDisabledDecorator) JSONVariationDetail(
+	key string,
+	user ldcontext.Context,
+	defaultVal ldvalue.Value,
+) (
 	ldvalue.Value, ldreason.EvaluationDetail, error) {
 	detail, err := c.client.variation(key, user, defaultVal, true, c.scope)
 	return detail.Value, detail, err
 }
 
 func (c *clientEventsDisabledDecorator) AllFlagsState(
-	user lduser.User,
+	user ldcontext.Context,
 	options ...flagstate.Option,
 ) flagstate.AllFlags {
 	// Currently AllFlagsState never generates events anyway, so nothing is different here
 	return c.client.AllFlagsState(user, options...)
 }
 
-func (c *clientEventsDisabledDecorator) Identify(user lduser.User) error {
+func (c *clientEventsDisabledDecorator) Identify(context ldcontext.Context) error {
 	return nil
 }
 
-func (c *clientEventsDisabledDecorator) TrackEvent(eventName string, user lduser.User) error {
+func (c *clientEventsDisabledDecorator) TrackEvent(eventName string, user ldcontext.Context) error {
 	return nil
 }
 
-func (c *clientEventsDisabledDecorator) TrackData(eventName string, user lduser.User, data ldvalue.Value) error {
+func (c *clientEventsDisabledDecorator) TrackData(eventName string, user ldcontext.Context, data ldvalue.Value) error {
 	return nil
 }
 
-func (c *clientEventsDisabledDecorator) TrackMetric(eventName string, user lduser.User, metricValue float64,
+func (c *clientEventsDisabledDecorator) TrackMetric(eventName string, user ldcontext.Context, metricValue float64,
 	data ldvalue.Value) error {
 	return nil
 }

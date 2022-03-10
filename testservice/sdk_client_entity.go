@@ -14,9 +14,11 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldattr"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 )
 
 const defaultStartWaitTime = 5 * time.Second
@@ -61,6 +63,13 @@ func (c *SDKClientEntity) Close() {
 	c.logger.SetOutput(ioutil.Discard)
 }
 
+func contextOrUser(context ldcontext.Context, maybeUser *ldcontext.Context) ldcontext.Context {
+	if maybeUser != nil {
+		return *maybeUser
+	}
+	return context
+}
+
 func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{}, error) {
 	c.logger.Printf("Test service sent command: %s", asJSON(params))
 	switch params.Command {
@@ -69,77 +78,79 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 	case servicedef.CommandEvaluateAllFlags:
 		return c.evaluateAllFlags(*params.EvaluateAll)
 	case servicedef.CommandIdentifyEvent:
-		err := c.sdk.Identify(params.IdentifyEvent.User)
+		err := c.sdk.Identify(contextOrUser(params.IdentifyEvent.Context, params.IdentifyEvent.User))
 		return nil, err
 	case servicedef.CommandCustomEvent:
+		context := contextOrUser(params.CustomEvent.Context, params.CustomEvent.User)
 		if params.CustomEvent.MetricValue != nil {
-			return nil, c.sdk.TrackMetric(params.CustomEvent.EventKey, *params.CustomEvent.User,
+			return nil, c.sdk.TrackMetric(params.CustomEvent.EventKey, context,
 				*params.CustomEvent.MetricValue, params.CustomEvent.Data)
 		}
 		if params.CustomEvent.Data.IsDefined() {
-			return nil, c.sdk.TrackData(params.CustomEvent.EventKey, *params.CustomEvent.User, params.CustomEvent.Data)
+			return nil, c.sdk.TrackData(params.CustomEvent.EventKey, context, params.CustomEvent.Data)
 		}
-		return nil, c.sdk.TrackEvent(params.CustomEvent.EventKey, *params.CustomEvent.User)
+		return nil, c.sdk.TrackEvent(params.CustomEvent.EventKey, context)
 	case servicedef.CommandFlushEvents:
 		c.sdk.Flush()
 		return nil, nil
 	case servicedef.CommandGetBigSegmentStoreStatus:
 		bigSegmentsStatus := c.sdk.GetBigSegmentStoreStatusProvider().GetStatus()
 		return servicedef.BigSegmentStoreStatusResponse(bigSegmentsStatus), nil
+	case servicedef.CommandContextBuild:
+		return c.contextBuild(*params.ContextBuild)
+	case servicedef.CommandContextConvert:
+		return c.contextConvert(*params.ContextConvert)
 	default:
 		return nil, BadRequestError{Message: fmt.Sprintf("unknown command %q", params.Command)}
 	}
 }
 
 func (c *SDKClientEntity) evaluateFlag(p servicedef.EvaluateFlagParams) (*servicedef.EvaluateFlagResponse, error) {
-	if p.User == nil {
-		return nil, BadRequestError{"user is required for server-side evaluations"}
-	}
-
+	context := contextOrUser(p.Context, p.User)
 	var result ldreason.EvaluationDetail
 	if p.Detail {
 		switch p.ValueType {
 		case servicedef.ValueTypeBool:
 			var boolValue bool
-			boolValue, result, _ = c.sdk.BoolVariationDetail(p.FlagKey, *p.User, p.DefaultValue.BoolValue())
+			boolValue, result, _ = c.sdk.BoolVariationDetail(p.FlagKey, context, p.DefaultValue.BoolValue())
 			result.Value = ldvalue.Bool(boolValue)
 		case servicedef.ValueTypeInt:
 			var intValue int
-			intValue, result, _ = c.sdk.IntVariationDetail(p.FlagKey, *p.User, p.DefaultValue.IntValue())
+			intValue, result, _ = c.sdk.IntVariationDetail(p.FlagKey, context, p.DefaultValue.IntValue())
 			result.Value = ldvalue.Int(intValue)
 		case servicedef.ValueTypeDouble:
 			var floatValue float64
-			floatValue, result, _ = c.sdk.Float64VariationDetail(p.FlagKey, *p.User, p.DefaultValue.Float64Value())
+			floatValue, result, _ = c.sdk.Float64VariationDetail(p.FlagKey, context, p.DefaultValue.Float64Value())
 			result.Value = ldvalue.Float64(floatValue)
 		case servicedef.ValueTypeString:
 			var strValue string
-			strValue, result, _ = c.sdk.StringVariationDetail(p.FlagKey, *p.User, p.DefaultValue.StringValue())
+			strValue, result, _ = c.sdk.StringVariationDetail(p.FlagKey, context, p.DefaultValue.StringValue())
 			result.Value = ldvalue.String(strValue)
 		default:
 			var jsonValue ldvalue.Value
-			jsonValue, result, _ = c.sdk.JSONVariationDetail(p.FlagKey, *p.User, p.DefaultValue)
+			jsonValue, result, _ = c.sdk.JSONVariationDetail(p.FlagKey, context, p.DefaultValue)
 			result.Value = jsonValue
 		}
 	} else {
 		switch p.ValueType {
 		case servicedef.ValueTypeBool:
 			var boolValue bool
-			boolValue, _ = c.sdk.BoolVariation(p.FlagKey, *p.User, p.DefaultValue.BoolValue())
+			boolValue, _ = c.sdk.BoolVariation(p.FlagKey, context, p.DefaultValue.BoolValue())
 			result.Value = ldvalue.Bool(boolValue)
 		case servicedef.ValueTypeInt:
 			var intValue int
-			intValue, _ = c.sdk.IntVariation(p.FlagKey, *p.User, p.DefaultValue.IntValue())
+			intValue, _ = c.sdk.IntVariation(p.FlagKey, context, p.DefaultValue.IntValue())
 			result.Value = ldvalue.Int(intValue)
 		case servicedef.ValueTypeDouble:
 			var floatValue float64
-			floatValue, _ = c.sdk.Float64Variation(p.FlagKey, *p.User, p.DefaultValue.Float64Value())
+			floatValue, _ = c.sdk.Float64Variation(p.FlagKey, context, p.DefaultValue.Float64Value())
 			result.Value = ldvalue.Float64(floatValue)
 		case servicedef.ValueTypeString:
 			var strValue string
-			strValue, _ = c.sdk.StringVariation(p.FlagKey, *p.User, p.DefaultValue.StringValue())
+			strValue, _ = c.sdk.StringVariation(p.FlagKey, context, p.DefaultValue.StringValue())
 			result.Value = ldvalue.String(strValue)
 		default:
-			result.Value, _ = c.sdk.JSONVariation(p.FlagKey, *p.User, p.DefaultValue)
+			result.Value, _ = c.sdk.JSONVariation(p.FlagKey, context, p.DefaultValue)
 		}
 	}
 	rep := &servicedef.EvaluateFlagResponse{
@@ -153,10 +164,6 @@ func (c *SDKClientEntity) evaluateFlag(p servicedef.EvaluateFlagParams) (*servic
 }
 
 func (c *SDKClientEntity) evaluateAllFlags(p servicedef.EvaluateAllFlagsParams) (*servicedef.EvaluateAllFlagsResponse, error) {
-	if p.User == nil {
-		return nil, BadRequestError{"user is required for server-side evaluations"}
-	}
-
 	var options []flagstate.Option
 	if p.ClientSideOnly {
 		options = append(options, flagstate.OptionClientSideOnly())
@@ -168,11 +175,74 @@ func (c *SDKClientEntity) evaluateAllFlags(p servicedef.EvaluateAllFlagsParams) 
 		options = append(options, flagstate.OptionWithReasons())
 	}
 
-	flagsState := c.sdk.AllFlagsState(*p.User, options...)
+	flagsState := c.sdk.AllFlagsState(contextOrUser(p.Context, p.User), options...)
 	flagsJSON, _ := json.Marshal(flagsState)
 	var mapOut map[string]ldvalue.Value
 	_ = json.Unmarshal(flagsJSON, &mapOut)
 	return &servicedef.EvaluateAllFlagsResponse{State: mapOut}, nil
+}
+
+func (c *SDKClientEntity) contextBuild(p servicedef.ContextBuildParams) (*servicedef.ContextBuildResponse, error) {
+	// This method never returns an error, because all inputs are considered valid for this command; failure to
+	// build or serialize the Context is an expected condition in some test cases, so the error is just part of
+	// the output.
+	var context ldcontext.Context
+	if p.Single == nil {
+		builder := ldcontext.NewMultiBuilder()
+		for _, c := range p.Multi.Kinds {
+			builder.Add(makeSingleContext(c))
+		}
+		context = builder.Build()
+	} else {
+		context = makeSingleContext(*p.Single)
+	}
+	if context.Err() != nil {
+		return &servicedef.ContextBuildResponse{Error: "build context failed: " + context.Err().Error()}, nil
+	}
+	data, err := json.Marshal(context)
+	if err != nil {
+		return &servicedef.ContextBuildResponse{Error: "marshaling failed: " + err.Error()}, nil
+	}
+	return &servicedef.ContextBuildResponse{Output: string(data)}, nil
+}
+
+func makeSingleContext(p servicedef.ContextBuildSingleParams) ldcontext.Context {
+	b := ldcontext.NewBuilder(p.Key)
+	if p.Kind != nil {
+		b.Kind(ldcontext.Kind(*p.Kind))
+	}
+	if p.Name != nil {
+		b.Name(*p.Name)
+	}
+	if p.Transient != nil {
+		b.Transient(*p.Transient)
+	}
+	if p.Secondary != nil {
+		b.Secondary(*p.Secondary)
+	}
+	for _, attr := range p.Private {
+		b.Private(attr)
+	}
+	for k, v := range p.Custom {
+		b.SetValue(k, v)
+	}
+	return b.Build()
+}
+
+func (c *SDKClientEntity) contextConvert(p servicedef.ContextConvertParams) (*servicedef.ContextBuildResponse, error) {
+	// This method never returns an error, because all inputs are considered valid for this command; failure to
+	// parse or serialize the Context is an expected condition in some test cases, so the error is just part of
+	// the output.
+	var context ldcontext.Context
+	err := json.Unmarshal([]byte(p.Input), &context)
+	if err != nil {
+		return &servicedef.ContextBuildResponse{Error: "unmarshaling failed: " + err.Error()}, nil
+	}
+	data, err := json.Marshal(context)
+	if err != nil {
+		return &servicedef.ContextBuildResponse{Error: "re-marshaling failed: " + err.Error()}, nil
+	}
+	return &servicedef.ContextBuildResponse{Output: string(data)}, nil
 }
 
 func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.Config {
@@ -191,8 +261,10 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 	if config.Events != nil {
 		ret.ServiceEndpoints.Events = config.Events.BaseURI
 		builder := ldcomponents.SendEvents().
-			AllAttributesPrivate(config.Events.AllAttributesPrivate).
-			PrivateAttributeNames(config.Events.GlobalPrivateAttributes...)
+			AllAttributesPrivate(config.Events.AllAttributesPrivate)
+		for _, a := range config.Events.GlobalPrivateAttributes {
+			builder.PrivateAttributeNames(ldattr.NewRef(a))
+		}
 		if config.Events.Capacity.IsDefined() {
 			builder.Capacity(config.Events.Capacity.IntValue())
 		}

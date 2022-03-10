@@ -3,18 +3,17 @@ package ldclient
 import (
 	"testing"
 
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-
-	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type clientExternalUpdatesTestParams struct {

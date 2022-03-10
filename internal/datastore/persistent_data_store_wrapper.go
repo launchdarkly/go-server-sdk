@@ -8,7 +8,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"

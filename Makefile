@@ -73,11 +73,10 @@ lint: $(LINTER_VERSION_FILE)
 
 TEMP_TEST_OUTPUT=/tmp/sse-contract-test-service.log
 
-# TEMPORARY: disable some contract tests that are no longer applicable in v6, because we don't yet have a
-# version of sdk-test-harness that knows about the new generation of SDKs that don't have these features.
-# The custom event tests are being skipped even though we still support custom events, because the way
-# those tests are currently implemented unfortunately relies on the inlineUsersInEvents feature.
-TEST_HARNESS_PARAMS=-skip 'events/user properties/inlineUsers=true' -skip 'events/alias' -skip 'events/custom'
+# TEMPORARY: disable contract tests that can't pass until sdk-test-harness has been updated to
+# understand the new event schema. Also, evaluation tests involving "anonymous" and "secondary"
+# are not applicable in the new model.
+TEST_HARNESS_PARAMS=-skip 'events' -skip 'evaluation/parameterized/anonymous' -skip 'evaluation/parameterized/secondary'
 
 build-contract-tests:
 	@cd testservice && go mod tidy && go build

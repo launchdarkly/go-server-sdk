@@ -1,7 +1,7 @@
 package sharedtest
 
 import (
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 
@@ -31,13 +31,6 @@ func (c *CapturingEventProcessor) RecordIdentifyEvent(e ldevents.IdentifyEvent) 
 }
 
 func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEvent) { //nolint:revive
-	c.Events = append(c.Events, e)
-}
-
-// RecordAliasEvent is temporarily retained here even though alias events have been removed from the rest of
-// go-server-sdk, because we are not yet using the new version of ldevents, so the ldevents EventProcessor
-// interface that CapturingEventProcessor is implementing still needs to have this method.
-func (c *CapturingEventProcessor) RecordAliasEvent(e ldevents.AliasEvent) {
 	c.Events = append(c.Events, e)
 }
 

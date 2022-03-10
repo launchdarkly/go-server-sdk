@@ -1,7 +1,7 @@
 package ldfiledata
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 

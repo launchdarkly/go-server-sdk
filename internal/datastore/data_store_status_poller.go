@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
 )
 
 // dataStoreStatusPoller maintains the "last known available" state for a persistent data store and

@@ -4,16 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-
-	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestComputeDependenciesFromFlag(t *testing.T) {
@@ -29,7 +27,7 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 		AddPrerequisite("flag3", 0).
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
-				ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("ignore")),
+				ldbuilders.Clause("key", ldmodel.OperatorIn, ldvalue.String("ignore")),
 				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment1"), ldvalue.String("segment2")),
 			),
 		).
@@ -54,7 +52,7 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 	flag3 := ldbuilders.NewFlagBuilder("key").
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
-				ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("ignore")),
+				ldbuilders.Clause("key}", ldmodel.OperatorIn, ldvalue.String("ignore")),
 				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment1"), ldvalue.String("segment2")),
 			),
 		).

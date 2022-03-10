@@ -5,14 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
@@ -40,12 +41,12 @@ var onValue = ldvalue.String("on")
 var expectedReasonForSingleValueFlag = ldreason.NewEvalReasonFallthrough()
 var noReason = ldreason.EvaluationReason{}
 
-func makeClauseToMatchUser(user lduser.User) ldmodel.Clause {
-	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String(user.GetKey()))
+func makeClauseToMatchUser(user ldcontext.Context) ldmodel.Clause {
+	return ldbuilders.Clause("key", ldmodel.OperatorIn, ldvalue.String(user.Key()))
 }
 
-func makeClauseToNotMatchUser(user lduser.User) ldmodel.Clause {
-	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("not-"+user.GetKey()))
+func makeClauseToNotMatchUser(user ldcontext.Context) ldmodel.Clause {
+	return ldbuilders.Clause("key", ldmodel.OperatorIn, ldvalue.String("not-"+user.Key()))
 }
 
 type clientEvalTestParams struct {
@@ -109,7 +110,7 @@ func assertEvalEvent(
 	actualEvent ldevents.FeatureRequestEvent,
 	flagKey string,
 	flagVersion int,
-	user lduser.User,
+	user ldcontext.Context,
 	value ldvalue.Value,
 	variation int,
 	defaultVal ldvalue.Value,
@@ -118,7 +119,7 @@ func assertEvalEvent(
 	expectedEvent := ldevents.FeatureRequestEvent{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: actualEvent.CreationDate,
-			User:         ldevents.User(user),
+			Context:      ldevents.Context(user),
 		},
 		Key:       flagKey,
 		Version:   ldvalue.NewOptionalInt(flagVersion),
@@ -557,7 +558,7 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 		expectedEvent := ldevents.FeatureRequestEvent{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e.CreationDate,
-				User:         ldevents.User(evalTestUser),
+				Context:      ldevents.Context(evalTestUser),
 			},
 			Key:     "no-such-flag",
 			Value:   ldvalue.String("x"),
@@ -594,7 +595,7 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 		expected0 := ldevents.FeatureRequestEvent{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e0.CreationDate,
-				User:         ldevents.User(user),
+				Context:      ldevents.Context(user),
 			},
 			Key:       flag1.Key,
 			Version:   ldvalue.NewOptionalInt(1),
@@ -609,7 +610,7 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 		expected1 := ldevents.FeatureRequestEvent{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e1.CreationDate,
-				User:         ldevents.User(user),
+				Context:      ldevents.Context(user),
 			},
 			Key:       flag0.Key,
 			Version:   ldvalue.NewOptionalInt(1),
@@ -663,7 +664,7 @@ func TestMalformedFlagErrorLogging(t *testing.T) {
 		"Flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
-func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User,
+func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user ldcontext.Context,
 	expectedErrorRegex, expectedWarningRegex string) {
 	runTest := func(withLogging bool) {
 		mockLoggers := ldlogtest.NewMockLog()

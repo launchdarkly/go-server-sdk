@@ -1,7 +1,7 @@
 package ldstoreimpl
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 )
 

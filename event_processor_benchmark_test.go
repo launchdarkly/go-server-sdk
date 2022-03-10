@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldtime"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 )
 
 // These benchmarks cover the DefaultEventProcessor logic for digesting analytics event inputs and producing
@@ -30,7 +31,7 @@ type eventsBenchmarkEnv struct {
 	eventProcessor   ldevents.EventProcessor
 	mockEventSender  *mockEventSender
 	targetFeatureKey string
-	users            []lduser.User
+	users            []ldcontext.Context
 	variations       []ldvalue.Value
 }
 
@@ -54,7 +55,7 @@ func (env *eventsBenchmarkEnv) setUp(bc eventsBenchmarkCase) {
 		env.variations[i] = ldvalue.Int(i)
 	}
 
-	env.users = make([]lduser.User, bc.numUsers)
+	env.users = make([]ldcontext.Context, bc.numUsers)
 	for i := 0; i < bc.numUsers; i++ {
 		env.users[i] = lduser.NewUser(makeEvalBenchmarkTargetUserKey(i))
 	}
@@ -126,7 +127,7 @@ func BenchmarkFeatureRequestEventsSummaryOnly(b *testing.B) {
 			event := ldevents.FeatureRequestEvent{
 				BaseEvent: ldevents.BaseEvent{
 					CreationDate: ldtime.UnixMillisNow(),
-					User:         ldevents.EventUser{User: user},
+					Context:      ldevents.Context(user),
 				},
 				Key:       env.targetFeatureKey,
 				Variation: ldvalue.NewOptionalInt(variation),
@@ -148,7 +149,7 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 			event := ldevents.FeatureRequestEvent{
 				BaseEvent: ldevents.BaseEvent{
 					CreationDate: ldtime.UnixMillisNow(),
-					User:         ldevents.EventUser{User: user},
+					Context:      ldevents.Context(user),
 				},
 				Key:         env.targetFeatureKey,
 				Variation:   ldvalue.NewOptionalInt(variation),
@@ -170,7 +171,7 @@ func BenchmarkCustomEvents(b *testing.B) {
 			event := ldevents.CustomEvent{
 				BaseEvent: ldevents.BaseEvent{
 					CreationDate: ldtime.UnixMillisNow(),
-					User:         ldevents.EventUser{User: user},
+					Context:      ldevents.Context(user),
 				},
 				Key:  "event-key",
 				Data: data,

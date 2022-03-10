@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
 	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
@@ -19,10 +20,10 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers"
 
+	"github.com/launchdarkly/go-test-helpers/v2/testbox"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 )
 
 func assertEqualsSerializedItem(
@@ -734,7 +735,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	require.NoError(t, err)
 	defer client.Close() //nolint:errcheck
 
-	flagShouldHaveValueForUser := func(u lduser.User, expectedValue ldvalue.Value) {
+	flagShouldHaveValueForUser := func(u ldcontext.Context, expectedValue ldvalue.Value) {
 		value, err := client.JSONVariation(flagKey, u, ldvalue.Null())
 		assert.NoError(t, err)
 		assert.Equal(t, expectedValue, value)

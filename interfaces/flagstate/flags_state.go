@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"gopkg.in/launchdarkly/go-jsonstream.v1/jwriter"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldtime"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 )
 
 // AllFlags is a snapshot of the state of multiple feature flags with regard to a specific user. This is

@@ -13,7 +13,7 @@ import (
 
 	"gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
 	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
 
 	"github.com/gorilla/mux"

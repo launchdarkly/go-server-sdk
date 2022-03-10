@@ -3,17 +3,17 @@ package ldclient
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIdentifySendsIdentifyEvent(t *testing.T) {
@@ -27,7 +27,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.IdentifyEvent)
-	assert.Equal(t, ldevents.User(user), e.User)
+	assert.Equal(t, ldevents.Context(user), e.Context)
 }
 
 func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
@@ -53,7 +53,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEvent)
-	assert.Equal(t, ldevents.User(user), e.User)
+	assert.Equal(t, ldevents.Context(user), e.Context)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, ldvalue.Null(), e.Data)
 	assert.False(t, e.HasMetric)
@@ -72,7 +72,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEvent)
-	assert.Equal(t, ldevents.User(user), e.User)
+	assert.Equal(t, ldevents.Context(user), e.Context)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
 	assert.False(t, e.HasMetric)
@@ -92,7 +92,7 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEvent)
-	assert.Equal(t, ldevents.User(user), e.User)
+	assert.Equal(t, ldevents.Context(user), e.Context)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
 	assert.True(t, e.HasMetric)

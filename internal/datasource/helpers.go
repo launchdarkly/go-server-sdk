@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
 	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
 

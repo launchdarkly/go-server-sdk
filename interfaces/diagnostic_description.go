@@ -1,6 +1,6 @@
 package interfaces
 
-import "gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+import "gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 
 // DiagnosticDescription is an optional interface for components to describe their own configuration.
 //

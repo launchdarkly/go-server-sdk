@@ -1,8 +1,8 @@
 package interfaces
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 )
 
 // FlagTracker is an interface for tracking changes in feature flag configurations.
@@ -42,14 +42,18 @@ type FlagTracker interface {
 	// the specified feature flag changes, it re-evaluates the flag for the same user. It then pushes a new
 	// FlagValueChangeEvent to the channel if and only if the resulting value has changed.
 	//
-	// All feature flag evaluations require an instance of lduser.User. If the feature flag you are tracking
+	// All feature flag evaluations require an instance of ldcontext.Context. If the feature flag you are tracking
 	// tracking does not have any user targeting rules, you must still pass a dummy user such as
 	// lduser.NewUser("for-global-flags"). If you do not want the user to appear on your dashboard, use
 	// the Anonymous property: lduser.NewUserBuilder("for-global-flags").Anonymous(true).Build().
 	//
 	// The defaultValue parameter is used if the flag cannot be evaluated; it is the same as the corresponding
 	// parameter in LDClient.JSONVariation().
-	AddFlagValueChangeListener(flagKey string, user lduser.User, defaultValue ldvalue.Value) <-chan FlagValueChangeEvent
+	AddFlagValueChangeListener(
+		flagKey string,
+		user ldcontext.Context,
+		defaultValue ldvalue.Value,
+	) <-chan FlagValueChangeEvent
 
 	// RemoveFlagValueChangeListener unsubscribes from notifications of feature flag value changes. The
 	// specified channel must be one that was previously returned by AddFlagValueChangeListener(); otherwise,

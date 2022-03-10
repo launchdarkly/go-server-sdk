@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	cf "gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef/callbackfixtures"
 )
@@ -28,8 +28,8 @@ func (b *BigSegmentStoreFixture) GetMetadata() (interfaces.BigSegmentStoreMetada
 	return interfaces.BigSegmentStoreMetadata(resp), nil
 }
 
-func (b *BigSegmentStoreFixture) GetUserMembership(userHash string) (interfaces.BigSegmentMembership, error) {
-	params := cf.BigSegmentStoreGetMembershipParams{UserHash: userHash}
+func (b *BigSegmentStoreFixture) GetUserMembership(contextHash string) (interfaces.BigSegmentMembership, error) {
+	params := cf.BigSegmentStoreGetMembershipParams{ContextHash: contextHash, UserHash: contextHash}
 	var resp cf.BigSegmentStoreGetMembershipResponse
 	if err := b.service.post(cf.BigSegmentStorePathGetMembership, params, &resp); err != nil {
 		return nil, err

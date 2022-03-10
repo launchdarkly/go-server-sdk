@@ -1,9 +1,9 @@
 package datastore
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v2"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
 )

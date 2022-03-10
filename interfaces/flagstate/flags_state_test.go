@@ -3,9 +3,9 @@ package flagstate
 import (
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldtime"
+	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 
 	"github.com/stretchr/testify/assert"
 )

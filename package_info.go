@@ -7,10 +7,10 @@
 // client. Most applications that need to change any configuration settings will use the ldcomponents
 // package (https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents).
 //
-// The SDK also uses types from the go-sdk-common.v2 repository and its subpackages
-// (https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2) that represent standard data structures
+// The SDK also uses types from the go-sdk-common.v3 repository and its subpackages
+// (https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v3) that represent standard data structures
 // in the LaunchDarkly model. All applications that evaluate feature flags will use the lduser
-// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v2/lduser); for some features such
+// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-sdk-common.v3/lduser); for some features such
 // as custom attributes, the ldvalue package is also helpful.
 //
 // For more information and code examples, see the Go SDK Reference:

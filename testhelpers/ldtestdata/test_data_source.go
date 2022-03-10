@@ -3,7 +3,7 @@ package ldtestdata
 import (
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
@@ -111,7 +111,7 @@ func (t *TestDataSource) UpdateStatus(
 // you can only replace it with an entirely new flag configuration.
 //
 // To construct an instance of ldmodel.FeatureFlag, rather than accessing the fields directly it is
-// recommended to use the builder API in gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders.
+// recommended to use the builder API in gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders.
 func (t *TestDataSource) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *TestDataSource {
 	t.updateInternal(
 		flag.Key,
@@ -140,7 +140,7 @@ func (t *TestDataSource) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *TestDat
 // by just setting flag values.
 //
 // To construct an instance of ldmodel.Segment, rather than accessing the fields directly it is
-// recommended to use the builder API in gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders.
+// recommended to use the builder API in gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders.
 func (t *TestDataSource) UsePreconfiguredSegment(segment ldmodel.Segment) *TestDataSource {
 	t.lock.Lock()
 	oldItem := t.currentSegments[segment.Key]
