@@ -14,10 +14,6 @@ type fakeFlagOrSegment struct {
 	Version int    `json:"version"`
 }
 
-func (f fakeFlagOrSegment) GetKey() string {
-	return f.Key
-}
-
 // FlagOrSegment provides a simple object that has only "key" and "version" properties.
 // This may be enough for some testing purposes that don't require full flag or segment data.
 func FlagOrSegment(key string, version int) interface{} {
