@@ -151,10 +151,10 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 					CreationDate: ldtime.UnixMillisNow(),
 					Context:      ldevents.Context(user),
 				},
-				Key:         env.targetFeatureKey,
-				Variation:   ldvalue.NewOptionalInt(variation),
-				Value:       value,
-				TrackEvents: true,
+				Key:              env.targetFeatureKey,
+				Variation:        ldvalue.NewOptionalInt(variation),
+				Value:            value,
+				RequireFullEvent: true,
 			}
 			env.eventProcessor.RecordFeatureRequestEvent(event)
 		}

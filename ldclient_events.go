@@ -68,9 +68,15 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 		factory: factory,
 		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
 			event := factory.NewEvalEvent(
-				params.PrerequisiteFlag,
+				ldevents.FlagEventProperties{
+					Key:                  params.PrerequisiteFlag.Key,
+					Version:              params.PrerequisiteFlag.Version,
+					RequireFullEvent:     params.PrerequisiteFlag.TrackEvents,
+					DebugEventsUntilDate: params.PrerequisiteFlag.DebugEventsUntilDate,
+				},
 				ldevents.Context(params.Context),
-				params.PrerequisiteResult,
+				params.PrerequisiteResult.Detail,
+				params.PrerequisiteResult.IsExperiment,
 				ldvalue.Null(),
 				params.TargetFlagKey,
 			)

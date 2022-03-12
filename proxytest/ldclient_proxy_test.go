@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

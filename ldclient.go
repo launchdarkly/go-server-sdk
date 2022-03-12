@@ -565,20 +565,15 @@ func (client *LDClient) AllFlagsState(user ldcontext.Context, options ...flagsta
 
 				result := client.evaluator.Evaluate(flag, user, nil)
 
-				// Here we are applying the same logic used in EventFactory.NewEvalEvent (go-sdk-events package)
-				// to determine whether the evaluation involved an experiment, in which case both TrackEvents
-				// and TrackReason should be overridden.
-				requireExperimentData := flag.IsExperimentationEnabled(result.Reason)
-
 				state.AddFlag(
 					item.Key,
 					flagstate.FlagState{
-						Value:                result.Value,
-						Variation:            result.VariationIndex,
-						Reason:               result.Reason,
+						Value:                result.Detail.Value,
+						Variation:            result.Detail.VariationIndex,
+						Reason:               result.Detail.Reason,
 						Version:              flag.Version,
-						TrackEvents:          flag.TrackEvents || requireExperimentData,
-						TrackReason:          requireExperimentData,
+						TrackEvents:          flag.TrackEvents || result.IsExperiment,
+						TrackReason:          result.IsExperiment,
 						DebugEventsUntilDate: flag.DebugEventsUntilDate,
 					},
 				)
@@ -809,21 +804,27 @@ func (client *LDClient) variation(
 	}
 	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventsScope)
 	if err != nil {
-		result.Value = defaultVal
-		result.VariationIndex = ldvalue.OptionalInt{}
-	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Value.Type() != defaultVal.Type() {
-		result = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
+		result.Detail.Value = defaultVal
+		result.Detail.VariationIndex = ldvalue.OptionalInt{}
+	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Detail.Value.Type() != defaultVal.Type() {
+		result.Detail = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
 	}
 
 	if !eventsScope.disabled {
 		var evt ldevents.FeatureRequestEvent
 		if flag == nil {
-			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.Context(user), defaultVal, result.Reason)
+			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.Context(user), defaultVal, result.Detail.Reason)
 		} else {
 			evt = eventsScope.factory.NewEvalEvent(
-				flag,
+				ldevents.FlagEventProperties{
+					Key:                  flag.Key,
+					Version:              flag.Version,
+					RequireFullEvent:     flag.TrackEvents,
+					DebugEventsUntilDate: flag.DebugEventsUntilDate,
+				},
 				ldevents.Context(user),
-				result,
+				result.Detail,
+				result.IsExperiment,
 				defaultVal,
 				"",
 			)
@@ -831,7 +832,7 @@ func (client *LDClient) variation(
 		client.eventProcessor.RecordFeatureRequestEvent(evt)
 	}
 
-	return result, err
+	return result.Detail, err
 }
 
 // Performs all the steps of evaluation except for sending the feature request event (the main one;
@@ -841,7 +842,7 @@ func (client *LDClient) evaluateInternal(
 	user ldcontext.Context,
 	defaultVal ldvalue.Value,
 	eventsScope eventsScope,
-) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
+) (ldeval.Result, *ldmodel.FeatureFlag, error) {
 	// THIS IS A HIGH-TRAFFIC CODE PATH so performance tuning is important. Please see CONTRIBUTING.md for guidelines
 	// to keep in mind during any changes to the evaluation logic.
 
@@ -853,12 +854,12 @@ func (client *LDClient) evaluateInternal(
 		errKind ldreason.EvalErrorKind,
 		flag *ldmodel.FeatureFlag,
 		err error,
-	) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
+	) (ldeval.Result, *ldmodel.FeatureFlag, error) {
 		detail := newEvaluationError(defaultVal, errKind)
 		if client.logEvaluationErrors {
 			client.loggers.Warn(err)
 		}
-		return detail, flag, err
+		return ldeval.Result{Detail: detail}, flag, err
 	}
 
 	if !client.Initialized() {
@@ -874,7 +875,7 @@ func (client *LDClient) evaluateInternal(
 	if storeErr != nil {
 		client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)
 		detail := newEvaluationError(defaultVal, ldreason.EvalErrorException)
-		return detail, nil, storeErr
+		return ldeval.Result{Detail: detail}, nil, storeErr
 	}
 
 	if itemDesc.Item != nil {
@@ -892,15 +893,15 @@ func (client *LDClient) evaluateInternal(
 			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 
-	detail := client.evaluator.Evaluate(feature, user, eventsScope.prerequisiteEventRecorder)
-	if detail.Reason.GetKind() == ldreason.EvalReasonError && client.logEvaluationErrors {
+	result := client.evaluator.Evaluate(feature, user, eventsScope.prerequisiteEventRecorder)
+	if result.Detail.Reason.GetKind() == ldreason.EvalReasonError && client.logEvaluationErrors {
 		client.loggers.Warnf("Flag evaluation for %s failed with error %s, default value was returned",
-			key, detail.Reason.GetErrorKind())
+			key, result.Detail.Reason.GetErrorKind())
 	}
-	if detail.IsDefaultValue() {
-		detail.Value = defaultVal
+	if result.Detail.IsDefaultValue() {
+		result.Detail.Value = defaultVal
 	}
-	return detail, feature, nil
+	return result, feature, nil
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {
