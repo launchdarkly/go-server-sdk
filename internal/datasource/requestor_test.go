@@ -12,9 +12,9 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

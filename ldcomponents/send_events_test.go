@@ -10,9 +10,9 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
 	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 	m "github.com/launchdarkly/go-test-helpers/v2/matchers"
 
 	"github.com/stretchr/testify/assert"

@@ -205,7 +205,7 @@ func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsI
 	flag := ldbuilders.NewFlagBuilder(evalFlagKey).SingleVariation(ldvalue.Bool(true)).Build()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)
-	_, _ = store.Upsert(datakinds.Features, flag.GetKey(), sharedtest.FlagDescriptor(flag))
+	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.DataSourceThatNeverInitializes()

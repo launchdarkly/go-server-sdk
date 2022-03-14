@@ -458,7 +458,7 @@ func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.True(t, e.TrackEvents)
+		assert.True(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.NewEvalReasonRuleMatch(0, "rule-id"), e.Reason)
 	})
 }
@@ -487,7 +487,7 @@ func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *test
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.False(t, e.TrackEvents)
+		assert.False(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 	})
 }
@@ -509,7 +509,7 @@ func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.True(t, e.TrackEvents)
+		assert.True(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.NewEvalReasonFallthrough(), e.Reason)
 	})
 }
@@ -530,7 +530,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testi
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.False(t, e.TrackEvents)
+		assert.False(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 	})
 }
@@ -544,7 +544,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 		assert.Equal(t, "off", value)
 
 		e := p.requireSingleEvent(t)
-		assert.False(t, e.TrackEvents)
+		assert.False(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 	})
 }
@@ -723,7 +723,7 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	flag := ldbuilders.NewFlagBuilder(evalFlagKey).SingleVariation(ldvalue.Bool(true)).Build()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)
-	_, _ = store.Upsert(datakinds.Features, flag.GetKey(), sharedtest.FlagDescriptor(flag))
+	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
@@ -732,7 +732,7 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	})
 	defer client.Close()
 
-	value, err := client.BoolVariation(flag.GetKey(), evalTestUser, false)
+	value, err := client.BoolVariation(flag.Key, evalTestUser, false)
 	assert.NoError(t, err)
 	assert.True(t, value)
 

@@ -3,10 +3,10 @@ package sharedtest
 import (
 	"sort"
 
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
+	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
 )
 
 // FlagDescriptor is a shortcut for creating a StoreItemDescriptor from a flag.
