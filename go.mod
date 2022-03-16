@@ -25,6 +25,6 @@ require (
 
 replace gopkg.in/launchdarkly/go-sdk-common.v3 => github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.3
 
-replace gopkg.in/launchdarkly/go-sdk-events.v2 => github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.2
+replace gopkg.in/launchdarkly/go-sdk-events.v2 => github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.3
 
 replace gopkg.in/launchdarkly/go-server-sdk-evaluation.v2 => github.com/launchdarkly/go-server-sdk-evaluation-private/v2 v2.0.0-alpha.4
