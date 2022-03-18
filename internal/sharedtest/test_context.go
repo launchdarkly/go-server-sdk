@@ -100,7 +100,7 @@ func (c testLoggingConfiguration) IsLogEvaluationErrors() bool {
 	return false
 }
 
-func (c testLoggingConfiguration) IsLogUserKeyInErrors() bool {
+func (c testLoggingConfiguration) IsLogContextKeyInErrors() bool {
 	return false
 }
 

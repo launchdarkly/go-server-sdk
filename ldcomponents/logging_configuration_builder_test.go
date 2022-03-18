@@ -19,7 +19,7 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 		c, err := Logging().CreateLoggingConfiguration(basicConfig)
 		require.NoError(t, err)
 		assert.False(t, c.IsLogEvaluationErrors())
-		assert.False(t, c.IsLogUserKeyInErrors())
+		assert.False(t, c.IsLogContextKeyInErrors())
 	})
 
 	t.Run("LogDataSourceOutageAsErrorAfter", func(t *testing.T) {
@@ -34,10 +34,10 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 		assert.True(t, c.IsLogEvaluationErrors())
 	})
 
-	t.Run("LogUserKeyInErrors", func(t *testing.T) {
-		c, err := Logging().LogUserKeyInErrors(true).CreateLoggingConfiguration(basicConfig)
+	t.Run("LogContextKeyInErrors", func(t *testing.T) {
+		c, err := Logging().LogContextKeyInErrors(true).CreateLoggingConfiguration(basicConfig)
 		require.NoError(t, err)
-		assert.True(t, c.IsLogUserKeyInErrors())
+		assert.True(t, c.IsLogContextKeyInErrors())
 	})
 
 	t.Run("Loggers", func(t *testing.T) {

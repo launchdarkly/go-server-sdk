@@ -34,7 +34,7 @@ type BigSegmentStoreWrapper struct {
 	store          interfaces.BigSegmentStore
 	statusUpdateFn func(interfaces.BigSegmentStoreStatus)
 	staleTime      time.Duration
-	userCache      *ccache.Cache
+	contextCache   *ccache.Cache
 	cacheTTL       time.Duration
 	pollInterval   time.Duration
 	haveStatus     bool
@@ -65,8 +65,8 @@ func NewBigSegmentStoreWrapperWithConfig(
 		store:          config.Store,
 		statusUpdateFn: statusUpdateFn,
 		staleTime:      config.StaleAfter,
-		userCache:      ccache.New(ccache.Configure().MaxSize(int64(config.UserCacheSize))),
-		cacheTTL:       config.UserCacheTime,
+		contextCache:   ccache.New(ccache.Configure().MaxSize(int64(config.ContextCacheSize))),
+		cacheTTL:       config.ContextCacheTime,
 		pollInterval:   config.StatusPollInterval,
 		pollCloser:     pollCloser,
 		pollingActive:  config.StartPolling,
@@ -87,46 +87,52 @@ func (w *BigSegmentStoreWrapper) Close() {
 		close(w.pollCloser)
 		w.pollCloser = nil
 	}
-	if w.userCache != nil {
-		w.userCache.Stop()
-		w.userCache = nil
+	if w.contextCache != nil {
+		w.contextCache.Stop()
+		w.contextCache = nil
 	}
 	w.lock.Unlock()
 
 	_ = w.store.Close()
 }
 
-// GetUserMembership is called by the evaluator when it needs to get the Big Segment membership
-// state for a user.
+// GetMembership is called by the evaluator when it needs to get the Big Segment membership
+// state for an evaluation context.
 //
-// If there is a cached membership state for the user, it returns the cached state. Otherwise,
-// it converts the user key into the hash string used by the BigSegmentStore, queries the store,
+// If there is a cached membership state for the context, it returns the cached state. Otherwise,
+// it converts the context key into the hash string used by the BigSegmentStore, queries the store,
 // and caches the result. The returned status value indicates whether the query succeeded, and
 // whether the result (regardless of whether it was from a new query or the cache) should be
 // considered "stale".
-func (w *BigSegmentStoreWrapper) GetUserMembership(
-	userKey string,
+//
+// We do not need to know the context kind, because each big segment can only be for one kind.
+// Thus, if the memberships for context key "x" include segments A and B, it is OK if segment A
+// is referring to the context {"kind": "user", "key": x"} while segment B is referring to the
+// context {"kind": "org", "key": "x"}; even though those are two different contexts, there is
+// no ambiguity when it comes to checking against either of those segments.
+func (w *BigSegmentStoreWrapper) GetMembership(
+	contextKey string,
 ) (ldeval.BigSegmentMembership, ldreason.BigSegmentsStatus) {
-	entry := w.safeCacheGet(userKey)
+	entry := w.safeCacheGet(contextKey)
 	var result ldeval.BigSegmentMembership
 	if entry == nil || entry.Expired() {
 		// Use singleflight to ensure that we'll only do this query once even if multiple goroutines are
 		// requesting it
-		value, err, _ := w.requests.Do(userKey, func() (interface{}, error) {
-			hash := bigsegments.HashForUserKey(userKey)
-			w.loggers.Debugf("querying Big Segment state for user hash %q", hash)
-			return w.store.GetUserMembership(hash)
+		value, err, _ := w.requests.Do(contextKey, func() (interface{}, error) {
+			hash := bigsegments.HashForContextKey(contextKey)
+			w.loggers.Debugf("querying Big Segment state for context hash %q", hash)
+			return w.store.GetMembership(hash)
 		})
 		if err != nil {
 			w.loggers.Errorf("Big Segment store returned error: %s", err)
 			return nil, ldreason.BigSegmentsStoreError
 		}
 		if value == nil {
-			w.safeCacheSet(userKey, nil, w.cacheTTL) // we cache the "not found" status
+			w.safeCacheSet(contextKey, nil, w.cacheTTL) // we cache the "not found" status
 			return nil, ldreason.BigSegmentsHealthy
 		}
 		if membership, ok := value.(interfaces.BigSegmentMembership); ok {
-			w.safeCacheSet(userKey, membership, w.cacheTTL)
+			w.safeCacheSet(contextKey, membership, w.cacheTTL)
 			result = membership
 		} else {
 			w.loggers.Error("BigSegmentStoreWrapper got wrong value type from request - this should not be possible")
@@ -171,14 +177,14 @@ func (w *BigSegmentStoreWrapper) GetStatus() interfaces.BigSegmentStoreStatus {
 	return w.pollStoreAndUpdateStatus()
 }
 
-// ClearCache invalidates the cache of per-user Big Segment state, so subsequent queries will get
+// ClearCache invalidates the cache of per-context Big Segment state, so subsequent queries will get
 // the latest data.
 //
 // This is used by the Relay Proxy, but is not currently used by the SDK otherwise.
 func (w *BigSegmentStoreWrapper) ClearCache() {
 	w.lock.Lock()
-	if w.userCache != nil {
-		w.userCache.Clear()
+	if w.contextCache != nil {
+		w.contextCache.Clear()
 	}
 	w.lock.Unlock()
 	w.loggers.Debug("invalidated cache")
@@ -263,8 +269,8 @@ func (w *BigSegmentStoreWrapper) runPollTask(pollInterval time.Duration, pollClo
 func (w *BigSegmentStoreWrapper) safeCacheGet(key string) *ccache.Item {
 	var ret *ccache.Item
 	w.lock.RLock()
-	if w.userCache != nil {
-		ret = w.userCache.Get(key)
+	if w.contextCache != nil {
+		ret = w.contextCache.Get(key)
 	}
 	w.lock.RUnlock()
 	return ret
@@ -272,8 +278,8 @@ func (w *BigSegmentStoreWrapper) safeCacheGet(key string) *ccache.Item {
 
 func (w *BigSegmentStoreWrapper) safeCacheSet(key string, value interface{}, ttl time.Duration) {
 	w.lock.RLock()
-	if w.userCache != nil {
-		w.userCache.Set(key, value, ttl)
+	if w.contextCache != nil {
+		w.contextCache.Set(key, value, ttl)
 	}
 	w.lock.RUnlock()
 }

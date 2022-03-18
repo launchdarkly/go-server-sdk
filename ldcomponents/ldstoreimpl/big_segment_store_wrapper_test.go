@@ -42,8 +42,8 @@ func storeWrapperTest(t *testing.T) *storeWrapperTestParams {
 		config: BigSegmentsConfigurationProperties{
 			StatusPollInterval: time.Millisecond * 10,
 			StaleAfter:         time.Hour,
-			UserCacheSize:      1000,
-			UserCacheTime:      time.Hour,
+			ContextCacheSize:   1000,
+			ContextCacheTime:   time.Hour,
 			StartPolling:       true,
 		},
 		statusCh: make(chan interfaces.BigSegmentStoreStatus, 10),
@@ -66,7 +66,7 @@ func (p *storeWrapperTestParams) run(action func(*storeWrapperTestParams)) {
 }
 
 func (p *storeWrapperTestParams) assertMembership(userKey string, expected interfaces.BigSegmentMembership) {
-	membership, status := p.wrapper.GetUserMembership(userKey)
+	membership, status := p.wrapper.GetMembership(userKey)
 	assert.Equal(p.t, ldreason.BigSegmentsHealthy, status)
 	assert.Equal(p.t, expected, membership)
 }
@@ -78,7 +78,7 @@ func (p *storeWrapperTestParams) assertUserHashesQueried(hashes ...string) {
 func testBigSegmentStoreWrapperMembershipQuery(t *testing.T) {
 	storeWrapperTest(t).run(func(p *storeWrapperTestParams) {
 		userKey := "userkey"
-		userHash := bigsegments.HashForUserKey(userKey)
+		userHash := bigsegments.HashForContextKey(userKey)
 		expectedMembership := NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 		p.store.TestSetMembership(userHash, expectedMembership)
 
@@ -91,7 +91,7 @@ func testBigSegmentStoreWrapperMembershipCaching(t *testing.T) {
 	t.Run("successful query is cached", func(t *testing.T) {
 		storeWrapperTest(t).run(func(p *storeWrapperTestParams) {
 			userKey := "userkey"
-			userHash := bigsegments.HashForUserKey(userKey)
+			userHash := bigsegments.HashForContextKey(userKey)
 			expectedMembership := NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 			p.store.TestSetMembership(userHash, expectedMembership)
 
@@ -104,7 +104,7 @@ func testBigSegmentStoreWrapperMembershipCaching(t *testing.T) {
 	t.Run("not-found result is cached", func(t *testing.T) {
 		storeWrapperTest(t).run(func(p *storeWrapperTestParams) {
 			userKey := "userkey"
-			userHash := bigsegments.HashForUserKey(userKey)
+			userHash := bigsegments.HashForContextKey(userKey)
 
 			p.assertMembership(userKey, nil)
 			p.assertMembership(userKey, nil)
@@ -114,20 +114,20 @@ func testBigSegmentStoreWrapperMembershipCaching(t *testing.T) {
 
 	t.Run("least recent user is evicted from cache", func(t *testing.T) {
 		p := storeWrapperTest(t)
-		p.config.UserCacheSize = 2
+		p.config.ContextCacheSize = 2
 		p.run(func(p *storeWrapperTestParams) {
 			userKey1 := "userkey1"
-			userHash1 := bigsegments.HashForUserKey(userKey1)
+			userHash1 := bigsegments.HashForContextKey(userKey1)
 			expectedMembership1 := NewBigSegmentMembershipFromSegmentRefs([]string{"yes1"}, []string{"no1"})
 			p.store.TestSetMembership(userHash1, expectedMembership1)
 
 			userKey2 := "userkey2"
-			userHash2 := bigsegments.HashForUserKey(userKey2)
+			userHash2 := bigsegments.HashForContextKey(userKey2)
 			expectedMembership2 := NewBigSegmentMembershipFromSegmentRefs([]string{"yes2"}, []string{"no2"})
 			p.store.TestSetMembership(userHash2, expectedMembership2)
 
 			userKey3 := "userkey3"
-			userHash3 := bigsegments.HashForUserKey(userKey3)
+			userHash3 := bigsegments.HashForContextKey(userKey3)
 			expectedMembership3 := NewBigSegmentMembershipFromSegmentRefs([]string{"yes3"}, []string{"no3"})
 			p.store.TestSetMembership(userHash3, expectedMembership3)
 
@@ -140,7 +140,7 @@ func testBigSegmentStoreWrapperMembershipCaching(t *testing.T) {
 			// LRU behavior of ccache is only eventually consistent - the LRU status is updated by a worker
 			// goroutine.
 			require.Eventually(t, func() bool {
-				return p.wrapper.userCache.Get(userKey1) == nil
+				return p.wrapper.contextCache.Get(userKey1) == nil
 			}, time.Second, time.Millisecond*10, "timed out waiting for LRU eviction")
 
 			p.assertUserHashesQueried(userHash1, userHash2, userHash3)
@@ -234,7 +234,7 @@ func testBigSegmentStoreWrapperControlMethods(t *testing.T) {
 		p := storeWrapperTest(t)
 		p.run(func(p *storeWrapperTestParams) {
 			userKey := "userkey"
-			userHash := bigsegments.HashForUserKey(userKey)
+			userHash := bigsegments.HashForContextKey(userKey)
 
 			expectedMembership1 := NewBigSegmentMembershipFromSegmentRefs([]string{"yes"}, []string{"no"})
 			p.store.TestSetMembership(userHash, expectedMembership1)

@@ -28,7 +28,7 @@ func (b *BigSegmentStoreFixture) GetMetadata() (interfaces.BigSegmentStoreMetada
 	return interfaces.BigSegmentStoreMetadata(resp), nil
 }
 
-func (b *BigSegmentStoreFixture) GetUserMembership(contextHash string) (interfaces.BigSegmentMembership, error) {
+func (b *BigSegmentStoreFixture) GetMembership(contextHash string) (interfaces.BigSegmentMembership, error) {
 	params := cf.BigSegmentStoreGetMembershipParams{ContextHash: contextHash, UserHash: contextHash}
 	var resp cf.BigSegmentStoreGetMembershipResponse
 	if err := b.service.post(cf.BigSegmentStorePathGetMembership, params, &resp); err != nil {

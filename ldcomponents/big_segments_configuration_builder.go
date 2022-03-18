@@ -7,13 +7,13 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
 )
 
-// DefaultBigSegmentsUserCacheSize is the default value for
-// BigSegmentsConfigurationBuilder.UserCacheSize.
-const DefaultBigSegmentsUserCacheSize = 1000
+// DefaultBigSegmentsContextCacheSize is the default value for
+// BigSegmentsConfigurationBuilder.ContextCacheSize.
+const DefaultBigSegmentsContextCacheSize = 1000
 
-// DefaultBigSegmentsUserCacheTime is the default value for
-// BigSegmentsConfigurationBuilder.UserCacheTime.
-const DefaultBigSegmentsUserCacheTime = time.Second * 5
+// DefaultBigSegmentsContextCacheTime is the default value for
+// BigSegmentsConfigurationBuilder.ContextCacheTime.
+const DefaultBigSegmentsContextCacheTime = time.Second * 5
 
 // DefaultBigSegmentsStatusPollInterval is the default value for
 // BigSegmentsConfigurationBuilder.StatusPollInterval.
@@ -34,7 +34,7 @@ const DefaultBigSegmentsStaleAfter = time.Second * 120
 //
 //     config := ld.Config{
 //         BigSegments: ldcomponents.BigSegments(ldredis.DataStore()).
-//             UserCacheSize(2000).
+//             ContextCacheSize(2000).
 //		       StaleAfter(time.Second * 60),
 //     }
 //
@@ -55,7 +55,7 @@ type BigSegmentsConfigurationBuilder struct {
 //
 //     config := ld.Config{
 //         BigSegments: ldcomponents.BigSegments(ldredis.DataStore().Prefix("app1")).
-//             UserCacheSize(2000),
+//             ContextCacheSize(2000),
 //     }
 //
 // You must always specify the storeFactory parameter, to tell the SDK what database you are using.
@@ -63,53 +63,53 @@ type BigSegmentsConfigurationBuilder struct {
 // specific to that database; this is described via some implementation of BigSegmentStoreFactory.
 // The BigSegmentsConfigurationBuilder adds configuration options for aspects of SDK behavior
 // that are independent of the database. In the example above, Prefix() is an option specifically for the
-// Redis integration, whereas UserCacheSize() is an option that can be used for any data store type.
+// Redis integration, whereas ContextCacheSize() is an option that can be used for any data store type.
 //
 // If you do not set Config.BigSegments-- or if you pass a nil storeFactory to this function-- the
 // Big Segments feature will be disabled, and any feature flags that reference a Big Segment will
-// behave as if the user was not included in the segment.
+// behave as if the evaluation context was not included in the segment.
 func BigSegments(storeFactory interfaces.BigSegmentStoreFactory) *BigSegmentsConfigurationBuilder {
 	return &BigSegmentsConfigurationBuilder{
 		storeFactory: storeFactory,
 		config: ldstoreimpl.BigSegmentsConfigurationProperties{
-			UserCacheSize:      DefaultBigSegmentsUserCacheSize,
-			UserCacheTime:      DefaultBigSegmentsUserCacheTime,
+			ContextCacheSize:   DefaultBigSegmentsContextCacheSize,
+			ContextCacheTime:   DefaultBigSegmentsContextCacheTime,
 			StatusPollInterval: DefaultBigSegmentsStatusPollInterval,
 			StaleAfter:         DefaultBigSegmentsStaleAfter,
 		},
 	}
 }
 
-// UserCacheSize sets the maximum number of users whose Big Segment state will be cached by the SDK
-// at any given time. The default value is DefaultBigSegmentsUserCacheSize.
+// ContextCacheSize sets the maximum number of users whose Big Segment state will be cached by the SDK
+// at any given time. The default value is DefaultBigSegmentsContextCacheSize.
 //
-// To reduce database traffic, the SDK maintains a least-recently-used cache by user key. When a feature
-// flag that references a Big Segment is evaluated for some user who is not currently in the cache, the
-// SDK queries the database for all Big Segment memberships of that user, and stores them together in a
+// To reduce database traffic, the SDK maintains a least-recently-used cache by context key. When a feature
+// flag that references a Big Segment is evaluated for some context that is not currently in the cache, the
+// SDK queries the database for all Big Segment memberships of that context, and stores them together in a
 // single cache entry. If the cache is full, the oldest entry is dropped.
 //
-// A higher value for UserCacheSize means that database queries for Big Segments will be done less often
+// A higher value for ContextCacheSize means that database queries for Big Segments will be done less often
 // for recently-referenced users, if the application has many users, at the cost of increased memory
 // used by the cache.
 //
-// Cache entries can also expire based on the setting of UserCacheTime.
-func (b *BigSegmentsConfigurationBuilder) UserCacheSize(
-	userCacheSize int,
+// Cache entries can also expire based on the setting of ContextCacheTime.
+func (b *BigSegmentsConfigurationBuilder) ContextCacheSize(
+	contextCacheSize int,
 ) *BigSegmentsConfigurationBuilder {
-	b.config.UserCacheSize = userCacheSize
+	b.config.ContextCacheSize = contextCacheSize
 	return b
 }
 
-// UserCacheTime sets the maximum length of time that the Big Segment state for a user will be cached
-// by the SDK. The default value is DefaultBigSegmentsUserCacheTime.
+// ContextCacheTime sets the maximum length of time that the Big Segment state for an evaluation context will be
+// cached by the SDK. The default value is DefaultBigSegmentsContextCacheTime.
 //
-// See UserCacheSize for more about this cache. A higher value for UserCacheTime means that database queries
-// for the Big Segment state of any given user will be done less often, but that changes to segment
+// See ContextCacheSize for more about this cache. A higher value for ContextCacheTime means that database queries
+// for the Big Segment state of any given context will be done less often, but that changes to segment
 // membership may not be detected as soon.
-func (b *BigSegmentsConfigurationBuilder) UserCacheTime(
-	userCacheTime time.Duration,
+func (b *BigSegmentsConfigurationBuilder) ContextCacheTime(
+	contextCacheTime time.Duration,
 ) *BigSegmentsConfigurationBuilder {
-	b.config.UserCacheTime = userCacheTime
+	b.config.ContextCacheTime = contextCacheTime
 	return b
 }
 

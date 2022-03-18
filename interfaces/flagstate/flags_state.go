@@ -9,8 +9,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
 )
 
-// AllFlags is a snapshot of the state of multiple feature flags with regard to a specific user. This is
-// the return type of LDClient.AllFlagsState().
+// AllFlags is a snapshot of the state of multiple feature flags with regard to a specific evaluation
+// context. This is the return type of LDClient.AllFlagsState().
 //
 // Serializing this object to JSON using json.Marshal() will produce the appropriate data structure for
 // bootstrapping the LaunchDarkly JavaScript client.
@@ -33,13 +33,13 @@ type allFlagsOptions struct {
 	detailsOnlyIfTracked bool
 }
 
-// FlagState represents the state of an individual feature flag, with regard to a specific user, at the
-// time when LDClient.AllFlagsState() was called.
+// FlagState represents the state of an individual feature flag, with regard to a specific evaluation
+// context, at the time when LDClient.AllFlagsState() was called.
 type FlagState struct {
-	// Value is the result of evaluating the flag for the specified user.
+	// Value is the result of evaluating the flag for the specified evaluation context.
 	Value ldvalue.Value
 
-	// Variation is the variation index that was selected for the specified user.
+	// Variation is the variation index that was selected for the specified evaluation context.
 	Variation ldvalue.OptionalInt
 
 	// Version is the flag's version number when it was evaluated. This is an int rather than an OptionalInt

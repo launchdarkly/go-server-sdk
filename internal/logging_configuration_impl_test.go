@@ -26,12 +26,12 @@ func TestLoggingConfigurationImpl(t *testing.T) {
 		assert.True(t, lc.IsLogEvaluationErrors())
 	})
 
-	t.Run("IsLogUserKeyInErrors", func(t *testing.T) {
+	t.Run("IsLogContextKeyInErrors", func(t *testing.T) {
 		lc := LoggingConfigurationImpl{}
-		assert.False(t, lc.IsLogUserKeyInErrors())
+		assert.False(t, lc.IsLogContextKeyInErrors())
 
-		lc.LogUserKeyInErrors = true
-		assert.True(t, lc.IsLogUserKeyInErrors())
+		lc.LogContextKeyInErrors = true
+		assert.True(t, lc.IsLogContextKeyInErrors())
 	})
 
 	t.Run("GetLoggers", func(t *testing.T) {

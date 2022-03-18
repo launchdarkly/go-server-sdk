@@ -21,8 +21,8 @@ type LoggingConfiguration interface {
 	// IsLogEvaluationErrors returns true if evaluation errors should be logged.
 	IsLogEvaluationErrors() bool
 
-	// IsLogUserKeyInErrors returns true if user keys may be included in logging.
-	IsLogUserKeyInErrors() bool
+	// IsLogContextKeyInErrors returns true if context keys may be included in logging.
+	IsLogContextKeyInErrors() bool
 }
 
 // LoggingConfigurationFactory is an interface for a factory that creates a LoggingConfiguration.

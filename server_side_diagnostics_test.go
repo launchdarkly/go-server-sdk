@@ -27,8 +27,8 @@ func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 		Set("startWaitMillis", durationToMillis(testStartWaitMillis)).
 		Set("usingRelayDaemon", ldvalue.Bool(false)).
 		Set("allAttributesPrivate", ldvalue.Bool(false)).
-		Set("userKeysCapacity", ldvalue.Int(ldcomponents.DefaultUserKeysCapacity)).
-		Set("userKeysFlushIntervalMillis", durationToMillis(ldcomponents.DefaultUserKeysFlushInterval)).
+		Set("userKeysCapacity", ldvalue.Int(ldcomponents.DefaultContextKeysCapacity)).
+		Set("userKeysFlushIntervalMillis", durationToMillis(ldcomponents.DefaultContextKeysFlushInterval)).
 		Set("usingProxy", ldvalue.Bool(false)).
 		Set("diagnosticRecordingIntervalMillis", durationToMillis(ldcomponents.DefaultDiagnosticRecordingInterval))
 }
@@ -106,9 +106,9 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().FlushInterval(time.Second) },
 		func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) })
-	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().UserKeysCapacity(2) },
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().ContextKeysCapacity(2) },
 		func(b ldvalue.ObjectBuilder) { b.Set("userKeysCapacity", ldvalue.Int(2)) })
-	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().UserKeysFlushInterval(time.Second) },
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().ContextKeysFlushInterval(time.Second) },
 		func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
 
 	// network properties

@@ -27,7 +27,7 @@ type flagTrackerImpl struct {
 // NewFlagTrackerImpl creates the internal implementation of FlagTracker.
 func NewFlagTrackerImpl(
 	broadcaster *FlagChangeEventBroadcaster,
-	evaluateFn func(flagKey string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
+	evaluateFn func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
 ) interfaces.FlagTracker {
 	return &flagTrackerImpl{
 		broadcaster:              broadcaster,
@@ -49,12 +49,12 @@ func (f *flagTrackerImpl) RemoveFlagChangeListener(listener <-chan interfaces.Fl
 // AddFlagValueChangeListener is a standard method of FlagTracker.
 func (f *flagTrackerImpl) AddFlagValueChangeListener(
 	flagKey string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultValue ldvalue.Value,
 ) <-chan interfaces.FlagValueChangeEvent {
 	valueCh := make(chan interfaces.FlagValueChangeEvent, subscriberChannelBufferLength)
 	flagCh := f.broadcaster.AddListener()
-	go runValueChangeListener(flagCh, valueCh, f.evaluateFn, flagKey, user, defaultValue)
+	go runValueChangeListener(flagCh, valueCh, f.evaluateFn, flagKey, context, defaultValue)
 
 	f.lock.Lock()
 	f.valueChangeSubscriptions[valueCh] = flagCh
@@ -78,12 +78,12 @@ func (f *flagTrackerImpl) RemoveFlagValueChangeListener(listener <-chan interfac
 func runValueChangeListener(
 	flagCh <-chan interfaces.FlagChangeEvent,
 	valueCh chan<- interfaces.FlagValueChangeEvent,
-	evaluateFn func(flagKey string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
+	evaluateFn func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
 	flagKey string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultValue ldvalue.Value,
 ) {
-	currentValue := evaluateFn(flagKey, user, defaultValue)
+	currentValue := evaluateFn(flagKey, context, defaultValue)
 	for {
 		flagChange, ok := <-flagCh
 		if !ok {
@@ -94,7 +94,7 @@ func runValueChangeListener(
 		if flagChange.Key != flagKey {
 			continue
 		}
-		newValue := evaluateFn(flagKey, user, defaultValue)
+		newValue := evaluateFn(flagKey, context, defaultValue)
 		if newValue.Equal(currentValue) {
 			continue
 		}
