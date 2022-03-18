@@ -100,7 +100,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 // AllAttributesPrivate sets whether or not all optional context attributes should be hidden from LaunchDarkly.
 //
 // If this is true, all context attribute values (other than the key) will be private, not just the attributes
-// specified with PrivateAttributeNames or on a per-context basis with ldcontext.Builder methods. By default,
+// specified with PrivateAttributes or on a per-context basis with ldcontext.Builder methods. By default,
 // it is false.
 func (b *EventProcessorBuilder) AllAttributesPrivate(value bool) *EventProcessorBuilder {
 	b.allAttributesPrivate = value

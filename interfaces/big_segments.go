@@ -61,7 +61,7 @@ type BigSegmentStore interface {
 	GetMetadata() (BigSegmentStoreMetadata, error)
 
 	// GetMembership queries the store for a snapshot of the current segment state for a specific
-	// evaluation context. The userHash is a base64-encoded string produced by hashing the context key
+	// evaluation context. The contextHash is a base64-encoded string produced by hashing the context key
 	// as defined by the Big Segments specification; the store implementation does not need to know the
 	// details of how this is done, because it deals only with already-hashed keys, but the string can
 	// be assumed to only contain characters that are valid in base64.
