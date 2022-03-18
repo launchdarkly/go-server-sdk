@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/bigsegments"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -14,11 +14,9 @@ jobs:
       image: golang:1.16-buster
     template:
       name: go
-    env:
-      LD_RELEASE_GO_IMPORT_PATH: gopkg.in/launchdarkly/go-server-sdk.v6
 
 publications:
-  - url: https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v6
+  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6
     description: documentation
 
 sdk:

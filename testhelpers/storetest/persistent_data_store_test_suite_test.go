@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
-	sh "gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
 )
 
 // This verifies that the PersistentDataStoreTestSuite tests behave as expected as long as the

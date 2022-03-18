@@ -1,9 +1,9 @@
 package datakinds
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 
-	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
+	"github.com/launchdarkly/go-jsonstream/v2/jreader"
 )
 
 // DataKindInternal is implemented along with DataKind to provide more efficient jsonstream-based

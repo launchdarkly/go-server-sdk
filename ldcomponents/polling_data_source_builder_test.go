@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datasource"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

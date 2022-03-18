@@ -3,9 +3,9 @@ package ldcomponents
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 )
 
 // PersistentDataStoreDefaultCacheTime is the default amount of time that recently read or updated items

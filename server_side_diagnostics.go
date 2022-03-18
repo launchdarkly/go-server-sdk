@@ -3,10 +3,10 @@ package ldclient
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 )
 
 func createDiagnosticsManager(

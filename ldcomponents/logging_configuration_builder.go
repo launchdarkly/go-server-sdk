@@ -3,9 +3,9 @@ package ldcomponents
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.

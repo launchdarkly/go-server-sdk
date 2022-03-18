@@ -3,10 +3,10 @@ package internal
 import (
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
 // flagTrackerImpl is the internal implementation of FlagTracker. It's not exported because

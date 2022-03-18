@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
 )
 
 // This verifies that the BigSegmentStoreTestSuite tests behave as expected as long as the

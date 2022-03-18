@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

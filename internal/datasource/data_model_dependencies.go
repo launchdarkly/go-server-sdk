@@ -3,11 +3,11 @@ package datasource
 import (
 	"sort"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
-	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 )
 
 type kindAndKey struct {

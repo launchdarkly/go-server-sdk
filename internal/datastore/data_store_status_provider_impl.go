@@ -1,6 +1,6 @@
 package datastore
 
-import "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 // dataStoreStatusProviderImpl is the internal implementation of DataStoreStatusProvider. It's not
 // exported because the rest of the SDK code only interacts with the public interface.

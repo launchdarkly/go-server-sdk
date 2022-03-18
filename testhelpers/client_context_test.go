@@ -3,8 +3,8 @@ package testhelpers
 import (
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 )

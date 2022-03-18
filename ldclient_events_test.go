@@ -3,14 +3,14 @@ package ldclient
 import (
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

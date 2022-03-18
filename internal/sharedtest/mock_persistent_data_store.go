@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 )
 
 // MockDatabaseInstance can be used with MockPersistentDataStore to simulate multiple data store

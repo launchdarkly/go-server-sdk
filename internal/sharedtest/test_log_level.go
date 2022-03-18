@@ -2,7 +2,7 @@
 package sharedtest
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 var testLogLevel = ldlog.None

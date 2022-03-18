@@ -15,11 +15,11 @@ import (
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 
-	ld "gopkg.in/launchdarkly/go-server-sdk.v6"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
+	ld "github.com/launchdarkly/go-server-sdk/v6"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

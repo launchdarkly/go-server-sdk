@@ -1,8 +1,8 @@
 package ldcomponents
 
 import (
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 type nullEventProcessorFactory struct{}

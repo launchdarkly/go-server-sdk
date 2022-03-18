@@ -3,8 +3,8 @@ package endpoints
 import (
 	"strings"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 // ServiceType is used internally to denote which endpoint a URI is for.

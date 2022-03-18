@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldattr"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
+	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
 	m "github.com/launchdarkly/go-test-helpers/v2/matchers"
