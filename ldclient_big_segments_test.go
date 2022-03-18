@@ -82,7 +82,7 @@ func TestEvalWithBigSegments(t *testing.T) {
 		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
 			membership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(
 				[]string{makeBigSegmentRef(bigSegmentKey, 1)}, nil)
-			bsStore.TestSetMembership(bigsegments.HashForUserKey(evalTestUser.Key()), membership)
+			bsStore.TestSetMembership(bigsegments.HashForContextKey(evalTestUser.Key()), membership)
 
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)

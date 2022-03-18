@@ -64,7 +64,7 @@ func (s *BigSegmentStoreTestSuite) Run(t *testing.T) {
 
 func (s *BigSegmentStoreTestSuite) runInternal(t testbox.TestingT) {
 	t.Run("GetMetadata", s.runMetadataTests)
-	t.Run("GetUserMembership", s.runUserMembershipTests)
+	t.Run("GetMembership", s.runMembershipTests)
 }
 
 func (s *BigSegmentStoreTestSuite) runMetadataTests(t testbox.TestingT) {
@@ -88,10 +88,10 @@ func (s *BigSegmentStoreTestSuite) runMetadataTests(t testbox.TestingT) {
 	})
 }
 
-func (s *BigSegmentStoreTestSuite) runUserMembershipTests(t testbox.TestingT) {
+func (s *BigSegmentStoreTestSuite) runMembershipTests(t testbox.TestingT) {
 	t.Run("not found", func(t testbox.TestingT) {
 		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
-			um, err := store.GetUserMembership(fakeUserHash)
+			um, err := store.GetMembership(fakeUserHash)
 			require.NoError(t, err)
 			assertEqualMembership(t, nil, nil, um)
 		})
@@ -101,7 +101,7 @@ func (s *BigSegmentStoreTestSuite) runUserMembershipTests(t testbox.TestingT) {
 		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
 			require.NoError(t, s.setSegmentsFn("", fakeUserHash, []string{"key1", "key2"}, nil))
 
-			um, err := store.GetUserMembership(fakeUserHash)
+			um, err := store.GetMembership(fakeUserHash)
 			require.NoError(t, err)
 			assertEqualMembership(t, []string{"key1", "key2"}, nil, um)
 		})
@@ -111,7 +111,7 @@ func (s *BigSegmentStoreTestSuite) runUserMembershipTests(t testbox.TestingT) {
 		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
 			require.NoError(t, s.setSegmentsFn("", fakeUserHash, nil, []string{"key1", "key2"}))
 
-			um, err := store.GetUserMembership(fakeUserHash)
+			um, err := store.GetMembership(fakeUserHash)
 			require.NoError(t, err)
 			assertEqualMembership(t, nil, []string{"key1", "key2"}, um)
 		})
@@ -122,7 +122,7 @@ func (s *BigSegmentStoreTestSuite) runUserMembershipTests(t testbox.TestingT) {
 			require.NoError(t, s.setSegmentsFn("", fakeUserHash, []string{"key1", "key2"}, []string{"key2", "key3"}))
 			// key1 is included; key2 is included and excluded, therefore it's included; key3 is excluded
 
-			um, err := store.GetUserMembership(fakeUserHash)
+			um, err := store.GetMembership(fakeUserHash)
 			require.NoError(t, err)
 			assertEqualMembership(t, []string{"key1", "key2"}, []string{"key3"}, um)
 		})

@@ -53,11 +53,11 @@ func (s *mockSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, er
 	return *s.metadata, nil
 }
 
-func (s *mockSegmentStore) GetUserMembership(userHashKey string) (interfaces.BigSegmentMembership, error) {
+func (s *mockSegmentStore) GetMembership(contextHashKey string) (interfaces.BigSegmentMembership, error) {
 	if s.owner.overrideGetMembership != nil {
-		return s.owner.overrideGetMembership(s, userHashKey)
+		return s.owner.overrideGetMembership(s, contextHashKey)
 	}
-	keys := s.data[userHashKey]
+	keys := s.data[contextHashKey]
 	return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(keys.included, keys.excluded), nil
 }
 

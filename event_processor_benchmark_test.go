@@ -78,25 +78,25 @@ type eventsBenchmarkCase struct {
 }
 
 var eventsBenchmarkCases = []eventsBenchmarkCase{
-	eventsBenchmarkCase{
+	{
 		bufferSize:    1000,
 		numEvents:     100,
 		numVariations: 2,
 		numUsers:      10,
 	},
-	eventsBenchmarkCase{
+	{
 		bufferSize:    1000,
 		numEvents:     100,
 		numVariations: 2,
 		numUsers:      100,
 	},
-	eventsBenchmarkCase{
+	{
 		bufferSize:    1000,
 		numEvents:     1000,
 		numVariations: 2,
 		numUsers:      10,
 	},
-	eventsBenchmarkCase{
+	{
 		bufferSize:    1000,
 		numEvents:     1000,
 		numVariations: 2,

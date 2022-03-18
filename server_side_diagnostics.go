@@ -47,7 +47,6 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolin
 	"diagnosticRecordingIntervalMillis": ldvalue.NumberType,
 	"eventsCapacity":                    ldvalue.NumberType,
 	"eventsFlushIntervalMillis":         ldvalue.NumberType,
-	"inlineUsersInEvents":               ldvalue.BoolType,
 	"pollingIntervalMillis":             ldvalue.NumberType,
 	"reconnectTimeMillis":               ldvalue.NumberType,
 	"socketTimeoutMillis":               ldvalue.NumberType,

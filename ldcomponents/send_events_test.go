@@ -61,29 +61,29 @@ func TestEventProcessorBuilder(t *testing.T) {
 		assert.Equal(t, time.Hour, b.flushInterval)
 	})
 
-	t.Run("PrivateAttributeNames", func(t *testing.T) {
+	t.Run("PrivateAttributes", func(t *testing.T) {
 		b := SendEvents()
-		assert.Len(t, b.privateAttributeNames, 0)
+		assert.Len(t, b.privateAttributes, 0)
 
-		b.PrivateAttributeNames(ldattr.NewNameRef("name"), ldattr.NewNameRef("other"))
-		assert.Equal(t, []ldattr.Ref{ldattr.NewNameRef("name"), ldattr.NewNameRef("other")},
-			b.privateAttributeNames)
+		b.PrivateAttributes("name", "/address/street")
+		assert.Equal(t, []ldattr.Ref{ldattr.NewRef("name"), ldattr.NewRef("/address/street")},
+			b.privateAttributes)
 	})
 
-	t.Run("UserKeysCapacity", func(t *testing.T) {
+	t.Run("ContextKeysCapacity", func(t *testing.T) {
 		b := SendEvents()
-		assert.Equal(t, DefaultUserKeysCapacity, b.userKeysCapacity)
+		assert.Equal(t, DefaultContextKeysCapacity, b.contextKeysCapacity)
 
-		b.UserKeysCapacity(333)
-		assert.Equal(t, 333, b.userKeysCapacity)
+		b.ContextKeysCapacity(333)
+		assert.Equal(t, 333, b.contextKeysCapacity)
 	})
 
-	t.Run("UserKeysFlushInterval", func(t *testing.T) {
+	t.Run("ContextKeysFlushInterval", func(t *testing.T) {
 		b := SendEvents()
-		assert.Equal(t, DefaultUserKeysFlushInterval, b.userKeysFlushInterval)
+		assert.Equal(t, DefaultContextKeysFlushInterval, b.contextKeysFlushInterval)
 
-		b.UserKeysFlushInterval(time.Hour)
-		assert.Equal(t, time.Hour, b.userKeysFlushInterval)
+		b.ContextKeysFlushInterval(time.Hour)
+		assert.Equal(t, time.Hour, b.contextKeysFlushInterval)
 	})
 }
 
@@ -185,7 +185,7 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			PrivateAttributeNames(ldattr.NewNameRef("name")).
+			PrivateAttributes("name").
 			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 

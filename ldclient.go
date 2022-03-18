@@ -206,8 +206,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 				StartPolling:       true,
 				StatusPollInterval: bsConfig.GetStatusPollInterval(),
 				StaleAfter:         bsConfig.GetStaleAfter(),
-				UserCacheSize:      bsConfig.GetUserCacheSize(),
-				UserCacheTime:      bsConfig.GetUserCacheTime(),
+				ContextCacheSize:   bsConfig.GetContextCacheSize(),
+				ContextCacheTime:   bsConfig.GetContextCacheTime(),
 			},
 			client.bigSegmentStoreStatusBroadcaster.Broadcast,
 			loggers,
@@ -271,8 +271,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.flagTracker = internal.NewFlagTrackerImpl(
 		client.flagChangeEventBroadcaster,
-		func(flagKey string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
-			value, _ := client.JSONVariation(flagKey, user, defaultValue)
+		func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
+			value, _ := client.JSONVariation(flagKey, context, defaultValue)
 			return value
 		},
 	)
@@ -336,23 +336,23 @@ func createDataSource(
 	return factory.CreateDataSource(context, dataSourceUpdates)
 }
 
-// Identify reports details about a user.
+// Identify reports details about an evaluation context.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
-func (client *LDClient) Identify(user ldcontext.Context) error {
+func (client *LDClient) Identify(context ldcontext.Context) error {
 	if client.eventsDefault.disabled {
 		return nil
 	}
-	if user.Key() == "" {
-		client.loggers.Warn("Identify called with empty user key!")
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("Identify called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := client.eventsDefault.factory.NewIdentifyEvent(ldevents.Context(user))
+	evt := client.eventsDefault.factory.NewIdentifyEvent(ldevents.Context(context))
 	client.eventProcessor.RecordIdentifyEvent(evt)
 	return nil
 }
 
-// TrackEvent reports that a user has performed an event.
+// TrackEvent reports an event associated with an evaluation context.
 //
 // The eventName parameter is defined by the application and will be shown in analytics reports;
 // it normally corresponds to the event name of a metric that you have created through the
@@ -360,11 +360,11 @@ func (client *LDClient) Identify(user ldcontext.Context) error {
 // or TrackMetric.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
-func (client *LDClient) TrackEvent(eventName string, user ldcontext.Context) error {
-	return client.TrackData(eventName, user, ldvalue.Null())
+func (client *LDClient) TrackEvent(eventName string, context ldcontext.Context) error {
+	return client.TrackData(eventName, context, ldvalue.Null())
 }
 
-// TrackData reports that a user has performed an event, and associates it with custom data.
+// TrackData reports an event associated with an evaluation context, and adds custom data.
 //
 // The eventName parameter is defined by the application and will be shown in analytics reports;
 // it normally corresponds to the event name of a metric that you have created through the
@@ -375,18 +375,18 @@ func (client *LDClient) TrackEvent(eventName string, user ldcontext.Context) err
 // instead). To send a numeric value for experimentation, use TrackMetric.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
-func (client *LDClient) TrackData(eventName string, user ldcontext.Context, data ldvalue.Value) error {
+func (client *LDClient) TrackData(eventName string, context ldcontext.Context, data ldvalue.Value) error {
 	if client.eventsDefault.disabled {
 		return nil
 	}
-	if user.Key() == "" {
-		client.loggers.Warn("Track called with empty user key!")
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("Track called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEvent(
 			eventName,
-			ldevents.Context(user),
+			ldevents.Context(context),
 			data,
 			false,
 			0,
@@ -394,7 +394,7 @@ func (client *LDClient) TrackData(eventName string, user ldcontext.Context, data
 	return nil
 }
 
-// TrackMetric reports that a user has performed an event, and associates it with a numeric value.
+// TrackMetric reports an event associated with an evaluation context, and adds a numeric value.
 // This value is used by the LaunchDarkly experimentation feature in numeric custom metrics, and will also
 // be returned as part of the custom event for Data Export.
 //
@@ -408,21 +408,21 @@ func (client *LDClient) TrackData(eventName string, user ldcontext.Context, data
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 func (client *LDClient) TrackMetric(
 	eventName string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	metricValue float64,
 	data ldvalue.Value,
 ) error {
 	if client.eventsDefault.disabled {
 		return nil
 	}
-	if user.Key() == "" {
-		client.loggers.Warn("Track called with empty/nil user key!")
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("TrackMetric called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEvent(
 			eventName,
-			ldevents.Context(user),
+			ldevents.Context(context),
 			data,
 			true,
 			metricValue,
@@ -442,13 +442,13 @@ func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
-// SecureModeHash generates the secure mode hash value for a user.
+// SecureModeHash generates the secure mode hash value for an evaluation context.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/secure-mode#go
-func (client *LDClient) SecureModeHash(user ldcontext.Context) string {
+func (client *LDClient) SecureModeHash(context ldcontext.Context) string {
 	key := []byte(client.sdkKey)
 	h := hmac.New(sha256.New, key)
-	_, _ = h.Write([]byte(user.Key()))
+	_, _ = h.Write([]byte(context.FullyQualifiedKey()))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -513,8 +513,8 @@ func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
 }
 
-// AllFlagsState returns an object that encapsulates the state of all feature flags for a given user.
-// This includes the flag values, and also metadata that can be used on the front end.
+// AllFlagsState returns an object that encapsulates the state of all feature flags for a given evaluation.
+// context. This includes the flag values, and also metadata that can be used on the front end.
 //
 // The most common use case for this method is to bootstrap a set of client-side feature flags from a
 // back-end service.
@@ -523,7 +523,7 @@ func (client *LDClient) Flush() {
 // flagstate.DetailsOnlyForTrackedFlags as optional parameters to control what data is included.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/all-flags#go
-func (client *LDClient) AllFlagsState(user ldcontext.Context, options ...flagstate.Option) flagstate.AllFlags {
+func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flagstate.Option) flagstate.AllFlags {
 	valid := true
 	if client.IsOffline() {
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
@@ -563,7 +563,7 @@ func (client *LDClient) AllFlagsState(user ldcontext.Context, options ...flagsta
 					continue
 				}
 
-				result := client.evaluator.Evaluate(flag, user, nil)
+				result := client.evaluator.Evaluate(flag, context, nil)
 
 				state.AddFlag(
 					item.Key,
@@ -584,14 +584,14 @@ func (client *LDClient) AllFlagsState(user ldcontext.Context, options ...flagsta
 	return state.Build()
 }
 
-// BoolVariation returns the value of a boolean feature flag for a given user.
+// BoolVariation returns the value of a boolean feature flag for a given evaluation context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) BoolVariation(key string, user ldcontext.Context, defaultVal bool) (bool, error) {
-	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, client.eventsDefault)
+func (client *LDClient) BoolVariation(key string, context ldcontext.Context, defaultVal bool) (bool, error) {
+	detail, err := client.variation(key, context, ldvalue.Bool(defaultVal), true, client.eventsDefault)
 	return detail.Value.BoolValue(), err
 }
 
@@ -601,14 +601,15 @@ func (client *LDClient) BoolVariation(key string, user ldcontext.Context, defaul
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) BoolVariationDetail(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal bool,
 ) (bool, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Bool(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variation(key, context, ldvalue.Bool(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.BoolValue(), detail, err
 }
 
-// IntVariation returns the value of a feature flag (whose variations are integers) for the given user.
+// IntVariation returns the value of a feature flag (whose variations are integers) for the given evaluation
+// context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
@@ -616,8 +617,8 @@ func (client *LDClient) BoolVariationDetail(
 // If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) IntVariation(key string, user ldcontext.Context, defaultVal int) (int, error) {
-	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, client.eventsDefault)
+func (client *LDClient) IntVariation(key string, context ldcontext.Context, defaultVal int) (int, error) {
+	detail, err := client.variation(key, context, ldvalue.Int(defaultVal), true, client.eventsDefault)
 	return detail.Value.IntValue(), err
 }
 
@@ -627,21 +628,22 @@ func (client *LDClient) IntVariation(key string, user ldcontext.Context, default
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) IntVariationDetail(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal int,
 ) (int, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Int(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variation(key, context, ldvalue.Int(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.IntValue(), detail, err
 }
 
-// Float64Variation returns the value of a feature flag (whose variations are floats) for the given user.
+// Float64Variation returns the value of a feature flag (whose variations are floats) for the given evaluation
+// context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) Float64Variation(key string, user ldcontext.Context, defaultVal float64) (float64, error) {
-	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, client.eventsDefault)
+func (client *LDClient) Float64Variation(key string, context ldcontext.Context, defaultVal float64) (float64, error) {
+	detail, err := client.variation(key, context, ldvalue.Float64(defaultVal), true, client.eventsDefault)
 	return detail.Value.Float64Value(), err
 }
 
@@ -651,21 +653,22 @@ func (client *LDClient) Float64Variation(key string, user ldcontext.Context, def
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) Float64VariationDetail(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal float64,
 ) (float64, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.Float64(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variation(key, context, ldvalue.Float64(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.Float64Value(), detail, err
 }
 
-// StringVariation returns the value of a feature flag (whose variations are strings) for the given user.
+// StringVariation returns the value of a feature flag (whose variations are strings) for the given evaluation
+// context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
 // no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) StringVariation(key string, user ldcontext.Context, defaultVal string) (string, error) {
-	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, client.eventsDefault)
+func (client *LDClient) StringVariation(key string, context ldcontext.Context, defaultVal string) (string, error) {
+	detail, err := client.variation(key, context, ldvalue.String(defaultVal), true, client.eventsDefault)
 	return detail.Value.StringValue(), err
 }
 
@@ -675,15 +678,15 @@ func (client *LDClient) StringVariation(key string, user ldcontext.Context, defa
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) StringVariationDetail(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal string,
 ) (string, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, ldvalue.String(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variation(key, context, ldvalue.String(defaultVal), true, client.eventsWithReasons)
 	return detail.Value.StringValue(), detail, err
 }
 
-// JSONVariation returns the value of a feature flag for the given user, allowing the value to be
-// of any JSON type.
+// JSONVariation returns the value of a feature flag for the given evaluation context, allowing the value to
+// be of any JSON type.
 //
 // The value is returned as an ldvalue.Value, which can be inspected or converted to other types using
 // Value methods such as GetType() and BoolValue(). The defaultVal parameter also uses this type. For
@@ -693,13 +696,13 @@ func (client *LDClient) StringVariationDetail(
 //         Add(ldvalue.String("defaultFirstItem")).
 //         Add(ldvalue.String("defaultSecondItem")).
 //         Build()
-//     result, err := client.JSONVariation(flagKey, user, defaultValAsArray)
+//     result, err := client.JSONVariation(flagKey, context, defaultValAsArray)
 //     firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
 //
 // You can also use unparsed json.RawMessage values:
 //
 //     defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"things":[1,2,3]}`))
-//     result, err := client.JSONVariation(flagKey, user, defaultValAsJSON
+//     result, err := client.JSONVariation(flagKey, context, defaultValAsJSON
 //     resultAsRawJSON := result.AsRaw()
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
@@ -707,10 +710,10 @@ func (client *LDClient) StringVariationDetail(
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) JSONVariation(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, error) {
-	detail, err := client.variation(key, user, defaultVal, false, client.eventsDefault)
+	detail, err := client.variation(key, context, defaultVal, false, client.eventsDefault)
 	return detail.Value, err
 }
 
@@ -720,10 +723,10 @@ func (client *LDClient) JSONVariation(
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (client *LDClient) JSONVariationDetail(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, user, defaultVal, false, client.eventsWithReasons)
+	detail, err := client.variation(key, context, defaultVal, false, client.eventsWithReasons)
 	return detail.Value, detail, err
 }
 
@@ -774,7 +777,7 @@ func (client *LDClient) GetBigSegmentStoreStatusProvider() interfaces.BigSegment
 //
 // If events were already disabled, this is just the same LDClient. Otherwise, it is an object whose
 // Variation methods use the same LDClient to evaluate feature flags, but without generating any
-// events, and whose Identify/Track/Custom methods do nothing. Neither evaluation counts nor user
+// events, and whose Identify/Track/Custom methods do nothing. Neither evaluation counts nor context
 // properties will be sent to LaunchDarkly for any operations done with this object.
 //
 // You can use this to suppress events within some particular area of your code where you do not want
@@ -791,18 +794,22 @@ func (client *LDClient) WithEventsDisabled(disabled bool) interfaces.LDClientInt
 	return client.withEventsDisabled
 }
 
-// Generic method for evaluating a feature flag for a given user.
+// Generic method for evaluating a feature flag for a given evaluation context.
 func (client *LDClient) variation(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 	checkType bool,
 	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("Tried to evaluate a flag with an invalid context: %s", err)
+		return newEvaluationError(defaultVal, ldreason.EvalErrorUserNotSpecified), err
+	}
 	if client.IsOffline() {
 		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
 	}
-	result, flag, err := client.evaluateInternal(key, user, defaultVal, eventsScope)
+	result, flag, err := client.evaluateInternal(key, context, defaultVal, eventsScope)
 	if err != nil {
 		result.Detail.Value = defaultVal
 		result.Detail.VariationIndex = ldvalue.OptionalInt{}
@@ -813,7 +820,7 @@ func (client *LDClient) variation(
 	if !eventsScope.disabled {
 		var evt ldevents.FeatureRequestEvent
 		if flag == nil {
-			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.Context(user), defaultVal, result.Detail.Reason)
+			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.Context(context), defaultVal, result.Detail.Reason)
 		} else {
 			evt = eventsScope.factory.NewEvalEvent(
 				ldevents.FlagEventProperties{
@@ -822,7 +829,7 @@ func (client *LDClient) variation(
 					RequireFullEvent:     flag.TrackEvents,
 					DebugEventsUntilDate: flag.DebugEventsUntilDate,
 				},
-				ldevents.Context(user),
+				ldevents.Context(context),
 				result.Detail,
 				result.IsExperiment,
 				defaultVal,
@@ -839,7 +846,7 @@ func (client *LDClient) variation(
 // events for prerequisites will be sent).
 func (client *LDClient) evaluateInternal(
 	key string,
-	user ldcontext.Context,
+	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 	eventsScope eventsScope,
 ) (ldeval.Result, *ldmodel.FeatureFlag, error) {
@@ -893,7 +900,7 @@ func (client *LDClient) evaluateInternal(
 			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 
-	result := client.evaluator.Evaluate(feature, user, eventsScope.prerequisiteEventRecorder)
+	result := client.evaluator.Evaluate(feature, context, eventsScope.prerequisiteEventRecorder)
 	if result.Detail.Reason.GetKind() == ldreason.EvalReasonError && client.logEvaluationErrors {
 		client.loggers.Warnf("Flag evaluation for %s failed with error %s, default value was returned",
 			key, result.Detail.Reason.GetErrorKind())
