@@ -3,7 +3,7 @@ package internal
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 // LoggingConfigurationImpl is the internal implementation of LoggingConfiguration.

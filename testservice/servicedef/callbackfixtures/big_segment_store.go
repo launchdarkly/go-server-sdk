@@ -1,6 +1,6 @@
 package callbackfixtures
 
-import "gopkg.in/launchdarkly/go-sdk-common.v3/ldtime"
+import "github.com/launchdarkly/go-sdk-common/v3/ldtime"
 
 const (
 	BigSegmentStorePathGetMetadata   = "/getMetadata"

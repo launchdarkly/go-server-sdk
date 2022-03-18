@@ -3,10 +3,10 @@ package testhelpers
 import (
 	"os"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 )
 
 // SimpleClientContext is a reference implementation of interfaces.ClientContext for test code.

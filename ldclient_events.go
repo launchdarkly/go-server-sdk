@@ -1,14 +1,14 @@
 package ldclient
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v2"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v2"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/flagstate"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/flagstate"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 )
 
 // This file contains internal support code for LDClient's interactions with the analytics event pipeline.

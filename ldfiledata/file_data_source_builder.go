@@ -1,8 +1,8 @@
 package ldfiledata
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 // ReloaderFactory is a function type used with DataSourceBuilder.Reloader, to specify a mechanism for

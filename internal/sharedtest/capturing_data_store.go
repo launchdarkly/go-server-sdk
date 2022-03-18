@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/testhelpers/ldservices"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 )
 
 // CapturingDataStore is a DataStore implementation that records update operations for testing.

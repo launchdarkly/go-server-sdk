@@ -1,6 +1,6 @@
 # LaunchDarkly Server-side SDK for Go
 
-[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v6)
+[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6)
 
 ## LaunchDarkly overview
 
@@ -13,8 +13,6 @@ This version of the LaunchDarkly SDK has been tested with Go 1.16 and higher.
 ## Getting started
 
 Refer to the [SDK documentation](https://docs.launchdarkly.com/sdk/server-side/go#getting-started) for instructions on getting started with using the SDK.
-
-Note that the base import path is `gopkg.in/launchdarkly/go-server-sdk.v6`, not `github.com/launchdarkly/go-server-sdk`. This ensures that the package can be referenced not only as a Go module, but also by projects that use older tools like `dep` and `govendor`, because the 5.x release of the Go SDK supports either module or non-module usage. Future releases of this package, and of the Go SDK, may drop support for non-module usage.
 
 ## HTTPS proxy
 
@@ -53,7 +51,7 @@ If you do not set the `launchdarkly_easyjson` build tag, the SDK does not use an
 
 ## Learn more
 
-Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference) or our [code-generated API documentation](https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v6).
+Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference) or our [code-generated API documentation](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6).
 
 ## Testing
 

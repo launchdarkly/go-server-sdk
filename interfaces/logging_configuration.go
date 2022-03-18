@@ -3,7 +3,7 @@ package interfaces
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 // LoggingConfiguration encapsulates the SDK's general logging configuration.

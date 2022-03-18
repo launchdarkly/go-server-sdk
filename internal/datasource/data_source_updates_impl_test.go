@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldbuilders"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 
-	intf "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
-	st "gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/internal/sharedtest"
+	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 )
 
 const testDataSourceOutageTimeout = 200 * time.Millisecond

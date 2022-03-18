@@ -1,10 +1,10 @@
 package datakinds
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v2/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 
-	"gopkg.in/launchdarkly/go-jsonstream.v1/jreader"
+	"github.com/launchdarkly/go-jsonstream/v2/jreader"
 )
 
 // This file defines the StoreDataKind implementations corresponding to our two top-level data model

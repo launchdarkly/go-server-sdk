@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sync"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 // This file contains all of the types we use for the publish-subscribe model for various status types. The

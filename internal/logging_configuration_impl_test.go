@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 func TestLoggingConfigurationImpl(t *testing.T) {
