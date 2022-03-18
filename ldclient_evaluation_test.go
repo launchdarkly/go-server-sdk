@@ -438,6 +438,77 @@ func TestDefaultIsReturnedIfFlagReturnsWrongType(t *testing.T) {
 	})
 }
 
+func TestEvaluateWithInvalidContext(t *testing.T) {
+	flagKey := "flag"
+	for _, contextParams := range []struct {
+		name      string
+		context   ldcontext.Context
+		errorText string
+	}{
+		{"empty key", ldcontext.New(""), "context key must not be empty"},
+		{"invalid kind", ldcontext.NewWithKind("!bad!", "key"), "context kind contains disallowed characters"},
+	} {
+		t.Run(contextParams.name, func(t *testing.T) {
+			c := contextParams.context
+			for _, evalFnParams := range []struct {
+				name string
+				fn   func(*LDClient) error
+			}{
+				{"BoolVariation", func(client *LDClient) error { _, err := client.BoolVariation(flagKey, c, false); return err }},
+				{"IntVariation", func(client *LDClient) error { _, err := client.IntVariation(flagKey, c, 0); return err }},
+				{"Float64Variation", func(client *LDClient) error { _, err := client.Float64Variation(flagKey, c, 0); return err }},
+				{"StringVariation", func(client *LDClient) error { _, err := client.StringVariation(flagKey, c, ""); return err }},
+				{"JSONVariation", func(client *LDClient) error { _, err := client.JSONVariation(flagKey, c, ldvalue.Null()); return err }},
+			} {
+				t.Run(evalFnParams.name, func(t *testing.T) {
+					withClientEvalTestParams(func(p clientEvalTestParams) {
+						err := evalFnParams.fn(p.client)
+						assert.Error(t, err)
+						p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, contextParams.errorText)
+					})
+				})
+			}
+			for _, evalFnParams := range []struct {
+				name string
+				fn   func(*LDClient) (ldreason.EvaluationDetail, error)
+			}{
+				{"BoolVariationDetail",
+					func(client *LDClient) (ldreason.EvaluationDetail, error) {
+						_, detail, err := client.BoolVariationDetail(flagKey, c, false)
+						return detail, err
+					}},
+				{"IntVariationDetail",
+					func(client *LDClient) (ldreason.EvaluationDetail, error) {
+						_, detail, err := client.IntVariationDetail(flagKey, c, 0)
+						return detail, err
+					}},
+				{"Float64VariationDetail",
+					func(client *LDClient) (ldreason.EvaluationDetail, error) {
+						_, detail, err := client.Float64VariationDetail(flagKey, c, 0)
+						return detail, err
+					}},
+				{"StringVariationDetail", func(client *LDClient) (ldreason.EvaluationDetail, error) {
+					_, detail, err := client.StringVariationDetail(flagKey, c, "")
+					return detail, err
+				}},
+				{"JSONVariationDetail", func(client *LDClient) (ldreason.EvaluationDetail, error) {
+					_, detail, err := client.JSONVariationDetail(flagKey, c, ldvalue.Null())
+					return detail, err
+				}},
+			} {
+				t.Run(evalFnParams.name, func(t *testing.T) {
+					withClientEvalTestParams(func(p clientEvalTestParams) {
+						detail, err := evalFnParams.fn(p.client)
+						assert.Error(t, err)
+						assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorUserNotSpecified), detail.Reason)
+						p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, contextParams.errorText)
+					})
+				})
+			}
+		})
+	}
+}
+
 func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder(evalFlagKey).
 		On(true).

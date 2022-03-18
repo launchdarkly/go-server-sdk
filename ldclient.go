@@ -802,6 +802,10 @@ func (client *LDClient) variation(
 	checkType bool,
 	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("Tried to evaluate a flag with an invalid context: %s", err)
+		return newEvaluationError(defaultVal, ldreason.EvalErrorUserNotSpecified), err
+	}
 	if client.IsOffline() {
 		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
 	}
