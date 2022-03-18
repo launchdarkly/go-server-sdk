@@ -14,7 +14,6 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v6/ldcomponents"
 	"gopkg.in/launchdarkly/go-server-sdk.v6/testservice/servicedef"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v3/ldattr"
 	"gopkg.in/launchdarkly/go-sdk-common.v3/ldcontext"
 	"gopkg.in/launchdarkly/go-sdk-common.v3/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v3/ldreason"
@@ -58,7 +57,7 @@ func NewSDKClientEntity(params servicedef.CreateInstanceParams) (*SDKClientEntit
 }
 
 func (c *SDKClientEntity) Close() {
-	c.sdk.Close()
+	_ = c.sdk.Close()
 	c.logger.Println("Test ended")
 	c.logger.SetOutput(ioutil.Discard)
 }
@@ -263,7 +262,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		builder := ldcomponents.SendEvents().
 			AllAttributesPrivate(config.Events.AllAttributesPrivate)
 		for _, a := range config.Events.GlobalPrivateAttributes {
-			builder.PrivateAttributeNames(ldattr.NewRef(a))
+			builder.PrivateAttributes(a)
 		}
 		if config.Events.Capacity.IsDefined() {
 			builder.Capacity(config.Events.Capacity.IntValue())
@@ -281,10 +280,10 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		fixture := &BigSegmentStoreFixture{service: &callbackService{baseURL: config.BigSegments.CallbackURI}}
 		builder := ldcomponents.BigSegments(fixture)
 		if config.BigSegments.UserCacheSize.IsDefined() {
-			builder.UserCacheSize(config.BigSegments.UserCacheSize.IntValue())
+			builder.ContextCacheSize(config.BigSegments.UserCacheSize.IntValue())
 		}
 		if config.BigSegments.UserCacheTimeMS.IsDefined() {
-			builder.UserCacheTime(time.Millisecond * time.Duration(config.BigSegments.UserCacheTimeMS))
+			builder.ContextCacheTime(time.Millisecond * time.Duration(config.BigSegments.UserCacheTimeMS))
 		}
 		if config.BigSegments.StaleAfterMS.IsDefined() {
 			builder.StaleAfter(time.Millisecond * time.Duration(config.BigSegments.StaleAfterMS))
