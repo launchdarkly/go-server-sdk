@@ -73,10 +73,8 @@ lint: $(LINTER_VERSION_FILE)
 
 TEMP_TEST_OUTPUT=/tmp/sse-contract-test-service.log
 
-# TEMPORARY: disable contract tests that can't pass until sdk-test-harness has been updated to
-# understand the new event schema. Also, evaluation tests involving "anonymous" and "secondary"
-# are not applicable in the new model.
-TEST_HARNESS_PARAMS=-skip 'events' -skip 'evaluation/parameterized/anonymous' -skip 'evaluation/parameterized/secondary'
+# TEST_HARNESS_PARAMS can be set to add -skip parameters for any contract tests that cannot yet pass
+TEST_HARNESS_PARAMS=
 
 build-contract-tests:
 	@cd testservice && go mod tidy && go build
@@ -86,11 +84,11 @@ start-contract-test-service: build-contract-tests
 
 start-contract-test-service-bg:
 	@echo "Test service output will be captured in $(TEMP_TEST_OUTPUT)"
-	@make start-contract-test-service >$(TEMP_TEST_OUTPUT) 2>&1
+	@make start-contract-test-service >$(TEMP_TEST_OUTPUT) 2>&1 &
 
 run-contract-tests:
-	@curl -s https://raw.githubusercontent.com/launchdarkly/sdk-test-harness/v1.2.0/downloader/run.sh \
-      | VERSION=v1 PARAMS="-url http://localhost:8000 -debug -stop-service-at-end $(TEST_HARNESS_PARAMS)" sh
+	@curl -s https://raw.githubusercontent.com/launchdarkly/sdk-test-harness/v2/downloader/run.sh \
+      | VERSION=v2 PARAMS="-url http://localhost:8000 -debug -stop-service-at-end $(TEST_HARNESS_PARAMS)" sh
 
 contract-tests: build-contract-tests start-contract-test-service-bg run-contract-tests
 

@@ -77,10 +77,10 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 	case servicedef.CommandEvaluateAllFlags:
 		return c.evaluateAllFlags(*params.EvaluateAll)
 	case servicedef.CommandIdentifyEvent:
-		err := c.sdk.Identify(contextOrUser(params.IdentifyEvent.Context, params.IdentifyEvent.User))
+		err := c.sdk.Identify(params.IdentifyEvent.Context)
 		return nil, err
 	case servicedef.CommandCustomEvent:
-		context := contextOrUser(params.CustomEvent.Context, params.CustomEvent.User)
+		context := params.CustomEvent.Context
 		if params.CustomEvent.MetricValue != nil {
 			return nil, c.sdk.TrackMetric(params.CustomEvent.EventKey, context,
 				*params.CustomEvent.MetricValue, params.CustomEvent.Data)
@@ -105,7 +105,7 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 }
 
 func (c *SDKClientEntity) evaluateFlag(p servicedef.EvaluateFlagParams) (*servicedef.EvaluateFlagResponse, error) {
-	context := contextOrUser(p.Context, p.User)
+	context := p.Context
 	var result ldreason.EvaluationDetail
 	if p.Detail {
 		switch p.ValueType {
@@ -174,7 +174,7 @@ func (c *SDKClientEntity) evaluateAllFlags(p servicedef.EvaluateAllFlagsParams) 
 		options = append(options, flagstate.OptionWithReasons())
 	}
 
-	flagsState := c.sdk.AllFlagsState(contextOrUser(p.Context, p.User), options...)
+	flagsState := c.sdk.AllFlagsState(p.Context, options...)
 	flagsJSON, _ := json.Marshal(flagsState)
 	var mapOut map[string]ldvalue.Value
 	_ = json.Unmarshal(flagsJSON, &mapOut)

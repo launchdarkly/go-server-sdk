@@ -39,12 +39,11 @@ type CommandParams struct {
 }
 
 type EvaluateFlagParams struct {
-	FlagKey      string             `json:"flagKey"`
-	Context      ldcontext.Context  `json:"context"`
-	User         *ldcontext.Context `json:"user,omitempty"` // temporary, for compatibility with current sdk-test-harness
-	ValueType    ValueType          `json:"valueType"`
-	DefaultValue ldvalue.Value      `json:"defaultValue"`
-	Detail       bool               `json:"detail"`
+	FlagKey      string            `json:"flagKey"`
+	Context      ldcontext.Context `json:"context"`
+	ValueType    ValueType         `json:"valueType"`
+	DefaultValue ldvalue.Value     `json:"defaultValue"`
+	Detail       bool              `json:"detail"`
 }
 
 type EvaluateFlagResponse struct {
@@ -54,11 +53,10 @@ type EvaluateFlagResponse struct {
 }
 
 type EvaluateAllFlagsParams struct {
-	Context                    ldcontext.Context  `json:"context"`
-	User                       *ldcontext.Context `json:"user,omitempty"` // temporary, for compatibility with current sdk-test-harness
-	WithReasons                bool               `json:"withReasons"`
-	ClientSideOnly             bool               `json:"clientSideOnly"`
-	DetailsOnlyForTrackedFlags bool               `json:"detailsOnlyForTrackedFlags"`
+	Context                    ldcontext.Context `json:"context"`
+	WithReasons                bool              `json:"withReasons"`
+	ClientSideOnly             bool              `json:"clientSideOnly"`
+	DetailsOnlyForTrackedFlags bool              `json:"detailsOnlyForTrackedFlags"`
 }
 
 type EvaluateAllFlagsResponse struct {
@@ -66,17 +64,15 @@ type EvaluateAllFlagsResponse struct {
 }
 
 type CustomEventParams struct {
-	EventKey     string             `json:"eventKey"`
-	Context      ldcontext.Context  `json:"context"`
-	User         *ldcontext.Context `json:"user,omitempty"` // temporary, for compatibility with current sdk-test-harness
-	Data         ldvalue.Value      `json:"data,omitempty"`
-	OmitNullData bool               `json:"omitNullData"`
-	MetricValue  *float64           `json:"metricValue,omitempty"`
+	EventKey     string            `json:"eventKey"`
+	Context      ldcontext.Context `json:"context"`
+	Data         ldvalue.Value     `json:"data,omitempty"`
+	OmitNullData bool              `json:"omitNullData"`
+	MetricValue  *float64          `json:"metricValue,omitempty"`
 }
 
 type IdentifyEventParams struct {
-	Context ldcontext.Context  `json:"context"`
-	User    *ldcontext.Context `json:"user,omitempty"` // temporary, for compatibility with current sdk-test-harness
+	Context ldcontext.Context `json:"context"`
 }
 
 type BigSegmentStoreStatusResponse struct {
