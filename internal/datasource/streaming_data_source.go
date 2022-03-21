@@ -87,8 +87,8 @@ func NewStreamProcessor(
 		dataSourceUpdates:     dataSourceUpdates,
 		streamURI:             streamURI,
 		initialReconnectDelay: initialReconnectDelay,
-		headers:               context.GetHTTP().GetDefaultHeaders(),
-		loggers:               context.GetLogging().GetLoggers(),
+		headers:               context.GetHTTP().DefaultHeaders,
+		loggers:               context.GetLogging().Loggers,
 		halt:                  make(chan struct{}),
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {

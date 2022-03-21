@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"net/http"
+
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
@@ -17,12 +19,18 @@ type ClientContextImpl struct {
 // NewClientContextImpl creates the SDK's standard implementation of interfaces.ClientContext.
 func NewClientContextImpl(
 	basic interfaces.BasicConfiguration,
-	http interfaces.HTTPConfiguration,
+	httpConfig interfaces.HTTPConfiguration,
 	logging interfaces.LoggingConfiguration,
 ) *ClientContextImpl {
+	if httpConfig.CreateHTTPClient == nil {
+		httpConfig.CreateHTTPClient = func() *http.Client {
+			client := *http.DefaultClient
+			return &client
+		}
+	}
 	return &ClientContextImpl{
 		basic,
-		http,
+		httpConfig,
 		logging,
 		nil,
 	}

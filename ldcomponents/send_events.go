@@ -68,7 +68,7 @@ func SendEvents() *EventProcessorBuilder {
 func (b *EventProcessorBuilder) CreateEventProcessor(
 	context interfaces.ClientContext,
 ) (ldevents.EventProcessor, error) {
-	loggers := context.GetLogging().GetLoggers()
+	loggers := context.GetLogging().Loggers
 
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetBasic().ServiceEndpoints,
@@ -78,7 +78,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 	)
 
 	eventSender := ldevents.NewServerSideEventSender(context.GetHTTP().CreateHTTPClient(),
-		context.GetBasic().SDKKey, configuredBaseURI, context.GetHTTP().GetDefaultHeaders(), loggers)
+		context.GetBasic().SDKKey, configuredBaseURI, context.GetHTTP().DefaultHeaders, loggers)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,

@@ -177,11 +177,11 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 	}
 
-	loggers := clientContext.GetLogging().GetLoggers()
+	loggers := clientContext.GetLogging().Loggers
 	loggers.Infof("Starting LaunchDarkly client %s", Version)
 
 	client.loggers = loggers
-	client.logEvaluationErrors = clientContext.GetLogging().IsLogEvaluationErrors()
+	client.logEvaluationErrors = clientContext.GetLogging().LogEvaluationErrors
 
 	client.offline = config.Offline
 
@@ -240,7 +240,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
 		client.flagChangeEventBroadcaster,
-		clientContext.GetLogging().GetLogDataSourceOutageAsErrorAfter(),
+		clientContext.GetLogging().LogDataSourceOutageAsErrorAfter,
 		loggers,
 	)
 
@@ -324,7 +324,7 @@ func createDataSource(
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
 	if config.Offline {
-		context.GetLogging().GetLoggers().Info("Starting LaunchDarkly client in offline mode")
+		context.GetLogging().Loggers.Info("Starting LaunchDarkly client in offline mode")
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 		return datasource.NewNullDataSource(), nil
 	}

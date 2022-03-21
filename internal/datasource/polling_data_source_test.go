@@ -9,7 +9,6 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
@@ -205,8 +204,8 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
-			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
+			httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 			p := NewPollingProcessor(context, dataSourceUpdates, ts.URL, time.Minute*30)
 			defer p.Close()

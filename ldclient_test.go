@@ -31,11 +31,11 @@ func (f badFactory) CreateEventProcessor(context interfaces.ClientContext) (ldev
 }
 
 func (f badFactory) CreateHTTPConfiguration(context interfaces.BasicConfiguration) (interfaces.HTTPConfiguration, error) {
-	return nil, f.err
+	return interfaces.HTTPConfiguration{}, f.err
 }
 
 func (f badFactory) CreateLoggingConfiguration(context interfaces.BasicConfiguration) (interfaces.LoggingConfiguration, error) {
-	return nil, f.err
+	return interfaces.LoggingConfiguration{}, f.err
 }
 
 func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {

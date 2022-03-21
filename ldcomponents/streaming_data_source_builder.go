@@ -66,7 +66,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 		context.GetBasic().ServiceEndpoints,
 		endpoints.StreamingService,
 		b.baseURI,
-		context.GetLogging().GetLoggers(),
+		context.GetLogging().Loggers,
 	)
 
 	return datasource.NewStreamProcessor(

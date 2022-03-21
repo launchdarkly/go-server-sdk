@@ -41,9 +41,9 @@ func newClientContextFromConfig(
 	}
 
 	basicConfig.ApplicationInfo.ApplicationID = validateTagValue(config.ApplicationInfo.ApplicationID,
-		"ApplicationID", logging.GetLoggers())
+		"ApplicationID", logging.Loggers)
 	basicConfig.ApplicationInfo.ApplicationVersion = validateTagValue(config.ApplicationInfo.ApplicationVersion,
-		"ApplicationVersion", logging.GetLoggers())
+		"ApplicationVersion", logging.Loggers)
 
 	httpFactory := config.HTTP
 	if httpFactory == nil {

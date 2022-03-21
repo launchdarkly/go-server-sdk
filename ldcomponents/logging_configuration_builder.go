@@ -5,7 +5,6 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
@@ -18,7 +17,7 @@ import (
 //         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
 //     }
 type LoggingConfigurationBuilder struct {
-	config internal.LoggingConfigurationImpl
+	config interfaces.LoggingConfiguration
 }
 
 // DefaultLogDataSourceOutageAsErrorAfter is the default value for
@@ -36,7 +35,7 @@ const DefaultLogDataSourceOutageAsErrorAfter = time.Minute
 //     }
 func Logging() *LoggingConfigurationBuilder {
 	return &LoggingConfigurationBuilder{
-		config: internal.LoggingConfigurationImpl{
+		config: interfaces.LoggingConfiguration{
 			LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
 			Loggers:                         ldlog.NewDefaultLoggers(),
 		},
@@ -119,5 +118,5 @@ type noLoggingConfigurationFactory struct{}
 func (f noLoggingConfigurationFactory) CreateLoggingConfiguration(
 	basic interfaces.BasicConfiguration,
 ) (interfaces.LoggingConfiguration, error) {
-	return internal.LoggingConfigurationImpl{Loggers: ldlog.NewDisabledLoggers()}, nil
+	return interfaces.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}, nil
 }
