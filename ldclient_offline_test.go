@@ -3,14 +3,14 @@ package ldclient
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/stretchr/testify/assert"
 )
 
 type clientOfflineTestParams struct {

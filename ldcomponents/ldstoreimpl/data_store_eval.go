@@ -1,10 +1,10 @@
 package ldstoreimpl
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	ldeval "gopkg.in/launchdarkly/go-server-sdk-evaluation.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 )
 
 // This file contains the public API for creating the adapter that bridges Evaluator to DataStore. The

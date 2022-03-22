@@ -4,25 +4,25 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	ld "gopkg.in/launchdarkly/go-server-sdk.v5"
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	sh "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	ld "github.com/launchdarkly/go-server-sdk/v6"
+	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
+
+	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 )
 
 func assertEqualsSerializedItem(
@@ -691,7 +691,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	flagKey, segmentKey, userKey, otherUserKey := "flagkey", "segmentkey", "userkey", "otheruser"
 	goodValue1, goodValue2, badValue := ldvalue.String("good"), ldvalue.String("better"), ldvalue.String("bad")
 	goodVariation1, goodVariation2, badVariation := 0, 1, 2
-	user, otherUser := lduser.NewUser(userKey), lduser.NewUser(otherUserKey)
+	user, otherUser := ldcontext.New(userKey), ldcontext.New(otherUserKey)
 
 	makeFlagThatReturnsVariationForSegmentMatch := func(version int, variation int) ldmodel.FeatureFlag {
 		return ldbuilders.NewFlagBuilder(flagKey).Version(version).
@@ -734,7 +734,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	require.NoError(t, err)
 	defer client.Close() //nolint:errcheck
 
-	flagShouldHaveValueForUser := func(u lduser.User, expectedValue ldvalue.Value) {
+	flagShouldHaveValueForUser := func(u ldcontext.Context, expectedValue ldvalue.Value) {
 		value, err := client.JSONVariation(flagKey, u, ldvalue.Null())
 		assert.NoError(t, err)
 		assert.Equal(t, expectedValue, value)

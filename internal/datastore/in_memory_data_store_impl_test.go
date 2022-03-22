@@ -5,17 +5,17 @@ import (
 	"sort"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 )
 
 func TestInMemoryDataStore(t *testing.T) {

@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestPersistentDataStoreBuilder(t *testing.T) {
@@ -27,7 +28,8 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 		pdsf.store = sharedtest.NewMockPersistentDataStore()
 		f := PersistentDataStore(pdsf)
 
-		context := sharedtest.NewSimpleTestContext("")
+		logConfig := interfaces.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}
+		context := sharedtest.NewTestContext("", nil, &logConfig)
 		broadcaster := internal.NewDataStoreStatusBroadcaster()
 		dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(broadcaster)
 
@@ -35,7 +37,7 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, store)
 		_ = store.Close()
-		assert.Equal(t, context, pdsf.receivedContext)
+		assert.Equal(t, context.GetLogging(), pdsf.receivedContext.GetLogging())
 
 		pdsf.store = nil
 		pdsf.fakeError = errors.New("sorry")
@@ -79,10 +81,10 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 
 	t.Run("diagnostic description", func(t *testing.T) {
 		f1 := PersistentDataStore(&mockPersistentDataStoreFactory{})
-		assert.Equal(t, ldvalue.String("custom"), f1.DescribeConfiguration())
+		assert.Equal(t, ldvalue.String("custom"), f1.DescribeConfiguration(basicClientContext()))
 
 		f2 := PersistentDataStore(&mockPersistentDataStoreFactoryWithDescription{ldvalue.String("MyDatabase")})
-		assert.Equal(t, ldvalue.String("MyDatabase"), f2.DescribeConfiguration())
+		assert.Equal(t, ldvalue.String("MyDatabase"), f2.DescribeConfiguration(basicClientContext()))
 	})
 }
 
@@ -109,6 +111,6 @@ func (m *mockPersistentDataStoreFactoryWithDescription) CreatePersistentDataStor
 	return nil, nil
 }
 
-func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration() ldvalue.Value {
+func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return m.description
 }

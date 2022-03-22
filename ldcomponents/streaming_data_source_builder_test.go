@@ -4,26 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
 )
 
 func TestStreamingDataSourceBuilder(t *testing.T) {
-	t.Run("BaseURI", func(t *testing.T) {
-		s := StreamingDataSource()
-		assert.Equal(t, "", s.baseURI)
-
-		s.BaseURI("x")
-		assert.Equal(t, "x", s.baseURI)
-
-		s.BaseURI("")
-		assert.Equal(t, "", s.baseURI)
-	})
-
 	t.Run("InitialReconnectDelay", func(t *testing.T) {
 		s := StreamingDataSource()
 		assert.Equal(t, DefaultInitialReconnectDelay, s.initialReconnectDelay)
@@ -42,10 +31,10 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 		baseURI := "base"
 		delay := time.Hour
 
-		s := StreamingDataSource().BaseURI(baseURI).InitialReconnectDelay(delay)
+		s := StreamingDataSource().InitialReconnectDelay(delay)
 
 		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		ds, err := s.CreateDataSource(basicClientContext(), dsu)
+		ds, err := s.CreateDataSource(makeTestContextWithBaseURIs(baseURI), dsu)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()

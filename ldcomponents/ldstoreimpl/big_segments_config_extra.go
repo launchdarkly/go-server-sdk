@@ -3,7 +3,7 @@ package ldstoreimpl
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 // BigSegmentsConfigurationProperties encapsulates the SDK's configuration with regard to Big Segments.
@@ -15,13 +15,13 @@ type BigSegmentsConfigurationProperties struct {
 	// Store the data store instance that is used for Big Segments data. If nil, Big Segments are disabled.
 	Store interfaces.BigSegmentStore
 
-	// UserCacheSize is the maximum number of users whose Big Segment state will be cached by the SDK
+	// ContextCacheSize is the maximum number of contexts whose Big Segment state will be cached by the SDK
 	// at any given time.
-	UserCacheSize int
+	ContextCacheSize int
 
-	// UserCacheTime is the maximum length of time that the Big Segment state for a user will be cached
+	// ContextCacheTime is the maximum length of time that the Big Segment state for a context will be cached
 	// by the SDK.
-	UserCacheTime time.Duration
+	ContextCacheTime time.Duration
 
 	// StatusPollInterval is the interval at which the SDK will poll the Big Segment store to make sure
 	// it is available and to determine how long ago it was updated
@@ -41,12 +41,12 @@ func (p BigSegmentsConfigurationProperties) GetStore() interfaces.BigSegmentStor
 	return p.Store
 }
 
-func (p BigSegmentsConfigurationProperties) GetUserCacheSize() int { //nolint:revive
-	return p.UserCacheSize
+func (p BigSegmentsConfigurationProperties) GetContextCacheSize() int { //nolint:revive
+	return p.ContextCacheSize
 }
 
-func (p BigSegmentsConfigurationProperties) GetUserCacheTime() time.Duration { //nolint:revive
-	return p.UserCacheTime
+func (p BigSegmentsConfigurationProperties) GetContextCacheTime() time.Duration { //nolint:revive
+	return p.ContextCacheTime
 }
 
 func (p BigSegmentsConfigurationProperties) GetStatusPollInterval() time.Duration { //nolint:revive

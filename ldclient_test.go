@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,11 +31,11 @@ func (f badFactory) CreateEventProcessor(context interfaces.ClientContext) (ldev
 }
 
 func (f badFactory) CreateHTTPConfiguration(context interfaces.BasicConfiguration) (interfaces.HTTPConfiguration, error) {
-	return nil, f.err
+	return interfaces.HTTPConfiguration{}, f.err
 }
 
 func (f badFactory) CreateLoggingConfiguration(context interfaces.BasicConfiguration) (interfaces.LoggingConfiguration, error) {
-	return nil, f.err
+	return interfaces.LoggingConfiguration{}, f.err
 }
 
 func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {

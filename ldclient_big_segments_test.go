@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/bigsegments"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/ldtestdata"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,7 +82,7 @@ func TestEvalWithBigSegments(t *testing.T) {
 		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
 			membership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(
 				[]string{makeBigSegmentRef(bigSegmentKey, 1)}, nil)
-			bsStore.TestSetMembership(bigsegments.HashForUserKey(evalTestUser.GetKey()), membership)
+			bsStore.TestSetMembership(bigsegments.HashForContextKey(evalTestUser.Key()), membership)
 
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)

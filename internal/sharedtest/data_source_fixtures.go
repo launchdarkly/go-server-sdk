@@ -1,8 +1,8 @@
 package sharedtest
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 )
 
 // DataSourceFactoryThatExposesUpdater is a test implementation of DataSourceFactory that captures the

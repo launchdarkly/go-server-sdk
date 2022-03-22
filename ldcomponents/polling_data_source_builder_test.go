@@ -4,26 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPollingDataSourceBuilder(t *testing.T) {
-	t.Run("BaseURI", func(t *testing.T) {
-		p := PollingDataSource()
-		assert.Equal(t, "", p.baseURI)
-
-		p.BaseURI("x")
-		assert.Equal(t, "x", p.baseURI)
-
-		p.BaseURI("")
-		assert.Equal(t, "", p.baseURI)
-	})
-
 	t.Run("PollInterval", func(t *testing.T) {
 		p := PollingDataSource()
 		assert.Equal(t, DefaultPollInterval, p.pollInterval)
@@ -42,10 +31,10 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		baseURI := "base"
 		interval := time.Hour
 
-		p := PollingDataSource().BaseURI(baseURI).PollInterval(interval)
+		p := PollingDataSource().PollInterval(interval)
 
 		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		ds, err := p.CreateDataSource(basicClientContext(), dsu)
+		ds, err := p.CreateDataSource(makeTestContextWithBaseURIs(baseURI), dsu)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()

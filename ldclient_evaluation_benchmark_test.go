@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 )
 
 // These benchmarks cover the LDClient evaluation flow, including looking up the target flag, applying all
@@ -24,9 +26,9 @@ import (
 
 type evalBenchmarkEnv struct {
 	client           *LDClient
-	evalUser         lduser.User
+	evalUser         ldcontext.Context
 	targetFeatureKey string
-	targetUsers      []lduser.User
+	targetUsers      []ldcontext.Context
 }
 
 func newEvalBenchmarkEnv() *evalBenchmarkEnv {
@@ -68,7 +70,7 @@ func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCas
 	// Create users to match all of the user keys in the flag's target list. These will be used
 	// only in BenchmarkUsersFoundInTargets; with all the other benchmarks, we are deliberately
 	// using a user key that is *not* found in the targets.
-	env.targetUsers = make([]lduser.User, bc.numTargets)
+	env.targetUsers = make([]ldcontext.Context, bc.numTargets)
 	for i := 0; i < bc.numTargets; i++ {
 		env.targetUsers[i] = lduser.NewUser(makeEvalBenchmarkTargetUserKey(i))
 	}
@@ -87,7 +89,7 @@ func (f benchmarkStubEventProcessorFactory) CreateEventProcessor(context interfa
 	return ldcomponents.NoEvents().CreateEventProcessor(context)
 }
 
-func makeEvalBenchmarkUser(bc evalBenchmarkCase) lduser.User {
+func makeEvalBenchmarkUser(bc evalBenchmarkCase) ldcontext.Context {
 	if bc.shouldMatch {
 		builder := lduser.NewUserBuilder("user-match")
 		switch bc.operator {
@@ -400,7 +402,7 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
-			for _ = range env.targetUsers {
+			for range env.targetUsers {
 				r, _ := env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
 				boolResult = r
 			}
@@ -448,24 +450,24 @@ func makeEvalBenchmarkClauses(numClauses int, op ldmodel.Operator) []ldmodel.Cla
 		clause := ldmodel.Clause{Op: op}
 		switch op {
 		case ldmodel.OperatorGreaterThan:
-			clause.Attribute = "numAttr"
+			clause.Attribute = ldattr.NewNameRef("numAttr")
 			clause.Values = []ldvalue.Value{ldvalue.Int(i)}
 		case ldmodel.OperatorContains:
-			clause.Attribute = "name"
+			clause.Attribute = ldattr.NewNameRef("name")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("name-%d", i)),
 				ldvalue.String(fmt.Sprintf("name-%d", i+1)),
 				ldvalue.String(fmt.Sprintf("name-%d", i+2)),
 			}
 		case ldmodel.OperatorMatches:
-			clause.Attribute = "stringAttr"
+			clause.Attribute = ldattr.NewNameRef("stringAttr")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+1)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+2)),
 			}
 		case ldmodel.OperatorAfter:
-			clause.Attribute = "dateAttr"
+			clause.Attribute = ldattr.NewNameRef("dateAttr")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2000+i)),
 				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2001+i)),
@@ -473,7 +475,7 @@ func makeEvalBenchmarkClauses(numClauses int, op ldmodel.Operator) []ldmodel.Cla
 			}
 		default:
 			clause.Op = ldmodel.OperatorIn
-			clause.Attribute = "stringAttr"
+			clause.Attribute = ldattr.NewNameRef("stringAttr")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+1)),

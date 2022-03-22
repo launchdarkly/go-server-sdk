@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 func TestLoggingConfigurationImpl(t *testing.T) {
@@ -26,12 +26,12 @@ func TestLoggingConfigurationImpl(t *testing.T) {
 		assert.True(t, lc.IsLogEvaluationErrors())
 	})
 
-	t.Run("IsLogUserKeyInErrors", func(t *testing.T) {
+	t.Run("IsLogContextKeyInErrors", func(t *testing.T) {
 		lc := LoggingConfigurationImpl{}
-		assert.False(t, lc.IsLogUserKeyInErrors())
+		assert.False(t, lc.IsLogContextKeyInErrors())
 
-		lc.LogUserKeyInErrors = true
-		assert.True(t, lc.IsLogUserKeyInErrors())
+		lc.LogContextKeyInErrors = true
+		assert.True(t, lc.IsLogContextKeyInErrors())
 	})
 
 	t.Run("GetLoggers", func(t *testing.T) {

@@ -5,12 +5,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/ldhttp"
 )
 
 // DefaultConnectTimeout is the HTTP connection timeout that is used if HTTPConfigurationBuilder.ConnectTimeout
@@ -146,13 +147,13 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 }
 
 // DescribeConfiguration is internally by the SDK to inspect the configuration.
-func (b *HTTPConfigurationBuilder) DescribeConfiguration() ldvalue.Value {
+func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	builder := ldvalue.ObjectBuild()
 
 	builder.Set("connectTimeoutMillis", durationToMillisValue(b.connectTimeout))
 	builder.Set("socketTimeoutMillis", durationToMillisValue(b.connectTimeout))
 
-	builder.Set("usingProxy", ldvalue.Bool(b.isProxyEnabled()))
+	builder.SetBool("usingProxy", b.isProxyEnabled())
 
 	return builder.Build()
 }
@@ -187,6 +188,9 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.wrapperIdentifier != "" {
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
 	}
+	if tagsHeaderValue := buildTagsHeaderValue(basicConfiguration); tagsHeaderValue != "" {
+		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
+	}
 
 	// For consistency with other SDKs, custom headers are allowed to overwrite headers such as
 	// User-Agent and Authorization.
@@ -199,7 +203,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.proxyURL != "" {
 		u, err := url.Parse(b.proxyURL)
 		if err != nil {
-			return nil, err
+			return interfaces.HTTPConfiguration{}, err
 		}
 		transportOpts = append(transportOpts, ldhttp.ProxyOption(*u))
 	}
@@ -209,7 +213,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		transportOpts = append(transportOpts, ldhttp.ConnectTimeoutOption(b.connectTimeout))
 		transport, _, err := ldhttp.NewHTTPTransport(transportOpts...)
 		if err != nil {
-			return nil, err
+			return interfaces.HTTPConfiguration{}, err
 		}
 		clientFactory = func() *http.Client {
 			return &http.Client{
@@ -219,8 +223,19 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		}
 	}
 
-	return internal.HTTPConfigurationImpl{
-		DefaultHeaders:    headers,
-		HTTPClientFactory: clientFactory,
+	return interfaces.HTTPConfiguration{
+		DefaultHeaders:   headers,
+		CreateHTTPClient: clientFactory,
 	}, nil
+}
+
+func buildTagsHeaderValue(basicConfig interfaces.BasicConfiguration) string {
+	var parts []string
+	if basicConfig.ApplicationInfo.ApplicationID != "" {
+		parts = append(parts, fmt.Sprintf("application-id/%s", basicConfig.ApplicationInfo.ApplicationID))
+	}
+	if basicConfig.ApplicationInfo.ApplicationVersion != "" {
+		parts = append(parts, fmt.Sprintf("application-version/%s", basicConfig.ApplicationInfo.ApplicationVersion))
+	}
+	return strings.Join(parts, " ")
 }

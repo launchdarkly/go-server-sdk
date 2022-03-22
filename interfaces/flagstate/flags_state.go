@@ -3,14 +3,14 @@ package flagstate
 import (
 	"fmt"
 
-	"gopkg.in/launchdarkly/go-jsonstream.v1/jwriter"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"github.com/launchdarkly/go-jsonstream/v2/jwriter"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
-// AllFlags is a snapshot of the state of multiple feature flags with regard to a specific user. This is
-// the return type of LDClient.AllFlagsState().
+// AllFlags is a snapshot of the state of multiple feature flags with regard to a specific evaluation
+// context. This is the return type of LDClient.AllFlagsState().
 //
 // Serializing this object to JSON using json.Marshal() will produce the appropriate data structure for
 // bootstrapping the LaunchDarkly JavaScript client.
@@ -33,13 +33,13 @@ type allFlagsOptions struct {
 	detailsOnlyIfTracked bool
 }
 
-// FlagState represents the state of an individual feature flag, with regard to a specific user, at the
-// time when LDClient.AllFlagsState() was called.
+// FlagState represents the state of an individual feature flag, with regard to a specific evaluation
+// context, at the time when LDClient.AllFlagsState() was called.
 type FlagState struct {
-	// Value is the result of evaluating the flag for the specified user.
+	// Value is the result of evaluating the flag for the specified evaluation context.
 	Value ldvalue.Value
 
-	// Variation is the variation index that was selected for the specified user.
+	// Variation is the variation index that was selected for the specified evaluation context.
 	Variation ldvalue.OptionalInt
 
 	// Version is the flag's version number when it was evaluated. This is an int rather than an OptionalInt
@@ -61,6 +61,10 @@ type FlagState struct {
 
 	// DebugEventsUntilDate is non-zero if event debugging is enabled for this flag until the specified time.
 	DebugEventsUntilDate ldtime.UnixMillisecondTime
+
+	// OmitDetails is true if, based on the options passed to AllFlagsState and the flag state, some of the
+	// metadata can be left out of the JSON representation.
+	OmitDetails bool
 }
 
 // Option is the interface for optional parameters that can be passed to LDClient.AllFlagsState.
@@ -143,8 +147,8 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 	for key, flag := range a.flags {
 		flagObj := stateObj.Name(key).Object()
 		flagObj.Maybe("variation", flag.Variation.IsDefined()).Int(flag.Variation.IntValue())
-		flagObj.Name("version").Int(flag.Version)
-		if flag.Reason.IsDefined() {
+		flagObj.Maybe("version", !flag.OmitDetails).Int(flag.Version)
+		if flag.Reason.IsDefined() && !flag.OmitDetails {
 			flag.Reason.WriteToJSONWriter(flagObj.Name("reason"))
 		}
 		flagObj.Maybe("trackEvents", flag.TrackEvents).Bool(flag.TrackEvents)
@@ -189,14 +193,13 @@ func (b *AllFlagsBuilder) Build() AllFlags {
 func (b *AllFlagsBuilder) AddFlag(flagKey string, flag FlagState) *AllFlagsBuilder {
 	// To save bandwidth, we include evaluation reasons only if 1. the application explicitly said to
 	// include them or 2. they must be included because of experimentation
-	wantReason := b.options.withReasons || flag.TrackReason
-	if wantReason && b.options.detailsOnlyIfTracked {
+	if b.options.detailsOnlyIfTracked {
 		if !flag.TrackEvents && !flag.TrackReason &&
 			!(flag.DebugEventsUntilDate != 0 && flag.DebugEventsUntilDate > ldtime.UnixMillisNow()) {
-			wantReason = false
+			flag.OmitDetails = true
 		}
 	}
-	if !wantReason {
+	if !b.options.withReasons && !flag.TrackReason {
 		flag.Reason = ldreason.EvaluationReason{}
 	}
 	b.state.flags[flagKey] = flag

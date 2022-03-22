@@ -1,6 +1,6 @@
 package datasource
 
-import "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 // NewNullDataSource returns a stub implementation of DataSource.
 func NewNullDataSource() interfaces.DataSource {

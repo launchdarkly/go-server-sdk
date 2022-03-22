@@ -3,14 +3,14 @@ package internal
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 // LoggingConfigurationImpl is the internal implementation of LoggingConfiguration.
 type LoggingConfigurationImpl struct {
 	LogDataSourceOutageAsErrorAfter time.Duration
 	LogEvaluationErrors             bool
-	LogUserKeyInErrors              bool
+	LogContextKeyInErrors           bool
 	Loggers                         ldlog.Loggers
 }
 
@@ -25,8 +25,8 @@ func (c LoggingConfigurationImpl) IsLogEvaluationErrors() bool {
 }
 
 //nolint:revive // no doc comment for standard method
-func (c LoggingConfigurationImpl) IsLogUserKeyInErrors() bool {
-	return c.LogUserKeyInErrors
+func (c LoggingConfigurationImpl) IsLogContextKeyInErrors() bool {
+	return c.LogContextKeyInErrors
 }
 
 //nolint:revive // no doc comment for standard method

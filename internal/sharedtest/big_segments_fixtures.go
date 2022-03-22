@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 	"github.com/stretchr/testify/require"
 )
@@ -69,20 +69,20 @@ func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nol
 	return m.metadataQueries
 }
 
-func (m *MockBigSegmentStore) GetUserMembership( //nolint:revive
-	userHash string,
+func (m *MockBigSegmentStore) GetMembership( //nolint:revive
+	contextHash string,
 ) (interfaces.BigSegmentMembership, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	m.membershipQueries = append(m.membershipQueries, userHash)
+	m.membershipQueries = append(m.membershipQueries, contextHash)
 	if m.membershipErr != nil {
 		return nil, m.membershipErr
 	}
-	return m.memberships[userHash], nil
+	return m.memberships[contextHash], nil
 }
 
 func (m *MockBigSegmentStore) TestSetMembership( //nolint:revive
-	userHash string,
+	contextHash string,
 	membership interfaces.BigSegmentMembership,
 ) {
 	m.lock.Lock()
@@ -90,7 +90,7 @@ func (m *MockBigSegmentStore) TestSetMembership( //nolint:revive
 	if m.memberships == nil {
 		m.memberships = make(map[string]interfaces.BigSegmentMembership)
 	}
-	m.memberships[userHash] = membership
+	m.memberships[contextHash] = membership
 }
 
 func (m *MockBigSegmentStore) TestSetMembershipError(err error) { //nolint:revive

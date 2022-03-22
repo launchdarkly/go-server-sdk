@@ -1,6 +1,6 @@
 package ldcomponents
 
-import "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 // RelayProxyEndpoints specifies a single base URI for a Relay Proxy instance, telling the SDK to
 // use the Relay Proxy for all services.

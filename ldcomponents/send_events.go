@@ -3,13 +3,12 @@ package ldcomponents
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
+	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 )
 
 const (
@@ -21,10 +20,10 @@ const (
 	DefaultDiagnosticRecordingInterval = 15 * time.Minute
 	// DefaultFlushInterval is the default value for EventProcessorBuilder.FlushInterval.
 	DefaultFlushInterval = 5 * time.Second
-	// DefaultUserKeysCapacity is the default value for EventProcessorBuilder.UserKeysCapacity.
-	DefaultUserKeysCapacity = 1000
-	// DefaultUserKeysFlushInterval is the default value for EventProcessorBuilder.UserKeysFlushInterval.
-	DefaultUserKeysFlushInterval = 5 * time.Minute
+	// DefaultContextKeysCapacity is the default value for EventProcessorBuilder.ContextKeysCapacity.
+	DefaultContextKeysCapacity = 1000
+	// DefaultContextKeysFlushInterval is the default value for EventProcessorBuilder.ContextKeysFlushInterval.
+	DefaultContextKeysFlushInterval = 5 * time.Minute
 	// MinimumDiagnosticRecordingInterval is the minimum value for EventProcessorBuilder.DiagnosticRecordingInterval.
 	MinimumDiagnosticRecordingInterval = 60 * time.Second
 )
@@ -38,11 +37,10 @@ type EventProcessorBuilder struct {
 	capacity                    int
 	diagnosticRecordingInterval time.Duration
 	flushInterval               time.Duration
-	inlineUsersInEvents         bool
-	logUserKeyInErrors          bool
-	privateAttributeNames       []lduser.UserAttribute
-	userKeysCapacity            int
-	userKeysFlushInterval       time.Duration
+	logContextKeyInErrors       bool
+	privateAttributes           []ldattr.Ref
+	contextKeysCapacity         int
+	contextKeysFlushInterval    time.Duration
 }
 
 // SendEvents returns a configuration builder for analytics event delivery.
@@ -61,8 +59,8 @@ func SendEvents() *EventProcessorBuilder {
 		capacity:                    DefaultEventsCapacity,
 		diagnosticRecordingInterval: DefaultDiagnosticRecordingInterval,
 		flushInterval:               DefaultFlushInterval,
-		userKeysCapacity:            DefaultUserKeysCapacity,
-		userKeysFlushInterval:       DefaultUserKeysFlushInterval,
+		contextKeysCapacity:         DefaultContextKeysCapacity,
+		contextKeysFlushInterval:    DefaultContextKeysFlushInterval,
 	}
 }
 
@@ -70,7 +68,7 @@ func SendEvents() *EventProcessorBuilder {
 func (b *EventProcessorBuilder) CreateEventProcessor(
 	context interfaces.ClientContext,
 ) (ldevents.EventProcessor, error) {
-	loggers := context.GetLogging().GetLoggers()
+	loggers := context.GetLogging().Loggers
 
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetBasic().ServiceEndpoints,
@@ -80,19 +78,18 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 	)
 
 	eventSender := ldevents.NewServerSideEventSender(context.GetHTTP().CreateHTTPClient(),
-		context.GetBasic().SDKKey, configuredBaseURI, context.GetHTTP().GetDefaultHeaders(), loggers)
+		context.GetBasic().SDKKey, configuredBaseURI, context.GetHTTP().DefaultHeaders, loggers)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,
 		DiagnosticRecordingInterval: b.diagnosticRecordingInterval,
 		EventSender:                 eventSender,
 		FlushInterval:               b.flushInterval,
-		InlineUsersInEvents:         b.inlineUsersInEvents,
 		Loggers:                     loggers,
-		LogUserKeyInErrors:          b.logUserKeyInErrors,
-		PrivateAttributeNames:       b.privateAttributeNames,
-		UserKeysCapacity:            b.userKeysCapacity,
-		UserKeysFlushInterval:       b.userKeysFlushInterval,
+		LogUserKeyInErrors:          b.logContextKeyInErrors,
+		PrivateAttributes:           b.privateAttributes,
+		UserKeysCapacity:            b.contextKeysCapacity,
+		UserKeysFlushInterval:       b.contextKeysFlushInterval,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		eventsConfig.DiagnosticsManager = cci.DiagnosticsManager
@@ -100,23 +97,13 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 	return ldevents.NewDefaultEventProcessor(eventsConfig), nil
 }
 
-// AllAttributesPrivate sets whether or not all optional user attributes should be hidden from LaunchDarkly.
+// AllAttributesPrivate sets whether or not all optional context attributes should be hidden from LaunchDarkly.
 //
-// If this is true, all user attribute values (other than the key) will be private, not just the attributes
-// specified with PrivateAttributeNames or on a per-user basis with UserBuilder methods. By default, it is false.
+// If this is true, all context attribute values (other than the key) will be private, not just the attributes
+// specified with PrivateAttributes or on a per-context basis with ldcontext.Builder methods. By default,
+// it is false.
 func (b *EventProcessorBuilder) AllAttributesPrivate(value bool) *EventProcessorBuilder {
 	b.allAttributesPrivate = value
-	return b
-}
-
-// BaseURI is a deprecated method for setting a custom base URI for the events service.
-//
-// If you set this deprecated option to a non-empty value, it overrides any value that was set
-// with ServiceEndpoints.
-//
-// Deprecated: Use config.ServiceEndpoints instead.
-func (b *EventProcessorBuilder) BaseURI(baseURI string) *EventProcessorBuilder {
-	b.baseURI = baseURI
 	return b
 }
 
@@ -155,58 +142,56 @@ func (b *EventProcessorBuilder) FlushInterval(interval time.Duration) *EventProc
 	return b
 }
 
-// InlineUsersInEvents sets whether to include full user details in every analytics event.
+// PrivateAttributes marks a set of attribute names as always private.
 //
-// The default is false: events will only include the user key, except for one "index" event that provides
-// the full details for the user.
-func (b *EventProcessorBuilder) InlineUsersInEvents(value bool) *EventProcessorBuilder {
-	b.inlineUsersInEvents = value
-	return b
-}
-
-// PrivateAttributeNames marks a set of attribute names as always private.
-//
-// Any users sent to LaunchDarkly with this configuration active will have attributes with these
-// names removed. This is in addition to any attributes that were marked as private for an
-// individual user with UserBuilder methods. Setting AllAttributePrivate to true overrides this.
+// Any contexts sent to LaunchDarkly with this configuration active will have attributes with these
+// names removed. This is in addition to any attributes that were marked as private for an individual
+// context with ldcontext.Builder methods. Setting AllAttributesPrivate to true overrides this.
 //
 //     config := ld.Config{
 //         Events: ldcomponents.SendEvents().
-//             PrivateAttributeNames(lduser.EmailAttribute, lduser.UserAttribute("some-custom-attribute")),
+//             PrivateAttributeNames("email", "some-custom-attribute"),
 //     }
-func (b *EventProcessorBuilder) PrivateAttributeNames(attributes ...lduser.UserAttribute) *EventProcessorBuilder {
-	b.privateAttributeNames = attributes
+//
+// If and only if a parameter starts with a slash, it is interpreted as a slash-delimited path that
+// can denote a nested property within a JSON object. For instance, "/address/street" means that if
+// there is an attribute called "address" that is a JSON object, and one of the object's properties
+// is "street", the "street" property will be redacted from the analytics data but other properties
+// within "address" will still be sent. This syntax also uses the JSON Pointer convention of escaping
+// a literal slash character as "~1" and a tilde as "~0".
+//
+// This method replaces any previous parameters that were set on the same builder with
+// PrivateAttributes, rather than adding to them.
+func (b *EventProcessorBuilder) PrivateAttributes(attributes ...string) *EventProcessorBuilder {
+	b.privateAttributes = make([]ldattr.Ref, 0, len(attributes))
+	for _, a := range attributes {
+		b.privateAttributes = append(b.privateAttributes, ldattr.NewRef(a))
+	}
 	return b
 }
 
-// UserKeysCapacity sets the number of user keys that the event processor can remember at any one time.
+// ContextKeysCapacity sets the number of context keys that the event processor can remember at any one
+// time.
 //
-// To avoid sending duplicate user details in analytics events, the SDK maintains a cache of recently
-// seen user keys, expiring at an interval set by UserKeysFlushInterval.
+// To avoid sending duplicate context details in analytics events, the SDK maintains a cache of recently
+// seen context keys, expiring at an interval set by ContextKeysFlushInterval.
 //
-// The default value is DefaultUserKeysCapacity.
-func (b *EventProcessorBuilder) UserKeysCapacity(userKeysCapacity int) *EventProcessorBuilder {
-	b.userKeysCapacity = userKeysCapacity
+// The default value is DefaultContextKeysCapacity.
+func (b *EventProcessorBuilder) ContextKeysCapacity(contextKeysCapacity int) *EventProcessorBuilder {
+	b.contextKeysCapacity = contextKeysCapacity
 	return b
 }
 
-// UserKeysFlushInterval sets the interval at which the event processor will reset its cache of known user keys.
+// ContextKeysFlushInterval sets the interval at which the event processor will reset its cache of known context keys.
 //
-// The default value is DefaultUserKeysFlushInterval.
-func (b *EventProcessorBuilder) UserKeysFlushInterval(interval time.Duration) *EventProcessorBuilder {
-	b.userKeysFlushInterval = interval
+// The default value is DefaultContextKeysFlushInterval.
+func (b *EventProcessorBuilder) ContextKeysFlushInterval(interval time.Duration) *EventProcessorBuilder {
+	b.contextKeysFlushInterval = interval
 	return b
 }
 
-// DescribeConfiguration is obsolete and is not called by the SDK.
-//
-// Deprecated: This method will be removed in a future major version release.
-func (b *EventProcessorBuilder) DescribeConfiguration() ldvalue.Value {
-	return ldvalue.Null()
-}
-
-// DescribeConfigurationContext is used internally by the SDK to inspect the configuration.
-func (b *EventProcessorBuilder) DescribeConfigurationContext(context interfaces.ClientContext) ldvalue.Value {
+// DescribeConfiguration is used internally by the SDK to inspect the configuration.
+func (b *EventProcessorBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).
 		Set("customEventsURI", ldvalue.Bool(
@@ -214,9 +199,8 @@ func (b *EventProcessorBuilder) DescribeConfigurationContext(context interfaces.
 		Set("diagnosticRecordingIntervalMillis", durationToMillisValue(b.diagnosticRecordingInterval)).
 		Set("eventsCapacity", ldvalue.Int(b.capacity)).
 		Set("eventsFlushIntervalMillis", durationToMillisValue(b.flushInterval)).
-		Set("inlineUsersInEvents", ldvalue.Bool(b.inlineUsersInEvents)).
-		Set("userKeysCapacity", ldvalue.Int(b.userKeysCapacity)).
-		Set("userKeysFlushIntervalMillis", durationToMillisValue(b.userKeysFlushInterval)).
+		Set("userKeysCapacity", ldvalue.Int(b.contextKeysCapacity)).
+		Set("userKeysFlushIntervalMillis", durationToMillisValue(b.contextKeysFlushInterval)).
 		Build()
 }
 

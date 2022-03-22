@@ -1,9 +1,9 @@
 package ldcomponents
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 )
 
 type inMemoryDataStoreFactory struct{}
@@ -13,13 +13,13 @@ func (f inMemoryDataStoreFactory) CreateDataStore(
 	context interfaces.ClientContext,
 	dataStoreUpdates interfaces.DataStoreUpdates,
 ) (interfaces.DataStore, error) {
-	loggers := context.GetLogging().GetLoggers()
+	loggers := context.GetLogging().Loggers
 	loggers.SetPrefix("InMemoryDataStore:")
 	return datastore.NewInMemoryDataStore(loggers), nil
 }
 
 // DiagnosticDescription implementation
-func (f inMemoryDataStoreFactory) DescribeConfiguration() ldvalue.Value {
+func (f inMemoryDataStoreFactory) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.String("memory")
 }
 

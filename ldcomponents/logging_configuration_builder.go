@@ -3,9 +3,8 @@ package ldcomponents
 import (
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
@@ -18,7 +17,7 @@ import (
 //         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
 //     }
 type LoggingConfigurationBuilder struct {
-	config internal.LoggingConfigurationImpl
+	config interfaces.LoggingConfiguration
 }
 
 // DefaultLogDataSourceOutageAsErrorAfter is the default value for
@@ -36,7 +35,7 @@ const DefaultLogDataSourceOutageAsErrorAfter = time.Minute
 //     }
 func Logging() *LoggingConfigurationBuilder {
 	return &LoggingConfigurationBuilder{
-		config: internal.LoggingConfigurationImpl{
+		config: interfaces.LoggingConfiguration{
 			LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
 			Loggers:                         ldlog.NewDefaultLoggers(),
 		},
@@ -64,7 +63,7 @@ func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 }
 
 // LogEvaluationErrors sets whether the client should log a warning message whenever a flag cannot be evaluated due
-// to an error (e.g. there is no flag with that key, or the user properties are invalid). By default, these messages
+// to an error (e.g. there is no flag with that key, or the context properties are invalid). By default, these messages
 // are not logged, although you can detect such errors programmatically using the VariationDetail methods. The only
 // exception is that the SDK will always log any error involving invalid flag data, because such data should not be
 // possible and indicates that LaunchDarkly support assistance may be required.
@@ -73,10 +72,10 @@ func (b *LoggingConfigurationBuilder) LogEvaluationErrors(logEvaluationErrors bo
 	return b
 }
 
-// LogUserKeyInErrors sets whether log messages for errors related to a specific user can include the user key. By
-// default, they will not, since the user key might be considered privileged information.
-func (b *LoggingConfigurationBuilder) LogUserKeyInErrors(logUserKeyInErrors bool) *LoggingConfigurationBuilder {
-	b.config.LogUserKeyInErrors = logUserKeyInErrors
+// LogContextKeyInErrors sets whether log messages for errors related to a specific evaluation context can include the
+// context key. By default, they will not, since the key might be considered privileged information.
+func (b *LoggingConfigurationBuilder) LogContextKeyInErrors(logContextKeyInErrors bool) *LoggingConfigurationBuilder {
+	b.config.LogContextKeyInErrors = logContextKeyInErrors
 	return b
 }
 
@@ -119,5 +118,5 @@ type noLoggingConfigurationFactory struct{}
 func (f noLoggingConfigurationFactory) CreateLoggingConfiguration(
 	basic interfaces.BasicConfiguration,
 ) (interfaces.LoggingConfiguration, error) {
-	return internal.LoggingConfigurationImpl{Loggers: ldlog.NewDisabledLoggers()}, nil
+	return interfaces.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}, nil
 }

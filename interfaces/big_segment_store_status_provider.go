@@ -11,7 +11,7 @@ package interfaces
 // Application code never needs to implement this interface.
 //
 // There are two ways to interact with the status. One is to simply get the current status; if its
-// Available property is true, then the SDK is able to evaluate user membership in Big Segments,
+// Available property is true, then the SDK is able to evaluate context membership in Big Segments,
 // the Stale property indicates whether the data might be out of date.
 //
 //     status := client.GetBigSegmentStoreStatusProvider().GetStatus()
@@ -57,11 +57,11 @@ type BigSegmentStoreStatusProvider interface {
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 type BigSegmentStoreStatus struct {
 	// Available is true if the Big Segment store is able to respond to queries, so that the SDK can
-	// evaluate whether a user is in a segment or not.
+	// evaluate whether an evaluation context is in a segment or not.
 	//
 	// If this property is false, the store is not able to make queries (for instance, it may not have
 	// a valid database connection). In this case, the SDK will treat any reference to a Big Segment
-	// as if no users are included in that segment. Also, the EvaluationReason associated with any
+	// as if no contexts are included in that segment. Also, the EvaluationReason associated with any
 	// flag evaluation that references a Big Segment when the store is not available will return
 	// ldreason.BigSegmentsStoreError from its GetBigSegmentsStatus() method.
 	Available bool

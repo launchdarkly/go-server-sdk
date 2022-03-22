@@ -5,13 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 
 	es "github.com/launchdarkly/eventsource"
 )
@@ -87,8 +87,8 @@ func NewStreamProcessor(
 		dataSourceUpdates:     dataSourceUpdates,
 		streamURI:             streamURI,
 		initialReconnectDelay: initialReconnectDelay,
-		headers:               context.GetHTTP().GetDefaultHeaders(),
-		loggers:               context.GetLogging().GetLoggers(),
+		headers:               context.GetHTTP().DefaultHeaders,
+		loggers:               context.GetLogging().Loggers,
 		halt:                  make(chan struct{}),
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldhttp"
+	"github.com/launchdarkly/go-server-sdk/v6/ldhttp"
 )
 
 const (

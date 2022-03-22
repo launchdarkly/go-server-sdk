@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 const (
@@ -50,7 +50,7 @@ func newPollingProcessor(
 		dataSourceUpdates: dataSourceUpdates,
 		requestor:         requestor,
 		pollInterval:      pollInterval,
-		loggers:           context.GetLogging().GetLoggers(),
+		loggers:           context.GetLogging().Loggers,
 		quit:              make(chan struct{}),
 	}
 

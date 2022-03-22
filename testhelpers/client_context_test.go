@@ -3,10 +3,10 @@ package testhelpers
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSimpleClientContext(t *testing.T) {
@@ -16,14 +16,14 @@ func TestSimpleClientContext(t *testing.T) {
 
 	// Note, can't test equality of HTTPConfiguration because it contains a function
 	hc, _ := ldcomponents.HTTPConfiguration().CreateHTTPConfiguration(c.GetBasic())
-	assert.Equal(t, hc.GetDefaultHeaders(), c.GetHTTP().GetDefaultHeaders())
+	assert.Equal(t, hc.DefaultHeaders, c.GetHTTP().DefaultHeaders)
 
 	lc, _ := ldcomponents.Logging().CreateLoggingConfiguration(c.GetBasic())
 	assert.Equal(t, lc, c.GetLogging())
 
 	h := ldcomponents.HTTPConfiguration().UserAgent("u").Wrapper("w", "")
 	hc1, _ := h.CreateHTTPConfiguration(c.GetBasic())
-	assert.Equal(t, hc1.GetDefaultHeaders(), c.WithHTTP(h).GetHTTP().GetDefaultHeaders())
+	assert.Equal(t, hc1.DefaultHeaders, c.WithHTTP(h).GetHTTP().DefaultHeaders)
 
 	l := ldcomponents.Logging().Loggers(ldlog.NewDefaultLoggers()).MinLevel(ldlog.Debug)
 	lc1, _ := l.CreateLoggingConfiguration(c.GetBasic())

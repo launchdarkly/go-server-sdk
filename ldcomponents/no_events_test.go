@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 )
 
 func TestNoEvents(t *testing.T) {
@@ -14,6 +14,6 @@ func TestNoEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer ep.Close()
 	ef := ldevents.NewEventFactory(false, nil)
-	ep.RecordIdentifyEvent(ef.NewIdentifyEvent(ldevents.User(lduser.NewUser("key"))))
+	ep.RecordIdentifyEvent(ef.NewIdentifyEventData(ldevents.Context(lduser.NewUser("key"))))
 	ep.Flush()
 }

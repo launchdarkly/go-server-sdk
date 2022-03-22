@@ -5,16 +5,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,8 +147,8 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		handler, requestsCh := httphelpers.RecordingHandler(
 			httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil),
 		)
-		httpConfig := internal.HTTPConfigurationImpl{DefaultHeaders: headers}
-		context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
+		httpConfig := interfaces.HTTPConfiguration{DefaultHeaders: headers}
+		context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			r := newRequestorImpl(context, nil, ts.URL)
@@ -164,8 +164,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("logs debug message", func(t *testing.T) {
 		mockLog := ldlogtest.NewMockLog()
 		mockLog.Loggers.SetMinLevel(ldlog.Debug)
-		logConfig := internal.LoggingConfigurationImpl{Loggers: mockLog.Loggers}
-		context := sharedtest.NewTestContext(testSDKKey, sharedtest.TestHTTPConfig(), logConfig)
+		context := sharedtest.NewTestContext(testSDKKey, nil, &interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
 		handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -223,8 +222,8 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-	httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
-	context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
+	httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+	context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		r := newRequestorImpl(context, nil, ts.URL)

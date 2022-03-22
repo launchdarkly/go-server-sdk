@@ -8,18 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/eventsource"
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/ldservices"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -68,8 +68,8 @@ func runStreamingTestWithConfiguration(
 	mockLog := ldlogtest.NewMockLog()
 	mockLog.Loggers.SetMinLevel(ldlog.Debug)
 	defer mockLog.DumpIfTestFailed(t)
-	context := sharedtest.NewTestContext("", sharedtest.TestHTTPConfigWithHeaders(headers),
-		sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers))
+	context := sharedtest.NewTestContext("", &interfaces.HTTPConfiguration{DefaultHeaders: headers},
+		&interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
 
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
@@ -413,8 +413,8 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := internal.NewClientContextImpl(
 				interfaces.BasicConfiguration{SDKKey: testSDKKey},
-				sharedtest.TestHTTPConfig(),
-				sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
+				interfaces.HTTPConfiguration{},
+				interfaces.LoggingConfiguration{Loggers: mockLog.Loggers},
 			)
 			context.DiagnosticsManager = diagnosticsManager
 
@@ -458,8 +458,8 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := internal.NewClientContextImpl(
 				interfaces.BasicConfiguration{SDKKey: testSDKKey},
-				sharedtest.TestHTTPConfig(),
-				sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
+				interfaces.HTTPConfiguration{},
+				interfaces.LoggingConfiguration{Loggers: mockLog.Loggers},
 			)
 			context.DiagnosticsManager = diagnosticsManager
 
@@ -498,8 +498,8 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
-			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
+			httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
 			defer sp.Close()
@@ -524,8 +524,8 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 				c.Timeout = 200 * time.Millisecond
 				return &c
 			}
-			httpConfig := internal.HTTPConfigurationImpl{HTTPClientFactory: httpClientFactory}
-			context := sharedtest.NewTestContext(testSDKKey, httpConfig, sharedtest.TestLoggingConfig())
+			httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
 			defer sp.Close()

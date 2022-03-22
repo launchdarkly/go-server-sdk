@@ -1,9 +1,9 @@
 package ldcomponents
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datasource"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
 )
 
 type nullDataSourceFactory struct{}
@@ -31,7 +31,7 @@ func (f nullDataSourceFactory) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	context.GetLogging().GetLoggers().Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
+	context.GetLogging().Loggers.Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
 	if dataSourceUpdates != nil {
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 	}
@@ -39,10 +39,10 @@ func (f nullDataSourceFactory) CreateDataSource(
 }
 
 // DiagnosticDescription implementation
-func (f nullDataSourceFactory) DescribeConfiguration() ldvalue.Value {
+func (f nullDataSourceFactory) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	// This information is only used for diagnostic events, and if we're able to send diagnostic events,
 	// then by definition we're not completely offline so we must be using daemon mode.
 	return ldvalue.ObjectBuild().
-		Set("usingRelayDaemon", ldvalue.Bool(true)).
+		SetBool("usingRelayDaemon", true).
 		Build()
 }

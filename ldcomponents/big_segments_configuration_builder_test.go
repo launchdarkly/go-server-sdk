@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +27,7 @@ func (m mockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, 
 	return interfaces.BigSegmentStoreMetadata{}, nil
 }
 
-func (m mockBigSegmentStore) GetUserMembership(string) (interfaces.BigSegmentMembership, error) {
+func (m mockBigSegmentStore) GetMembership(string) (interfaces.BigSegmentMembership, error) {
 	return nil, nil
 }
 
@@ -39,8 +39,8 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, mockBigSegmentStore{}, c.GetStore())
-		assert.Equal(t, DefaultBigSegmentsUserCacheSize, c.GetUserCacheSize())
-		assert.Equal(t, DefaultBigSegmentsUserCacheTime, c.GetUserCacheTime())
+		assert.Equal(t, DefaultBigSegmentsContextCacheSize, c.GetContextCacheSize())
+		assert.Equal(t, DefaultBigSegmentsContextCacheTime, c.GetContextCacheTime())
 		assert.Equal(t, DefaultBigSegmentsStatusPollInterval, c.GetStatusPollInterval())
 		assert.Equal(t, DefaultBigSegmentsStaleAfter, c.GetStaleAfter())
 	})
@@ -52,20 +52,20 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 		require.Equal(t, fakeError, err)
 	})
 
-	t.Run("UserCacheSize", func(t *testing.T) {
+	t.Run("ContextCacheSize", func(t *testing.T) {
 		c, err := BigSegments(mockBigSegmentStoreFactory{}).
-			UserCacheSize(999).
+			ContextCacheSize(999).
 			CreateBigSegmentsConfiguration(context)
 		require.NoError(t, err)
-		assert.Equal(t, 999, c.GetUserCacheSize())
+		assert.Equal(t, 999, c.GetContextCacheSize())
 	})
 
-	t.Run("UserCacheTime", func(t *testing.T) {
+	t.Run("ContextCacheTime", func(t *testing.T) {
 		c, err := BigSegments(mockBigSegmentStoreFactory{}).
-			UserCacheTime(time.Second * 999).
+			ContextCacheTime(time.Second * 999).
 			CreateBigSegmentsConfiguration(context)
 		require.NoError(t, err)
-		assert.Equal(t, time.Second*999, c.GetUserCacheTime())
+		assert.Equal(t, time.Second*999, c.GetContextCacheTime())
 	})
 
 	t.Run("StatusPollInterval", func(t *testing.T) {

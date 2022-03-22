@@ -1,8 +1,8 @@
 package ldstoreimpl
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 )
 
 // This file contains the public API for accessing things in internal/datakinds. We need to export

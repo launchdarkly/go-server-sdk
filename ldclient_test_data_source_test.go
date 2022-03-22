@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/ldtestdata"
 )
 
 // This is a basic smoke test to verify that TestDataSource works correctly inside of an LDClient instance.

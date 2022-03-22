@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldfiledata"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/ldfiledata"
 )
 
 type fileDataSourceTestParams struct {
@@ -36,9 +36,7 @@ func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action f
 	p := fileDataSourceTestParams{}
 	p.closeWhenReady = make(chan struct{})
 	p.mockLog = ldlogtest.NewMockLog()
-	logConfig, _ := ldcomponents.Logging().Loggers(p.mockLog.Loggers).
-		CreateLoggingConfiguration(interfaces.BasicConfiguration{})
-	testContext := sharedtest.NewTestContext("", nil, logConfig)
+	testContext := sharedtest.NewTestContext("", nil, &interfaces.LoggingConfiguration{Loggers: p.mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	p.updates = sharedtest.NewMockDataSourceUpdates(store)
 	dataSource, err := factory.CreateDataSource(testContext, p.updates)

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/endpoints"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,46 +211,4 @@ func TestErrorIsLoggedIfANecessaryURIIsNotSetWhenOtherCustomURIsAreSet(t *testin
 	client3.Close()
 	mockLog3.AssertMessageMatch(t, true, ldlog.Error,
 		"You have set custom ServiceEndpoints without specifying the Events base URI")
-}
-
-func TestCustomStreamingBaseURIWithDeprecatedMethod(t *testing.T) {
-	rec := newRecordingClientFactory(401)
-	config := Config{
-		DataSource: ldcomponents.StreamingDataSource().BaseURI(customURI),
-		Events:     ldcomponents.NoEvents(),
-		HTTP:       ldcomponents.HTTPConfiguration().HTTPClientFactory(rec.MakeClient),
-	}
-	client, _ := MakeCustomClient(testSdkKey, config, time.Second*5)
-	require.NotNil(t, client)
-	defer client.Close()
-	u := rec.requireRequest(t)
-	assert.Equal(t, mustParseURI(customURI), baseURIOf(u))
-}
-
-func TestCustomPollingBaseURIWithDeprecatedMethod(t *testing.T) {
-	rec := newRecordingClientFactory(401)
-	config := Config{
-		DataSource: ldcomponents.PollingDataSource().BaseURI(customURI),
-		Events:     ldcomponents.NoEvents(),
-		HTTP:       ldcomponents.HTTPConfiguration().HTTPClientFactory(rec.MakeClient),
-	}
-	client, _ := MakeCustomClient(testSdkKey, config, time.Second*5)
-	require.NotNil(t, client)
-	defer client.Close()
-	u := rec.requireRequest(t)
-	assert.Equal(t, mustParseURI(customURI), baseURIOf(u))
-}
-
-func TestCustomEventsBaseURIWithDeprecatedMethod(t *testing.T) {
-	rec := newRecordingClientFactory(401)
-	config := Config{
-		DataSource: ldcomponents.ExternalUpdatesOnly(),
-		Events:     ldcomponents.SendEvents().BaseURI(customURI),
-		HTTP:       ldcomponents.HTTPConfiguration().HTTPClientFactory(rec.MakeClient),
-	}
-	client, _ := MakeCustomClient(testSdkKey, config, time.Second*5)
-	require.NotNil(t, client)
-	defer client.Close()
-	u := rec.requireRequest(t)
-	assert.Equal(t, mustParseURI(customURI), baseURIOf(u))
 }

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 
 	helpers "github.com/launchdarkly/go-test-helpers/v2"
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
@@ -28,7 +28,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
 
-		headers := c.GetDefaultHeaders()
+		headers := c.DefaultHeaders
 		assert.Len(t, headers, 2)
 		assert.Equal(t, "test-key", headers.Get("Authorization"))
 		assert.Equal(t, "GoClient/"+internal.SDKVersion, headers.Get("User-Agent"))
@@ -186,8 +186,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			Header("Custom-Header", "foo").
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
-		headers := c.GetDefaultHeaders()
-		assert.Equal(t, "foo", headers.Get("Custom-Header"))
+		assert.Equal(t, "foo", c.DefaultHeaders.Get("Custom-Header"))
 	})
 
 	t.Run("Repeat assignments of custom header take latest value", func(t *testing.T) {
@@ -197,8 +196,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			Header("Custom-Header", "baz").
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
-		headers := c.GetDefaultHeaders()
-		assert.Equal(t, "baz", headers.Get("Custom-Header"))
+		assert.Equal(t, "baz", c.DefaultHeaders.Get("Custom-Header"))
 	})
 
 	t.Run("Custom header values overwrite required headers", func(t *testing.T) {
@@ -207,9 +205,8 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			Header("Authorization", "bar").
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
-		headers := c.GetDefaultHeaders()
-		assert.Equal(t, "foo", headers.Get("User-Agent"))
-		assert.Equal(t, "bar", headers.Get("Authorization"))
+		assert.Equal(t, "foo", c.DefaultHeaders.Get("User-Agent"))
+		assert.Equal(t, "bar", c.DefaultHeaders.Get("Authorization"))
 	})
 
 	t.Run("User-Agent", func(t *testing.T) {
@@ -218,8 +215,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
 
-		headers := c.GetDefaultHeaders()
-		assert.Equal(t, "GoClient/"+internal.SDKVersion+" extra", headers.Get("User-Agent"))
+		assert.Equal(t, "GoClient/"+internal.SDKVersion+" extra", c.DefaultHeaders.Get("User-Agent"))
 	})
 
 	t.Run("Wrapper", func(t *testing.T) {
@@ -228,15 +224,29 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
 
-		headers1 := c1.GetDefaultHeaders()
-		assert.Equal(t, "FancySDK", headers1.Get("X-LaunchDarkly-Wrapper"))
+		assert.Equal(t, "FancySDK", c1.DefaultHeaders.Get("X-LaunchDarkly-Wrapper"))
 
 		c2, err := HTTPConfiguration().
 			Wrapper("FancySDK", "2.0").
 			CreateHTTPConfiguration(basicConfig)
 		require.NoError(t, err)
 
-		headers2 := c2.GetDefaultHeaders()
-		assert.Equal(t, "FancySDK/2.0", headers2.Get("X-LaunchDarkly-Wrapper"))
+		assert.Equal(t, "FancySDK/2.0", c2.DefaultHeaders.Get("X-LaunchDarkly-Wrapper"))
+	})
+
+	t.Run("tags header", func(t *testing.T) {
+		t.Run("no tags", func(t *testing.T) {
+			c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)
+			require.NoError(t, err)
+			assert.Nil(t, c.DefaultHeaders.Values("X-LaunchDarkly-Tags"))
+		})
+
+		t.Run("some tags", func(t *testing.T) {
+			bc := basicConfig
+			bc.ApplicationInfo = interfaces.ApplicationInfo{ApplicationID: "appid", ApplicationVersion: "appver"}
+			c, err := HTTPConfiguration().CreateHTTPConfiguration(bc)
+			require.NoError(t, err)
+			assert.Equal(t, "application-id/appid application-version/appver", c.DefaultHeaders.Get("X-LaunchDarkly-Tags"))
+		})
 	})
 }

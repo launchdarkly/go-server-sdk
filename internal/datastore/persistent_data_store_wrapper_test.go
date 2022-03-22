@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	intf "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	st "gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal"
-	s "gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
+	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	s "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 )
 
 type testCacheMode string

@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 )
 
 // This verifies that the BigSegmentStoreTestSuite tests behave as expected as long as the
@@ -53,11 +53,11 @@ func (s *mockSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, er
 	return *s.metadata, nil
 }
 
-func (s *mockSegmentStore) GetUserMembership(userHashKey string) (interfaces.BigSegmentMembership, error) {
+func (s *mockSegmentStore) GetMembership(contextHashKey string) (interfaces.BigSegmentMembership, error) {
 	if s.owner.overrideGetMembership != nil {
-		return s.owner.overrideGetMembership(s, userHashKey)
+		return s.owner.overrideGetMembership(s, contextHashKey)
 	}
-	keys := s.data[userHashKey]
+	keys := s.data[contextHashKey]
 	return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(keys.included, keys.excluded), nil
 }
 

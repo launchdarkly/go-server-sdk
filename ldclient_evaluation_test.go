@@ -5,21 +5,22 @@ import (
 	"errors"
 	"testing"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	ldevents "gopkg.in/launchdarkly/go-sdk-events.v1"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datastore"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/ldtestdata"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,12 +41,12 @@ var onValue = ldvalue.String("on")
 var expectedReasonForSingleValueFlag = ldreason.NewEvalReasonFallthrough()
 var noReason = ldreason.EvaluationReason{}
 
-func makeClauseToMatchUser(user lduser.User) ldmodel.Clause {
-	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String(user.GetKey()))
+func makeClauseToMatchUser(user ldcontext.Context) ldmodel.Clause {
+	return ldbuilders.Clause("key", ldmodel.OperatorIn, ldvalue.String(user.Key()))
 }
 
-func makeClauseToNotMatchUser(user lduser.User) ldmodel.Clause {
-	return ldbuilders.Clause(lduser.KeyAttribute, ldmodel.OperatorIn, ldvalue.String("not-"+user.GetKey()))
+func makeClauseToNotMatchUser(user ldcontext.Context) ldmodel.Clause {
+	return ldbuilders.Clause("key", ldmodel.OperatorIn, ldvalue.String("not-"+user.Key()))
 }
 
 type clientEvalTestParams struct {
@@ -87,10 +88,10 @@ func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 	callback(p)
 }
 
-func (p clientEvalTestParams) requireSingleEvent(t *testing.T) ldevents.FeatureRequestEvent {
+func (p clientEvalTestParams) requireSingleEvent(t *testing.T) ldevents.EvaluationData {
 	events := p.events.Events
 	require.Equal(t, 1, len(events))
-	return events[0].(ldevents.FeatureRequestEvent)
+	return events[0].(ldevents.EvaluationData)
 }
 
 func (p clientEvalTestParams) expectSingleEvaluationEvent(
@@ -106,19 +107,19 @@ func (p clientEvalTestParams) expectSingleEvaluationEvent(
 
 func assertEvalEvent(
 	t *testing.T,
-	actualEvent ldevents.FeatureRequestEvent,
+	actualEvent ldevents.EvaluationData,
 	flagKey string,
 	flagVersion int,
-	user lduser.User,
+	user ldcontext.Context,
 	value ldvalue.Value,
 	variation int,
 	defaultVal ldvalue.Value,
 	reason ldreason.EvaluationReason,
 ) {
-	expectedEvent := ldevents.FeatureRequestEvent{
+	expectedEvent := ldevents.EvaluationData{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: actualEvent.CreationDate,
-			User:         ldevents.User(user),
+			Context:      ldevents.Context(user),
 		},
 		Key:       flagKey,
 		Version:   ldvalue.NewOptionalInt(flagVersion),
@@ -437,6 +438,77 @@ func TestDefaultIsReturnedIfFlagReturnsWrongType(t *testing.T) {
 	})
 }
 
+func TestEvaluateWithInvalidContext(t *testing.T) {
+	flagKey := "flag"
+	for _, contextParams := range []struct {
+		name      string
+		context   ldcontext.Context
+		errorText string
+	}{
+		{"empty key", ldcontext.New(""), "context key must not be empty"},
+		{"invalid kind", ldcontext.NewWithKind("!bad!", "key"), "context kind contains disallowed characters"},
+	} {
+		t.Run(contextParams.name, func(t *testing.T) {
+			c := contextParams.context
+			for _, evalFnParams := range []struct {
+				name string
+				fn   func(*LDClient) error
+			}{
+				{"BoolVariation", func(client *LDClient) error { _, err := client.BoolVariation(flagKey, c, false); return err }},
+				{"IntVariation", func(client *LDClient) error { _, err := client.IntVariation(flagKey, c, 0); return err }},
+				{"Float64Variation", func(client *LDClient) error { _, err := client.Float64Variation(flagKey, c, 0); return err }},
+				{"StringVariation", func(client *LDClient) error { _, err := client.StringVariation(flagKey, c, ""); return err }},
+				{"JSONVariation", func(client *LDClient) error { _, err := client.JSONVariation(flagKey, c, ldvalue.Null()); return err }},
+			} {
+				t.Run(evalFnParams.name, func(t *testing.T) {
+					withClientEvalTestParams(func(p clientEvalTestParams) {
+						err := evalFnParams.fn(p.client)
+						assert.Error(t, err)
+						p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, contextParams.errorText)
+					})
+				})
+			}
+			for _, evalFnParams := range []struct {
+				name string
+				fn   func(*LDClient) (ldreason.EvaluationDetail, error)
+			}{
+				{"BoolVariationDetail",
+					func(client *LDClient) (ldreason.EvaluationDetail, error) {
+						_, detail, err := client.BoolVariationDetail(flagKey, c, false)
+						return detail, err
+					}},
+				{"IntVariationDetail",
+					func(client *LDClient) (ldreason.EvaluationDetail, error) {
+						_, detail, err := client.IntVariationDetail(flagKey, c, 0)
+						return detail, err
+					}},
+				{"Float64VariationDetail",
+					func(client *LDClient) (ldreason.EvaluationDetail, error) {
+						_, detail, err := client.Float64VariationDetail(flagKey, c, 0)
+						return detail, err
+					}},
+				{"StringVariationDetail", func(client *LDClient) (ldreason.EvaluationDetail, error) {
+					_, detail, err := client.StringVariationDetail(flagKey, c, "")
+					return detail, err
+				}},
+				{"JSONVariationDetail", func(client *LDClient) (ldreason.EvaluationDetail, error) {
+					_, detail, err := client.JSONVariationDetail(flagKey, c, ldvalue.Null())
+					return detail, err
+				}},
+			} {
+				t.Run(evalFnParams.name, func(t *testing.T) {
+					withClientEvalTestParams(func(p clientEvalTestParams) {
+						detail, err := evalFnParams.fn(p.client)
+						assert.Error(t, err)
+						assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorUserNotSpecified), detail.Reason)
+						p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, contextParams.errorText)
+					})
+				})
+			}
+		})
+	}
+}
+
 func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder(evalFlagKey).
 		On(true).
@@ -457,7 +529,7 @@ func TestEventTrackingAndReasonCanBeForcedForRule(t *testing.T) {
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.True(t, e.TrackEvents)
+		assert.True(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.NewEvalReasonRuleMatch(0, "rule-id"), e.Reason)
 	})
 }
@@ -486,7 +558,7 @@ func TestEventTrackingAndReasonAreNotForcedIfFlagIsNotSetForMatchingRule(t *test
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.False(t, e.TrackEvents)
+		assert.False(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 	})
 }
@@ -508,7 +580,7 @@ func TestEventTrackingAndReasonCanBeForcedForFallthrough(t *testing.T) {
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.True(t, e.TrackEvents)
+		assert.True(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.NewEvalReasonFallthrough(), e.Reason)
 	})
 }
@@ -529,7 +601,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfFlagIsNotSet(t *testi
 		assert.Equal(t, "on", value)
 
 		e := p.requireSingleEvent(t)
-		assert.False(t, e.TrackEvents)
+		assert.False(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 	})
 }
@@ -543,7 +615,7 @@ func TestEventTrackingAndReasonAreNotForcedForFallthroughIfReasonIsNotFallthroug
 		assert.Equal(t, "off", value)
 
 		e := p.requireSingleEvent(t)
-		assert.False(t, e.TrackEvents)
+		assert.False(t, e.RequireFullEvent)
 		assert.Equal(t, ldreason.EvaluationReason{}, e.Reason)
 	})
 }
@@ -554,10 +626,10 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 		assert.Error(t, err)
 
 		e := p.requireSingleEvent(t)
-		expectedEvent := ldevents.FeatureRequestEvent{
+		expectedEvent := ldevents.EvaluationData{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e.CreationDate,
-				User:         ldevents.User(evalTestUser),
+				Context:      ldevents.Context(evalTestUser),
 			},
 			Key:     "no-such-flag",
 			Value:   ldvalue.String("x"),
@@ -590,11 +662,11 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 
 		events := p.events.Events
 		assert.Len(t, events, 2)
-		e0 := events[0].(ldevents.FeatureRequestEvent)
-		expected0 := ldevents.FeatureRequestEvent{
+		e0 := events[0].(ldevents.EvaluationData)
+		expected0 := ldevents.EvaluationData{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e0.CreationDate,
-				User:         ldevents.User(user),
+				Context:      ldevents.Context(user),
 			},
 			Key:       flag1.Key,
 			Version:   ldvalue.NewOptionalInt(1),
@@ -605,11 +677,11 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 		}
 		assert.Equal(t, expected0, e0)
 
-		e1 := events[1].(ldevents.FeatureRequestEvent)
-		expected1 := ldevents.FeatureRequestEvent{
+		e1 := events[1].(ldevents.EvaluationData)
+		expected1 := ldevents.EvaluationData{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e1.CreationDate,
-				User:         ldevents.User(user),
+				Context:      ldevents.Context(user),
 			},
 			Key:       flag0.Key,
 			Version:   ldvalue.NewOptionalInt(1),
@@ -663,7 +735,7 @@ func TestMalformedFlagErrorLogging(t *testing.T) {
 		"Flag evaluation for bad-flag failed with error MALFORMED_FLAG, default value was returned")
 }
 
-func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user lduser.User,
+func testEvalErrorLogging(t *testing.T, flag *ldmodel.FeatureFlag, key string, user ldcontext.Context,
 	expectedErrorRegex, expectedWarningRegex string) {
 	runTest := func(withLogging bool) {
 		mockLoggers := ldlogtest.NewMockLog()
@@ -722,7 +794,7 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	flag := ldbuilders.NewFlagBuilder(evalFlagKey).SingleVariation(ldvalue.Bool(true)).Build()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	_ = store.Init(nil)
-	_, _ = store.Upsert(datakinds.Features, flag.GetKey(), sharedtest.FlagDescriptor(flag))
+	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
@@ -731,7 +803,7 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	})
 	defer client.Close()
 
-	value, err := client.BoolVariation(flag.GetKey(), evalTestUser, false)
+	value, err := client.BoolVariation(flag.Key, evalTestUser, false)
 	assert.NoError(t, err)
 	assert.True(t, value)
 

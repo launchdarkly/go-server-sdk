@@ -1,12 +1,13 @@
 package testhelpers
 
 import (
+	"net/http"
 	"os"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/sharedtest"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 )
 
 // SimpleClientContext is a reference implementation of interfaces.ClientContext for test code.
@@ -16,8 +17,8 @@ import (
 // code. SimpleClientContext may be useful for external code to test a custom component.
 type SimpleClientContext struct {
 	sdkKey  string
-	http    interfaces.HTTPConfiguration
-	logging interfaces.LoggingConfiguration
+	http    *interfaces.HTTPConfiguration
+	logging *interfaces.LoggingConfiguration
 }
 
 // NewSimpleClientContext creates a SimpleClientContext instance, with a standard HTTP configuration
@@ -32,7 +33,14 @@ func (s SimpleClientContext) GetBasic() interfaces.BasicConfiguration { //nolint
 
 func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:revive
 	if s.http != nil {
-		return s.http
+		ret := *s.http
+		if ret.CreateHTTPClient == nil {
+			ret.CreateHTTPClient = func() *http.Client {
+				client := *http.DefaultClient
+				return &client
+			}
+		}
+		return *s.http
 	}
 	c, _ := ldcomponents.HTTPConfiguration().CreateHTTPConfiguration(s.GetBasic())
 	return c
@@ -40,7 +48,7 @@ func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:r
 
 func (s SimpleClientContext) GetLogging() interfaces.LoggingConfiguration { //nolint:revive
 	if s.logging != nil {
-		return s.logging
+		return *s.logging
 	}
 	c, _ := ldcomponents.Logging().CreateLoggingConfiguration(s.GetBasic())
 	return c
@@ -49,16 +57,18 @@ func (s SimpleClientContext) GetLogging() interfaces.LoggingConfiguration { //no
 // WithHTTP returns a new SimpleClientContext based on the original one, but adding the specified
 // HTTP configuration.
 func (s SimpleClientContext) WithHTTP(httpConfig interfaces.HTTPConfigurationFactory) SimpleClientContext {
+	config, _ := httpConfig.CreateHTTPConfiguration(s.GetBasic())
 	ret := s
-	ret.http, _ = httpConfig.CreateHTTPConfiguration(s.GetBasic())
+	ret.http = &config
 	return ret
 }
 
 // WithLogging returns a new SimpleClientContext based on the original one, but adding the specified
 // logging configuration.
 func (s SimpleClientContext) WithLogging(loggingConfig interfaces.LoggingConfigurationFactory) SimpleClientContext {
+	config, _ := loggingConfig.CreateLoggingConfiguration(s.GetBasic())
 	ret := s
-	ret.logging, _ = loggingConfig.CreateLoggingConfiguration(s.GetBasic())
+	ret.logging = &config
 	return ret
 }
 
@@ -72,9 +82,8 @@ type Fallible interface {
 // action, and then dumps the captured output to the console only if there's been a test failure.
 func WithMockLoggingContext(t Fallible, action func(interfaces.ClientContext)) {
 	mockLog := ldlogtest.NewMockLog()
-	context := sharedtest.NewTestContext("", sharedtest.TestHTTPConfig(),
-		sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
-	)
+	context := sharedtest.NewTestContext("", &interfaces.HTTPConfiguration{},
+		&interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
 	defer func() {
 		if t.Failed() {
 			mockLog.Dump(os.Stdout)

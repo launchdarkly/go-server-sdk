@@ -12,13 +12,13 @@ import (
 
 	"gopkg.in/ghodss/yaml.v1"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
-	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldmodel"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/internal/datakinds"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 )
 
 type fileDataSource struct {
@@ -52,7 +52,7 @@ func newFileDataSourceImpl(
 		absFilePaths:          abs,
 		duplicateKeysHandling: duplicateKeysHandling,
 		reloaderFactory:       reloaderFactory,
-		loggers:               context.GetLogging().GetLoggers(),
+		loggers:               context.GetLogging().Loggers,
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil

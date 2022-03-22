@@ -1,8 +1,8 @@
 package interfaces
 
 import (
-	"gopkg.in/launchdarkly/go-sdk-common.v2/lduser"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
 // FlagTracker is an interface for tracking changes in feature flag configurations.
@@ -17,9 +17,9 @@ type FlagTracker interface {
 	// updated flag is used as a prerequisite for other flags, the SDK assumes that those flags may now
 	// behave differently and sends flag change events for them as well.
 	//
-	// Note that this does not necessarily mean the flag's value has changed for any particular user, only that
-	// some part of the flag configuration was changed so that it may return a different value than it
-	// previously returned for some user. If you want to track flag value changes, use
+	// Note that this does not necessarily mean the flag's value has changed for any particular evaluation
+	// context, only that some part of the flag configuration was changed so that it may return a different
+	// value than it previously returned for some context. If you want to track flag value changes, use
 	// AddFlagValueChangeListener instead.
 	//
 	// Change events only work if the SDK is actually connecting to LaunchDarkly (or using the file data source).
@@ -35,21 +35,25 @@ type FlagTracker interface {
 	RemoveFlagChangeListener(listener <-chan FlagChangeEvent)
 
 	// AddFlagValueChangeListener subscribes for notifications of changes in a specific feature flag's value
-	// for a specific set of user properties.
+	// for a specific set of context properties.
 	//
 	// When you call this method, it first immediately evaluates the feature flag. It then starts listening
 	// for feature flag configuration changes (using the same mechanism as AddFlagChangeListener), and whenever
-	// the specified feature flag changes, it re-evaluates the flag for the same user. It then pushes a new
-	// FlagValueChangeEvent to the channel if and only if the resulting value has changed.
+	// the specified feature flag changes, it re-evaluates the flag for the same evaluation context. It then
+	// pushes a new FlagValueChangeEvent to the channel if and only if the resulting value has changed.
 	//
-	// All feature flag evaluations require an instance of lduser.User. If the feature flag you are tracking
-	// tracking does not have any user targeting rules, you must still pass a dummy user such as
-	// lduser.NewUser("for-global-flags"). If you do not want the user to appear on your dashboard, use
-	// the Anonymous property: lduser.NewUserBuilder("for-global-flags").Anonymous(true).Build().
+	// All feature flag evaluations require an instance of ldcontext.Context. If the feature flag you are tracking
+	// tracking does not have any targeting rules, you must still pass a dummy context such as
+	// ldcontext.New("for-global-flags"). If you do not want the context to appear on your dashboard, use
+	// the Transient property: ldcontext.NewBuilder("for-global-flags").Transient(true).Build().
 	//
 	// The defaultValue parameter is used if the flag cannot be evaluated; it is the same as the corresponding
 	// parameter in LDClient.JSONVariation().
-	AddFlagValueChangeListener(flagKey string, user lduser.User, defaultValue ldvalue.Value) <-chan FlagValueChangeEvent
+	AddFlagValueChangeListener(
+		flagKey string,
+		context ldcontext.Context,
+		defaultValue ldvalue.Value,
+	) <-chan FlagValueChangeEvent
 
 	// RemoveFlagValueChangeListener unsubscribes from notifications of feature flag value changes. The
 	// specified channel must be one that was previously returned by AddFlagValueChangeListener(); otherwise,
@@ -80,7 +84,7 @@ type FlagValueChangeEvent struct {
 	// flag's rules.
 	Key string
 
-	// OldValue is the last known value of the flag for the specified user prior to the update.
+	// OldValue is the last known value of the flag for the specified evaluation context prior to the update.
 	//
 	// Since flag values can be of any JSON data type, this is represented as ldvalue.Value. That type has
 	// methods for converting to a primitive Java type such as Value.BoolValue().
@@ -89,7 +93,7 @@ type FlagValueChangeEvent struct {
 	// specified as the default with AddFlagValueChangeListener().
 	OldValue ldvalue.Value
 
-	// NewValue is the new value of the flag for the specified user.
+	// NewValue is the new value of the flag for the specified evaluation context.
 	//
 	// Since flag values can be of any JSON data type, this is represented as ldvalue.Value. That type has
 	// methods for converting to a primitive Java type such Value.BoolValue().

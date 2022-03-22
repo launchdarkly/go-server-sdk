@@ -1,7 +1,7 @@
 package ldclient
 
 import (
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
@@ -12,7 +12,7 @@ import (
 // Some of the Config fields are actually factories for subcomponents of the SDK. The types of these fields
 // are interfaces whose names end in "Factory"; the actual implementation types, which have methods for
 // configuring that subcomponent, are normally provided by corresponding functions in the ldcomponents
-// package (https://pkg.go.dev/gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents). For instance, to set
+// package (https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6/ldcomponents). For instance, to set
 // the Events field to a configuration in which the SDK will flush analytics events every 10 seconds:
 //
 //     var config ld.Config
@@ -115,7 +115,7 @@ type Config struct {
 	// This example sets the minimum logging level to Warn, so Debug and Info messages will not be logged:
 	//
 	//     // example: enable logging only for Warn level and above
-	//     // (note: ldlog is gopkg.in/launchdarkly/go-sdk-common.v2/ldlog)
+	//     // (note: ldlog is github.com/launchdarkly/go-sdk-common/v3/ldlog)
 	//     config.Logging = ldcomponents.Logging().MinLevel(ldlog.Warn)
 	Logging interfaces.LoggingConfigurationFactory
 
@@ -166,4 +166,10 @@ type Config struct {
 	// may set the base URIs to whatever you want, although the SDK will still set the URI paths to
 	// the expected paths for LaunchDarkly services.
 	ServiceEndpoints interfaces.ServiceEndpoints
+
+	// Provides configuration of application metadata. See interfaces.ApplicationInfo.
+	//
+	// Application metadata may be used in LaunchDarkly analytics or other product features, but does not
+	// affect feature flag evaluations.
+	ApplicationInfo interfaces.ApplicationInfo
 }
