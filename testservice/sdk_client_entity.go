@@ -188,7 +188,7 @@ func (c *SDKClientEntity) contextBuild(p servicedef.ContextBuildParams) (*servic
 	var context ldcontext.Context
 	if p.Single == nil {
 		builder := ldcontext.NewMultiBuilder()
-		for _, c := range p.Multi.Kinds {
+		for _, c := range p.Multi {
 			builder.Add(makeSingleContext(c))
 		}
 		context = builder.Build()

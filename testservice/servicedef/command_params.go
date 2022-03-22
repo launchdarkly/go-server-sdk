@@ -81,8 +81,8 @@ type BigSegmentStoreStatusResponse struct {
 }
 
 type ContextBuildParams struct {
-	Single *ContextBuildSingleParams `json:"single,omitempty"`
-	Multi  *ContextBuildMultiParams  `json:"multi,omitempty"`
+	Single *ContextBuildSingleParams  `json:"single,omitempty"`
+	Multi  []ContextBuildSingleParams `json:"multi,omitempty"`
 }
 
 type ContextBuildSingleParams struct {
@@ -93,10 +93,6 @@ type ContextBuildSingleParams struct {
 	Secondary *string                  `json:"secondary,omitempty"`
 	Private   []string                 `json:"private,omitempty"`
 	Custom    map[string]ldvalue.Value `json:"custom,omitempty"`
-}
-
-type ContextBuildMultiParams struct {
-	Kinds []ContextBuildSingleParams `json:"kinds,omitempty"`
 }
 
 type ContextBuildResponse struct {
