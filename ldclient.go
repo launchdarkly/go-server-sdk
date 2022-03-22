@@ -820,7 +820,12 @@ func (client *LDClient) variation(
 	if !eventsScope.disabled {
 		var eval ldevents.EvaluationData
 		if flag == nil {
-			eval = eventsScope.factory.NewUnknownFlagEvaluationData(key, ldevents.Context(context), defaultVal, result.Detail.Reason)
+			eval = eventsScope.factory.NewUnknownFlagEvaluationData(
+				key,
+				ldevents.Context(context),
+				defaultVal,
+				result.Detail.Reason,
+			)
 		} else {
 			eval = eventsScope.factory.NewEvaluationData(
 				ldevents.FlagEventProperties{
