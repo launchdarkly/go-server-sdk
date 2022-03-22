@@ -1,6 +1,8 @@
 package sharedtest
 
 import (
+	"encoding/json"
+
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
@@ -22,15 +24,19 @@ type CapturingEventProcessor struct {
 	Events []interface{}
 }
 
-func (c *CapturingEventProcessor) RecordFeatureRequestEvent(e ldevents.FeatureRequestEvent) { //nolint:revive
+func (c *CapturingEventProcessor) RecordEvaluation(e ldevents.EvaluationData) { //nolint:revive
 	c.Events = append(c.Events, e)
 }
 
-func (c *CapturingEventProcessor) RecordIdentifyEvent(e ldevents.IdentifyEvent) { //nolint:revive
+func (c *CapturingEventProcessor) RecordIdentifyEvent(e ldevents.IdentifyEventData) { //nolint:revive
 	c.Events = append(c.Events, e)
 }
 
-func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEvent) { //nolint:revive
+func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEventData) { //nolint:revive
+	c.Events = append(c.Events, e)
+}
+
+func (c *CapturingEventProcessor) RecordRawEvent(e json.RawMessage) { //nolint:revive
 	c.Events = append(c.Events, e)
 }
 

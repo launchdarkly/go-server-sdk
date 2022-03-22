@@ -83,10 +83,10 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *PollingDataSourceBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
-		Set("streamingDisabled", ldvalue.Bool(true)).
-		Set("customBaseURI", ldvalue.Bool(
-			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.PollingService, b.baseURI))).
+		SetBool("streamingDisabled", true).
+		SetBool("customBaseURI",
+			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.PollingService, b.baseURI)).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
-		Set("usingRelayDaemon", ldvalue.Bool(false)).
+		SetBool("usingRelayDaemon", false).
 		Build()
 }

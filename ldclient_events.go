@@ -67,7 +67,7 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 	return eventsScope{
 		factory: factory,
 		prerequisiteEventRecorder: func(params ldeval.PrerequisiteFlagEvent) {
-			event := factory.NewEvalEvent(
+			client.eventProcessor.RecordEvaluation(factory.NewEvaluationData(
 				ldevents.FlagEventProperties{
 					Key:                  params.PrerequisiteFlag.Key,
 					Version:              params.PrerequisiteFlag.Version,
@@ -79,8 +79,7 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 				params.PrerequisiteResult.IsExperiment,
 				ldvalue.Null(),
 				params.TargetFlagKey,
-			)
-			client.eventProcessor.RecordFeatureRequestEvent(event)
+			))
 		},
 	}
 }

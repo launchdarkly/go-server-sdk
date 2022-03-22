@@ -153,7 +153,7 @@ func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.Clie
 	builder.Set("connectTimeoutMillis", durationToMillisValue(b.connectTimeout))
 	builder.Set("socketTimeoutMillis", durationToMillisValue(b.connectTimeout))
 
-	builder.Set("usingProxy", ldvalue.Bool(b.isProxyEnabled()))
+	builder.SetBool("usingProxy", b.isProxyEnabled())
 
 	return builder.Build()
 }

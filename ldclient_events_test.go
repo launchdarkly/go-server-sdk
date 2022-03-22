@@ -26,7 +26,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(ldevents.IdentifyEvent)
+	e := events[0].(ldevents.IdentifyEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
 }
 
@@ -52,7 +52,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(ldevents.CustomEvent)
+	e := events[0].(ldevents.CustomEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, ldvalue.Null(), e.Data)
@@ -71,7 +71,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(ldevents.CustomEvent)
+	e := events[0].(ldevents.CustomEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)
@@ -91,7 +91,7 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 
 	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
-	e := events[0].(ldevents.CustomEvent)
+	e := events[0].(ldevents.CustomEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, data, e.Data)

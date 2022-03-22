@@ -347,7 +347,7 @@ func (client *LDClient) Identify(context ldcontext.Context) error {
 		client.loggers.Warnf("Identify called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := client.eventsDefault.factory.NewIdentifyEvent(ldevents.Context(context))
+	evt := client.eventsDefault.factory.NewIdentifyEventData(ldevents.Context(context))
 	client.eventProcessor.RecordIdentifyEvent(evt)
 	return nil
 }
@@ -384,7 +384,7 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.RecordCustomEvent(
-		client.eventsDefault.factory.NewCustomEvent(
+		client.eventsDefault.factory.NewCustomEventData(
 			eventName,
 			ldevents.Context(context),
 			data,
@@ -420,7 +420,7 @@ func (client *LDClient) TrackMetric(
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	client.eventProcessor.RecordCustomEvent(
-		client.eventsDefault.factory.NewCustomEvent(
+		client.eventsDefault.factory.NewCustomEventData(
 			eventName,
 			ldevents.Context(context),
 			data,
@@ -818,11 +818,11 @@ func (client *LDClient) variation(
 	}
 
 	if !eventsScope.disabled {
-		var evt ldevents.FeatureRequestEvent
+		var eval ldevents.EvaluationData
 		if flag == nil {
-			evt = eventsScope.factory.NewUnknownFlagEvent(key, ldevents.Context(context), defaultVal, result.Detail.Reason)
+			eval = eventsScope.factory.NewUnknownFlagEvaluationData(key, ldevents.Context(context), defaultVal, result.Detail.Reason)
 		} else {
-			evt = eventsScope.factory.NewEvalEvent(
+			eval = eventsScope.factory.NewEvaluationData(
 				ldevents.FlagEventProperties{
 					Key:                  flag.Key,
 					Version:              flag.Version,
@@ -836,7 +836,7 @@ func (client *LDClient) variation(
 				"",
 			)
 		}
-		client.eventProcessor.RecordFeatureRequestEvent(evt)
+		client.eventProcessor.RecordEvaluation(eval)
 	}
 
 	return result.Detail, err

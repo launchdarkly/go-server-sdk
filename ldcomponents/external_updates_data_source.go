@@ -43,6 +43,6 @@ func (f nullDataSourceFactory) DescribeConfiguration(context interfaces.ClientCo
 	// This information is only used for diagnostic events, and if we're able to send diagnostic events,
 	// then by definition we're not completely offline so we must be using daemon mode.
 	return ldvalue.ObjectBuild().
-		Set("usingRelayDaemon", ldvalue.Bool(true)).
+		SetBool("usingRelayDaemon", true).
 		Build()
 }

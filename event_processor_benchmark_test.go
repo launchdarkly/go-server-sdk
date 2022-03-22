@@ -124,7 +124,7 @@ func BenchmarkFeatureRequestEventsSummaryOnly(b *testing.B) {
 			user := env.users[i%bc.numUsers]
 			variation := i % bc.numVariations
 			value := env.variations[variation]
-			event := ldevents.FeatureRequestEvent{
+			event := ldevents.EvaluationData{
 				BaseEvent: ldevents.BaseEvent{
 					CreationDate: ldtime.UnixMillisNow(),
 					Context:      ldevents.Context(user),
@@ -133,7 +133,7 @@ func BenchmarkFeatureRequestEventsSummaryOnly(b *testing.B) {
 				Variation: ldvalue.NewOptionalInt(variation),
 				Value:     value,
 			}
-			env.eventProcessor.RecordFeatureRequestEvent(event)
+			env.eventProcessor.RecordEvaluation(event)
 		}
 		env.eventProcessor.Flush()
 		env.waitUntilEventsSent()
@@ -146,7 +146,7 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 			user := env.users[i%bc.numUsers]
 			variation := i % bc.numVariations
 			value := env.variations[variation]
-			event := ldevents.FeatureRequestEvent{
+			event := ldevents.EvaluationData{
 				BaseEvent: ldevents.BaseEvent{
 					CreationDate: ldtime.UnixMillisNow(),
 					Context:      ldevents.Context(user),
@@ -156,7 +156,7 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 				Value:            value,
 				RequireFullEvent: true,
 			}
-			env.eventProcessor.RecordFeatureRequestEvent(event)
+			env.eventProcessor.RecordEvaluation(event)
 		}
 		env.eventProcessor.Flush()
 		env.waitUntilEventsSent()
@@ -168,7 +168,7 @@ func BenchmarkCustomEvents(b *testing.B) {
 	benchmarkEvents(b, eventsBenchmarkCases, func(env *eventsBenchmarkEnv, bc eventsBenchmarkCase) {
 		for i := 0; i < bc.numEvents; i++ {
 			user := env.users[i%bc.numUsers]
-			event := ldevents.CustomEvent{
+			event := ldevents.CustomEventData{
 				BaseEvent: ldevents.BaseEvent{
 					CreationDate: ldtime.UnixMillisNow(),
 					Context:      ldevents.Context(user),

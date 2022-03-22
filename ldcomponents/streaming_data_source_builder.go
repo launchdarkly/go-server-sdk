@@ -80,10 +80,10 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *StreamingDataSourceBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
-		Set("streamingDisabled", ldvalue.Bool(false)).
-		Set("customStreamURI", ldvalue.Bool(
-			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.StreamingService, b.baseURI))).
+		SetBool("streamingDisabled", false).
+		SetBool("customStreamURI",
+			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.StreamingService, b.baseURI)).
 		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
-		Set("usingRelayDaemon", ldvalue.Bool(false)).
+		SetBool("usingRelayDaemon", false).
 		Build()
 }
