@@ -3,3 +3,4 @@ build/
 go-server-sdk.test
 allocations.out
 .idea
+.vscode

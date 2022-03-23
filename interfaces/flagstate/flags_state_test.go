@@ -5,10 +5,9 @@ import (
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldreason"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 
 	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 )
 
 func TestAllFlags(t *testing.T) {
@@ -49,8 +48,8 @@ func TestAllFlags(t *testing.T) {
 
 		a1 := AllFlags{
 			flags: map[string]FlagState{
-				"flag1": FlagState{Value: ldvalue.String("value1")},
-				"flag2": FlagState{Value: ldvalue.String("value2")},
+				"flag1": {Value: ldvalue.String("value1")},
+				"flag2": {Value: ldvalue.String("value2")},
 			},
 		}
 		assert.Equal(t, map[string]ldvalue.Value{
@@ -140,6 +139,31 @@ func TestAllFlagsJSON(t *testing.T) {
   }
 }`, string(bytes))
 	})
+
+	t.Run("omitting details", func(t *testing.T) {
+		a := AllFlags{
+			valid: true,
+			flags: map[string]FlagState{
+				"flag1": {
+					Value:       ldvalue.String("value1"),
+					Variation:   ldvalue.NewOptionalInt(1),
+					Version:     1000,
+					Reason:      ldreason.NewEvalReasonFallthrough(),
+					OmitDetails: true,
+				},
+			},
+		}
+		bytes, err := a.MarshalJSON()
+		assert.NoError(t, err)
+		assert.JSONEq(t,
+			`{
+  "$valid":true,
+  "flag1": "value1",
+  "$flagsState":{
+    "flag1": {"variation":1}
+  }
+}`, string(bytes))
+	})
 }
 
 func TestAllFlagsBuilder(t *testing.T) {
@@ -204,10 +228,10 @@ func TestAllFlagsBuilder(t *testing.T) {
 		}, a.flags)
 	})
 
-	t.Run("add flags with reasons only if tracked", func(t *testing.T) {
+	t.Run("add flags with details only if tracked", func(t *testing.T) {
 		b := NewAllFlagsBuilder(OptionWithReasons(), OptionDetailsOnlyForTrackedFlags())
 
-		// flag1 should not get a reason
+		// flag1 should not get full details
 		flag1 := FlagState{
 			Value:     ldvalue.String("value1"),
 			Variation: ldvalue.NewOptionalInt(1),
@@ -258,14 +282,14 @@ func TestAllFlagsBuilder(t *testing.T) {
 		b.AddFlag("flag4", flag4)
 		b.AddFlag("flag5", flag5)
 
-		flag1WithoutReason, flag2WithoutReason := flag1, flag2
-		flag1WithoutReason.Reason = ldreason.EvaluationReason{}
-		flag2WithoutReason.Reason = ldreason.EvaluationReason{}
+		flag1WithoutDetails, flag2WithoutDetails := flag1, flag2
+		flag1WithoutDetails.OmitDetails = true
+		flag2WithoutDetails.OmitDetails = true
 
 		a := b.Build()
 		assert.Equal(t, map[string]FlagState{
-			"flag1": flag1WithoutReason,
-			"flag2": flag2WithoutReason,
+			"flag1": flag1WithoutDetails,
+			"flag2": flag2WithoutDetails,
 			"flag3": flag3,
 			"flag4": flag4,
 			"flag5": flag5,

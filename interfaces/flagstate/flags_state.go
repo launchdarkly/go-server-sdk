@@ -61,6 +61,10 @@ type FlagState struct {
 
 	// DebugEventsUntilDate is non-zero if event debugging is enabled for this flag until the specified time.
 	DebugEventsUntilDate ldtime.UnixMillisecondTime
+
+	// OmitDetails is true if, based on the options passed to AllFlagsState and the flag state, some of the
+	// metadata can be left out of the JSON representation.
+	OmitDetails bool
 }
 
 // Option is the interface for optional parameters that can be passed to LDClient.AllFlagsState.
@@ -143,8 +147,8 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 	for key, flag := range a.flags {
 		flagObj := stateObj.Name(key).Object()
 		flagObj.Maybe("variation", flag.Variation.IsDefined()).Int(flag.Variation.IntValue())
-		flagObj.Name("version").Int(flag.Version)
-		if flag.Reason.IsDefined() {
+		flagObj.Maybe("version", !flag.OmitDetails).Int(flag.Version)
+		if flag.Reason.IsDefined() && !flag.OmitDetails {
 			flag.Reason.WriteToJSONWriter(flagObj.Name("reason"))
 		}
 		flagObj.Maybe("trackEvents", flag.TrackEvents).Bool(flag.TrackEvents)
@@ -189,14 +193,13 @@ func (b *AllFlagsBuilder) Build() AllFlags {
 func (b *AllFlagsBuilder) AddFlag(flagKey string, flag FlagState) *AllFlagsBuilder {
 	// To save bandwidth, we include evaluation reasons only if 1. the application explicitly said to
 	// include them or 2. they must be included because of experimentation
-	wantReason := b.options.withReasons || flag.TrackReason
-	if wantReason && b.options.detailsOnlyIfTracked {
+	if b.options.detailsOnlyIfTracked {
 		if !flag.TrackEvents && !flag.TrackReason &&
 			!(flag.DebugEventsUntilDate != 0 && flag.DebugEventsUntilDate > ldtime.UnixMillisNow()) {
-			wantReason = false
+			flag.OmitDetails = true
 		}
 	}
-	if !wantReason {
+	if !b.options.withReasons && !flag.TrackReason {
 		flag.Reason = ldreason.EvaluationReason{}
 	}
 	b.state.flags[flagKey] = flag
