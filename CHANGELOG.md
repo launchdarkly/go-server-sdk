@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.9.0] - 2022-03-22
+### Added:
+- `Config.ApplicationInfo`, for configuration of application metadata that may be used in LaunchDarkly analytics or other product features. This does not affect feature flag evaluations.
+
 ## [5.8.1] - 2022-01-19
 ### Fixed:
 - When using `AllFlagsState` to produce bootstrap data for the JavaScript SDK, the Go SDK was not returning the correct metadata for evaluations that involved an experiment. As a result, the analytics events produced by the JavaScript SDK did not correctly reflect experimentation results.
