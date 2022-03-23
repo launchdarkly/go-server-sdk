@@ -36,9 +36,7 @@ func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action f
 	p := fileDataSourceTestParams{}
 	p.closeWhenReady = make(chan struct{})
 	p.mockLog = ldlogtest.NewMockLog()
-	logConfig, _ := ldcomponents.Logging().Loggers(p.mockLog.Loggers).
-		CreateLoggingConfiguration(interfaces.BasicConfiguration{})
-	testContext := sharedtest.NewTestContext("", nil, logConfig)
+	testContext := sharedtest.NewTestContext("", nil, &interfaces.LoggingConfiguration{Loggers: p.mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	p.updates = sharedtest.NewMockDataSourceUpdates(store)
 	dataSource, err := factory.CreateDataSource(testContext, p.updates)

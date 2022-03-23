@@ -9,20 +9,20 @@ import (
 // LoggingConfiguration encapsulates the SDK's general logging configuration.
 //
 // See ldcomponents.LoggingConfigurationBuilder for more details on these properties.
-type LoggingConfiguration interface {
-	// GetLoggers returns the configured ldlog.Loggers instance.
-	GetLoggers() ldlog.Loggers
+type LoggingConfiguration struct {
+	// Loggers is a configured ldlog.Loggers instance for general SDK logging.
+	Loggers ldlog.Loggers
 
-	// GetLogDataSourceOutageAsErrorAfter returns the time threshold, if any, after which the SDK
+	// LogDataSourceOutageAsErrorAfter is the time threshold, if any, after which the SDK
 	// will log a data source outage at Error level instead of Warn level. See
 	// LoggingConfigurationBuilderLogDataSourceOutageAsErrorAfter().
-	GetLogDataSourceOutageAsErrorAfter() time.Duration
+	LogDataSourceOutageAsErrorAfter time.Duration
 
-	// IsLogEvaluationErrors returns true if evaluation errors should be logged.
-	IsLogEvaluationErrors() bool
+	// LogEvaluationErrors is true if evaluation errors should be logged.
+	LogEvaluationErrors bool
 
-	// IsLogContextKeyInErrors returns true if context keys may be included in logging.
-	IsLogContextKeyInErrors() bool
+	// LogContextKeyInErrors is true if context keys may be included in logging.
+	LogContextKeyInErrors bool
 }
 
 // LoggingConfigurationFactory is an interface for a factory that creates a LoggingConfiguration.

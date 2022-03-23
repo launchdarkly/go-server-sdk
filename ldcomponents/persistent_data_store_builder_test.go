@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
@@ -27,7 +28,8 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 		pdsf.store = sharedtest.NewMockPersistentDataStore()
 		f := PersistentDataStore(pdsf)
 
-		context := sharedtest.NewSimpleTestContext("")
+		logConfig := interfaces.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}
+		context := sharedtest.NewTestContext("", nil, &logConfig)
 		broadcaster := internal.NewDataStoreStatusBroadcaster()
 		dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(broadcaster)
 
@@ -35,7 +37,7 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, store)
 		_ = store.Close()
-		assert.Equal(t, context, pdsf.receivedContext)
+		assert.Equal(t, context.GetLogging(), pdsf.receivedContext.GetLogging())
 
 		pdsf.store = nil
 		pdsf.fakeError = errors.New("sorry")

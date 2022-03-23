@@ -50,7 +50,7 @@ func newPollingProcessor(
 		dataSourceUpdates: dataSourceUpdates,
 		requestor:         requestor,
 		pollInterval:      pollInterval,
-		loggers:           context.GetLogging().GetLoggers(),
+		loggers:           context.GetLogging().Loggers,
 		quit:              make(chan struct{}),
 	}
 

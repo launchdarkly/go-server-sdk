@@ -203,7 +203,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.proxyURL != "" {
 		u, err := url.Parse(b.proxyURL)
 		if err != nil {
-			return nil, err
+			return interfaces.HTTPConfiguration{}, err
 		}
 		transportOpts = append(transportOpts, ldhttp.ProxyOption(*u))
 	}
@@ -213,7 +213,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		transportOpts = append(transportOpts, ldhttp.ConnectTimeoutOption(b.connectTimeout))
 		transport, _, err := ldhttp.NewHTTPTransport(transportOpts...)
 		if err != nil {
-			return nil, err
+			return interfaces.HTTPConfiguration{}, err
 		}
 		clientFactory = func() *http.Client {
 			return &http.Client{
@@ -223,9 +223,9 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		}
 	}
 
-	return internal.HTTPConfigurationImpl{
-		DefaultHeaders:    headers,
-		HTTPClientFactory: clientFactory,
+	return interfaces.HTTPConfiguration{
+		DefaultHeaders:   headers,
+		CreateHTTPClient: clientFactory,
 	}, nil
 }
 

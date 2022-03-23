@@ -52,7 +52,7 @@ func newFileDataSourceImpl(
 		absFilePaths:          abs,
 		duplicateKeysHandling: duplicateKeysHandling,
 		reloaderFactory:       reloaderFactory,
-		loggers:               context.GetLogging().GetLoggers(),
+		loggers:               context.GetLogging().Loggers,
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil

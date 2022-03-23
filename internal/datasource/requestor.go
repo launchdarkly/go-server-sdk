@@ -54,8 +54,8 @@ func newRequestorImpl(
 	return &requestorImpl{
 		httpClient: &modifiedClient,
 		baseURI:    baseURI,
-		headers:    context.GetHTTP().GetDefaultHeaders(),
-		loggers:    context.GetLogging().GetLoggers(),
+		headers:    context.GetHTTP().DefaultHeaders,
+		loggers:    context.GetLogging().Loggers,
 	}
 }
 

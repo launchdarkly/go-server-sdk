@@ -17,7 +17,7 @@ func basicClientContext() interfaces.ClientContext {
 func makeTestContextWithBaseURIs(uri string) *internal.ClientContextImpl {
 	return internal.NewClientContextImpl(
 		interfaces.BasicConfiguration{SDKKey: testSdkKey, ServiceEndpoints: RelayProxyEndpoints(uri)},
-		sharedtest.TestHTTPConfig(),
+		interfaces.HTTPConfiguration{},
 		sharedtest.TestLoggingConfig(),
 	)
 }

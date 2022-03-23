@@ -68,13 +68,13 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 	context interfaces.ClientContext,
 	dataSourceUpdates interfaces.DataSourceUpdates,
 ) (interfaces.DataSource, error) {
-	context.GetLogging().GetLoggers().Warn(
+	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetBasic().ServiceEndpoints,
 		endpoints.PollingService,
 		b.baseURI,
-		context.GetLogging().GetLoggers(),
+		context.GetLogging().Loggers,
 	)
 	pp := datasource.NewPollingProcessor(context, dataSourceUpdates, configuredBaseURI, b.pollInterval)
 	return pp, nil
