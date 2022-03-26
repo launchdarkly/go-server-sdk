@@ -164,7 +164,7 @@ func BenchmarkFeatureRequestEventsWithFullTracking(b *testing.B) {
 }
 
 func BenchmarkCustomEvents(b *testing.B) {
-	data := ldvalue.ObjectBuild().Set("eventData", ldvalue.String("value")).Build()
+	data := ldvalue.ObjectBuild().SetString("eventData", "value").Build()
 	benchmarkEvents(b, eventsBenchmarkCases, func(env *eventsBenchmarkEnv, bc eventsBenchmarkCase) {
 		for i := 0; i < bc.numEvents; i++ {
 			user := env.users[i%bc.numUsers]
