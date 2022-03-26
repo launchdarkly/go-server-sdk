@@ -1,6 +1,7 @@
 package ldcomponents
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
@@ -77,8 +78,16 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 		loggers,
 	)
 
-	eventSender := ldevents.NewServerSideEventSender(context.GetHTTP().CreateHTTPClient(),
-		context.GetBasic().SDKKey, configuredBaseURI, context.GetHTTP().DefaultHeaders, loggers)
+	headers := context.GetHTTP().DefaultHeaders
+	eventSender := ldevents.NewServerSideEventSender(
+		ldevents.EventSenderConfiguration{
+			Client:      context.GetHTTP().CreateHTTPClient(),
+			BaseURI:     configuredBaseURI,
+			BaseHeaders: func() http.Header { return headers },
+			Loggers:     loggers,
+		},
+		context.GetBasic().SDKKey,
+	)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
 		Capacity:                    b.capacity,

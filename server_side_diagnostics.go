@@ -93,7 +93,7 @@ func mergeComponentProperties(
 			}
 		}
 	} else if defaultPropertyName != "" {
-		builder.Set(defaultPropertyName, ldvalue.String("custom"))
+		builder.SetString(defaultPropertyName, "custom")
 	}
 }
 

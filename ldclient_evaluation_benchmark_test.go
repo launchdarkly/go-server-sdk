@@ -438,9 +438,7 @@ func makeStringVariation(i int) ldvalue.Value {
 func makeJSONVariation(i int) ldvalue.Value {
 	return ldvalue.ObjectBuild().Set(
 		"result",
-		ldvalue.ObjectBuild().Set(
-			"value", ldvalue.ArrayBuild().Add(ldvalue.Int(i)).Build(),
-		).Build(),
+		ldvalue.ObjectBuild().Set("value", ldvalue.ArrayOf(ldvalue.Int(i))).Build(),
 	).Build()
 }
 
