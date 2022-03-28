@@ -88,10 +88,10 @@ func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 	callback(p)
 }
 
-func (p clientEvalTestParams) requireSingleEvent(t *testing.T) ldevents.FeatureRequestEvent {
+func (p clientEvalTestParams) requireSingleEvent(t *testing.T) ldevents.EvaluationData {
 	events := p.events.Events
 	require.Equal(t, 1, len(events))
-	return events[0].(ldevents.FeatureRequestEvent)
+	return events[0].(ldevents.EvaluationData)
 }
 
 func (p clientEvalTestParams) expectSingleEvaluationEvent(
@@ -107,7 +107,7 @@ func (p clientEvalTestParams) expectSingleEvaluationEvent(
 
 func assertEvalEvent(
 	t *testing.T,
-	actualEvent ldevents.FeatureRequestEvent,
+	actualEvent ldevents.EvaluationData,
 	flagKey string,
 	flagVersion int,
 	user ldcontext.Context,
@@ -116,7 +116,7 @@ func assertEvalEvent(
 	defaultVal ldvalue.Value,
 	reason ldreason.EvaluationReason,
 ) {
-	expectedEvent := ldevents.FeatureRequestEvent{
+	expectedEvent := ldevents.EvaluationData{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: actualEvent.CreationDate,
 			Context:      ldevents.Context(user),
@@ -626,7 +626,7 @@ func TestEvaluatingUnknownFlagSendsEvent(t *testing.T) {
 		assert.Error(t, err)
 
 		e := p.requireSingleEvent(t)
-		expectedEvent := ldevents.FeatureRequestEvent{
+		expectedEvent := ldevents.EvaluationData{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e.CreationDate,
 				Context:      ldevents.Context(evalTestUser),
@@ -662,8 +662,8 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 
 		events := p.events.Events
 		assert.Len(t, events, 2)
-		e0 := events[0].(ldevents.FeatureRequestEvent)
-		expected0 := ldevents.FeatureRequestEvent{
+		e0 := events[0].(ldevents.EvaluationData)
+		expected0 := ldevents.EvaluationData{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e0.CreationDate,
 				Context:      ldevents.Context(user),
@@ -677,8 +677,8 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 		}
 		assert.Equal(t, expected0, e0)
 
-		e1 := events[1].(ldevents.FeatureRequestEvent)
-		expected1 := ldevents.FeatureRequestEvent{
+		e1 := events[1].(ldevents.EvaluationData)
+		expected1 := ldevents.EvaluationData{
 			BaseEvent: ldevents.BaseEvent{
 				CreationDate: e1.CreationDate,
 				Context:      ldevents.Context(user),

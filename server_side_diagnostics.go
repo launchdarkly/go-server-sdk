@@ -66,7 +66,7 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolin
 // - If the value is an object, then copy all of its properties as long as they are ones we recognize
 //   and have the expected type.
 func mergeComponentProperties(
-	builder ldvalue.ObjectBuilder,
+	builder *ldvalue.ObjectBuilder,
 	context interfaces.ClientContext,
 	component interface{},
 	defaultComponent interface{},
@@ -83,17 +83,17 @@ func mergeComponentProperties(
 		if componentDesc.Type() == ldvalue.StringType && defaultPropertyName != "" {
 			builder.Set(defaultPropertyName, componentDesc)
 		} else if componentDesc.Type() == ldvalue.ObjectType {
-			componentDesc.Enumerate(func(i int, name string, value ldvalue.Value) bool {
+			for _, name := range componentDesc.Keys(nil) {
 				if allowedType, ok := allowedDiagnosticComponentProperties[name]; ok {
+					value := componentDesc.GetByKey(name)
 					if value.IsNull() || value.Type() == allowedType {
 						builder.Set(name, value)
 					}
 				}
-				return true
-			})
+			}
 		}
 	} else if defaultPropertyName != "" {
-		builder.Set(defaultPropertyName, ldvalue.String("custom"))
+		builder.SetString(defaultPropertyName, "custom")
 	}
 }
 

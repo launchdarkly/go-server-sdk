@@ -14,6 +14,6 @@ func TestNoEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer ep.Close()
 	ef := ldevents.NewEventFactory(false, nil)
-	ep.RecordIdentifyEvent(ef.NewIdentifyEvent(ldevents.Context(lduser.NewUser("key"))))
+	ep.RecordIdentifyEvent(ef.NewIdentifyEventData(ldevents.Context(lduser.NewUser("key"))))
 	ep.Flush()
 }

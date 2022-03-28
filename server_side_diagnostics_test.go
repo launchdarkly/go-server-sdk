@@ -16,7 +16,7 @@ import (
 
 var testStartWaitMillis = time.Second * 10
 
-func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
+func expectedDiagnosticConfigForDefaultConfig() *ldvalue.ObjectBuilder {
 	return ldvalue.ObjectBuild().
 		Set("customEventsURI", ldvalue.Bool(false)).
 		Set("dataStoreType", ldvalue.String("memory")).
@@ -35,7 +35,7 @@ func expectedDiagnosticConfigForDefaultConfig() ldvalue.ObjectBuilder {
 
 func TestDiagnosticEventCustomConfig(t *testing.T) {
 	timeMillis := func(t time.Duration) ldvalue.Value { return ldvalue.Int(int(t / time.Millisecond)) }
-	doTestWithoutStreamingDefaults := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
+	doTestWithoutStreamingDefaults := func(setConfig func(*Config), setExpected func(*ldvalue.ObjectBuilder)) {
 		config := Config{}
 		setConfig(&config)
 		expected := expectedDiagnosticConfigForDefaultConfig()
@@ -44,102 +44,102 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		actual := makeDiagnosticConfigData(context, config, testStartWaitMillis)
 		assert.JSONEq(t, expected.Build().JSONString(), actual.JSONString())
 	}
-	doTest := func(setConfig func(*Config), setExpected func(ldvalue.ObjectBuilder)) {
-		doTestWithoutStreamingDefaults(setConfig, func(b ldvalue.ObjectBuilder) {
-			b.Set("customStreamURI", ldvalue.Bool(false)).
+	doTest := func(setConfig func(*Config), setExpected func(*ldvalue.ObjectBuilder)) {
+		doTestWithoutStreamingDefaults(setConfig, func(b *ldvalue.ObjectBuilder) {
+			b.SetBool("customStreamURI", false).
 				Set("reconnectTimeMillis", timeMillis(ldcomponents.DefaultInitialReconnectDelay)).
-				Set("streamingDisabled", ldvalue.Bool(false))
+				SetBool("streamingDisabled", false)
 			setExpected(b)
 		})
 	}
 
-	doTest(func(c *Config) {}, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) {}, func(b *ldvalue.ObjectBuilder) {})
 
 	// data store configuration
-	doTest(func(c *Config) { c.DataStore = ldcomponents.InMemoryDataStore() }, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) { c.DataStore = ldcomponents.InMemoryDataStore() }, func(b *ldvalue.ObjectBuilder) {})
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryForDiagnostics{name: "Foo"} },
-		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("Foo")) })
+		func(b *ldvalue.ObjectBuilder) { b.SetString("dataStoreType", "Foo") })
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryWithoutDiagnosticDescription{} },
-		func(b ldvalue.ObjectBuilder) { b.Set("dataStoreType", ldvalue.String("custom")) })
+		func(b *ldvalue.ObjectBuilder) { b.SetString("dataStoreType", "custom") })
 
 	// data source configuration
-	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource() }, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource() }, func(b *ldvalue.ObjectBuilder) {})
 	doTest(func(c *Config) {
 		c.ServiceEndpoints = interfaces.ServiceEndpoints{Streaming: "custom"}
-	}, func(b ldvalue.ObjectBuilder) {
-		b.Set("customStreamURI", ldvalue.Bool(true))
+	}, func(b *ldvalue.ObjectBuilder) {
+		b.SetBool("customStreamURI", true)
 	})
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Minute) },
-		func(b ldvalue.ObjectBuilder) { b.Set("reconnectTimeMillis", ldvalue.Int(60000)) })
-	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.PollingDataSource() }, func(b ldvalue.ObjectBuilder) {
-		b.Set("streamingDisabled", ldvalue.Bool(true))
-		b.Set("customBaseURI", ldvalue.Bool(false))
+		func(b *ldvalue.ObjectBuilder) { b.Set("reconnectTimeMillis", ldvalue.Int(60000)) })
+	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.PollingDataSource() }, func(b *ldvalue.ObjectBuilder) {
+		b.SetBool("streamingDisabled", true)
+		b.SetBool("customBaseURI", false)
 		b.Set("pollingIntervalMillis", timeMillis(ldcomponents.DefaultPollInterval))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) {
 		c.DataSource = ldcomponents.PollingDataSource().PollInterval(time.Minute * 99)
-	}, func(b ldvalue.ObjectBuilder) {
-		b.Set("streamingDisabled", ldvalue.Bool(true))
-		b.Set("customBaseURI", ldvalue.Bool(false))
+	}, func(b *ldvalue.ObjectBuilder) {
+		b.SetBool("streamingDisabled", true)
+		b.SetBool("customBaseURI", false)
 		b.Set("pollingIntervalMillis", timeMillis(time.Minute*99))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) {
 		c.DataSource = ldcomponents.PollingDataSource()
 		c.ServiceEndpoints = interfaces.ServiceEndpoints{Polling: "custom"}
-	}, func(b ldvalue.ObjectBuilder) {
-		b.Set("streamingDisabled", ldvalue.Bool(true))
-		b.Set("customBaseURI", ldvalue.Bool(true))
+	}, func(b *ldvalue.ObjectBuilder) {
+		b.SetBool("streamingDisabled", true)
+		b.SetBool("customBaseURI", true)
 		b.Set("pollingIntervalMillis", timeMillis(ldcomponents.DefaultPollInterval))
 	})
 	doTestWithoutStreamingDefaults(func(c *Config) { c.DataSource = ldcomponents.ExternalUpdatesOnly() },
-		func(b ldvalue.ObjectBuilder) { b.Set("usingRelayDaemon", ldvalue.Bool(true)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetBool("usingRelayDaemon", true) })
 
 	// events configuration
-	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents() }, func(b ldvalue.ObjectBuilder) {})
+	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents() }, func(b *ldvalue.ObjectBuilder) {})
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().AllAttributesPrivate(true) },
-		func(b ldvalue.ObjectBuilder) { b.Set("allAttributesPrivate", ldvalue.Bool(true)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetBool("allAttributesPrivate", true) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().DiagnosticRecordingInterval(time.Second * 99) },
-		func(b ldvalue.ObjectBuilder) { b.Set("diagnosticRecordingIntervalMillis", ldvalue.Int(99000)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetInt("diagnosticRecordingIntervalMillis", 99000) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().Capacity(99) },
-		func(b ldvalue.ObjectBuilder) { b.Set("eventsCapacity", ldvalue.Int(99)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetInt("eventsCapacity", 99) })
 	doTest(func(c *Config) { c.ServiceEndpoints = interfaces.ServiceEndpoints{Events: "custom"} },
-		func(b ldvalue.ObjectBuilder) { b.Set("customEventsURI", ldvalue.Bool(true)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetBool("customEventsURI", true) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().FlushInterval(time.Second) },
-		func(b ldvalue.ObjectBuilder) { b.Set("eventsFlushIntervalMillis", ldvalue.Int(1000)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetInt("eventsFlushIntervalMillis", 1000) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().ContextKeysCapacity(2) },
-		func(b ldvalue.ObjectBuilder) { b.Set("userKeysCapacity", ldvalue.Int(2)) })
+		func(b *ldvalue.ObjectBuilder) { b.SetInt("userKeysCapacity", 2) })
 	doTest(func(c *Config) { c.Events = ldcomponents.SendEvents().ContextKeysFlushInterval(time.Second) },
-		func(b ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
+		func(b *ldvalue.ObjectBuilder) { b.Set("userKeysFlushIntervalMillis", ldvalue.Int(1000)) })
 
 	// network properties
 	doTest(
 		func(c *Config) {
 			c.HTTP = ldcomponents.HTTPConfiguration().ConnectTimeout(time.Second)
 		},
-		func(b ldvalue.ObjectBuilder) {
-			b.Set("connectTimeoutMillis", ldvalue.Int(1000))
-			b.Set("socketTimeoutMillis", ldvalue.Int(1000))
+		func(b *ldvalue.ObjectBuilder) {
+			b.SetInt("connectTimeoutMillis", 1000)
+			b.SetInt("socketTimeoutMillis", 1000)
 		})
 	doTest(
 		func(c *Config) {
 			c.HTTP = ldcomponents.HTTPConfiguration().ProxyURL("http://proxyhost")
 		},
-		func(b ldvalue.ObjectBuilder) {
-			b.Set("usingProxy", ldvalue.Bool(true))
+		func(b *ldvalue.ObjectBuilder) {
+			b.SetBool("usingProxy", true)
 		})
 	doTest(
 		func(c *Config) {
 			c.HTTP = ldcomponents.HTTPConfiguration().
 				HTTPClientFactory(func() *http.Client { return http.DefaultClient })
 		},
-		func(b ldvalue.ObjectBuilder) {})
+		func(b *ldvalue.ObjectBuilder) {})
 	func() {
 		os.Setenv("HTTP_PROXY", "http://proxyhost")
 		defer os.Setenv("HTTP_PROXY", "")
 		doTest(
 			func(c *Config) {},
-			func(b ldvalue.ObjectBuilder) {
-				b.Set("usingProxy", ldvalue.Bool(true))
+			func(b *ldvalue.ObjectBuilder) {
+				b.SetBool("usingProxy", true)
 			})
 	}()
 }
