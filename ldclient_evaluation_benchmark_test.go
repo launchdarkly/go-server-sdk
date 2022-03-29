@@ -396,7 +396,7 @@ func BenchmarkJSONVariationNoAlloc(b *testing.B) {
 	})
 }
 
-func BenchmarkUsersFoundInTargets(b *testing.B) {
+func BenchmarkUsersFoundInTargetsNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
@@ -407,7 +407,7 @@ func BenchmarkUsersFoundInTargets(b *testing.B) {
 		})
 }
 
-func BenchmarkUserNotFoundInTargets(b *testing.B) {
+func BenchmarkUserNotFoundInTargetsNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
@@ -418,7 +418,7 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 		})
 }
 
-func BenchmarkUserMatchesRule(b *testing.B) {
+func BenchmarkUserMatchesRuleNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		ruleMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
