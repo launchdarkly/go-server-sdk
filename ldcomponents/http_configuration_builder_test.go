@@ -249,4 +249,11 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			assert.Equal(t, "application-id/appid application-version/appver", c.DefaultHeaders.Get("X-LaunchDarkly-Tags"))
 		})
 	})
+
+	t.Run("nil safety", func(t *testing.T) {
+		var b *HTTPConfigurationBuilder = nil
+		b = b.ConnectTimeout(0).Header("a", "b").ProxyURL("c").Wrapper("d", "e")
+		_ = b.DescribeConfiguration(sharedtest.NewSimpleTestContext(""))
+		_, _ = b.CreateHTTPConfiguration(sharedtest.NewSimpleTestContext("").GetBasic())
+	})
 }

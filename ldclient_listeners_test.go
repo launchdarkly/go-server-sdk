@@ -45,7 +45,7 @@ func clientListenersTestWithConfig(configAction func(*Config), action func(clien
 		DataSource: testData,
 		DataStore:  factoryWithUpdater,
 		Events:     ldcomponents.NoEvents(),
-		Logging:    sharedtest.TestLogging(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	if configAction != nil {
 		configAction(&config)

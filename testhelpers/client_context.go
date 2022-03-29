@@ -50,13 +50,15 @@ func (s SimpleClientContext) GetLogging() interfaces.LoggingConfiguration { //no
 	if s.logging != nil {
 		return *s.logging
 	}
-	c, _ := ldcomponents.Logging().CreateLoggingConfiguration(s.GetBasic())
-	return c
+	return ldcomponents.Logging().CreateLoggingConfiguration(s.GetBasic())
 }
 
 // WithHTTP returns a new SimpleClientContext based on the original one, but adding the specified
 // HTTP configuration.
-func (s SimpleClientContext) WithHTTP(httpConfig interfaces.HTTPConfigurationFactory) SimpleClientContext {
+func (s SimpleClientContext) WithHTTP(httpConfig *ldcomponents.HTTPConfigurationBuilder) SimpleClientContext {
+	if httpConfig == nil {
+		httpConfig = ldcomponents.HTTPConfiguration()
+	}
 	config, _ := httpConfig.CreateHTTPConfiguration(s.GetBasic())
 	ret := s
 	ret.http = &config
@@ -65,8 +67,11 @@ func (s SimpleClientContext) WithHTTP(httpConfig interfaces.HTTPConfigurationFac
 
 // WithLogging returns a new SimpleClientContext based on the original one, but adding the specified
 // logging configuration.
-func (s SimpleClientContext) WithLogging(loggingConfig interfaces.LoggingConfigurationFactory) SimpleClientContext {
-	config, _ := loggingConfig.CreateLoggingConfiguration(s.GetBasic())
+func (s SimpleClientContext) WithLogging(loggingConfig *ldcomponents.LoggingConfigurationBuilder) SimpleClientContext {
+	if loggingConfig == nil {
+		loggingConfig = ldcomponents.Logging()
+	}
+	config := loggingConfig.CreateLoggingConfiguration(s.GetBasic())
 	ret := s
 	ret.logging = &config
 	return ret

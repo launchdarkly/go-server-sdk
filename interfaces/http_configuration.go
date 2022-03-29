@@ -18,12 +18,3 @@ type HTTPConfiguration struct {
 	// The SDK will ensure that this field is non-nil before passing it to any component.
 	CreateHTTPClient func() *http.Client
 }
-
-// HTTPConfigurationFactory is an interface for a factory that creates an HTTPConfiguration.
-type HTTPConfigurationFactory interface {
-	// CreateHTTPConfiguration is called internally by the SDK to obtain the configuration.
-	//
-	// This happens only when MakeClient or MakeCustomClient is called. If the factory returns
-	// an error, creation of the LDClient fails.
-	CreateHTTPConfiguration(basicConfig BasicConfiguration) (HTTPConfiguration, error)
-}

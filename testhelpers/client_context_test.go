@@ -18,7 +18,7 @@ func TestSimpleClientContext(t *testing.T) {
 	hc, _ := ldcomponents.HTTPConfiguration().CreateHTTPConfiguration(c.GetBasic())
 	assert.Equal(t, hc.DefaultHeaders, c.GetHTTP().DefaultHeaders)
 
-	lc, _ := ldcomponents.Logging().CreateLoggingConfiguration(c.GetBasic())
+	lc := ldcomponents.Logging().CreateLoggingConfiguration(c.GetBasic())
 	assert.Equal(t, lc, c.GetLogging())
 
 	h := ldcomponents.HTTPConfiguration().UserAgent("u").Wrapper("w", "")
@@ -26,6 +26,6 @@ func TestSimpleClientContext(t *testing.T) {
 	assert.Equal(t, hc1.DefaultHeaders, c.WithHTTP(h).GetHTTP().DefaultHeaders)
 
 	l := ldcomponents.Logging().Loggers(ldlog.NewDefaultLoggers()).MinLevel(ldlog.Debug)
-	lc1, _ := l.CreateLoggingConfiguration(c.GetBasic())
+	lc1 := l.CreateLoggingConfiguration(c.GetBasic())
 	assert.Equal(t, lc1, c.WithLogging(l).GetLogging())
 }

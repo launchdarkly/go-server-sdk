@@ -35,10 +35,7 @@ func newClientContextFromConfig(
 	if loggingFactory == nil {
 		loggingFactory = ldcomponents.Logging()
 	}
-	logging, err := loggingFactory.CreateLoggingConfiguration(basicConfig)
-	if err != nil {
-		return nil, err
-	}
+	logging := loggingFactory.CreateLoggingConfiguration(basicConfig)
 
 	basicConfig.ApplicationInfo.ApplicationID = validateTagValue(config.ApplicationInfo.ApplicationID,
 		"ApplicationID", logging.Loggers)

@@ -30,6 +30,7 @@ const DefaultConnectTimeout = 3 * time.Second
 //		       ProxyURL(proxyUrl),
 //     }
 type HTTPConfigurationBuilder struct {
+	inited            bool
 	connectTimeout    time.Duration
 	httpClientFactory func() *http.Client
 	httpOptions       []ldhttp.TransportOption
@@ -47,10 +48,16 @@ type HTTPConfigurationBuilder struct {
 //		       ProxyURL(proxyUrl),
 //     }
 func HTTPConfiguration() *HTTPConfigurationBuilder {
-	return &HTTPConfigurationBuilder{
-		connectTimeout: DefaultConnectTimeout,
-		customHeaders:  make(map[string]string),
+	return &HTTPConfigurationBuilder{}
+}
+
+func (b *HTTPConfigurationBuilder) ensureDefaults() {
+	if b == nil || b.inited {
+		return
 	}
+	b.connectTimeout = DefaultConnectTimeout
+	b.customHeaders = make(map[string]string)
+	b.inited = true
 }
 
 // CACert specifies a CA certificate to be added to the trusted root CA list for HTTPS requests.
@@ -58,7 +65,10 @@ func HTTPConfiguration() *HTTPConfigurationBuilder {
 // If the certificate is not valid, the LDClient constructor will return an error when you try to create
 // the client.
 func (b *HTTPConfigurationBuilder) CACert(certData []byte) *HTTPConfigurationBuilder {
-	b.httpOptions = append(b.httpOptions, ldhttp.CACertOption(certData))
+	b.ensureDefaults()
+	if b != nil {
+		b.httpOptions = append(b.httpOptions, ldhttp.CACertOption(certData))
+	}
 	return b
 }
 
@@ -68,7 +78,10 @@ func (b *HTTPConfigurationBuilder) CACert(certData []byte) *HTTPConfigurationBui
 // If the certificate is not valid or the file does not exist, the LDClient constructor will return an
 // error when you try to create the client.
 func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfigurationBuilder {
-	b.httpOptions = append(b.httpOptions, ldhttp.CACertFileOption(filePath))
+	b.ensureDefaults()
+	if b != nil {
+		b.httpOptions = append(b.httpOptions, ldhttp.CACertFileOption(filePath))
+	}
 	return b
 }
 
@@ -83,10 +96,13 @@ func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfiguratio
 //         HTTP: ldcomponents.ConnectTimeout(),
 //     }
 func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) *HTTPConfigurationBuilder {
-	if connectTimeout <= 0 {
-		b.connectTimeout = DefaultConnectTimeout
-	} else {
-		b.connectTimeout = connectTimeout
+	b.ensureDefaults()
+	if b != nil {
+		if connectTimeout <= 0 {
+			b.connectTimeout = DefaultConnectTimeout
+		} else {
+			b.connectTimeout = connectTimeout
+		}
 	}
 	return b
 }
@@ -98,7 +114,10 @@ func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) 
 // SDK may modify the client properties after the client is created (for instance, to add caching), but
 // will not replace the underlying Transport, and will not modify any timeout properties you set.
 func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *http.Client) *HTTPConfigurationBuilder {
-	b.httpClientFactory = httpClientFactory
+	b.ensureDefaults()
+	if b != nil {
+		b.httpClientFactory = httpClientFactory
+	}
 	return b
 }
 
@@ -110,7 +129,10 @@ func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *h
 //
 // To pass basic proxy credentials, use the format 'scheme://username:password@host:port'.
 func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL string) *HTTPConfigurationBuilder {
-	b.proxyURL = proxyURL
+	b.ensureDefaults()
+	if b != nil {
+		b.proxyURL = proxyURL
+	}
 	return b
 }
 
@@ -123,13 +145,19 @@ func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL string) *HTTPConfigurationB
 // Overwriting the User-Agent or Authorization headers is not recommended, as it can interfere with communication
 // to LaunchDarkly. To set a custom User Agent, see UserAgent.
 func (b *HTTPConfigurationBuilder) Header(key string, value string) *HTTPConfigurationBuilder {
-	b.customHeaders[key] = value
+	b.ensureDefaults()
+	if b != nil {
+		b.customHeaders[key] = value
+	}
 	return b
 }
 
 // UserAgent specifies an additional User-Agent header value to send with HTTP requests.
 func (b *HTTPConfigurationBuilder) UserAgent(userAgent string) *HTTPConfigurationBuilder {
-	b.userAgent = userAgent
+	b.ensureDefaults()
+	if b != nil {
+		b.userAgent = userAgent
+	}
 	return b
 }
 
@@ -138,16 +166,23 @@ func (b *HTTPConfigurationBuilder) UserAgent(userAgent string) *HTTPConfiguratio
 // This will be sent in request headers during requests to the LaunchDarkly servers to allow recording
 // metrics on the usage of these wrapper libraries.
 func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *HTTPConfigurationBuilder {
-	if wrapperName == "" || wrapperVersion == "" {
-		b.wrapperIdentifier = wrapperName
-	} else {
-		b.wrapperIdentifier = fmt.Sprintf("%s/%s", wrapperName, wrapperVersion)
+	b.ensureDefaults()
+	if b != nil {
+		if wrapperName == "" || wrapperVersion == "" {
+			b.wrapperIdentifier = wrapperName
+		} else {
+			b.wrapperIdentifier = fmt.Sprintf("%s/%s", wrapperName, wrapperVersion)
+		}
 	}
 	return b
 }
 
 // DescribeConfiguration is internally by the SDK to inspect the configuration.
 func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+	if b == nil {
+		b = HTTPConfiguration()
+	}
+	b.ensureDefaults()
 	builder := ldvalue.ObjectBuild()
 
 	builder.Set("connectTimeoutMillis", durationToMillisValue(b.connectTimeout))
@@ -178,6 +213,11 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	basicConfiguration interfaces.BasicConfiguration,
 ) (interfaces.HTTPConfiguration, error) {
+	if b == nil {
+		b = HTTPConfiguration()
+	}
+	b.ensureDefaults()
+
 	headers := make(http.Header)
 	headers.Set("Authorization", basicConfiguration.SDKKey)
 	userAgent := "GoClient/" + internal.SDKVersion
@@ -210,7 +250,11 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 
 	clientFactory := b.httpClientFactory
 	if clientFactory == nil {
-		transportOpts = append(transportOpts, ldhttp.ConnectTimeoutOption(b.connectTimeout))
+		connectTimeout := b.connectTimeout
+		if connectTimeout <= 0 {
+			connectTimeout = DefaultConnectTimeout
+		}
+		transportOpts = append(transportOpts, ldhttp.ConnectTimeoutOption(connectTimeout))
 		transport, _, err := ldhttp.NewHTTPTransport(transportOpts...)
 		if err != nil {
 			return interfaces.HTTPConfiguration{}, err
