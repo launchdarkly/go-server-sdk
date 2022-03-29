@@ -5,6 +5,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
@@ -38,15 +39,19 @@ func Logging() *LoggingConfigurationBuilder {
 	return &LoggingConfigurationBuilder{}
 }
 
-func (b *LoggingConfigurationBuilder) ensureDefaults() {
-	if b == nil || b.inited {
-		return
+func (b *LoggingConfigurationBuilder) checkValid() bool {
+	if b == nil {
+		internal.LogErrorNilPointerMethod("LoggingConfigurationBuilder")
+		return false
 	}
-	b.config = interfaces.LoggingConfiguration{
-		LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
-		Loggers:                         ldlog.NewDefaultLoggers(),
+	if !b.inited {
+		b.config = interfaces.LoggingConfiguration{
+			LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
+			Loggers:                         ldlog.NewDefaultLoggers(),
+		}
+		b.inited = true
 	}
-	b.inited = true
+	return true
 }
 
 // LogDataSourceOutageAsErrorAfter sets the time threshold, if any, after which the SDK will log a data
@@ -65,8 +70,7 @@ func (b *LoggingConfigurationBuilder) ensureDefaults() {
 func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 	logDataSourceOutageAsErrorAfter time.Duration,
 ) *LoggingConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.config.LogDataSourceOutageAsErrorAfter = logDataSourceOutageAsErrorAfter
 	}
 	return b
@@ -78,8 +82,7 @@ func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 // exception is that the SDK will always log any error involving invalid flag data, because such data should not be
 // possible and indicates that LaunchDarkly support assistance may be required.
 func (b *LoggingConfigurationBuilder) LogEvaluationErrors(logEvaluationErrors bool) *LoggingConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.config.LogEvaluationErrors = logEvaluationErrors
 	}
 	return b
@@ -88,8 +91,7 @@ func (b *LoggingConfigurationBuilder) LogEvaluationErrors(logEvaluationErrors bo
 // LogContextKeyInErrors sets whether log messages for errors related to a specific evaluation context can include the
 // context key. By default, they will not, since the key might be considered privileged information.
 func (b *LoggingConfigurationBuilder) LogContextKeyInErrors(logContextKeyInErrors bool) *LoggingConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.config.LogContextKeyInErrors = logContextKeyInErrors
 	}
 	return b
@@ -98,8 +100,7 @@ func (b *LoggingConfigurationBuilder) LogContextKeyInErrors(logContextKeyInError
 // Loggers specifies an instance of ldlog.Loggers to use for SDK logging. The ldlog package contains
 // methods for customizing the destination and level filtering of log output.
 func (b *LoggingConfigurationBuilder) Loggers(loggers ldlog.Loggers) *LoggingConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.config.Loggers = loggers
 	}
 	return b
@@ -112,8 +113,7 @@ func (b *LoggingConfigurationBuilder) Loggers(loggers ldlog.Loggers) *LoggingCon
 // This is equivalent to creating an ldlog.Loggers instance, calling SetMinLevel() on it, and then
 // passing it to LoggingConfigurationBuilder.Loggers().
 func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.config.Loggers.SetMinLevel(level)
 	}
 	return b
@@ -123,9 +123,9 @@ func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingCon
 func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
 	basic interfaces.BasicConfiguration,
 ) interfaces.LoggingConfiguration {
-	b.ensureDefaults()
-	if b == nil {
-		return interfaces.LoggingConfiguration{}
+	if !b.checkValid() {
+		defaults := LoggingConfigurationBuilder{}
+		return defaults.CreateLoggingConfiguration(basic)
 	}
 	return b.config
 }

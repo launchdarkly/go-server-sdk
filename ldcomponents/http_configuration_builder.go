@@ -51,13 +51,17 @@ func HTTPConfiguration() *HTTPConfigurationBuilder {
 	return &HTTPConfigurationBuilder{}
 }
 
-func (b *HTTPConfigurationBuilder) ensureDefaults() {
-	if b == nil || b.inited {
-		return
+func (b *HTTPConfigurationBuilder) checkValid() bool {
+	if b == nil {
+		internal.LogErrorNilPointerMethod("HTTPConfigurationBuilder")
+		return false
 	}
-	b.connectTimeout = DefaultConnectTimeout
-	b.customHeaders = make(map[string]string)
-	b.inited = true
+	if !b.inited {
+		b.connectTimeout = DefaultConnectTimeout
+		b.customHeaders = make(map[string]string)
+		b.inited = true
+	}
+	return true
 }
 
 // CACert specifies a CA certificate to be added to the trusted root CA list for HTTPS requests.
@@ -65,8 +69,7 @@ func (b *HTTPConfigurationBuilder) ensureDefaults() {
 // If the certificate is not valid, the LDClient constructor will return an error when you try to create
 // the client.
 func (b *HTTPConfigurationBuilder) CACert(certData []byte) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.httpOptions = append(b.httpOptions, ldhttp.CACertOption(certData))
 	}
 	return b
@@ -78,8 +81,7 @@ func (b *HTTPConfigurationBuilder) CACert(certData []byte) *HTTPConfigurationBui
 // If the certificate is not valid or the file does not exist, the LDClient constructor will return an
 // error when you try to create the client.
 func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.httpOptions = append(b.httpOptions, ldhttp.CACertFileOption(filePath))
 	}
 	return b
@@ -96,8 +98,7 @@ func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfiguratio
 //         HTTP: ldcomponents.ConnectTimeout(),
 //     }
 func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		if connectTimeout <= 0 {
 			b.connectTimeout = DefaultConnectTimeout
 		} else {
@@ -114,8 +115,7 @@ func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) 
 // SDK may modify the client properties after the client is created (for instance, to add caching), but
 // will not replace the underlying Transport, and will not modify any timeout properties you set.
 func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *http.Client) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.httpClientFactory = httpClientFactory
 	}
 	return b
@@ -129,8 +129,7 @@ func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *h
 //
 // To pass basic proxy credentials, use the format 'scheme://username:password@host:port'.
 func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL string) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.proxyURL = proxyURL
 	}
 	return b
@@ -145,8 +144,7 @@ func (b *HTTPConfigurationBuilder) ProxyURL(proxyURL string) *HTTPConfigurationB
 // Overwriting the User-Agent or Authorization headers is not recommended, as it can interfere with communication
 // to LaunchDarkly. To set a custom User Agent, see UserAgent.
 func (b *HTTPConfigurationBuilder) Header(key string, value string) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.customHeaders[key] = value
 	}
 	return b
@@ -154,8 +152,7 @@ func (b *HTTPConfigurationBuilder) Header(key string, value string) *HTTPConfigu
 
 // UserAgent specifies an additional User-Agent header value to send with HTTP requests.
 func (b *HTTPConfigurationBuilder) UserAgent(userAgent string) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		b.userAgent = userAgent
 	}
 	return b
@@ -166,8 +163,7 @@ func (b *HTTPConfigurationBuilder) UserAgent(userAgent string) *HTTPConfiguratio
 // This will be sent in request headers during requests to the LaunchDarkly servers to allow recording
 // metrics on the usage of these wrapper libraries.
 func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *HTTPConfigurationBuilder {
-	b.ensureDefaults()
-	if b != nil {
+	if b.checkValid() {
 		if wrapperName == "" || wrapperVersion == "" {
 			b.wrapperIdentifier = wrapperName
 		} else {
@@ -179,10 +175,9 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 
 // DescribeConfiguration is internally by the SDK to inspect the configuration.
 func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
-	if b == nil {
-		b = HTTPConfiguration()
+	if !b.checkValid() {
+		return ldvalue.Null()
 	}
-	b.ensureDefaults()
 	builder := ldvalue.ObjectBuild()
 
 	builder.Set("connectTimeoutMillis", durationToMillisValue(b.connectTimeout))
@@ -213,10 +208,10 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	basicConfiguration interfaces.BasicConfiguration,
 ) (interfaces.HTTPConfiguration, error) {
-	if b == nil {
-		b = HTTPConfiguration()
+	if !b.checkValid() {
+		defaults := HTTPConfigurationBuilder{}
+		return defaults.CreateHTTPConfiguration(basicConfiguration)
 	}
-	b.ensureDefaults()
 
 	headers := make(http.Header)
 	headers.Set("Authorization", basicConfiguration.SDKKey)
