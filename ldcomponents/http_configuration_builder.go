@@ -176,7 +176,8 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 // DescribeConfiguration is internally by the SDK to inspect the configuration.
 func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
 	if !b.checkValid() {
-		return ldvalue.Null()
+		defaults := HTTPConfigurationBuilder{}
+		return defaults.DescribeConfiguration(context)
 	}
 	builder := ldvalue.ObjectBuild()
 
