@@ -14,7 +14,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	shared "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
@@ -273,7 +273,7 @@ func TestClientSendsDiagnostics(t *testing.T) {
 		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
 			config := Config{
-				Logging:          shared.TestLogging(),
+				Logging:          ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL, Events: eventsServer.URL},
 			}
 
@@ -300,7 +300,7 @@ func TestClientUsesCustomTLSConfiguration(t *testing.T) {
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			HTTP:             ldcomponents.HTTPConfiguration().CACert(certData),
-			Logging:          shared.TestLogging(),
+			Logging:          ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: server.URL},
 		}
 

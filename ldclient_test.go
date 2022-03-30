@@ -12,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testSdkKey = "test-sdk-key"
@@ -42,19 +43,19 @@ func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 	fakeError := errors.New("sorry")
 	factory := badFactory{fakeError}
 
-	doTest := func(name string, config Config) {
+	doTest := func(name string, config Config, expectedError error) {
 		t.Run(name, func(t *testing.T) {
 			client, err := MakeCustomClient(testSdkKey, config, 0)
 			assert.Nil(t, client)
-			assert.Equal(t, fakeError, err)
+			require.Error(t, err)
+			assert.Equal(t, expectedError.Error(), err.Error())
 		})
 	}
 
-	doTest("DataSource", Config{DataSource: factory})
-	doTest("DataStore", Config{DataStore: factory})
-	doTest("Events", Config{Events: factory})
-	doTest("HTTP", Config{HTTP: factory})
-	doTest("Logging", Config{Logging: factory})
+	doTest("DataSource", Config{DataSource: factory}, fakeError)
+	doTest("DataStore", Config{DataStore: factory}, fakeError)
+	doTest("Events", Config{Events: factory}, fakeError)
+	doTest("HTTP", Config{HTTP: ldcomponents.HTTPConfiguration().CACert([]byte{1})}, errors.New("invalid CA certificate data"))
 }
 
 func TestSecureModeHash(t *testing.T) {
@@ -71,7 +72,7 @@ func TestSecureModeHash(t *testing.T) {
 
 func TestMakeCustomClientWithFailedInitialization(t *testing.T) {
 	client, err := MakeCustomClient(testSdkKey, Config{
-		Logging:    sharedtest.TestLogging(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 		DataSource: sharedtest.DataSourceThatNeverInitializes(),
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
@@ -102,7 +103,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 		DataStore:  ldcomponents.InMemoryDataStore(),
 		DataSource: sharedtest.DataSourceThatIsAlwaysInitialized(),
 		Events:     sharedtest.SingleEventProcessorFactory{Instance: &sharedtest.CapturingEventProcessor{}},
-		Logging:    sharedtest.TestLogging(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	if modConfig != nil {
 		modConfig(&config)

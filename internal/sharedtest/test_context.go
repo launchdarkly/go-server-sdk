@@ -59,16 +59,3 @@ func (c stubClientContext) GetLogging() interfaces.LoggingConfiguration {
 func TestLoggingConfig() interfaces.LoggingConfiguration {
 	return interfaces.LoggingConfiguration{Loggers: NewTestLoggers()}
 }
-
-// TestLogging returns a LoggingConfigurationFactory corresponding to NewTestLoggers().
-func TestLogging() interfaces.LoggingConfigurationFactory {
-	return testLoggingConfigurationFactory{}
-}
-
-type testLoggingConfigurationFactory struct{}
-
-func (c testLoggingConfigurationFactory) CreateLoggingConfiguration(
-	basicConfig interfaces.BasicConfiguration,
-) (interfaces.LoggingConfiguration, error) {
-	return TestLoggingConfig(), nil
-}

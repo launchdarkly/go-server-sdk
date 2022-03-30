@@ -43,7 +43,7 @@ func TestClientUsesProxyEnvVars(t *testing.T) {
 		os.Setenv("HTTP_PROXY", proxy.URL)
 
 		config := ld.Config{}
-		config.Logging = sharedtest.TestLogging()
+		config.Logging = ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers())
 		config.DataSource = ldcomponents.PollingDataSource()
 		config.Events = ldcomponents.NoEvents()
 		config.ServiceEndpoints = interfaces.ServiceEndpoints{Polling: fakeBaseURL}
@@ -69,7 +69,7 @@ func TestClientOverridesProxyEnvVarsWithProgrammaticProxyOption(t *testing.T) {
 	httphelpers.WithServer(handler, func(proxy *httptest.Server) {
 		config := ld.Config{}
 		config.HTTP = ldcomponents.HTTPConfiguration().ProxyURL(proxy.URL)
-		config.Logging = sharedtest.TestLogging()
+		config.Logging = ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers())
 		config.DataSource = ldcomponents.PollingDataSource()
 		config.Events = ldcomponents.NoEvents()
 		config.ServiceEndpoints = interfaces.ServiceEndpoints{Polling: fakeBaseURL}
