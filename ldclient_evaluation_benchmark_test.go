@@ -24,6 +24,15 @@ import (
 //
 // This was adapted from a user-contributed PR: https://github.com/launchdarkly/go-server-sdk/pull/28
 
+// Note about heap allocations:
+//
+// Benchmarks whose names end in "NoAlloc" are expected _not_ to cause any heap allocations (not counting
+// setup work done before ResetTimer()). This is enforced by the Makefile's benchmarks target. As long as
+// events are disabled, it should be possible to do most kinds of flag evaluations without causing any
+// heap allocations.
+//
+// See notes about heap allocations in CONTRIBUTING.md.
+
 type evalBenchmarkEnv struct {
 	client           *LDClient
 	evalUser         ldcontext.Context
@@ -352,7 +361,7 @@ func BenchmarkSingleVariationWithEvents(b *testing.B) {
 	})
 }
 
-func BenchmarkBoolVariation(b *testing.B) {
+func BenchmarkBoolVariationNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
 		boolResult, _ = env.client.BoolVariation(env.targetFeatureKey, env.evalUser, false)
 	})
@@ -368,26 +377,26 @@ func BenchmarkBoolVariationWithEvents(b *testing.B) {
 	})
 }
 
-func BenchmarkIntVariation(b *testing.B) {
+func BenchmarkIntVariationNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeIntVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
 		intResult, _ = env.client.IntVariation(env.targetFeatureKey, env.evalUser, 0)
 	})
 }
 
-func BenchmarkStringVariation(b *testing.B) {
+func BenchmarkStringVariationNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeStringVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
 		stringResult, _ = env.client.StringVariation(env.targetFeatureKey, env.evalUser, "variation-0")
 	})
 }
 
-func BenchmarkJSONVariation(b *testing.B) {
+func BenchmarkJSONVariationNoAlloc(b *testing.B) {
 	defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"result":{"value":[0]}}`))
 	benchmarkEval(b, false, makeJSONVariation, ruleEvalBenchmarkCases, func(env *evalBenchmarkEnv) {
 		jsonResult, _ = env.client.JSONVariation(env.targetFeatureKey, env.evalUser, defaultValAsRawJSON)
 	})
 }
 
-func BenchmarkUsersFoundInTargets(b *testing.B) {
+func BenchmarkUsersFoundInTargetsNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
@@ -398,7 +407,7 @@ func BenchmarkUsersFoundInTargets(b *testing.B) {
 		})
 }
 
-func BenchmarkUserNotFoundInTargets(b *testing.B) {
+func BenchmarkUserNotFoundInTargetsNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		targetMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
@@ -409,7 +418,7 @@ func BenchmarkUserNotFoundInTargets(b *testing.B) {
 		})
 }
 
-func BenchmarkUserMatchesRule(b *testing.B) {
+func BenchmarkUserMatchesRuleNoAlloc(b *testing.B) {
 	benchmarkEval(b, false, makeBoolVariation,
 		ruleMatchBenchmarkCases,
 		func(env *evalBenchmarkEnv) {
@@ -495,6 +504,7 @@ func makeEvalBenchmarkFlags(bc evalBenchmarkCase, variations []ldvalue.Value) []
 		flag := ldbuilders.NewFlagBuilder(fmt.Sprintf("flag-%d", i)).
 			Version(1).
 			On(true).
+			Variations(variations...).
 			FallthroughVariation(1)
 		for j := 0; j < bc.numVariations; j++ {
 			values := make([]string, bc.numTargets)

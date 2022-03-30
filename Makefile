@@ -5,6 +5,7 @@ LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
 TEST_BINARY=./go-server-sdk.test
+ALLOCATIONS_LOG=./build/allocations.out
 
 OUTPUT_DIR=./build
 
@@ -46,7 +47,9 @@ $(COVERAGE_PROFILE_RAW): $(ALL_SOURCES)
 	# note that -coverpkg=./... is necessary so it aggregates coverage to include inter-package references
 
 benchmarks:
-	go test -benchmem '-run=^$$' github.com/launchdarkly/go-server-sdk/v6 -bench .
+	@mkdir -p ./build
+	go test -benchmem '-run=^$$' -bench . ./... | tee build/benchmarks.out
+	@if grep <build/benchmarks.out 'NoAlloc.*[1-9][0-9]* allocs/op'; then echo "Unexpected heap allocations detected in benchmarks!"; exit 1; fi
 
 # See CONTRIBUTING.md regarding the use of the benchmark-allocs target. Notes about this implementation:
 # 1. We precompile the test code because otherwise the allocation traces will include the actions of the compiler itself.
