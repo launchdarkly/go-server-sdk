@@ -457,24 +457,24 @@ func makeEvalBenchmarkClauses(numClauses int, op ldmodel.Operator) []ldmodel.Cla
 		clause := ldmodel.Clause{Op: op}
 		switch op {
 		case ldmodel.OperatorGreaterThan:
-			clause.Attribute = ldattr.NewNameRef("numAttr")
+			clause.Attribute = ldattr.NewLiteralRef("numAttr")
 			clause.Values = []ldvalue.Value{ldvalue.Int(i)}
 		case ldmodel.OperatorContains:
-			clause.Attribute = ldattr.NewNameRef("name")
+			clause.Attribute = ldattr.NewLiteralRef("name")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("name-%d", i)),
 				ldvalue.String(fmt.Sprintf("name-%d", i+1)),
 				ldvalue.String(fmt.Sprintf("name-%d", i+2)),
 			}
 		case ldmodel.OperatorMatches:
-			clause.Attribute = ldattr.NewNameRef("stringAttr")
+			clause.Attribute = ldattr.NewLiteralRef("stringAttr")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+1)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+2)),
 			}
 		case ldmodel.OperatorAfter:
-			clause.Attribute = ldattr.NewNameRef("dateAttr")
+			clause.Attribute = ldattr.NewLiteralRef("dateAttr")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2000+i)),
 				ldvalue.String(fmt.Sprintf("%d-01-01T00:00:00.000-00:00", 2001+i)),
@@ -482,7 +482,7 @@ func makeEvalBenchmarkClauses(numClauses int, op ldmodel.Operator) []ldmodel.Cla
 			}
 		default:
 			clause.Op = ldmodel.OperatorIn
-			clause.Attribute = ldattr.NewNameRef("stringAttr")
+			clause.Attribute = ldattr.NewLiteralRef("stringAttr")
 			clause.Values = []ldvalue.Value{
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i)),
 				ldvalue.String(fmt.Sprintf("stringAttr-%d", i+1)),
