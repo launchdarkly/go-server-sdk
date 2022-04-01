@@ -5,6 +5,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
@@ -17,6 +18,7 @@ import (
 //         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
 //     }
 type LoggingConfigurationBuilder struct {
+	inited bool
 	config interfaces.LoggingConfiguration
 }
 
@@ -34,12 +36,22 @@ const DefaultLogDataSourceOutageAsErrorAfter = time.Minute
 //         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
 //     }
 func Logging() *LoggingConfigurationBuilder {
-	return &LoggingConfigurationBuilder{
-		config: interfaces.LoggingConfiguration{
+	return &LoggingConfigurationBuilder{}
+}
+
+func (b *LoggingConfigurationBuilder) checkValid() bool {
+	if b == nil {
+		internal.LogErrorNilPointerMethod("LoggingConfigurationBuilder")
+		return false
+	}
+	if !b.inited {
+		b.config = interfaces.LoggingConfiguration{
 			LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
 			Loggers:                         ldlog.NewDefaultLoggers(),
-		},
+		}
+		b.inited = true
 	}
+	return true
 }
 
 // LogDataSourceOutageAsErrorAfter sets the time threshold, if any, after which the SDK will log a data
@@ -58,7 +70,9 @@ func Logging() *LoggingConfigurationBuilder {
 func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 	logDataSourceOutageAsErrorAfter time.Duration,
 ) *LoggingConfigurationBuilder {
-	b.config.LogDataSourceOutageAsErrorAfter = logDataSourceOutageAsErrorAfter
+	if b.checkValid() {
+		b.config.LogDataSourceOutageAsErrorAfter = logDataSourceOutageAsErrorAfter
+	}
 	return b
 }
 
@@ -68,21 +82,27 @@ func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 // exception is that the SDK will always log any error involving invalid flag data, because such data should not be
 // possible and indicates that LaunchDarkly support assistance may be required.
 func (b *LoggingConfigurationBuilder) LogEvaluationErrors(logEvaluationErrors bool) *LoggingConfigurationBuilder {
-	b.config.LogEvaluationErrors = logEvaluationErrors
+	if b.checkValid() {
+		b.config.LogEvaluationErrors = logEvaluationErrors
+	}
 	return b
 }
 
 // LogContextKeyInErrors sets whether log messages for errors related to a specific evaluation context can include the
 // context key. By default, they will not, since the key might be considered privileged information.
 func (b *LoggingConfigurationBuilder) LogContextKeyInErrors(logContextKeyInErrors bool) *LoggingConfigurationBuilder {
-	b.config.LogContextKeyInErrors = logContextKeyInErrors
+	if b.checkValid() {
+		b.config.LogContextKeyInErrors = logContextKeyInErrors
+	}
 	return b
 }
 
 // Loggers specifies an instance of ldlog.Loggers to use for SDK logging. The ldlog package contains
 // methods for customizing the destination and level filtering of log output.
 func (b *LoggingConfigurationBuilder) Loggers(loggers ldlog.Loggers) *LoggingConfigurationBuilder {
-	b.config.Loggers = loggers
+	if b.checkValid() {
+		b.config.Loggers = loggers
+	}
 	return b
 }
 
@@ -93,15 +113,21 @@ func (b *LoggingConfigurationBuilder) Loggers(loggers ldlog.Loggers) *LoggingCon
 // This is equivalent to creating an ldlog.Loggers instance, calling SetMinLevel() on it, and then
 // passing it to LoggingConfigurationBuilder.Loggers().
 func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingConfigurationBuilder {
-	b.config.Loggers.SetMinLevel(level)
+	if b.checkValid() {
+		b.config.Loggers.SetMinLevel(level)
+	}
 	return b
 }
 
 // CreateLoggingConfiguration is called internally by the SDK.
 func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
 	basic interfaces.BasicConfiguration,
-) (interfaces.LoggingConfiguration, error) {
-	return b.config, nil
+) interfaces.LoggingConfiguration {
+	if !b.checkValid() {
+		defaults := LoggingConfigurationBuilder{}
+		return defaults.CreateLoggingConfiguration(basic)
+	}
+	return b.config
 }
 
 // NoLogging returns a configuration object that disables logging.
@@ -109,14 +135,6 @@ func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
 //     config := ld.Config{
 //         Logging: ldcomponents.NoLogging(),
 //     }
-func NoLogging() interfaces.LoggingConfigurationFactory {
-	return noLoggingConfigurationFactory{}
-}
-
-type noLoggingConfigurationFactory struct{}
-
-func (f noLoggingConfigurationFactory) CreateLoggingConfiguration(
-	basic interfaces.BasicConfiguration,
-) (interfaces.LoggingConfiguration, error) {
-	return interfaces.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}, nil
+func NoLogging() *LoggingConfigurationBuilder {
+	return Logging().Loggers(ldlog.NewDisabledLoggers())
 }

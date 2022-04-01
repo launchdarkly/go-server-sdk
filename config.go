@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 )
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
@@ -105,7 +106,7 @@ type Config struct {
 	//
 	//     // example: set connection timeout to 8 seconds and use a proxy server
 	//     config.HTTP = ldcomponents.HTTPConfiguration().ConnectTimeout(8 * time.Second).ProxyURL(myProxyURL)
-	HTTP interfaces.HTTPConfigurationFactory
+	HTTP *ldcomponents.HTTPConfigurationBuilder
 
 	// Provides configuration of the SDK's logging behavior.
 	//
@@ -117,7 +118,7 @@ type Config struct {
 	//     // example: enable logging only for Warn level and above
 	//     // (note: ldlog is github.com/launchdarkly/go-sdk-common/v3/ldlog)
 	//     config.Logging = ldcomponents.Logging().MinLevel(ldlog.Warn)
-	Logging interfaces.LoggingConfigurationFactory
+	Logging *ldcomponents.LoggingConfigurationBuilder
 
 	// Sets whether this client is offline. An offline client will not make any network connections to LaunchDarkly,
 	// and will return default values for all feature flags.

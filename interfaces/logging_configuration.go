@@ -24,12 +24,3 @@ type LoggingConfiguration struct {
 	// LogContextKeyInErrors is true if context keys may be included in logging.
 	LogContextKeyInErrors bool
 }
-
-// LoggingConfigurationFactory is an interface for a factory that creates a LoggingConfiguration.
-type LoggingConfigurationFactory interface {
-	// CreateLoggingConfiguration is called internally by the SDK to obtain the configuration.
-	//
-	// This happens only when MakeClient or MakeCustomClient is called. If the factory returns
-	// an error, creation of the LDClient fails.
-	CreateLoggingConfiguration(basicConfig BasicConfiguration) (LoggingConfiguration, error)
-}
