@@ -182,8 +182,16 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 	ret := ld.Config{}
 	ret.Logging = ldcomponents.Logging().Loggers(sdkLog)
 
+	if config.ServiceEndpoints != nil {
+		ret.ServiceEndpoints.Streaming = config.ServiceEndpoints.Streaming
+		ret.ServiceEndpoints.Polling = config.ServiceEndpoints.Polling
+		ret.ServiceEndpoints.Events = config.ServiceEndpoints.Events
+	}
+
 	if config.Streaming != nil {
-		ret.ServiceEndpoints.Streaming = config.Streaming.BaseURI
+		if config.Streaming.BaseURI != "" {
+			ret.ServiceEndpoints.Streaming = config.Streaming.BaseURI
+		}
 		builder := ldcomponents.StreamingDataSource()
 		if config.Streaming.InitialRetryDelayMs != nil {
 			builder.InitialReconnectDelay(time.Millisecond * time.Duration(*config.Streaming.InitialRetryDelayMs))
@@ -192,7 +200,9 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 	}
 
 	if config.Events != nil {
-		ret.ServiceEndpoints.Events = config.Events.BaseURI
+		if config.Events.BaseURI != "" {
+			ret.ServiceEndpoints.Events = config.Events.BaseURI
+		}
 		builder := ldcomponents.SendEvents().
 			AllAttributesPrivate(config.Events.AllAttributesPrivate).
 			PrivateAttributeNames(config.Events.GlobalPrivateAttributes...).
