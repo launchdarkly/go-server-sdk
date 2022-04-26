@@ -50,6 +50,9 @@ func TestFlagConfig(t *testing.T) {
 		verifyFlag(t, func(f *FlagBuilder) { f.BooleanFlag() }, basicBool().On(true).FallthroughVariation(trueVar))
 		verifyFlag(t, func(f *FlagBuilder) { f.On(true) }, basicBool().On(true).FallthroughVariation(trueVar))
 		verifyFlag(t, func(f *FlagBuilder) { f.On(false) }, basicBool().On(false).FallthroughVariation(trueVar))
+		verifyFlag(t, func(f *FlagBuilder) { f.VariationForAll(false) }, basicBool().On(true).FallthroughVariation(falseVar))
+		verifyFlag(t, func(f *FlagBuilder) { f.VariationForAll(true) }, basicBool().On(true).FallthroughVariation(trueVar))
+
 		verifyFlag(t, func(f *FlagBuilder) { f.VariationForAllUsers(false) }, basicBool().On(true).FallthroughVariation(falseVar))
 		verifyFlag(t, func(f *FlagBuilder) { f.VariationForAllUsers(true) }, basicBool().On(true).FallthroughVariation(trueVar))
 
@@ -83,6 +86,14 @@ func TestFlagConfig(t *testing.T) {
 		verifyFlag(t, func(f *FlagBuilder) {
 			f.Variations(threeStringValues...).OffVariationIndex(0).FallthroughVariationIndex(2)
 		}, basicString().OffVariation(0).FallthroughVariation(2))
+
+		verifyFlag(t, func(f *FlagBuilder) {
+			f.Variations(threeStringValues...).VariationForAllIndex(1)
+		}, basicString().OffVariation(1).FallthroughVariation(1))
+
+		verifyFlag(t, func(f *FlagBuilder) {
+			f.Variations(threeStringValues...).VariationForAllUsersIndex(1)
+		}, basicString().OffVariation(1).FallthroughVariation(1))
 	})
 
 	t.Run("user targets", func(t *testing.T) {

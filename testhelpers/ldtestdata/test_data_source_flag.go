@@ -143,28 +143,48 @@ func (f *FlagBuilder) OffVariationIndex(variationIndex int) *FlagBuilder {
 	return f
 }
 
-// VariationForAllUsers sets the flag to return the specified boolean variation by default for all users.
+// VariationForAll sets the flag to return the specified boolean variation by default for all users.
 //
 // Targeting is switched on, any existing targets or rules are removed, and the flag's variations are
 // set to true and false. The fallthrough variation is set to the specified value. The off variation is
 // left unchanged.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// VariationForAllUsersIndex.
-func (f *FlagBuilder) VariationForAllUsers(variation bool) *FlagBuilder {
-	return f.BooleanFlag().VariationForAllUsersIndex(variationForBool(variation))
+// VariationForAllIndex.
+func (f *FlagBuilder) VariationForAll(variation bool) *FlagBuilder {
+	return f.BooleanFlag().VariationForAllIndex(variationForBool(variation))
 }
 
-// VariationForAllUsersIndex sets the flag to always return the specified variation for all users.
+// VariationForAllIndex sets the flag to always return the specified variation for all users.
 // The index is 0 for the first variation, 1 for the second, etc.
 //
 // Targeting is switched on, and any existing targets or rules are removed. The fallthrough variation
 // is set to the specified value. The off variation is left unchanged.
 //
 // To specify the variation as true or false instead, for a boolean flag, use
-// VariationForAllUsers.
-func (f *FlagBuilder) VariationForAllUsersIndex(variationIndex int) *FlagBuilder {
+// VariationForAll.
+func (f *FlagBuilder) VariationForAllIndex(variationIndex int) *FlagBuilder {
 	return f.On(true).ClearRules().ClearUserTargets().FallthroughVariationIndex(variationIndex)
+}
+
+// VariationForAllUsers is a deprecated name for VariationForAll.
+//
+// This method will be dropped in a future SDK version because "users" will not always be the only kind
+// of input for an evaluation.
+//
+// Deprecated: Use VariationForAll.
+func (f *FlagBuilder) VariationForAllUsers(variation bool) *FlagBuilder {
+	return f.VariationForAll(variation)
+}
+
+// VariationForAllUsersIndex is a deprecated name for VariationForAllIndex.
+//
+// This method will be dropped in a future SDK version because "users" will not always be the only kind
+// of input for an evaluation.
+//
+// Deprecated: Use VariationForAllIndex.
+func (f *FlagBuilder) VariationForAllUsersIndex(variationIndex int) *FlagBuilder {
+	return f.VariationForAllIndex(variationIndex)
 }
 
 // ValueForAllUsers sets the flag to always return the specified variation value for all users.
