@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
@@ -27,12 +27,12 @@ func TestClientWithTestDataSource(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	value, err := client.BoolVariation("flagkey", lduser.NewUser("userkey"), false)
+	value, err := client.BoolVariation("flagkey", ldcontext.New("userkey"), false)
 	require.NoError(t, err)
 	assert.True(t, value)
 
 	td.Update(td.Flag("flagkey").On(false))
-	value, err = client.BoolVariation("flagkey", lduser.NewUser("userkey"), false)
+	value, err = client.BoolVariation("flagkey", ldcontext.New("userkey"), false)
 	require.NoError(t, err)
 	assert.False(t, value)
 }

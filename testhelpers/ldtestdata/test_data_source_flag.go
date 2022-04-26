@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
@@ -21,7 +22,7 @@ type FlagBuilder struct {
 	offVariation         ldvalue.OptionalInt
 	fallthroughVariation ldvalue.OptionalInt
 	variations           []ldvalue.Value
-	targets              map[int]map[string]bool
+	targets              map[ldcontext.Kind]map[int]map[string]bool
 	rules                []*RuleBuilder
 }
 
@@ -59,13 +60,17 @@ func copyFlagBuilder(from *FlagBuilder) *FlagBuilder {
 		}
 	}
 	if f.targets != nil {
-		f.targets = make(map[int]map[string]bool, len(from.targets))
-		for v, fromKeys := range from.targets {
-			keys := make(map[string]bool, len(fromKeys))
-			for k := range fromKeys {
-				keys[k] = true
+		f.targets = make(map[ldcontext.Kind]map[int]map[string]bool)
+		for k, v := range from.targets {
+			map1 := make(map[int]map[string]bool)
+			for k1, v1 := range v {
+				map2 := make(map[string]bool)
+				for k2, v2 := range v1 {
+					map2[k2] = v2
+				}
+				map1[k1] = map2
 			}
-			f.targets[v] = keys
+			f.targets[k] = map1
 		}
 	}
 	return f
@@ -142,7 +147,7 @@ func (f *FlagBuilder) OffVariationIndex(variationIndex int) *FlagBuilder {
 	return f
 }
 
-// VariationForAllUsers sets the flag to return the specified boolean variation by default for all users.
+// VariationForAll sets the flag to return the specified boolean variation by default for all contexts.
 //
 // Targeting is switched on, any existing targets or rules are removed, and the flag's variations are
 // set to true and false. The fallthrough variation is set to the specified value. The off variation is
@@ -150,34 +155,34 @@ func (f *FlagBuilder) OffVariationIndex(variationIndex int) *FlagBuilder {
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
 // VariationForAllUsersIndex.
-func (f *FlagBuilder) VariationForAllUsers(variation bool) *FlagBuilder {
-	return f.BooleanFlag().VariationForAllUsersIndex(variationForBool(variation))
+func (f *FlagBuilder) VariationForAll(variation bool) *FlagBuilder {
+	return f.BooleanFlag().VariationForAllIndex(variationForBool(variation))
 }
 
-// VariationForAllUsersIndex sets the flag to always return the specified variation for all users.
+// VariationForAllIndex sets the flag to always return the specified variation for all contexts.
 // The index is 0 for the first variation, 1 for the second, etc.
 //
 // Targeting is switched on, and any existing targets or rules are removed. The fallthrough variation
 // is set to the specified value. The off variation is left unchanged.
 //
 // To specify the variation as true or false instead, for a boolean flag, use
-// VariationForAllUsers.
-func (f *FlagBuilder) VariationForAllUsersIndex(variationIndex int) *FlagBuilder {
-	return f.On(true).ClearRules().ClearUserTargets().FallthroughVariationIndex(variationIndex)
+// VariationForAll.
+func (f *FlagBuilder) VariationForAllIndex(variationIndex int) *FlagBuilder {
+	return f.On(true).ClearRules().ClearTargets().FallthroughVariationIndex(variationIndex)
 }
 
-// ValueForAllUsers sets the flag to always return the specified variation value for all users.
+// ValueForAll sets the flag to always return the specified variation value for all contexts.
 //
 // The value may be of any JSON type, as defined by ldvalue.Value. This method changes the flag to
 // only a single variation, which is this value, and to return the same variation regardless of
 // whether targeting is on or off. Any existing targets or rules are removed.
-func (f *FlagBuilder) ValueForAllUsers(value ldvalue.Value) *FlagBuilder {
+func (f *FlagBuilder) ValueForAll(value ldvalue.Value) *FlagBuilder {
 	f.variations = []ldvalue.Value{value}
-	return f.VariationForAllUsersIndex(0)
+	return f.VariationForAllIndex(0)
 }
 
 // VariationForUser sets the flag to return the specified boolean variation for a specific user key
-// when targeting is on.
+// (that is, for a context with that key whose context kind is "user") when targeting is on.
 //
 // This has no effect when targeting is turned off for the flag.
 //
@@ -189,29 +194,61 @@ func (f *FlagBuilder) VariationForUser(userKey string, variation bool) *FlagBuil
 	return f.BooleanFlag().VariationIndexForUser(userKey, variationForBool(variation))
 }
 
-// VariationIndexForUser sets the flag to return the specified variation for a specific user key when
-// targeting is on. The index is 0 for the first variation, 1 for the second, etc.
+// VariationForKey sets the flag to return the specified boolean variation for a specific context,
+// identified by context kind and key, when targeting is on.
 //
 // This has no effect when targeting is turned off for the flag.
 //
 // If the flag was not already a boolean flag, this also changes it to a boolean flag.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// VariationIndexForUser.
+// VariationIndexForKey.
+func (f *FlagBuilder) VariationForKey(contextKind ldcontext.Kind, key string, variation bool) *FlagBuilder {
+	return f.BooleanFlag().VariationIndexForKey(contextKind, key, variationForBool(variation))
+}
+
+// VariationIndexForUser sets the flag to return the specified variation for a specific user key
+// (that is, for a context with that key whose context kind is "user") when targeting is on.
+// The index is 0 for the first variation, 1 for the second, etc.
+//
+// This has no effect when targeting is turned off for the flag.
+//
+// To specify the variation as a true or false value if it is a boolean flag, you can use
+// VariationForUser instead.
 func (f *FlagBuilder) VariationIndexForUser(userKey string, variationIndex int) *FlagBuilder {
+	return f.VariationIndexForKey(ldcontext.DefaultKind, userKey, variationIndex)
+}
+
+// VariationIndexForKey sets the flag to return the specified variation for a specific context,
+// identified by context kind and key, when targeting is on. The index is 0 for the first variation,
+// 1 for the second, etc.
+//
+// This has no effect when targeting is turned off for the flag.
+//
+// To specify the variation as a true or false value if it is a boolean flag, you can use
+// VariationForKey instead.
+func (f *FlagBuilder) VariationIndexForKey(contextKind ldcontext.Kind, key string, variationIndex int) *FlagBuilder {
 	if f.targets == nil {
-		f.targets = make(map[int]map[string]bool)
+		f.targets = make(map[ldcontext.Kind]map[int]map[string]bool)
+	}
+	if contextKind == "" {
+		contextKind = ldcontext.DefaultKind
+	}
+	keysByVar := f.targets[contextKind]
+	if keysByVar == nil {
+		keysByVar = make(map[int]map[string]bool)
+		f.targets[contextKind] = keysByVar
 	}
 	for i := range f.variations {
-		keys := f.targets[i]
+		keys := keysByVar[i]
 		if i == variationIndex {
 			if keys == nil {
 				keys = make(map[string]bool)
-				f.targets[i] = keys
+				keysByVar[i] = keys
 			}
-			keys[userKey] = true
+			keys[key] = true
 		} else {
-			delete(keys, userKey)
+			delete(keys, key)
 		}
 	}
 	return f
@@ -228,32 +265,75 @@ func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
 	return f
 }
 
-// IfMatch starts defining a flag rule, using the "is one of" operator.
+// IfMatch starts defining a flag rule, using the "is one of" operator. This is a shortcut for
+// calling IfMatchContext with "user" as the context kind.
 //
 // The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
 // the rule, or add more tests with another method like AndMatch.
 //
-// For example, this creates a rule that returns true if the name is "Patsy" or "Edina":
+// For example, this creates a rule that returns true if the user name attribute is "Patsy" or "Edina":
 //
 //     testData.Flag("flag").
-//         IfMatch(lduser.NameAttribute, ldvalue.String("Patsy"), ldvalue.String("Edina")).
+//         IfMatch("name", ldvalue.String("Patsy"), ldvalue.String("Edina")).
 //             ThenReturn(true)
 func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndMatch(attribute, values...)
 }
 
-// IfNotMatch starts defining a flag rule, using the "is not one of" operator.
+// IfMatchContext starts defining a flag rule, using the "is one of" operator. This matching
+// expression only applies to contexts of a specific kind, identified by the contextKind parameter.
 //
 // The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
 // the rule, or add more tests with another method like AndMatch.
 //
-// For example, this creates a rule that returns true if the name is neither "Saffron" nor "Bubble":
+// For example, this creates a rule that returns true if the name attribute for the "company" context
+// is "Ella" or "Monsoon":
 //
 //     testData.Flag("flag").
-//         IfNotMatch(lduser.NameAttribute, ldvalue.String("Saffron"), ldvalue.String("Bubble")).
+//         IfMatchContext("company", "name", ldvalue.String("Ella"), ldvalue.String("Monsoon")).
+//             ThenReturn(true)
+func (f *FlagBuilder) IfMatchContext(
+	contextKind ldcontext.Kind,
+	attribute string,
+	values ...ldvalue.Value,
+) *RuleBuilder {
+	return newTestFlagRuleBuilder(f).AndMatchContext(contextKind, attribute, values...)
+}
+
+// IfNotMatch starts defining a flag rule, using the "is not one of" operator. This is a shortcut for
+// calling IfNotMatch with "user" as the context kind.
+//
+// The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
+// the rule, or add more tests with another method like AndMatch.
+//
+// For example, this creates a rule that returns true if the user name attribute is neither "Saffron"
+// nor "Bubble":
+//
+//     testData.Flag("flag").
+//         IfNotMatch("name", ldvalue.String("Saffron"), ldvalue.String("Bubble")).
 //         ThenReturn(true)
 func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndNotMatch(attribute, values...)
+}
+
+// IfNotMatchContext starts defining a flag rule, using the "is not one of" operator. This matching
+// expression only applies to contexts of a specific kind, identified by the contextKind parameter.
+//
+// The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
+// the rule, or add more tests with another method like AndMatch.
+//
+// For example, this creates a rule that returns true if the name attribute for the "company" context
+// is neither "Pendant" nor "Sterling Cooper":
+//
+//     testData.Flag("flag").
+//         IfNotMatch("company", "name", ldvalue.String("Pendant"), ldvalue.String("Sterling Cooper")).
+//         ThenReturn(true)
+func (f *FlagBuilder) IfNotMatchContext(
+	contextKind ldcontext.Kind,
+	attribute string,
+	values ...ldvalue.Value,
+) *RuleBuilder {
+	return newTestFlagRuleBuilder(f).AndNotMatchContext(contextKind, attribute, values...)
 }
 
 // ClearRules removes any existing rules from the flag. This undoes the effect of methods like
@@ -263,9 +343,9 @@ func (f *FlagBuilder) ClearRules() *FlagBuilder {
 	return f
 }
 
-// ClearUserTargets removes any existing user targets from the flag. This undoes the effect of methods
+// ClearTargets removes any existing user targets from the flag. This undoes the effect of methods
 // like VariationForUser.
-func (f *FlagBuilder) ClearUserTargets() *FlagBuilder {
+func (f *FlagBuilder) ClearTargets() *FlagBuilder {
 	f.targets = nil
 	return f
 }
@@ -288,16 +368,33 @@ func (f *FlagBuilder) createFlag(version int) ldmodel.FeatureFlag {
 		fb.FallthroughVariation(f.fallthroughVariation.IntValue())
 	}
 
-	// We iterate through the target list in variation index order, and sort the user keys in each target,
-	// for the sake of test determinacy
-	for v := range f.variations {
-		if keysMap, ok := f.targets[v]; ok {
-			keys := make([]string, 0, len(keysMap))
-			for key := range keysMap {
-				keys = append(keys, key)
+	// Iterate through any context kinds that there are targets for. A quirk of the data model, for
+	// backward-compatibility reasons, is that each entry in the old-style targets list (for users)
+	// must be matched by a placeholder entry in ContextTargets.
+	// Also, for the sake of test determinaciy, we sort the context kinds and the context keys.
+	targetKinds := make([]ldcontext.Kind, 0, len(f.targets))
+	for kind := range f.targets {
+		targetKinds = append(targetKinds, kind)
+	}
+	sort.Slice(targetKinds, func(i, j int) bool { return targetKinds[i] < targetKinds[j] })
+	for _, kind := range targetKinds {
+		keysByVar := f.targets[kind]
+		for varIndex := range f.variations {
+			if keysMap, ok := keysByVar[varIndex]; ok {
+				keys := make([]string, 0, len(keysMap))
+				for key := range keysMap {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				if kind == ldcontext.DefaultKind {
+					fb.AddTarget(varIndex, keys...)
+					// A quirk of the data model, for backward-compatibility reasons, is that each entry in the
+					// old-style targets list (for users) must be matched by a placeholder entry in ContextTargets.
+					fb.AddContextTarget(ldcontext.DefaultKind, varIndex)
+				} else {
+					fb.AddContextTarget(kind, varIndex, keys...)
+				}
 			}
-			sort.Strings(keys)
-			fb.AddTarget(v, keys...)
 		}
 	}
 	for i, r := range f.rules {
@@ -321,32 +418,70 @@ func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder
 	return &r
 }
 
-// AndMatch adds another clause, using the "is one of" operator.
+// AndMatch adds another clause, using the "is one of" operator. This is a shortcut for calling
+// AndMatchContext with "user" as the context kind.
 //
-// For example, this creates a rule that returns true if the name is "Patsy" and the country is "gb":
+// For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
+// country is "gb":
 //
 //     testData.Flag("flag").
-//         IfMatch(lduser.NameAttribute, ldvalue.String("Patsy")).
-//             AndMatch(lduser.CountryAttribute, ldvalue.String("gb")).
+//         IfMatch("name", ldvalue.String("Patsy")).
+//             AndMatch("country", ldvalue.String("gb")).
 //             ThenReturn(true)
 func (r *RuleBuilder) AndMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
-	r.clauses = append(r.clauses, ldbuilders.Clause(attribute, ldmodel.OperatorIn, values...))
-	return r
+	return r.AndMatchContext(ldcontext.DefaultKind, attribute, values...)
 }
 
-// AndNotMatch adds another clause, using the "is not one of" operator.
+// AndMatchContext adds another clause, using the "is one of" operator. This matching expression
+// only applies to contexts of a specific kind, identified by the contextKind parameter.
 //
-// For example, this creates a rule that returns true if the name is "Patsy" and the country is not "gb":
+// For example, this creates a rule that returns true if the name attribute for the "company" context
+// is "Ella" and the country is "gb":
 //
 //     testData.Flag("flag").
-//         IfMatch(lduser.NameAttribute, ldvalue.String("Patsy")).
-//             AndNotMatch(lduser.CountryAttribute, ldvalue.String("gb")).
+//         IfMatchContext("company", "name", ldvalue.String("Ella")).
+//             AndMatchContext("company", "country", ldvalue.String("gb")).
 //             ThenReturn(true)
-func (r *RuleBuilder) AndNotMatch(
+func (r *RuleBuilder) AndMatchContext(
+	contextKind ldcontext.Kind,
 	attribute string,
 	values ...ldvalue.Value,
 ) *RuleBuilder {
-	r.clauses = append(r.clauses, ldbuilders.Negate(ldbuilders.Clause(attribute, ldmodel.OperatorIn, values...)))
+	r.clauses = append(r.clauses, ldbuilders.ClauseWithKind(contextKind, attribute, ldmodel.OperatorIn, values...))
+	return r
+}
+
+// AndNotMatch adds another clause, using the "is not one of" operator. This is a shortcut for calling
+// AndNotMatchContext with "user" as the context kind.
+//
+// For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
+// country is not "gb":
+//
+//     testData.Flag("flag").
+//         IfMatch("name", ldvalue.String("Patsy")).
+//             AndNotMatch("country", ldvalue.String("gb")).
+//             ThenReturn(true)
+func (r *RuleBuilder) AndNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
+	return r.AndNotMatchContext(ldcontext.DefaultKind, attribute, values...)
+}
+
+// AndNotMatchContext adds another clause, using the "is not one of" operator. This matching expression
+// only applies to contexts of a specific kind, identified by the contextKind parameter.
+//
+// For example, this creates a rule that returns true if the name attribute for the "company" context
+// is "Ella" and the country is not "gb":
+//
+//     testData.Flag("flag").
+//         IfMatchContext("company", "name", ldvalue.String("Ella")).
+//             AndNotMatchContext("company", "country", ldvalue.String("gb")).
+//             ThenReturn(true)
+func (r *RuleBuilder) AndNotMatchContext(
+	contextKind ldcontext.Kind,
+	attribute string,
+	values ...ldvalue.Value,
+) *RuleBuilder {
+	r.clauses = append(r.clauses, ldbuilders.Negate(ldbuilders.ClauseWithKind(contextKind,
+		attribute, ldmodel.OperatorIn, values...)))
 	return r
 }
 
