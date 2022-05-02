@@ -12,6 +12,7 @@ type SDKConfigParams struct {
 	InitCanFail         bool                                `json:"initCanFail,omitempty"`
 	ServiceEndpoints    *SDKConfigServiceEndpointsParams    `json:"serviceEndpoints,omitempty"`
 	Streaming           *SDKConfigStreamingParams           `json:"streaming,omitempty"`
+	Polling             *SDKConfigPollingParams             `json:"polling,omitempty"`
 	Events              *SDKConfigEventParams               `json:"events,omitempty"`
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	BigSegments         *SDKConfigBigSegmentsParams         `json:"bigSegments,omitempty"`
@@ -26,7 +27,12 @@ type SDKConfigServiceEndpointsParams struct {
 
 type SDKConfigStreamingParams struct {
 	BaseURI             string                      `json:"baseUri,omitempty"`
-	InitialRetryDelayMs *ldtime.UnixMillisecondTime `json:"initialRetryDelayMs,omitempty"`
+	InitialRetryDelayMS *ldtime.UnixMillisecondTime `json:"initialRetryDelayMs,omitempty"`
+}
+
+type SDKConfigPollingParams struct {
+	BaseURI        string                      `json:"baseUri,omitempty"`
+	PollIntervalMS *ldtime.UnixMillisecondTime `json:"pollIntervalMs,omitempty"`
 }
 
 type SDKConfigEventParams struct {
