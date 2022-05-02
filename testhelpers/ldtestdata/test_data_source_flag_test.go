@@ -86,6 +86,10 @@ func TestFlagConfig(t *testing.T) {
 		verifyFlag(t, func(f *FlagBuilder) {
 			f.Variations(threeStringValues...).OffVariationIndex(0).FallthroughVariationIndex(2)
 		}, basicString().OffVariation(0).FallthroughVariation(2))
+
+		verifyFlag(t, func(f *FlagBuilder) {
+			f.Variations(threeStringValues...).VariationForAllIndex(1)
+		}, basicString().OffVariation(1).FallthroughVariation(1))
 	})
 }
 

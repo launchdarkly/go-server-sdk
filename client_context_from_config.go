@@ -68,8 +68,15 @@ func stringIsValidHTTPHeaderValue(s string) bool {
 }
 
 func validateTagValue(value, name string, loggers ldlog.Loggers) string {
-	if value != "" && !validTagKeyOrValueRegex.MatchString(value) {
-		loggers.Warnf("Value of Config.%s contained invalid characters and was discarded", name)
+	if value == "" {
+		return ""
+	}
+	if len(value) > 64 {
+		loggers.Warnf("Value of Config.ApplicationInfo.%s was longer than 64 characters and was discarded", name)
+		return ""
+	}
+	if !validTagKeyOrValueRegex.MatchString(value) {
+		loggers.Warnf("Value of Config.ApplicationInfo.%s contained invalid characters and was discarded", name)
 		return ""
 	}
 	return value

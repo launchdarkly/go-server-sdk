@@ -154,7 +154,7 @@ func (f *FlagBuilder) OffVariationIndex(variationIndex int) *FlagBuilder {
 // left unchanged.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// VariationForAllUsersIndex.
+// VariationForAllIndex.
 func (f *FlagBuilder) VariationForAll(variation bool) *FlagBuilder {
 	return f.BooleanFlag().VariationForAllIndex(variationForBool(variation))
 }
