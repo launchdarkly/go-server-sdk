@@ -1,4 +1,6 @@
-package interfaces
+package subsystems
+
+import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 // ClientContext provides context information from LDClient when creating other components.
 //
@@ -25,8 +27,8 @@ type BasicConfiguration struct {
 	Offline bool
 
 	// ServiceEndpoints include any configured custom service URIs.
-	ServiceEndpoints ServiceEndpoints
+	ServiceEndpoints interfaces.ServiceEndpoints
 
 	// ApplicationInfo includes any configured application metadata.
-	ApplicationInfo ApplicationInfo
+	ApplicationInfo interfaces.ApplicationInfo
 }

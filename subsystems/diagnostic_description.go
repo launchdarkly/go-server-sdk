@@ -1,4 +1,4 @@
-package interfaces
+package subsystems
 
 import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 

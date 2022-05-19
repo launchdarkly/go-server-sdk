@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	cf "github.com/launchdarkly/go-server-sdk/v6/testservice/servicedef/callbackfixtures"
 )
 
@@ -12,7 +12,7 @@ type BigSegmentStoreFixture struct {
 
 type bigSegmentMembershipMap map[string]bool
 
-func (b *BigSegmentStoreFixture) CreateBigSegmentStore(context interfaces.ClientContext) (interfaces.BigSegmentStore, error) {
+func (b *BigSegmentStoreFixture) CreateBigSegmentStore(context subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
 	return b, nil
 }
 
@@ -20,15 +20,15 @@ func (b *BigSegmentStoreFixture) Close() error {
 	return b.service.close()
 }
 
-func (b *BigSegmentStoreFixture) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) {
+func (b *BigSegmentStoreFixture) GetMetadata() (subsystems.BigSegmentStoreMetadata, error) {
 	var resp cf.BigSegmentStoreGetMetadataResponse
 	if err := b.service.post(cf.BigSegmentStorePathGetMetadata, nil, &resp); err != nil {
-		return interfaces.BigSegmentStoreMetadata{}, err
+		return subsystems.BigSegmentStoreMetadata{}, err
 	}
-	return interfaces.BigSegmentStoreMetadata(resp), nil
+	return subsystems.BigSegmentStoreMetadata(resp), nil
 }
 
-func (b *BigSegmentStoreFixture) GetMembership(contextHash string) (interfaces.BigSegmentMembership, error) {
+func (b *BigSegmentStoreFixture) GetMembership(contextHash string) (subsystems.BigSegmentMembership, error) {
 	params := cf.BigSegmentStoreGetMembershipParams{ContextHash: contextHash, UserHash: contextHash}
 	var resp cf.BigSegmentStoreGetMembershipResponse
 	if err := b.service.post(cf.BigSegmentStorePathGetMembership, params, &resp); err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,7 @@ func (p *storeWrapperTestParams) run(action func(*storeWrapperTestParams)) {
 	action(p)
 }
 
-func (p *storeWrapperTestParams) assertMembership(userKey string, expected interfaces.BigSegmentMembership) {
+func (p *storeWrapperTestParams) assertMembership(userKey string, expected subsystems.BigSegmentMembership) {
 	membership, status := p.wrapper.GetMembership(userKey)
 	assert.Equal(p.t, ldreason.BigSegmentsHealthy, status)
 	assert.Equal(p.t, expected, membership)
@@ -158,7 +159,7 @@ func testBigSegmentStoreWrapperStatusUpdates(t *testing.T) {
 			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 
-			p.store.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{}, errors.New("sorry"))
+			p.store.TestSetMetadataState(subsystems.BigSegmentStoreMetadata{}, errors.New("sorry"))
 			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
 				interfaces.BigSegmentStoreStatus{Available: false, Stale: false})
 

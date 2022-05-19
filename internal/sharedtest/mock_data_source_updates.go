@@ -10,6 +10,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // MockDataSourceUpdates is a mock implementation of DataSourceUpdates for testing data sources.
@@ -25,7 +26,7 @@ type MockDataSourceUpdates struct {
 //
 // The DataStoreStatusProvider can be nil if we are not doing a test that requires manipulation of that
 // component.
-func NewMockDataSourceUpdates(realStore interfaces.DataStore) *MockDataSourceUpdates {
+func NewMockDataSourceUpdates(realStore subsystems.DataStore) *MockDataSourceUpdates {
 	dataStore := NewCapturingDataStore(realStore)
 	dataStoreStatusProvider := &mockDataStoreStatusProvider{
 		dataStore: dataStore,
@@ -106,7 +107,7 @@ func (d *MockDataSourceUpdates) RequireStatus(t *testing.T) interfaces.DataSourc
 }
 
 type mockDataStoreStatusProvider struct {
-	dataStore interfaces.DataStore
+	dataStore subsystems.DataStore
 	status    interfaces.DataStoreStatus
 	statusCh  chan interfaces.DataStoreStatus
 	lock      sync.Mutex

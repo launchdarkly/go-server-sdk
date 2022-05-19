@@ -1,4 +1,4 @@
-package interfaces
+package subsystems
 
 import (
 	"io"

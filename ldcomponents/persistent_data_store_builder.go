@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // PersistentDataStoreDefaultCacheTime is the default amount of time that recently read or updated items
@@ -30,7 +30,7 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 //
 // For more information on the available persistent data store implementations, see the reference
 // guide on "Persistent data stores": https://docs.launchdarkly.com/sdk/concepts/data-stores
-func PersistentDataStore(persistentDataStoreFactory interfaces.PersistentDataStoreFactory) *PersistentDataStoreBuilder {
+func PersistentDataStore(persistentDataStoreFactory subsystems.PersistentDataStoreFactory) *PersistentDataStoreBuilder {
 	return &PersistentDataStoreBuilder{
 		persistentDataStoreFactory: persistentDataStoreFactory,
 		cacheTTL:                   PersistentDataStoreDefaultCacheTime,
@@ -56,7 +56,7 @@ func PersistentDataStore(persistentDataStoreFactory interfaces.PersistentDataSto
 // In this example, URL() is an option specifically for the Redis integration, whereas CacheSeconds() is
 // an option that can be used for any persistent data store.
 type PersistentDataStoreBuilder struct {
-	persistentDataStoreFactory interfaces.PersistentDataStoreFactory
+	persistentDataStoreFactory subsystems.PersistentDataStoreFactory
 	cacheTTL                   time.Duration
 }
 
@@ -96,9 +96,9 @@ func (b *PersistentDataStoreBuilder) NoCaching() *PersistentDataStoreBuilder {
 
 // CreateDataStore is called by the SDK to create the data store implemntation object.
 func (b *PersistentDataStoreBuilder) CreateDataStore(
-	context interfaces.ClientContext,
-	dataStoreUpdates interfaces.DataStoreUpdates,
-) (interfaces.DataStore, error) {
+	context subsystems.ClientContext,
+	dataStoreUpdates subsystems.DataStoreUpdates,
+) (subsystems.DataStore, error) {
 	core, err := b.persistentDataStoreFactory.CreatePersistentDataStore(context)
 	if err != nil {
 		return nil, err
@@ -108,8 +108,8 @@ func (b *PersistentDataStoreBuilder) CreateDataStore(
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *PersistentDataStoreBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
-	if dd, ok := b.persistentDataStoreFactory.(interfaces.DiagnosticDescription); ok {
+func (b *PersistentDataStoreBuilder) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
+	if dd, ok := b.persistentDataStoreFactory.(subsystems.DiagnosticDescription); ok {
 		return dd.DescribeConfiguration(context)
 	}
 	return ldvalue.String("custom")

@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // CapturingDataStore is a DataStore implementation that records update operations for testing.
 type CapturingDataStore struct {
-	realStore               interfaces.DataStore
+	realStore               subsystems.DataStore
 	statusMonitoringEnabled bool
 	fakeError               error
 	inits                   chan []ldstoretypes.Collection
@@ -33,7 +33,7 @@ type UpsertParams struct {
 }
 
 // NewCapturingDataStore creates an instance of CapturingDataStore.
-func NewCapturingDataStore(realStore interfaces.DataStore) *CapturingDataStore {
+func NewCapturingDataStore(realStore subsystems.DataStore) *CapturingDataStore {
 	return &CapturingDataStore{
 		realStore:               realStore,
 		inits:                   make(chan []ldstoretypes.Collection, 10),

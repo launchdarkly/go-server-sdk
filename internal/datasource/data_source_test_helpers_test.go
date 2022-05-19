@@ -5,16 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+
+	"github.com/stretchr/testify/require"
 )
 
 const testSDKKey = "test-sdk-key"
 
-func basicClientContext() interfaces.ClientContext {
+func basicClientContext() subsystems.ClientContext {
 	return sharedtest.NewSimpleTestContext(testSDKKey)
 }
 

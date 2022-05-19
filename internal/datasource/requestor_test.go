@@ -9,9 +9,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
@@ -147,7 +147,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		handler, requestsCh := httphelpers.RecordingHandler(
 			httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil),
 		)
-		httpConfig := interfaces.HTTPConfiguration{DefaultHeaders: headers}
+		httpConfig := subsystems.HTTPConfiguration{DefaultHeaders: headers}
 		context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -164,7 +164,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("logs debug message", func(t *testing.T) {
 		mockLog := ldlogtest.NewMockLog()
 		mockLog.Loggers.SetMinLevel(ldlog.Debug)
-		context := sharedtest.NewTestContext(testSDKKey, nil, &interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
+		context := sharedtest.NewTestContext(testSDKKey, nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 		handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -222,7 +222,7 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-	httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+	httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 	context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {

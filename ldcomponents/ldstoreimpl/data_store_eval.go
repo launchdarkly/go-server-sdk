@@ -3,8 +3,8 @@ package ldstoreimpl
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // This file contains the public API for creating the adapter that bridges Evaluator to DataStore. The
@@ -16,6 +16,6 @@ import (
 //
 // Normal use of the SDK does not require this type. It is provided for use by other LaunchDarkly
 // components that use DataStore and Evaluator separately from the SDK.
-func NewDataStoreEvaluatorDataProvider(store interfaces.DataStore, loggers ldlog.Loggers) ldeval.DataProvider {
+func NewDataStoreEvaluatorDataProvider(store subsystems.DataStore, loggers ldlog.Loggers) ldeval.DataProvider {
 	return datastore.NewDataStoreEvaluatorDataProviderImpl(store, loggers)
 }

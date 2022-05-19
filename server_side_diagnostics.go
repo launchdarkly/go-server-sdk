@@ -5,12 +5,12 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 func createDiagnosticsManager(
-	context interfaces.ClientContext,
+	context subsystems.ClientContext,
 	sdkKey string,
 	config Config,
 	waitFor time.Duration,
@@ -25,7 +25,7 @@ func createDiagnosticsManager(
 	)
 }
 
-func makeDiagnosticConfigData(context interfaces.ClientContext, config Config, waitFor time.Duration) ldvalue.Value {
+func makeDiagnosticConfigData(context subsystems.ClientContext, config Config, waitFor time.Duration) ldvalue.Value {
 	builder := ldvalue.ObjectBuild().
 		Set("startWaitMillis", durationToMillis(waitFor))
 
@@ -67,7 +67,7 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolin
 //   and have the expected type.
 func mergeComponentProperties(
 	builder *ldvalue.ObjectBuilder,
-	context interfaces.ClientContext,
+	context subsystems.ClientContext,
 	component interface{},
 	defaultComponent interface{},
 	defaultPropertyName string,
@@ -76,7 +76,7 @@ func mergeComponentProperties(
 		component = defaultComponent
 	}
 	var componentDesc ldvalue.Value
-	if dd, ok := component.(interfaces.DiagnosticDescription); ok {
+	if dd, ok := component.(subsystems.DiagnosticDescription); ok {
 		componentDesc = dd.DescribeConfiguration(context)
 	}
 	if !componentDesc.IsNull() {

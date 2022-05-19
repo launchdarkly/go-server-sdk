@@ -10,8 +10,6 @@ import (
 	"time"
 	"unicode"
 
-	"gopkg.in/ghodss/yaml.v1"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
@@ -19,10 +17,13 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+
+	"gopkg.in/ghodss/yaml.v1"
 )
 
 type fileDataSource struct {
-	dataSourceUpdates     interfaces.DataSourceUpdates
+	dataSourceUpdates     subsystems.DataSourceUpdates
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
@@ -35,12 +36,12 @@ type fileDataSource struct {
 }
 
 func newFileDataSourceImpl(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
 	filePaths []string,
 	duplicateKeysHandling DuplicateKeysHandling,
 	reloaderFactory ReloaderFactory,
-) (interfaces.DataSource, error) {
+) (subsystems.DataSource, error) {
 	abs, err := absFilePaths(filePaths)
 	if err != nil {
 		// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests

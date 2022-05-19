@@ -10,6 +10,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ import (
 type clientListenersTestParams struct {
 	client           *LDClient
 	testData         *ldtestdata.TestDataSource
-	dataStoreUpdates interfaces.DataStoreUpdates
+	dataStoreUpdates subsystems.DataStoreUpdates
 }
 
 func clientListenersTest(action func(clientListenersTestParams)) {
@@ -216,7 +217,7 @@ func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 					interfaces.BigSegmentStoreStatus{Available: true},
 				)
 
-				store.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{}, errors.New("failing"))
+				store.TestSetMetadataState(subsystems.BigSegmentStoreMetadata{}, errors.New("failing"))
 
 				sharedtest.ExpectBigSegmentStoreStatus(
 					t,

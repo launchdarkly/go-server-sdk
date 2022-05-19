@@ -9,13 +9,14 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type clientOfflineTestParams struct {
 	client  *LDClient
-	store   interfaces.DataStore
+	store   subsystems.DataStore
 	mockLog *ldlogtest.MockLog
 }
 

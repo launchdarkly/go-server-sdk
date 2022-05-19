@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	s "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testCacheMode string
@@ -46,7 +46,7 @@ func makePersistentDataStoreWrapper(
 	t *testing.T,
 	mode testCacheMode,
 	core *s.MockPersistentDataStore,
-) intf.DataStore {
+) subsystems.DataStore {
 	broadcaster := internal.NewDataStoreStatusBroadcaster()
 	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
 	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), s.NewTestLoggers())
@@ -81,7 +81,7 @@ func TestPersistentDataStoreWrapper(t *testing.T) {
 	runTests("update failures with cache", testPersistentDataStoreWrapperUpdateFailuresWithCache, cachedOnly...)
 
 	runTests("IsStatusMonitoringEnabled", func(t *testing.T, mode testCacheMode) {
-		testWithMockPersistentDataStore(t, "is always true", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		testWithMockPersistentDataStore(t, "is always true", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 			assert.True(t, w.IsStatusMonitoringEnabled())
 		})
 	}, allCacheModes...)
@@ -91,7 +91,7 @@ func testWithMockPersistentDataStore(
 	t *testing.T,
 	name string,
 	mode testCacheMode,
-	action func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore),
+	action func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore),
 ) {
 	t.Run(name, func(t *testing.T) {
 		core := s.NewMockPersistentDataStore()
@@ -102,7 +102,7 @@ func testWithMockPersistentDataStore(
 }
 
 func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
-	testWithMockPersistentDataStore(t, "existing item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "existing item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		itemv1 := s.MockDataItem{Key: "item", Version: 1}
 		itemv2 := s.MockDataItem{Key: itemv1.Key, Version: 2}
 
@@ -121,7 +121,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 		}
 	})
 
-	testWithMockPersistentDataStore(t, "unknown item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "unknown item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		itemv1 := s.MockDataItem{Key: "key", Version: 1}
 
 		item, err := w.Get(s.MockData, itemv1.Key)
@@ -138,7 +138,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 		}
 	})
 
-	testWithMockPersistentDataStore(t, "deleted item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "deleted item", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		key := "item"
 		deletedItemDesc := st.ItemDescriptor{Version: 1}
 		serializedDeletedItemDesc := st.SerializedItemDescriptor{Version: 1}
@@ -159,7 +159,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 		}
 	})
 
-	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		key := "item"
 		core.ForceSet(s.MockData, key, st.SerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
 
@@ -170,7 +170,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 
 	if mode.isCached() {
 		t.Run("cached", func(t *testing.T) {
-			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				itemv1 := s.MockDataItem{Key: "item", Version: 1}
 				itemv2 := s.MockDataItem{Key: itemv1.Key, Version: 2}
 
@@ -182,7 +182,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 				require.Equal(t, itemv1.ToItemDescriptor(), result)
 			})
 
-			testWithMockPersistentDataStore(t, "coalesces requests for same key", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "coalesces requests for same key", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
 
 				item := s.MockDataItem{Key: "key", Version: 9}
@@ -213,7 +213,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 	}
 
 	testWithMockPersistentDataStore(t, "item whose version number doesn't come from the serialized data",
-		mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 			// This is a condition that currently can't happen, but if we ever move away from always putting the
 			// version number in the serialized JSON (i.e. if every persistent data store implementation has a
 			// separate place to keep the version) then PersistentDataStoreWrapper should be able to handle it.
@@ -234,7 +234,7 @@ func testPersistentDataStoreWrapperGet(t *testing.T, mode testCacheMode) {
 }
 
 func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
-	testWithMockPersistentDataStore(t, "gets only items of one kind", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "gets only items of one kind", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		item1 := s.MockDataItem{Key: "item1", Version: 1}
 		item2 := s.MockDataItem{Key: "item2", Version: 1}
 		otherItem1 := s.MockDataItem{Key: "item1", Version: 3, IsOtherKind: true}
@@ -255,7 +255,7 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 		assert.Equal(t, []st.KeyedItemDescriptor{otherItem1.ToKeyedItemDescriptor()}, items)
 	})
 
-	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "item that fails to deserialize", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		item1 := s.MockDataItem{Key: "item1", Version: 1}
 		core.ForceSet(s.MockData, item1.Key, item1.ToSerializedItemDescriptor())
 		core.ForceSet(s.MockData, "item2", st.SerializedItemDescriptor{Version: 1, SerializedItem: []byte("BAD!")})
@@ -267,7 +267,7 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 
 	if mode.isCached() {
 		t.Run("cached", func(t *testing.T) {
-			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				item1 := s.MockDataItem{Key: "item1", Version: 1}
 				item2 := s.MockDataItem{Key: "item2", Version: 1}
 
@@ -306,7 +306,7 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 				require.Equal(t, 2, items[1].Item.Version)
 			})
 
-			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "uses values from Init", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				queryStartedCh := core.EnableInstrumentedQueries(200 * time.Millisecond)
 
 				item := s.MockDataItem{Key: "key", Version: 9}
@@ -338,7 +338,7 @@ func testPersistentDataStoreWrapperGetAll(t *testing.T, mode testCacheMode) {
 }
 
 func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
-	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		key := "item"
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
@@ -365,7 +365,7 @@ func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
 		assert.Equal(t, itemv2.ToItemDescriptor(), result)
 	})
 
-	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		key := "item"
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
@@ -392,7 +392,7 @@ func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
 }
 
 func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
-	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "successful", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		key := "item"
 		itemv1 := s.MockDataItem{Key: key, Version: 1}
 		deletedv2 := st.ItemDescriptor{Version: 2}
@@ -418,7 +418,7 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 		assert.Equal(t, deletedv2, result)
 	})
 
-	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "unsuccessful - lower version", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		key := "item"
 		itemv2 := s.MockDataItem{Key: key, Version: 2}
 		deletedv1 := st.ItemDescriptor{Version: 1}
@@ -439,7 +439,7 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 }
 
 func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMode) {
-	testWithMockPersistentDataStore(t, "won't call underlying IsInitialized if Init has been called", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+	testWithMockPersistentDataStore(t, "won't call underlying IsInitialized if Init has been called", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 		assert.False(t, w.IsInitialized())
 		assert.Equal(t, 1, core.InitQueriedCount)
 
@@ -450,7 +450,7 @@ func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMod
 	})
 
 	if mode.isCached() {
-		testWithMockPersistentDataStore(t, "can cache true result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		testWithMockPersistentDataStore(t, "can cache true result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 			assert.Equal(t, 0, core.InitQueriedCount)
 
 			core.ForceSetInited(true)
@@ -464,7 +464,7 @@ func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMod
 			assert.Equal(t, 1, core.InitQueriedCount)
 		})
 
-		testWithMockPersistentDataStore(t, "can cache false result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+		testWithMockPersistentDataStore(t, "can cache false result", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 			assert.False(t, w.IsInitialized())
 			assert.Equal(t, 1, core.InitQueriedCount)
 
@@ -479,7 +479,7 @@ func testPersistentDataStoreWrapperIsInitialized(t *testing.T, mode testCacheMod
 func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode testCacheMode) {
 	if mode.isInfiniteTTL() {
 		t.Run("infinite TTL", func(t *testing.T) {
-			testWithMockPersistentDataStore(t, "will update cache even if core Upsert fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "will update cache even if core Upsert fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				key := "key"
 				itemv1 := s.MockDataItem{Key: key, Version: 1}
 				itemv2 := s.MockDataItem{Key: key, Version: 2}
@@ -499,7 +499,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 				require.Equal(t, itemv2.ToItemDescriptor(), item) // cache has new item
 			})
 
-			testWithMockPersistentDataStore(t, "will update cache even if core Init fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "will update cache even if core Init fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				key := "key"
 				itemv1 := s.MockDataItem{Key: key, Version: 1}
 
@@ -517,7 +517,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 		})
 	} else {
 		t.Run("finite TTL", func(t *testing.T) {
-			testWithMockPersistentDataStore(t, "won't update cache if core Upsert fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "won't update cache if core Upsert fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				key := "key"
 				itemv1 := s.MockDataItem{Key: key, Version: 1}
 				itemv2 := s.MockDataItem{Key: key, Version: 2}
@@ -537,7 +537,7 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 				require.Equal(t, itemv1.ToItemDescriptor(), item) // cache still has old item too
 			})
 
-			testWithMockPersistentDataStore(t, "won't update cache if core Init fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w intf.DataStore) {
+			testWithMockPersistentDataStore(t, "won't update cache if core Init fails", mode, func(t *testing.T, core *s.MockPersistentDataStore, w subsystems.DataStore) {
 				key := "key"
 				itemv1 := s.MockDataItem{Key: key, Version: 1}
 

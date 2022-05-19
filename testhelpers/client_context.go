@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // SimpleClientContext is a reference implementation of interfaces.ClientContext for test code.
@@ -17,8 +17,8 @@ import (
 // code. SimpleClientContext may be useful for external code to test a custom component.
 type SimpleClientContext struct {
 	sdkKey  string
-	http    *interfaces.HTTPConfiguration
-	logging *interfaces.LoggingConfiguration
+	http    *subsystems.HTTPConfiguration
+	logging *subsystems.LoggingConfiguration
 }
 
 // NewSimpleClientContext creates a SimpleClientContext instance, with a standard HTTP configuration
@@ -27,11 +27,11 @@ func NewSimpleClientContext(sdkKey string) SimpleClientContext {
 	return SimpleClientContext{sdkKey: sdkKey}
 }
 
-func (s SimpleClientContext) GetBasic() interfaces.BasicConfiguration { //nolint:revive
-	return interfaces.BasicConfiguration{SDKKey: s.sdkKey, Offline: false}
+func (s SimpleClientContext) GetBasic() subsystems.BasicConfiguration { //nolint:revive
+	return subsystems.BasicConfiguration{SDKKey: s.sdkKey, Offline: false}
 }
 
-func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:revive
+func (s SimpleClientContext) GetHTTP() subsystems.HTTPConfiguration { //nolint:revive
 	if s.http != nil {
 		ret := *s.http
 		if ret.CreateHTTPClient == nil {
@@ -46,7 +46,7 @@ func (s SimpleClientContext) GetHTTP() interfaces.HTTPConfiguration { //nolint:r
 	return c
 }
 
-func (s SimpleClientContext) GetLogging() interfaces.LoggingConfiguration { //nolint:revive
+func (s SimpleClientContext) GetLogging() subsystems.LoggingConfiguration { //nolint:revive
 	if s.logging != nil {
 		return *s.logging
 	}
@@ -85,10 +85,10 @@ type Fallible interface {
 
 // WithMockLoggingContext creates a ClientContext that writes to a MockLogger, executes the specified
 // action, and then dumps the captured output to the console only if there's been a test failure.
-func WithMockLoggingContext(t Fallible, action func(interfaces.ClientContext)) {
+func WithMockLoggingContext(t Fallible, action func(subsystems.ClientContext)) {
 	mockLog := ldlogtest.NewMockLog()
-	context := sharedtest.NewTestContext("", &interfaces.HTTPConfiguration{},
-		&interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
+	context := sharedtest.NewTestContext("", &subsystems.HTTPConfiguration{},
+		&subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 	defer func() {
 		if t.Failed() {
 			mockLog.Dump(os.Stdout)

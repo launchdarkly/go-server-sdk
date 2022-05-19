@@ -25,6 +25,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // Version is the SDK version.
@@ -49,8 +50,8 @@ type LDClient struct {
 	sdkKey                           string
 	loggers                          ldlog.Loggers
 	eventProcessor                   ldevents.EventProcessor
-	dataSource                       interfaces.DataSource
-	store                            interfaces.DataStore
+	dataSource                       subsystems.DataSource
+	store                            subsystems.DataStore
 	evaluator                        ldeval.Evaluator
 	dataSourceStatusBroadcaster      *internal.DataSourceStatusBroadcaster
 	dataSourceStatusProvider         interfaces.DataSourceStatusProvider
@@ -199,7 +200,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	bsStore := bsConfig.GetStore()
 	client.bigSegmentStoreStatusBroadcaster = internal.NewBigSegmentStoreStatusBroadcaster()
-	if bsStore != nil {
+	if bsStore, ok := bsStore.(subsystems.BigSegmentStore); ok && bsStore != nil {
 		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapperWithConfig(
 			ldstoreimpl.BigSegmentsConfigurationProperties{
 				Store:              bsStore,
@@ -304,14 +305,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	return client, nil
 }
 
-func getDataStoreFactory(config Config) interfaces.DataStoreFactory {
+func getDataStoreFactory(config Config) subsystems.DataStoreFactory {
 	if config.DataStore == nil {
 		return ldcomponents.InMemoryDataStore()
 	}
 	return config.DataStore
 }
 
-func getBigSegmentsConfigurationFactory(config Config) interfaces.BigSegmentsConfigurationFactory {
+func getBigSegmentsConfigurationFactory(config Config) subsystems.BigSegmentsConfigurationFactory {
 	if config.BigSegments == nil {
 		return ldcomponents.BigSegments(nil)
 	}
@@ -320,9 +321,9 @@ func getBigSegmentsConfigurationFactory(config Config) interfaces.BigSegmentsCon
 
 func createDataSource(
 	config Config,
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	if config.Offline {
 		context.GetLogging().Loggers.Info("Starting LaunchDarkly client in offline mode")
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})

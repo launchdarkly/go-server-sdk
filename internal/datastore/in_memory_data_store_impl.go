@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // inMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.
@@ -26,7 +26,7 @@ type inMemoryDataStore struct {
 
 // NewInMemoryDataStore creates an instance of the in-memory data store. This is not part of the public API; it is
 // always called through ldcomponents.inMemoryDataStore().
-func NewInMemoryDataStore(loggers ldlog.Loggers) interfaces.DataStore {
+func NewInMemoryDataStore(loggers ldlog.Loggers) subsystems.DataStore {
 	return &inMemoryDataStore{
 		allData:       make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor),
 		isInitialized: false,

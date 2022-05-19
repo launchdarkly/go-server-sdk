@@ -8,14 +8,13 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInMemoryDataStore(t *testing.T) {
@@ -34,7 +33,7 @@ func TestInMemoryDataStore(t *testing.T) {
 	})
 }
 
-func makeInMemoryStore() interfaces.DataStore {
+func makeInMemoryStore() subsystems.DataStore {
 	return NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 

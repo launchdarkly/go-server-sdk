@@ -10,6 +10,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -148,22 +149,22 @@ type customStoreFactoryForDiagnostics struct {
 	name string
 }
 
-func (c customStoreFactoryForDiagnostics) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+func (c customStoreFactoryForDiagnostics) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	return ldvalue.String(c.name)
 }
 
 func (c customStoreFactoryForDiagnostics) CreateDataStore(
-	context interfaces.ClientContext,
-	dataStoreUpdates interfaces.DataStoreUpdates,
-) (interfaces.DataStore, error) {
+	context subsystems.ClientContext,
+	dataStoreUpdates subsystems.DataStoreUpdates,
+) (subsystems.DataStore, error) {
 	return nil, errors.New("not implemented")
 }
 
 type customStoreFactoryWithoutDiagnosticDescription struct{}
 
 func (c customStoreFactoryWithoutDiagnosticDescription) CreateDataStore(
-	context interfaces.ClientContext,
-	dataStoreUpdates interfaces.DataStoreUpdates,
-) (interfaces.DataStore, error) {
+	context subsystems.ClientContext,
+	dataStoreUpdates subsystems.DataStoreUpdates,
+) (subsystems.DataStore, error) {
 	return nil, errors.New("not implemented")
 }

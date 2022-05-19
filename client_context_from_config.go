@@ -5,9 +5,9 @@ import (
 	"regexp"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 var validTagKeyOrValueRegex = regexp.MustCompile(`(?s)^[\w.-]*$`)
@@ -25,7 +25,7 @@ func newClientContextFromConfig(
 		return nil, errors.New("SDK key contains invalid characters")
 	}
 
-	basicConfig := interfaces.BasicConfiguration{
+	basicConfig := subsystems.BasicConfiguration{
 		SDKKey:           sdkKey,
 		Offline:          config.Offline,
 		ServiceEndpoints: config.ServiceEndpoints,

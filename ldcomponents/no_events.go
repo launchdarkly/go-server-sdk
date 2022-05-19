@@ -2,7 +2,7 @@ package ldcomponents
 
 import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 type nullEventProcessorFactory struct{}
@@ -15,12 +15,12 @@ type nullEventProcessorFactory struct{}
 //     config := ld.Config{
 //         Events: ldcomponents.NoEvents(),
 //     }
-func NoEvents() interfaces.EventProcessorFactory {
+func NoEvents() subsystems.EventProcessorFactory {
 	return nullEventProcessorFactory{}
 }
 
 func (f nullEventProcessorFactory) CreateEventProcessor(
-	context interfaces.ClientContext,
+	context subsystems.ClientContext,
 ) (ldevents.EventProcessor, error) {
 	return ldevents.NewNullEventProcessor(), nil
 }

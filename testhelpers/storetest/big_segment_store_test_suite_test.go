@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // This verifies that the BigSegmentStoreTestSuite tests behave as expected as long as the
@@ -17,8 +17,8 @@ import (
 
 type mockSegmentStoreData struct {
 	storesByPrefix        map[string]*mockSegmentStore
-	overrideGetMetadata   func(*mockSegmentStore) (interfaces.BigSegmentStoreMetadata, error)
-	overrideGetMembership func(*mockSegmentStore, string) (interfaces.BigSegmentMembership, error)
+	overrideGetMetadata   func(*mockSegmentStore) (subsystems.BigSegmentStoreMetadata, error)
+	overrideGetMembership func(*mockSegmentStore, string) (subsystems.BigSegmentMembership, error)
 }
 
 type mockSegmentStoreFactory struct {
@@ -28,7 +28,7 @@ type mockSegmentStoreFactory struct {
 type mockSegmentStore struct {
 	owner    *mockSegmentStoreData
 	prefix   string
-	metadata *interfaces.BigSegmentStoreMetadata
+	metadata *subsystems.BigSegmentStoreMetadata
 	data     map[string]mockSegmentStoreKeys
 }
 
@@ -37,23 +37,23 @@ type mockSegmentStoreKeys struct {
 	excluded []string
 }
 
-func (f mockSegmentStoreFactory) CreateBigSegmentStore(context interfaces.ClientContext) (interfaces.BigSegmentStore, error) {
+func (f mockSegmentStoreFactory) CreateBigSegmentStore(context subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
 	return f.store, nil
 }
 
 func (s *mockSegmentStore) Close() error { return nil }
 
-func (s *mockSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) {
+func (s *mockSegmentStore) GetMetadata() (subsystems.BigSegmentStoreMetadata, error) {
 	if s.owner.overrideGetMetadata != nil {
 		return s.owner.overrideGetMetadata(s)
 	}
 	if s.metadata == nil {
-		return interfaces.BigSegmentStoreMetadata{}, errors.New("not found")
+		return subsystems.BigSegmentStoreMetadata{}, errors.New("not found")
 	}
 	return *s.metadata, nil
 }
 
-func (s *mockSegmentStore) GetMembership(contextHashKey string) (interfaces.BigSegmentMembership, error) {
+func (s *mockSegmentStore) GetMembership(contextHashKey string) (subsystems.BigSegmentMembership, error) {
 	if s.owner.overrideGetMembership != nil {
 		return s.owner.overrideGetMembership(s, contextHashKey)
 	}
@@ -61,7 +61,7 @@ func (s *mockSegmentStore) GetMembership(contextHashKey string) (interfaces.BigS
 	return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(keys.included, keys.excluded), nil
 }
 
-func (d *mockSegmentStoreData) factory(prefix string) interfaces.BigSegmentStoreFactory {
+func (d *mockSegmentStoreData) factory(prefix string) subsystems.BigSegmentStoreFactory {
 	store := d.storesByPrefix[prefix]
 	if store == nil {
 		store = &mockSegmentStore{owner: d, data: make(map[string]mockSegmentStoreKeys)}
@@ -81,7 +81,7 @@ func (d *mockSegmentStoreData) clearData(prefix string) error {
 	return nil
 }
 
-func (d *mockSegmentStoreData) setMetadata(prefix string, metadata interfaces.BigSegmentStoreMetadata) error {
+func (d *mockSegmentStoreData) setMetadata(prefix string, metadata subsystems.BigSegmentStoreMetadata) error {
 	if store := d.storesByPrefix[prefix]; store != nil {
 		store.metadata = &metadata
 		return nil
@@ -117,8 +117,8 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetMetadata returns error", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMetadata: func(*mockSegmentStore) (interfaces.BigSegmentStoreMetadata, error) {
-					return interfaces.BigSegmentStoreMetadata{}, fakeError
+				overrideGetMetadata: func(*mockSegmentStore) (subsystems.BigSegmentStoreMetadata, error) {
+					return subsystems.BigSegmentStoreMetadata{}, fakeError
 				},
 			})
 			shouldFail(t, s)
@@ -126,8 +126,8 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetMetadata returns incorrect value", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMetadata: func(store *mockSegmentStore) (interfaces.BigSegmentStoreMetadata, error) {
-					var metadata interfaces.BigSegmentStoreMetadata
+				overrideGetMetadata: func(store *mockSegmentStore) (subsystems.BigSegmentStoreMetadata, error) {
+					var metadata subsystems.BigSegmentStoreMetadata
 					if store.metadata != nil {
 						metadata = *store.metadata
 					}
@@ -140,7 +140,7 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetUserMembership returns error", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMembership: func(*mockSegmentStore, string) (interfaces.BigSegmentMembership, error) {
+				overrideGetMembership: func(*mockSegmentStore, string) (subsystems.BigSegmentMembership, error) {
 					return nil, fakeError
 				},
 			})
@@ -149,7 +149,7 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetUserMembership doesn't get included keys", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (interfaces.BigSegmentMembership, error) {
+				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (subsystems.BigSegmentMembership, error) {
 					keys := store.data[userHashKey]
 					return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(keys.included, nil), nil
 				},
@@ -159,7 +159,7 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetUserMembership doesn't get excluded keys", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (interfaces.BigSegmentMembership, error) {
+				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (subsystems.BigSegmentMembership, error) {
 					keys := store.data[userHashKey]
 					return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(nil, keys.excluded), nil
 				},
@@ -169,7 +169,7 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetUserMembership gets an extra included key", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (interfaces.BigSegmentMembership, error) {
+				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (subsystems.BigSegmentMembership, error) {
 					keys := store.data[userHashKey]
 					return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(
 						append(append([]string(nil), keys.included...), "unwanted-key"),
@@ -182,7 +182,7 @@ func TestBigSegmentStoreTestSuite(t *testing.T) {
 
 		t.Run("GetUserMembership gets an extra excluded key", func(t *testing.T) {
 			s := makeSuite(&mockSegmentStoreData{
-				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (interfaces.BigSegmentMembership, error) {
+				overrideGetMembership: func(store *mockSegmentStore, userHashKey string) (subsystems.BigSegmentMembership, error) {
 					keys := store.data[userHashKey]
 					return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(
 						keys.included,

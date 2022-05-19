@@ -7,9 +7,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 const (
@@ -67,7 +67,7 @@ func SendEvents() *EventProcessorBuilder {
 
 // CreateEventProcessor is called by the SDK to create the event processor instance.
 func (b *EventProcessorBuilder) CreateEventProcessor(
-	context interfaces.ClientContext,
+	context subsystems.ClientContext,
 ) (ldevents.EventProcessor, error) {
 	loggers := context.GetLogging().Loggers
 
@@ -200,7 +200,7 @@ func (b *EventProcessorBuilder) ContextKeysFlushInterval(interval time.Duration)
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *EventProcessorBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+func (b *EventProcessorBuilder) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).
 		Set("customEventsURI", ldvalue.Bool(

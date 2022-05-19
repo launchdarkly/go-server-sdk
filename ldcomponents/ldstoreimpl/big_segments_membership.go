@@ -2,7 +2,7 @@ package ldstoreimpl
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // NewBigSegmentMembershipFromSegmentRefs creates a BigSegmentMembership based on the specified
@@ -23,7 +23,7 @@ import (
 func NewBigSegmentMembershipFromSegmentRefs(
 	includedSegmentRefs []string,
 	excludedSegmentRefs []string,
-) interfaces.BigSegmentMembership {
+) subsystems.BigSegmentMembership {
 	if len(includedSegmentRefs) == 0 && len(excludedSegmentRefs) == 0 {
 		return bigSegmentMembershipMapImpl(nil)
 	}

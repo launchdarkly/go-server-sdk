@@ -11,6 +11,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func testDataSourceTest(t *testing.T, action func(testDataSourceTestParams)) {
 	action(p)
 }
 
-func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(interfaces.DataSource)) {
+func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(subsystems.DataSource)) {
 	t.Helper()
 	ds, err := p.td.CreateDataSource(nil, p.updates)
 	require.NoError(t, err)
@@ -57,7 +58,7 @@ func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(inter
 func TestTestDataSource(t *testing.T) {
 	t.Run("initializes with empty data", func(t *testing.T) {
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
-			p.withDataSource(t, func(ds interfaces.DataSource) {
+			p.withDataSource(t, func(ds subsystems.DataSource) {
 				expectedData := ldservices.NewServerSDKData()
 				p.updates.DataStore.WaitForInit(t, expectedData, time.Millisecond)
 				assert.True(t, ds.IsInitialized())
@@ -70,7 +71,7 @@ func TestTestDataSource(t *testing.T) {
 			p.td.Update(p.td.Flag("flag1").On(true)).
 				Update(p.td.Flag("flag2").On(false))
 
-			p.withDataSource(t, func(interfaces.DataSource) {
+			p.withDataSource(t, func(subsystems.DataSource) {
 				initData := p.updates.DataStore.WaitForNextInit(t, time.Millisecond)
 				dataMap := sharedtest.DataSetToMap(initData)
 				require.Len(t, dataMap, 2)
@@ -87,7 +88,7 @@ func TestTestDataSource(t *testing.T) {
 
 	t.Run("adds flag", func(t *testing.T) {
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
-			p.withDataSource(t, func(interfaces.DataSource) {
+			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.Update(p.td.Flag("flag1").On(true))
 
 				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flag1", 1, time.Millisecond)
@@ -100,7 +101,7 @@ func TestTestDataSource(t *testing.T) {
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.td.Update(p.td.Flag("flag1").On(false))
 
-			p.withDataSource(t, func(interfaces.DataSource) {
+			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.Update(p.td.Flag("flag1").On(true))
 
 				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flag1", 2, time.Millisecond)
@@ -111,7 +112,7 @@ func TestTestDataSource(t *testing.T) {
 
 	t.Run("updates status", func(t *testing.T) {
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
-			p.withDataSource(t, func(interfaces.DataSource) {
+			p.withDataSource(t, func(subsystems.DataSource) {
 				ei := interfaces.DataSourceErrorInfo{Kind: interfaces.DataSourceErrorKindNetworkError}
 				p.td.UpdateStatus(interfaces.DataSourceStateInterrupted, ei)
 
@@ -124,7 +125,7 @@ func TestTestDataSource(t *testing.T) {
 	t.Run("adds or updates preconfigured flag", func(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flagkey").Version(1).On(true).TrackEvents(true).Build()
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
-			p.withDataSource(t, func(interfaces.DataSource) {
+			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.UsePreconfiguredFlag(flagv1)
 
 				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), flagv1.Key, 1, time.Millisecond)
@@ -145,7 +146,7 @@ func TestTestDataSource(t *testing.T) {
 	t.Run("adds or updates preconfigured segment", func(t *testing.T) {
 		segmentv1 := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Included("a").Build()
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
-			p.withDataSource(t, func(interfaces.DataSource) {
+			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.UsePreconfiguredSegment(segmentv1)
 
 				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 1, time.Millisecond)
