@@ -184,6 +184,7 @@ This release introduces new types for building user properties and representing 
 
 ### Fixed:
 - By default, the SDK should log to `os.Stderr` with a minimum level of `ldlog.Info`, omitting only `Debug`-level messages. A bug introduced in 4.12.0 caused the default logger not to produce any output. It will now log at `Info` level by default again, as documented.
+- When evaluating flags, the SDK incorrectly looked into the custom attributes for built-in attribute names if the built-in attribute was not set. This was inconsistent with LaunchDarkly flag evaluation on all other platforms, and has been fixed so that custom attributes using the names of built-in attributes are ignored. If you have been setting a built-in attribute as a custom attribute, please set the built-in attribute instead.
 
 ### Deprecated:
 - All exported fields of `User`. In a future version, these will be hidden. Use getters such as `GetName()` to read these fields, and `NewUserBuilder` to set them.
