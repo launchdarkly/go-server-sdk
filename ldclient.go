@@ -200,7 +200,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	bsStore := bsConfig.GetStore()
 	client.bigSegmentStoreStatusBroadcaster = internal.NewBigSegmentStoreStatusBroadcaster()
-	if bsStore, ok := bsStore.(subsystems.BigSegmentStore); ok && bsStore != nil {
+	if bsStore != nil {
 		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapperWithConfig(
 			ldstoreimpl.BigSegmentsConfigurationProperties{
 				Store:              bsStore,
