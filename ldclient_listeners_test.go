@@ -87,7 +87,7 @@ func TestFlagTracker(t *testing.T) {
 		otherUser := lduser.NewUser("unimportant-user")
 
 		clientListenersTest(func(p clientListenersTestParams) {
-			p.testData.Update(p.testData.Flag(flagKey).VariationForAllUsers(false))
+			p.testData.Update(p.testData.Flag(flagKey).VariationForAll(false))
 
 			ch1 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, user, ldvalue.Null())
 			ch2 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, user, ldvalue.Null())

@@ -26,7 +26,8 @@ type testDataSourceTestParams struct {
 	updates *sharedtest.MockDataSourceUpdates
 }
 
-func testDataSourceTest(action func(testDataSourceTestParams)) {
+func testDataSourceTest(t *testing.T, action func(testDataSourceTestParams)) {
+	t.Helper()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	var p testDataSourceTestParams
 	p.td = DataSource()
@@ -35,6 +36,7 @@ func testDataSourceTest(action func(testDataSourceTestParams)) {
 }
 
 func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(interfaces.DataSource)) {
+	t.Helper()
 	ds, err := p.td.CreateDataSource(nil, p.updates)
 	require.NoError(t, err)
 	defer ds.Close()
@@ -54,7 +56,7 @@ func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(inter
 
 func TestTestDataSource(t *testing.T) {
 	t.Run("initializes with empty data", func(t *testing.T) {
-		testDataSourceTest(func(p testDataSourceTestParams) {
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.withDataSource(t, func(ds interfaces.DataSource) {
 				expectedData := ldservices.NewServerSDKData()
 				p.updates.DataStore.WaitForInit(t, expectedData, time.Millisecond)
@@ -64,7 +66,7 @@ func TestTestDataSource(t *testing.T) {
 	})
 
 	t.Run("initializes with flags", func(t *testing.T) {
-		testDataSourceTest(func(p testDataSourceTestParams) {
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.td.Update(p.td.Flag("flag1").On(true)).
 				Update(p.td.Flag("flag2").On(false))
 
@@ -84,7 +86,7 @@ func TestTestDataSource(t *testing.T) {
 	})
 
 	t.Run("adds flag", func(t *testing.T) {
-		testDataSourceTest(func(p testDataSourceTestParams) {
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.withDataSource(t, func(interfaces.DataSource) {
 				p.td.Update(p.td.Flag("flag1").On(true))
 
@@ -95,7 +97,7 @@ func TestTestDataSource(t *testing.T) {
 	})
 
 	t.Run("updates flag", func(t *testing.T) {
-		testDataSourceTest(func(p testDataSourceTestParams) {
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.td.Update(p.td.Flag("flag1").On(false))
 
 			p.withDataSource(t, func(interfaces.DataSource) {
@@ -108,7 +110,7 @@ func TestTestDataSource(t *testing.T) {
 	})
 
 	t.Run("updates status", func(t *testing.T) {
-		testDataSourceTest(func(p testDataSourceTestParams) {
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.withDataSource(t, func(interfaces.DataSource) {
 				ei := interfaces.DataSourceErrorInfo{Kind: interfaces.DataSourceErrorKindNetworkError}
 				p.td.UpdateStatus(interfaces.DataSourceStateInterrupted, ei)
@@ -121,7 +123,7 @@ func TestTestDataSource(t *testing.T) {
 
 	t.Run("adds or updates preconfigured flag", func(t *testing.T) {
 		flagv1 := ldbuilders.NewFlagBuilder("flagkey").Version(1).On(true).TrackEvents(true).Build()
-		testDataSourceTest(func(p testDataSourceTestParams) {
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.withDataSource(t, func(interfaces.DataSource) {
 				p.td.UsePreconfiguredFlag(flagv1)
 
@@ -136,6 +138,27 @@ func TestTestDataSource(t *testing.T) {
 
 				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), flagv1.Key, 2, time.Millisecond)
 				assert.Equal(t, &expectedFlagV2, up.Item.Item.(*ldmodel.FeatureFlag))
+			})
+		})
+	})
+
+	t.Run("adds or updates preconfigured segment", func(t *testing.T) {
+		segmentv1 := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Included("a").Build()
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
+			p.withDataSource(t, func(interfaces.DataSource) {
+				p.td.UsePreconfiguredSegment(segmentv1)
+
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 1, time.Millisecond)
+				assert.Equal(t, &segmentv1, up.Item.Item.(*ldmodel.Segment))
+
+				updatedSegment := segmentv1
+				updatedSegment.Included = []string{"b"}
+				expectedSegmentV2 := updatedSegment
+				expectedSegmentV2.Version = 2
+				p.td.UsePreconfiguredSegment(updatedSegment)
+
+				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 2, time.Millisecond)
+				assert.Equal(t, &expectedSegmentV2, up.Item.Item.(*ldmodel.Segment))
 			})
 		})
 	})

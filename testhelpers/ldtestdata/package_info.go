@@ -6,7 +6,7 @@
 // method.
 //
 //     td := ldtestdata.DataSource()
-//     td.Update(td.Flag("flag-key-1").BooleanFlag().VariationForAllUsers(true))
+//     td.Update(td.Flag("flag-key-1").BooleanFlag().VariationForAll(true))
 //
 //     config := ld.Config{
 //         DataSource: td,
