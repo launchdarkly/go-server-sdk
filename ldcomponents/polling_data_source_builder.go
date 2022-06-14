@@ -71,7 +71,7 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetBasic().ServiceEndpoints,
+		context.GetServiceEndpoints(),
 		endpoints.PollingService,
 		b.baseURI,
 		context.GetLogging().Loggers,
@@ -85,7 +85,7 @@ func (b *PollingDataSourceBuilder) DescribeConfiguration(context subsystems.Clie
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", true).
 		SetBool("customBaseURI",
-			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.PollingService, b.baseURI)).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.PollingService, b.baseURI)).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		SetBool("usingRelayDaemon", false).
 		Build()

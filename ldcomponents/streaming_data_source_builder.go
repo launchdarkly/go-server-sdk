@@ -63,7 +63,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 	dataSourceUpdates subsystems.DataSourceUpdates,
 ) (subsystems.DataSource, error) {
 	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetBasic().ServiceEndpoints,
+		context.GetServiceEndpoints(),
 		endpoints.StreamingService,
 		b.baseURI,
 		context.GetLogging().Loggers,
@@ -82,7 +82,7 @@ func (b *StreamingDataSourceBuilder) DescribeConfiguration(context subsystems.Cl
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", false).
 		SetBool("customStreamURI",
-			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.StreamingService, b.baseURI)).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.StreamingService, b.baseURI)).
 		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		SetBool("usingRelayDaemon", false).
 		Build()

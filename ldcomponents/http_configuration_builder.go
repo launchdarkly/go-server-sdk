@@ -207,15 +207,15 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 
 // CreateHTTPConfiguration is called internally by the SDK.
 func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
-	basicConfiguration subsystems.BasicConfiguration,
+	clientContext subsystems.ClientContext,
 ) (subsystems.HTTPConfiguration, error) {
 	if !b.checkValid() {
 		defaults := HTTPConfigurationBuilder{}
-		return defaults.CreateHTTPConfiguration(basicConfiguration)
+		return defaults.CreateHTTPConfiguration(clientContext)
 	}
 
 	headers := make(http.Header)
-	headers.Set("Authorization", basicConfiguration.SDKKey)
+	headers.Set("Authorization", clientContext.GetSDKKey())
 	userAgent := "GoClient/" + internal.SDKVersion
 	if b.userAgent != "" {
 		userAgent = userAgent + " " + b.userAgent
@@ -224,7 +224,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.wrapperIdentifier != "" {
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
 	}
-	if tagsHeaderValue := buildTagsHeaderValue(basicConfiguration); tagsHeaderValue != "" {
+	if tagsHeaderValue := buildTagsHeaderValue(clientContext); tagsHeaderValue != "" {
 		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
 	}
 
@@ -269,13 +269,13 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	}, nil
 }
 
-func buildTagsHeaderValue(basicConfig subsystems.BasicConfiguration) string {
+func buildTagsHeaderValue(clientContext subsystems.ClientContext) string {
 	var parts []string
-	if basicConfig.ApplicationInfo.ApplicationID != "" {
-		parts = append(parts, fmt.Sprintf("application-id/%s", basicConfig.ApplicationInfo.ApplicationID))
+	if value := clientContext.GetApplicationInfo().ApplicationID; value != "" {
+		parts = append(parts, fmt.Sprintf("application-id/%s", value))
 	}
-	if basicConfig.ApplicationInfo.ApplicationVersion != "" {
-		parts = append(parts, fmt.Sprintf("application-version/%s", basicConfig.ApplicationInfo.ApplicationVersion))
+	if value := clientContext.GetApplicationInfo().ApplicationVersion; value != "" {
+		parts = append(parts, fmt.Sprintf("application-version/%s", value))
 	}
 	return strings.Join(parts, " ")
 }
