@@ -23,7 +23,7 @@ import (
 )
 
 func TestHTTPConfigurationBuilder(t *testing.T) {
-	basicConfig := subsystems.BasicConfiguration{SDKKey: "test-key"}
+	basicConfig := subsystems.BasicClientContext{SDKKey: "test-key"}
 
 	t.Run("defaults", func(t *testing.T) {
 		c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)
@@ -254,7 +254,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 	t.Run("nil safety", func(t *testing.T) {
 		var b *HTTPConfigurationBuilder = nil
 		b = b.ConnectTimeout(0).Header("a", "b").ProxyURL("c").Wrapper("d", "e")
-		_ = b.DescribeConfiguration(sharedtest.NewSimpleTestContext(""))
-		_, _ = b.CreateHTTPConfiguration(sharedtest.NewSimpleTestContext("").GetBasic())
+		_ = b.DescribeConfiguration(subsystems.BasicClientContext{})
+		_, _ = b.CreateHTTPConfiguration(subsystems.BasicClientContext{})
 	})
 }

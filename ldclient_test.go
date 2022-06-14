@@ -31,11 +31,11 @@ func (f badFactory) CreateEventProcessor(context subsystems.ClientContext) (ldev
 	return nil, f.err
 }
 
-func (f badFactory) CreateHTTPConfiguration(context subsystems.BasicConfiguration) (subsystems.HTTPConfiguration, error) {
+func (f badFactory) CreateHTTPConfiguration(context subsystems.ClientContext) (subsystems.HTTPConfiguration, error) {
 	return subsystems.HTTPConfiguration{}, f.err
 }
 
-func (f badFactory) CreateLoggingConfiguration(context subsystems.BasicConfiguration) (subsystems.LoggingConfiguration, error) {
+func (f badFactory) CreateLoggingConfiguration(context subsystems.ClientContext) (subsystems.LoggingConfiguration, error) {
 	return subsystems.LoggingConfiguration{}, f.err
 }
 

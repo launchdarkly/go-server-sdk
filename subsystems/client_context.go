@@ -1,34 +1,68 @@
 package subsystems
 
-import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
+import (
+	"net/http"
+
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+)
 
 // ClientContext provides context information from LDClient when creating other components.
 //
 // This is passed as a parameter to the factory methods for implementations of DataStore, DataSource,
 // etc. The actual implementation type may contain other properties that are only relevant to the built-in
 // SDK components and are therefore not part of the public interface; this allows the SDK to add its own
-// context information as needed without disturbing the public API.
+// context information as needed without disturbing the public API. However, for test purposes you may use
+// the simple struct type BasicClientContext.
 type ClientContext interface {
-	// GetBasicConfiguration returns the SDK's basic global properties.
-	GetBasic() BasicConfiguration
+	// GetSDKKey returns the configured SDK key.
+	GetSDKKey() string
+
+	// GetApplicationInfo returns the configuration for application metadata.
+	GetApplicationInfo() interfaces.ApplicationInfo
+
 	// GetHTTP returns the configured HTTPConfiguration.
 	GetHTTP() HTTPConfiguration
+
 	// GetLogging returns the configured LoggingConfiguration.
 	GetLogging() LoggingConfiguration
+
+	// GetOffline returns true if the client was configured to be completely offline.
+	GetOffline() bool
+
+	// GetServiceEndpoints returns the configuration for service URIs.
+	GetServiceEndpoints() interfaces.ServiceEndpoints
 }
 
-// BasicConfiguration contains the most basic properties of the SDK client that are available
-// to all SDK component factories.
-type BasicConfiguration struct {
-	// SDKKey is the configured SDK key.
-	SDKKey string
-
-	// Offline is true if the client was configured to be completely offline.
-	Offline bool
-
-	// ServiceEndpoints include any configured custom service URIs.
+// BasicClientContext is the basic implementation of the ClientContext interface, not including any
+// private fields that the SDK may use for implementation details.
+type BasicClientContext struct {
+	SDKKey           string
+	ApplicationInfo  interfaces.ApplicationInfo
+	HTTP             HTTPConfiguration
+	Logging          LoggingConfiguration
+	Offline          bool
 	ServiceEndpoints interfaces.ServiceEndpoints
+}
 
-	// ApplicationInfo includes any configured application metadata.
-	ApplicationInfo interfaces.ApplicationInfo
+func (b BasicClientContext) GetSDKKey() string { return b.SDKKey } //nolint:revive
+
+func (b BasicClientContext) GetApplicationInfo() interfaces.ApplicationInfo { return b.ApplicationInfo } //nolint:revive
+
+func (b BasicClientContext) GetHTTP() HTTPConfiguration { //nolint:revive
+	ret := b.HTTP
+	if ret.CreateHTTPClient == nil {
+		ret.CreateHTTPClient = func() *http.Client {
+			client := *http.DefaultClient
+			return &client
+		}
+	}
+	return ret
+}
+
+func (b BasicClientContext) GetLogging() LoggingConfiguration { return b.Logging } //nolint:revive
+
+func (b BasicClientContext) GetOffline() bool { return b.Offline } //nolint:revive
+
+func (b BasicClientContext) GetServiceEndpoints() interfaces.ServiceEndpoints { //nolint:revive
+	return b.ServiceEndpoints
 }

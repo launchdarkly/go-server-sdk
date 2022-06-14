@@ -14,9 +14,11 @@ func basicClientContext() subsystems.ClientContext {
 
 // Returns a basic context where all of the service endpoints point to the specified URI.
 func makeTestContextWithBaseURIs(uri string) *internal.ClientContextImpl {
-	return internal.NewClientContextImpl(
-		subsystems.BasicConfiguration{SDKKey: testSdkKey, ServiceEndpoints: RelayProxyEndpoints(uri)},
-		subsystems.HTTPConfiguration{},
-		sharedtest.TestLoggingConfig(),
-	)
+	return &internal.ClientContextImpl{
+		BasicClientContext: subsystems.BasicClientContext{
+			SDKKey:           testSdkKey,
+			Logging:          sharedtest.TestLoggingConfig(),
+			ServiceEndpoints: RelayProxyEndpoints(uri),
+		},
+	}
 }

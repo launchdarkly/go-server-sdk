@@ -412,12 +412,13 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := internal.NewClientContextImpl(
-				subsystems.BasicConfiguration{SDKKey: testSDKKey},
-				subsystems.HTTPConfiguration{},
-				subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
-			)
-			context.DiagnosticsManager = diagnosticsManager
+			context := &internal.ClientContextImpl{
+				BasicClientContext: subsystems.BasicClientContext{
+					SDKKey:  testSDKKey,
+					Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
+				},
+				DiagnosticsManager: diagnosticsManager,
+			}
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, time.Second)
 			defer sp.Close()
@@ -457,12 +458,13 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := internal.NewClientContextImpl(
-				subsystems.BasicConfiguration{SDKKey: testSDKKey},
-				subsystems.HTTPConfiguration{},
-				subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
-			)
-			context.DiagnosticsManager = diagnosticsManager
+			context := &internal.ClientContextImpl{
+				BasicClientContext: subsystems.BasicClientContext{
+					SDKKey:  testSDKKey,
+					Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
+				},
+				DiagnosticsManager: diagnosticsManager,
+			}
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
 			defer sp.Close()

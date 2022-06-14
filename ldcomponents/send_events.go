@@ -72,7 +72,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 	loggers := context.GetLogging().Loggers
 
 	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetBasic().ServiceEndpoints,
+		context.GetServiceEndpoints(),
 		endpoints.EventsService,
 		b.baseURI,
 		loggers,
@@ -86,7 +86,7 @@ func (b *EventProcessorBuilder) CreateEventProcessor(
 			BaseHeaders: func() http.Header { return headers },
 			Loggers:     loggers,
 		},
-		context.GetBasic().SDKKey,
+		context.GetSDKKey(),
 	)
 	eventsConfig := ldevents.EventsConfiguration{
 		AllAttributesPrivate:        b.allAttributesPrivate,
@@ -204,7 +204,7 @@ func (b *EventProcessorBuilder) DescribeConfiguration(context subsystems.ClientC
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).
 		Set("customEventsURI", ldvalue.Bool(
-			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.EventsService, b.baseURI))).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.EventsService, b.baseURI))).
 		Set("diagnosticRecordingIntervalMillis", durationToMillisValue(b.diagnosticRecordingInterval)).
 		Set("eventsCapacity", ldvalue.Int(b.capacity)).
 		Set("eventsFlushIntervalMillis", durationToMillisValue(b.flushInterval)).

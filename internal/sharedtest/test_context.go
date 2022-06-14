@@ -1,16 +1,8 @@
 package sharedtest
 
 import (
-	"net/http"
-
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
-
-type stubClientContext struct {
-	sdkKey  string
-	http    subsystems.HTTPConfiguration
-	logging subsystems.LoggingConfiguration
-}
 
 // NewSimpleTestContext returns a basic implementation of interfaces.ClientContext for use in test code.
 func NewSimpleTestContext(sdkKey string) subsystems.ClientContext {
@@ -23,36 +15,17 @@ func NewTestContext(
 	sdkKey string,
 	optHTTPConfig *subsystems.HTTPConfiguration,
 	optLoggingConfig *subsystems.LoggingConfiguration,
-) subsystems.ClientContext {
-	var httpConfig subsystems.HTTPConfiguration
+) subsystems.BasicClientContext {
+	ret := subsystems.BasicClientContext{SDKKey: sdkKey}
 	if optHTTPConfig != nil {
-		httpConfig = *optHTTPConfig
+		ret.HTTP = *optHTTPConfig
 	}
-	if httpConfig.CreateHTTPClient == nil {
-		httpConfig.CreateHTTPClient = func() *http.Client {
-			client := *http.DefaultClient
-			return &client
-		}
-	}
-	var loggingConfig subsystems.LoggingConfiguration
 	if optLoggingConfig != nil {
-		loggingConfig = *optLoggingConfig
+		ret.Logging = *optLoggingConfig
 	} else {
-		loggingConfig.Loggers = NewTestLoggers()
+		ret.Logging = TestLoggingConfig()
 	}
-	return stubClientContext{sdkKey, httpConfig, loggingConfig}
-}
-
-func (c stubClientContext) GetBasic() subsystems.BasicConfiguration {
-	return subsystems.BasicConfiguration{SDKKey: c.sdkKey}
-}
-
-func (c stubClientContext) GetHTTP() subsystems.HTTPConfiguration {
-	return c.http
-}
-
-func (c stubClientContext) GetLogging() subsystems.LoggingConfiguration {
-	return c.logging
+	return ret
 }
 
 // TestLoggingConfig returns a LoggingConfiguration corresponding to NewTestLoggers().
