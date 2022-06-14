@@ -14,12 +14,12 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
@@ -51,7 +51,7 @@ func makeClauseToNotMatchUser(user ldcontext.Context) ldmodel.Clause {
 
 type clientEvalTestParams struct {
 	client  *LDClient
-	store   interfaces.DataStore
+	store   subsystems.DataStore
 	data    *ldtestdata.TestDataSource
 	events  *sharedtest.CapturingEventProcessor
 	mockLog *ldlogtest.MockLog

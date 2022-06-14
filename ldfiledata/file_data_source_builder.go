@@ -2,7 +2,7 @@ package ldfiledata
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // ReloaderFactory is a function type used with DataSourceBuilder.Reloader, to specify a mechanism for
@@ -74,9 +74,9 @@ func (b *DataSourceBuilder) Reloader(reloaderFactory ReloaderFactory) *DataSourc
 
 // CreateDataSource is called by the SDK to create the data source instance.
 func (b *DataSourceBuilder) CreateDataSource(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	return newFileDataSourceImpl(context, dataSourceUpdates, b.filePaths,
 		b.duplicateKeysHandling, b.reloaderFactory)
 }

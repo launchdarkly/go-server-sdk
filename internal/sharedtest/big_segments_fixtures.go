@@ -7,6 +7,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,18 +17,18 @@ type SingleBigSegmentStoreFactory struct {
 	Store *MockBigSegmentStore
 }
 
-func (f SingleBigSegmentStoreFactory) CreateBigSegmentStore(interfaces.ClientContext) ( //nolint:revive
-	interfaces.BigSegmentStore, error) {
+func (f SingleBigSegmentStoreFactory) CreateBigSegmentStore(subsystems.ClientContext) ( //nolint:revive
+	subsystems.BigSegmentStore, error) {
 	return f.Store, nil
 }
 
 // MockBigSegmentStore is a minimal mock implementation of BigSegmentStore. Currently it only
 // supports specifying the metadata and simulating an error for metadata queries.
 type MockBigSegmentStore struct {
-	metadata          interfaces.BigSegmentStoreMetadata
+	metadata          subsystems.BigSegmentStoreMetadata
 	metadataErr       error
 	metadataQueries   chan struct{}
-	memberships       map[string]interfaces.BigSegmentMembership
+	memberships       map[string]subsystems.BigSegmentMembership
 	membershipQueries []string
 	membershipErr     error
 	lock              sync.Mutex
@@ -37,7 +38,7 @@ func (m *MockBigSegmentStore) Close() error { //nolint:revive
 	return nil
 }
 
-func (m *MockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) { //nolint:revive
+func (m *MockBigSegmentStore) GetMetadata() (subsystems.BigSegmentStoreMetadata, error) { //nolint:revive
 	m.lock.Lock()
 	md, err := m.metadata, m.metadataErr
 	if m.metadataQueries != nil {
@@ -48,7 +49,7 @@ func (m *MockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata,
 }
 
 func (m *MockBigSegmentStore) TestSetMetadataState( //nolint:revive
-	md interfaces.BigSegmentStoreMetadata,
+	md subsystems.BigSegmentStoreMetadata,
 	err error,
 ) {
 	m.lock.Lock()
@@ -57,7 +58,7 @@ func (m *MockBigSegmentStore) TestSetMetadataState( //nolint:revive
 }
 
 func (m *MockBigSegmentStore) TestSetMetadataToCurrentTime() { //nolint:revive
-	m.TestSetMetadataState(interfaces.BigSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisNow()}, nil)
+	m.TestSetMetadataState(subsystems.BigSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisNow()}, nil)
 }
 
 func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nolint:revive
@@ -71,7 +72,7 @@ func (m *MockBigSegmentStore) TestGetMetadataQueriesCh() <-chan struct{} { //nol
 
 func (m *MockBigSegmentStore) GetMembership( //nolint:revive
 	contextHash string,
-) (interfaces.BigSegmentMembership, error) {
+) (subsystems.BigSegmentMembership, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.membershipQueries = append(m.membershipQueries, contextHash)
@@ -83,12 +84,12 @@ func (m *MockBigSegmentStore) GetMembership( //nolint:revive
 
 func (m *MockBigSegmentStore) TestSetMembership( //nolint:revive
 	contextHash string,
-	membership interfaces.BigSegmentMembership,
+	membership subsystems.BigSegmentMembership,
 ) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.memberships == nil {
-		m.memberships = make(map[string]interfaces.BigSegmentMembership)
+		m.memberships = make(map[string]subsystems.BigSegmentMembership)
 	}
 	m.memberships[contextHash] = membership
 }

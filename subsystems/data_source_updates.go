@@ -1,6 +1,9 @@
-package interfaces
+package subsystems
 
-import "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+import (
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+)
 
 // DataSourceUpdates is an interface that a data source implementation will use to push data into the SDK.
 //
@@ -43,7 +46,7 @@ type DataSourceUpdates interface {
 	// A special case is that if newState is DataSourceStateInterrupted, but the previous state was
 	// but the previous state was DataSourceStateInitializing, the state will remain at Initializing
 	// because Interrupted is only meaningful after a successful startup.
-	UpdateStatus(newState DataSourceState, newError DataSourceErrorInfo)
+	UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo)
 
 	// GetDataStoreStatusProvider returns an object that provides status tracking for the data store, if
 	// applicable.
@@ -51,5 +54,5 @@ type DataSourceUpdates interface {
 	// This may be useful if the data source needs to be aware of storage problems that might require it
 	// to take some special action: for instance, if a database outage may have caused some data to be
 	// lost and therefore the data should be re-requested from LaunchDarkly.
-	GetDataStoreStatusProvider() DataStoreStatusProvider
+	GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider
 }

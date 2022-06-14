@@ -12,10 +12,10 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // These benchmarks cover the LDClient evaluation flow, including looking up the target flag, applying all
@@ -94,7 +94,7 @@ func (env *evalBenchmarkEnv) tearDown() {
 
 type benchmarkStubEventProcessorFactory struct{}
 
-func (f benchmarkStubEventProcessorFactory) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+func (f benchmarkStubEventProcessorFactory) CreateEventProcessor(context subsystems.ClientContext) (ldevents.EventProcessor, error) {
 	return ldcomponents.NoEvents().CreateEventProcessor(context)
 }
 

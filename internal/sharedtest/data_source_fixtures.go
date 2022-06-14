@@ -1,21 +1,21 @@
 package sharedtest
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // DataSourceFactoryThatExposesUpdater is a test implementation of DataSourceFactory that captures the
 // DataSourceUpdates instance provided by LDClient.
 type DataSourceFactoryThatExposesUpdater struct {
-	UnderlyingFactory interfaces.DataSourceFactory
-	DataSourceUpdates interfaces.DataSourceUpdates
+	UnderlyingFactory subsystems.DataSourceFactory
+	DataSourceUpdates subsystems.DataSourceUpdates
 }
 
 func (f *DataSourceFactoryThatExposesUpdater) CreateDataSource( //nolint:revive
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	f.DataSourceUpdates = dataSourceUpdates
 	return f.UnderlyingFactory.CreateDataSource(context, dataSourceUpdates)
 }
@@ -27,15 +27,15 @@ type DataSourceFactoryWithData struct {
 }
 
 func (f DataSourceFactoryWithData) CreateDataSource( //nolint:revive
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	return &dataSourceWithData{f.Data, dataSourceUpdates, false}, nil
 }
 
 type dataSourceWithData struct {
 	data              []ldstoretypes.Collection
-	dataSourceUpdates interfaces.DataSourceUpdates
+	dataSourceUpdates subsystems.DataSourceUpdates
 	inited            bool
 }
 
@@ -55,24 +55,24 @@ func (d *dataSourceWithData) Start(closeWhenReady chan<- struct{}) {
 
 // DataSourceThatIsAlwaysInitialized returns a test DataSourceFactory that produces a data source
 // that immediately reports success on startup, although it does not provide any data.
-func DataSourceThatIsAlwaysInitialized() interfaces.DataSourceFactory {
+func DataSourceThatIsAlwaysInitialized() subsystems.DataSourceFactory {
 	return singleDataSourceFactory{mockDataSource{Initialized: true}}
 }
 
 // DataSourceThatNeverInitializes returns a test DataSourceFactory that produces a data source
 // that immediately starts up in a failed state and does not provide any data.
-func DataSourceThatNeverInitializes() interfaces.DataSourceFactory {
+func DataSourceThatNeverInitializes() subsystems.DataSourceFactory {
 	return singleDataSourceFactory{mockDataSource{Initialized: false}}
 }
 
 type singleDataSourceFactory struct {
-	Instance interfaces.DataSource
+	Instance subsystems.DataSource
 }
 
 func (f singleDataSourceFactory) CreateDataSource(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	return f.Instance, nil
 }
 

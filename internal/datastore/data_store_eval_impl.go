@@ -4,18 +4,18 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 type dataStoreEvaluatorDataProviderImpl struct {
-	store   interfaces.DataStore
+	store   subsystems.DataStore
 	loggers ldlog.Loggers
 }
 
 // NewDataStoreEvaluatorDataProviderImpl creates the internal implementation of the adapter that connects
 // the Evaluator (from go-server-sdk-evaluation) with the data store.
-func NewDataStoreEvaluatorDataProviderImpl(store interfaces.DataStore, loggers ldlog.Loggers) ldeval.DataProvider {
+func NewDataStoreEvaluatorDataProviderImpl(store subsystems.DataStore, loggers ldlog.Loggers) ldeval.DataProvider {
 	return dataStoreEvaluatorDataProviderImpl{store, loggers}
 }
 

@@ -6,8 +6,8 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
 
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
@@ -21,9 +21,9 @@ const fakeUserHash = "userhash"
 // BigSegmentStoreTestSuite provides a configurable test suite for all implementations of
 // BigSegmentStore.
 type BigSegmentStoreTestSuite struct {
-	storeFactoryFn func(string) interfaces.BigSegmentStoreFactory
+	storeFactoryFn func(string) subsystems.BigSegmentStoreFactory
 	clearDataFn    func(string) error
-	setMetadataFn  func(string, interfaces.BigSegmentStoreMetadata) error
+	setMetadataFn  func(string, subsystems.BigSegmentStoreMetadata) error
 	setSegmentsFn  func(prefix, userHashKey string, included []string, excluded []string) error
 }
 
@@ -44,9 +44,9 @@ type BigSegmentStoreTestSuite struct {
 // string slices passed to setSegmentsFn are lists of segment references in the same format used
 // by BigSegmentMembership, and should be used as-is by the store.
 func NewBigSegmentStoreTestSuite(
-	storeFactoryFn func(prefix string) interfaces.BigSegmentStoreFactory,
+	storeFactoryFn func(prefix string) subsystems.BigSegmentStoreFactory,
 	clearDataFn func(prefix string) error,
-	setMetadataFn func(prefix string, metadata interfaces.BigSegmentStoreMetadata) error,
+	setMetadataFn func(prefix string, metadata subsystems.BigSegmentStoreMetadata) error,
 	setSegmentsFn func(prefix string, userHashKey string, included []string, excluded []string) error,
 ) *BigSegmentStoreTestSuite {
 	return &BigSegmentStoreTestSuite{
@@ -69,9 +69,9 @@ func (s *BigSegmentStoreTestSuite) runInternal(t testbox.TestingT) {
 
 func (s *BigSegmentStoreTestSuite) runMetadataTests(t testbox.TestingT) {
 	t.Run("valid value", func(t testbox.TestingT) {
-		expected := interfaces.BigSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisecondTime(1234567890)}
+		expected := subsystems.BigSegmentStoreMetadata{LastUpToDate: ldtime.UnixMillisecondTime(1234567890)}
 
-		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
+		s.withStoreAndEmptyData(t, func(store subsystems.BigSegmentStore) {
 			require.NoError(t, s.setMetadataFn("", expected))
 
 			meta, err := store.GetMetadata()
@@ -81,7 +81,7 @@ func (s *BigSegmentStoreTestSuite) runMetadataTests(t testbox.TestingT) {
 	})
 
 	t.Run("no value", func(t testbox.TestingT) {
-		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
+		s.withStoreAndEmptyData(t, func(store subsystems.BigSegmentStore) {
 			_, err := store.GetMetadata()
 			require.Error(t, err)
 		})
@@ -90,7 +90,7 @@ func (s *BigSegmentStoreTestSuite) runMetadataTests(t testbox.TestingT) {
 
 func (s *BigSegmentStoreTestSuite) runMembershipTests(t testbox.TestingT) {
 	t.Run("not found", func(t testbox.TestingT) {
-		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
+		s.withStoreAndEmptyData(t, func(store subsystems.BigSegmentStore) {
 			um, err := store.GetMembership(fakeUserHash)
 			require.NoError(t, err)
 			assertEqualMembership(t, nil, nil, um)
@@ -98,7 +98,7 @@ func (s *BigSegmentStoreTestSuite) runMembershipTests(t testbox.TestingT) {
 	})
 
 	t.Run("includes only", func(t testbox.TestingT) {
-		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
+		s.withStoreAndEmptyData(t, func(store subsystems.BigSegmentStore) {
 			require.NoError(t, s.setSegmentsFn("", fakeUserHash, []string{"key1", "key2"}, nil))
 
 			um, err := store.GetMembership(fakeUserHash)
@@ -108,7 +108,7 @@ func (s *BigSegmentStoreTestSuite) runMembershipTests(t testbox.TestingT) {
 	})
 
 	t.Run("excludes only", func(t testbox.TestingT) {
-		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
+		s.withStoreAndEmptyData(t, func(store subsystems.BigSegmentStore) {
 			require.NoError(t, s.setSegmentsFn("", fakeUserHash, nil, []string{"key1", "key2"}))
 
 			um, err := store.GetMembership(fakeUserHash)
@@ -118,7 +118,7 @@ func (s *BigSegmentStoreTestSuite) runMembershipTests(t testbox.TestingT) {
 	})
 
 	t.Run("includes and excludes", func(t testbox.TestingT) {
-		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
+		s.withStoreAndEmptyData(t, func(store subsystems.BigSegmentStore) {
 			require.NoError(t, s.setSegmentsFn("", fakeUserHash, []string{"key1", "key2"}, []string{"key2", "key3"}))
 			// key1 is included; key2 is included and excluded, therefore it's included; key3 is excluded
 
@@ -131,11 +131,11 @@ func (s *BigSegmentStoreTestSuite) runMembershipTests(t testbox.TestingT) {
 
 func (s *BigSegmentStoreTestSuite) withStoreAndEmptyData(
 	t testbox.TestingT,
-	action func(interfaces.BigSegmentStore),
+	action func(subsystems.BigSegmentStore),
 ) {
 	require.NoError(t, s.clearDataFn(""))
 
-	testhelpers.WithMockLoggingContext(t, func(context interfaces.ClientContext) {
+	testhelpers.WithMockLoggingContext(t, func(context subsystems.ClientContext) {
 		store, err := s.storeFactoryFn("").CreateBigSegmentStore(context)
 		require.NoError(t, err)
 		defer func() {
@@ -150,7 +150,7 @@ func assertEqualMembership(
 	t assert.TestingT,
 	expectedIncludes []string,
 	expectedExcludes []string,
-	actual interfaces.BigSegmentMembership,
+	actual subsystems.BigSegmentMembership,
 ) {
 	// Most store implementations should use our helper types from ldstoreimpl. If they do, then we
 	// can do an exact equality test. If they don't, then we'll just check that they include/exclude

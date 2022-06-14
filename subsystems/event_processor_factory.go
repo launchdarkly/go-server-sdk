@@ -1,4 +1,4 @@
-package interfaces
+package subsystems
 
 import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"

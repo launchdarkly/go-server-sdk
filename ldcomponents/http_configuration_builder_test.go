@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	helpers "github.com/launchdarkly/go-test-helpers/v2"
 	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
@@ -22,7 +23,7 @@ import (
 )
 
 func TestHTTPConfigurationBuilder(t *testing.T) {
-	basicConfig := interfaces.BasicConfiguration{SDKKey: "test-key"}
+	basicConfig := subsystems.BasicConfiguration{SDKKey: "test-key"}
 
 	t.Run("defaults", func(t *testing.T) {
 		c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)

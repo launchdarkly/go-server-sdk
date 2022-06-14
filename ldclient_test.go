@@ -7,9 +7,9 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,24 +19,24 @@ const testSdkKey = "test-sdk-key"
 
 type badFactory struct{ err error }
 
-func (f badFactory) CreateDataSource(c interfaces.ClientContext, u interfaces.DataSourceUpdates) (interfaces.DataSource, error) {
+func (f badFactory) CreateDataSource(c subsystems.ClientContext, u subsystems.DataSourceUpdates) (subsystems.DataSource, error) {
 	return nil, f.err
 }
 
-func (f badFactory) CreateDataStore(c interfaces.ClientContext, u interfaces.DataStoreUpdates) (interfaces.DataStore, error) {
+func (f badFactory) CreateDataStore(c subsystems.ClientContext, u subsystems.DataStoreUpdates) (subsystems.DataStore, error) {
 	return nil, f.err
 }
 
-func (f badFactory) CreateEventProcessor(context interfaces.ClientContext) (ldevents.EventProcessor, error) {
+func (f badFactory) CreateEventProcessor(context subsystems.ClientContext) (ldevents.EventProcessor, error) {
 	return nil, f.err
 }
 
-func (f badFactory) CreateHTTPConfiguration(context interfaces.BasicConfiguration) (interfaces.HTTPConfiguration, error) {
-	return interfaces.HTTPConfiguration{}, f.err
+func (f badFactory) CreateHTTPConfiguration(context subsystems.BasicConfiguration) (subsystems.HTTPConfiguration, error) {
+	return subsystems.HTTPConfiguration{}, f.err
 }
 
-func (f badFactory) CreateLoggingConfiguration(context interfaces.BasicConfiguration) (interfaces.LoggingConfiguration, error) {
-	return interfaces.LoggingConfiguration{}, f.err
+func (f badFactory) CreateLoggingConfiguration(context subsystems.BasicConfiguration) (subsystems.LoggingConfiguration, error) {
+	return subsystems.LoggingConfiguration{}, f.err
 }
 
 func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {

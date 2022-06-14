@@ -9,6 +9,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // This file contains internal support code for LDClient's interactions with the analytics event pipeline.
@@ -31,14 +32,14 @@ type nullEventProcessorFactoryDescription interface {
 	IsNullEventProcessorFactory() bool
 }
 
-func isNullEventProcessorFactory(f interfaces.EventProcessorFactory) bool {
+func isNullEventProcessorFactory(f subsystems.EventProcessorFactory) bool {
 	if nf, ok := f.(nullEventProcessorFactoryDescription); ok {
 		return nf.IsNullEventProcessorFactory()
 	}
 	return false
 }
 
-func getEventProcessorFactory(config Config) interfaces.EventProcessorFactory {
+func getEventProcessorFactory(config Config) subsystems.EventProcessorFactory {
 	if config.Offline {
 		return ldcomponents.NoEvents()
 	}

@@ -7,10 +7,10 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 		pdsf.store = sharedtest.NewMockPersistentDataStore()
 		f := PersistentDataStore(pdsf)
 
-		logConfig := interfaces.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}
+		logConfig := subsystems.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}
 		context := sharedtest.NewTestContext("", nil, &logConfig)
 		broadcaster := internal.NewDataStoreStatusBroadcaster()
 		dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(broadcaster)
@@ -89,14 +89,14 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 }
 
 type mockPersistentDataStoreFactory struct {
-	store           interfaces.PersistentDataStore
+	store           subsystems.PersistentDataStore
 	fakeError       error
-	receivedContext interfaces.ClientContext
+	receivedContext subsystems.ClientContext
 }
 
 func (m *mockPersistentDataStoreFactory) CreatePersistentDataStore(
-	context interfaces.ClientContext,
-) (interfaces.PersistentDataStore, error) {
+	context subsystems.ClientContext,
+) (subsystems.PersistentDataStore, error) {
 	m.receivedContext = context
 	return m.store, m.fakeError
 }
@@ -106,11 +106,11 @@ type mockPersistentDataStoreFactoryWithDescription struct {
 }
 
 func (m *mockPersistentDataStoreFactoryWithDescription) CreatePersistentDataStore(
-	context interfaces.ClientContext,
-) (interfaces.PersistentDataStore, error) {
+	context subsystems.ClientContext,
+) (subsystems.PersistentDataStore, error) {
 	return nil, nil
 }
 
-func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	return m.description
 }

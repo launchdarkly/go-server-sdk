@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	m "github.com/launchdarkly/go-test-helpers/v2/matchers"
 )
@@ -26,7 +25,7 @@ func verifyFlag(t *testing.T, configureFlag func(*FlagBuilder), expectedFlag *ld
 	expectedJSON, _ := json.Marshal(expectedFlag.Build())
 	testDataSourceTest(t, func(p testDataSourceTestParams) {
 		t.Helper()
-		p.withDataSource(t, func(interfaces.DataSource) {
+		p.withDataSource(t, func(subsystems.DataSource) {
 			t.Helper()
 			f := p.td.Flag("flagkey")
 			configureFlag(f)

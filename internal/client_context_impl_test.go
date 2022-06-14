@@ -4,18 +4,18 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClientContextImpl(t *testing.T) {
 	sdkKey := "SDK_KEY"
-	http := interfaces.HTTPConfiguration{DefaultHeaders: make(http.Header)}
+	http := subsystems.HTTPConfiguration{DefaultHeaders: make(http.Header)}
 	logging := sharedtest.TestLoggingConfig()
 
-	basic1 := interfaces.BasicConfiguration{SDKKey: sdkKey}
+	basic1 := subsystems.BasicConfiguration{SDKKey: sdkKey}
 	context1 := NewClientContextImpl(basic1, http, logging)
 	assert.Equal(t, sdkKey, context1.GetBasic().SDKKey)
 	assert.False(t, context1.GetBasic().Offline)

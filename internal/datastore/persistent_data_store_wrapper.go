@@ -5,19 +5,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/patrickmn/go-cache"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+
+	"github.com/patrickmn/go-cache"
+	"golang.org/x/sync/singleflight"
 )
 
 // persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.
 type persistentDataStoreWrapper struct {
-	core             intf.PersistentDataStore
-	dataStoreUpdates intf.DataStoreUpdates
+	core             subsystems.PersistentDataStore
+	dataStoreUpdates subsystems.DataStoreUpdates
 	statusPoller     *dataStoreStatusPoller
 	cache            *cache.Cache
 	cacheTTL         time.Duration
@@ -32,11 +32,11 @@ const initCheckedKey = "$initChecked"
 // NewPersistentDataStoreWrapper creates the implementation of DataStore that we use for all persistent data
 // stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
 func NewPersistentDataStoreWrapper(
-	core intf.PersistentDataStore,
-	dataStoreUpdates intf.DataStoreUpdates,
+	core subsystems.PersistentDataStore,
+	dataStoreUpdates subsystems.DataStoreUpdates,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
-) intf.DataStore {
+) subsystems.DataStore {
 	var myCache *cache.Cache
 	if cacheTTL != 0 {
 		myCache = cache.New(cacheTTL, 5*time.Minute)
