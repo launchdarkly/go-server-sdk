@@ -66,8 +66,7 @@ type StreamProcessor struct {
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
-	setInitializedOnce         sync.Once
-	isInitialized              bool
+	isInitialized              internal.AtomicBoolean
 	halt                       chan struct{}
 	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
@@ -107,7 +106,7 @@ func NewStreamProcessor(
 
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) IsInitialized() bool {
-	return sp.isInitialized
+	return sp.isInitialized.Get()
 }
 
 //nolint:revive // no doc comment for standard method
@@ -331,10 +330,10 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 
 func (sp *StreamProcessor) setInitializedAndNotifyClient(success bool, closeWhenReady chan<- struct{}) {
 	if success {
-		sp.setInitializedOnce.Do(func() {
+		wasAlreadyInitialized := sp.isInitialized.GetAndSet(true)
+		if !wasAlreadyInitialized {
 			sp.loggers.Info("LaunchDarkly streaming is active")
-			sp.isInitialized = true
-		})
+		}
 	}
 	sp.readyOnce.Do(func() {
 		close(closeWhenReady)
