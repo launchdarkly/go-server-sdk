@@ -45,7 +45,7 @@ type FlagTracker interface {
 	// All feature flag evaluations require an instance of ldcontext.Context. If the feature flag you are tracking
 	// tracking does not have any targeting rules, you must still pass a dummy context such as
 	// ldcontext.New("for-global-flags"). If you do not want the context to appear on your dashboard, use
-	// the Transient property: ldcontext.NewBuilder("for-global-flags").Transient(true).Build().
+	// the Anonymous property: ldcontext.NewBuilder("for-global-flags").Anonymous(true).Build().
 	//
 	// The defaultValue parameter is used if the flag cannot be evaluated; it is the same as the corresponding
 	// parameter in LDClient.JSONVariation().

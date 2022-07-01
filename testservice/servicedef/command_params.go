@@ -89,7 +89,7 @@ type ContextBuildSingleParams struct {
 	Kind      *string                  `json:"kind,omitempty"`
 	Key       string                   `json:"key"`
 	Name      *string                  `json:"name,omitempty"`
-	Transient *bool                    `json:"transient,omitempty"`
+	Anonymous *bool                    `json:"anonymous,omitempty"`
 	Secondary *string                  `json:"secondary,omitempty"`
 	Private   []string                 `json:"private,omitempty"`
 	Custom    map[string]ldvalue.Value `json:"custom,omitempty"`
