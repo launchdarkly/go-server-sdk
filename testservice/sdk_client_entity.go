@@ -213,8 +213,8 @@ func makeSingleContext(p servicedef.ContextBuildSingleParams) ldcontext.Context 
 	if p.Name != nil {
 		b.Name(*p.Name)
 	}
-	if p.Transient != nil {
-		b.Transient(*p.Transient)
+	if p.Anonymous != nil {
+		b.Anonymous(*p.Anonymous)
 	}
 	if p.Secondary != nil {
 		b.Secondary(*p.Secondary)
