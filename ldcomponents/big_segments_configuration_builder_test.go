@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ type mockBigSegmentStoreFactory struct {
 	fakeError error
 }
 
-func (m mockBigSegmentStoreFactory) CreateBigSegmentStore(interfaces.ClientContext) (interfaces.BigSegmentStore, error) {
+func (m mockBigSegmentStoreFactory) CreateBigSegmentStore(subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
 	return mockBigSegmentStore{}, m.fakeError
 }
 
@@ -23,11 +23,11 @@ type mockBigSegmentStore struct{}
 
 func (m mockBigSegmentStore) Close() error { return nil }
 
-func (m mockBigSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) {
-	return interfaces.BigSegmentStoreMetadata{}, nil
+func (m mockBigSegmentStore) GetMetadata() (subsystems.BigSegmentStoreMetadata, error) {
+	return subsystems.BigSegmentStoreMetadata{}, nil
 }
 
-func (m mockBigSegmentStore) GetMembership(string) (interfaces.BigSegmentMembership, error) {
+func (m mockBigSegmentStore) GetMembership(string) (subsystems.BigSegmentMembership, error) {
 	return nil, nil
 }
 

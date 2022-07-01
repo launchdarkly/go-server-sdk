@@ -7,10 +7,10 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // These benchmarks cover data store operations with the in-memory store.
@@ -25,7 +25,7 @@ var ( // assign to package-level variables in benchmarks so function calls won't
 )
 
 type inMemoryStoreBenchmarkEnv struct {
-	store             interfaces.DataStore
+	store             subsystems.DataStore
 	flags             []*ldmodel.FeatureFlag
 	segments          []*ldmodel.Segment
 	targetFlagKey     string

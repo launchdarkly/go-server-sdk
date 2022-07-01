@@ -10,6 +10,7 @@ import (
 	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/launchdarkly/ccache"
 
@@ -31,7 +32,7 @@ import (
 // should not have any public methods that are not strictly necessary for its use by the SDK and by
 // the Relay Proxy.
 type BigSegmentStoreWrapper struct {
-	store          interfaces.BigSegmentStore
+	store          subsystems.BigSegmentStore
 	statusUpdateFn func(interfaces.BigSegmentStoreStatus)
 	staleTime      time.Duration
 	contextCache   *ccache.Cache
@@ -131,7 +132,7 @@ func (w *BigSegmentStoreWrapper) GetMembership(
 			w.safeCacheSet(contextKey, nil, w.cacheTTL) // we cache the "not found" status
 			return nil, ldreason.BigSegmentsHealthy
 		}
-		if membership, ok := value.(interfaces.BigSegmentMembership); ok {
+		if membership, ok := value.(subsystems.BigSegmentMembership); ok {
 			w.safeCacheSet(contextKey, membership, w.cacheTTL)
 			result = membership
 		} else {
@@ -139,7 +140,7 @@ func (w *BigSegmentStoreWrapper) GetMembership(
 			return nil, ldreason.BigSegmentsStoreError
 		}
 	} else if entry.Value() != nil { // nil is a cached "not found" state
-		if membership, ok := entry.Value().(interfaces.BigSegmentMembership); ok {
+		if membership, ok := entry.Value().(subsystems.BigSegmentMembership); ok {
 			result = membership
 		} else {
 			w.loggers.Error("BigSegmentStoreWrapper got wrong value type from cache - this should not be possible")

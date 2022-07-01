@@ -3,6 +3,7 @@ package ldclient
 import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // Config exposes advanced configuration options for the LaunchDarkly client.
@@ -39,7 +40,7 @@ type Config struct {
 	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
 	//     config.BigSegmentStore = ldcomponents.BigSegments(ldredis.DataStore())
-	BigSegments interfaces.BigSegmentsConfigurationFactory
+	BigSegments subsystems.BigSegmentsConfigurationFactory
 
 	// Sets the implementation of DataSource for receiving feature flag updates.
 	//
@@ -57,7 +58,7 @@ type Config struct {
 	//
 	//     // example: specifying that data will be updated by an external process (such as the Relay Proxy)
 	//     config.DataSource = ldcomponents.ExternalUpdatesOnly()
-	DataSource interfaces.DataSourceFactory
+	DataSource subsystems.DataSourceFactory
 
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
@@ -75,7 +76,7 @@ type Config struct {
 	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
 	//     config.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore())
-	DataStore interfaces.DataStoreFactory
+	DataStore subsystems.DataStoreFactory
 
 	// Set to true to opt out of sending diagnostic events.
 	//
@@ -95,7 +96,7 @@ type Config struct {
 	//
 	//     // example: enable events, flush the events every 10 seconds, buffering up to 5000 events
 	//     config.Events = ldcomponents.SendEvents().FlushInterval(10 * time.Second).Capacity(5000)
-	Events interfaces.EventProcessorFactory
+	Events subsystems.EventProcessorFactory
 
 	// Provides configuration of the SDK's network connection behavior.
 	//

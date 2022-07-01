@@ -9,11 +9,12 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 type dataStoreStatusProviderTestParams struct {
 	dataStore               *sharedtest.CapturingDataStore
-	dataStoreUpdates        interfaces.DataStoreUpdates
+	dataStoreUpdates        subsystems.DataStoreUpdates
 	dataStoreStatusProvider interfaces.DataStoreStatusProvider
 }
 

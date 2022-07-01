@@ -4,6 +4,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 type nullDataSourceFactory struct{}
@@ -22,15 +23,15 @@ type nullDataSourceFactory struct{}
 //     config := ld.Config{
 //         DataSource: ldcomponents.ExternalUpdatesOnly(),
 //     }
-func ExternalUpdatesOnly() interfaces.DataSourceFactory {
+func ExternalUpdatesOnly() subsystems.DataSourceFactory {
 	return nullDataSourceFactory{}
 }
 
 // DataSourceFactory implementation
 func (f nullDataSourceFactory) CreateDataSource(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
 	if dataSourceUpdates != nil {
 		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
@@ -39,7 +40,7 @@ func (f nullDataSourceFactory) CreateDataSource(
 }
 
 // DiagnosticDescription implementation
-func (f nullDataSourceFactory) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+func (f nullDataSourceFactory) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	// This information is only used for diagnostic events, and if we're able to send diagnostic events,
 	// then by definition we're not completely offline so we must be using daemon mode.
 	return ldvalue.ObjectBuild().

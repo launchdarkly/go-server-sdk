@@ -5,22 +5,22 @@ import (
 	"os"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fileDataSourceTestParams struct {
-	dataSource     interfaces.DataSource
+	dataSource     subsystems.DataSource
 	updates        *sharedtest.MockDataSourceUpdates
 	mockLog        *ldlogtest.MockLog
 	closeWhenReady chan struct{}
@@ -31,10 +31,10 @@ func (p fileDataSourceTestParams) waitForStart() {
 	<-p.closeWhenReady
 }
 
-func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
+func withFileDataSourceTestParams(factory subsystems.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
 	mockLog := ldlogtest.NewMockLog()
-	testContext := sharedtest.NewTestContext("", nil, &interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
+	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
 	dataSource, err := factory.CreateDataSource(testContext, updates)
@@ -46,7 +46,7 @@ func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action f
 	action(fileDataSourceTestParams{dataSource, updates, mockLog, make(chan struct{})})
 }
 
-func expectCreationError(t *testing.T, factory interfaces.DataSourceFactory) error {
+func expectCreationError(t *testing.T, factory subsystems.DataSourceFactory) error {
 	testContext := sharedtest.NewTestContext("", nil, nil)
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
@@ -231,14 +231,14 @@ func TestReloaderFailureDoesNotPreventStarting(t *testing.T) {
 	})
 }
 
-func requireFlag(t *testing.T, store interfaces.DataStore, key string) *ldmodel.FeatureFlag {
+func requireFlag(t *testing.T, store subsystems.DataStore, key string) *ldmodel.FeatureFlag {
 	item, err := store.Get(datakinds.Features, key)
 	require.NoError(t, err)
 	require.NotNil(t, item.Item)
 	return item.Item.(*ldmodel.FeatureFlag)
 }
 
-func requireSegment(t *testing.T, store interfaces.DataStore, key string) *ldmodel.Segment {
+func requireSegment(t *testing.T, store subsystems.DataStore, key string) *ldmodel.Segment {
 	item, err := store.Get(datakinds.Segments, key)
 	require.NoError(t, err)
 	require.NotNil(t, item.Item)

@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI.
@@ -65,13 +65,13 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 
 // CreateDataSource is called by the SDK to create the data source instance.
 func (b *PollingDataSourceBuilder) CreateDataSource(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetBasic().ServiceEndpoints,
+		context.GetServiceEndpoints(),
 		endpoints.PollingService,
 		b.baseURI,
 		context.GetLogging().Loggers,
@@ -81,11 +81,11 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *PollingDataSourceBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+func (b *PollingDataSourceBuilder) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", true).
 		SetBool("customBaseURI",
-			endpoints.IsCustom(context.GetBasic().ServiceEndpoints, endpoints.PollingService, b.baseURI)).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.PollingService, b.baseURI)).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		SetBool("usingRelayDaemon", false).
 		Build()

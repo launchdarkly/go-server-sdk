@@ -7,6 +7,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // TestDataSource is a test fixture that provides dynamically updatable feature flag state in a
@@ -23,7 +24,7 @@ type TestDataSource struct {
 
 type testDataSourceImpl struct {
 	owner   *TestDataSource
-	updates interfaces.DataSourceUpdates
+	updates subsystems.DataSourceUpdates
 }
 
 // DataSource creates an instance of TestDataSource.
@@ -183,9 +184,9 @@ func (t *TestDataSource) updateInternal(
 // CreateDataSource is called internally by the SDK to associate this test data source with an
 // LDClient instance. You do not need to call this method.
 func (t *TestDataSource) CreateDataSource(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
-) (interfaces.DataSource, error) {
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
+) (subsystems.DataSource, error) {
 	instance := &testDataSourceImpl{owner: t, updates: dataSourceUpdates}
 	t.lock.Lock()
 	t.instances = append(t.instances, instance)

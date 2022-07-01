@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/ldhttp"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // DefaultConnectTimeout is the HTTP connection timeout that is used if HTTPConfigurationBuilder.ConnectTimeout
@@ -174,7 +174,7 @@ func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *
 }
 
 // DescribeConfiguration is internally by the SDK to inspect the configuration.
-func (b *HTTPConfigurationBuilder) DescribeConfiguration(context interfaces.ClientContext) ldvalue.Value {
+func (b *HTTPConfigurationBuilder) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	if !b.checkValid() {
 		defaults := HTTPConfigurationBuilder{}
 		return defaults.DescribeConfiguration(context)
@@ -207,15 +207,15 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 
 // CreateHTTPConfiguration is called internally by the SDK.
 func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
-	basicConfiguration interfaces.BasicConfiguration,
-) (interfaces.HTTPConfiguration, error) {
+	clientContext subsystems.ClientContext,
+) (subsystems.HTTPConfiguration, error) {
 	if !b.checkValid() {
 		defaults := HTTPConfigurationBuilder{}
-		return defaults.CreateHTTPConfiguration(basicConfiguration)
+		return defaults.CreateHTTPConfiguration(clientContext)
 	}
 
 	headers := make(http.Header)
-	headers.Set("Authorization", basicConfiguration.SDKKey)
+	headers.Set("Authorization", clientContext.GetSDKKey())
 	userAgent := "GoClient/" + internal.SDKVersion
 	if b.userAgent != "" {
 		userAgent = userAgent + " " + b.userAgent
@@ -224,7 +224,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.wrapperIdentifier != "" {
 		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
 	}
-	if tagsHeaderValue := buildTagsHeaderValue(basicConfiguration); tagsHeaderValue != "" {
+	if tagsHeaderValue := buildTagsHeaderValue(clientContext); tagsHeaderValue != "" {
 		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
 	}
 
@@ -239,7 +239,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 	if b.proxyURL != "" {
 		u, err := url.Parse(b.proxyURL)
 		if err != nil {
-			return interfaces.HTTPConfiguration{}, err
+			return subsystems.HTTPConfiguration{}, err
 		}
 		transportOpts = append(transportOpts, ldhttp.ProxyOption(*u))
 	}
@@ -253,7 +253,7 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		transportOpts = append(transportOpts, ldhttp.ConnectTimeoutOption(connectTimeout))
 		transport, _, err := ldhttp.NewHTTPTransport(transportOpts...)
 		if err != nil {
-			return interfaces.HTTPConfiguration{}, err
+			return subsystems.HTTPConfiguration{}, err
 		}
 		clientFactory = func() *http.Client {
 			return &http.Client{
@@ -263,19 +263,19 @@ func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
 		}
 	}
 
-	return interfaces.HTTPConfiguration{
+	return subsystems.HTTPConfiguration{
 		DefaultHeaders:   headers,
 		CreateHTTPClient: clientFactory,
 	}, nil
 }
 
-func buildTagsHeaderValue(basicConfig interfaces.BasicConfiguration) string {
+func buildTagsHeaderValue(clientContext subsystems.ClientContext) string {
 	var parts []string
-	if basicConfig.ApplicationInfo.ApplicationID != "" {
-		parts = append(parts, fmt.Sprintf("application-id/%s", basicConfig.ApplicationInfo.ApplicationID))
+	if value := clientContext.GetApplicationInfo().ApplicationID; value != "" {
+		parts = append(parts, fmt.Sprintf("application-id/%s", value))
 	}
-	if basicConfig.ApplicationInfo.ApplicationVersion != "" {
-		parts = append(parts, fmt.Sprintf("application-version/%s", basicConfig.ApplicationInfo.ApplicationVersion))
+	if value := clientContext.GetApplicationInfo().ApplicationVersion; value != "" {
+		parts = append(parts, fmt.Sprintf("application-version/%s", value))
 	}
 	return strings.Join(parts, " ")
 }

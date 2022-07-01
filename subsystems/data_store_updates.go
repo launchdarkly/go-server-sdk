@@ -1,4 +1,6 @@
-package interfaces
+package subsystems
+
+import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 
 // DataStoreUpdates is an interface that a data store implementation can use to report information
 // back to the SDK.
@@ -11,5 +13,5 @@ type DataStoreUpdates interface {
 	// UpdateStatus informs the SDK of a change in the data store's operational status.
 	//
 	// This is what makes the status monitoring mechanisms in DataStoreStatusProvider work.
-	UpdateStatus(newStatus DataStoreStatus)
+	UpdateStatus(newStatus interfaces.DataStoreStatus)
 }

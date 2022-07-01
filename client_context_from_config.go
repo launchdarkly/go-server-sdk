@@ -5,9 +5,9 @@ import (
 	"regexp"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 var validTagKeyOrValueRegex = regexp.MustCompile(`(?s)^[\w.-]*$`)
@@ -25,7 +25,7 @@ func newClientContextFromConfig(
 		return nil, errors.New("SDK key contains invalid characters")
 	}
 
-	basicConfig := interfaces.BasicConfiguration{
+	basicConfig := subsystems.BasicClientContext{
 		SDKKey:           sdkKey,
 		Offline:          config.Offline,
 		ServiceEndpoints: config.ServiceEndpoints,
@@ -35,12 +35,12 @@ func newClientContextFromConfig(
 	if loggingFactory == nil {
 		loggingFactory = ldcomponents.Logging()
 	}
-	logging := loggingFactory.CreateLoggingConfiguration(basicConfig)
+	basicConfig.Logging = loggingFactory.CreateLoggingConfiguration(basicConfig)
 
 	basicConfig.ApplicationInfo.ApplicationID = validateTagValue(config.ApplicationInfo.ApplicationID,
-		"ApplicationID", logging.Loggers)
+		"ApplicationID", basicConfig.Logging.Loggers)
 	basicConfig.ApplicationInfo.ApplicationVersion = validateTagValue(config.ApplicationInfo.ApplicationVersion,
-		"ApplicationVersion", logging.Loggers)
+		"ApplicationVersion", basicConfig.Logging.Loggers)
 
 	httpFactory := config.HTTP
 	if httpFactory == nil {
@@ -50,12 +50,9 @@ func newClientContextFromConfig(
 	if err != nil {
 		return nil, err
 	}
+	basicConfig.HTTP = http
 
-	return internal.NewClientContextImpl(
-		basicConfig,
-		http,
-		logging,
-	), nil
+	return &internal.ClientContextImpl{BasicClientContext: basicConfig}, nil
 }
 
 func stringIsValidHTTPHeaderValue(s string) bool {

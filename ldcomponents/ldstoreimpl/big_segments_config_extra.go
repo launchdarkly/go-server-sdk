@@ -3,7 +3,7 @@ package ldstoreimpl
 import (
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // BigSegmentsConfigurationProperties encapsulates the SDK's configuration with regard to Big Segments.
@@ -13,7 +13,7 @@ import (
 // may be changed to use concrete types instead of interfaces.
 type BigSegmentsConfigurationProperties struct {
 	// Store the data store instance that is used for Big Segments data. If nil, Big Segments are disabled.
-	Store interfaces.BigSegmentStore
+	Store subsystems.BigSegmentStore
 
 	// ContextCacheSize is the maximum number of contexts whose Big Segment state will be cached by the SDK
 	// at any given time.
@@ -37,7 +37,7 @@ type BigSegmentsConfigurationProperties struct {
 	StartPolling bool
 }
 
-func (p BigSegmentsConfigurationProperties) GetStore() interfaces.BigSegmentStore { //nolint:revive
+func (p BigSegmentsConfigurationProperties) GetStore() subsystems.BigSegmentStore { //nolint:revive
 	return p.Store
 }
 

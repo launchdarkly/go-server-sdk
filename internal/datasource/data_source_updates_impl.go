@@ -10,13 +10,14 @@ import (
 	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
 type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
-	store                       intf.DataStore
+	store                       subsystems.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
 	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
 	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
@@ -30,7 +31,7 @@ type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package 
 
 // NewDataSourceUpdatesImpl creates the internal implementation of DataSourceUpdates.
 func NewDataSourceUpdatesImpl(
-	store intf.DataStore,
+	store subsystems.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
 	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster,
 	flagChangeEventBroadcaster *internal.FlagChangeEventBroadcaster,

@@ -6,6 +6,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataSourceUpdates  interfaces.DataSourceUpdates
+	dataSourceUpdates  subsystems.DataSourceUpdates
 	requestor          requestor
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
@@ -31,8 +32,8 @@ type PollingProcessor struct {
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
 func NewPollingProcessor(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
 	baseURI string,
 	pollInterval time.Duration,
 ) *PollingProcessor {
@@ -41,8 +42,8 @@ func NewPollingProcessor(
 }
 
 func newPollingProcessor(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
 	requestor requestor,
 	pollInterval time.Duration,
 ) *PollingProcessor {

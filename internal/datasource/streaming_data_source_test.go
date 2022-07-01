@@ -16,6 +16,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/eventsource"
@@ -68,8 +69,8 @@ func runStreamingTestWithConfiguration(
 	mockLog := ldlogtest.NewMockLog()
 	mockLog.Loggers.SetMinLevel(ldlog.Debug)
 	defer mockLog.DumpIfTestFailed(t)
-	context := sharedtest.NewTestContext("", &interfaces.HTTPConfiguration{DefaultHeaders: headers},
-		&interfaces.LoggingConfiguration{Loggers: mockLog.Loggers})
+	context := sharedtest.NewTestContext("", &subsystems.HTTPConfiguration{DefaultHeaders: headers},
+		&subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
@@ -411,12 +412,13 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := internal.NewClientContextImpl(
-				interfaces.BasicConfiguration{SDKKey: testSDKKey},
-				interfaces.HTTPConfiguration{},
-				interfaces.LoggingConfiguration{Loggers: mockLog.Loggers},
-			)
-			context.DiagnosticsManager = diagnosticsManager
+			context := &internal.ClientContextImpl{
+				BasicClientContext: subsystems.BasicClientContext{
+					SDKKey:  testSDKKey,
+					Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
+				},
+				DiagnosticsManager: diagnosticsManager,
+			}
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, time.Second)
 			defer sp.Close()
@@ -456,12 +458,13 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
-			context := internal.NewClientContextImpl(
-				interfaces.BasicConfiguration{SDKKey: testSDKKey},
-				interfaces.HTTPConfiguration{},
-				interfaces.LoggingConfiguration{Loggers: mockLog.Loggers},
-			)
-			context.DiagnosticsManager = diagnosticsManager
+			context := &internal.ClientContextImpl{
+				BasicClientContext: subsystems.BasicClientContext{
+					SDKKey:  testSDKKey,
+					Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
+				},
+				DiagnosticsManager: diagnosticsManager,
+			}
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
 			defer sp.Close()
@@ -498,7 +501,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
-			httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
@@ -524,7 +527,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 				c.Timeout = 200 * time.Millisecond
 				return &c
 			}
-			httpConfig := interfaces.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)

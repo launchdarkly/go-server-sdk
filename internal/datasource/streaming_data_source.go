@@ -12,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	es "github.com/launchdarkly/eventsource"
 )
@@ -59,7 +60,7 @@ const (
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type StreamProcessor struct {
-	dataSourceUpdates          interfaces.DataSourceUpdates
+	dataSourceUpdates          subsystems.DataSourceUpdates
 	streamURI                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
@@ -78,8 +79,8 @@ type StreamProcessor struct {
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
-	context interfaces.ClientContext,
-	dataSourceUpdates interfaces.DataSourceUpdates,
+	context subsystems.ClientContext,
+	dataSourceUpdates subsystems.DataSourceUpdates,
 	streamURI string,
 	initialReconnectDelay time.Duration,
 ) *StreamProcessor {

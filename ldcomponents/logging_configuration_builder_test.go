@@ -4,16 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoggingConfigurationBuilder(t *testing.T) {
-	basicConfig := interfaces.BasicConfiguration{}
+	basicConfig := subsystems.BasicClientContext{}
 
 	t.Run("defaults", func(t *testing.T) {
 		c := Logging().CreateLoggingConfiguration(basicConfig)
@@ -60,6 +59,6 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 		var b *LoggingConfigurationBuilder = nil
 		b = b.LogContextKeyInErrors(true).LogDataSourceOutageAsErrorAfter(0).LogEvaluationErrors(true).
 			Loggers(ldlog.NewDefaultLoggers()).MinLevel(ldlog.Debug)
-		_ = b.CreateLoggingConfiguration(sharedtest.NewSimpleTestContext("").GetBasic())
+		_ = b.CreateLoggingConfiguration(subsystems.BasicClientContext{})
 	})
 }

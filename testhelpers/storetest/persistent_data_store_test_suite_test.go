@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // This verifies that the PersistentDataStoreTestSuite tests behave as expected as long as the
@@ -27,7 +27,7 @@ type mockStoreFactory struct {
 	fakeError           error
 }
 
-func (f mockStoreFactory) CreatePersistentDataStore(context interfaces.ClientContext) (interfaces.PersistentDataStore, error) {
+func (f mockStoreFactory) CreatePersistentDataStore(context subsystems.ClientContext) (subsystems.PersistentDataStore, error) {
 	store := sh.NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
 	store.SetPersistOnlyAsString(f.persistOnlyAsString)
 	store.SetFakeError(f.fakeError)
@@ -39,7 +39,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 
 	baseSuite := func(persistOnlyAsString bool, fakeError error) *PersistentDataStoreTestSuite {
 		return NewPersistentDataStoreTestSuite(
-			func(prefix string) interfaces.PersistentDataStoreFactory {
+			func(prefix string) subsystems.PersistentDataStoreFactory {
 				return mockStoreFactory{db, prefix, persistOnlyAsString, fakeError}
 			},
 			func(prefix string) error {
@@ -52,7 +52,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 	runTests := func(t *testing.T, persistOnlyAsString bool) {
 		baseSuite(persistOnlyAsString, nil).
 			ConcurrentModificationHook(
-				func(store interfaces.PersistentDataStore, hook func()) {
+				func(store subsystems.PersistentDataStore, hook func()) {
 					store.(*sh.MockPersistentDataStore).SetTestTxHook(hook)
 				}).
 			Run(t)

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // SingleEventProcessorFactory is a test implementation of EventProcessorFactory that always returns the same
@@ -14,7 +14,7 @@ type SingleEventProcessorFactory struct {
 }
 
 func (f SingleEventProcessorFactory) CreateEventProcessor( //nolint:revive
-	context interfaces.ClientContext,
+	context subsystems.ClientContext,
 ) (ldevents.EventProcessor, error) {
 	return f.Instance, nil
 }

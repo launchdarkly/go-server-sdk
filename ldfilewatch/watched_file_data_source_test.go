@@ -13,15 +13,15 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/ldfiledata"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 type fileDataSourceTestParams struct {
-	dataSource     interfaces.DataSource
+	dataSource     subsystems.DataSource
 	updates        *sharedtest.MockDataSourceUpdates
 	mockLog        *ldlogtest.MockLog
 	closeWhenReady chan struct{}
@@ -32,11 +32,11 @@ func (p fileDataSourceTestParams) waitForStart() {
 	<-p.closeWhenReady
 }
 
-func withFileDataSourceTestParams(factory interfaces.DataSourceFactory, action func(fileDataSourceTestParams)) {
+func withFileDataSourceTestParams(factory subsystems.DataSourceFactory, action func(fileDataSourceTestParams)) {
 	p := fileDataSourceTestParams{}
 	p.closeWhenReady = make(chan struct{})
 	p.mockLog = ldlogtest.NewMockLog()
-	testContext := sharedtest.NewTestContext("", nil, &interfaces.LoggingConfiguration{Loggers: p.mockLog.Loggers})
+	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: p.mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	p.updates = sharedtest.NewMockDataSourceUpdates(store)
 	dataSource, err := factory.CreateDataSource(testContext, p.updates)
@@ -98,7 +98,7 @@ func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() 
 	}
 }
 
-func hasFlag(t *testing.T, store interfaces.DataStore, key string, test func(ldmodel.FeatureFlag) bool) bool {
+func hasFlag(t *testing.T, store subsystems.DataStore, key string, test func(ldmodel.FeatureFlag) bool) bool {
 	flagItem, err := store.Get(datakinds.Features, key)
 	if assert.NoError(t, err) && flagItem.Item != nil {
 		return test(*(flagItem.Item.(*ldmodel.FeatureFlag)))

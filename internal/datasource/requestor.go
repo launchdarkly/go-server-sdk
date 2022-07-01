@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/gregjones/httpcache"
 
@@ -36,7 +36,7 @@ func (e malformedJSONError) Error() string {
 }
 
 func newRequestorImpl(
-	context interfaces.ClientContext,
+	context subsystems.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
 ) requestor {

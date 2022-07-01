@@ -3,8 +3,8 @@ package ldcomponents
 import (
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // DefaultBigSegmentsContextCacheSize is the default value for
@@ -41,7 +41,7 @@ const DefaultBigSegmentsStaleAfter = time.Second * 120
 // You only need to use the methods of BigSegmentsConfigurationBuilder if you want to customize
 // options other than the data store itself.
 type BigSegmentsConfigurationBuilder struct {
-	storeFactory interfaces.BigSegmentStoreFactory
+	storeFactory subsystems.BigSegmentStoreFactory
 	config       ldstoreimpl.BigSegmentsConfigurationProperties
 }
 
@@ -68,7 +68,7 @@ type BigSegmentsConfigurationBuilder struct {
 // If you do not set Config.BigSegments-- or if you pass a nil storeFactory to this function-- the
 // Big Segments feature will be disabled, and any feature flags that reference a Big Segment will
 // behave as if the evaluation context was not included in the segment.
-func BigSegments(storeFactory interfaces.BigSegmentStoreFactory) *BigSegmentsConfigurationBuilder {
+func BigSegments(storeFactory subsystems.BigSegmentStoreFactory) *BigSegmentsConfigurationBuilder {
 	return &BigSegmentsConfigurationBuilder{
 		storeFactory: storeFactory,
 		config: ldstoreimpl.BigSegmentsConfigurationProperties{
@@ -147,8 +147,8 @@ func (b *BigSegmentsConfigurationBuilder) StaleAfter(
 
 // CreateBigSegmentsConfiguration is called internally by the SDK.
 func (b *BigSegmentsConfigurationBuilder) CreateBigSegmentsConfiguration(
-	context interfaces.ClientContext,
-) (interfaces.BigSegmentsConfiguration, error) {
+	context subsystems.ClientContext,
+) (subsystems.BigSegmentsConfiguration, error) {
 	config := b.config
 	if b.storeFactory != nil {
 		store, err := b.storeFactory.CreateBigSegmentStore(context)

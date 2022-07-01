@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
@@ -19,7 +19,7 @@ import (
 //     }
 type LoggingConfigurationBuilder struct {
 	inited bool
-	config interfaces.LoggingConfiguration
+	config subsystems.LoggingConfiguration
 }
 
 // DefaultLogDataSourceOutageAsErrorAfter is the default value for
@@ -45,7 +45,7 @@ func (b *LoggingConfigurationBuilder) checkValid() bool {
 		return false
 	}
 	if !b.inited {
-		b.config = interfaces.LoggingConfiguration{
+		b.config = subsystems.LoggingConfiguration{
 			LogDataSourceOutageAsErrorAfter: DefaultLogDataSourceOutageAsErrorAfter,
 			Loggers:                         ldlog.NewDefaultLoggers(),
 		}
@@ -121,11 +121,11 @@ func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingCon
 
 // CreateLoggingConfiguration is called internally by the SDK.
 func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
-	basic interfaces.BasicConfiguration,
-) interfaces.LoggingConfiguration {
+	clientContext subsystems.ClientContext,
+) subsystems.LoggingConfiguration {
 	if !b.checkValid() {
 		defaults := LoggingConfigurationBuilder{}
-		return defaults.CreateLoggingConfiguration(basic)
+		return defaults.CreateLoggingConfiguration(clientContext)
 	}
 	return b.config
 }
