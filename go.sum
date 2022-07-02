@@ -61,8 +61,9 @@ gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.0/go.mod h1:YefdBjfITIP8D9BJLVbssFct
 gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.1 h1:aZHvMDAS+M6/0sRMkDBQ8MyLGsTQrNgN5evu5e8UYpQ=
 gopkg.in/launchdarkly/go-jsonstream.v1 v1.0.1/go.mod h1:YefdBjfITIP8D9BJLVbssFctHkJnQXhv+TiRdTV0Jr4=
 gopkg.in/launchdarkly/go-sdk-common.v2 v2.2.1/go.mod h1:Fht0iTasUXh2xiDA8IJSmlSGbyQ1GNpmt97lXYz6+p8=
-gopkg.in/launchdarkly/go-sdk-common.v2 v2.4.0 h1:uA7it+cSIDIF4AhLoaLvQ5h9TxvSSVmn/CsJiAqrm4E=
 gopkg.in/launchdarkly/go-sdk-common.v2 v2.4.0/go.mod h1:P2+C6CHteys+lEDd6298QszCsMhjdYrfzBd6dg//CHA=
+gopkg.in/launchdarkly/go-sdk-common.v2 v2.5.1 h1:RqucG3hCU/GAupuEyVXXPf0Hz3F4InyhiFR2sfUbgBs=
+gopkg.in/launchdarkly/go-sdk-common.v2 v2.5.1/go.mod h1:P2+C6CHteys+lEDd6298QszCsMhjdYrfzBd6dg//CHA=
 gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.1 h1:LfbZsHTPwjzhDbJ/IjYs0oc8rWcbyJM7nN+Ce4ZdUVM=
 gopkg.in/launchdarkly/go-sdk-events.v1 v1.1.1/go.mod h1:UETsxDtKpoDGUrwliXl1L7OG68zjOO0aagDI8OnvDRw=
 gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.5.0 h1:gA0F8n0sJ0K6LOLuyC28+O4garjdaU2T3m5mk1Fki8g=
