@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
 
 	"github.com/stretchr/testify/assert"

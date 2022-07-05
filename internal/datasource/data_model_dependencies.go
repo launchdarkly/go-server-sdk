@@ -6,7 +6,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 

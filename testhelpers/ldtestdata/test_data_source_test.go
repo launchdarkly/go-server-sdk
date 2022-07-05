@@ -10,8 +10,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/stretchr/testify/assert"

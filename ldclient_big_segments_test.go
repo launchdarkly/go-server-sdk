@@ -13,7 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
