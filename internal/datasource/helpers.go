@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
 	"github.com/launchdarkly/go-jsonstream/v2/jreader"
 )

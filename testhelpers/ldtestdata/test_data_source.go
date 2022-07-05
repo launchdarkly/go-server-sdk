@@ -5,9 +5,9 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 // TestDataSource is a test fixture that provides dynamically updatable feature flag state in a

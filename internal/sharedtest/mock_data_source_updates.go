@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 // MockDataSourceUpdates is a mock implementation of DataSourceUpdates for testing data sources.

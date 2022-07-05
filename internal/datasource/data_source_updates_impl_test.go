@@ -15,11 +15,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 const testDataSourceOutageTimeout = 200 * time.Millisecond

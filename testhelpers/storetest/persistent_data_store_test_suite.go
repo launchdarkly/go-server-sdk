@@ -12,11 +12,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
 	ld "github.com/launchdarkly/go-server-sdk/v6"
-	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	ssys "github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
 
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"

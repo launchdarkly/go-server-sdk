@@ -2,7 +2,7 @@ package subsystems
 
 import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 // DataSourceUpdates is an interface that a data source implementation will use to push data into the SDK.

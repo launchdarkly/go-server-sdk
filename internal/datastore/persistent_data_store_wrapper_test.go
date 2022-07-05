@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	s "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
