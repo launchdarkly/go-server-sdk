@@ -3,7 +3,7 @@ package subsystems
 import (
 	"io"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 // PersistentDataStore is an interface for a data store that holds feature flags and related data in a

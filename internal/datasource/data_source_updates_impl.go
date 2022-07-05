@@ -7,10 +7,10 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	st "github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
