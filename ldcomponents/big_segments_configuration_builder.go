@@ -3,8 +3,8 @@ package ldcomponents
 import (
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 )
 
 // DefaultBigSegmentsContextCacheSize is the default value for
