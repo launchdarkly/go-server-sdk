@@ -10,7 +10,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 func TestAllKinds(t *testing.T) {

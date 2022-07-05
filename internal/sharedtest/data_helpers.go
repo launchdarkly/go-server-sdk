@@ -4,8 +4,8 @@ import (
 	"sort"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 )
 

@@ -3,7 +3,7 @@ package subsystems
 import (
 	"io"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
 // DataStoreFactory is a factory that creates some implementation of DataStore.
