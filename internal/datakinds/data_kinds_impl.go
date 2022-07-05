@@ -10,7 +10,7 @@ import (
 // This file defines the StoreDataKind implementations corresponding to our two top-level data model
 // types, FeatureFlag and Segment (both of which are defined in go-server-sdk-evaluation). We access
 // these objects directly throughout the SDK. We also export them indirectly in the package
-// ldcomponents/ldstoreimpl, because they may be needed by external code that is implementing a
+// subsystems/ldstoreimpl, because they may be needed by external code that is implementing a
 // custom data store.
 
 //nolint:gochecknoglobals // global used as a constant for efficiency

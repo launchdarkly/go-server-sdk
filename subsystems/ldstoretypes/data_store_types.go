@@ -7,7 +7,7 @@ package ldstoretypes
 // specific data kind (such as feature flags), but should treat all data kinds generically.
 //
 // The SDK's standard implementations of this type are available in the
-// ldcomponents/ldstoreimpl package.
+// subsystems/ldstoreimpl package.
 type DataKind interface {
 	GetName() string
 	Serialize(item ItemDescriptor) []byte

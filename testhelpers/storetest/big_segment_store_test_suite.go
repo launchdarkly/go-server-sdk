@@ -6,8 +6,8 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
 
 	"github.com/launchdarkly/go-test-helpers/v2/testbox"
