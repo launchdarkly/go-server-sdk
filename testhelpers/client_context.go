@@ -1,7 +1,6 @@
 package testhelpers
 
 import (
-	"net/http"
 	"os"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
