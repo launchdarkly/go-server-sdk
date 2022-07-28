@@ -28,8 +28,8 @@ github.com/launchdarkly/go-ntlmssp v1.0.1 h1:snB77118TQvf9tfHrkSyrIop/UX5e5VD2D2
 github.com/launchdarkly/go-ntlmssp v1.0.1/go.mod h1:/cq3t2JyALD7GdVF5BEWcEuGlIGa44FZ4v4CVk7vuCY=
 github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.6/go.mod h1:YnR3wgQ71r/ORkZeMG2OPAZFrb9Xcd5rH3QKiK3Z45A=
 github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.7/go.mod h1:YnR3wgQ71r/ORkZeMG2OPAZFrb9Xcd5rH3QKiK3Z45A=
-github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.8 h1:M8ScsoZjwNsr92kgMgGHNlQfJgChTGKys27n2VgBWhE=
-github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.8/go.mod h1:YnR3wgQ71r/ORkZeMG2OPAZFrb9Xcd5rH3QKiK3Z45A=
+github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.11 h1:rAtM8+6ev8q1UJD8wP4neQnecbHJOU05v9yH1SNLwy8=
+github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.11/go.mod h1:YnR3wgQ71r/ORkZeMG2OPAZFrb9Xcd5rH3QKiK3Z45A=
 github.com/launchdarkly/go-sdk-events/v2 v2.0.0-alpha.pub.5 h1:My6btOsmx2vpy1IrjQtArRdLcO+rXTrC0yBV5pwRn9Q=
 github.com/launchdarkly/go-sdk-events/v2 v2.0.0-alpha.pub.5/go.mod h1:+x7AVdp9uNVJoCols9hQrnkkT7aGSO76MuSXHQTFPjk=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=
