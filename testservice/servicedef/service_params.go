@@ -10,6 +10,7 @@ const (
 	CapabilityAllFlagsDetailsOnlyForTrackedFlags = "all-flags-details-only-for-tracked-flags"
 
 	CapabilityBigSegments       = "big-segments"
+	CapabilitySecureModeHash    = "secure-mode-hash"
 	CapabilityServerSidePolling = "server-side-polling"
 	CapabilityServiceEndpoints  = "service-endpoints"
 	CapabilityTags              = "tags"

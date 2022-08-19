@@ -89,6 +89,9 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 	case servicedef.CommandGetBigSegmentStoreStatus:
 		bigSegmentsStatus := c.sdk.GetBigSegmentStoreStatusProvider().GetStatus()
 		return servicedef.BigSegmentStoreStatusResponse(bigSegmentsStatus), nil
+	case servicedef.CommandSecureModeHash:
+		hash := c.sdk.SecureModeHash(params.SecureModeHash.User)
+		return servicedef.SecureModeHashResponse{Result: hash}, nil
 	default:
 		return nil, BadRequestError{Message: fmt.Sprintf("unknown command %q", params.Command)}
 	}

@@ -29,6 +29,7 @@ var capabilities = []string{
 	servicedef.CapabilityAllFlagsDetailsOnlyForTrackedFlags,
 	servicedef.CapabilityAllFlagsWithReasons,
 	servicedef.CapabilityBigSegments,
+	servicedef.CapabilitySecureModeHash,
 	servicedef.CapabilityServerSidePolling,
 	servicedef.CapabilityServiceEndpoints,
 	servicedef.CapabilityTags,
