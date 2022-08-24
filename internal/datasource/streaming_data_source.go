@@ -13,9 +13,10 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
-	"golang.org/x/exp/maps"
 
 	es "github.com/launchdarkly/eventsource"
+
+	"golang.org/x/exp/maps"
 )
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in

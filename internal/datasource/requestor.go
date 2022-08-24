@@ -8,11 +8,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
-	"golang.org/x/exp/maps"
-
-	"github.com/gregjones/httpcache"
 
 	"github.com/launchdarkly/go-jsonstream/v2/jreader"
+
+	"github.com/gregjones/httpcache"
+	"golang.org/x/exp/maps"
 )
 
 // requestor is the interface implemented by requestorImpl, used for testing purposes

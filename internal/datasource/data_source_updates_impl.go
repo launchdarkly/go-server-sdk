@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
@@ -20,8 +19,8 @@ import (
 type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
 	store                       subsystems.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
-	dataSourceStatusBroadcaster *internal.Broadcaster[interfaces.DataSourceStatus]
-	flagChangeEventBroadcaster  *internal.Broadcaster[interfaces.FlagChangeEvent]
+	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus]
+	flagChangeEventBroadcaster  *internal.Broadcaster[intf.FlagChangeEvent]
 	dependencyTracker           *dependencyTracker
 	outageTracker               *outageTracker
 	loggers                     ldlog.Loggers
@@ -34,8 +33,8 @@ type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package 
 func NewDataSourceUpdatesImpl(
 	store subsystems.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
-	dataSourceStatusBroadcaster *internal.Broadcaster[interfaces.DataSourceStatus],
-	flagChangeEventBroadcaster *internal.Broadcaster[interfaces.FlagChangeEvent],
+	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus],
+	flagChangeEventBroadcaster *internal.Broadcaster[intf.FlagChangeEvent],
 	logDataSourceOutageAsErrorAfter time.Duration,
 	loggers ldlog.Loggers,
 ) *DataSourceUpdatesImpl {
