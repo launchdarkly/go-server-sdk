@@ -6,6 +6,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
@@ -25,7 +26,7 @@ type PollingProcessor struct {
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
-	isInitialized      bool
+	isInitialized      internal.AtomicBoolean
 	quit               chan struct{}
 	closeOnce          sync.Once
 }
@@ -118,7 +119,7 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 				}
 				pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 				pp.setInitializedOnce.Do(func() {
-					pp.isInitialized = true
+					pp.isInitialized.Set(true)
 					pp.loggers.Info("First polling request successful")
 					notifyReady()
 				})
@@ -151,7 +152,7 @@ func (pp *PollingProcessor) Close() error {
 
 //nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) IsInitialized() bool {
-	return pp.isInitialized
+	return pp.isInitialized.Get()
 }
 
 // GetBaseURI returns the configured polling base URI, for testing.
