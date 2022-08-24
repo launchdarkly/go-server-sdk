@@ -28,7 +28,7 @@ func TestDefaultTransportDoesNotAcceptSelfSignedCert(t *testing.T) {
 		client.Transport = transport
 		_, err = client.Get(server.URL)
 		require.NotNil(t, err)
-		require.Contains(t, err.Error(), "certificate is not trusted")
+		require.Contains(t, err.Error(), "certificate") // the exact error message varies by Go version
 	})
 }
 
