@@ -1,4 +1,4 @@
-//nolint:gochecknoglobals,revive
+//nolint:gochecknoglobals
 package sharedtest
 
 import (

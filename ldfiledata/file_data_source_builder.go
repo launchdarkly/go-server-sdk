@@ -29,7 +29,7 @@ const (
 //
 // Builder calls can be chained, for example:
 //
-//     config.DataStore = ldfiledata.DataSource().FilePaths("file1").FilePaths("file2")
+//	config.DataStore = ldfiledata.DataSource().FilePaths("file1").FilePaths("file2")
 //
 // You do not need to call the builder's CreatePersistentDataSource() method yourself; that will be
 // done by the SDK.
@@ -62,11 +62,11 @@ func (b *DataSourceBuilder) FilePaths(paths ...string) *DataSourceBuilder {
 //
 // It is normally used with the ldfilewatch package, as follows:
 //
-//     config := ld.Config{
-//         DataSource: ldfiledata.DataSource().
-//             FilePaths(filePaths).
-//             Reloader(ldfilewatch.WatchFiles),
-//     }
+//	config := ld.Config{
+//	    DataSource: ldfiledata.DataSource().
+//	        FilePaths(filePaths).
+//	        Reloader(ldfilewatch.WatchFiles),
+//	}
 func (b *DataSourceBuilder) Reloader(reloaderFactory ReloaderFactory) *DataSourceBuilder {
 	b.reloaderFactory = reloaderFactory
 	return b

@@ -33,9 +33,9 @@ type PollingDataSourceBuilder struct {
 // To use polling mode, create a builder with PollingDataSource(), set its properties with the methods of
 // PollingDataSourceBuilder, and then store it in the DataSource field of your SDK configuration:
 //
-//     config := ld.Config{
-//         DataSource: ldcomponents.PollingDataSource().PollInterval(45 * time.Second),
-//     }
+//	config := ld.Config{
+//	    DataSource: ldcomponents.PollingDataSource().PollInterval(45 * time.Second),
+//	}
 func PollingDataSource() *PollingDataSourceBuilder {
 	return &PollingDataSourceBuilder{
 		pollInterval: DefaultPollInterval,
@@ -55,6 +55,7 @@ func (b *PollingDataSourceBuilder) PollInterval(pollInterval time.Duration) *Pol
 }
 
 // Used in tests to skip parameter validation.
+//
 //nolint:unused // it is used in tests
 func (b *PollingDataSourceBuilder) forcePollInterval(
 	pollInterval time.Duration,

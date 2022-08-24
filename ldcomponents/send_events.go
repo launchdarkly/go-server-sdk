@@ -50,9 +50,9 @@ type EventProcessorBuilder struct {
 // behavior, call this method to obtain a builder, change its properties with the EventProcessorBuilder
 // methods, and store it in Config.Events:
 //
-//     config := ld.Config{
-//         Events: ldcomponents.SendEvents().Capacity(5000).FlushInterval(2 * time.Second),
-//     }
+//	config := ld.Config{
+//	    Events: ldcomponents.SendEvents().Capacity(5000).FlushInterval(2 * time.Second),
+//	}
 //
 // To disable analytics events, use NoEvents instead of SendEvents.
 func SendEvents() *EventProcessorBuilder {
@@ -157,10 +157,10 @@ func (b *EventProcessorBuilder) FlushInterval(interval time.Duration) *EventProc
 // names removed. This is in addition to any attributes that were marked as private for an individual
 // context with ldcontext.Builder methods. Setting AllAttributesPrivate to true overrides this.
 //
-//     config := ld.Config{
-//         Events: ldcomponents.SendEvents().
-//             PrivateAttributeNames("email", "some-custom-attribute"),
-//     }
+//	config := ld.Config{
+//	    Events: ldcomponents.SendEvents().
+//	        PrivateAttributeNames("email", "some-custom-attribute"),
+//	}
 //
 // If and only if a parameter starts with a slash, it is interpreted as a slash-delimited path that
 // can denote a nested property within a JSON object. For instance, "/address/street" means that if

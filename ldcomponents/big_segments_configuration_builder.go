@@ -32,11 +32,11 @@ const DefaultBigSegmentsStaleAfter = time.Second * 120
 // ldcomponents.BigSegments(), change its properties with the BigSegmentsConfigurationBuilder
 // methods, and store it in Config.BigSegments:
 //
-//     config := ld.Config{
-//         BigSegments: ldcomponents.BigSegments(ldredis.DataStore()).
-//             ContextCacheSize(2000).
-//		       StaleAfter(time.Second * 60),
-//     }
+//	    config := ld.Config{
+//	        BigSegments: ldcomponents.BigSegments(ldredis.DataStore()).
+//	            ContextCacheSize(2000).
+//			       StaleAfter(time.Second * 60),
+//	    }
 //
 // You only need to use the methods of BigSegmentsConfigurationBuilder if you want to customize
 // options other than the data store itself.
@@ -53,10 +53,10 @@ type BigSegmentsConfigurationBuilder struct {
 // After configuring this object, store it in the BigSegments field of your SDK configuration. For
 // example, using the Redis integration:
 //
-//     config := ld.Config{
-//         BigSegments: ldcomponents.BigSegments(ldredis.DataStore().Prefix("app1")).
-//             ContextCacheSize(2000),
-//     }
+//	config := ld.Config{
+//	    BigSegments: ldcomponents.BigSegments(ldredis.DataStore().Prefix("app1")).
+//	        ContextCacheSize(2000),
+//	}
 //
 // You must always specify the storeFactory parameter, to tell the SDK what database you are using.
 // Several database integrations exist for the LaunchDarkly SDK, each with its own behavior and options

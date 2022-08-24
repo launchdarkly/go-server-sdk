@@ -24,11 +24,11 @@ const DefaultConnectTimeout = 3 * time.Second
 // ldcomponents.HTTPConfiguration(), change its properties with the HTTPConfigurationBuilder methods,
 // and store it in Config.HTTP:
 //
-//     config := ld.Config{
-//         HTTP: ldcomponents.HTTPConfiguration().
-//             ConnectTimeout(3 * time.Second).
-//		       ProxyURL(proxyUrl),
-//     }
+//	    config := ld.Config{
+//	        HTTP: ldcomponents.HTTPConfiguration().
+//	            ConnectTimeout(3 * time.Second).
+//			       ProxyURL(proxyUrl),
+//	    }
 type HTTPConfigurationBuilder struct {
 	inited            bool
 	connectTimeout    time.Duration
@@ -42,11 +42,11 @@ type HTTPConfigurationBuilder struct {
 
 // HTTPConfiguration returns a configuration builder for the SDK's HTTP configuration.
 //
-//     config := ld.Config{
-//         HTTP: ldcomponents.HTTPConfiguration().
-//             ConnectTimeout(3 * time.Second).
-//		       ProxyURL(proxyUrl),
-//     }
+//	    config := ld.Config{
+//	        HTTP: ldcomponents.HTTPConfiguration().
+//	            ConnectTimeout(3 * time.Second).
+//			       ProxyURL(proxyUrl),
+//	    }
 func HTTPConfiguration() *HTTPConfigurationBuilder {
 	return &HTTPConfigurationBuilder{}
 }
@@ -94,9 +94,9 @@ func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfiguratio
 // SDK client (the waitFor parameter to MakeClient); that is the total length of time that MakeClient
 // will wait regardless of how many connection attempts are required.
 //
-//     config := ld.Config{
-//         HTTP: ldcomponents.ConnectTimeout(),
-//     }
+//	config := ld.Config{
+//	    HTTP: ldcomponents.ConnectTimeout(),
+//	}
 func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) *HTTPConfigurationBuilder {
 	if b.checkValid() {
 		if connectTimeout <= 0 {

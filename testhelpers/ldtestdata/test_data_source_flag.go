@@ -270,9 +270,9 @@ func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
 //
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" or "Edina":
 //
-//     testData.Flag("flag").
-//         IfMatch("name", ldvalue.String("Patsy"), ldvalue.String("Edina")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatch("name", ldvalue.String("Patsy"), ldvalue.String("Edina")).
+//	        ThenReturn(true)
 func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndMatch(attribute, values...)
 }
@@ -286,9 +286,9 @@ func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBu
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" or "Monsoon":
 //
-//     testData.Flag("flag").
-//         IfMatchContext("company", "name", ldvalue.String("Ella"), ldvalue.String("Monsoon")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatchContext("company", "name", ldvalue.String("Ella"), ldvalue.String("Monsoon")).
+//	        ThenReturn(true)
 func (f *FlagBuilder) IfMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,
@@ -306,9 +306,9 @@ func (f *FlagBuilder) IfMatchContext(
 // For example, this creates a rule that returns true if the user name attribute is neither "Saffron"
 // nor "Bubble":
 //
-//     testData.Flag("flag").
-//         IfNotMatch("name", ldvalue.String("Saffron"), ldvalue.String("Bubble")).
-//         ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfNotMatch("name", ldvalue.String("Saffron"), ldvalue.String("Bubble")).
+//	    ThenReturn(true)
 func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndNotMatch(attribute, values...)
 }
@@ -322,9 +322,9 @@ func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *Rul
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is neither "Pendant" nor "Sterling Cooper":
 //
-//     testData.Flag("flag").
-//         IfNotMatch("company", "name", ldvalue.String("Pendant"), ldvalue.String("Sterling Cooper")).
-//         ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfNotMatch("company", "name", ldvalue.String("Pendant"), ldvalue.String("Sterling Cooper")).
+//	    ThenReturn(true)
 func (f *FlagBuilder) IfNotMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,
@@ -420,10 +420,10 @@ func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
 // country is "gb":
 //
-//     testData.Flag("flag").
-//         IfMatch("name", ldvalue.String("Patsy")).
-//             AndMatch("country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatch("name", ldvalue.String("Patsy")).
+//	        AndMatch("country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return r.AndMatchContext(ldcontext.DefaultKind, attribute, values...)
 }
@@ -434,10 +434,10 @@ func (r *RuleBuilder) AndMatch(attribute string, values ...ldvalue.Value) *RuleB
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" and the country is "gb":
 //
-//     testData.Flag("flag").
-//         IfMatchContext("company", "name", ldvalue.String("Ella")).
-//             AndMatchContext("company", "country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatchContext("company", "name", ldvalue.String("Ella")).
+//	        AndMatchContext("company", "country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,
@@ -453,10 +453,10 @@ func (r *RuleBuilder) AndMatchContext(
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
 // country is not "gb":
 //
-//     testData.Flag("flag").
-//         IfMatch("name", ldvalue.String("Patsy")).
-//             AndNotMatch("country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatch("name", ldvalue.String("Patsy")).
+//	        AndNotMatch("country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return r.AndNotMatchContext(ldcontext.DefaultKind, attribute, values...)
 }
@@ -467,10 +467,10 @@ func (r *RuleBuilder) AndNotMatch(attribute string, values ...ldvalue.Value) *Ru
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" and the country is not "gb":
 //
-//     testData.Flag("flag").
-//         IfMatchContext("company", "name", ldvalue.String("Ella")).
-//             AndNotMatchContext("company", "country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatchContext("company", "name", ldvalue.String("Ella")).
+//	        AndNotMatchContext("company", "country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndNotMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,

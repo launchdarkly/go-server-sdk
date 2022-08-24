@@ -16,7 +16,7 @@ import (
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
+type DataSourceUpdatesImpl struct {
 	store                       subsystems.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
 	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus]

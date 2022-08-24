@@ -20,11 +20,11 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 // to that integration, while the PersistentDataStoreBuilder provides options that are
 // applicable to any persistent data store (such as caching). For example:
 //
-//     config := ld.Config{
-//         DataStore: ldcomponents.PersistentDataStore(
-//             ldredis.DataStore().URL("redis://my-redis-host"),
-//         ).CacheSeconds(15),
-//     }
+//	config := ld.Config{
+//	    DataStore: ldcomponents.PersistentDataStore(
+//	        ldredis.DataStore().URL("redis://my-redis-host"),
+//	    ).CacheSeconds(15),
+//	}
 //
 // See PersistentDataStoreBuilder for more on how this method is used.
 //
@@ -47,11 +47,11 @@ func PersistentDataStore(persistentDataStoreFactory subsystems.PersistentDataSto
 // After configuring this object, store it in the DataSource field of your SDK configuration. For example,
 // using the Redis integration:
 //
-//     config := ld.Config{
-//         DataStore: ldcomponents.PersistentDataStore(
-//             ldredis.DataStore().URL("redis://my-redis-host"),
-//         ).CacheSeconds(15),
-//     }
+//	config := ld.Config{
+//	    DataStore: ldcomponents.PersistentDataStore(
+//	        ldredis.DataStore().URL("redis://my-redis-host"),
+//	    ).CacheSeconds(15),
+//	}
 //
 // In this example, URL() is an option specifically for the Redis integration, whereas CacheSeconds() is
 // an option that can be used for any persistent data store.

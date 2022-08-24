@@ -25,18 +25,18 @@ var (
 //
 // Example JSON representation:
 //
-// {
-//   "path": "/",
-//   "data": {
-//     "flags": {
-//       "flag1": { "key": "flag1", "version": 1, ...etc. },
-//       "flag2": { "key": "flag2", "version": 1, ...etc. },
-//     },
-//     "segments": {
-//       "segment1": { "key", "segment1", "version": 1, ...etc. }
-//     }
-//   }
-// }
+//	{
+//	  "path": "/",
+//	  "data": {
+//	    "flags": {
+//	      "flag1": { "key": "flag1", "version": 1, ...etc. },
+//	      "flag2": { "key": "flag2", "version": 1, ...etc. },
+//	    },
+//	    "segments": {
+//	      "segment1": { "key", "segment1", "version": 1, ...etc. }
+//	    }
+//	  }
+//	}
 type putData struct {
 	Path string // we don't currently do anything with this
 	Data []ldstoretypes.Collection
@@ -49,13 +49,13 @@ type putData struct {
 //
 // Example JSON representation:
 //
-// {
-//   "path": "/flags/flagkey",
-//   "data": {
-//     "key": "flagkey",
-//     "version": 2, ...etc.
-//   }
-// }
+//	{
+//	  "path": "/flags/flagkey",
+//	  "data": {
+//	    "key": "flagkey",
+//	    "version": 2, ...etc.
+//	  }
+//	}
 type patchData struct {
 	Kind ldstoretypes.DataKind
 	Key  string
@@ -68,10 +68,10 @@ type patchData struct {
 //
 // Example JSON representation:
 //
-// {
-//   "path": "/flags/flagkey",
-//   "version": 3
-// }
+//	{
+//	  "path": "/flags/flagkey",
+//	  "version": 3
+//	}
 type deleteData struct {
 	Kind    ldstoretypes.DataKind
 	Key     string

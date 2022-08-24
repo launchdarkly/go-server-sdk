@@ -16,8 +16,8 @@ const serverSideSDKPollingPath = "/sdk/latest-all"
 // object that can be marshaled to JSON (such as ServerSDKData). If the data parameter is nil, the default response
 // is an empty JSON object {}. The data is marshalled again for each request.
 //
-//     data := NewServerSDKData().Flags(flag1, flag2)
-//     handler := PollingServiceHandler(data)
+//	data := NewServerSDKData().Flags(flag1, flag2)
+//	handler := PollingServiceHandler(data)
 //
 // If you want the mock service to return different responses at different points during a test, you can either
 // provide a *ServerSDKData and modify its properties, or use a DelegatingHandler or SequentialHandler that can

@@ -11,10 +11,10 @@ import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 //
 // Store this value in the ServiceEndpoints field of your SDK configuration. For example:
 //
-//      relayURI := "http://my-relay-hostname:8080"
-//      config := ld.Config{
-//          ServiceEndpoints: ldcomponents.RelayProxyEndpoints(relayURI),
-//      }
+//	relayURI := "http://my-relay-hostname:8080"
+//	config := ld.Config{
+//	    ServiceEndpoints: ldcomponents.RelayProxyEndpoints(relayURI),
+//	}
 //
 // If analytics events are enabled, this will also cause the SDK to forward events through the
 // Relay Proxy. If you have not enabled event forwarding in your Relay Proxy configuration and you
@@ -38,10 +38,10 @@ func RelayProxyEndpoints(relayProxyBaseURI string) interfaces.ServiceEndpoints {
 //
 // Store this value in the ServiceEndpoints field of your SDK configuration. For example:
 //
-//      relayURI := "http://my-relay-hostname:8080"
-//      config := ld.Config{
-//          ServiceEndpoints: ldcomponents.RelayProxyEndpointsWithoutEvents(relayURI),
-//      }
+//	relayURI := "http://my-relay-hostname:8080"
+//	config := ld.Config{
+//	    ServiceEndpoints: ldcomponents.RelayProxyEndpointsWithoutEvents(relayURI),
+//	}
 //
 // If you do want events to be forwarded through the Relay Proxy, use RelayProxyEndpoints instead.
 //
