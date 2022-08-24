@@ -12,12 +12,12 @@ import (
 // of other SDK components.
 type DataStoreUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
 	lastStatus  interfaces.DataStoreStatus
-	broadcaster *internal.DataStoreStatusBroadcaster
+	broadcaster *internal.Broadcaster[interfaces.DataStoreStatus]
 	lock        sync.Mutex
 }
 
 // NewDataStoreUpdatesImpl creates the internal implementation of DataStoreUpdates.
-func NewDataStoreUpdatesImpl(broadcaster *internal.DataStoreStatusBroadcaster) *DataStoreUpdatesImpl {
+func NewDataStoreUpdatesImpl(broadcaster *internal.Broadcaster[interfaces.DataStoreStatus]) *DataStoreUpdatesImpl {
 	return &DataStoreUpdatesImpl{
 		lastStatus:  interfaces.DataStoreStatus{Available: true},
 		broadcaster: broadcaster,
@@ -30,7 +30,7 @@ func (d *DataStoreUpdatesImpl) getStatus() interfaces.DataStoreStatus {
 	return d.lastStatus
 }
 
-func (d *DataStoreUpdatesImpl) getBroadcaster() *internal.DataStoreStatusBroadcaster {
+func (d *DataStoreUpdatesImpl) getBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
 	return d.broadcaster
 }
 

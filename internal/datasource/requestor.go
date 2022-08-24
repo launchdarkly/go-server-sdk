@@ -8,6 +8,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"golang.org/x/exp/maps"
 
 	"github.com/gregjones/httpcache"
 
@@ -86,9 +87,8 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 		return nil, false, reqErr
 	}
 	url := req.URL.String()
-
-	for k, vv := range r.headers {
-		req.Header[k] = vv
+	if r.headers != nil {
+		req.Header = maps.Clone(r.headers)
 	}
 
 	res, resErr := r.httpClient.Do(req)

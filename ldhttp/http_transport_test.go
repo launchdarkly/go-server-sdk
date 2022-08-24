@@ -29,7 +29,7 @@ func TestDefaultTransportDoesNotAcceptSelfSignedCert(t *testing.T) {
 		client.Transport = transport
 		_, err = client.Get(server.URL)
 		require.NotNil(t, err)
-		require.Contains(t, err.Error(), "certificate signed by unknown authority")
+		require.Contains(t, err.Error(), "certificate is not trusted")
 	})
 }
 

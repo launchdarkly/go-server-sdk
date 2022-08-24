@@ -5,7 +5,8 @@ import (
 )
 
 // AtomicBoolean is a simple atomic boolean type based on sync/atomic. Since sync/atomic supports
-// only integer types, the implementation uses an int32.
+// only integer types, the implementation uses an int32. (Note: we should be able to get rid of
+// this once our minimum Go version becomes 1.19 or higher.)
 type AtomicBoolean struct {
 	value int32
 }

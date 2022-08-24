@@ -20,7 +20,7 @@ func TestGetStatusWhenStatusFunctionIsUndefined(t *testing.T) {
 }
 
 func TestStatusListener(t *testing.T) {
-	broadcaster := internal.NewBigSegmentStoreStatusBroadcaster()
+	broadcaster := internal.NewBroadcaster[interfaces.BigSegmentStoreStatus]()
 	defer broadcaster.Close()
 	provider := NewBigSegmentStoreStatusProviderImpl(nil, broadcaster)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"golang.org/x/exp/maps"
 
 	es "github.com/launchdarkly/eventsource"
 )
@@ -253,8 +254,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	req, _ := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
-	for k, vv := range sp.headers {
-		req.Header[k] = vv
+	if sp.headers != nil {
+		req.Header = maps.Clone(sp.headers)
 	}
 	sp.loggers.Info("Connecting to LaunchDarkly stream")
 

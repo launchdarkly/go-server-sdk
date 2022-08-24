@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"golang.org/x/exp/maps"
 )
 
 // MockDatabaseInstance can be used with MockPersistentDataStore to simulate multiple data store
@@ -25,9 +26,7 @@ func NewMockDatabaseInstance() *MockDatabaseInstance {
 // Clear removes all shared data.
 func (db *MockDatabaseInstance) Clear(prefix string) {
 	for _, m := range db.dataByPrefix[prefix] {
-		for k := range m {
-			delete(m, k)
-		}
+		maps.Clear(m)
 	}
 	if v, ok := db.initedByPrefix[prefix]; ok {
 		*v = false
@@ -177,9 +176,7 @@ func (m *MockPersistentDataStore) Init(allData []ldstoretypes.SerializedCollecti
 		return m.fakeError
 	}
 	for _, mm := range m.data {
-		for k := range mm {
-			delete(mm, k)
-		}
+		maps.Clear(mm)
 	}
 	for _, coll := range allData {
 		AssertNotNil(coll.Kind)
