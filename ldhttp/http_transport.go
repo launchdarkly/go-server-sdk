@@ -9,10 +9,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -73,7 +73,7 @@ type caCertFileOption struct {
 }
 
 func (o caCertFileOption) apply(opts *transportExtraOptions) error {
-	bytes, err := ioutil.ReadFile(o.filePath)
+	bytes, err := os.ReadFile(o.filePath)
 	if err != nil {
 		return fmt.Errorf("can't read CA certificate file: %v", err)
 	}

@@ -1,7 +1,6 @@
 package ldfilewatch
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -51,7 +50,7 @@ func withFileDataSourceTestParams(factory subsystems.DataSourceFactory, action f
 func withTempDir(action func(dirPath string)) {
 	// We should put the temp files in their own directory; otherwise, we might be running a file watcher over
 	// all of /tmp, which is not a great idea
-	path, err := ioutil.TempDir("", "watched-file-data-source-test")
+	path, err := os.MkdirTemp("", "watched-file-data-source-test")
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +59,7 @@ func withTempDir(action func(dirPath string)) {
 }
 
 func makeTempFile(dirPath, initialText string) string {
-	f, err := ioutil.TempFile(dirPath, "file-source-test")
+	f, err := os.CreateTemp(dirPath, "file-source-test")
 	if err != nil {
 		panic(err)
 	}
@@ -193,7 +192,7 @@ flags:
 // Directory needn't exist when the dataSource is started
 func TestNewWatchedDirectoryMissing(t *testing.T) {
 	withTempDir(func(tempDir string) {
-		tempDir, err := ioutil.TempDir("", "file-source-test")
+		tempDir, err := os.MkdirTemp("", "file-source-test")
 		require.NoError(t, err)
 		defer os.RemoveAll(tempDir)
 

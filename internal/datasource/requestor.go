@@ -1,7 +1,7 @@
 package datasource
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -98,7 +98,7 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 	}
 
 	defer func() {
-		_, _ = ioutil.ReadAll(res.Body)
+		_, _ = io.ReadAll(res.Body)
 		_ = res.Body.Close()
 	}()
 
@@ -108,7 +108,7 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
 
-	body, ioErr := ioutil.ReadAll(res.Body)
+	body, ioErr := io.ReadAll(res.Body)
 
 	if ioErr != nil {
 		return nil, false, ioErr // COVERAGE: there is no way to simulate this condition in unit tests

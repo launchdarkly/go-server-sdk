@@ -3,7 +3,7 @@ package ldfiledata
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -176,7 +176,7 @@ func readFile(path string) (fileData, error) {
 	var data fileData
 	var rawData []byte
 	var err error
-	if rawData, err = ioutil.ReadFile(path); err != nil { //nolint:gosec // G304: ok to read file into variable
+	if rawData, err = os.ReadFile(path); err != nil { //nolint:gosec // G304: ok to read file into variable
 		return data, fmt.Errorf("unable to read file: %s", err)
 	}
 	if detectJSON(rawData) {

@@ -2,7 +2,7 @@ package ldclient
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -57,7 +57,7 @@ func (r *recordingClientFactory) RoundTrip(req *http.Request) (*http.Response, e
 	r.requestURLs <- *req.URL
 	return &http.Response{
 		StatusCode: r.status,
-		Body:       ioutil.NopCloser(bytes.NewBuffer(nil)),
+		Body:       io.NopCloser(bytes.NewBuffer(nil)),
 	}, nil
 }
 

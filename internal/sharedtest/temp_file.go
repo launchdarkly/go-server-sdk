@@ -1,14 +1,13 @@
 package sharedtest
 
 import (
-	"io/ioutil"
 	"os"
 )
 
 // WithTempFileContaining runs the specified function with the file path of a temporary file that has been
 // created with the specified data.
 func WithTempFileContaining(data []byte, action func(filename string)) {
-	f, err := ioutil.TempFile("", "test-file")
+	f, err := os.CreateTemp("", "test-file")
 	if err != nil {
 		panic(err)
 	}
