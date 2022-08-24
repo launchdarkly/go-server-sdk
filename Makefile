@@ -30,7 +30,7 @@ clean:
 
 test:
 	go test -run=not-a-real-test ./...  # just ensures that the tests compile
-	go test -race ./...
+	go test -v -race ./...
 	@# The proxy tests must be run separately because Go caches the global proxy environment variables. We use
 	@# build tags to isolate these tests from the main test run so that if you do "go test ./..." you won't
 	@# get unexpected errors.
