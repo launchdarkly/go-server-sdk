@@ -58,13 +58,13 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolin
 }
 
 // Attempts to add relevant configuration properties, if any, from a customizable component:
-// - If the component does not implement DiagnosticDescription, set the defaultPropertyName property to
-//   "custom".
-// - If it does implement DiagnosticDescription or DiagnosticDescriptionExt, call the corresponding
-//   interface method to get a value.
-// - If the value is a string, then set the defaultPropertyName property to that value.
-// - If the value is an object, then copy all of its properties as long as they are ones we recognize
-//   and have the expected type.
+//   - If the component does not implement DiagnosticDescription, set the defaultPropertyName property to
+//     "custom".
+//   - If it does implement DiagnosticDescription or DiagnosticDescriptionExt, call the corresponding
+//     interface method to get a value.
+//   - If the value is a string, then set the defaultPropertyName property to that value.
+//   - If the value is an object, then copy all of its properties as long as they are ones we recognize
+//     and have the expected type.
 func mergeComponentProperties(
 	builder *ldvalue.ObjectBuilder,
 	context subsystems.ClientContext,

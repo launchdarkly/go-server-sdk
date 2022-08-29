@@ -693,18 +693,18 @@ func (client *LDClient) StringVariationDetail(
 // Value methods such as GetType() and BoolValue(). The defaultVal parameter also uses this type. For
 // instance, if the values for this flag are JSON arrays:
 //
-//     defaultValAsArray := ldvalue.BuildArray().
-//         Add(ldvalue.String("defaultFirstItem")).
-//         Add(ldvalue.String("defaultSecondItem")).
-//         Build()
-//     result, err := client.JSONVariation(flagKey, context, defaultValAsArray)
-//     firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
+//	defaultValAsArray := ldvalue.BuildArray().
+//	    Add(ldvalue.String("defaultFirstItem")).
+//	    Add(ldvalue.String("defaultSecondItem")).
+//	    Build()
+//	result, err := client.JSONVariation(flagKey, context, defaultValAsArray)
+//	firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
 //
 // You can also use unparsed json.RawMessage values:
 //
-//     defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"things":[1,2,3]}`))
-//     result, err := client.JSONVariation(flagKey, context, defaultValAsJSON
-//     resultAsRawJSON := result.AsRaw()
+//	defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"things":[1,2,3]}`))
+//	result, err := client.JSONVariation(flagKey, context, defaultValAsJSON
+//	resultAsRawJSON := result.AsRaw()
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 //

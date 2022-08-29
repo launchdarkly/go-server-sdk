@@ -5,18 +5,18 @@
 // resources. It provides only the data that the application has put into it using the Update
 // method.
 //
-//     td := ldtestdata.DataSource()
-//     td.Update(td.Flag("flag-key-1").BooleanFlag().VariationForAll(true))
+//	td := ldtestdata.DataSource()
+//	td.Update(td.Flag("flag-key-1").BooleanFlag().VariationForAll(true))
 //
-//     config := ld.Config{
-//         DataSource: td,
-//     }
-//     client := ld.MakeCustomClient(sdkKey, config, timeout)
+//	config := ld.Config{
+//	    DataSource: td,
+//	}
+//	client := ld.MakeCustomClient(sdkKey, config, timeout)
 //
-//     // flags can be updated at any time:
-//     td.Update(td.Flag("flag-key-2").
-//         VariationForUser("some-user-key", true).
-//         FallthroughVariation(false))
+//	// flags can be updated at any time:
+//	td.Update(td.Flag("flag-key-2").
+//	    VariationForUser("some-user-key", true).
+//	    FallthroughVariation(false))
 //
 // The above example uses a simple boolean flag, but more complex configurations are possible using
 // the methods of the FlagBuilder that is returned by Flag(). FlagBuilder supports many of the ways a

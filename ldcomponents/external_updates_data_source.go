@@ -20,9 +20,9 @@ type nullDataSourceFactory struct{}
 // is no external process updating the data store, then the SDK will not have any feature flag data and
 // will return application default values only.
 //
-//     config := ld.Config{
-//         DataSource: ldcomponents.ExternalUpdatesOnly(),
-//     }
+//	config := ld.Config{
+//	    DataSource: ldcomponents.ExternalUpdatesOnly(),
+//	}
 func ExternalUpdatesOnly() subsystems.DataSourceFactory {
 	return nullDataSourceFactory{}
 }

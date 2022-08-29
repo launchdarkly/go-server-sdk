@@ -24,11 +24,11 @@ type fileWatcher struct {
 // WatchFiles sets up a mechanism for the file data source to reload its source files whenever one of them has
 // been modified. Use it as follows:
 //
-//     config := Config{
-//         DataSource: ldfiledata.DataSource().
-//             FilePaths(filePaths).
-//             Reloader(ldfilewatch.WatchFiles),
-//     }
+//	config := Config{
+//	    DataSource: ldfiledata.DataSource().
+//	        FilePaths(filePaths).
+//	        Reloader(ldfilewatch.WatchFiles),
+//	}
 func WatchFiles(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil { // COVERAGE: can't simulate this condition in unit tests

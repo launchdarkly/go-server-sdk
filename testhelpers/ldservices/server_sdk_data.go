@@ -24,8 +24,8 @@ func FlagOrSegment(key string, version int) interface{} {
 // or StreamingServiceHandler. Its String() method returns a JSON object with the expected "flags" and "segments"
 // properties.
 //
-//     data := NewServerSDKData().Flags(flag1, flag2)
-//     handler := PollingServiceHandler(data)
+//	data := NewServerSDKData().Flags(flag1, flag2)
+//	handler := PollingServiceHandler(data)
 type ServerSDKData struct {
 	FlagsMap    map[string]interface{} `json:"flags"`
 	SegmentsMap map[string]interface{} `json:"segments"`

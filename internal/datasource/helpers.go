@@ -85,15 +85,15 @@ func checkForHTTPError(statusCode int, url string) error {
 
 // This method parses a JSON data structure representing a full set of SDK data. For example:
 //
-// {
-//   "flags": {
-//     "flag1": { "key": "flag1", "version": 1, ...etc. },
-//     "flag2": { "key": "flag2", "version": 1, ...etc. },
-//   },
-//   "segments": {
-//     "segment1": { "key", "segment1", "version": 1, ...etc. }
-//   }
-// }
+//	{
+//	  "flags": {
+//	    "flag1": { "key": "flag1", "version": 1, ...etc. },
+//	    "flag2": { "key": "flag2", "version": 1, ...etc. },
+//	  },
+//	  "segments": {
+//	    "segment1": { "key", "segment1", "version": 1, ...etc. }
+//	  }
+//	}
 //
 // Even though this is map-like, we don't return the data as a map, because the SDK does not need to
 // manipulate it as a map. Our data store API instead expects a list of Collections, each of which has

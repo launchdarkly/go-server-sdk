@@ -17,8 +17,8 @@ import (
 // package (https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6/ldcomponents). For instance, to set
 // the Events field to a configuration in which the SDK will flush analytics events every 10 seconds:
 //
-//     var config ld.Config
-//     config.Events = ldcomponents.Events().FlushInterval(time.Second * 10)
+//	var config ld.Config
+//	config.Events = ldcomponents.Events().FlushInterval(time.Second * 10)
 //
 // The interfaces are defined separately from the built-in component implementations because you could also
 // define your own implementation, for custom SDK integrations.
