@@ -3,7 +3,7 @@ package ldntlm
 import (
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -42,7 +42,7 @@ func TestCanConnectToNTLMProxyServer(t *testing.T) {
 		resp, err := client.Get(targetURL)
 		require.NoError(t, err)
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, responseBody, string(body))
 	})
@@ -59,7 +59,7 @@ func TestCanConnectSecurelyToNTLMProxyServerWithSelfSignedCert(t *testing.T) {
 		resp, err := client.Get(targetURL)
 		require.NoError(t, err)
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, responseBody, string(body))
 	})

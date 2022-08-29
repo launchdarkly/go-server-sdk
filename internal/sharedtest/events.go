@@ -32,31 +32,5 @@ ReadLoop:
 		}
 	}
 	assert.Equal(t, expectedChangedFlagKeys, actualChangedFlagKeys)
-	ExpectNoMoreFlagChangeEvents(t, ch)
-}
-
-// ExpectNoMoreFlagChangeEvents asserts that a channel does not receive any flag change events for the
-// next 100ms.
-func ExpectNoMoreFlagChangeEvents(t *testing.T, ch <-chan interfaces.FlagChangeEvent) {
-	select {
-	case event, ok := <-ch:
-		if !ok {
-			return
-		}
-		assert.Fail(t, "received unexpected event", "event: %+v", event)
-	case <-time.After(100 * time.Millisecond):
-	}
-}
-
-// ExpectNoMoreFlagValueChangeEvents asserts that a channel does not receive any flag value change events
-// for the next 100ms.
-func ExpectNoMoreFlagValueChangeEvents(t *testing.T, ch <-chan interfaces.FlagValueChangeEvent) {
-	select {
-	case event, ok := <-ch:
-		if !ok {
-			return
-		}
-		assert.Fail(t, "received unexpected event", "event: %+v", event)
-	case <-time.After(100 * time.Millisecond):
-	}
+	AssertNoMoreValues(t, ch, time.Millisecond*100)
 }

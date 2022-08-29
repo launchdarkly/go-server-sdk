@@ -11,7 +11,7 @@ branches:
 
 jobs:
   - docker:
-      image: golang:1.16-buster
+      image: golang:1.18-buster
     template:
       name: go
 

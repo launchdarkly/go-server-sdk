@@ -7,6 +7,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -30,7 +31,7 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 
 		logConfig := subsystems.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}
 		context := sharedtest.NewTestContext("", nil, &logConfig)
-		broadcaster := internal.NewDataStoreStatusBroadcaster()
+		broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 		dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(broadcaster)
 
 		store, err := f.CreateDataStore(context, dataStoreUpdates)

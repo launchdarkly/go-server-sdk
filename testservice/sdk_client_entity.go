@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -59,7 +59,7 @@ func NewSDKClientEntity(params servicedef.CreateInstanceParams) (*SDKClientEntit
 func (c *SDKClientEntity) Close() {
 	_ = c.sdk.Close()
 	c.logger.Println("Test ended")
-	c.logger.SetOutput(ioutil.Discard)
+	c.logger.SetOutput(io.Discard)
 }
 
 func contextOrUser(context ldcontext.Context, maybeUser *ldcontext.Context) ldcontext.Context {

@@ -8,6 +8,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+
+	"golang.org/x/exp/slices"
 )
 
 // TestDataSource is a test fixture that provides dynamically updatable feature flag state in a
@@ -86,8 +88,7 @@ func (t *TestDataSource) UpdateStatus(
 	newError interfaces.DataSourceErrorInfo,
 ) *TestDataSource {
 	t.lock.Lock()
-	instances := make([]*testDataSourceImpl, len(t.instances))
-	copy(instances, t.instances)
+	instances := slices.Clone(t.instances)
 	t.lock.Unlock()
 
 	for _, instance := range instances {
@@ -149,8 +150,7 @@ func (t *TestDataSource) UsePreconfiguredSegment(segment ldmodel.Segment) *TestD
 	newSegment.Version = oldItem.Version + 1
 	newItem := ldstoretypes.ItemDescriptor{Version: newSegment.Version, Item: &newSegment}
 	t.currentSegments[segment.Key] = newItem
-	instances := make([]*testDataSourceImpl, len(t.instances))
-	copy(instances, t.instances)
+	instances := slices.Clone(t.instances)
 	t.lock.Unlock()
 
 	for _, instance := range instances {
@@ -172,8 +172,7 @@ func (t *TestDataSource) updateInternal(
 	newItem := ldstoretypes.ItemDescriptor{Version: newVersion, Item: &newFlag}
 	t.currentFlags[key] = newItem
 	t.currentBuilders[key] = builder
-	instances := make([]*testDataSourceImpl, len(t.instances))
-	copy(instances, t.instances)
+	instances := slices.Clone(t.instances)
 	t.lock.Unlock()
 
 	for _, instance := range instances {

@@ -10,13 +10,13 @@ import (
 // dataSourceStatusProviderImpl is the internal implementation of DataSourceStatusProvider. It's not
 // exported because the rest of the SDK code only interacts with the public interface.
 type dataSourceStatusProviderImpl struct {
-	broadcaster       *internal.DataSourceStatusBroadcaster
+	broadcaster       *internal.Broadcaster[interfaces.DataSourceStatus]
 	dataSourceUpdates *DataSourceUpdatesImpl
 }
 
 // NewDataSourceStatusProviderImpl creates the internal implementation of DataSourceStatusProvider.
 func NewDataSourceStatusProviderImpl(
-	broadcaster *internal.DataSourceStatusBroadcaster,
+	broadcaster *internal.Broadcaster[interfaces.DataSourceStatus],
 	dataSourceUpdates *DataSourceUpdatesImpl,
 ) interfaces.DataSourceStatusProvider {
 	return &dataSourceStatusProviderImpl{broadcaster, dataSourceUpdates}

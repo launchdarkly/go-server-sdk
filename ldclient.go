@@ -53,13 +53,13 @@ type LDClient struct {
 	dataSource                       subsystems.DataSource
 	store                            subsystems.DataStore
 	evaluator                        ldeval.Evaluator
-	dataSourceStatusBroadcaster      *internal.DataSourceStatusBroadcaster
+	dataSourceStatusBroadcaster      *internal.Broadcaster[interfaces.DataSourceStatus]
 	dataSourceStatusProvider         interfaces.DataSourceStatusProvider
-	dataStoreStatusBroadcaster       *internal.DataStoreStatusBroadcaster
+	dataStoreStatusBroadcaster       *internal.Broadcaster[interfaces.DataStoreStatus]
 	dataStoreStatusProvider          interfaces.DataStoreStatusProvider
-	flagChangeEventBroadcaster       *internal.FlagChangeEventBroadcaster
+	flagChangeEventBroadcaster       *internal.Broadcaster[interfaces.FlagChangeEvent]
 	flagTracker                      interfaces.FlagTracker
-	bigSegmentStoreStatusBroadcaster *internal.BigSegmentStoreStatusBroadcaster
+	bigSegmentStoreStatusBroadcaster *internal.Broadcaster[interfaces.BigSegmentStoreStatus]
 	bigSegmentStoreStatusProvider    interfaces.BigSegmentStoreStatusProvider
 	bigSegmentStoreWrapper           *ldstoreimpl.BigSegmentStoreWrapper
 	eventsDefault                    eventsScope
@@ -186,7 +186,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.offline = config.Offline
 
-	client.dataStoreStatusBroadcaster = internal.NewDataStoreStatusBroadcaster()
+	client.dataStoreStatusBroadcaster = internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
 	store, err := getDataStoreFactory(config).CreateDataStore(clientContext, dataStoreUpdates)
 	if err != nil {
@@ -199,7 +199,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		return nil, err
 	}
 	bsStore := bsConfig.GetStore()
-	client.bigSegmentStoreStatusBroadcaster = internal.NewBigSegmentStoreStatusBroadcaster()
+	client.bigSegmentStoreStatusBroadcaster = internal.NewBroadcaster[interfaces.BigSegmentStoreStatus]()
 	if bsStore != nil {
 		client.bigSegmentStoreWrapper = ldstoreimpl.NewBigSegmentStoreWrapperWithConfig(
 			ldstoreimpl.BigSegmentsConfigurationProperties{
@@ -234,8 +234,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
 
-	client.dataSourceStatusBroadcaster = internal.NewDataSourceStatusBroadcaster()
-	client.flagChangeEventBroadcaster = internal.NewFlagChangeEventBroadcaster()
+	client.dataSourceStatusBroadcaster = internal.NewBroadcaster[interfaces.DataSourceStatus]()
+	client.flagChangeEventBroadcaster = internal.NewBroadcaster[interfaces.FlagChangeEvent]()
 	dataSourceUpdates := datasource.NewDataSourceUpdatesImpl(
 		store,
 		client.dataStoreStatusProvider,

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -34,7 +33,7 @@ func (c *callbackService) post(path string, params interface{}, responseOut inte
 	}
 	var body []byte
 	if resp.Body != nil {
-		body, err = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

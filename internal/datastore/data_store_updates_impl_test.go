@@ -11,7 +11,7 @@ import (
 
 func TestDataStoreUpdatesImpl(t *testing.T) {
 	t.Run("getStatus", func(t *testing.T) {
-		dataStoreUpdates := NewDataStoreUpdatesImpl(internal.NewDataStoreStatusBroadcaster())
+		dataStoreUpdates := NewDataStoreUpdatesImpl(internal.NewBroadcaster[interfaces.DataStoreStatus]())
 
 		assert.Equal(t, interfaces.DataStoreStatus{Available: true}, dataStoreUpdates.getStatus())
 
@@ -22,7 +22,7 @@ func TestDataStoreUpdatesImpl(t *testing.T) {
 	})
 
 	t.Run("UpdateStatus", func(t *testing.T) {
-		broadcaster := internal.NewDataStoreStatusBroadcaster()
+		broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 		defer broadcaster.Close()
 
 		ch := broadcaster.AddListener()

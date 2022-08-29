@@ -58,6 +58,7 @@ func clientListenersTestWithConfig(configAction func(*Config), action func(clien
 
 func TestFlagTracker(t *testing.T) {
 	flagKey := "important-flag"
+	timeout := time.Millisecond * 100
 
 	t.Run("sends flag change events", func(t *testing.T) {
 		clientListenersTest(func(p clientListenersTestParams) {
@@ -66,8 +67,8 @@ func TestFlagTracker(t *testing.T) {
 			ch1 := p.client.GetFlagTracker().AddFlagChangeListener()
 			ch2 := p.client.GetFlagTracker().AddFlagChangeListener()
 
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch2)
+			sharedtest.AssertNoMoreValues(t, ch1, timeout)
+			sharedtest.AssertNoMoreValues(t, ch2, timeout)
 
 			p.testData.Update(p.testData.Flag(flagKey))
 
@@ -78,7 +79,7 @@ func TestFlagTracker(t *testing.T) {
 			p.testData.Update(p.testData.Flag(flagKey))
 
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flagKey)
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
+			sharedtest.AssertNoMoreValues(t, ch1, timeout)
 		})
 	})
 
@@ -95,9 +96,9 @@ func TestFlagTracker(t *testing.T) {
 			ch3 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, otherUser, ldvalue.Null())
 			p.client.GetFlagTracker().RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
 
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch1)
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch2)
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+			sharedtest.AssertNoMoreValues(t, ch1, timeout)
+			sharedtest.AssertNoMoreValues(t, ch2, timeout)
+			sharedtest.AssertNoMoreValues(t, ch3, timeout)
 
 			// make the flag true for the first user only, and broadcast a flag change event
 			p.testData.Update(p.testData.Flag(flagKey).VariationForUser(user.Key(), true))
@@ -109,10 +110,10 @@ func TestFlagTracker(t *testing.T) {
 			assert.Equal(t, ldvalue.Bool(true), event1.NewValue)
 
 			// ch2 doesn't receive one, because it was unregistered
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch2)
+			sharedtest.AssertNoMoreValues(t, ch2, timeout)
 
 			// ch3 doesn't receive one, because the flag's value hasn't changed for otherUser
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+			sharedtest.AssertNoMoreValues(t, ch3, timeout)
 		})
 	})
 }

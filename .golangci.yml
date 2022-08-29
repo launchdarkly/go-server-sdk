@@ -16,8 +16,8 @@ linters:
     - gocritic
     - gocyclo
     - godox
-    - gofmt
-    - goimports
+    #- gofmt  # temporarily disabled because it will require many whitespace fixes
+    #- goimports  # temporarily disabled because it flags the same whitespace issues as gofmt
     - gosec
     - gosimple
     - govet
@@ -28,9 +28,7 @@ linters:
     - nakedret
     - nolintlint
     - prealloc
-    - revive
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert

@@ -8,6 +8,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -51,8 +54,7 @@ func newFlagBuilder(key string) *FlagBuilder {
 func copyFlagBuilder(from *FlagBuilder) *FlagBuilder {
 	f := new(FlagBuilder)
 	*f = *from
-	f.variations = make([]ldvalue.Value, len(from.variations))
-	copy(f.variations, from.variations)
+	f.variations = slices.Clone(from.variations)
 	if f.rules != nil {
 		f.rules = make([]*RuleBuilder, 0, len(from.rules))
 		for _, r := range from.rules {
@@ -64,11 +66,7 @@ func copyFlagBuilder(from *FlagBuilder) *FlagBuilder {
 		for k, v := range from.targets {
 			map1 := make(map[int]map[string]bool)
 			for k1, v1 := range v {
-				map2 := make(map[string]bool)
-				for k2, v2 := range v1 {
-					map2[k2] = v2
-				}
-				map1[k1] = map2
+				map1[k1] = maps.Clone(v1)
 			}
 			f.targets[k] = map1
 		}
@@ -260,8 +258,7 @@ func (f *FlagBuilder) VariationIndexForKey(contextKind ldcontext.Kind, key strin
 // normally has ldvalue.Bool(true), ldvalue.Bool(false); a string-valued flag might have
 // ldvalue.String("red"), ldvalue.String("green")}; etc.
 func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
-	f.variations = make([]ldvalue.Value, len(values))
-	copy(f.variations, values)
+	f.variations = slices.Clone(values)
 	return f
 }
 
@@ -376,7 +373,7 @@ func (f *FlagBuilder) createFlag(version int) ldmodel.FeatureFlag {
 	for kind := range f.targets {
 		targetKinds = append(targetKinds, kind)
 	}
-	sort.Slice(targetKinds, func(i, j int) bool { return targetKinds[i] < targetKinds[j] })
+	slices.Sort(targetKinds)
 	for _, kind := range targetKinds {
 		keysByVar := f.targets[kind]
 		for varIndex := range f.variations {
@@ -413,8 +410,7 @@ func newTestFlagRuleBuilder(owner *FlagBuilder) *RuleBuilder {
 
 func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder {
 	r := RuleBuilder{owner: owner, variation: from.variation}
-	r.clauses = make([]ldmodel.Clause, len(from.clauses))
-	copy(r.clauses, from.clauses)
+	r.clauses = slices.Clone(from.clauses)
 	return &r
 }
 

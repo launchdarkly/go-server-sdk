@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	s "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
@@ -47,7 +48,7 @@ func makePersistentDataStoreWrapper(
 	mode testCacheMode,
 	core *s.MockPersistentDataStore,
 ) subsystems.DataStore {
-	broadcaster := internal.NewDataStoreStatusBroadcaster()
+	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
 	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), s.NewTestLoggers())
 }

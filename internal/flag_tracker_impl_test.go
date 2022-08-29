@@ -3,7 +3,9 @@ package internal
 import (
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 
@@ -17,7 +19,7 @@ import (
 func TestFlagChangeListeners(t *testing.T) {
 	flagKey := "flagkey"
 
-	broadcaster := NewFlagChangeEventBroadcaster()
+	broadcaster := NewBroadcaster[interfaces.FlagChangeEvent]()
 	defer broadcaster.Close()
 	tracker := NewFlagTrackerImpl(broadcaster, nil)
 
@@ -34,7 +36,6 @@ func TestFlagChangeListeners(t *testing.T) {
 	broadcaster.Broadcast(intf.FlagChangeEvent{Key: flagKey})
 
 	sharedtest.ExpectFlagChangeEvents(t, ch2, flagKey)
-	sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
 }
 
 func TestFlagValueChangeListener(t *testing.T) {
@@ -43,8 +44,9 @@ func TestFlagValueChangeListener(t *testing.T) {
 	otherUser := lduser.NewUser("unimportant-user")
 	resultMap := make(map[string]ldvalue.Value)
 	resultLock := sync.Mutex{}
+	timeout := time.Millisecond * 100
 
-	broadcaster := NewFlagChangeEventBroadcaster()
+	broadcaster := NewBroadcaster[interfaces.FlagChangeEvent]()
 	defer broadcaster.Close()
 	tracker := NewFlagTrackerImpl(broadcaster, func(flag string, user ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
 		resultLock.Lock()
@@ -60,9 +62,9 @@ func TestFlagValueChangeListener(t *testing.T) {
 	ch3 := tracker.AddFlagValueChangeListener(flagKey, otherUser, ldvalue.Null())
 	tracker.RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
 
-	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch1)
-	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch2)
-	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+	sharedtest.AssertNoMoreValues(t, ch1, timeout)
+	sharedtest.AssertNoMoreValues(t, ch2, timeout)
+	sharedtest.AssertNoMoreValues(t, ch3, timeout)
 
 	// make the flag true for the first user only, and broadcast a flag change event
 	resultLock.Lock()
@@ -77,12 +79,12 @@ func TestFlagValueChangeListener(t *testing.T) {
 	assert.Equal(t, ldvalue.Bool(true), event1.NewValue)
 
 	// ch2 doesn't receive one, because it was unregistered
-	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch2)
+	sharedtest.AssertNoMoreValues(t, ch2, timeout)
 
 	// ch3 doesn't receive one, because the flag's value hasn't changed for otherUser
-	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+	sharedtest.AssertNoMoreValues(t, ch3, timeout)
 
 	// broadcast a flag change event for a different flag
 	broadcaster.Broadcast(intf.FlagChangeEvent{Key: "other-flag"})
-	sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch1)
+	sharedtest.AssertNoMoreValues(t, ch1, timeout)
 }

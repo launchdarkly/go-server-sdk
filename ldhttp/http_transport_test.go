@@ -2,7 +2,6 @@ package ldhttp
 
 import (
 	"crypto/x509"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -29,7 +28,7 @@ func TestDefaultTransportDoesNotAcceptSelfSignedCert(t *testing.T) {
 		client.Transport = transport
 		_, err = client.Get(server.URL)
 		require.NotNil(t, err)
-		require.Contains(t, err.Error(), "certificate signed by unknown authority")
+		require.Contains(t, err.Error(), "certificate") // the exact error message varies by Go version
 	})
 }
 
@@ -58,7 +57,7 @@ func TestErrorForNonexistentCertFile(t *testing.T) {
 
 func TestErrorForCertFileWithBadData(t *testing.T) {
 	helpers.WithTempFile(func(certFile string) {
-		ioutil.WriteFile(certFile, []byte("sorry"), os.ModeAppend)
+		os.WriteFile(certFile, []byte("sorry"), os.ModeAppend)
 		_, _, err := NewHTTPTransport(CACertFileOption(certFile))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid CA certificate data")
