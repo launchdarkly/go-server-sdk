@@ -16,6 +16,7 @@ const (
 	CommandGetBigSegmentStoreStatus = "getBigSegmentStoreStatus"
 	CommandContextBuild             = "contextBuild"
 	CommandContextConvert           = "contextConvert"
+	CommandSecureModeHash           = "secureModeHash"
 )
 
 type ValueType string
@@ -36,6 +37,7 @@ type CommandParams struct {
 	IdentifyEvent  *IdentifyEventParams    `json:"identifyEvent,omitempty"`
 	ContextBuild   *ContextBuildParams     `json:"contextBuild,omitempty"`
 	ContextConvert *ContextConvertParams   `json:"contextConvert,omitempty"`
+	SecureModeHash *SecureModeHashParams   `json:"secureModeHash,omitempty"`
 }
 
 type EvaluateFlagParams struct {
@@ -102,4 +104,12 @@ type ContextBuildResponse struct {
 
 type ContextConvertParams struct {
 	Input string `json:"input"`
+}
+
+type SecureModeHashParams struct {
+	Context ldcontext.Context `json:"context"`
+}
+
+type SecureModeHashResponse struct {
+	Result string `json:"result"`
 }
