@@ -3,7 +3,7 @@ package ldservices
 import (
 	"net/http"
 
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )
 
 const serverSideSDKPollingPath = "/sdk/latest-all"

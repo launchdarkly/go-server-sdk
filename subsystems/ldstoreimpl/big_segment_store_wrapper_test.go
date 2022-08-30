@@ -14,6 +14,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -214,20 +216,13 @@ func testBigSegmentStoreWrapperControlMethods(t *testing.T) {
 		queriesCh := p.store.TestGetMetadataQueriesCh()
 		p.config.StartPolling = false
 		p.run(func(p *storeWrapperTestParams) {
-			select {
-			case <-queriesCh:
-				require.Fail(t, "got unexpected status poll")
-			case <-time.After(time.Millisecond * 100):
+			if !th.AssertNoMoreValues(t, queriesCh, time.Millisecond*100, "got unexpected status poll") {
+				t.FailNow()
 			}
 
 			p.wrapper.SetPollingActive(true)
 
-			select {
-			case <-queriesCh:
-				break
-			case <-time.After(time.Millisecond * 500):
-				require.Fail(t, "timed out waiting for status poll")
-			}
+			th.RequireValue(t, queriesCh, time.Millisecond*500, "timed out waiting for status poll")
 		})
 	})
 

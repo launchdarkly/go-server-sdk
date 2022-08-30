@@ -7,9 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
@@ -21,6 +18,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testDataSourceOutageTimeout = 200 * time.Millisecond
@@ -339,7 +341,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
 			p.dataSourceUpdates.Upsert(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
-			sharedtest.AssertNoMoreValues(t, ch, time.Millisecond*100)
+			th.AssertNoMoreValues(t, ch, time.Millisecond*100)
 		})
 	})
 }

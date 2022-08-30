@@ -14,6 +14,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,11 +46,8 @@ func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(subsy
 
 	closer := make(chan struct{})
 	ds.Start(closer)
-	select {
-	case _, ok := <-closer:
-		require.False(t, ok)
-	default:
-		require.Fail(t, "start did not close channel")
+	if !th.AssertChannelClosed(t, closer, time.Millisecond, "start did not close channel") {
+		t.FailNow()
 	}
 	p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)
 

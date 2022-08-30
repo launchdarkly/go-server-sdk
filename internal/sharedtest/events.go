@@ -4,9 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // ExpectFlagChangeEvents asserts that a channel receives flag change events for the specified keys (in
@@ -32,5 +34,5 @@ ReadLoop:
 		}
 	}
 	assert.Equal(t, expectedChangedFlagKeys, actualChangedFlagKeys)
-	AssertNoMoreValues(t, ch, time.Millisecond*100)
+	th.AssertNoMoreValues(t, ch, time.Millisecond*100)
 }

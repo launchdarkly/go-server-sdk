@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	st "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	th "github.com/launchdarkly/go-test-helpers/v3"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -42,8 +42,8 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 			value := valueFactory()
 			b.Broadcast(value)
 
-			assert.Equal(t, value, st.RequireValue(t, ch1, timeout))
-			assert.Equal(t, value, st.RequireValue(t, ch2, timeout))
+			assert.Equal(t, value, th.RequireValue(t, ch1, timeout))
+			assert.Equal(t, value, th.RequireValue(t, ch2, timeout))
 		})
 	})
 
@@ -51,13 +51,14 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 		withBroadcaster(t, func(b *Broadcaster[V]) {
 			ch1 := b.AddListener()
 			ch2 := b.AddListener()
+
 			b.RemoveListener(ch1)
+			th.AssertChannelClosed(t, ch1, time.Millisecond)
 
 			value := valueFactory()
 			b.Broadcast(value)
 
-			assert.Equal(t, value, st.RequireValue(t, ch2, timeout))
-			st.AssertNoMoreValues(t, ch1, time.Millisecond*100)
+			assert.Equal(t, value, th.RequireValue(t, ch2, timeout))
 		})
 	})
 

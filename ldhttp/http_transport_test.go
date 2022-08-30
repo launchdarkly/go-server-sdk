@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	helpers "github.com/launchdarkly/go-test-helpers/v2"
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	helpers "github.com/launchdarkly/go-test-helpers/v3"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )
 
 // See also: proxytest/http_transport_proxy_test.go

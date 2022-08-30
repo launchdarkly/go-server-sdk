@@ -9,7 +9,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
-	"github.com/launchdarkly/go-jsonstream/v2/jreader"
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 
 	"github.com/gregjones/httpcache"
 	"golang.org/x/exp/maps"

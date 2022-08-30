@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // MockDataSourceUpdates is a mock implementation of DataSourceUpdates for testing data sources.
@@ -97,13 +98,7 @@ func (d *MockDataSourceUpdates) RequireStatusOf(
 
 // RequireStatus blocks until a new data source status is available.
 func (d *MockDataSourceUpdates) RequireStatus(t *testing.T) interfaces.DataSourceStatus {
-	select {
-	case s := <-d.Statuses:
-		return s
-	case <-time.After(time.Second):
-		require.Fail(t, "timed out waiting for new data source status")
-		return interfaces.DataSourceStatus{}
-	}
+	return th.RequireValue(t, d.Statuses, time.Second, "timed out waiting for new data source status")
 }
 
 type mockDataStoreStatusProvider struct {

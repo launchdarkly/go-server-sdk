@@ -15,6 +15,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +68,7 @@ segments:
   my-segment:
     rules: []
 `
-	sharedtest.WithTempFileContaining([]byte(fileData), func(filename string) {
+	th.WithTempFileData([]byte(fileData), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
@@ -82,7 +84,7 @@ segments:
 }
 
 func TestNewFileDataSourceJson(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
@@ -95,7 +97,7 @@ func TestNewFileDataSourceJson(t *testing.T) {
 }
 
 func TestStatusIsValidAfterSuccessfulLoad(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
@@ -107,8 +109,8 @@ func TestStatusIsValidAfterSuccessfulLoad(t *testing.T) {
 }
 
 func TestNewFileDataSourceJsonWithTwoFiles(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename1 string) {
-		sharedtest.WithTempFileContaining([]byte(`{"flags": {"my-flag2": {"on": true}}}`), func(filename2 string) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag1": {"on": true}}}`), func(filename1 string) {
+		th.WithTempFileData([]byte(`{"flags": {"my-flag2": {"on": true}}}`), func(filename2 string) {
 			factory := DataSource().FilePaths(filename1, filename2)
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 				p.waitForStart()
@@ -130,9 +132,9 @@ func TestNewFileDataSourceJsonWithTwoConflictingFiles(t *testing.T) {
 	file3Data := `{"flagValues": {"flag2": true}}`
 	file4Data := `{"segments": {"segment1": {}}}`
 
-	sharedtest.WithTempFileContaining([]byte(file1Data), func(filename1 string) {
+	th.WithTempFileData([]byte(file1Data), func(filename1 string) {
 		for _, data := range []string{file2Data, file3Data, file4Data} {
-			sharedtest.WithTempFileContaining([]byte(data), func(filename2 string) {
+			th.WithTempFileData([]byte(data), func(filename2 string) {
 				factory := DataSource().FilePaths(filename1, filename2)
 				withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 					p.waitForStart()
@@ -149,8 +151,8 @@ func TestDuplicateKeysHandlingCanSuppressErrors(t *testing.T) {
 	file1Data := `{"flags": {"flag1": {"on": true}, "flag2": {"on": false}}, "segments": {"segment1": {}}}`
 	file2Data := `{"flags": {"flag2": {"on": true}}}`
 
-	sharedtest.WithTempFileContaining([]byte(file1Data), func(filename1 string) {
-		sharedtest.WithTempFileContaining([]byte(file2Data), func(filename2 string) {
+	th.WithTempFileData([]byte(file1Data), func(filename1 string) {
+		th.WithTempFileData([]byte(file2Data), func(filename2 string) {
 			factory := DataSource().FilePaths(filename1, filename2).
 				DuplicateKeysHandling(DuplicateKeysIgnoreAllButFirst)
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
@@ -167,7 +169,7 @@ func TestDuplicateKeysHandlingCanSuppressErrors(t *testing.T) {
 }
 
 func TestNewFileDataSourceBadData(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte(`bad data`), func(filename string) {
+	th.WithTempFileData([]byte(`bad data`), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
@@ -177,7 +179,7 @@ func TestNewFileDataSourceBadData(t *testing.T) {
 }
 
 func TestNewFileDataSourceMissingFile(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte{}, func(filename string) {
+	th.WithTempFileData([]byte{}, func(filename string) {
 		os.Remove(filename)
 
 		factory := DataSource().FilePaths(filename)
@@ -189,7 +191,7 @@ func TestNewFileDataSourceMissingFile(t *testing.T) {
 }
 
 func TestStatusIsInterruptedAfterUnsuccessfulLoad(t *testing.T) {
-	sharedtest.WithTempFileContaining([]byte(`bad data`), func(filename string) {
+	th.WithTempFileData([]byte(`bad data`), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()
@@ -206,7 +208,7 @@ func TestNewFileDataSourceYamlValues(t *testing.T) {
 flagValues:
   my-flag: true
 `
-	sharedtest.WithTempFileContaining([]byte(fileData), func(filename string) {
+	th.WithTempFileData([]byte(fileData), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()

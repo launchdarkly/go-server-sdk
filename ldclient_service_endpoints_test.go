@@ -14,6 +14,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,13 +64,7 @@ func (r *recordingClientFactory) RoundTrip(req *http.Request) (*http.Response, e
 }
 
 func (r *recordingClientFactory) requireRequest(t *testing.T) url.URL {
-	select {
-	case u := <-r.requestURLs:
-		return u
-	case <-time.After(time.Second):
-		require.Fail(t, "timed out waiting for request")
-		return url.URL{}
-	}
+	return th.RequireValue(t, r.requestURLs, time.Second, "timed out waiting for request")
 }
 
 func TestDefaultStreamingDataSourceBaseUri(t *testing.T) {

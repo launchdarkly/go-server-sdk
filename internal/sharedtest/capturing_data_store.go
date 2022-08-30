@@ -11,8 +11,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // CapturingDataStore is a DataStore implementation that records update operations for testing.
@@ -123,13 +124,7 @@ func (d *CapturingDataStore) WaitForNextInit(
 	t *testing.T,
 	timeout time.Duration,
 ) []ldstoretypes.Collection {
-	select {
-	case inited := <-d.inits:
-		return inited
-	case <-time.After(timeout):
-		require.Fail(t, "timed out before receiving expected init")
-	}
-	return nil
+	return th.RequireValue(t, d.inits, timeout, "timed out before receiving expected init")
 }
 
 // WaitForInit waits for an Init call and verifies that it matches the expected data.
@@ -138,13 +133,8 @@ func (d *CapturingDataStore) WaitForInit(
 	data *ldservices.ServerSDKData,
 	timeout time.Duration,
 ) {
-	select {
-	case inited := <-d.inits:
-		assertReceivedInitDataEquals(t, data, inited)
-		break
-	case <-time.After(timeout):
-		require.Fail(t, "timed out before receiving expected init")
-	}
+	inited := th.RequireValue(t, d.inits, timeout, "timed out before receiving expected init")
+	assertReceivedInitDataEquals(t, data, inited)
 }
 
 // WaitForNextUpsert waits for an Upsert call.
@@ -152,13 +142,7 @@ func (d *CapturingDataStore) WaitForNextUpsert(
 	t *testing.T,
 	timeout time.Duration,
 ) UpsertParams {
-	select {
-	case upserted := <-d.upserts:
-		return upserted
-	case <-time.After(timeout):
-		require.Fail(t, "timed out before receiving expected update")
-		return UpsertParams{}
-	}
+	return th.RequireValue(t, d.upserts, timeout, "timed out before receiving expected update")
 }
 
 // WaitForUpsert waits for an Upsert call and verifies that it matches the expected data.

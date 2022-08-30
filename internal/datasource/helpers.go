@@ -8,7 +8,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
-	"github.com/launchdarkly/go-jsonstream/v2/jreader"
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 )
 
 type httpStatusError struct {
