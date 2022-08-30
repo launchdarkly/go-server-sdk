@@ -21,7 +21,7 @@ type dataStoreStatusProviderTestParams struct {
 func dataStoreStatusProviderTest(action func(dataStoreStatusProviderTestParams)) {
 	p := dataStoreStatusProviderTestParams{}
 	p.dataStore = sharedtest.NewCapturingDataStore(NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-	broadcaster := internal.NewDataStoreStatusBroadcaster()
+	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	defer broadcaster.Close()
 	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
 	p.dataStoreUpdates = dataStoreUpdates

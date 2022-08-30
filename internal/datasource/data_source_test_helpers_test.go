@@ -9,7 +9,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
-	"github.com/stretchr/testify/require"
+	th "github.com/launchdarkly/go-test-helpers/v3"
 )
 
 const testSDKKey = "test-sdk-key"
@@ -25,11 +25,8 @@ func withMockDataSourceUpdates(action func(*sharedtest.MockDataSourceUpdates)) {
 }
 
 func waitForReadyWithTimeout(t *testing.T, closeWhenReady <-chan struct{}, timeout time.Duration) {
-	select {
-	case <-closeWhenReady:
-		return
-	case <-time.After(timeout):
-		require.Fail(t, "timed out waiting for data source to finish starting")
+	if !th.AssertChannelClosed(t, closeWhenReady, timeout) {
+		t.FailNow()
 	}
 }
 

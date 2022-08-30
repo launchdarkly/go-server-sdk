@@ -14,17 +14,17 @@ package interfaces
 // Available property is true, then the SDK is able to evaluate context membership in Big Segments,
 // the Stale property indicates whether the data might be out of date.
 //
-//     status := client.GetBigSegmentStoreStatusProvider().GetStatus()
+//	status := client.GetBigSegmentStoreStatusProvider().GetStatus()
 //
 // Second, you can use AddStatusListener to get a channel that provides a status update whenever the
 // Big Segment store has an error or starts working again.
 //
-//     statusCh := client.GetBigSegmentStoreStatusProvider().AddStatusListener()
-//     go func() {
-//         for newStatus := range statusCh {
-//             log.Printf("Big Segment store status is now: %+v", newStatus)
-//         }
-//     }()
+//	statusCh := client.GetBigSegmentStoreStatusProvider().AddStatusListener()
+//	go func() {
+//	    for newStatus := range statusCh {
+//	        log.Printf("Big Segment store status is now: %+v", newStatus)
+//	    }
+//	}()
 type BigSegmentStoreStatusProvider interface {
 	// GetStatus returns the current status of the store.
 	GetStatus() BigSegmentStoreStatus

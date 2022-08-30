@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v2/jsonhelpers"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v3/jsonhelpers"
 )
 
 type fakeFlagOrSegment struct {
@@ -24,8 +24,8 @@ func FlagOrSegment(key string, version int) interface{} {
 // or StreamingServiceHandler. Its String() method returns a JSON object with the expected "flags" and "segments"
 // properties.
 //
-//     data := NewServerSDKData().Flags(flag1, flag2)
-//     handler := PollingServiceHandler(data)
+//	data := NewServerSDKData().Flags(flag1, flag2)
+//	handler := PollingServiceHandler(data)
 type ServerSDKData struct {
 	FlagsMap    map[string]interface{} `json:"flags"`
 	SegmentsMap map[string]interface{} `json:"segments"`

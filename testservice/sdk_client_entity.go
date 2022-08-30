@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -59,7 +59,7 @@ func NewSDKClientEntity(params servicedef.CreateInstanceParams) (*SDKClientEntit
 func (c *SDKClientEntity) Close() {
 	_ = c.sdk.Close()
 	c.logger.Println("Test ended")
-	c.logger.SetOutput(ioutil.Discard)
+	c.logger.SetOutput(io.Discard)
 }
 
 func contextOrUser(context ldcontext.Context, maybeUser *ldcontext.Context) ldcontext.Context {
@@ -99,6 +99,9 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 		return c.contextBuild(*params.ContextBuild)
 	case servicedef.CommandContextConvert:
 		return c.contextConvert(*params.ContextConvert)
+	case servicedef.CommandSecureModeHash:
+		hash := c.sdk.SecureModeHash(params.SecureModeHash.Context)
+		return servicedef.SecureModeHashResponse{Result: hash}, nil
 	default:
 		return nil, BadRequestError{Message: fmt.Sprintf("unknown command %q", params.Command)}
 	}

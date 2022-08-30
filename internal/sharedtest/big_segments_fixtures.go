@@ -9,6 +9,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -115,13 +117,9 @@ func ExpectBigSegmentStoreStatus(
 	timeout time.Duration,
 	expectedStatus interfaces.BigSegmentStoreStatus,
 ) {
-	select {
-	case newStatus := <-statusCh:
-		require.Equal(t, expectedStatus, newStatus)
-		if statusGetter != nil {
-			require.Equal(t, newStatus, statusGetter())
-		}
-	case <-time.After(timeout):
-		require.Fail(t, "timed out waiting for new status")
+	newStatus := th.RequireValue(t, statusCh, timeout, "timed out waiting for new status")
+	require.Equal(t, expectedStatus, newStatus)
+	if statusGetter != nil {
+		require.Equal(t, newStatus, statusGetter())
 	}
 }

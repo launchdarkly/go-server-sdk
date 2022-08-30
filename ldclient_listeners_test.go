@@ -13,6 +13,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,6 +60,7 @@ func clientListenersTestWithConfig(configAction func(*Config), action func(clien
 
 func TestFlagTracker(t *testing.T) {
 	flagKey := "important-flag"
+	timeout := time.Millisecond * 100
 
 	t.Run("sends flag change events", func(t *testing.T) {
 		clientListenersTest(func(p clientListenersTestParams) {
@@ -66,8 +69,8 @@ func TestFlagTracker(t *testing.T) {
 			ch1 := p.client.GetFlagTracker().AddFlagChangeListener()
 			ch2 := p.client.GetFlagTracker().AddFlagChangeListener()
 
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch2)
+			th.AssertNoMoreValues(t, ch1, timeout)
+			th.AssertNoMoreValues(t, ch2, timeout)
 
 			p.testData.Update(p.testData.Flag(flagKey))
 
@@ -75,10 +78,11 @@ func TestFlagTracker(t *testing.T) {
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flagKey)
 
 			p.client.GetFlagTracker().RemoveFlagChangeListener(ch1)
+			th.AssertChannelClosed(t, ch1, time.Millisecond)
+
 			p.testData.Update(p.testData.Flag(flagKey))
 
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flagKey)
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch1)
 		})
 	})
 
@@ -93,11 +97,12 @@ func TestFlagTracker(t *testing.T) {
 			ch1 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, user, ldvalue.Null())
 			ch2 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, user, ldvalue.Null())
 			ch3 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, otherUser, ldvalue.Null())
-			p.client.GetFlagTracker().RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
 
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch1)
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch2)
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+			p.client.GetFlagTracker().RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
+			th.AssertChannelClosed(t, ch2, time.Millisecond)
+
+			th.AssertNoMoreValues(t, ch1, timeout)
+			th.AssertNoMoreValues(t, ch3, timeout)
 
 			// make the flag true for the first user only, and broadcast a flag change event
 			p.testData.Update(p.testData.Flag(flagKey).VariationForUser(user.Key(), true))
@@ -108,11 +113,8 @@ func TestFlagTracker(t *testing.T) {
 			assert.Equal(t, ldvalue.Bool(false), event1.OldValue)
 			assert.Equal(t, ldvalue.Bool(true), event1.NewValue)
 
-			// ch2 doesn't receive one, because it was unregistered
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch2)
-
 			// ch3 doesn't receive one, because the flag's value hasn't changed for otherUser
-			sharedtest.ExpectNoMoreFlagValueChangeEvents(t, ch3)
+			th.AssertNoMoreValues(t, ch3, timeout)
 		})
 	})
 }
@@ -180,12 +182,8 @@ func TestDataStoreStatusProvider(t *testing.T) {
 
 			p.dataStoreUpdates.UpdateStatus(newStatus)
 
-			select {
-			case s := <-statusCh:
-				assert.Equal(t, newStatus, s)
-			case <-time.After(time.Second * 2):
-				assert.Fail(t, "timed out waiting for new status")
-			}
+			s := th.RequireValue(t, statusCh, time.Second*2, "timed out waiting for new status")
+			assert.Equal(t, newStatus, s)
 		})
 	})
 }

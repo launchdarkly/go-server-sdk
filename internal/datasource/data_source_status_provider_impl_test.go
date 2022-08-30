@@ -21,9 +21,9 @@ type dataSourceStatusProviderImplTestParams struct {
 
 func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTestParams)) {
 	p := dataSourceStatusProviderImplTestParams{}
-	statusBroadcaster := internal.NewDataSourceStatusBroadcaster()
+	statusBroadcaster := internal.NewBroadcaster[interfaces.DataSourceStatus]()
 	defer statusBroadcaster.Close()
-	flagBroadcaster := internal.NewFlagChangeEventBroadcaster()
+	flagBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
 	defer flagBroadcaster.Close()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	dataStoreStatusProvider := datastore.NewDataStoreStatusProviderImpl(store, nil)

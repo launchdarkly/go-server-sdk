@@ -20,7 +20,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/eventsource"
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	th "github.com/launchdarkly/go-test-helpers/v3"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -90,10 +91,7 @@ func runStreamingTestWithConfiguration(
 
 			sp.Start(closeWhenReady)
 
-			select {
-			case <-closeWhenReady:
-			case <-time.After(time.Second):
-				assert.Fail(t, "start timeout")
+			if !th.AssertChannelClosed(t, closeWhenReady, time.Second, "timed out waiting for data source to start") {
 				return
 			}
 
@@ -165,13 +163,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 
 	expectRestart := func(t *testing.T, p streamingTestParams) {
 		<-p.requests // ignore initial HTTP request
-		select {
-		case <-p.requests:
-			break
-		case <-time.After(time.Millisecond * 300):
-			assert.Fail(t, "expected stream restart, did not see one")
-			return
-		}
+		th.RequireValue(t, p.requests, time.Millisecond*300, "expected stream restart, did not see one")
 		p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)       // the initial connection
 		p.updates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted) // the error
 		p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)       // the restarted connection
@@ -266,20 +258,12 @@ func TestStreamProcessorUnrecognizedDataIsIgnored(t *testing.T) {
 	expectNoRestart := func(t *testing.T, p streamingTestParams) {
 		<-p.requests // ignore initial HTTP request
 
-		select {
-		case <-p.requests:
-			assert.Fail(t, "stream restarted unexpectedly")
-		case <-time.After(time.Millisecond * 100):
-		}
+		th.AssertNoMoreValues(t, p.requests, time.Millisecond*100, "stream restarted unexpectedly")
 
 		assert.Len(t, p.mockLog.GetOutput(ldlog.Error), 0)
 
 		p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid) // the initial connection
-		select {
-		case status := <-p.updates.Statuses:
-			assert.Fail(t, "unexpected data source status change", "new status: %+v", status)
-		case <-time.After(time.Millisecond * 100):
-		}
+		th.AssertNoMoreValues(t, p.updates.Statuses, time.Millisecond*100, "unexpected data source status change")
 	}
 
 	t.Run("patch with unrecognized path", func(t *testing.T) {
@@ -316,11 +300,7 @@ func TestStreamProcessorStoreUpdateFailureWithStatusTracking(t *testing.T) {
 	expectStoreFailureAndRecovery := func(t *testing.T, p streamingTestParams) {
 		<-p.requests // ignore initial HTTP request
 
-		select {
-		case <-p.requests:
-			assert.Fail(t, "stream restarted unexpectedly")
-		case <-time.After(time.Millisecond * 100):
-		}
+		th.AssertNoMoreValues(t, p.requests, time.Millisecond*100, "stream restarted unexpectedly")
 
 		p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid) // the initial connection
 		p.mockLog.AssertMessageMatch(t, true, ldlog.Error,
@@ -329,13 +309,7 @@ func TestStreamProcessorStoreUpdateFailureWithStatusTracking(t *testing.T) {
 		p.updates.DataStore.SetFakeError(nil)
 		p.updates.UpdateStoreStatus(interfaces.DataStoreStatus{Available: true, NeedsRefresh: true})
 
-		select {
-		case <-p.requests:
-			break
-		case <-time.After(time.Millisecond * 300):
-			assert.Fail(t, "expected stream restart, did not see one")
-			return
-		}
+		th.RequireValue(t, p.requests, time.Millisecond*300, "expected stream restart, did not see one")
 
 		p.mockLog.AssertMessageMatch(t, true, ldlog.Warn, "Restarting stream.*after data store outage")
 	}
@@ -393,13 +367,7 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 
 		p.stream.Send(initialData.ToPutEvent())
 
-		select {
-		case <-p.requests:
-			break
-		case <-time.After(time.Millisecond * 300):
-			assert.Fail(t, "expected stream restart, did not see one")
-			return
-		}
+		th.RequireValue(t, p.requests, time.Millisecond*300, "expected stream restart, did not see one")
 
 		p.mockLog.AssertMessageMatch(t, true, ldlog.Error, "Failed to store.*will restart stream")
 	})
@@ -427,12 +395,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 
 			sp.Start(closeWhenReady)
 
-			select {
-			case <-closeWhenReady:
-				assert.False(t, sp.IsInitialized())
-			case <-time.After(time.Second * 3):
-				assert.Fail(t, "Initialization shouldn't block after this error")
-			}
+			th.AssertChannelClosed(t, closeWhenReady, time.Second*3, "Initialization shouldn't block after this error")
 
 			event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
 			assert.Equal(t, 1, event.GetByKey("streamInits").Count())
@@ -472,12 +435,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
 
-			select {
-			case <-closeWhenReady:
-				assert.True(t, sp.IsInitialized())
-			case <-time.After(time.Second * 3):
-				assert.Fail(t, "Should have successfully retried before now")
-			}
+			th.AssertChannelClosed(t, closeWhenReady, time.Second*3, "Should have successfully retried before now")
 
 			event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
 			assert.Equal(t, 2, event.GetByKey("streamInits").Count())

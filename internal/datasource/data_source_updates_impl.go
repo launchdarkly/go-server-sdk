@@ -16,11 +16,11 @@ import (
 // DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
+type DataSourceUpdatesImpl struct {
 	store                       subsystems.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
-	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster
-	flagChangeEventBroadcaster  *internal.FlagChangeEventBroadcaster
+	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus]
+	flagChangeEventBroadcaster  *internal.Broadcaster[intf.FlagChangeEvent]
 	dependencyTracker           *dependencyTracker
 	outageTracker               *outageTracker
 	loggers                     ldlog.Loggers
@@ -33,8 +33,8 @@ type DataSourceUpdatesImpl struct { //nolint:revive // yes, we know the package 
 func NewDataSourceUpdatesImpl(
 	store subsystems.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
-	dataSourceStatusBroadcaster *internal.DataSourceStatusBroadcaster,
-	flagChangeEventBroadcaster *internal.FlagChangeEventBroadcaster,
+	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus],
+	flagChangeEventBroadcaster *internal.Broadcaster[intf.FlagChangeEvent],
 	logDataSourceOutageAsErrorAfter time.Duration,
 	loggers ldlog.Loggers,
 ) *DataSourceUpdatesImpl {

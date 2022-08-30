@@ -8,6 +8,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -51,8 +54,7 @@ func newFlagBuilder(key string) *FlagBuilder {
 func copyFlagBuilder(from *FlagBuilder) *FlagBuilder {
 	f := new(FlagBuilder)
 	*f = *from
-	f.variations = make([]ldvalue.Value, len(from.variations))
-	copy(f.variations, from.variations)
+	f.variations = slices.Clone(from.variations)
 	if f.rules != nil {
 		f.rules = make([]*RuleBuilder, 0, len(from.rules))
 		for _, r := range from.rules {
@@ -64,11 +66,7 @@ func copyFlagBuilder(from *FlagBuilder) *FlagBuilder {
 		for k, v := range from.targets {
 			map1 := make(map[int]map[string]bool)
 			for k1, v1 := range v {
-				map2 := make(map[string]bool)
-				for k2, v2 := range v1 {
-					map2[k2] = v2
-				}
-				map1[k1] = map2
+				map1[k1] = maps.Clone(v1)
 			}
 			f.targets[k] = map1
 		}
@@ -260,8 +258,7 @@ func (f *FlagBuilder) VariationIndexForKey(contextKind ldcontext.Kind, key strin
 // normally has ldvalue.Bool(true), ldvalue.Bool(false); a string-valued flag might have
 // ldvalue.String("red"), ldvalue.String("green")}; etc.
 func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
-	f.variations = make([]ldvalue.Value, len(values))
-	copy(f.variations, values)
+	f.variations = slices.Clone(values)
 	return f
 }
 
@@ -273,9 +270,9 @@ func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
 //
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" or "Edina":
 //
-//     testData.Flag("flag").
-//         IfMatch("name", ldvalue.String("Patsy"), ldvalue.String("Edina")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatch("name", ldvalue.String("Patsy"), ldvalue.String("Edina")).
+//	        ThenReturn(true)
 func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndMatch(attribute, values...)
 }
@@ -289,9 +286,9 @@ func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBu
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" or "Monsoon":
 //
-//     testData.Flag("flag").
-//         IfMatchContext("company", "name", ldvalue.String("Ella"), ldvalue.String("Monsoon")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatchContext("company", "name", ldvalue.String("Ella"), ldvalue.String("Monsoon")).
+//	        ThenReturn(true)
 func (f *FlagBuilder) IfMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,
@@ -309,9 +306,9 @@ func (f *FlagBuilder) IfMatchContext(
 // For example, this creates a rule that returns true if the user name attribute is neither "Saffron"
 // nor "Bubble":
 //
-//     testData.Flag("flag").
-//         IfNotMatch("name", ldvalue.String("Saffron"), ldvalue.String("Bubble")).
-//         ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfNotMatch("name", ldvalue.String("Saffron"), ldvalue.String("Bubble")).
+//	    ThenReturn(true)
 func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return newTestFlagRuleBuilder(f).AndNotMatch(attribute, values...)
 }
@@ -325,9 +322,9 @@ func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *Rul
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is neither "Pendant" nor "Sterling Cooper":
 //
-//     testData.Flag("flag").
-//         IfNotMatch("company", "name", ldvalue.String("Pendant"), ldvalue.String("Sterling Cooper")).
-//         ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfNotMatch("company", "name", ldvalue.String("Pendant"), ldvalue.String("Sterling Cooper")).
+//	    ThenReturn(true)
 func (f *FlagBuilder) IfNotMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,
@@ -376,7 +373,7 @@ func (f *FlagBuilder) createFlag(version int) ldmodel.FeatureFlag {
 	for kind := range f.targets {
 		targetKinds = append(targetKinds, kind)
 	}
-	sort.Slice(targetKinds, func(i, j int) bool { return targetKinds[i] < targetKinds[j] })
+	slices.Sort(targetKinds)
 	for _, kind := range targetKinds {
 		keysByVar := f.targets[kind]
 		for varIndex := range f.variations {
@@ -413,8 +410,7 @@ func newTestFlagRuleBuilder(owner *FlagBuilder) *RuleBuilder {
 
 func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder {
 	r := RuleBuilder{owner: owner, variation: from.variation}
-	r.clauses = make([]ldmodel.Clause, len(from.clauses))
-	copy(r.clauses, from.clauses)
+	r.clauses = slices.Clone(from.clauses)
 	return &r
 }
 
@@ -424,10 +420,10 @@ func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
 // country is "gb":
 //
-//     testData.Flag("flag").
-//         IfMatch("name", ldvalue.String("Patsy")).
-//             AndMatch("country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatch("name", ldvalue.String("Patsy")).
+//	        AndMatch("country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return r.AndMatchContext(ldcontext.DefaultKind, attribute, values...)
 }
@@ -438,10 +434,10 @@ func (r *RuleBuilder) AndMatch(attribute string, values ...ldvalue.Value) *RuleB
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" and the country is "gb":
 //
-//     testData.Flag("flag").
-//         IfMatchContext("company", "name", ldvalue.String("Ella")).
-//             AndMatchContext("company", "country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatchContext("company", "name", ldvalue.String("Ella")).
+//	        AndMatchContext("company", "country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,
@@ -457,10 +453,10 @@ func (r *RuleBuilder) AndMatchContext(
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
 // country is not "gb":
 //
-//     testData.Flag("flag").
-//         IfMatch("name", ldvalue.String("Patsy")).
-//             AndNotMatch("country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatch("name", ldvalue.String("Patsy")).
+//	        AndNotMatch("country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndNotMatch(attribute string, values ...ldvalue.Value) *RuleBuilder {
 	return r.AndNotMatchContext(ldcontext.DefaultKind, attribute, values...)
 }
@@ -471,10 +467,10 @@ func (r *RuleBuilder) AndNotMatch(attribute string, values ...ldvalue.Value) *Ru
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" and the country is not "gb":
 //
-//     testData.Flag("flag").
-//         IfMatchContext("company", "name", ldvalue.String("Ella")).
-//             AndNotMatchContext("company", "country", ldvalue.String("gb")).
-//             ThenReturn(true)
+//	testData.Flag("flag").
+//	    IfMatchContext("company", "name", ldvalue.String("Ella")).
+//	        AndNotMatchContext("company", "country", ldvalue.String("gb")).
+//	        ThenReturn(true)
 func (r *RuleBuilder) AndNotMatchContext(
 	contextKind ldcontext.Kind,
 	attribute string,

@@ -30,9 +30,9 @@ type StreamingDataSourceBuilder struct {
 // the connection, call this method to obtain a builder, set its properties with the StreamingDataSourceBuilder
 // methods, and then store it in the DataSource field of your SDK configuration:
 //
-//     config := ld.Config{
-//         DataSource: ldcomponents.StreamingDataSource().InitialReconnectDelay(500 * time.Millisecond),
-//     }
+//	config := ld.Config{
+//	    DataSource: ldcomponents.StreamingDataSource().InitialReconnectDelay(500 * time.Millisecond),
+//	}
 func StreamingDataSource() *StreamingDataSourceBuilder {
 	return &StreamingDataSourceBuilder{
 		initialReconnectDelay: DefaultInitialReconnectDelay,

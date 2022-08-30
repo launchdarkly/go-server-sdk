@@ -15,6 +15,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
 	es "github.com/launchdarkly/eventsource"
+
+	"golang.org/x/exp/maps"
 )
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in
@@ -67,8 +69,7 @@ type StreamProcessor struct {
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
-	setInitializedOnce         sync.Once
-	isInitialized              bool
+	isInitialized              internal.AtomicBoolean
 	halt                       chan struct{}
 	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
@@ -108,7 +109,7 @@ func NewStreamProcessor(
 
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) IsInitialized() bool {
-	return sp.isInitialized
+	return sp.isInitialized.Get()
 }
 
 //nolint:revive // no doc comment for standard method
@@ -254,8 +255,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	req, _ := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
-	for k, vv := range sp.headers {
-		req.Header[k] = vv
+	if sp.headers != nil {
+		req.Header = maps.Clone(sp.headers)
 	}
 	sp.loggers.Info("Connecting to LaunchDarkly stream")
 
@@ -332,10 +333,10 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 
 func (sp *StreamProcessor) setInitializedAndNotifyClient(success bool, closeWhenReady chan<- struct{}) {
 	if success {
-		sp.setInitializedOnce.Do(func() {
+		wasAlreadyInitialized := sp.isInitialized.GetAndSet(true)
+		if !wasAlreadyInitialized {
 			sp.loggers.Info("LaunchDarkly streaming is active")
-			sp.isInitialized = true
-		})
+		}
 	}
 	sp.readyOnce.Do(func() {
 		close(closeWhenReady)

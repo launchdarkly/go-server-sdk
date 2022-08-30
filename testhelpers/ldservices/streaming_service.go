@@ -3,7 +3,7 @@ package ldservices
 import (
 	"net/http"
 
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )
 
 const (
@@ -17,11 +17,11 @@ const (
 //
 // There must always be an initial event, since LaunchDarkly streams always start with a "put".
 //
-//     initialData := ldservices.NewServerSDKData().Flags(flag1, flag2) // all clients will get this in a "put" event
-//     handler, stream := ldservices.ServerSideStreamingHandler(initialData.ToPutEvent())
-//     server := httptest.NewServer(handler)
-//     stream.Enqueue(httphelpers.SSEEvent{Event: "patch", Data: myPatchData}) // push an update
-//     stream.Close() // force any current stream connections to be closed
+//	initialData := ldservices.NewServerSDKData().Flags(flag1, flag2) // all clients will get this in a "put" event
+//	handler, stream := ldservices.ServerSideStreamingHandler(initialData.ToPutEvent())
+//	server := httptest.NewServer(handler)
+//	stream.Enqueue(httphelpers.SSEEvent{Event: "patch", Data: myPatchData}) // push an update
+//	stream.Close() // force any current stream connections to be closed
 func ServerSideStreamingServiceHandler(
 	initialEvent httphelpers.SSEEvent,
 ) (http.Handler, httphelpers.SSEStreamControl) {

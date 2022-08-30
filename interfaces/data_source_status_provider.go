@@ -15,31 +15,31 @@ import (
 // There are three ways to interact with the data source status. One is to simply get the current status;
 // if its State property is DataSourceStateValid, then the SDK is able to receive feature flag updates.
 //
-//     status := client.GetDataSourceStatusProvider().GetStatus()
-//     isValid = status.State == interfaces.DataSourceStateValid
+//	status := client.GetDataSourceStatusProvider().GetStatus()
+//	isValid = status.State == interfaces.DataSourceStateValid
 //
 // Second, you can use AddStatusListener to get a channel that provides a status update whenever the
 // connection has an error or starts working again.
 //
-//     statusCh := client.GetDataSourceStatusProvider().AddStatusListener()
-//     go func() {
-//         for newStatus := range statusCh {
-//             log.Printf("data source status is now: %+v", newStatus)
-//         }
-//     }()
+//	statusCh := client.GetDataSourceStatusProvider().AddStatusListener()
+//	go func() {
+//	    for newStatus := range statusCh {
+//	        log.Printf("data source status is now: %+v", newStatus)
+//	    }
+//	}()
 //
 // Third, you can use WaitFor to block until the data source has the desired status. For instance, if you
 // did not want to wait for a connection when you originally created the client, you could set the
 // timeout to zero so that the connection happens in the background. Then, when you need to do something
 // that requires a valid connection (possibly on another goroutine), you can wait until it is valid.
 //
-//     client, _ := ld.MakeCustomClient(sdkKey, config, 0)
+//	client, _ := ld.MakeCustomClient(sdkKey, config, 0)
 //
-//     // later...
-//     inited := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 10 * time.Second)
-//     if !inited {
-//         // do whatever is appropriate if initialization has timed out
-//     }
+//	// later...
+//	inited := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 10 * time.Second)
+//	if !inited {
+//	    // do whatever is appropriate if initialization has timed out
+//	}
 type DataSourceStatusProvider interface {
 	// GetStatus returns the current status of the data source.
 	//

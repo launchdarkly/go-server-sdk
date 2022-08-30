@@ -18,7 +18,7 @@ import (
 // events as appropriate to a FlagValueChangeEvent channel; the flagTrackerImpl maintains its own
 // mapping of this to the underlying channel which is necessary for unregistering it.
 type flagTrackerImpl struct {
-	broadcaster              *FlagChangeEventBroadcaster
+	broadcaster              *Broadcaster[interfaces.FlagChangeEvent]
 	evaluateFn               func(string, ldcontext.Context, ldvalue.Value) ldvalue.Value
 	valueChangeSubscriptions map[<-chan interfaces.FlagValueChangeEvent]<-chan interfaces.FlagChangeEvent
 	lock                     sync.Mutex
@@ -26,7 +26,7 @@ type flagTrackerImpl struct {
 
 // NewFlagTrackerImpl creates the internal implementation of FlagTracker.
 func NewFlagTrackerImpl(
-	broadcaster *FlagChangeEventBroadcaster,
+	broadcaster *Broadcaster[interfaces.FlagChangeEvent],
 	evaluateFn func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value,
 ) interfaces.FlagTracker {
 	return &flagTrackerImpl{

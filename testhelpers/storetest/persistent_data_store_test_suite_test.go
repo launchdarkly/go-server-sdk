@@ -7,7 +7,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-test-helpers/v2/testbox"
+	"github.com/launchdarkly/go-test-helpers/v3/testbox"
 
 	"github.com/stretchr/testify/assert"
 )

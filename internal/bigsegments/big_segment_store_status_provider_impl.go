@@ -14,14 +14,14 @@ import (
 // GetStatus or AddStatusListener.
 type bigSegmentStoreStatusProviderImpl struct {
 	getStatusFn func() interfaces.BigSegmentStoreStatus
-	broadcaster *internal.BigSegmentStoreStatusBroadcaster
+	broadcaster *internal.Broadcaster[interfaces.BigSegmentStoreStatus]
 }
 
 // NewBigSegmentStoreStatusProviderImpl creates the internal implementation of
 // BigSegmentStoreStatusProvider. The manager parameter can be nil if there is no Big Segment store.
 func NewBigSegmentStoreStatusProviderImpl(
 	getStatusFn func() interfaces.BigSegmentStoreStatus,
-	broadcaster *internal.BigSegmentStoreStatusBroadcaster,
+	broadcaster *internal.Broadcaster[interfaces.BigSegmentStoreStatus],
 ) interfaces.BigSegmentStoreStatusProvider {
 	return &bigSegmentStoreStatusProviderImpl{
 		getStatusFn: getStatusFn,

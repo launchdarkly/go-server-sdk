@@ -12,9 +12,9 @@ type nullEventProcessorFactory struct{}
 // Storing this in Config.Events causes the SDK to discard all analytics events and not send them to
 // LaunchDarkly, regardless of any other configuration.
 //
-//     config := ld.Config{
-//         Events: ldcomponents.NoEvents(),
-//     }
+//	config := ld.Config{
+//	    Events: ldcomponents.NoEvents(),
+//	}
 func NoEvents() subsystems.EventProcessorFactory {
 	return nullEventProcessorFactory{}
 }

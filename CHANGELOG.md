@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.10.0] - 2022-07-05
+### Added:
+- `ldtestdata.FlagBuilder.VariationForAll` and `VariationForAllIndex`: new names for the deprecated methods listed below.
+
+### Changed:
+- It was possible to cause analytics event data to be lost by passing `ldvalue.Raw(nil)` or `ldvalue.Raw(json.RawMessage(""))` as a default value parameter to `JSONVariation`, or as the value of a custom user attribute, because a zero-length byte array is not a valid JSON value and would cause the event output to be malformed. The SDK now guards against this by encoding such a value as `null` in the event data. It is still possible to cause a similar problem by passing a malformed raw value as as `ldvalue.Raw(json.RawMessage("{{{"))`; it is the caller's responsibility not to do so, as the purpose of `json.RawMessage` is to avoid unnecessary parsing and implies that the value is known to be syntactically valid.
+
+### Fixed:
+- If a field in `Config.ApplicationInfo` is set to a string longer than 64 characters, the SDK will now log a warning and discard it, since the LaunchDarkly services cannot process such strings for these fields.
+- Prevented a potential data race in `LDClient.Initialized()`. ([#69](https://github.com/launchdarkly/go-server-sdk/issues/69))
+
+### Deprecated:
+- `ldtestdata.FlagBuilder.VariationForAllUsers` and `VariationForAllUsersIndex`. These methods are being renamed because in the future, there will be other possible kinds of evaluation inputs that are not users, and these test methods will apply equally to those.
+
 ## [5.9.0] - 2022-03-22
 ### Added:
 - `Config.ApplicationInfo`, for configuration of application metadata that may be used in LaunchDarkly analytics or other product features. This does not affect feature flag evaluations.

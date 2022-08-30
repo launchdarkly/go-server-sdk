@@ -8,7 +8,7 @@
 
 ## Supported Go versions
 
-This version of the LaunchDarkly SDK has been tested with Go 1.16 and higher.
+This version of the LaunchDarkly SDK requires a Go version of 1.18 or higher.
 
 ## Getting started
 

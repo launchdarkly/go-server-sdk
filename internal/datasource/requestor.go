@@ -1,7 +1,7 @@
 package datasource
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -9,9 +9,10 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
-	"github.com/gregjones/httpcache"
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 
-	"github.com/launchdarkly/go-jsonstream/v2/jreader"
+	"github.com/gregjones/httpcache"
+	"golang.org/x/exp/maps"
 )
 
 // requestor is the interface implemented by requestorImpl, used for testing purposes
@@ -86,9 +87,8 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 		return nil, false, reqErr
 	}
 	url := req.URL.String()
-
-	for k, vv := range r.headers {
-		req.Header[k] = vv
+	if r.headers != nil {
+		req.Header = maps.Clone(r.headers)
 	}
 
 	res, resErr := r.httpClient.Do(req)
@@ -98,7 +98,7 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 	}
 
 	defer func() {
-		_, _ = ioutil.ReadAll(res.Body)
+		_, _ = io.ReadAll(res.Body)
 		_ = res.Body.Close()
 	}()
 
@@ -108,7 +108,7 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
 
-	body, ioErr := ioutil.ReadAll(res.Body)
+	body, ioErr := io.ReadAll(res.Body)
 
 	if ioErr != nil {
 		return nil, false, ioErr // COVERAGE: there is no way to simulate this condition in unit tests

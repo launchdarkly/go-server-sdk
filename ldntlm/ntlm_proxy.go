@@ -21,21 +21,21 @@ import (
 //
 // To use this with the SDK, pass the factory function to HTTPConfigurationBuilder.HTTPClientFactory:
 //
-//     clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
-//         "password", "domain")
-//     if err != nil {
-//         // there's some configuration problem such as an invalid proxy URL
-//     }
-//     config := ld.Config{
-//         HTTP: ldcomponents.HTTPConfiguration().HTTPClientFactory(clientFactory),
-//     }
-//     client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
+//	clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
+//	    "password", "domain")
+//	if err != nil {
+//	    // there's some configuration problem such as an invalid proxy URL
+//	}
+//	config := ld.Config{
+//	    HTTP: ldcomponents.HTTPConfiguration().HTTPClientFactory(clientFactory),
+//	}
+//	client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 //
 // You can also specify TLS configuration options from the ldhttp package, if you are connecting to
 // the proxy securely:
 //
-//     clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
-//         "password", "domain", ldhttp.CACertFileOption("extra-ca-cert.pem"))
+//	clientFactory, err := ldntlm.NewNTLMProxyHTTPClientFactory("http://my-proxy.com", "username",
+//	    "password", "domain", ldhttp.CACertFileOption("extra-ca-cert.pem"))
 func NewNTLMProxyHTTPClientFactory(proxyURL, username, password, domain string,
 	options ...ldhttp.TransportOption) (func() *http.Client, error) {
 	if proxyURL == "" || username == "" || password == "" {

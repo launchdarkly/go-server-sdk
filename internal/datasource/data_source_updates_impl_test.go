@@ -7,19 +7,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testDataSourceOutageTimeout = 200 * time.Millisecond
@@ -28,7 +31,7 @@ type dataSourceUpdatesImplTestParams struct {
 	store                   *sharedtest.CapturingDataStore
 	dataStoreStatusProvider intf.DataStoreStatusProvider
 	dataSourceUpdates       *DataSourceUpdatesImpl
-	flagChangeBroadcaster   *internal.FlagChangeEventBroadcaster
+	flagChangeBroadcaster   *internal.Broadcaster[interfaces.FlagChangeEvent]
 	mockLoggers             *ldlogtest.MockLog
 }
 
@@ -38,9 +41,9 @@ func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	p.store = sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
 	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(nil)
 	p.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
-	dataSourceStatusBroadcaster := internal.NewDataSourceStatusBroadcaster()
+	dataSourceStatusBroadcaster := internal.NewBroadcaster[interfaces.DataSourceStatus]()
 	defer dataSourceStatusBroadcaster.Close()
-	p.flagChangeBroadcaster = internal.NewFlagChangeEventBroadcaster()
+	p.flagChangeBroadcaster = internal.NewBroadcaster[interfaces.FlagChangeEvent]()
 	defer p.flagChangeBroadcaster.Close()
 	p.dataSourceUpdates = NewDataSourceUpdatesImpl(
 		p.store,
@@ -338,7 +341,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 			flag2 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
 			p.dataSourceUpdates.Upsert(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
-			sharedtest.ExpectNoMoreFlagChangeEvents(t, ch)
+			th.AssertNoMoreValues(t, ch, time.Millisecond*100)
 		})
 	})
 }

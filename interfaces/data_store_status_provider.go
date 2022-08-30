@@ -8,18 +8,18 @@ package interfaces
 // There are two ways to interact with the data store status. One is to simply get the current status; if
 // its Available property is true, then the store is working normally.
 //
-//     status := client.GetDataStoreStatusProvider().GetStatus()
-//     isValid = status.Available
+//	status := client.GetDataStoreStatusProvider().GetStatus()
+//	isValid = status.Available
 //
 // Second, you can use AddStatusListener to get a channel that provides a status update whenever the
 // data store has an error or starts working again.
 //
-//     statusCh := client.GetDataStoreStatusProvider().AddStatusListener()
-//     go func() {
-//         for newStatus := range statusCh {
-//             log.Printf("data store Available is %t", newStatus.Available)
-//         }
-//     }()
+//	statusCh := client.GetDataStoreStatusProvider().AddStatusListener()
+//	go func() {
+//	    for newStatus := range statusCh {
+//	        log.Printf("data store Available is %t", newStatus.Available)
+//	    }
+//	}()
 type DataStoreStatusProvider interface {
 	// GetStatus returns the current status of the store.
 	//

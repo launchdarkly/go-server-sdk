@@ -3,11 +3,11 @@
 //
 // It should be used in conjunction with the ldfiledata package:
 //
-//     config := ld.Config{
-//         DataSource: ldfiledata.DataSource().
-//             FilePaths(filePaths).
-//             Reloader(ldfilewatch.WatchFiles),
-//     }
+//	config := ld.Config{
+//	    DataSource: ldfiledata.DataSource().
+//	        FilePaths(filePaths).
+//	        Reloader(ldfilewatch.WatchFiles),
+//	}
 //
 // The two packages are separate so as to avoid bringing additional dependencies for users who
 // do not need automatic reloading.

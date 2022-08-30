@@ -12,8 +12,8 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
-	m "github.com/launchdarkly/go-test-helpers/v2/matchers"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
+	m "github.com/launchdarkly/go-test-helpers/v3/matchers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -3,10 +3,12 @@ package flagstate
 import (
 	"fmt"
 
-	"github.com/launchdarkly/go-jsonstream/v2/jwriter"
+	"github.com/launchdarkly/go-jsonstream/v3/jwriter"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+
+	"golang.org/x/exp/maps"
 )
 
 // AllFlags is a snapshot of the state of multiple feature flags with regard to a specific evaluation
@@ -178,12 +180,7 @@ func NewAllFlagsBuilder(options ...Option) *AllFlagsBuilder {
 
 // Build returns an immutable State instance copied from the current builder data.
 func (b *AllFlagsBuilder) Build() AllFlags {
-	s := b.state
-	s.flags = make(map[string]FlagState, len(b.state.flags))
-	for k, v := range b.state.flags {
-		s.flags[k] = v
-	}
-	return s
+	return AllFlags{valid: b.state.valid, flags: maps.Clone(b.state.flags)}
 }
 
 // AddFlag adds information about a flag.

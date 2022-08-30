@@ -14,9 +14,9 @@ import (
 // ldcomponents.Logging(), change its properties with the LoggingConfigurationBuilder methods, and
 // store it in Config.Logging:
 //
-//     config := ld.Config{
-//         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
-//     }
+//	config := ld.Config{
+//	    Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
+//	}
 type LoggingConfigurationBuilder struct {
 	inited bool
 	config subsystems.LoggingConfiguration
@@ -32,9 +32,9 @@ const DefaultLogDataSourceOutageAsErrorAfter = time.Minute
 // values for any of these properties, create a builder with ldcomponents.Logging(), change its properties
 // with the LoggingConfigurationBuilder methods, and store it in Config.Logging:
 //
-//     config := ld.Config{
-//         Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
-//     }
+//	config := ld.Config{
+//	    Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
+//	}
 func Logging() *LoggingConfigurationBuilder {
 	return &LoggingConfigurationBuilder{}
 }
@@ -132,9 +132,9 @@ func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
 
 // NoLogging returns a configuration object that disables logging.
 //
-//     config := ld.Config{
-//         Logging: ldcomponents.NoLogging(),
-//     }
+//	config := ld.Config{
+//	    Logging: ldcomponents.NoLogging(),
+//	}
 func NoLogging() *LoggingConfigurationBuilder {
 	return Logging().Loggers(ldlog.NewDisabledLoggers())
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
 
-	"github.com/launchdarkly/go-test-helpers/v2/testbox"
+	"github.com/launchdarkly/go-test-helpers/v3/testbox"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

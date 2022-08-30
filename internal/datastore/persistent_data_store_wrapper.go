@@ -11,6 +11,7 @@ import (
 	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
 	"github.com/patrickmn/go-cache"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -349,8 +350,7 @@ func (w *persistentDataStoreWrapper) cacheItems(
 	items []st.KeyedItemDescriptor,
 ) {
 	if w.cache != nil {
-		copyOfItems := make([]st.KeyedItemDescriptor, len(items))
-		copy(copyOfItems, items)
+		copyOfItems := slices.Clone(items)
 		w.cache.Set(dataStoreAllItemsCacheKey(kind), copyOfItems, cache.DefaultExpiration)
 
 		for _, item := range items {

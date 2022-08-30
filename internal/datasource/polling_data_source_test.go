@@ -13,10 +13,10 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	th "github.com/launchdarkly/go-test-helpers/v3"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
@@ -32,11 +32,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 		closeWhenReady := make(chan struct{})
 		p.Start(closeWhenReady)
 
-		select {
-		case <-closeWhenReady:
-		case <-time.After(time.Second):
-			assert.Fail(t, "Start a closed processor shouldn't block")
-		}
+		th.AssertChannelClosed(t, closeWhenReady, time.Second, "starting a closed processor shouldn't block")
 	})
 }
 
@@ -57,10 +53,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		closeWhenReady := make(chan struct{})
 		p.Start(closeWhenReady)
 
-		select {
-		case <-closeWhenReady:
-		case <-time.After(time.Second):
-			assert.Fail(t, "Failed to initialize")
+		if !th.AssertChannelClosed(t, closeWhenReady, time.Second, "Failed to initialize") {
 			return
 		}
 
@@ -70,9 +63,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 
 		for i := 0; i < 2; i++ {
 			r.requestAllRespCh <- resp
-			select {
-			case <-r.pollsCh:
-			case <-time.After(time.Second):
+			if _, ok, closed := th.TryReceive(r.pollsCh, time.Second); !ok || closed {
 				assert.Fail(t, "Expected 2 polls", "but only got %d", i)
 				return
 			}
@@ -135,21 +126,14 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 		verifyError(status.LastError)
 
-		select {
-		case <-closeWhenReady:
-			require.Fail(t, "should not report ready yet")
-		default:
+		if !th.AssertChannelNotClosed(t, closeWhenReady, 0) {
+			t.FailNow()
 		}
 
 		req.requestAllRespCh <- mockRequestAllResponse{}
 
 		// wait for second poll
-		select {
-		case <-req.pollsCh:
-			break
-		case <-time.After(time.Second):
-			require.Fail(t, "failed to retry")
-		}
+		th.RequireValue(t, req.pollsCh, time.Second, "failed to retry")
 
 		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 		_ = dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateValid)

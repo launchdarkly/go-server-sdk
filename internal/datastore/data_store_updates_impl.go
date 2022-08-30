@@ -10,14 +10,14 @@ import (
 // DataStoreUpdatesImpl is the internal implementation of DataStoreUpdates. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataStoreUpdatesImpl struct { //nolint:revive // yes, we know the package name resembles the type name
+type DataStoreUpdatesImpl struct {
 	lastStatus  interfaces.DataStoreStatus
-	broadcaster *internal.DataStoreStatusBroadcaster
+	broadcaster *internal.Broadcaster[interfaces.DataStoreStatus]
 	lock        sync.Mutex
 }
 
 // NewDataStoreUpdatesImpl creates the internal implementation of DataStoreUpdates.
-func NewDataStoreUpdatesImpl(broadcaster *internal.DataStoreStatusBroadcaster) *DataStoreUpdatesImpl {
+func NewDataStoreUpdatesImpl(broadcaster *internal.Broadcaster[interfaces.DataStoreStatus]) *DataStoreUpdatesImpl {
 	return &DataStoreUpdatesImpl{
 		lastStatus:  interfaces.DataStoreStatus{Available: true},
 		broadcaster: broadcaster,
@@ -30,7 +30,7 @@ func (d *DataStoreUpdatesImpl) getStatus() interfaces.DataStoreStatus {
 	return d.lastStatus
 }
 
-func (d *DataStoreUpdatesImpl) getBroadcaster() *internal.DataStoreStatusBroadcaster {
+func (d *DataStoreUpdatesImpl) getBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
 	return d.broadcaster
 }
 

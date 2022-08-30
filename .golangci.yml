@@ -9,6 +9,7 @@ linters:
     - depguard
     - dupl
     - errcheck
+    - exportloopref
     - goconst
     - gochecknoglobals
     - gochecknoinits
@@ -30,7 +31,6 @@ linters:
     - prealloc
     - revive
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
@@ -45,7 +45,12 @@ linters-settings:
     simplify: false
   goimports:
     local-prefixes: gopkg.in/launchdarkly,github.com/launchdarkly
-  
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - disableStutteringCheck
+
 issues:
   exclude-use-default: false
   max-same-issues: 1000

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
@@ -13,32 +14,22 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
+	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func consumeStatusWithTimeout(t *testing.T, subCh <-chan intf.DataStoreStatus, timeout time.Duration) intf.DataStoreStatus {
-	deadline := time.After(timeout)
-	for {
-		select {
-		case <-deadline:
-			require.True(t, false, "did not receive status update after %v", timeout)
-		case s := <-subCh:
-			return s
-		}
-	}
-}
 
 type dataStoreStatusTestParams struct {
 	store            subsystems.DataStore
 	core             *sharedtest.MockPersistentDataStore
 	dataStoreUpdates *DataStoreUpdatesImpl
-	broadcaster      *internal.DataStoreStatusBroadcaster
+	broadcaster      *internal.Broadcaster[interfaces.DataStoreStatus]
 }
 
 func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStatusTestParams)) {
 	params := dataStoreStatusTestParams{}
-	params.broadcaster = internal.NewDataStoreStatusBroadcaster()
+	params.broadcaster = internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	defer params.broadcaster.Close()
 	params.dataStoreUpdates = NewDataStoreUpdatesImpl(params.broadcaster)
 	params.core = sharedtest.NewMockPersistentDataStore()
@@ -95,7 +86,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			_, err := p.store.GetAll(datakinds.Features)
 			require.Equal(t, myError, err)
 
-			updatedStatus := consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
+			updatedStatus := th.RequireValue(t, statusCh, statusUpdateTimeout)
 			require.Equal(t, intf.DataStoreStatus{Available: false}, updatedStatus)
 
 			// Trigger another error, just to show that it will *not* publish a redundant status update since it
@@ -109,7 +100,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 			// Now simulate the data store becoming OK again; the poller detects this and publishes a new status
 			p.core.SetAvailable(true)
-			updatedStatus = consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
+			updatedStatus = th.RequireValue(t, statusCh, statusUpdateTimeout)
 			expectedStatus := intf.DataStoreStatus{
 				Available:    true,
 				NeedsRefresh: mode != testCachedIndefinitely,
@@ -128,7 +119,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			_, err := p.store.GetAll(datakinds.Features)
 			require.Equal(t, myError, err)
 
-			updatedStatus := consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
+			updatedStatus := th.RequireValue(t, statusCh, statusUpdateTimeout)
 			require.Equal(t, intf.DataStoreStatus{Available: false}, updatedStatus)
 
 			// While the store is still down, try to update it - the update goes into the cache
@@ -147,7 +138,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			p.core.SetAvailable(true)
 
 			// Wait for the poller to notice this and publish a new status
-			updatedStatus = consumeStatusWithTimeout(t, statusCh, statusUpdateTimeout)
+			updatedStatus = th.RequireValue(t, statusCh, statusUpdateTimeout)
 			assert.Equal(t, intf.DataStoreStatus{Available: true}, updatedStatus)
 
 			// Once that has happened, the cache should have been written to the store

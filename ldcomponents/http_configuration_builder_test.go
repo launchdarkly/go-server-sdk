@@ -12,11 +12,10 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
-	helpers "github.com/launchdarkly/go-test-helpers/v2"
-	"github.com/launchdarkly/go-test-helpers/v2/httphelpers"
+	helpers "github.com/launchdarkly/go-test-helpers/v3"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,7 +65,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 	t.Run("CACertFile", func(t *testing.T) {
 		httphelpers.WithSelfSignedServer(httphelpers.HandlerWithStatus(200), func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
-			sharedtest.WithTempFileContaining(certData, func(filename string) {
+			helpers.WithTempFileData(certData, func(filename string) {
 				_, err := HTTPConfiguration().
 					CACertFile(filename).
 					CreateHTTPConfiguration(basicConfig)
@@ -77,7 +76,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 	t.Run("CACertFile with invalid certificate", func(t *testing.T) {
 		badCertData := []byte("no")
-		sharedtest.WithTempFileContaining(badCertData, func(filename string) {
+		helpers.WithTempFileData(badCertData, func(filename string) {
 			_, err := HTTPConfiguration().
 				CACertFile(filename).
 				CreateHTTPConfiguration(basicConfig)
