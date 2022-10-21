@@ -5,8 +5,8 @@ import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 // DiagnosticDescription is an optional interface for components to describe their own configuration.
 //
 // The SDK uses a simplified JSON representation of its configuration when recording diagnostics data.
-// Any component type that implements DataStoreFactory, DataSourceFactory, etc. may choose to contribute
-// values to this representation, although the SDK may or may not use them.
+// Any component type that implements ComponentConfigurer may choose to contribute values to this
+// representation, although the SDK may or may not use them.
 type DiagnosticDescription interface {
 	// DescribeConfiguration should return a JSON value or ldvalue.Null().
 	//
