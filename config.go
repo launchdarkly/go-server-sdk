@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
@@ -28,8 +29,10 @@ type Config struct {
 	// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 	// documentation about user segments: https://docs.launchdarkly.com/home/users
 	//
-	// If you are using this feature, you will normally specify a database implementation that matches how
-	// the LaunchDarkly Relay Proxy is configured, since the Relay Proxy manages the Big Segment data.
+	// Each of the available LaunchDarkly Go SDK database integrations that supports Big Segments has a
+	// BigSegmentStore() function that returns a configuration builder implementing this interface. Which
+	// database integration you use depends on how the LaunchDarkly Relay Proxy is configured, since the
+	// Relay Proxy populates the Big Segment database.
 	//
 	// If nil, there is no implementation and Big Segments cannot be evaluated. In this case, any flag
 	// evaluation that references a Big Segment will behave as if no users are included in any Big
@@ -39,8 +42,8 @@ type Config struct {
 	//     // example: use Redis, with default properties
 	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
-	//     config.BigSegmentStore = ldcomponents.BigSegments(ldredis.DataStore())
-	BigSegments subsystems.BigSegmentsConfigurationFactory
+	//     config.BigSegmentStore = ldcomponents.BigSegments(ldredis.BigSegmentStore())
+	BigSegments subsystems.ComponentConfigurer[subsystems.BigSegmentsConfiguration]
 
 	// Sets the implementation of DataSource for receiving feature flag updates.
 	//
@@ -89,14 +92,17 @@ type Config struct {
 
 	// Sets the SDK's behavior regarding analytics events.
 	//
-	// If nil, the default is ldcomponents.SendEvents(); see that method for an explanation of how to further
-	// configure event delivery. You may also turn off event delivery using ldcomponents.NoEvents().
+	// The interface type for this field allows you to set it to either:
+	//   - ldcomponents.SendEvents(), a configuration builder that allows you to customize event behavior;
+	//   - ldcomponents.NoEvents(), which turns off event delivery.
+	//
+	// If this field is unset/nil, the default is ldcomponents.SendEvents() with no custom options.
 	//
 	// If Offline is set to true, then event delivery is always off and Events is ignored.
 	//
 	//     // example: enable events, flush the events every 10 seconds, buffering up to 5000 events
 	//     config.Events = ldcomponents.SendEvents().FlushInterval(10 * time.Second).Capacity(5000)
-	Events subsystems.EventProcessorFactory
+	Events subsystems.ComponentConfigurer[ldevents.EventProcessor]
 
 	// Provides configuration of the SDK's network connection behavior.
 	//

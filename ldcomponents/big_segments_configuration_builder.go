@@ -41,8 +41,8 @@ const DefaultBigSegmentsStaleAfter = time.Second * 120
 // You only need to use the methods of BigSegmentsConfigurationBuilder if you want to customize
 // options other than the data store itself.
 type BigSegmentsConfigurationBuilder struct {
-	storeFactory subsystems.BigSegmentStoreFactory
-	config       ldstoreimpl.BigSegmentsConfigurationProperties
+	storeConfigurer subsystems.ComponentConfigurer[subsystems.BigSegmentStore]
+	config          ldstoreimpl.BigSegmentsConfigurationProperties
 }
 
 // BigSegments returns a configuration builder for the SDK's Big Segments feature.
@@ -54,23 +54,25 @@ type BigSegmentsConfigurationBuilder struct {
 // example, using the Redis integration:
 //
 //	config := ld.Config{
-//	    BigSegments: ldcomponents.BigSegments(ldredis.DataStore().Prefix("app1")).
+//	    BigSegments: ldcomponents.BigSegments(ldredis.BigSegmentStore().Prefix("app1")).
 //	        ContextCacheSize(2000),
 //	}
 //
-// You must always specify the storeFactory parameter, to tell the SDK what database you are using.
-// Several database integrations exist for the LaunchDarkly SDK, each with its own behavior and options
-// specific to that database; this is described via some implementation of BigSegmentStoreFactory.
-// The BigSegmentsConfigurationBuilder adds configuration options for aspects of SDK behavior
-// that are independent of the database. In the example above, Prefix() is an option specifically for the
-// Redis integration, whereas ContextCacheSize() is an option that can be used for any data store type.
+// You must always specify the storeConfigurer parameter, to tell the SDK what database you are using.
+// Several database integrations exist for the LaunchDarkly SDK, each with a configuration builder
+// to that database; the BigSegmentsConfigurationBuilder adds configuration options for aspects of
+// SDK behavior that are independent of the database. In the example above, Prefix() is an option
+// specifically for the Redis integration, whereas ContextCacheSize() is an option that can be used
+// for any data store type.
 //
-// If you do not set Config.BigSegments-- or if you pass a nil storeFactory to this function-- the
+// If you do not set Config.BigSegments-- or if you pass a nil storeConfigurer to this function-- the
 // Big Segments feature will be disabled, and any feature flags that reference a Big Segment will
 // behave as if the evaluation context was not included in the segment.
-func BigSegments(storeFactory subsystems.BigSegmentStoreFactory) *BigSegmentsConfigurationBuilder {
+func BigSegments(
+	storeConfigurer subsystems.ComponentConfigurer[subsystems.BigSegmentStore],
+) *BigSegmentsConfigurationBuilder {
 	return &BigSegmentsConfigurationBuilder{
-		storeFactory: storeFactory,
+		storeConfigurer: storeConfigurer,
 		config: ldstoreimpl.BigSegmentsConfigurationProperties{
 			ContextCacheSize:   DefaultBigSegmentsContextCacheSize,
 			ContextCacheTime:   DefaultBigSegmentsContextCacheTime,
@@ -145,13 +147,13 @@ func (b *BigSegmentsConfigurationBuilder) StaleAfter(
 	return b
 }
 
-// CreateBigSegmentsConfiguration is called internally by the SDK.
-func (b *BigSegmentsConfigurationBuilder) CreateBigSegmentsConfiguration(
+// Build is called internally by the SDK.
+func (b *BigSegmentsConfigurationBuilder) Build(
 	context subsystems.ClientContext,
 ) (subsystems.BigSegmentsConfiguration, error) {
 	config := b.config
-	if b.storeFactory != nil {
-		store, err := b.storeFactory.CreateBigSegmentStore(context)
+	if b.storeConfigurer != nil {
+		store, err := b.storeConfigurer.Build(context)
 		if err != nil {
 			return nil, err
 		}

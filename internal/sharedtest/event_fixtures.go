@@ -4,20 +4,7 @@ import (
 	"encoding/json"
 
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
-
-// SingleEventProcessorFactory is a test implementation of EventProcessorFactory that always returns the same
-// pre-existing instance.
-type SingleEventProcessorFactory struct {
-	Instance ldevents.EventProcessor
-}
-
-func (f SingleEventProcessorFactory) CreateEventProcessor( //nolint:revive
-	context subsystems.ClientContext,
-) (ldevents.EventProcessor, error) {
-	return f.Instance, nil
-}
 
 // CapturingEventProcessor is a test implementation of EventProcessor that accumulates all events.
 type CapturingEventProcessor struct {

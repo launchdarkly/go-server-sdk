@@ -67,9 +67,9 @@ func assertEqualsDeletedItem(
 // 2. Two instances of the same data store type with the same configuration, and the same prefix,
 // should be able to see each other's data.
 type PersistentDataStoreTestSuite struct {
-	storeFactoryFn               func(string) ssys.PersistentDataStoreFactory
+	storeFactoryFn               func(string) ssys.ComponentConfigurer[ssys.PersistentDataStore]
 	clearDataFn                  func(string) error
-	errorStoreFactory            ssys.PersistentDataStoreFactory
+	errorStoreFactory            ssys.ComponentConfigurer[ssys.PersistentDataStore]
 	errorValidator               func(assert.TestingT, error)
 	concurrentModificationHookFn func(store ssys.PersistentDataStore, hook func())
 	includeBaseTests             bool
@@ -88,7 +88,7 @@ type PersistentDataStoreTestSuite struct {
 // The clearDataFn parameter is a function that takes a prefix string and deletes any existing
 // data that may exist in the database corresponding to that prefix.
 func NewPersistentDataStoreTestSuite(
-	storeFactoryFn func(prefix string) ssys.PersistentDataStoreFactory,
+	storeFactoryFn func(prefix string) ssys.ComponentConfigurer[ssys.PersistentDataStore],
 	clearDataFn func(prefix string) error,
 ) *PersistentDataStoreTestSuite {
 	return &PersistentDataStoreTestSuite{
@@ -102,7 +102,7 @@ func NewPersistentDataStoreTestSuite(
 // produce a data store instance whose operations should all fail and return an error. The errorValidator
 // function, if any, will be called to verify that it is the expected error.
 func (s *PersistentDataStoreTestSuite) ErrorStoreFactory(
-	errorStoreFactory ssys.PersistentDataStoreFactory,
+	errorStoreFactory ssys.ComponentConfigurer[ssys.PersistentDataStore],
 	errorValidator func(assert.TestingT, error),
 ) *PersistentDataStoreTestSuite {
 	s.errorStoreFactory = errorStoreFactory
@@ -169,7 +169,7 @@ func (s *PersistentDataStoreTestSuite) withStore(
 	action func(ssys.PersistentDataStore),
 ) {
 	testhelpers.WithMockLoggingContext(t, func(context ssys.ClientContext) {
-		store, err := s.storeFactoryFn(prefix).CreatePersistentDataStore(context)
+		store, err := s.storeFactoryFn(prefix).Build(context)
 		require.NoError(t, err)
 		defer func() {
 			_ = store.Close()
@@ -571,7 +571,7 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t testbox.TestingT) {
 		errorValidator = func(assert.TestingT, error) {}
 	}
 
-	store, err := s.errorStoreFactory.CreatePersistentDataStore(sh.NewSimpleTestContext(""))
+	store, err := s.errorStoreFactory.Build(sh.NewSimpleTestContext(""))
 	require.NoError(t, err)
 	defer store.Close() //nolint:errcheck
 

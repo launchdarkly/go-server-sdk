@@ -10,7 +10,7 @@ import (
 )
 
 func TestNoEvents(t *testing.T) {
-	ep, err := NoEvents().CreateEventProcessor(basicClientContext())
+	ep, err := NoEvents().Build(basicClientContext())
 	require.NoError(t, err)
 	defer ep.Close()
 	ef := ldevents.NewEventFactory(false, nil)

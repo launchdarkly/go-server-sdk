@@ -21,7 +21,7 @@ const fakeUserHash = "userhash"
 // BigSegmentStoreTestSuite provides a configurable test suite for all implementations of
 // BigSegmentStore.
 type BigSegmentStoreTestSuite struct {
-	storeFactoryFn func(string) subsystems.BigSegmentStoreFactory
+	storeFactoryFn func(string) subsystems.ComponentConfigurer[subsystems.BigSegmentStore]
 	clearDataFn    func(string) error
 	setMetadataFn  func(string, subsystems.BigSegmentStoreMetadata) error
 	setSegmentsFn  func(prefix, userHashKey string, included []string, excluded []string) error
@@ -44,7 +44,7 @@ type BigSegmentStoreTestSuite struct {
 // string slices passed to setSegmentsFn are lists of segment references in the same format used
 // by BigSegmentMembership, and should be used as-is by the store.
 func NewBigSegmentStoreTestSuite(
-	storeFactoryFn func(prefix string) subsystems.BigSegmentStoreFactory,
+	storeFactoryFn func(prefix string) subsystems.ComponentConfigurer[subsystems.BigSegmentStore],
 	clearDataFn func(prefix string) error,
 	setMetadataFn func(prefix string, metadata subsystems.BigSegmentStoreMetadata) error,
 	setSegmentsFn func(prefix string, userHashKey string, included []string, excluded []string) error,
@@ -136,7 +136,7 @@ func (s *BigSegmentStoreTestSuite) withStoreAndEmptyData(
 	require.NoError(t, s.clearDataFn(""))
 
 	testhelpers.WithMockLoggingContext(t, func(context subsystems.ClientContext) {
-		store, err := s.storeFactoryFn("").CreateBigSegmentStore(context)
+		store, err := s.storeFactoryFn("").Build(context)
 		require.NoError(t, err)
 		defer func() {
 			_ = store.Close()

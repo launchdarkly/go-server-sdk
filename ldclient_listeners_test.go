@@ -41,7 +41,7 @@ func clientListenersTestWithConfig(configAction func(*Config), action func(clien
 	testData := ldtestdata.DataSource()
 	factoryWithUpdater := &sharedtest.DataStoreFactoryThatExposesUpdater{
 		UnderlyingFactory: ldcomponents.PersistentDataStore(
-			sharedtest.SinglePersistentDataStoreFactory{Instance: sharedtest.NewMockPersistentDataStore()},
+			sharedtest.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: sharedtest.NewMockPersistentDataStore()},
 		),
 	}
 	config := Config{
@@ -199,7 +199,7 @@ func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 	t.Run("sends status updates", func(t *testing.T) {
 		store := &sharedtest.MockBigSegmentStore{}
 		store.TestSetMetadataToCurrentTime()
-		storeFactory := sharedtest.SingleBigSegmentStoreFactory{Store: store}
+		storeFactory := sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
 		clientListenersTestWithConfig(
 			func(c *Config) {
 				c.BigSegments = ldcomponents.BigSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)

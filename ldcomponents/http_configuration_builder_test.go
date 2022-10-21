@@ -25,7 +25,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 	basicConfig := subsystems.BasicClientContext{SDKKey: "test-key"}
 
 	t.Run("defaults", func(t *testing.T) {
-		c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)
+		c, err := HTTPConfiguration().Build(basicConfig)
 		require.NoError(t, err)
 
 		headers := c.DefaultHeaders
@@ -50,7 +50,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		httphelpers.WithSelfSignedServer(httphelpers.HandlerWithStatus(200), func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 			_, err := HTTPConfiguration().
 				CACert(certData).
-				CreateHTTPConfiguration(basicConfig)
+				Build(basicConfig)
 			require.NoError(t, err)
 		})
 	})
@@ -59,7 +59,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		badCertData := []byte("no")
 		_, err := HTTPConfiguration().
 			CACert(badCertData).
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.Error(t, err)
 	})
 
@@ -68,7 +68,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			helpers.WithTempFileData(certData, func(filename string) {
 				_, err := HTTPConfiguration().
 					CACertFile(filename).
-					CreateHTTPConfiguration(basicConfig)
+					Build(basicConfig)
 				require.NoError(t, err)
 			})
 		})
@@ -79,7 +79,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		helpers.WithTempFileData(badCertData, func(filename string) {
 			_, err := HTTPConfiguration().
 				CACertFile(filename).
-				CreateHTTPConfiguration(basicConfig)
+				Build(basicConfig)
 			require.Error(t, err)
 		})
 	})
@@ -89,7 +89,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			_ = os.Remove(filename)
 			_, err := HTTPConfiguration().
 				CACertFile(filename).
-				CreateHTTPConfiguration(basicConfig)
+				Build(basicConfig)
 			require.Error(t, err)
 		})
 	})
@@ -98,7 +98,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		timeout := 700 * time.Millisecond
 		c1, err := HTTPConfiguration().
 			ConnectTimeout(timeout).
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 
 		client1 := c1.CreateHTTPClient()
@@ -106,7 +106,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 		c2, err := HTTPConfiguration().
 			ConnectTimeout(-1 * time.Millisecond).
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 
 		client2 := c2.CreateHTTPClient()
@@ -119,7 +119,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 		c, err := HTTPConfiguration().
 			HTTPClientFactory(func() *http.Client { return hc }).
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 
 		assert.Equal(t, hc, c.CreateHTTPClient())
@@ -137,7 +137,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		httphelpers.WithServer(handler, func(server *httptest.Server) {
 			c, err := HTTPConfiguration().
 				ProxyURL(server.URL).
-				CreateHTTPConfiguration(basicConfig)
+				Build(basicConfig)
 			require.NoError(t, err)
 
 			client := c.CreateHTTPClient()
@@ -160,7 +160,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			urlWithCredentials := "http://lucy:cat@" + parsedURL.Host
 			c, err := HTTPConfiguration().
 				ProxyURL(urlWithCredentials).
-				CreateHTTPConfiguration(basicConfig)
+				Build(basicConfig)
 			require.NoError(t, err)
 			client := c.CreateHTTPClient()
 			resp, err := client.Get(fakeTargetURL)
@@ -177,14 +177,14 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 		_, err := HTTPConfiguration().
 			ProxyURL(proxyURL).
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.Error(t, err)
 	})
 
 	t.Run("Custom header set/get", func(t *testing.T) {
 		c, err := HTTPConfiguration().
 			Header("Custom-Header", "foo").
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 		assert.Equal(t, "foo", c.DefaultHeaders.Get("Custom-Header"))
 	})
@@ -194,7 +194,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			Header("Custom-Header", "foo").
 			Header("Custom-Header", "bar").
 			Header("Custom-Header", "baz").
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 		assert.Equal(t, "baz", c.DefaultHeaders.Get("Custom-Header"))
 	})
@@ -203,7 +203,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		c, err := HTTPConfiguration().
 			Header("User-Agent", "foo").
 			Header("Authorization", "bar").
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 		assert.Equal(t, "foo", c.DefaultHeaders.Get("User-Agent"))
 		assert.Equal(t, "bar", c.DefaultHeaders.Get("Authorization"))
@@ -212,7 +212,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 	t.Run("User-Agent", func(t *testing.T) {
 		c, err := HTTPConfiguration().
 			UserAgent("extra").
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 
 		assert.Equal(t, "GoClient/"+internal.SDKVersion+" extra", c.DefaultHeaders.Get("User-Agent"))
@@ -221,14 +221,14 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 	t.Run("Wrapper", func(t *testing.T) {
 		c1, err := HTTPConfiguration().
 			Wrapper("FancySDK", "").
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 
 		assert.Equal(t, "FancySDK", c1.DefaultHeaders.Get("X-LaunchDarkly-Wrapper"))
 
 		c2, err := HTTPConfiguration().
 			Wrapper("FancySDK", "2.0").
-			CreateHTTPConfiguration(basicConfig)
+			Build(basicConfig)
 		require.NoError(t, err)
 
 		assert.Equal(t, "FancySDK/2.0", c2.DefaultHeaders.Get("X-LaunchDarkly-Wrapper"))
@@ -236,7 +236,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 
 	t.Run("tags header", func(t *testing.T) {
 		t.Run("no tags", func(t *testing.T) {
-			c, err := HTTPConfiguration().CreateHTTPConfiguration(basicConfig)
+			c, err := HTTPConfiguration().Build(basicConfig)
 			require.NoError(t, err)
 			assert.Nil(t, c.DefaultHeaders.Values("X-LaunchDarkly-Tags"))
 		})
@@ -244,7 +244,7 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		t.Run("some tags", func(t *testing.T) {
 			bc := basicConfig
 			bc.ApplicationInfo = interfaces.ApplicationInfo{ApplicationID: "appid", ApplicationVersion: "appver"}
-			c, err := HTTPConfiguration().CreateHTTPConfiguration(bc)
+			c, err := HTTPConfiguration().Build(bc)
 			require.NoError(t, err)
 			assert.Equal(t, "application-id/appid application-version/appver", c.DefaultHeaders.Get("X-LaunchDarkly-Tags"))
 		})
@@ -254,6 +254,6 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		var b *HTTPConfigurationBuilder = nil
 		b = b.ConnectTimeout(0).Header("a", "b").ProxyURL("c").Wrapper("d", "e")
 		_ = b.DescribeConfiguration(subsystems.BasicClientContext{})
-		_, _ = b.CreateHTTPConfiguration(subsystems.BasicClientContext{})
+		_, _ = b.Build(subsystems.BasicClientContext{})
 	})
 }

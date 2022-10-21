@@ -80,7 +80,7 @@ func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 		Offline:    false,
 		DataStore:  sharedtest.SingleDataStoreFactory{Instance: p.store},
 		DataSource: p.data,
-		Events:     sharedtest.SingleEventProcessorFactory{Instance: p.events},
+		Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: p.events},
 		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)

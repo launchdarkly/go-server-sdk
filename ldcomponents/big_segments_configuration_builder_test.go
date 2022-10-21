@@ -15,7 +15,7 @@ type mockBigSegmentStoreFactory struct {
 	fakeError error
 }
 
-func (m mockBigSegmentStoreFactory) CreateBigSegmentStore(subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
+func (m mockBigSegmentStoreFactory) Build(subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
 	return mockBigSegmentStore{}, m.fakeError
 }
 
@@ -35,7 +35,7 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 	context := basicClientContext()
 
 	t.Run("defaults", func(t *testing.T) {
-		c, err := BigSegments(mockBigSegmentStoreFactory{}).CreateBigSegmentsConfiguration(context)
+		c, err := BigSegments(mockBigSegmentStoreFactory{}).Build(context)
 		require.NoError(t, err)
 
 		assert.Equal(t, mockBigSegmentStore{}, c.GetStore())
@@ -48,14 +48,14 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 	t.Run("store creation fails", func(t *testing.T) {
 		fakeError := errors.New("sorry")
 		storeFactory := mockBigSegmentStoreFactory{fakeError: fakeError}
-		_, err := BigSegments(storeFactory).CreateBigSegmentsConfiguration(context)
+		_, err := BigSegments(storeFactory).Build(context)
 		require.Equal(t, fakeError, err)
 	})
 
 	t.Run("ContextCacheSize", func(t *testing.T) {
 		c, err := BigSegments(mockBigSegmentStoreFactory{}).
 			ContextCacheSize(999).
-			CreateBigSegmentsConfiguration(context)
+			Build(context)
 		require.NoError(t, err)
 		assert.Equal(t, 999, c.GetContextCacheSize())
 	})
@@ -63,7 +63,7 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 	t.Run("ContextCacheTime", func(t *testing.T) {
 		c, err := BigSegments(mockBigSegmentStoreFactory{}).
 			ContextCacheTime(time.Second * 999).
-			CreateBigSegmentsConfiguration(context)
+			Build(context)
 		require.NoError(t, err)
 		assert.Equal(t, time.Second*999, c.GetContextCacheTime())
 	})
@@ -71,7 +71,7 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 	t.Run("StatusPollInterval", func(t *testing.T) {
 		c, err := BigSegments(mockBigSegmentStoreFactory{}).
 			StatusPollInterval(time.Second * 999).
-			CreateBigSegmentsConfiguration(context)
+			Build(context)
 		require.NoError(t, err)
 		assert.Equal(t, time.Second*999, c.GetStatusPollInterval())
 	})
@@ -79,7 +79,7 @@ func TestBigSegmentsConfigurationBuilder(t *testing.T) {
 	t.Run("StaleAfter", func(t *testing.T) {
 		c, err := BigSegments(mockBigSegmentStoreFactory{}).
 			StaleAfter(time.Second * 999).
-			CreateBigSegmentsConfiguration(context)
+			Build(context)
 		require.NoError(t, err)
 		assert.Equal(t, time.Second*999, c.GetStaleAfter())
 	})

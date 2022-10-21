@@ -31,23 +31,6 @@ type BigSegmentsConfiguration interface {
 	GetStaleAfter() time.Duration
 }
 
-// BigSegmentsConfigurationFactory is an interface for a factory that creates a BigSegmentsConfiguration.
-type BigSegmentsConfigurationFactory interface {
-	CreateBigSegmentsConfiguration(context ClientContext) (BigSegmentsConfiguration, error)
-}
-
-// BigSegmentStoreFactory is a factory that creates some implementation of BigSegmentStore.
-type BigSegmentStoreFactory interface {
-	// CreateBigSegmentStore is called by the SDK to create the implementation instance.
-	//
-	// This happens only when MakeClient or MakeCustomClient is called. The implementation instance
-	// is then tied to the life cycle of the LDClient, so it will receive a Close() call when the
-	// client is closed.
-	//
-	// If the factory returns an error, creation of the LDClient fails.
-	CreateBigSegmentStore(context ClientContext) (BigSegmentStore, error)
-}
-
 // BigSegmentStore is an interface for a read-only data store that allows querying of context
 // membership in Big Segments.
 //

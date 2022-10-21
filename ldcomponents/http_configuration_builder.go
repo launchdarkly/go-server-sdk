@@ -205,13 +205,13 @@ func (b *HTTPConfigurationBuilder) isProxyEnabled() bool {
 	return false
 }
 
-// CreateHTTPConfiguration is called internally by the SDK.
-func (b *HTTPConfigurationBuilder) CreateHTTPConfiguration(
+// Build is called internally by the SDK.
+func (b *HTTPConfigurationBuilder) Build(
 	clientContext subsystems.ClientContext,
 ) (subsystems.HTTPConfiguration, error) {
 	if !b.checkValid() {
 		defaults := HTTPConfigurationBuilder{}
-		return defaults.CreateHTTPConfiguration(clientContext)
+		return defaults.Build(clientContext)
 	}
 
 	headers := make(http.Header)

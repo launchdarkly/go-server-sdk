@@ -94,8 +94,8 @@ func (env *evalBenchmarkEnv) tearDown() {
 
 type benchmarkStubEventProcessorFactory struct{}
 
-func (f benchmarkStubEventProcessorFactory) CreateEventProcessor(context subsystems.ClientContext) (ldevents.EventProcessor, error) {
-	return ldcomponents.NoEvents().CreateEventProcessor(context)
+func (f benchmarkStubEventProcessorFactory) Build(context subsystems.ClientContext) (ldevents.EventProcessor, error) {
+	return ldcomponents.NoEvents().Build(context)
 }
 
 func makeEvalBenchmarkUser(bc evalBenchmarkCase) ldcontext.Context {
