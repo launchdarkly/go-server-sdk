@@ -17,8 +17,8 @@ github.com/launchdarkly/eventsource v1.6.2 h1:5SbcIqzUomn+/zmJDrkb4LYw7ryoKFzH/0
 github.com/launchdarkly/eventsource v1.6.2/go.mod h1:LHxSeb4OnqznNZxCSXbFghxS/CjIQfzHovNoAqbO/Wk=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0 h1:qJF/WI09EUJ7kSpmP5d1Rhc81NQdYUhP17McKfUq17E=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0/go.mod h1:/1Gyml6fnD309JOvunOSfyysWbZ/ZzcA120gF/cQtC4=
-github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.14 h1:xmyrAdjDEn3kij4QvvPqbohFw25HM34+1Mdxxg1RNns=
-github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.14/go.mod h1:z1m35n8ygOe6Ti8uraKoixpP54twJi7Cgi7AjUQmXqU=
+github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.15 h1:d/kX9Z159jcOy+s62ZJEM6Nm388ZYTbSSHKkFnaDUys=
+github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.15/go.mod h1:H/zISoCNhviHTTqqBjIKQy2YgSHT8ioL1FtgBKpiEGg=
 github.com/launchdarkly/go-sdk-events/v2 v2.0.0-alpha.pub.8 h1:NwEKtOrgrRlddDTlZmEhs1fuwq9E61uxwcHjOerEvBA=
 github.com/launchdarkly/go-sdk-events/v2 v2.0.0-alpha.pub.8/go.mod h1:q3QsbXocmHAIEIA38I3zCwUIOxV/k4ShKzfv1LmAgmM=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=
@@ -38,8 +38,8 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/stretchr/testify v1.6.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd0=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
+github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5CcY=
 github.com/wsxiaoys/terminal v0.0.0-20160513160801-0940f3fc43a0 h1:3UeQBvD0TFrlVjOeLOBz+CPAI8dnbqNSVwUwRrkp7vQ=
 github.com/wsxiaoys/terminal v0.0.0-20160513160801-0940f3fc43a0/go.mod h1:IXCdmsXIht47RaVFLEdVnh1t+pgYtTAhQGj73kz+2DM=
 golang.org/x/exp v0.0.0-20220823124025-807a23277127 h1:S4NrSKDfihhl3+4jSTgwoIevKxX9p7Iv9x++OEIptDo=

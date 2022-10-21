@@ -219,9 +219,6 @@ func makeSingleContext(p servicedef.ContextBuildSingleParams) ldcontext.Context 
 	if p.Anonymous != nil {
 		b.Anonymous(*p.Anonymous)
 	}
-	if p.Secondary != nil {
-		b.Secondary(*p.Secondary)
-	}
 	for _, attr := range p.Private {
 		b.Private(attr)
 	}

@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/gorilla/mux v1.8.0
-	github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.14
+	github.com/launchdarkly/go-sdk-common/v3 v3.0.0-alpha.pub.15
 	github.com/launchdarkly/go-server-sdk/v6 v6.0.0
 )
 
