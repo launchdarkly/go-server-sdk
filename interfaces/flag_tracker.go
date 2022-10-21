@@ -7,8 +7,9 @@ import (
 
 // FlagTracker is an interface for tracking changes in feature flag configurations.
 //
-// An implementation of this interface is returned by LDClient.GetFlagTracker(). Application code
-// never needs to implement this interface.
+// An implementation of this interface is returned by
+// [github.com/launchdarkly/go-server-sdk/v6.LDClient.GetFlagTracker]. Application code should not
+// implement this interface.
 type FlagTracker interface {
 	// AddFlagChangeListener subscribes for notifications of feature flag changes in general.
 	//

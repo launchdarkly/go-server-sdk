@@ -7,16 +7,15 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
-// Config exposes advanced configuration options for the LaunchDarkly client.
+// Config exposes advanced configuration options for [LDClient].
 //
 // All of these settings are optional, so an empty Config struct is always valid. See the description of each
 // field for the default behavior if it is not set.
 //
-// Some of the Config fields are actually factories for subcomponents of the SDK. The types of these fields
-// are interfaces whose names end in "Factory"; the actual implementation types, which have methods for
-// configuring that subcomponent, are normally provided by corresponding functions in the ldcomponents
-// package (https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6/ldcomponents). For instance, to set
-// the Events field to a configuration in which the SDK will flush analytics events every 10 seconds:
+// Some of the Config fields are simple types, but others contain configuration builders for subcomponents of
+// the SDK. When these are represented by the ComponentConfigurer interface, the actual implementation types
+// are provided by corresponding functions in the [ldcomponents] package. For instance, to set the Events
+// field to a configuration in which the SDK will flush analytics events every 10 seconds:
 //
 //	var config ld.Config
 //	config.Events = ldcomponents.Events().FlushInterval(time.Second * 10)
@@ -49,20 +48,15 @@ type Config struct {
 	// If Offline is set to true, then DataSource is ignored.
 	//
 	// The interface type for this field allows you to set it to any of the following:
-	//
-	// - ldcomponents.StreamingDataSource(), which enables streaming data and provides a builder to further
-	// configure streaming behavior.
-	//
-	// - ldcomponents.PollingDataSource(), which turns off streaming, enables polling, and provides a builder
-	// to further configure polling behavior.
-	//
-	// - ldcomponents.ExternalUpdatesOnly(), which turns off all data sources unless an external process is
-	// providing data via a database.
-	//
-	// - ldfiledata.DataSource() or ldtestdata.DataSource(), which provide configurable local data sources
-	// for testing.
-	//
-	// - Or, a custom component that implements ComponentConfigurer[DataSource].
+	//   - ldcomponents.StreamingDataSource(), which enables streaming data and provides a builder to further
+	//     configure streaming behavior.
+	//   - ldcomponents.PollingDataSource(), which turns off streaming, enables polling, and provides a builder
+	//     to further configure polling behavior.
+	//   - ldcomponents.ExternalUpdatesOnly(), which turns off all data sources unless an external process is
+	//     providing data via a database.
+	//   - ldfiledata.DataSource() or ldtestdata.DataSource(), which provide configurable local data sources
+	//     for testing.
+	//   - Or, a custom component that implements ComponentConfigurer[DataSource].
 	//
 	//     // example: using streaming mode and setting streaming options
 	//     config.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Second)

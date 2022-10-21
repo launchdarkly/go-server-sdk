@@ -9,10 +9,10 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
-// DefaultStreamingBaseURI is the default value for StreamingDataSourceBuilder.BaseURI.
+// DefaultStreamingBaseURI is the default value for [StreamingDataSourceBuilder.BaseURI].
 const DefaultStreamingBaseURI = endpoints.DefaultStreamingBaseURI
 
-// DefaultInitialReconnectDelay is the default value for StreamingDataSourceBuilder.InitialReconnectDelay.
+// DefaultInitialReconnectDelay is the default value for [StreamingDataSourceBuilder.InitialReconnectDelay].
 const DefaultInitialReconnectDelay = time.Second
 
 // StreamingDataSourceBuilder provides methods for configuring the streaming data source.
@@ -27,8 +27,8 @@ type StreamingDataSourceBuilder struct {
 //
 // By default, the SDK uses a streaming connection to receive feature flag data from LaunchDarkly. To use the
 // default behavior, you do not need to call this method. However, if you want to customize the behavior of
-// the connection, call this method to obtain a builder, set its properties with the StreamingDataSourceBuilder
-// methods, and then store it in the DataSource field of your SDK configuration:
+// the connection, call this method to obtain a builder, set its properties with the [StreamingDataSourceBuilder]
+// methods, and then store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
 //
 //	config := ld.Config{
 //	    DataSource: ldcomponents.StreamingDataSource().InitialReconnectDelay(500 * time.Millisecond),
@@ -45,7 +45,7 @@ func StreamingDataSource() *StreamingDataSourceBuilder {
 // reestablished. The delay for the first reconnection will start near this value, and then increase
 // exponentially for any subsequent connection failures.
 //
-// The default value is DefaultInitialReconnectDelay.
+// The default value is [DefaultInitialReconnectDelay].
 func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 	initialReconnectDelay time.Duration,
 ) *StreamingDataSourceBuilder {

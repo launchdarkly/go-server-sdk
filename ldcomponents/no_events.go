@@ -9,8 +9,8 @@ type nullEventProcessorFactory struct{}
 
 // NoEvents returns a configuration object that disables analytics events.
 //
-// Storing this in Config.Events causes the SDK to discard all analytics events and not send them to
-// LaunchDarkly, regardless of any other configuration.
+// Storing this in the Events field of [github.com/launchdarkly/go-server-sdk/v6.Config] causes the
+// SDK to discard all analytics events and not send them to LaunchDarkly, regardless of any other configuration.
 //
 //	config := ld.Config{
 //	    Events: ldcomponents.NoEvents(),

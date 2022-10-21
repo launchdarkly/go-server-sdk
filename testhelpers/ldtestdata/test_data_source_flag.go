@@ -18,7 +18,7 @@ const (
 	falseVariationForBool = 1
 )
 
-// FlagBuilder is a builder for feature flag configurations to be used with TestDataSource.
+// FlagBuilder is a builder for feature flag configurations to be used with [TestDataSource].
 type FlagBuilder struct {
 	key                  string
 	on                   bool
@@ -29,15 +29,16 @@ type FlagBuilder struct {
 	rules                []*RuleBuilder
 }
 
-// RuleBuilder is a builder for feature flag rules to be used with TestDataSource.
+// RuleBuilder is a builder for feature flag rules to be used with [TestDataSource.]
 //
 // In the LaunchDarkly model, a flag can have any number of rules, and a rule can have any number of
 // clauses. A clause is an individual test such as "name is 'X'". A rule matches a user if all of the
 // rule's clauses match the user.
 //
-// To start defining a rule, use one of the flag builder's matching methods such as IfMatch. This
-// defines the first clause for the rule. Optionally, you may add more clauses with the rule builder's
-// methods such as AndMatch. Finally, call ThenReturn or ThenReturnIndex to finish defining the rule.
+// To start defining a rule, use one of the flag builder's matching methods such as [RuleBuilder.IfMatch].
+// This defines the first clause for the rule. Optionally, you may add more clauses with the rule builder's
+// methods such as [RuleBuilder.AndMatch]. Finally, call [RuleBuilder.ThenReturn] or
+// [RuleBuilder.ThenReturnIndex] to finish defining the rule.
 type RuleBuilder struct {
 	owner     *FlagBuilder
 	variation int
@@ -76,7 +77,7 @@ func copyFlagBuilder(from *FlagBuilder) *FlagBuilder {
 
 // BooleanFlag is a shortcut for setting the flag to use the standard boolean configuration.
 //
-// This is the default for all new flags created with TestDataSource.Flag. The flag will have two
+// This is the default for all new flags created with [TestDataSource.Flag]. The flag will have two
 // variations, true and false (in that order); it will return false whenever targeting is off, and
 // true when targeting is on if no other settings specify otherwise.
 func (f *FlagBuilder) BooleanFlag() *FlagBuilder {
@@ -92,7 +93,7 @@ func (f *FlagBuilder) BooleanFlag() *FlagBuilder {
 //
 // The effect of this depends on the rest of the flag configuration, just as it does on the
 // real LaunchDarkly dashboard. In the default configuration that you get from calling
-// TestDataSource.Flag with a new flag key, the flag will return false whenever targeting is
+// [TestDataSource.Flag] with a new flag key, the flag will return false whenever targeting is
 // off, and true when targeting is on.
 func (f *FlagBuilder) On(on bool) *FlagBuilder {
 	f.on = on
@@ -107,7 +108,7 @@ func (f *FlagBuilder) On(on bool) *FlagBuilder {
 // boolean flag.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// FallthroughVariationIndex.
+// [FlagBuilder.FallthroughVariationIndex].
 func (f *FlagBuilder) FallthroughVariation(variation bool) *FlagBuilder {
 	return f.BooleanFlag().FallthroughVariationIndex(variationForBool(variation))
 }
@@ -117,7 +118,7 @@ func (f *FlagBuilder) FallthroughVariation(variation bool) *FlagBuilder {
 // target or rule. The index is 0 for the first variation, 1 for the second, etc.
 //
 // To specify the variation as true or false instead, for a boolean flag, use
-// FallthroughVariation.
+// [FlagBuilder.FallthroughVariation].
 func (f *FlagBuilder) FallthroughVariationIndex(variationIndex int) *FlagBuilder {
 	f.fallthroughVariation = ldvalue.NewOptionalInt(variationIndex)
 	return f
@@ -130,7 +131,7 @@ func (f *FlagBuilder) FallthroughVariationIndex(variationIndex int) *FlagBuilder
 // boolean flag.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// OffVariationIndex.
+// [FlagBuilder.OffVariationIndex].
 func (f *FlagBuilder) OffVariation(variation bool) *FlagBuilder {
 	return f.BooleanFlag().OffVariationIndex(variationForBool(variation))
 }
@@ -139,7 +140,7 @@ func (f *FlagBuilder) OffVariation(variation bool) *FlagBuilder {
 // returned whenever targeting is off. The index is 0 for the first variation, 1 for the second, etc.
 //
 // To specify the variation as true or false instead, for a boolean flag, use
-// OffVariation.
+// [FlagBuilder.OffVariation].
 func (f *FlagBuilder) OffVariationIndex(variationIndex int) *FlagBuilder {
 	f.offVariation = ldvalue.NewOptionalInt(variationIndex)
 	return f
@@ -152,7 +153,7 @@ func (f *FlagBuilder) OffVariationIndex(variationIndex int) *FlagBuilder {
 // left unchanged.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// VariationForAllIndex.
+// [FlagBuilder.VariationForAllIndex].
 func (f *FlagBuilder) VariationForAll(variation bool) *FlagBuilder {
 	return f.BooleanFlag().VariationForAllIndex(variationForBool(variation))
 }
@@ -164,14 +165,14 @@ func (f *FlagBuilder) VariationForAll(variation bool) *FlagBuilder {
 // is set to the specified value. The off variation is left unchanged.
 //
 // To specify the variation as true or false instead, for a boolean flag, use
-// VariationForAll.
+// [FlagBuilder.VariationForAll].
 func (f *FlagBuilder) VariationForAllIndex(variationIndex int) *FlagBuilder {
 	return f.On(true).ClearRules().ClearTargets().FallthroughVariationIndex(variationIndex)
 }
 
 // ValueForAll sets the flag to always return the specified variation value for all contexts.
 //
-// The value may be of any JSON type, as defined by ldvalue.Value. This method changes the flag to
+// The value may be of any JSON type, as defined by [ldvalue.Value]. This method changes the flag to
 // only a single variation, which is this value, and to return the same variation regardless of
 // whether targeting is on or off. Any existing targets or rules are removed.
 func (f *FlagBuilder) ValueForAll(value ldvalue.Value) *FlagBuilder {
@@ -187,7 +188,7 @@ func (f *FlagBuilder) ValueForAll(value ldvalue.Value) *FlagBuilder {
 // If the flag was not already a boolean flag, this also changes it to a boolean flag.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// VariationIndexForUser.
+// [FlagBuilder.VariationIndexForUser].
 func (f *FlagBuilder) VariationForUser(userKey string, variation bool) *FlagBuilder {
 	return f.BooleanFlag().VariationIndexForUser(userKey, variationForBool(variation))
 }
@@ -200,7 +201,7 @@ func (f *FlagBuilder) VariationForUser(userKey string, variation bool) *FlagBuil
 // If the flag was not already a boolean flag, this also changes it to a boolean flag.
 //
 // To specify the variation by variation index instead (such as for a non-boolean flag), use
-// VariationIndexForKey.
+// [FlagBuilder.VariationIndexForKey].
 func (f *FlagBuilder) VariationForKey(contextKind ldcontext.Kind, key string, variation bool) *FlagBuilder {
 	return f.BooleanFlag().VariationIndexForKey(contextKind, key, variationForBool(variation))
 }
@@ -212,7 +213,7 @@ func (f *FlagBuilder) VariationForKey(contextKind ldcontext.Kind, key string, va
 // This has no effect when targeting is turned off for the flag.
 //
 // To specify the variation as a true or false value if it is a boolean flag, you can use
-// VariationForUser instead.
+// [FlagBuilder.VariationForUser] instead.
 func (f *FlagBuilder) VariationIndexForUser(userKey string, variationIndex int) *FlagBuilder {
 	return f.VariationIndexForKey(ldcontext.DefaultKind, userKey, variationIndex)
 }
@@ -224,7 +225,7 @@ func (f *FlagBuilder) VariationIndexForUser(userKey string, variationIndex int) 
 // This has no effect when targeting is turned off for the flag.
 //
 // To specify the variation as a true or false value if it is a boolean flag, you can use
-// VariationForKey instead.
+// [FlagBuilder.VariationForKey] instead.
 func (f *FlagBuilder) VariationIndexForKey(contextKind ldcontext.Kind, key string, variationIndex int) *FlagBuilder {
 	if f.targets == nil {
 		f.targets = make(map[ldcontext.Kind]map[int]map[string]bool)
@@ -254,7 +255,7 @@ func (f *FlagBuilder) VariationIndexForKey(contextKind ldcontext.Kind, key strin
 
 // Variations changes the allowable variation values for the flag.
 //
-// The values may be of any JSON type, as defined by ldvalue.LDValue. For instance, a boolean flag
+// The values may be of any JSON type, as defined by [ldvalue.Value]. For instance, a boolean flag
 // normally has ldvalue.Bool(true), ldvalue.Bool(false); a string-valued flag might have
 // ldvalue.String("red"), ldvalue.String("green")}; etc.
 func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
@@ -263,10 +264,10 @@ func (f *FlagBuilder) Variations(values ...ldvalue.Value) *FlagBuilder {
 }
 
 // IfMatch starts defining a flag rule, using the "is one of" operator. This is a shortcut for
-// calling IfMatchContext with "user" as the context kind.
+// calling [FlagBuilder.IfMatchContext] with "user" as the context kind.
 //
-// The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
-// the rule, or add more tests with another method like AndMatch.
+// The method returns a [RuleBuilder]. Call its [RuleBuilder.ThenReturn] or [RuleBuilder.ThenReturnIndex]
+// method to finish the rule, or add more tests with another method like [RuleBuilder.AndMatch].
 //
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" or "Edina":
 //
@@ -280,8 +281,8 @@ func (f *FlagBuilder) IfMatch(attribute string, values ...ldvalue.Value) *RuleBu
 // IfMatchContext starts defining a flag rule, using the "is one of" operator. This matching
 // expression only applies to contexts of a specific kind, identified by the contextKind parameter.
 //
-// The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
-// the rule, or add more tests with another method like AndMatch.
+// The method returns a [RuleBuilder]. Call its [RuleBuilder.ThenReturn] or [RuleBuilder.ThenReturnIndex]
+// method to finish the rule, or add more tests with another method like [RuleBuilder.AndMatch].
 //
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is "Ella" or "Monsoon":
@@ -298,10 +299,10 @@ func (f *FlagBuilder) IfMatchContext(
 }
 
 // IfNotMatch starts defining a flag rule, using the "is not one of" operator. This is a shortcut for
-// calling IfNotMatch with "user" as the context kind.
+// calling [FlagBuilder.IfNotMatchContext] with "user" as the context kind.
 //
-// The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
-// the rule, or add more tests with another method like AndMatch.
+// The method returns a [RuleBuilder]. Call its [RuleBuilder.ThenReturn] or [RuleBuilder.ThenReturnIndex]
+// method to finish the rule, or add more tests with another method like [RuleBuilder.AndMatch].
 //
 // For example, this creates a rule that returns true if the user name attribute is neither "Saffron"
 // nor "Bubble":
@@ -316,8 +317,8 @@ func (f *FlagBuilder) IfNotMatch(attribute string, values ...ldvalue.Value) *Rul
 // IfNotMatchContext starts defining a flag rule, using the "is not one of" operator. This matching
 // expression only applies to contexts of a specific kind, identified by the contextKind parameter.
 //
-// The method returns a RuleBuilder. Call its ThenReturn or ThenReturnIndex method to finish
-// the rule, or add more tests with another method like AndMatch.
+// The method returns a [RuleBuilder]. Call its [RuleBuilder.ThenReturn] or [RuleBuilder.ThenReturnIndex]
+// method to finish the rule, or add more tests with another method like [RuleBuilder.AndMatch].
 //
 // For example, this creates a rule that returns true if the name attribute for the "company" context
 // is neither "Pendant" nor "Sterling Cooper":
@@ -334,14 +335,14 @@ func (f *FlagBuilder) IfNotMatchContext(
 }
 
 // ClearRules removes any existing rules from the flag. This undoes the effect of methods like
-// IfMatch.
+// [FlagBuilder.IfMatch].
 func (f *FlagBuilder) ClearRules() *FlagBuilder {
 	f.rules = nil
 	return f
 }
 
 // ClearTargets removes any existing user targets from the flag. This undoes the effect of methods
-// like VariationForUser.
+// like [FlagBuilder.VariationForUser].
 func (f *FlagBuilder) ClearTargets() *FlagBuilder {
 	f.targets = nil
 	return f
@@ -415,7 +416,7 @@ func copyTestFlagRuleBuilder(from *RuleBuilder, owner *FlagBuilder) *RuleBuilder
 }
 
 // AndMatch adds another clause, using the "is one of" operator. This is a shortcut for calling
-// AndMatchContext with "user" as the context kind.
+// [RuleBuilder.AndMatchContext] with "user" as the context kind.
 //
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
 // country is "gb":
@@ -448,7 +449,7 @@ func (r *RuleBuilder) AndMatchContext(
 }
 
 // AndNotMatch adds another clause, using the "is not one of" operator. This is a shortcut for calling
-// AndNotMatchContext with "user" as the context kind.
+// [RuleBuilder.AndNotMatchContext] with "user" as the context kind.
 //
 // For example, this creates a rule that returns true if the user name attribute is "Patsy" and the
 // country is not "gb":

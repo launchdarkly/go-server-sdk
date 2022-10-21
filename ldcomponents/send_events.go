@@ -13,25 +13,25 @@ import (
 )
 
 const (
-	// DefaultEventsBaseURI is the default value for EventProcessorBuilder.BaseURI.
+	// DefaultEventsBaseURI is the default value for [EventProcessorBuilder.BaseURI].
 	DefaultEventsBaseURI = "https://events.launchdarkly.com"
-	// DefaultEventsCapacity is the default value for EventProcessorBuilder.Capacity.
+	// DefaultEventsCapacity is the default value for [EventProcessorBuilder.Capacity].
 	DefaultEventsCapacity = 10000
-	// DefaultDiagnosticRecordingInterval is the default value for EventProcessorBuilder.DiagnosticRecordingInterval.
+	// DefaultDiagnosticRecordingInterval is the default value for [EventProcessorBuilder.DiagnosticRecordingInterval].
 	DefaultDiagnosticRecordingInterval = 15 * time.Minute
-	// DefaultFlushInterval is the default value for EventProcessorBuilder.FlushInterval.
+	// DefaultFlushInterval is the default value for [EventProcessorBuilder.FlushInterval].
 	DefaultFlushInterval = 5 * time.Second
-	// DefaultContextKeysCapacity is the default value for EventProcessorBuilder.ContextKeysCapacity.
+	// DefaultContextKeysCapacity is the default value for [EventProcessorBuilder.ContextKeysCapacity].
 	DefaultContextKeysCapacity = 1000
-	// DefaultContextKeysFlushInterval is the default value for EventProcessorBuilder.ContextKeysFlushInterval.
+	// DefaultContextKeysFlushInterval is the default value for [EventProcessorBuilder.ContextKeysFlushInterval].
 	DefaultContextKeysFlushInterval = 5 * time.Minute
-	// MinimumDiagnosticRecordingInterval is the minimum value for EventProcessorBuilder.DiagnosticRecordingInterval.
+	// MinimumDiagnosticRecordingInterval is the minimum value for [EventProcessorBuilder.DiagnosticRecordingInterval].
 	MinimumDiagnosticRecordingInterval = 60 * time.Second
 )
 
 // EventProcessorBuilder provides methods for configuring analytics event behavior.
 //
-// See SendEvents for usage.
+// See [SendEvents] for usage.
 type EventProcessorBuilder struct {
 	allAttributesPrivate        bool
 	baseURI                     string
@@ -47,8 +47,8 @@ type EventProcessorBuilder struct {
 // SendEvents returns a configuration builder for analytics event delivery.
 //
 // The default configuration has events enabled with default settings. If you want to customize this
-// behavior, call this method to obtain a builder, change its properties with the EventProcessorBuilder
-// methods, and store it in Config.Events:
+// behavior, call this method to obtain a builder, change its properties with the [EventProcessorBuilder]
+// methods, and store it in the Events field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
 //
 //	config := ld.Config{
 //	    Events: ldcomponents.SendEvents().Capacity(5000).FlushInterval(2 * time.Second),
@@ -109,8 +109,8 @@ func (b *EventProcessorBuilder) Build(
 // AllAttributesPrivate sets whether or not all optional context attributes should be hidden from LaunchDarkly.
 //
 // If this is true, all context attribute values (other than the key) will be private, not just the attributes
-// specified with PrivateAttributes or on a per-context basis with ldcontext.Builder methods. By default,
-// it is false.
+// specified with [EventProcessorBuilder.PrivateAttributes] or on a per-context basis with [ldcontext.Builder]
+// methods. By default, it is false.
 func (b *EventProcessorBuilder) AllAttributesPrivate(value bool) *EventProcessorBuilder {
 	b.allAttributesPrivate = value
 	return b
@@ -119,8 +119,8 @@ func (b *EventProcessorBuilder) AllAttributesPrivate(value bool) *EventProcessor
 // Capacity sets the capacity of the events buffer.
 //
 // The client buffers up to this many events in memory before flushing. If the capacity is exceeded before
-// the buffer is flushed (see FlushInterval), events will be discarded. Increasing the capacity means that
-// events are less likely to be discarded, at the cost of consuming more memory.
+// the buffer is flushed (see [EventProcessorBuilder.FlushInterval]), events will be discarded. Increasing the
+// capacity means that events are less likely to be discarded, at the cost of consuming more memory.
 //
 // The default value is DefaultEventsCapacity.
 func (b *EventProcessorBuilder) Capacity(capacity int) *EventProcessorBuilder {
@@ -130,7 +130,7 @@ func (b *EventProcessorBuilder) Capacity(capacity int) *EventProcessorBuilder {
 
 // DiagnosticRecordingInterval sets the interval at which periodic diagnostic data is sent.
 //
-// The default value is DefaultDiagnosticRecordingInterval; the minimum value is MinimumDiagnosticRecordingInterval.
+// The default value is [DefaultDiagnosticRecordingInterval]; the minimum value is [MinimumDiagnosticRecordingInterval].
 // This property is ignored if Config.DiagnosticOptOut is set to true.
 func (b *EventProcessorBuilder) DiagnosticRecordingInterval(interval time.Duration) *EventProcessorBuilder {
 	if interval < MinimumDiagnosticRecordingInterval {
@@ -143,9 +143,10 @@ func (b *EventProcessorBuilder) DiagnosticRecordingInterval(interval time.Durati
 
 // FlushInterval sets the interval between flushes of the event buffer.
 //
-// Decreasing the flush interval means that the event buffer is less likely to reach capacity (see Capacity).
+// Decreasing the flush interval means that the event buffer is less likely to reach capacity (see
+// [EventProcessorBuilder.Capacity]).
 //
-// The default value is DefaultFlushInterval.
+// The default value is [DefaultFlushInterval].
 func (b *EventProcessorBuilder) FlushInterval(interval time.Duration) *EventProcessorBuilder {
 	b.flushInterval = interval
 	return b
@@ -155,7 +156,8 @@ func (b *EventProcessorBuilder) FlushInterval(interval time.Duration) *EventProc
 //
 // Any contexts sent to LaunchDarkly with this configuration active will have attributes with these
 // names removed. This is in addition to any attributes that were marked as private for an individual
-// context with ldcontext.Builder methods. Setting AllAttributesPrivate to true overrides this.
+// context with ldcontext.Builder methods. Setting [EventProcessorBuilder.AllAttributesPrivate] to
+// true overrides this.
 //
 //	config := ld.Config{
 //	    Events: ldcomponents.SendEvents().
@@ -183,9 +185,9 @@ func (b *EventProcessorBuilder) PrivateAttributes(attributes ...string) *EventPr
 // time.
 //
 // To avoid sending duplicate context details in analytics events, the SDK maintains a cache of recently
-// seen context keys, expiring at an interval set by ContextKeysFlushInterval.
+// seen context keys, expiring at an interval set by [EventProcessorBuilder.ContextKeysFlushInterval].
 //
-// The default value is DefaultContextKeysCapacity.
+// The default value is [DefaultContextKeysCapacity].
 func (b *EventProcessorBuilder) ContextKeysCapacity(contextKeysCapacity int) *EventProcessorBuilder {
 	b.contextKeysCapacity = contextKeysCapacity
 	return b
@@ -193,7 +195,7 @@ func (b *EventProcessorBuilder) ContextKeysCapacity(contextKeysCapacity int) *Ev
 
 // ContextKeysFlushInterval sets the interval at which the event processor will reset its cache of known context keys.
 //
-// The default value is DefaultContextKeysFlushInterval.
+// The default value is [DefaultContextKeysFlushInterval].
 func (b *EventProcessorBuilder) ContextKeysFlushInterval(interval time.Duration) *EventProcessorBuilder {
 	b.contextKeysFlushInterval = interval
 	return b

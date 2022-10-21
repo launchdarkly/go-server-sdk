@@ -8,19 +8,19 @@ import (
 )
 
 // DefaultBigSegmentsContextCacheSize is the default value for
-// BigSegmentsConfigurationBuilder.ContextCacheSize.
+// [BigSegmentsConfigurationBuilder.ContextCacheSize].
 const DefaultBigSegmentsContextCacheSize = 1000
 
 // DefaultBigSegmentsContextCacheTime is the default value for
-// BigSegmentsConfigurationBuilder.ContextCacheTime.
+// [BigSegmentsConfigurationBuilder.ContextCacheTime].
 const DefaultBigSegmentsContextCacheTime = time.Second * 5
 
 // DefaultBigSegmentsStatusPollInterval is the default value for
-// BigSegmentsConfigurationBuilder.StatusPollInterval.
+// [BigSegmentsConfigurationBuilder.StatusPollInterval].
 const DefaultBigSegmentsStatusPollInterval = time.Second * 5
 
 // DefaultBigSegmentsStaleAfter is the default value for
-// BigSegmentsConfigurationBuilder.StaleAfter.
+// [BigSegmentsConfigurationBuilder.StaleAfter].
 const DefaultBigSegmentsStaleAfter = time.Second * 120
 
 // BigSegmentsConfigurationBuilder contains methods for configuring the SDK's Big Segments behavior.
@@ -29,8 +29,8 @@ const DefaultBigSegmentsStaleAfter = time.Second * 120
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 //
 // If you want to set non-default values for any of these properties, create a builder with
-// ldcomponents.BigSegments(), change its properties with the BigSegmentsConfigurationBuilder
-// methods, and store it in Config.BigSegments:
+// ldcomponents.[BigSegments](), change its properties with the BigSegmentsConfigurationBuilder
+// methods, and store it in the BigSegments field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
 //
 //	    config := ld.Config{
 //	        BigSegments: ldcomponents.BigSegments(ldredis.DataStore()).
@@ -83,7 +83,7 @@ func BigSegments(
 }
 
 // ContextCacheSize sets the maximum number of users whose Big Segment state will be cached by the SDK
-// at any given time. The default value is DefaultBigSegmentsContextCacheSize.
+// at any given time. The default value is [DefaultBigSegmentsContextCacheSize].
 //
 // To reduce database traffic, the SDK maintains a least-recently-used cache by context key. When a feature
 // flag that references a Big Segment is evaluated for some context that is not currently in the cache, the
@@ -94,7 +94,7 @@ func BigSegments(
 // for recently-referenced users, if the application has many users, at the cost of increased memory
 // used by the cache.
 //
-// Cache entries can also expire based on the setting of ContextCacheTime.
+// Cache entries can also expire based on the setting of [BigSegmentsConfigurationBuilder.ContextCacheTime].
 func (b *BigSegmentsConfigurationBuilder) ContextCacheSize(
 	contextCacheSize int,
 ) *BigSegmentsConfigurationBuilder {
@@ -103,11 +103,11 @@ func (b *BigSegmentsConfigurationBuilder) ContextCacheSize(
 }
 
 // ContextCacheTime sets the maximum length of time that the Big Segment state for an evaluation context will be
-// cached by the SDK. The default value is DefaultBigSegmentsContextCacheTime.
+// cached by the SDK. The default value is [DefaultBigSegmentsContextCacheTime].
 //
-// See ContextCacheSize for more about this cache. A higher value for ContextCacheTime means that database queries
-// for the Big Segment state of any given context will be done less often, but that changes to segment
-// membership may not be detected as soon.
+// See [BigSegmentsConfigurationBuilder.ContextCacheSize] for more about this cache. A higher value for
+// ContextCacheTime means that database queries for the Big Segment state of any given context will be done
+// less often, but that changes to segment membership may not be detected as soon.
 func (b *BigSegmentsConfigurationBuilder) ContextCacheTime(
 	contextCacheTime time.Duration,
 ) *BigSegmentsConfigurationBuilder {
@@ -117,7 +117,7 @@ func (b *BigSegmentsConfigurationBuilder) ContextCacheTime(
 
 // StatusPollInterval sets the interval at which the SDK will poll the Big Segment store to make sure
 // it is available and to determine how long ago it was updated. The default value is
-// DefaultBigSegmentsStatusPollInterval.
+// [DefaultBigSegmentsStatusPollInterval].
 func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
 	statusPollInterval time.Duration,
 ) *BigSegmentsConfigurationBuilder {
@@ -129,7 +129,7 @@ func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
 }
 
 // StaleAfter sets the maximum length of time between updates of the Big Segments data before the data
-// is considered out of date. The default value is DefaultBigSegmentsStaleAfter.
+// is considered out of date. The default value is [DefaultBigSegmentsStaleAfter].
 //
 // Normally, the LaunchDarkly Relay Proxy updates a timestamp in the Big Segments store at intervals to
 // confirm that it is still in sync with the LaunchDarkly data, even if there have been no changes to the
@@ -138,8 +138,8 @@ func (b *BigSegmentsConfigurationBuilder) StatusPollInterval(
 //
 // While in a stale state, the SDK will still continue using the last known data,
 // but LDClient.GetBigSegmentsStoreStatusProvider().GetStatus() will return true in its Stale property,
-// and any ldreason.EvaluationReason generated from a feature flag that references a Big Segment will
-// have an BigSegmentsStatus of ldreason.BigSegmentsStale.
+// and any [ldreason.EvaluationReason] generated from a feature flag that references a Big Segment will
+// have an BigSegmentsStatus of [ldreason.BigSegmentsStale].
 func (b *BigSegmentsConfigurationBuilder) StaleAfter(
 	staleAfter time.Duration,
 ) *BigSegmentsConfigurationBuilder {

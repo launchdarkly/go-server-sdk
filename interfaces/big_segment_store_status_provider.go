@@ -7,8 +7,9 @@ package interfaces
 // "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 //
-// An implementation of this interface is returned by LDClient.GetBigSegmentStoreStatusProvider().
-// Application code never needs to implement this interface.
+// An implementation of this interface is returned by
+// [github.com/launchdarkly/go-server-sdk/v6.LDClient.GetBigSegmentStoreStatusProvider].
+// Application code should not implement this interface.
 //
 // There are two ways to interact with the status. One is to simply get the current status; if its
 // Available property is true, then the SDK is able to evaluate context membership in Big Segments,
@@ -51,7 +52,7 @@ type BigSegmentStoreStatusProvider interface {
 }
 
 // BigSegmentStoreStatus contains information about the status of a Big Segment store, provided by
-// BigSegmentStoreStatusProvider.
+// [BigSegmentStoreStatusProvider].
 //
 // "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 // documentation about user segments: https://docs.launchdarkly.com/home/users

@@ -14,15 +14,15 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
-// DefaultConnectTimeout is the HTTP connection timeout that is used if HTTPConfigurationBuilder.ConnectTimeout
+// DefaultConnectTimeout is the HTTP connection timeout that is used if [HTTPConfigurationBuilder.ConnectTimeout]
 // is not set.
 const DefaultConnectTimeout = 3 * time.Second
 
 // HTTPConfigurationBuilder contains methods for configuring the SDK's networking behavior.
 //
 // If you want to set non-default values for any of these properties, create a builder with
-// ldcomponents.HTTPConfiguration(), change its properties with the HTTPConfigurationBuilder methods,
-// and store it in Config.HTTP:
+// ldcomponents.[HTTPConfiguration](), change its properties with the HTTPConfigurationBuilder methods,
+// and store it in the HTTP field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
 //
 //	    config := ld.Config{
 //	        HTTP: ldcomponents.HTTPConfiguration().
@@ -110,10 +110,11 @@ func (b *HTTPConfigurationBuilder) ConnectTimeout(connectTimeout time.Duration) 
 
 // HTTPClientFactory specifies a function for creating each HTTP client instance that is used by the SDK.
 //
-// If you use this option, it overrides any other settings that you may have specified with ConnectTimeout
-// or ProxyURL; you are responsible for setting up any desired custom configuration on the HTTP client. The
-// SDK may modify the client properties after the client is created (for instance, to add caching), but
-// will not replace the underlying Transport, and will not modify any timeout properties you set.
+// If you use this option, it overrides any other settings that you may have specified with
+// [HTTPConfigurationBuilder.ConnectTimeout] or [HTTPConfigurationBuilder.ProxyURL]; you are responsible
+// for setting up any desired custom configuration on the HTTP client. The SDK  may modify the client
+// properties after the client is created (for instance, to add caching), but will not replace the
+// underlying [http.Transport], and will not modify any timeout properties you set.
 func (b *HTTPConfigurationBuilder) HTTPClientFactory(httpClientFactory func() *http.Client) *HTTPConfigurationBuilder {
 	if b.checkValid() {
 		b.httpClientFactory = httpClientFactory

@@ -2,7 +2,8 @@ package interfaces
 
 // DataStoreStatusProvider is an interface for querying the status of a persistent data store.
 //
-// An implementation of this interface is returned by LDClient.GetDataStoreStatusProvider(). Application code
+// An implementation of this interface is returned by
+// [github.com/launchdarkly/go-server-sdk/v6.LDClient.GetDataStoreStatusProvider]. Application code
 // should not implement this interface.
 //
 // There are two ways to interact with the data store status. One is to simply get the current status; if
@@ -61,7 +62,7 @@ type DataStoreStatusProvider interface {
 	RemoveStatusListener(<-chan DataStoreStatus)
 }
 
-// DataStoreStatus contains information about the status of a data store, provided by DataStoreStatusProvider.
+// DataStoreStatus contains information about the status of a data store, provided by [DataStoreStatusProvider].
 type DataStoreStatus struct {
 	// Available is true if the SDK believes the data store is now available.
 	//
