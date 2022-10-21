@@ -194,7 +194,11 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	client.store = store
 
-	bsConfig, err := getBigSegmentsConfigurationFactory(config).CreateBigSegmentsConfiguration(clientContext)
+	bigSegments := config.BigSegments
+	if bigSegments == nil {
+		bigSegments = ldcomponents.BigSegments(nil)
+	}
+	bsConfig, err := bigSegments.Build(clientContext)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +249,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		loggers,
 	)
 
-	client.eventProcessor, err = eventProcessorFactory.CreateEventProcessor(clientContext)
+	client.eventProcessor, err = eventProcessorFactory.Build(clientContext)
 	if err != nil {
 		return nil, err
 	}
@@ -310,13 +314,6 @@ func getDataStoreFactory(config Config) subsystems.DataStoreFactory {
 		return ldcomponents.InMemoryDataStore()
 	}
 	return config.DataStore
-}
-
-func getBigSegmentsConfigurationFactory(config Config) subsystems.BigSegmentsConfigurationFactory {
-	if config.BigSegments == nil {
-		return ldcomponents.BigSegments(nil)
-	}
-	return config.BigSegments
 }
 
 func createDataSource(

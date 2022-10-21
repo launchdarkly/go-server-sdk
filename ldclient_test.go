@@ -54,7 +54,7 @@ func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 
 	doTest("DataSource", Config{DataSource: factory}, fakeError)
 	doTest("DataStore", Config{DataStore: factory}, fakeError)
-	doTest("Events", Config{Events: factory}, fakeError)
+	doTest("Events", Config{Events: sharedtest.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{fakeError}}, fakeError)
 	doTest("HTTP", Config{HTTP: ldcomponents.HTTPConfiguration().CACert([]byte{1})}, errors.New("invalid CA certificate data"))
 }
 
@@ -102,7 +102,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 		Offline:    false,
 		DataStore:  ldcomponents.InMemoryDataStore(),
 		DataSource: sharedtest.DataSourceThatIsAlwaysInitialized(),
-		Events:     sharedtest.SingleEventProcessorFactory{Instance: &sharedtest.CapturingEventProcessor{}},
+		Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: &sharedtest.CapturingEventProcessor{}},
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	if modConfig != nil {

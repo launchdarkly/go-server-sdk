@@ -15,10 +15,15 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 
 // PersistentDataStore returns a configuration builder for some implementation of a persistent data store.
 //
-// This method is used in conjunction with another factory object provided by specific components
-// such as the Redis integration. The latter provides builder methods for options that are specific
-// to that integration, while the PersistentDataStoreBuilder provides options that are
-// applicable to any persistent data store (such as caching). For example:
+// The return value of this function should be stored in the DataStore field of ld.Config.
+//
+// This method is used in conjunction with another configuration builder object provided by specific
+// packages such as the Redis integration. Each LaunchDarkly Go SDK database integration has a
+// DataStore() method that returns a configuration builder, with builder methods for options that
+// are specific to that database. The SDK also provides some universal behaviors for all persistent
+// data stores, such as caching; PersistantDataStoreBuilder provides methods to configure those
+// behaviors. For instance, in this example, URL() is an option that is specific to the Redis
+// integration, whereas CacheSeconds is not specific to Redis:
 //
 //	config := ld.Config{
 //	    DataStore: ldcomponents.PersistentDataStore(
@@ -30,7 +35,9 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 //
 // For more information on the available persistent data store implementations, see the reference
 // guide on "Persistent data stores": https://docs.launchdarkly.com/sdk/concepts/data-stores
-func PersistentDataStore(persistentDataStoreFactory subsystems.PersistentDataStoreFactory) *PersistentDataStoreBuilder {
+func PersistentDataStore(
+	persistentDataStoreFactory subsystems.ComponentConfigurer[subsystems.PersistentDataStore],
+) *PersistentDataStoreBuilder {
 	return &PersistentDataStoreBuilder{
 		persistentDataStoreFactory: persistentDataStoreFactory,
 		cacheTTL:                   PersistentDataStoreDefaultCacheTime,
@@ -39,24 +46,19 @@ func PersistentDataStore(persistentDataStoreFactory subsystems.PersistentDataSto
 
 // PersistentDataStoreBuilder is a configurable factory for a persistent data store.
 //
-// Several database integrations exist for the LaunchDarkly SDK, each with its own behavior and options
-// specific to that database; this is described via some implementation of PersistentDataStoreFactory.
-// There is also universal behavior that the SDK provides for all persistent data stores, such as caching;
-// the PersistentDataStoreBuilder adds this.
-//
-// After configuring this object, store it in the DataSource field of your SDK configuration. For example,
-// using the Redis integration:
+// Each LaunchDarkly Go SDK database integration has its own configuration builder, with builder methods
+// for options that are specific to that database. The SDK also provides some universal behaviors for all
+// persistent data stores, such as caching; PersistantDataStoreBuilder provides methods to configure those
+// behaviors. For instance, in this example, URL() is an option that is specific to the Redis
+// integration, whereas CacheSeconds is not specific to Redis:
 //
 //	config := ld.Config{
 //	    DataStore: ldcomponents.PersistentDataStore(
 //	        ldredis.DataStore().URL("redis://my-redis-host"),
 //	    ).CacheSeconds(15),
 //	}
-//
-// In this example, URL() is an option specifically for the Redis integration, whereas CacheSeconds() is
-// an option that can be used for any persistent data store.
 type PersistentDataStoreBuilder struct {
-	persistentDataStoreFactory subsystems.PersistentDataStoreFactory
+	persistentDataStoreFactory subsystems.ComponentConfigurer[subsystems.PersistentDataStore]
 	cacheTTL                   time.Duration
 }
 
@@ -99,7 +101,7 @@ func (b *PersistentDataStoreBuilder) CreateDataStore(
 	context subsystems.ClientContext,
 	dataStoreUpdates subsystems.DataStoreUpdates,
 ) (subsystems.DataStore, error) {
-	core, err := b.persistentDataStoreFactory.CreatePersistentDataStore(context)
+	core, err := b.persistentDataStoreFactory.Build(context)
 	if err != nil {
 		return nil, err
 	}

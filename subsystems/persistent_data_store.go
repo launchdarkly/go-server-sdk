@@ -84,19 +84,3 @@ type PersistentDataStore interface {
 	// IsStoreAvailable() at intervals until it returns true.
 	IsStoreAvailable() bool
 }
-
-// PersistentDataStoreFactory is an interface for a factory that creates some implementation of a
-// persistent data store.
-//
-// This interface is implemented by database integrations. Usage is described in
-// ldcomponents.PersistentDataStore().
-type PersistentDataStoreFactory interface {
-	// CreateDataStore is called by the SDK to create the implementation instance.
-	//
-	// This happens only when MakeClient or MakeCustomClient is called. The implementation instance
-	// is then tied to the life cycle of the LDClient, so it will receive a Close() call when the
-	// client is closed.
-	//
-	// If the factory returns an error, creation of the LDClient fails.
-	CreatePersistentDataStore(context ClientContext) (PersistentDataStore, error)
-}

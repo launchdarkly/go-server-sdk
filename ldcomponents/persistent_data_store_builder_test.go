@@ -95,7 +95,7 @@ type mockPersistentDataStoreFactory struct {
 	receivedContext subsystems.ClientContext
 }
 
-func (m *mockPersistentDataStoreFactory) CreatePersistentDataStore(
+func (m *mockPersistentDataStoreFactory) Build(
 	context subsystems.ClientContext,
 ) (subsystems.PersistentDataStore, error) {
 	m.receivedContext = context
@@ -106,7 +106,7 @@ type mockPersistentDataStoreFactoryWithDescription struct {
 	description ldvalue.Value
 }
 
-func (m *mockPersistentDataStoreFactoryWithDescription) CreatePersistentDataStore(
+func (m *mockPersistentDataStoreFactoryWithDescription) Build(
 	context subsystems.ClientContext,
 ) (subsystems.PersistentDataStore, error) {
 	return nil, nil

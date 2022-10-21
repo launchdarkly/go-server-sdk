@@ -15,11 +15,11 @@ type nullEventProcessorFactory struct{}
 //	config := ld.Config{
 //	    Events: ldcomponents.NoEvents(),
 //	}
-func NoEvents() subsystems.EventProcessorFactory {
+func NoEvents() subsystems.ComponentConfigurer[ldevents.EventProcessor] {
 	return nullEventProcessorFactory{}
 }
 
-func (f nullEventProcessorFactory) CreateEventProcessor(
+func (f nullEventProcessorFactory) Build(
 	context subsystems.ClientContext,
 ) (ldevents.EventProcessor, error) {
 	return ldevents.NewNullEventProcessor(), nil

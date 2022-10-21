@@ -65,8 +65,8 @@ func SendEvents() *EventProcessorBuilder {
 	}
 }
 
-// CreateEventProcessor is called by the SDK to create the event processor instance.
-func (b *EventProcessorBuilder) CreateEventProcessor(
+// Build is called internally by the SDK.
+func (b *EventProcessorBuilder) Build(
 	context subsystems.ClientContext,
 ) (ldevents.EventProcessor, error) {
 	loggers := context.GetLogging().Loggers

@@ -12,7 +12,7 @@ type BigSegmentStoreFixture struct {
 
 type bigSegmentMembershipMap map[string]bool
 
-func (b *BigSegmentStoreFixture) CreateBigSegmentStore(context subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
+func (b *BigSegmentStoreFixture) Build(context subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
 	return b, nil
 }
 

@@ -119,13 +119,13 @@ func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingCon
 	return b
 }
 
-// CreateLoggingConfiguration is called internally by the SDK.
-func (b *LoggingConfigurationBuilder) CreateLoggingConfiguration(
+// Build is called internally by the SDK.
+func (b *LoggingConfigurationBuilder) Build(
 	clientContext subsystems.ClientContext,
 ) subsystems.LoggingConfiguration {
 	if !b.checkValid() {
 		defaults := LoggingConfigurationBuilder{}
-		return defaults.CreateLoggingConfiguration(clientContext)
+		return defaults.Build(clientContext)
 	}
 	return b.config
 }
