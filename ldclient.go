@@ -187,8 +187,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.offline = config.Offline
 
 	client.dataStoreStatusBroadcaster = internal.NewBroadcaster[interfaces.DataStoreStatus]()
-	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(client.dataStoreStatusBroadcaster)
-	store, err := getDataStoreFactory(config).CreateDataStore(clientContext, dataStoreUpdates)
+	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(client.dataStoreStatusBroadcaster)
+	storeFactory := config.DataStore
+	if storeFactory == nil {
+		storeFactory = ldcomponents.InMemoryDataStore()
+	}
+	clientContextWithDataStoreUpdateSink := clientContext
+	clientContextWithDataStoreUpdateSink.DataStoreUpdateSink = dataStoreUpdateSink
+	store, err := storeFactory.Build(clientContextWithDataStoreUpdateSink)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +242,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	client.evaluator = ldeval.NewEvaluatorWithOptions(dataProvider, evalOptions...)
 
-	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdates)
+	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdateSink)
 
 	client.dataSourceStatusBroadcaster = internal.NewBroadcaster[interfaces.DataSourceStatus]()
 	client.flagChangeEventBroadcaster = internal.NewBroadcaster[interfaces.FlagChangeEvent]()
@@ -307,13 +313,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
 	return client, nil
-}
-
-func getDataStoreFactory(config Config) subsystems.DataStoreFactory {
-	if config.DataStore == nil {
-		return ldcomponents.InMemoryDataStore()
-	}
-	return config.DataStore
 }
 
 func createDataSource(

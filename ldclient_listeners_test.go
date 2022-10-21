@@ -30,7 +30,7 @@ import (
 type clientListenersTestParams struct {
 	client           *LDClient
 	testData         *ldtestdata.TestDataSource
-	dataStoreUpdates subsystems.DataStoreUpdates
+	dataStoreUpdates subsystems.DataStoreUpdateSink
 }
 
 func clientListenersTest(action func(clientListenersTestParams)) {
@@ -39,14 +39,14 @@ func clientListenersTest(action func(clientListenersTestParams)) {
 
 func clientListenersTestWithConfig(configAction func(*Config), action func(clientListenersTestParams)) {
 	testData := ldtestdata.DataSource()
-	factoryWithUpdater := &sharedtest.DataStoreFactoryThatExposesUpdater{
-		UnderlyingFactory: ldcomponents.PersistentDataStore(
+	capturingStoreConfigurer := &sharedtest.ComponentConfigurerThatCapturesClientContext[subsystems.DataStore]{
+		Configurer: ldcomponents.PersistentDataStore(
 			sharedtest.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: sharedtest.NewMockPersistentDataStore()},
 		),
 	}
 	config := Config{
 		DataSource: testData,
-		DataStore:  factoryWithUpdater,
+		DataStore:  capturingStoreConfigurer,
 		Events:     ldcomponents.NoEvents(),
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
@@ -55,7 +55,7 @@ func clientListenersTestWithConfig(configAction func(*Config), action func(clien
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
-	action(clientListenersTestParams{client, testData, factoryWithUpdater.DataStoreUpdates})
+	action(clientListenersTestParams{client, testData, capturingStoreConfigurer.ReceivedClientContext.GetDataStoreUpdateSink()})
 }
 
 func TestFlagTracker(t *testing.T) {

@@ -23,7 +23,7 @@ import (
 type dataStoreStatusTestParams struct {
 	store            subsystems.DataStore
 	core             *sharedtest.MockPersistentDataStore
-	dataStoreUpdates *DataStoreUpdatesImpl
+	dataStoreUpdates *DataStoreUpdateSinkImpl
 	broadcaster      *internal.Broadcaster[interfaces.DataStoreStatus]
 }
 
@@ -31,7 +31,7 @@ func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStat
 	params := dataStoreStatusTestParams{}
 	params.broadcaster = internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	defer params.broadcaster.Close()
-	params.dataStoreUpdates = NewDataStoreUpdatesImpl(params.broadcaster)
+	params.dataStoreUpdates = NewDataStoreUpdateSinkImpl(params.broadcaster)
 	params.core = sharedtest.NewMockPersistentDataStore()
 	params.store = NewPersistentDataStoreWrapper(params.core, params.dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers())
 	defer params.store.Close()

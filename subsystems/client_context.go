@@ -44,7 +44,7 @@ type ClientContext interface {
 	//
 	// This component is only available when the SDK is creating a DataStore. Otherwise the method
 	// returns nil.
-	GetDataStoreUpdateSink() DataStoreUpdates
+	GetDataStoreUpdateSink() DataStoreUpdateSink
 }
 
 // BasicClientContext is the basic implementation of the ClientContext interface, not including any
@@ -57,7 +57,7 @@ type BasicClientContext struct {
 	Offline              bool
 	ServiceEndpoints     interfaces.ServiceEndpoints
 	DataSourceUpdateSink DataSourceUpdateSink
-	DataStoreUpdateSink  DataStoreUpdates
+	DataStoreUpdateSink  DataStoreUpdateSink
 }
 
 func (b BasicClientContext) GetSDKKey() string { return b.SDKKey } //nolint:revive
@@ -87,6 +87,6 @@ func (b BasicClientContext) GetDataSourceUpdateSink() DataSourceUpdateSink { //n
 	return b.DataSourceUpdateSink
 }
 
-func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdates { //nolint:revive
+func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdateSink { //nolint:revive
 	return b.DataStoreUpdateSink
 }

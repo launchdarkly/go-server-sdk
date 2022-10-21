@@ -39,7 +39,7 @@ func withFileDataSourceTestParams(
 	p.closeWhenReady = make(chan struct{})
 	p.mockLog = ldlogtest.NewMockLog()
 	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: p.mockLog.Loggers})
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
 	p.updates = sharedtest.NewMockDataSourceUpdates(store)
 	testContext.DataSourceUpdateSink = p.updates
 	dataSource, err := factory.Build(testContext)

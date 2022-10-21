@@ -24,7 +24,7 @@ type DataStoreStatusProvider interface {
 	// GetStatus returns the current status of the store.
 	//
 	// This is only meaningful for persistent stores, or any other DataStore implementation that makes use of
-	// the reporting mechanism that is provided by DataStoreUpdates. For the default in-memory store, the
+	// the reporting mechanism that is provided by DataStoreUpdateSink. For the default in-memory store, the
 	// status will always be reported as "available".
 	GetStatus() DataStoreStatus
 

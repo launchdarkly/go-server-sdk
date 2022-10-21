@@ -31,8 +31,7 @@ const (
 //
 //	config.DataStore = ldfiledata.DataSource().FilePaths("file1").FilePaths("file2")
 //
-// You do not need to call the builder's CreatePersistentDataSource() method yourself; that will be
-// done by the SDK.
+// You do not need to call the builder's Build() method yourself; that will be done by the SDK.
 type DataSourceBuilder struct {
 	filePaths             []string
 	duplicateKeysHandling DuplicateKeysHandling
