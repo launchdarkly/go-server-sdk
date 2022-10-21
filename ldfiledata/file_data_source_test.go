@@ -33,13 +33,17 @@ func (p fileDataSourceTestParams) waitForStart() {
 	<-p.closeWhenReady
 }
 
-func withFileDataSourceTestParams(factory subsystems.DataSourceFactory, action func(fileDataSourceTestParams)) {
+func withFileDataSourceTestParams(
+	factory subsystems.ComponentConfigurer[subsystems.DataSource],
+	action func(fileDataSourceTestParams),
+) {
 	p := fileDataSourceTestParams{}
 	mockLog := ldlogtest.NewMockLog()
 	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
-	dataSource, err := factory.CreateDataSource(testContext, updates)
+	testContext.DataSourceUpdateSink = updates
+	dataSource, err := factory.Build(testContext)
 	if err != nil {
 		panic(err)
 	}
@@ -48,11 +52,12 @@ func withFileDataSourceTestParams(factory subsystems.DataSourceFactory, action f
 	action(fileDataSourceTestParams{dataSource, updates, mockLog, make(chan struct{})})
 }
 
-func expectCreationError(t *testing.T, factory subsystems.DataSourceFactory) error {
+func expectCreationError(t *testing.T, factory subsystems.ComponentConfigurer[subsystems.DataSource]) error {
 	testContext := sharedtest.NewTestContext("", nil, nil)
 	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
-	dataSource, err := factory.CreateDataSource(testContext, updates)
+	testContext.DataSourceUpdateSink = updates
+	dataSource, err := factory.Build(testContext)
 	require.Error(t, err)
 	require.Nil(t, dataSource)
 	return err

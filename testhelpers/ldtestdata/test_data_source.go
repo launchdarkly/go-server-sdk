@@ -26,7 +26,7 @@ type TestDataSource struct {
 
 type testDataSourceImpl struct {
 	owner   *TestDataSource
-	updates subsystems.DataSourceUpdates
+	updates subsystems.DataSourceUpdateSink
 }
 
 // DataSource creates an instance of TestDataSource.
@@ -180,13 +180,10 @@ func (t *TestDataSource) updateInternal(
 	}
 }
 
-// CreateDataSource is called internally by the SDK to associate this test data source with an
+// Build is called internally by the SDK to associate this test data source with an
 // LDClient instance. You do not need to call this method.
-func (t *TestDataSource) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
-	instance := &testDataSourceImpl{owner: t, updates: dataSourceUpdates}
+func (t *TestDataSource) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	instance := &testDataSourceImpl{owner: t, updates: context.GetDataSourceUpdateSink()}
 	t.lock.Lock()
 	t.instances = append(t.instances, instance)
 	t.lock.Unlock()

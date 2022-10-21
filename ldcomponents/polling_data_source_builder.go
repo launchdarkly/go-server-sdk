@@ -64,11 +64,8 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 	return b
 }
 
-// CreateDataSource is called by the SDK to create the data source instance.
-func (b *PollingDataSourceBuilder) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
+// Build is called internally by the SDK.
+func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	configuredBaseURI := endpoints.SelectBaseURI(
@@ -77,7 +74,7 @@ func (b *PollingDataSourceBuilder) CreateDataSource(
 		b.baseURI,
 		context.GetLogging().Loggers,
 	)
-	pp := datasource.NewPollingProcessor(context, dataSourceUpdates, configuredBaseURI, b.pollInterval)
+	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), configuredBaseURI, b.pollInterval)
 	return pp, nil
 }
 

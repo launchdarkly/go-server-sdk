@@ -722,13 +722,13 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 			{Key: segmentKey, Item: sh.SegmentDescriptor(segment)},
 		}},
 	}
-	dataSourceFactory := &sh.DataSourceFactoryThatExposesUpdater{ // allows us to simulate an update
-		UnderlyingFactory: &sh.DataSourceFactoryWithData{Data: data},
+	dataSourceConfigurer := &sh.ComponentConfigurerThatCapturesClientContext[ssys.DataSource]{
+		Configurer: &sh.DataSourceFactoryWithData{Data: data},
 	}
 	mockLog := ldlogtest.NewMockLog()
 	config := ld.Config{
 		DataStore:  ldcomponents.PersistentDataStore(dataStoreFactory).NoCaching(),
-		DataSource: dataSourceFactory,
+		DataSource: dataSourceConfigurer,
 		Events:     ldcomponents.NoEvents(),
 		Logging:    ldcomponents.Logging().Loggers(mockLog.Loggers),
 	}
@@ -736,6 +736,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	client, err := ld.MakeCustomClient("sdk-key", config, 5*time.Second)
 	require.NoError(t, err)
 	defer client.Close() //nolint:errcheck
+	dataSourceUpdateSink := dataSourceConfigurer.ReceivedClientContext.GetDataSourceUpdateSink()
 
 	flagShouldHaveValueForUser := func(u ldcontext.Context, expectedValue ldvalue.Value) {
 		value, err := client.JSONVariation(flagKey, u, ldvalue.Null())
@@ -755,7 +756,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 
 	t.Run("update flag", func(t testbox.TestingT) {
 		flagv2 := makeFlagThatReturnsVariationForSegmentMatch(2, goodVariation2)
-		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Features, flagKey,
+		dataSourceUpdateSink.Upsert(datakinds.Features, flagKey,
 			sh.FlagDescriptor(flagv2))
 
 		flagShouldHaveValueForUser(user, goodValue2)
@@ -764,21 +765,21 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 
 	t.Run("update segment", func(t testbox.TestingT) {
 		segmentv2 := makeSegmentThatMatchesUserKeys(2, userKey, otherUserKey)
-		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Segments, segmentKey,
+		dataSourceUpdateSink.Upsert(datakinds.Segments, segmentKey,
 			sh.SegmentDescriptor(segmentv2))
 		flagShouldHaveValueForUser(otherUser, goodValue2) // otherUser is now matched by the segment
 	})
 
 	t.Run("delete segment", func(t testbox.TestingT) {
 		// deleting the segment should cause the flag that uses it to stop matching
-		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Segments, segmentKey,
+		dataSourceUpdateSink.Upsert(datakinds.Segments, segmentKey,
 			st.ItemDescriptor{Version: 3, Item: nil})
 		flagShouldHaveValueForUser(user, badValue)
 	})
 
 	t.Run("delete flag", func(t testbox.TestingT) {
 		// deleting the flag should cause the flag to become unknown
-		dataSourceFactory.DataSourceUpdates.Upsert(datakinds.Features, flagKey,
+		dataSourceUpdateSink.Upsert(datakinds.Features, flagKey,
 			st.ItemDescriptor{Version: 3, Item: nil})
 		value, detail, err := client.JSONVariationDetail(flagKey, user, ldvalue.Null())
 		assert.Error(t, err)

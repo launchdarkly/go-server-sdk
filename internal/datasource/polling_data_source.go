@@ -21,7 +21,7 @@ const (
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataSourceUpdates  subsystems.DataSourceUpdates
+	dataSourceUpdates  subsystems.DataSourceUpdateSink
 	requestor          requestor
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
@@ -34,7 +34,7 @@ type PollingProcessor struct {
 // NewPollingProcessor creates the internal implementation of the polling data source.
 func NewPollingProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
+	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	baseURI string,
 	pollInterval time.Duration,
 ) *PollingProcessor {
@@ -44,7 +44,7 @@ func NewPollingProcessor(
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
+	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	requestor requestor,
 	pollInterval time.Duration,
 ) *PollingProcessor {

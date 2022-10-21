@@ -230,7 +230,7 @@ const (
 	// latest data).
 	//
 	// Data source implementations do not need to report this kind of error; it will be
-	// automatically reported by the SDK whenever one of the update methods of DataSourceUpdates
+	// automatically reported by the SDK whenever one of the update methods of DataSourceUpdateSink
 	// encounters a failure.
 	DataSourceErrorKindStoreError DataSourceErrorKind = "STORE_ERROR"
 )

@@ -26,7 +26,7 @@ import (
 // 1. If any event is malformed, we must assume the stream is broken and we may have missed updates. Set the
 // data source state to INTERRUPTED, with an error kind of INVALID_DATA, and restart the stream.
 // 2. If we try to put updates into the data store and we get an error, we must assume something's wrong with the
-// data store. We don't have to log this error because it is logged by DataSourceUpdatesImpl, which will also set
+// data store. We don't have to log this error because it is logged by DataSourceUpdateSinkImpl, which will also set
 // our state to INTERRUPTED for us.
 // 2a. If the data store supports status notifications (which all persistent stores normally do), then we can
 // assume it has entered a failed state and will notify us once it is working again. If and when it recovers, then
@@ -62,7 +62,7 @@ const (
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type StreamProcessor struct {
-	dataSourceUpdates          subsystems.DataSourceUpdates
+	dataSourceUpdates          subsystems.DataSourceUpdateSink
 	streamURI                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
@@ -81,7 +81,7 @@ type StreamProcessor struct {
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
+	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	streamURI string,
 	initialReconnectDelay time.Duration,
 ) *StreamProcessor {

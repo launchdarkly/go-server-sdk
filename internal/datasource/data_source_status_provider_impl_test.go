@@ -16,7 +16,7 @@ import (
 
 type dataSourceStatusProviderImplTestParams struct {
 	dataSourceStatusProvider interfaces.DataSourceStatusProvider
-	dataSourceUpdates        *DataSourceUpdatesImpl
+	dataSourceUpdates        *DataSourceUpdateSinkImpl
 }
 
 func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTestParams)) {
@@ -27,7 +27,7 @@ func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTe
 	defer flagBroadcaster.Close()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	dataStoreStatusProvider := datastore.NewDataStoreStatusProviderImpl(store, nil)
-	p.dataSourceUpdates = NewDataSourceUpdatesImpl(store, dataStoreStatusProvider, statusBroadcaster, flagBroadcaster,
+	p.dataSourceUpdates = NewDataSourceUpdateSinkImpl(store, dataStoreStatusProvider, statusBroadcaster, flagBroadcaster,
 		0, sharedtest.NewTestLoggers())
 	p.dataSourceStatusProvider = NewDataSourceStatusProviderImpl(statusBroadcaster, p.dataSourceUpdates)
 

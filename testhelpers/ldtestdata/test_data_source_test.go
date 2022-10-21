@@ -40,7 +40,8 @@ func testDataSourceTest(t *testing.T, action func(testDataSourceTestParams)) {
 
 func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(subsystems.DataSource)) {
 	t.Helper()
-	ds, err := p.td.CreateDataSource(nil, p.updates)
+	context := subsystems.BasicClientContext{DataSourceUpdateSink: p.updates}
+	ds, err := p.td.Build(context)
 	require.NoError(t, err)
 	defer ds.Close()
 

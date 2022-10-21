@@ -61,7 +61,7 @@ type Config struct {
 	//
 	//     // example: specifying that data will be updated by an external process (such as the Relay Proxy)
 	//     config.DataSource = ldcomponents.ExternalUpdatesOnly()
-	DataSource subsystems.DataSourceFactory
+	DataSource subsystems.ComponentConfigurer[subsystems.DataSource]
 
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
