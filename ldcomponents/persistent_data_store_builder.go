@@ -9,19 +9,20 @@ import (
 )
 
 // PersistentDataStoreDefaultCacheTime is the default amount of time that recently read or updated items
-// will be cached in memory, if you use PersistentDataStore(). You can specify otherwise with the
-// PersistentDataStoreBuilder.CacheTime() option.
+// will be cached in memory, if you use [PersistentDataStore]. You can specify otherwise with
+// [PersistentDataStoreBuilder.CacheTime].
 const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 
 // PersistentDataStore returns a configuration builder for some implementation of a persistent data store.
 //
-// The return value of this function should be stored in the DataStore field of ld.Config.
+// The return value of this function should be stored in the DataStore field of
+// [github.com/launchdarkly/go-server-sdk/v6.Config].
 //
 // This method is used in conjunction with another configuration builder object provided by specific
 // packages such as the Redis integration. Each LaunchDarkly Go SDK database integration has a
 // DataStore() method that returns a configuration builder, with builder methods for options that
 // are specific to that database. The SDK also provides some universal behaviors for all persistent
-// data stores, such as caching; PersistantDataStoreBuilder provides methods to configure those
+// data stores, such as caching; [PersistentDataStoreBuilder] provides methods to configure those
 // behaviors. For instance, in this example, URL() is an option that is specific to the Redis
 // integration, whereas CacheSeconds is not specific to Redis:
 //
@@ -48,7 +49,7 @@ func PersistentDataStore(
 //
 // Each LaunchDarkly Go SDK database integration has its own configuration builder, with builder methods
 // for options that are specific to that database. The SDK also provides some universal behaviors for all
-// persistent data stores, such as caching; PersistantDataStoreBuilder provides methods to configure those
+// persistent data stores, such as caching; PersistentDataStoreBuilder provides methods to configure those
 // behaviors. For instance, in this example, URL() is an option that is specific to the Redis
 // integration, whereas CacheSeconds is not specific to Redis:
 //
@@ -65,15 +66,15 @@ type PersistentDataStoreBuilder struct {
 // CacheTime specifies the cache TTL. Items will be evicted from the cache after this amount of time
 // from the time when they were originally cached.
 //
-// If the value is zero, caching is disabled (equivalent to NoCaching).
+// If the value is zero, caching is disabled (equivalent to [PersistentDataStoreBuilder.NoCaching]).
 //
-// If the value is negative, data is cached forever (equivalent to CacheForever).
+// If the value is negative, data is cached forever (equivalent to [PersistentDataStoreBuilder.CacheForever]).
 func (b *PersistentDataStoreBuilder) CacheTime(cacheTime time.Duration) *PersistentDataStoreBuilder {
 	b.cacheTTL = cacheTime
 	return b
 }
 
-// CacheSeconds is a shortcut for calling CacheTime with a duration in seconds.
+// CacheSeconds is a shortcut for calling [PersistentDataStoreBuilder.CacheTime] with a duration in seconds.
 func (b *PersistentDataStoreBuilder) CacheSeconds(cacheSeconds int) *PersistentDataStoreBuilder {
 	return b.CacheTime(time.Duration(cacheSeconds) * time.Second)
 }

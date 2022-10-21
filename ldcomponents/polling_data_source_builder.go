@@ -9,15 +9,15 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
-// DefaultPollingBaseURI is the default value for PollingDataSourceBuilder.BaseURI.
+// DefaultPollingBaseURI is the default value for [PollingDataSourceBuilder.BaseURI].
 const DefaultPollingBaseURI = "https://app.launchdarkly.com"
 
-// DefaultPollInterval is the default value for PollingDataSourceBuilder.PollInterval. This is also the minimum value.
+// DefaultPollInterval is the default value for [PollingDataSourceBuilder.PollInterval]. This is also the minimum value.
 const DefaultPollInterval = 30 * time.Second
 
 // PollingDataSourceBuilder provides methods for configuring the polling data source.
 //
-// See PollingDataSource for usage.
+// See [PollingDataSource] for usage.
 type PollingDataSourceBuilder struct {
 	baseURI      string
 	pollInterval time.Duration
@@ -31,7 +31,8 @@ type PollingDataSourceBuilder struct {
 // polling is still less efficient than streaming and should only be used on the advice of LaunchDarkly support.
 //
 // To use polling mode, create a builder with PollingDataSource(), set its properties with the methods of
-// PollingDataSourceBuilder, and then store it in the DataSource field of your SDK configuration:
+// [PollingDataSourceBuilder], and then store it in the DataSource field of
+// [github.com/launchdarkly/go-server-sdk/v6.Config]:
 //
 //	config := ld.Config{
 //	    DataSource: ldcomponents.PollingDataSource().PollInterval(45 * time.Second),
@@ -44,7 +45,7 @@ func PollingDataSource() *PollingDataSourceBuilder {
 
 // PollInterval sets the interval at which the SDK will poll for feature flag updates.
 //
-// The default and minimum value is DefaultPollInterval. Values less than this will be set to the default.
+// The default and minimum value is [DefaultPollInterval]. Values less than this will be set to the default.
 func (b *PollingDataSourceBuilder) PollInterval(pollInterval time.Duration) *PollingDataSourceBuilder {
 	if pollInterval < DefaultPollInterval {
 		b.pollInterval = DefaultPollInterval

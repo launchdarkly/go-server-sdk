@@ -11,8 +11,8 @@ import (
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
 //
 // If you want to set non-default values for any of these properties, create a builder with
-// ldcomponents.Logging(), change its properties with the LoggingConfigurationBuilder methods, and
-// store it in Config.Logging:
+// ldcomponents.[Logging](), change its properties with the LoggingConfigurationBuilder methods, and
+// store it in the Logging field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
 //
 //	config := ld.Config{
 //	    Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
@@ -23,14 +23,14 @@ type LoggingConfigurationBuilder struct {
 }
 
 // DefaultLogDataSourceOutageAsErrorAfter is the default value for
-// LoggingConfigurationBuilder.LogDataSourceOutageAsErrorAfter(): one minute.
+// [LoggingConfigurationBuilder.LogDataSourceOutageAsErrorAfter]: one minute.
 const DefaultLogDataSourceOutageAsErrorAfter = time.Minute
 
 // Logging returns a configuration builder for the SDK's logging configuration.
 //
 // The default configuration has logging enabled with default settings. If you want to set non-default
 // values for any of these properties, create a builder with ldcomponents.Logging(), change its properties
-// with the LoggingConfigurationBuilder methods, and store it in Config.Logging:
+// with the [LoggingConfigurationBuilder] methods, and store it in Config.Logging:
 //
 //	config := ld.Config{
 //	    Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),
@@ -65,7 +65,7 @@ func (b *LoggingConfigurationBuilder) checkValid() bool {
 // specified by this method elapses before the data source starts working again, the SDK will log an
 // additional message at Error level to indicate that this is a sustained problem.
 //
-// The default is DefaultLogDataSourceOutageAsErrorAfter (one minute). Setting it to zero will disable
+// The default is [DefaultLogDataSourceOutageAsErrorAfter] (one minute). Setting it to zero will disable
 // this feature, so you will only get Warn messages.
 func (b *LoggingConfigurationBuilder) LogDataSourceOutageAsErrorAfter(
 	logDataSourceOutageAsErrorAfter time.Duration,
@@ -97,7 +97,7 @@ func (b *LoggingConfigurationBuilder) LogContextKeyInErrors(logContextKeyInError
 	return b
 }
 
-// Loggers specifies an instance of ldlog.Loggers to use for SDK logging. The ldlog package contains
+// Loggers specifies an instance of [ldlog.Loggers] to use for SDK logging. The ldlog package contains
 // methods for customizing the destination and level filtering of log output.
 func (b *LoggingConfigurationBuilder) Loggers(loggers ldlog.Loggers) *LoggingConfigurationBuilder {
 	if b.checkValid() {
@@ -106,9 +106,9 @@ func (b *LoggingConfigurationBuilder) Loggers(loggers ldlog.Loggers) *LoggingCon
 	return b
 }
 
-// MinLevel specifies the minimum level for log output, where ldlog.Debug is the lowest and ldlog.Error
+// MinLevel specifies the minimum level for log output, where [ldlog.Debug] is the lowest and [ldlog.Error]
 // is the highest. Log messages at a level lower than this will be suppressed. The default is
-// ldlog.Info.
+// [ldlog.Info].
 //
 // This is equivalent to creating an ldlog.Loggers instance, calling SetMinLevel() on it, and then
 // passing it to LoggingConfigurationBuilder.Loggers().
