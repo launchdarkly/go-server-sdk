@@ -29,10 +29,9 @@ type Config struct {
 	// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 	// documentation about user segments: https://docs.launchdarkly.com/home/users
 	//
-	// Each of the available LaunchDarkly Go SDK database integrations that supports Big Segments has a
-	// BigSegmentStore() function that returns a configuration builder implementing this interface. Which
-	// database integration you use depends on how the LaunchDarkly Relay Proxy is configured, since the
-	// Relay Proxy populates the Big Segment database.
+	// To enable Big Segments, set this field to the configuration builder that is returned by
+	// ldcomponents.BigSegments(), which allows you to specify what database to use as well as other
+	// options.
 	//
 	// If nil, there is no implementation and Big Segments cannot be evaluated. In this case, any flag
 	// evaluation that references a Big Segment will behave as if no users are included in any Big
@@ -47,11 +46,23 @@ type Config struct {
 
 	// Sets the implementation of DataSource for receiving feature flag updates.
 	//
-	// If nil, the default is ldcomponents.StreamingDataSource(); see that method for an explanation of how to
-	// further configure streaming behavior. Other options include ldcomponents.PollingDataSource(),
-	// ldcomponents.ExternalUpdatesOnly(), ldfiledata.DataSource(), or a custom implementation for testing.
-	//
 	// If Offline is set to true, then DataSource is ignored.
+	//
+	// The interface type for this field allows you to set it to any of the following:
+	//
+	// - ldcomponents.StreamingDataSource(), which enables streaming data and provides a builder to further
+	// configure streaming behavior.
+	//
+	// - ldcomponents.PollingDataSource(), which turns off streaming, enables polling, and provides a builder
+	// to further configure polling behavior.
+	//
+	// - ldcomponents.ExternalUpdatesOnly(), which turns off all data sources unless an external process is
+	// providing data via a database.
+	//
+	// - ldfiledata.DataSource() or ldtestdata.DataSource(), which provide configurable local data sources
+	// for testing.
+	//
+	// - Or, a custom component that implements ComponentConfigurer[DataSource].
 	//
 	//     // example: using streaming mode and setting streaming options
 	//     config.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Second)
@@ -61,7 +72,7 @@ type Config struct {
 	//
 	//     // example: specifying that data will be updated by an external process (such as the Relay Proxy)
 	//     config.DataSource = ldcomponents.ExternalUpdatesOnly()
-	DataSource subsystems.DataSourceFactory
+	DataSource subsystems.ComponentConfigurer[subsystems.DataSource]
 
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.

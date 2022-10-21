@@ -8,7 +8,7 @@ type SingleComponentConfigurer[T any] struct {
 	Instance T
 }
 
-func (c SingleComponentConfigurer[T]) Build(context subsystems.ClientContext) (T, error) {
+func (c SingleComponentConfigurer[T]) Build(clientContext subsystems.ClientContext) (T, error) {
 	return c.Instance, nil
 }
 
@@ -18,7 +18,19 @@ type ComponentConfigurerThatReturnsError[T any] struct {
 	Err error
 }
 
-func (c ComponentConfigurerThatReturnsError[T]) Build(context subsystems.ClientContext) (T, error) {
+func (c ComponentConfigurerThatReturnsError[T]) Build(clientContext subsystems.ClientContext) (T, error) {
 	var empty T
 	return empty, c.Err
+}
+
+// ComponentConfigurerThatCapturesClientContext is a test decorator for a ComponentConfigurer that allows
+// tests to see the ClientContext that was passed to it.
+type ComponentConfigurerThatCapturesClientContext[T any] struct {
+	Configurer            subsystems.ComponentConfigurer[T]
+	ReceivedClientContext subsystems.ClientContext
+}
+
+func (c *ComponentConfigurerThatCapturesClientContext[T]) Build(clientContext subsystems.ClientContext) (T, error) {
+	c.ReceivedClientContext = clientContext
+	return c.Configurer.Build(clientContext)
 }

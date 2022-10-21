@@ -23,18 +23,17 @@ type nullDataSourceFactory struct{}
 //	config := ld.Config{
 //	    DataSource: ldcomponents.ExternalUpdatesOnly(),
 //	}
-func ExternalUpdatesOnly() subsystems.DataSourceFactory {
+func ExternalUpdatesOnly() subsystems.ComponentConfigurer[subsystems.DataSource] {
 	return nullDataSourceFactory{}
 }
 
 // DataSourceFactory implementation
-func (f nullDataSourceFactory) CreateDataSource(
+func (f nullDataSourceFactory) Build(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
 ) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Info("LaunchDarkly client will not connect to Launchdarkly for feature flag data")
-	if dataSourceUpdates != nil {
-		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+	if context.GetDataSourceUpdateSink() != nil {
+		context.GetDataSourceUpdateSink().UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 	}
 	return datasource.NewNullDataSource(), nil
 }

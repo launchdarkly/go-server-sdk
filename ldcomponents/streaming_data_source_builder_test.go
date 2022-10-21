@@ -34,7 +34,9 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 		s := StreamingDataSource().InitialReconnectDelay(delay)
 
 		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		ds, err := s.CreateDataSource(makeTestContextWithBaseURIs(baseURI), dsu)
+		clientContext := makeTestContextWithBaseURIs(baseURI)
+		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()

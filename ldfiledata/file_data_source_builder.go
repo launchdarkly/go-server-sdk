@@ -72,11 +72,8 @@ func (b *DataSourceBuilder) Reloader(reloaderFactory ReloaderFactory) *DataSourc
 	return b
 }
 
-// CreateDataSource is called by the SDK to create the data source instance.
-func (b *DataSourceBuilder) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
-	return newFileDataSourceImpl(context, dataSourceUpdates, b.filePaths,
+// Build is called internall by the SDK.
+func (b *DataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	return newFileDataSourceImpl(context, context.GetDataSourceUpdateSink(), b.filePaths,
 		b.duplicateKeysHandling, b.reloaderFactory)
 }

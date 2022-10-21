@@ -19,24 +19,8 @@ const testSdkKey = "test-sdk-key"
 
 type badFactory struct{ err error }
 
-func (f badFactory) CreateDataSource(c subsystems.ClientContext, u subsystems.DataSourceUpdates) (subsystems.DataSource, error) {
-	return nil, f.err
-}
-
 func (f badFactory) CreateDataStore(c subsystems.ClientContext, u subsystems.DataStoreUpdates) (subsystems.DataStore, error) {
 	return nil, f.err
-}
-
-func (f badFactory) CreateEventProcessor(context subsystems.ClientContext) (ldevents.EventProcessor, error) {
-	return nil, f.err
-}
-
-func (f badFactory) CreateHTTPConfiguration(context subsystems.ClientContext) (subsystems.HTTPConfiguration, error) {
-	return subsystems.HTTPConfiguration{}, f.err
-}
-
-func (f badFactory) CreateLoggingConfiguration(context subsystems.ClientContext) (subsystems.LoggingConfiguration, error) {
-	return subsystems.LoggingConfiguration{}, f.err
 }
 
 func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
@@ -52,9 +36,9 @@ func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 		})
 	}
 
-	doTest("DataSource", Config{DataSource: factory}, fakeError)
+	doTest("DataSource", Config{DataSource: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataSource]{Err: fakeError}}, fakeError)
 	doTest("DataStore", Config{DataStore: factory}, fakeError)
-	doTest("Events", Config{Events: sharedtest.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{fakeError}}, fakeError)
+	doTest("Events", Config{Events: sharedtest.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{Err: fakeError}}, fakeError)
 	doTest("HTTP", Config{HTTP: ldcomponents.HTTPConfiguration().CACert([]byte{1})}, errors.New("invalid CA certificate data"))
 }
 

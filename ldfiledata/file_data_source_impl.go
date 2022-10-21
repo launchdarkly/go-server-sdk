@@ -23,7 +23,7 @@ import (
 )
 
 type fileDataSource struct {
-	dataSourceUpdates     subsystems.DataSourceUpdates
+	dataSourceUpdates     subsystems.DataSourceUpdateSink
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
@@ -37,7 +37,7 @@ type fileDataSource struct {
 
 func newFileDataSourceImpl(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
+	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	filePaths []string,
 	duplicateKeysHandling DuplicateKeysHandling,
 	reloaderFactory ReloaderFactory,

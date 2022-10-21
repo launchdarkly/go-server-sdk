@@ -240,7 +240,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.dataSourceStatusBroadcaster = internal.NewBroadcaster[interfaces.DataSourceStatus]()
 	client.flagChangeEventBroadcaster = internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-	dataSourceUpdates := datasource.NewDataSourceUpdatesImpl(
+	dataSourceUpdateSink := datasource.NewDataSourceUpdateSinkImpl(
 		store,
 		client.dataStoreStatusProvider,
 		client.dataSourceStatusBroadcaster,
@@ -264,14 +264,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	// frequently, it won't be causing an allocation each time.
 	client.withEventsDisabled = newClientEventsDisabledDecorator(client)
 
-	dataSource, err := createDataSource(config, clientContext, dataSourceUpdates)
+	dataSource, err := createDataSource(config, clientContext, dataSourceUpdateSink)
 	client.dataSource = dataSource
 	if err != nil {
 		return nil, err
 	}
 	client.dataSourceStatusProvider = datasource.NewDataSourceStatusProviderImpl(
 		client.dataSourceStatusBroadcaster,
-		dataSourceUpdates,
+		dataSourceUpdateSink,
 	)
 
 	client.flagTracker = internal.NewFlagTrackerImpl(
@@ -318,12 +318,12 @@ func getDataStoreFactory(config Config) subsystems.DataStoreFactory {
 
 func createDataSource(
 	config Config,
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
+	context *internal.ClientContextImpl,
+	dataSourceUpdateSink subsystems.DataSourceUpdateSink,
 ) (subsystems.DataSource, error) {
 	if config.Offline {
 		context.GetLogging().Loggers.Info("Starting LaunchDarkly client in offline mode")
-		dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+		dataSourceUpdateSink.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 		return datasource.NewNullDataSource(), nil
 	}
 	factory := config.DataSource
@@ -331,7 +331,9 @@ func createDataSource(
 		// COVERAGE: can't cause this condition in unit tests because it would try to connect to production LD
 		factory = ldcomponents.StreamingDataSource()
 	}
-	return factory.CreateDataSource(context, dataSourceUpdates)
+	contextCopy := *context
+	contextCopy.BasicClientContext.DataSourceUpdateSink = dataSourceUpdateSink
+	return factory.Build(&contextCopy)
 }
 
 // Identify reports details about an evaluation context.

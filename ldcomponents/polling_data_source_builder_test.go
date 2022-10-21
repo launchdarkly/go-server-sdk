@@ -34,7 +34,9 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		p := PollingDataSource().PollInterval(interval)
 
 		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		ds, err := p.CreateDataSource(makeTestContextWithBaseURIs(baseURI), dsu)
+		clientContext := makeTestContextWithBaseURIs(baseURI)
+		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		ds, err := p.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()

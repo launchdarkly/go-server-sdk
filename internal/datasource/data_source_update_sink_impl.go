@@ -13,10 +13,10 @@ import (
 	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
-// DataSourceUpdatesImpl is the internal implementation of DataSourceUpdates. It is exported
+// DataSourceUpdateSinkImpl is the internal implementation of DataSourceUpdateSink. It is exported
 // because the actual implementation type, rather than the interface, is required as a dependency
 // of other SDK components.
-type DataSourceUpdatesImpl struct {
+type DataSourceUpdateSinkImpl struct {
 	store                       subsystems.DataStore
 	dataStoreStatusProvider     intf.DataStoreStatusProvider
 	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus]
@@ -29,16 +29,16 @@ type DataSourceUpdatesImpl struct {
 	lock                        sync.Mutex
 }
 
-// NewDataSourceUpdatesImpl creates the internal implementation of DataSourceUpdates.
-func NewDataSourceUpdatesImpl(
+// NewDataSourceUpdateSinkImpl creates the internal implementation of DataSourceUpdateSink.
+func NewDataSourceUpdateSinkImpl(
 	store subsystems.DataStore,
 	dataStoreStatusProvider intf.DataStoreStatusProvider,
 	dataSourceStatusBroadcaster *internal.Broadcaster[intf.DataSourceStatus],
 	flagChangeEventBroadcaster *internal.Broadcaster[intf.FlagChangeEvent],
 	logDataSourceOutageAsErrorAfter time.Duration,
 	loggers ldlog.Loggers,
-) *DataSourceUpdatesImpl {
-	return &DataSourceUpdatesImpl{
+) *DataSourceUpdateSinkImpl {
+	return &DataSourceUpdateSinkImpl{
 		store:                       store,
 		dataStoreStatusProvider:     dataStoreStatusProvider,
 		dataSourceStatusBroadcaster: dataSourceStatusBroadcaster,
@@ -54,7 +54,7 @@ func NewDataSourceUpdatesImpl(
 }
 
 //nolint:revive // no doc comment for standard method
-func (d *DataSourceUpdatesImpl) Init(allData []st.Collection) bool {
+func (d *DataSourceUpdateSinkImpl) Init(allData []st.Collection) bool {
 	var oldData map[st.DataKind]map[string]st.ItemDescriptor
 
 	if d.flagChangeEventBroadcaster.HasListeners() {
@@ -90,7 +90,7 @@ func (d *DataSourceUpdatesImpl) Init(allData []st.Collection) bool {
 }
 
 //nolint:revive // no doc comment for standard method
-func (d *DataSourceUpdatesImpl) Upsert(
+func (d *DataSourceUpdateSinkImpl) Upsert(
 	kind st.DataKind,
 	key string,
 	item st.ItemDescriptor,
@@ -110,7 +110,7 @@ func (d *DataSourceUpdatesImpl) Upsert(
 	return didNotGetError
 }
 
-func (d *DataSourceUpdatesImpl) maybeUpdateError(err error) bool {
+func (d *DataSourceUpdateSinkImpl) maybeUpdateError(err error) bool {
 	if err == nil {
 		d.lock.Lock()
 		defer d.lock.Unlock()
@@ -140,7 +140,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateError(err error) bool {
 }
 
 //nolint:revive // no doc comment for standard method
-func (d *DataSourceUpdatesImpl) UpdateStatus(
+func (d *DataSourceUpdateSinkImpl) UpdateStatus(
 	newState intf.DataSourceState,
 	newError intf.DataSourceErrorInfo,
 ) {
@@ -152,7 +152,7 @@ func (d *DataSourceUpdatesImpl) UpdateStatus(
 	}
 }
 
-func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
+func (d *DataSourceUpdateSinkImpl) maybeUpdateStatus(
 	newState intf.DataSourceState,
 	newError intf.DataSourceErrorInfo,
 ) (intf.DataSourceStatus, bool) {
@@ -162,7 +162,7 @@ func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
 	oldStatus := d.currentStatus
 
 	if newState == intf.DataSourceStateInterrupted && oldStatus.State == intf.DataSourceStateInitializing {
-		newState = intf.DataSourceStateInitializing // see comment on DataSourceUpdates.UpdateStatus
+		newState = intf.DataSourceStateInitializing // see comment on DataSourceUpdateSink.UpdateStatus
 	}
 
 	if newState == oldStatus.State && newError.Kind == "" {
@@ -189,18 +189,18 @@ func (d *DataSourceUpdatesImpl) maybeUpdateStatus(
 }
 
 //nolint:revive // no doc comment for standard method
-func (d *DataSourceUpdatesImpl) GetDataStoreStatusProvider() intf.DataStoreStatusProvider {
+func (d *DataSourceUpdateSinkImpl) GetDataStoreStatusProvider() intf.DataStoreStatusProvider {
 	return d.dataStoreStatusProvider
 }
 
 // GetLastStatus is used internally by SDK components.
-func (d *DataSourceUpdatesImpl) GetLastStatus() intf.DataSourceStatus {
+func (d *DataSourceUpdateSinkImpl) GetLastStatus() intf.DataSourceStatus {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	return d.currentStatus
 }
 
-func (d *DataSourceUpdatesImpl) waitFor(desiredState intf.DataSourceState, timeout time.Duration) bool {
+func (d *DataSourceUpdateSinkImpl) waitFor(desiredState intf.DataSourceState, timeout time.Duration) bool {
 	d.lock.Lock()
 	if d.currentStatus.State == desiredState {
 		d.lock.Unlock()
@@ -235,7 +235,7 @@ func (d *DataSourceUpdatesImpl) waitFor(desiredState intf.DataSourceState, timeo
 	}
 }
 
-func (d *DataSourceUpdatesImpl) sendChangeEvents(affectedItems kindAndKeySet) {
+func (d *DataSourceUpdateSinkImpl) sendChangeEvents(affectedItems kindAndKeySet) {
 	for item := range affectedItems {
 		if item.kind == datakinds.Features {
 			d.flagChangeEventBroadcaster.Broadcast(intf.FlagChangeEvent{Key: item.key})
@@ -243,7 +243,7 @@ func (d *DataSourceUpdatesImpl) sendChangeEvents(affectedItems kindAndKeySet) {
 	}
 }
 
-func (d *DataSourceUpdatesImpl) updateDependencyTrackerFromFullDataSet(allData []st.Collection) {
+func (d *DataSourceUpdateSinkImpl) updateDependencyTrackerFromFullDataSet(allData []st.Collection) {
 	d.dependencyTracker.reset()
 	for _, coll := range allData {
 		for _, item := range coll.Items {
@@ -264,7 +264,7 @@ func fullDataSetToMap(allData []st.Collection) map[st.DataKind]map[string]st.Ite
 	return ret
 }
 
-func (d *DataSourceUpdatesImpl) computeChangedItemsForFullDataSet(
+func (d *DataSourceUpdateSinkImpl) computeChangedItemsForFullDataSet(
 	oldDataMap map[st.DataKind]map[string]st.ItemDescriptor,
 	newDataMap map[st.DataKind]map[string]st.ItemDescriptor,
 ) kindAndKeySet {

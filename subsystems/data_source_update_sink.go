@@ -5,13 +5,13 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
-// DataSourceUpdates is an interface that a data source implementation will use to push data into the SDK.
+// DataSourceUpdateSink is an interface that a data source implementation will use to push data into the SDK.
 //
 // Application code does not need to use this type. It is for data source implementations.
 //
 // The data source interacts with this object, rather than manipulating the data store directly, so that
 // the SDK can perform any other necessary operations that must happen when data is updated.
-type DataSourceUpdates interface {
+type DataSourceUpdateSink interface {
 	// Init overwrites the current contents of the data store with a set of items for each collection.
 	//
 	// If the underlying data store returns an error during this operation, the SDK will log it,

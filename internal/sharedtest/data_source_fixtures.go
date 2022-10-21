@@ -5,37 +5,21 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
-// DataSourceFactoryThatExposesUpdater is a test implementation of DataSourceFactory that captures the
-// DataSourceUpdates instance provided by LDClient.
-type DataSourceFactoryThatExposesUpdater struct {
-	UnderlyingFactory subsystems.DataSourceFactory
-	DataSourceUpdates subsystems.DataSourceUpdates
-}
-
-func (f *DataSourceFactoryThatExposesUpdater) CreateDataSource( //nolint:revive
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
-	f.DataSourceUpdates = dataSourceUpdates
-	return f.UnderlyingFactory.CreateDataSource(context, dataSourceUpdates)
-}
-
-// DataSourceFactoryWithData is a test implementation of DataSourceFactory that will cause the data
+// DataSourceFactoryWithData is a test implementation of ComponentConfigurer that will cause the data
 // source to provide a specific set of data when it starts.
 type DataSourceFactoryWithData struct {
 	Data []ldstoretypes.Collection
 }
 
-func (f DataSourceFactoryWithData) CreateDataSource( //nolint:revive
+func (f DataSourceFactoryWithData) Build( //nolint:revive
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
 ) (subsystems.DataSource, error) {
-	return &dataSourceWithData{f.Data, dataSourceUpdates, false}, nil
+	return &dataSourceWithData{f.Data, context.GetDataSourceUpdateSink(), false}, nil
 }
 
 type dataSourceWithData struct {
 	data              []ldstoretypes.Collection
-	dataSourceUpdates subsystems.DataSourceUpdates
+	dataSourceUpdates subsystems.DataSourceUpdateSink
 	inited            bool
 }
 
@@ -53,27 +37,16 @@ func (d *dataSourceWithData) Start(closeWhenReady chan<- struct{}) {
 	close(closeWhenReady)
 }
 
-// DataSourceThatIsAlwaysInitialized returns a test DataSourceFactory that produces a data source
+// DataSourceThatIsAlwaysInitialized returns a test component factory that produces a data source
 // that immediately reports success on startup, although it does not provide any data.
-func DataSourceThatIsAlwaysInitialized() subsystems.DataSourceFactory {
-	return singleDataSourceFactory{mockDataSource{Initialized: true}}
+func DataSourceThatIsAlwaysInitialized() subsystems.ComponentConfigurer[subsystems.DataSource] {
+	return SingleComponentConfigurer[subsystems.DataSource]{Instance: mockDataSource{Initialized: true}}
 }
 
-// DataSourceThatNeverInitializes returns a test DataSourceFactory that produces a data source
+// DataSourceThatNeverInitializes returns a test component factory that produces a data source
 // that immediately starts up in a failed state and does not provide any data.
-func DataSourceThatNeverInitializes() subsystems.DataSourceFactory {
-	return singleDataSourceFactory{mockDataSource{Initialized: false}}
-}
-
-type singleDataSourceFactory struct {
-	Instance subsystems.DataSource
-}
-
-func (f singleDataSourceFactory) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
-	return f.Instance, nil
+func DataSourceThatNeverInitializes() subsystems.ComponentConfigurer[subsystems.DataSource] {
+	return SingleComponentConfigurer[subsystems.DataSource]{Instance: mockDataSource{Initialized: false}}
 }
 
 type mockDataSource struct {

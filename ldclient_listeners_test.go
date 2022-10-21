@@ -24,7 +24,7 @@ import (
 // monitoring mechanisms that are being tested, not the status behavior of specific real components.
 //
 // Parts of this functionality are also covered by lower-level component tests like
-// DataSourceUpdatesImplTest. However, the tests here verify that the client is wiring the components
+// DataSourceUpdateSinkImplTest. However, the tests here verify that the client is wiring the components
 // together correctly so that they work from an application's point of view.
 
 type clientListenersTestParams struct {

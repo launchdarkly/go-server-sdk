@@ -57,11 +57,8 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 	return b
 }
 
-// CreateDataSource is called by the SDK to create the data source instance.
-func (b *StreamingDataSourceBuilder) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
+// Build is called internally by the SDK.
+func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.StreamingService,
@@ -71,7 +68,7 @@ func (b *StreamingDataSourceBuilder) CreateDataSource(
 
 	return datasource.NewStreamProcessor(
 		context,
-		dataSourceUpdates,
+		context.GetDataSourceUpdateSink(),
 		configuredBaseURI,
 		b.initialReconnectDelay,
 	), nil

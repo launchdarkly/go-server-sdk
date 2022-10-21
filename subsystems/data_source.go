@@ -2,25 +2,6 @@ package subsystems
 
 import "io"
 
-// DataSourceFactory is a factory that creates some implementation of DataSource.
-type DataSourceFactory interface {
-	// CreateDataSource is called by the SDK to create the implementation instance.
-	//
-	// This happens only when MakeClient or MakeCustomClient is called. The implementation instance
-	// is then tied to the life cycle of the LDClient, so it will receive a Close() call when the
-	// client is closed.
-	//
-	// If the factory returns an error, creation of the LDClient fails.
-	//
-	// The dataSourceUpdates parameter is an object that the DataSource can use to push status
-	// updates into the SDK. It should always call dataSourceUpdates.UpdateStatus to report when
-	// it is working correctly or when it encounters an error.
-	CreateDataSource(
-		context ClientContext,
-		dataSourceUpdates DataSourceUpdates,
-	) (DataSource, error)
-}
-
 // DataSource describes the interface for an object that receives feature flag data.
 type DataSource interface {
 	io.Closer
