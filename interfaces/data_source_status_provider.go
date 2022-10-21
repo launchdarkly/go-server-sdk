@@ -9,8 +9,9 @@ import (
 // component that receives updates to feature flag data; normally this is a streaming connection, but it
 // could be polling or file data depending on your configuration.
 //
-// An implementation of this interface is returned by LDClient.GetDataSourceStatusProvider().
-// Application code never needs to implement this interface.
+// An implementation of this interface is returned by
+// [github.com/launchdarkly/go-server-sdk/v6.LDClient.GetDataSourceStatusProvider()].
+// Application code should not implement this interface.
 //
 // There are three ways to interact with the data source status. One is to simply get the current status;
 // if its State property is DataSourceStateValid, then the SDK is able to receive feature flag updates.
@@ -84,7 +85,7 @@ type DataSourceStatusProvider interface {
 
 // DataSourceStatus is information about the data source's status and the last status change.
 //
-// See DataSourceStatusProvider.
+// See [DataSourceStatusProvider].
 type DataSourceStatus struct {
 	// State represents the overall current state of the data source. It will always be one of the
 	// DataSourceState constants such as DataSourceStateValid.
@@ -93,17 +94,13 @@ type DataSourceStatus struct {
 	// StateSince is the date/time that the value of State most recently changed.
 	//
 	// The meaning of this depends on the current State:
-	//
-	// - For DataSourceStateInitializing, it is the time that the SDK started initializing.
-	//
-	// - For DataSourceStateValid, it is the time that the data source most recently entered a valid
-	// state, after previously having been either Initializing or Interrupted.
-	//
-	// - For DataSourceStateInterrupted, it is the time that the data source most recently entered an
-	// error state, after previously having been Valid.
-	//
-	// - For DataSourceStateOff, it is the time that the data source encountered an unrecoverable error
-	// or that the SDK was explicitly shut down.
+	//   - For DataSourceStateInitializing, it is the time that the SDK started initializing.
+	//   - For DataSourceStateValid, it is the time that the data source most recently entered a valid
+	//     state, after previously having been either Initializing or Interrupted.
+	//   - For DataSourceStateInterrupted, it is the time that the data source most recently entered an
+	//     error state, after previously having been Valid.
+	//   - For DataSourceStateOff, it is the time that the data source encountered an unrecoverable error
+	//     or that the SDK was explicitly shut down.
 	StateSince time.Time
 
 	// LastError is information about the last error that the data source encountered, if any.
@@ -124,9 +121,9 @@ func (e DataSourceStatus) String() string {
 	return fmt.Sprintf("Status(%s,%s,%s)", e.State, e.StateSince.Format(time.RFC3339), e.LastError)
 }
 
-// DataSourceState is any of the allowable values for DataSourceStatus.State.
+// DataSourceState is any of the allowable values for [DataSourceStatus].State.
 //
-// See DataSourceStatusProvider.
+// See [DataSourceStatusProvider].
 type DataSourceState string
 
 const (
@@ -164,7 +161,7 @@ const (
 
 // DataSourceErrorInfo is a description of an error condition that the data source encountered.
 //
-// See DataSourceStatusProvider.
+// See [DataSourceStatusProvider].
 type DataSourceErrorInfo struct {
 	// Kind is the general category of the error. It will always be one of the DataSourceErrorKind
 	// constants such as DataSourceErrorKindNetworkError, or "" if there have not been any errors.
@@ -204,9 +201,9 @@ func (e DataSourceErrorInfo) String() string {
 	return ret
 }
 
-// DataSourceErrorKind is any of the allowable values for DataSourceErrorInfo.Kind.
+// DataSourceErrorKind is any of the allowable values for [DataSourceErrorInfo].Kind.
 //
-// See DataSourceStatusProvider.
+// See [DataSourceStatusProvider].
 type DataSourceErrorKind string
 
 const (
@@ -230,7 +227,7 @@ const (
 	// latest data).
 	//
 	// Data source implementations do not need to report this kind of error; it will be
-	// automatically reported by the SDK whenever one of the update methods of DataSourceUpdates
+	// automatically reported by the SDK whenever one of the update methods of DataSourceUpdateSink
 	// encounters a failure.
 	DataSourceErrorKindStoreError DataSourceErrorKind = "STORE_ERROR"
 )

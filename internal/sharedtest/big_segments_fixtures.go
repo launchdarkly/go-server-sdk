@@ -14,16 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SingleBigSegmentStoreFactory is an BigSegmentStoreFactory that returns an existing instance.
-type SingleBigSegmentStoreFactory struct {
-	Store *MockBigSegmentStore
-}
-
-func (f SingleBigSegmentStoreFactory) CreateBigSegmentStore(subsystems.ClientContext) ( //nolint:revive
-	subsystems.BigSegmentStore, error) {
-	return f.Store, nil
-}
-
 // MockBigSegmentStore is a minimal mock implementation of BigSegmentStore. Currently it only
 // supports specifying the metadata and simulating an error for metadata queries.
 type MockBigSegmentStore struct {

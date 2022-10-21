@@ -24,15 +24,14 @@ const (
 
 // DataSourceBuilder is a builder for configuring the file-based data source.
 //
-// Obtain an instance of this type by calling DataSource(). After calling its methods to specify any
-// desired custom settings, store it in the SDK configuration's DataSource field.
+// Obtain an instance of this type by calling [DataSource]. After calling its methods to specify any
+// desired custom settings, store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config].
 //
 // Builder calls can be chained, for example:
 //
 //	config.DataStore = ldfiledata.DataSource().FilePaths("file1").FilePaths("file2")
 //
-// You do not need to call the builder's CreatePersistentDataSource() method yourself; that will be
-// done by the SDK.
+// You do not need to call the builder's Build method yourself; that will be done by the SDK.
 type DataSourceBuilder struct {
 	filePaths             []string
 	duplicateKeysHandling DuplicateKeysHandling
@@ -60,7 +59,7 @@ func (b *DataSourceBuilder) FilePaths(paths ...string) *DataSourceBuilder {
 
 // Reloader specifies a mechanism for reloading data files.
 //
-// It is normally used with the ldfilewatch package, as follows:
+// It is normally used with the [github.com/launchdarkly/go-server-sdk/v6/ldfilewatch] package, as follows:
 //
 //	config := ld.Config{
 //	    DataSource: ldfiledata.DataSource().
@@ -72,11 +71,8 @@ func (b *DataSourceBuilder) Reloader(reloaderFactory ReloaderFactory) *DataSourc
 	return b
 }
 
-// CreateDataSource is called by the SDK to create the data source instance.
-func (b *DataSourceBuilder) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
-	return newFileDataSourceImpl(context, dataSourceUpdates, b.filePaths,
+// Build is called internally by the SDK.
+func (b *DataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	return newFileDataSourceImpl(context, context.GetDataSourceUpdateSink(), b.filePaths,
 		b.duplicateKeysHandling, b.reloaderFactory)
 }

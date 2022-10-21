@@ -16,6 +16,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -209,7 +210,7 @@ func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsI
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
-		c.DataStore = sharedtest.SingleDataStoreFactory{Instance: store}
+		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()
@@ -231,7 +232,7 @@ func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.DataSourceThatIsAlwaysInitialized()
-		c.DataStore = sharedtest.SingleDataStoreFactory{Instance: store}
+		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()

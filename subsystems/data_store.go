@@ -6,18 +6,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 )
 
-// DataStoreFactory is a factory that creates some implementation of DataStore.
-type DataStoreFactory interface {
-	// CreateDataStore is called by the SDK to create the implementation instance.
-	//
-	// This happens only when MakeClient or MakeCustomClient is called. The implementation instance
-	// is then tied to the life cycle of the LDClient, so it will receive a Close() call when the
-	// client is closed.
-	//
-	// If the factory returns an error, creation of the LDClient fails.
-	CreateDataStore(context ClientContext, dataStoreUpdates DataStoreUpdates) (DataStore, error)
-}
-
 // DataStore is an interface for a data store that holds feature flags and related data received by
 // the SDK.
 //

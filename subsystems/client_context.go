@@ -31,17 +31,33 @@ type ClientContext interface {
 
 	// GetServiceEndpoints returns the configuration for service URIs.
 	GetServiceEndpoints() interfaces.ServiceEndpoints
+
+	// GetDataSourceUpdateSink returns the component that DataSource implementations use to deliver
+	// data and status updates to the SDK.
+	//
+	// This component is only available when the SDK is creating a DataSource. Otherwise the method
+	// returns nil.
+	GetDataSourceUpdateSink() DataSourceUpdateSink
+
+	// GetDataStoreUpdateSink returns the component that DataSource implementations use to deliver
+	// data store status updates to the SDK.
+	//
+	// This component is only available when the SDK is creating a DataStore. Otherwise the method
+	// returns nil.
+	GetDataStoreUpdateSink() DataStoreUpdateSink
 }
 
 // BasicClientContext is the basic implementation of the ClientContext interface, not including any
 // private fields that the SDK may use for implementation details.
 type BasicClientContext struct {
-	SDKKey           string
-	ApplicationInfo  interfaces.ApplicationInfo
-	HTTP             HTTPConfiguration
-	Logging          LoggingConfiguration
-	Offline          bool
-	ServiceEndpoints interfaces.ServiceEndpoints
+	SDKKey               string
+	ApplicationInfo      interfaces.ApplicationInfo
+	HTTP                 HTTPConfiguration
+	Logging              LoggingConfiguration
+	Offline              bool
+	ServiceEndpoints     interfaces.ServiceEndpoints
+	DataSourceUpdateSink DataSourceUpdateSink
+	DataStoreUpdateSink  DataStoreUpdateSink
 }
 
 func (b BasicClientContext) GetSDKKey() string { return b.SDKKey } //nolint:revive
@@ -65,4 +81,12 @@ func (b BasicClientContext) GetOffline() bool { return b.Offline } //nolint:revi
 
 func (b BasicClientContext) GetServiceEndpoints() interfaces.ServiceEndpoints { //nolint:revive
 	return b.ServiceEndpoints
+}
+
+func (b BasicClientContext) GetDataSourceUpdateSink() DataSourceUpdateSink { //nolint:revive
+	return b.DataSourceUpdateSink
+}
+
+func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdateSink { //nolint:revive
+	return b.DataStoreUpdateSink
 }

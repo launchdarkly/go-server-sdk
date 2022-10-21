@@ -6,7 +6,7 @@ package interfaces
 // affect feature flag evaluations.
 //
 // If you want to set non-default values for any of these fields, set the ApplicationInfo field
-// in the SDK's Config struct.
+// in the SDK's [github.com/launchdarkly/go-server-sdk/v6.Config] struct.
 type ApplicationInfo struct {
 	// ApplicationID is a unique identifier representing the application where the LaunchDarkly SDK is
 	// running.

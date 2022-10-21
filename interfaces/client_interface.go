@@ -17,8 +17,8 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	BoolVariation(key string, context ldcontext.Context, defaultVal bool) (bool, error)
 
-	// BoolVariationDetail is the same as BoolVariation, but also returns further information about how
-	// the value was calculated. The "reason" data will also be included in analytics events.
+	// BoolVariationDetail is the same as [LDClientEvaluation.BoolVariation], but also returns further
+	// information about how the value was calculated. The "reason" data will also be included in analytics events.
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	BoolVariationDetail(key string, context ldcontext.Context, defaultVal bool) (bool, ldreason.EvaluationDetail, error)
@@ -34,7 +34,7 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	IntVariation(key string, context ldcontext.Context, defaultVal int) (int, error)
 
-	// IntVariationDetail is the same as IntVariation, but also returns further information about how
+	// IntVariationDetail is the same as [LDClientEvaluation.IntVariation], but also returns further information about how
 	// the value was calculated. The "reason" data will also be included in analytics events.
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
@@ -49,8 +49,8 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	Float64Variation(key string, context ldcontext.Context, defaultVal float64) (float64, error)
 
-	// Float64VariationDetail is the same as Float64Variation, but also returns further information about how
-	// the value was calculated. The "reason" data will also be included in analytics events.
+	// Float64VariationDetail is the same as [LDClientEvaluation.Float64Variation], but also returns further
+	// information about how the value was calculated. The "reason" data will also be included in analytics events.
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	Float64VariationDetail(
@@ -68,8 +68,8 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	StringVariation(key string, context ldcontext.Context, defaultVal string) (string, error)
 
-	// StringVariationDetail is the same as StringVariation, but also returns further information about how
-	// the value was calculated. The "reason" data will also be included in analytics events.
+	// StringVariationDetail is the same as [LDClientEvaluation.StringVariation], but also returns further
+	// information about how the value was calculated. The "reason" data will also be included in analytics events.
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	StringVariationDetail(
@@ -103,8 +103,8 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 	JSONVariation(key string, context ldcontext.Context, defaultVal ldvalue.Value) (ldvalue.Value, error)
 
-	// JSONVariationDetail is the same as JSONVariation, but also returns further information about how
-	// the value was calculated. The "reason" data will also be included in analytics events.
+	// JSONVariationDetail is the same as [LDClientEvaluation.JSONVariation], but also returns further
+	// information about how the value was calculated. The "reason" data will also be included in analytics events.
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 	JSONVariationDetail(key string, context ldcontext.Context, defaultVal ldvalue.Value) (
@@ -136,8 +136,8 @@ type LDClientEvents interface {
 	//
 	// The eventName parameter is defined by the application and will be shown in analytics reports;
 	// it normally corresponds to the event name of a metric that you have created through the
-	// LaunchDarkly dashboard. If you want to associate additional data with this event, use TrackData
-	// or TrackMetric.
+	// LaunchDarkly dashboard. If you want to associate additional data with this event, use\
+	// [LDClientEvents.TrackData] or [LDClientEvents.TrackMetric].
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackEvent(eventName string, context ldcontext.Context) error
@@ -149,8 +149,9 @@ type LDClientEvents interface {
 	// LaunchDarkly dashboard.
 	//
 	// The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
-	// will be sent with the event. If no such value is needed, use ldvalue.Null() (or call TrackEvent
-	// instead). To send a numeric value for experimentation, use TrackMetric.
+	// will be sent with the event. If no such value is needed, use [ldvalue.Null]() (or call
+	// [LDClientEvents.TrackEvent] instead). To send a numeric value for experimentation, use
+	// [LDClientEvents.TrackMetric].
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackData(eventName string, context ldcontext.Context, data ldvalue.Value) error
@@ -163,8 +164,8 @@ type LDClientEvents interface {
 	// it normally corresponds to the event name of a metric that you have created through the
 	// LaunchDarkly dashboard.
 	//
-	// The data parameter is a value of any JSON type, represented with the ldvalue.Value type, that
-	// will be sent with the event. If no such value is needed, use ldvalue.Null().
+	// The data parameter is a value of any JSON type, represented with the [ldvalue.Value] type, that
+	// will be sent with the event. If no such value is needed, use [ldvalue.Null]().
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackMetric(eventName string, context ldcontext.Context, metricValue float64, data ldvalue.Value) error

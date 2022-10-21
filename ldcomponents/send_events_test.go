@@ -91,7 +91,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
-			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
+			Build(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -121,7 +121,7 @@ func TestDefaultEventsConfigWithDiagnostics(t *testing.T) {
 		context := makeTestContextWithBaseURIs(server.URL)
 		context.DiagnosticsManager = diagnosticsManager
 		_, err := SendEvents().
-			CreateEventProcessor(context)
+			Build(context)
 		require.NoError(t, err)
 
 		r := <-requestsCh
@@ -136,7 +136,7 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
 			AllAttributesPrivate(true).
-			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
+			Build(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -165,7 +165,7 @@ func TestEventsCapacity(t *testing.T) {
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
 			Capacity(1).
-			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
+			Build(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
@@ -186,7 +186,7 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
 		ep, err := SendEvents().
 			PrivateAttributes("name").
-			CreateEventProcessor(makeTestContextWithBaseURIs(server.URL))
+			Build(makeTestContextWithBaseURIs(server.URL))
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)

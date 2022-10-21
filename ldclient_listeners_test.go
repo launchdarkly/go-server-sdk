@@ -24,13 +24,13 @@ import (
 // monitoring mechanisms that are being tested, not the status behavior of specific real components.
 //
 // Parts of this functionality are also covered by lower-level component tests like
-// DataSourceUpdatesImplTest. However, the tests here verify that the client is wiring the components
+// DataSourceUpdateSinkImplTest. However, the tests here verify that the client is wiring the components
 // together correctly so that they work from an application's point of view.
 
 type clientListenersTestParams struct {
 	client           *LDClient
 	testData         *ldtestdata.TestDataSource
-	dataStoreUpdates subsystems.DataStoreUpdates
+	dataStoreUpdates subsystems.DataStoreUpdateSink
 }
 
 func clientListenersTest(action func(clientListenersTestParams)) {
@@ -39,14 +39,14 @@ func clientListenersTest(action func(clientListenersTestParams)) {
 
 func clientListenersTestWithConfig(configAction func(*Config), action func(clientListenersTestParams)) {
 	testData := ldtestdata.DataSource()
-	factoryWithUpdater := &sharedtest.DataStoreFactoryThatExposesUpdater{
-		UnderlyingFactory: ldcomponents.PersistentDataStore(
-			sharedtest.SinglePersistentDataStoreFactory{Instance: sharedtest.NewMockPersistentDataStore()},
+	capturingStoreConfigurer := &sharedtest.ComponentConfigurerThatCapturesClientContext[subsystems.DataStore]{
+		Configurer: ldcomponents.PersistentDataStore(
+			sharedtest.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: sharedtest.NewMockPersistentDataStore()},
 		),
 	}
 	config := Config{
 		DataSource: testData,
-		DataStore:  factoryWithUpdater,
+		DataStore:  capturingStoreConfigurer,
 		Events:     ldcomponents.NoEvents(),
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
@@ -55,7 +55,7 @@ func clientListenersTestWithConfig(configAction func(*Config), action func(clien
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, 5*time.Second)
 	defer client.Close()
-	action(clientListenersTestParams{client, testData, factoryWithUpdater.DataStoreUpdates})
+	action(clientListenersTestParams{client, testData, capturingStoreConfigurer.ReceivedClientContext.GetDataStoreUpdateSink()})
 }
 
 func TestFlagTracker(t *testing.T) {
@@ -199,7 +199,7 @@ func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 	t.Run("sends status updates", func(t *testing.T) {
 		store := &sharedtest.MockBigSegmentStore{}
 		store.TestSetMetadataToCurrentTime()
-		storeFactory := sharedtest.SingleBigSegmentStoreFactory{Store: store}
+		storeFactory := sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
 		clientListenersTestWithConfig(
 			func(c *Config) {
 				c.BigSegments = ldcomponents.BigSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)

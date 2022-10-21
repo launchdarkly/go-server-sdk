@@ -1,21 +1,21 @@
 package ldclient
 
 import (
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
-// Config exposes advanced configuration options for the LaunchDarkly client.
+// Config exposes advanced configuration options for [LDClient].
 //
 // All of these settings are optional, so an empty Config struct is always valid. See the description of each
 // field for the default behavior if it is not set.
 //
-// Some of the Config fields are actually factories for subcomponents of the SDK. The types of these fields
-// are interfaces whose names end in "Factory"; the actual implementation types, which have methods for
-// configuring that subcomponent, are normally provided by corresponding functions in the ldcomponents
-// package (https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6/ldcomponents). For instance, to set
-// the Events field to a configuration in which the SDK will flush analytics events every 10 seconds:
+// Some of the Config fields are simple types, but others contain configuration builders for subcomponents of
+// the SDK. When these are represented by the ComponentConfigurer interface, the actual implementation types
+// are provided by corresponding functions in the [ldcomponents] package. For instance, to set the Events
+// field to a configuration in which the SDK will flush analytics events every 10 seconds:
 //
 //	var config ld.Config
 //	config.Events = ldcomponents.Events().FlushInterval(time.Second * 10)
@@ -28,8 +28,9 @@ type Config struct {
 	// "Big Segments" are a specific type of user segments. For more information, read the LaunchDarkly
 	// documentation about user segments: https://docs.launchdarkly.com/home/users
 	//
-	// If you are using this feature, you will normally specify a database implementation that matches how
-	// the LaunchDarkly Relay Proxy is configured, since the Relay Proxy manages the Big Segment data.
+	// To enable Big Segments, set this field to the configuration builder that is returned by
+	// ldcomponents.BigSegments(), which allows you to specify what database to use as well as other
+	// options.
 	//
 	// If nil, there is no implementation and Big Segments cannot be evaluated. In this case, any flag
 	// evaluation that references a Big Segment will behave as if no users are included in any Big
@@ -39,16 +40,23 @@ type Config struct {
 	//     // example: use Redis, with default properties
 	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
-	//     config.BigSegmentStore = ldcomponents.BigSegments(ldredis.DataStore())
-	BigSegments subsystems.BigSegmentsConfigurationFactory
+	//     config.BigSegmentStore = ldcomponents.BigSegments(ldredis.BigSegmentStore())
+	BigSegments subsystems.ComponentConfigurer[subsystems.BigSegmentsConfiguration]
 
 	// Sets the implementation of DataSource for receiving feature flag updates.
 	//
-	// If nil, the default is ldcomponents.StreamingDataSource(); see that method for an explanation of how to
-	// further configure streaming behavior. Other options include ldcomponents.PollingDataSource(),
-	// ldcomponents.ExternalUpdatesOnly(), ldfiledata.DataSource(), or a custom implementation for testing.
-	//
 	// If Offline is set to true, then DataSource is ignored.
+	//
+	// The interface type for this field allows you to set it to any of the following:
+	//   - ldcomponents.StreamingDataSource(), which enables streaming data and provides a builder to further
+	//     configure streaming behavior.
+	//   - ldcomponents.PollingDataSource(), which turns off streaming, enables polling, and provides a builder
+	//     to further configure polling behavior.
+	//   - ldcomponents.ExternalUpdatesOnly(), which turns off all data sources unless an external process is
+	//     providing data via a database.
+	//   - ldfiledata.DataSource() or ldtestdata.DataSource(), which provide configurable local data sources
+	//     for testing.
+	//   - Or, a custom component that implements ComponentConfigurer[DataSource].
 	//
 	//     // example: using streaming mode and setting streaming options
 	//     config.DataSource = ldcomponents.StreamingDataSource().InitialReconnectDelay(time.Second)
@@ -58,7 +66,7 @@ type Config struct {
 	//
 	//     // example: specifying that data will be updated by an external process (such as the Relay Proxy)
 	//     config.DataSource = ldcomponents.ExternalUpdatesOnly()
-	DataSource subsystems.DataSourceFactory
+	DataSource subsystems.ComponentConfigurer[subsystems.DataSource]
 
 	// Sets the implementation of DataStore for holding feature flags and related data received from
 	// LaunchDarkly.
@@ -76,7 +84,7 @@ type Config struct {
 	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
 	//     config.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore())
-	DataStore subsystems.DataStoreFactory
+	DataStore subsystems.ComponentConfigurer[subsystems.DataStore]
 
 	// Set to true to opt out of sending diagnostic events.
 	//
@@ -89,14 +97,17 @@ type Config struct {
 
 	// Sets the SDK's behavior regarding analytics events.
 	//
-	// If nil, the default is ldcomponents.SendEvents(); see that method for an explanation of how to further
-	// configure event delivery. You may also turn off event delivery using ldcomponents.NoEvents().
+	// The interface type for this field allows you to set it to either:
+	//   - ldcomponents.SendEvents(), a configuration builder that allows you to customize event behavior;
+	//   - ldcomponents.NoEvents(), which turns off event delivery.
+	//
+	// If this field is unset/nil, the default is ldcomponents.SendEvents() with no custom options.
 	//
 	// If Offline is set to true, then event delivery is always off and Events is ignored.
 	//
 	//     // example: enable events, flush the events every 10 seconds, buffering up to 5000 events
 	//     config.Events = ldcomponents.SendEvents().FlushInterval(10 * time.Second).Capacity(5000)
-	Events subsystems.EventProcessorFactory
+	Events subsystems.ComponentConfigurer[ldevents.EventProcessor]
 
 	// Provides configuration of the SDK's network connection behavior.
 	//

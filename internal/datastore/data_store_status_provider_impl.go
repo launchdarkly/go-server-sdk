@@ -9,13 +9,13 @@ import (
 // exported because the rest of the SDK code only interacts with the public interface.
 type dataStoreStatusProviderImpl struct {
 	store            subsystems.DataStore
-	dataStoreUpdates *DataStoreUpdatesImpl
+	dataStoreUpdates *DataStoreUpdateSinkImpl
 }
 
 // NewDataStoreStatusProviderImpl creates the internal implementation of DataStoreStatusProvider.
 func NewDataStoreStatusProviderImpl(
 	store subsystems.DataStore,
-	dataStoreUpdates *DataStoreUpdatesImpl,
+	dataStoreUpdates *DataStoreUpdateSinkImpl,
 ) interfaces.DataStoreStatusProvider {
 	return &dataStoreStatusProviderImpl{
 		store:            store,

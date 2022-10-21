@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
 
@@ -59,7 +60,7 @@ func doBigSegmentsTest(
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = testData
 		c.BigSegments = ldcomponents.BigSegments(
-			sharedtest.SingleBigSegmentStoreFactory{Store: bsStore},
+			sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: bsStore},
 		)
 		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
 	})

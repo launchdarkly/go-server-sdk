@@ -49,7 +49,7 @@ func makePersistentDataStoreWrapper(
 	core *s.MockPersistentDataStore,
 ) subsystems.DataStore {
 	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
-	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
+	dataStoreUpdates := NewDataStoreUpdateSinkImpl(broadcaster)
 	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), s.NewTestLoggers())
 }
 

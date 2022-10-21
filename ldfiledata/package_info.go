@@ -1,9 +1,9 @@
 // Package ldfiledata allows the LaunchDarkly client to read feature flag data from a file.
 //
-// This is different from ldtestdata.DataSource, which allows you to simulate flag configurations
-// programmatically rather than using a file.
+// This is different from [github.com/launchdarkly/go-server-sdk/v6/ldtestdata.DataSource], which
+// allows you to simulate flag configurations programmatically rather than using a file.
 //
-// To use the file-based data source in your SDK configuration, call ldfiledata.DataSource to obtain a
+// To use the file-based data source in your SDK configuration, call ldfiledata.[DataSource] to obtain a
 // configurable object that you will use as the configuration's DataSource:
 //
 //	config := ld.Config{
@@ -19,12 +19,9 @@
 // Files may contain either JSON or YAML; if the first non-whitespace character is '{', the file is parsed
 // as JSON, otherwise it is parsed as YAML. The file data should consist of an object with up to three
 // properties:
-//
-// - "flags": Feature flag definitions.
-//
-// - "flagValues": Simplified feature flags that contain only a value.
-//
-// - "segments": User segment definitions.
+//   - "flags": Feature flag definitions.
+//   - "flagValues": Simplified feature flags that contain only a value.
+//   - "segments": User segment definitions.
 //
 // The format of the data in "flags" and "segments" is defined by the LaunchDarkly application and is
 // subject to change. Rather than trying to construct these objects yourself, it is simpler to request

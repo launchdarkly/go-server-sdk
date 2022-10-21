@@ -1,7 +1,8 @@
 // Package ldfilewatch allows the LaunchDarkly client to read feature flag data from a file
 // that will be automatically reloaded if the file changes.
 //
-// It should be used in conjunction with the ldfiledata package:
+// It should be used in conjunction with the [github.com/launchdarkly/go-server-sdk/v6/ldfiledata]
+// package:
 //
 //	config := ld.Config{
 //	    DataSource: ldfiledata.DataSource().

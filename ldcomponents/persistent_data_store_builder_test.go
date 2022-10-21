@@ -30,20 +30,20 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 		f := PersistentDataStore(pdsf)
 
 		logConfig := subsystems.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}
-		context := sharedtest.NewTestContext("", nil, &logConfig)
+		clientContext := sharedtest.NewTestContext("", nil, &logConfig)
 		broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
-		dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(broadcaster)
+		clientContext.DataStoreUpdateSink = datastore.NewDataStoreUpdateSinkImpl(broadcaster)
 
-		store, err := f.CreateDataStore(context, dataStoreUpdates)
+		store, err := f.Build(clientContext)
 		assert.NoError(t, err)
 		require.NotNil(t, store)
 		_ = store.Close()
-		assert.Equal(t, context.GetLogging(), pdsf.receivedContext.GetLogging())
+		assert.Equal(t, clientContext.GetLogging(), pdsf.receivedContext.GetLogging())
 
 		pdsf.store = nil
 		pdsf.fakeError = errors.New("sorry")
 
-		store, err = f.CreateDataStore(context, nil)
+		store, err = f.Build(clientContext)
 		assert.Equal(t, pdsf.fakeError, err)
 		assert.Nil(t, store)
 	})
@@ -95,7 +95,7 @@ type mockPersistentDataStoreFactory struct {
 	receivedContext subsystems.ClientContext
 }
 
-func (m *mockPersistentDataStoreFactory) CreatePersistentDataStore(
+func (m *mockPersistentDataStoreFactory) Build(
 	context subsystems.ClientContext,
 ) (subsystems.PersistentDataStore, error) {
 	m.receivedContext = context
@@ -106,7 +106,7 @@ type mockPersistentDataStoreFactoryWithDescription struct {
 	description ldvalue.Value
 }
 
-func (m *mockPersistentDataStoreFactoryWithDescription) CreatePersistentDataStore(
+func (m *mockPersistentDataStoreFactoryWithDescription) Build(
 	context subsystems.ClientContext,
 ) (subsystems.PersistentDataStore, error) {
 	return nil, nil

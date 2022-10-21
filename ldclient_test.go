@@ -17,31 +17,8 @@ import (
 
 const testSdkKey = "test-sdk-key"
 
-type badFactory struct{ err error }
-
-func (f badFactory) CreateDataSource(c subsystems.ClientContext, u subsystems.DataSourceUpdates) (subsystems.DataSource, error) {
-	return nil, f.err
-}
-
-func (f badFactory) CreateDataStore(c subsystems.ClientContext, u subsystems.DataStoreUpdates) (subsystems.DataStore, error) {
-	return nil, f.err
-}
-
-func (f badFactory) CreateEventProcessor(context subsystems.ClientContext) (ldevents.EventProcessor, error) {
-	return nil, f.err
-}
-
-func (f badFactory) CreateHTTPConfiguration(context subsystems.ClientContext) (subsystems.HTTPConfiguration, error) {
-	return subsystems.HTTPConfiguration{}, f.err
-}
-
-func (f badFactory) CreateLoggingConfiguration(context subsystems.ClientContext) (subsystems.LoggingConfiguration, error) {
-	return subsystems.LoggingConfiguration{}, f.err
-}
-
 func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 	fakeError := errors.New("sorry")
-	factory := badFactory{fakeError}
 
 	doTest := func(name string, config Config, expectedError error) {
 		t.Run(name, func(t *testing.T) {
@@ -52,9 +29,9 @@ func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 		})
 	}
 
-	doTest("DataSource", Config{DataSource: factory}, fakeError)
-	doTest("DataStore", Config{DataStore: factory}, fakeError)
-	doTest("Events", Config{Events: factory}, fakeError)
+	doTest("DataSource", Config{DataSource: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataSource]{Err: fakeError}}, fakeError)
+	doTest("DataStore", Config{DataStore: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataStore]{Err: fakeError}}, fakeError)
+	doTest("Events", Config{Events: sharedtest.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{Err: fakeError}}, fakeError)
 	doTest("HTTP", Config{HTTP: ldcomponents.HTTPConfiguration().CACert([]byte{1})}, errors.New("invalid CA certificate data"))
 }
 
@@ -102,7 +79,7 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 		Offline:    false,
 		DataStore:  ldcomponents.InMemoryDataStore(),
 		DataSource: sharedtest.DataSourceThatIsAlwaysInitialized(),
-		Events:     sharedtest.SingleEventProcessorFactory{Instance: &sharedtest.CapturingEventProcessor{}},
+		Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: &sharedtest.CapturingEventProcessor{}},
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	if modConfig != nil {

@@ -27,7 +27,7 @@ type mockStoreFactory struct {
 	fakeError           error
 }
 
-func (f mockStoreFactory) CreatePersistentDataStore(context subsystems.ClientContext) (subsystems.PersistentDataStore, error) {
+func (f mockStoreFactory) Build(context subsystems.ClientContext) (subsystems.PersistentDataStore, error) {
 	store := sh.NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
 	store.SetPersistOnlyAsString(f.persistOnlyAsString)
 	store.SetFakeError(f.fakeError)
@@ -39,7 +39,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 
 	baseSuite := func(persistOnlyAsString bool, fakeError error) *PersistentDataStoreTestSuite {
 		return NewPersistentDataStoreTestSuite(
-			func(prefix string) subsystems.PersistentDataStoreFactory {
+			func(prefix string) subsystems.ComponentConfigurer[subsystems.PersistentDataStore] {
 				return mockStoreFactory{db, prefix, persistOnlyAsString, fakeError}
 			},
 			func(prefix string) error {

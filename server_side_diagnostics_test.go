@@ -153,18 +153,12 @@ func (c customStoreFactoryForDiagnostics) DescribeConfiguration(context subsyste
 	return ldvalue.String(c.name)
 }
 
-func (c customStoreFactoryForDiagnostics) CreateDataStore(
-	context subsystems.ClientContext,
-	dataStoreUpdates subsystems.DataStoreUpdates,
-) (subsystems.DataStore, error) {
+func (c customStoreFactoryForDiagnostics) Build(context subsystems.ClientContext) (subsystems.DataStore, error) {
 	return nil, errors.New("not implemented")
 }
 
 type customStoreFactoryWithoutDiagnosticDescription struct{}
 
-func (c customStoreFactoryWithoutDiagnosticDescription) CreateDataStore(
-	context subsystems.ClientContext,
-	dataStoreUpdates subsystems.DataStoreUpdates,
-) (subsystems.DataStore, error) {
+func (c customStoreFactoryWithoutDiagnosticDescription) Build(context subsystems.ClientContext) (subsystems.DataStore, error) {
 	return nil, errors.New("not implemented")
 }

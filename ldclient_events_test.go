@@ -154,7 +154,7 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 			events := &sharedtest.CapturingEventProcessor{}
 			config := Config{
 				DataSource: ldcomponents.ExternalUpdatesOnly(),
-				Events:     sharedtest.SingleEventProcessorFactory{Instance: events},
+				Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: events},
 			}
 			client, err := MakeCustomClient("", config, 0)
 			require.NoError(t, err)

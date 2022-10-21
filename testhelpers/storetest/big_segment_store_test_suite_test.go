@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-test-helpers/v3/testbox"
@@ -21,10 +22,6 @@ type mockSegmentStoreData struct {
 	overrideGetMembership func(*mockSegmentStore, string) (subsystems.BigSegmentMembership, error)
 }
 
-type mockSegmentStoreFactory struct {
-	store *mockSegmentStore
-}
-
 type mockSegmentStore struct {
 	owner    *mockSegmentStoreData
 	prefix   string
@@ -35,10 +32,6 @@ type mockSegmentStore struct {
 type mockSegmentStoreKeys struct {
 	included []string
 	excluded []string
-}
-
-func (f mockSegmentStoreFactory) CreateBigSegmentStore(context subsystems.ClientContext) (subsystems.BigSegmentStore, error) {
-	return f.store, nil
 }
 
 func (s *mockSegmentStore) Close() error { return nil }
@@ -61,7 +54,7 @@ func (s *mockSegmentStore) GetMembership(contextHashKey string) (subsystems.BigS
 	return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(keys.included, keys.excluded), nil
 }
 
-func (d *mockSegmentStoreData) factory(prefix string) subsystems.BigSegmentStoreFactory {
+func (d *mockSegmentStoreData) factory(prefix string) subsystems.ComponentConfigurer[subsystems.BigSegmentStore] {
 	store := d.storesByPrefix[prefix]
 	if store == nil {
 		store = &mockSegmentStore{owner: d, data: make(map[string]mockSegmentStoreKeys)}
@@ -70,7 +63,7 @@ func (d *mockSegmentStoreData) factory(prefix string) subsystems.BigSegmentStore
 		}
 		d.storesByPrefix[prefix] = store
 	}
-	return mockSegmentStoreFactory{store}
+	return sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
 }
 
 func (d *mockSegmentStoreData) clearData(prefix string) error {

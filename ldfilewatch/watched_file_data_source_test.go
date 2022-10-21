@@ -31,14 +31,18 @@ func (p fileDataSourceTestParams) waitForStart() {
 	<-p.closeWhenReady
 }
 
-func withFileDataSourceTestParams(factory subsystems.DataSourceFactory, action func(fileDataSourceTestParams)) {
+func withFileDataSourceTestParams(
+	factory subsystems.ComponentConfigurer[subsystems.DataSource],
+	action func(fileDataSourceTestParams),
+) {
 	p := fileDataSourceTestParams{}
 	p.closeWhenReady = make(chan struct{})
 	p.mockLog = ldlogtest.NewMockLog()
 	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: p.mockLog.Loggers})
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
 	p.updates = sharedtest.NewMockDataSourceUpdates(store)
-	dataSource, err := factory.CreateDataSource(testContext, p.updates)
+	testContext.DataSourceUpdateSink = p.updates
+	dataSource, err := factory.Build(testContext)
 	if err != nil {
 		panic(err)
 	}

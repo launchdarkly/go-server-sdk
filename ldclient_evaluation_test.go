@@ -78,9 +78,9 @@ func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		Offline:    false,
-		DataStore:  sharedtest.SingleDataStoreFactory{Instance: p.store},
+		DataStore:  sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
 		DataSource: p.data,
-		Events:     sharedtest.SingleEventProcessorFactory{Instance: p.events},
+		Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: p.events},
 		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)
@@ -699,7 +699,7 @@ func TestEvalErrorIfStoreReturnsError(t *testing.T) {
 	_ = store.Init(nil)
 	store.SetFakeError(myError)
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataStore = sharedtest.SingleDataStoreFactory{Instance: store}
+		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 	})
 	defer client.Close()
 
@@ -798,7 +798,7 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
-		c.DataStore = sharedtest.SingleDataStoreFactory{Instance: store}
+		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()

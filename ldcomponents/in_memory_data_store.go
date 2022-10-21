@@ -8,11 +8,7 @@ import (
 
 type inMemoryDataStoreFactory struct{}
 
-// DataStoreFactory implementation
-func (f inMemoryDataStoreFactory) CreateDataStore(
-	context subsystems.ClientContext,
-	dataStoreUpdates subsystems.DataStoreUpdates,
-) (subsystems.DataStore, error) {
+func (f inMemoryDataStoreFactory) Build(context subsystems.ClientContext) (subsystems.DataStore, error) {
 	loggers := context.GetLogging().Loggers
 	loggers.SetPrefix("InMemoryDataStore:")
 	return datastore.NewInMemoryDataStore(loggers), nil
@@ -24,6 +20,6 @@ func (f inMemoryDataStoreFactory) DescribeConfiguration(context subsystems.Clien
 }
 
 // InMemoryDataStore returns the default in-memory DataStore implementation factory.
-func InMemoryDataStore() subsystems.DataStoreFactory {
+func InMemoryDataStore() subsystems.ComponentConfigurer[subsystems.DataStore] {
 	return inMemoryDataStoreFactory{}
 }

@@ -27,25 +27,25 @@ import (
 
 const testDataSourceOutageTimeout = 200 * time.Millisecond
 
-type dataSourceUpdatesImplTestParams struct {
+type dataSourceUpdateSinkImplTestParams struct {
 	store                   *sharedtest.CapturingDataStore
 	dataStoreStatusProvider intf.DataStoreStatusProvider
-	dataSourceUpdates       *DataSourceUpdatesImpl
+	dataSourceUpdates       *DataSourceUpdateSinkImpl
 	flagChangeBroadcaster   *internal.Broadcaster[interfaces.FlagChangeEvent]
 	mockLoggers             *ldlogtest.MockLog
 }
 
-func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
-	p := dataSourceUpdatesImplTestParams{}
+func dataSourceUpdateSinkImplTest(action func(dataSourceUpdateSinkImplTestParams)) {
+	p := dataSourceUpdateSinkImplTestParams{}
 	p.mockLoggers = ldlogtest.NewMockLog()
 	p.store = sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
-	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(nil)
+	dataStoreUpdates := datastore.NewDataStoreUpdateSinkImpl(nil)
 	p.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
 	dataSourceStatusBroadcaster := internal.NewBroadcaster[interfaces.DataSourceStatus]()
 	defer dataSourceStatusBroadcaster.Close()
 	p.flagChangeBroadcaster = internal.NewBroadcaster[interfaces.FlagChangeEvent]()
 	defer p.flagChangeBroadcaster.Close()
-	p.dataSourceUpdates = NewDataSourceUpdatesImpl(
+	p.dataSourceUpdates = NewDataSourceUpdateSinkImpl(
 		p.store,
 		p.dataStoreStatusProvider,
 		dataSourceStatusBroadcaster,
@@ -57,13 +57,13 @@ func dataSourceUpdatesImplTest(action func(dataSourceUpdatesImplTestParams)) {
 	action(p)
 }
 
-func TestDataSourceUpdatesImpl(t *testing.T) {
+func TestDataSourceUpdateSinkImpl(t *testing.T) {
 	storeError := errors.New("sorry")
 	expectedStoreErrorMessage := "Unexpected data store error when trying to store an update received from the data source: sorry"
 
 	t.Run("Init", func(t *testing.T) {
 		t.Run("passes data to store", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				inputData := sharedtest.NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("a").Build())
 
 				result := p.dataSourceUpdates.Init(inputData.Build())
@@ -74,7 +74,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("detects error from store", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				p.store.SetFakeError(storeError)
 
 				result := p.dataSourceUpdates.Init(sharedtest.NewDataSetBuilder().Build())
@@ -104,7 +104,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 
 	t.Run("Upsert", func(t *testing.T) {
 		t.Run("passes data to store", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				flag := ldbuilders.NewFlagBuilder("key").Version(1).Build()
 				itemDesc := st.ItemDescriptor{Version: 1, Item: &flag}
 				result := p.dataSourceUpdates.Upsert(datakinds.Features, flag.Key, itemDesc)
@@ -115,7 +115,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("detects error from store", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				p.store.SetFakeError(storeError)
 
 				flag := ldbuilders.NewFlagBuilder("key").Version(1).Build()
@@ -147,7 +147,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		// broadcaster behavior is covered by DataSourceStatusProviderImpl tests
 
 		t.Run("does not update status if state is the same and errorInfo is empty", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
 				status1 := p.dataSourceUpdates.currentStatus
 				<-time.After(time.Millisecond) // so time is different
@@ -159,7 +159,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("does not update status if new state is empty", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
 				status1 := p.dataSourceUpdates.currentStatus
 
@@ -170,7 +170,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("updates status if state is the same and errorInfo is not empty", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
 				status1 := p.dataSourceUpdates.currentStatus
 				<-time.After(time.Millisecond) // so time is different
@@ -185,7 +185,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("updates status if state is not the same", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				errorInfo := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown}
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, errorInfo)
 
@@ -197,7 +197,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 		})
 
 		t.Run("Initialized is used instead of Interrupted during startup", func(t *testing.T) {
-			dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+			dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 				errorInfo := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown}
 				p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo)
 				status1 := p.dataSourceUpdates.currentStatus
@@ -219,7 +219,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 	})
 
 	t.Run("GetDataStoreStatusProvider", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			assert.Equal(t, p.dataStoreStatusProvider, p.dataSourceUpdates.GetDataStoreStatusProvider())
 		})
 	})
@@ -228,7 +228,7 @@ func TestDataSourceUpdatesImpl(t *testing.T) {
 func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
 	// The logic for this is already tested in data_model_dependencies_test, but here we are verifying
 	// that DataSourceUpdatesImpl is actually using that logic.
-	dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+	dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 		inputData := makeDependencyOrderingDataSourceTestData()
 
 		result := p.dataSourceUpdates.Init(inputData)
@@ -242,7 +242,7 @@ func testDataSourceUpdatesImplSortsInitData(t *testing.T) {
 
 func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 	t.Run("sends events on init for newly added flags", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			builder := sharedtest.NewDataSetBuilder().
 				Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()).
 				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
@@ -262,7 +262,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 	})
 
 	t.Run("sends event on update for newly added flag", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			builder := sharedtest.NewDataSetBuilder().
 				Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()).
 				Segments(ldbuilders.NewSegmentBuilder("segment1").Version(1).Build())
@@ -279,7 +279,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 	})
 
 	t.Run("sends events on init for updated flags", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			builder := sharedtest.NewDataSetBuilder().
 				Flags(
 					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
@@ -307,7 +307,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 	})
 
 	t.Run("sends event on update for updated flag", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			builder := sharedtest.NewDataSetBuilder().
 				Flags(
 					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
@@ -327,7 +327,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 	})
 
 	t.Run("does not send event on update if item was not really updated", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			builder := sharedtest.NewDataSetBuilder().
 				Flags(
 					ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
@@ -348,7 +348,7 @@ func TestDataSourceUpdatesImplFlagChangeEvents(t *testing.T) {
 
 func TestDataSourceOutageLoggingTimeout(t *testing.T) {
 	t.Run("does not log error if data source recovers before timeout", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			errorInfo := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown}
 			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo)
 			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateValid, intf.DataSourceErrorInfo{})
@@ -360,7 +360,7 @@ func TestDataSourceOutageLoggingTimeout(t *testing.T) {
 	})
 
 	t.Run("logs error if data source does not recover before timeout", func(t *testing.T) {
-		dataSourceUpdatesImplTest(func(p dataSourceUpdatesImplTestParams) {
+		dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
 			// simulate a series of consecutive errors
 			errorInfo1 := intf.DataSourceErrorInfo{Kind: intf.DataSourceErrorKindUnknown, Time: time.Now()}
 			p.dataSourceUpdates.UpdateStatus(intf.DataSourceStateInterrupted, errorInfo1)

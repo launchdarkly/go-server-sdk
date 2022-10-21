@@ -35,7 +35,7 @@ func newClientContextFromConfig(
 	if loggingFactory == nil {
 		loggingFactory = ldcomponents.Logging()
 	}
-	basicConfig.Logging = loggingFactory.CreateLoggingConfiguration(basicConfig)
+	basicConfig.Logging = loggingFactory.Build(basicConfig)
 
 	basicConfig.ApplicationInfo.ApplicationID = validateTagValue(config.ApplicationInfo.ApplicationID,
 		"ApplicationID", basicConfig.Logging.Loggers)
@@ -46,7 +46,7 @@ func newClientContextFromConfig(
 	if httpFactory == nil {
 		httpFactory = ldcomponents.HTTPConfiguration()
 	}
-	http, err := httpFactory.CreateHTTPConfiguration(basicConfig)
+	http, err := httpFactory.Build(basicConfig)
 	if err != nil {
 		return nil, err
 	}

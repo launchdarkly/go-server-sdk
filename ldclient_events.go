@@ -32,14 +32,14 @@ type nullEventProcessorFactoryDescription interface {
 	IsNullEventProcessorFactory() bool
 }
 
-func isNullEventProcessorFactory(f subsystems.EventProcessorFactory) bool {
+func isNullEventProcessorFactory(f subsystems.ComponentConfigurer[ldevents.EventProcessor]) bool {
 	if nf, ok := f.(nullEventProcessorFactoryDescription); ok {
 		return nf.IsNullEventProcessorFactory()
 	}
 	return false
 }
 
-func getEventProcessorFactory(config Config) subsystems.EventProcessorFactory {
+func getEventProcessorFactory(config Config) subsystems.ComponentConfigurer[ldevents.EventProcessor] {
 	if config.Offline {
 		return ldcomponents.NoEvents()
 	}

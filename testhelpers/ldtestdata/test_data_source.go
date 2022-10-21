@@ -26,10 +26,14 @@ type TestDataSource struct {
 
 type testDataSourceImpl struct {
 	owner   *TestDataSource
-	updates subsystems.DataSourceUpdates
+	updates subsystems.DataSourceUpdateSink
 }
 
-// DataSource creates an instance of TestDataSource.
+// DataSource creates an instance of [TestDataSource].
+//
+// Storing this object in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config]
+// causes the SDK client to use the test data. Any subsequent changes made using methods like
+// [TestDataSource.Update] will propagate to all LDClient instances that are using this data source.
 func DataSource() *TestDataSource {
 	return &TestDataSource{
 		currentFlags:    make(map[string]ldstoretypes.ItemDescriptor),
@@ -38,7 +42,7 @@ func DataSource() *TestDataSource {
 	}
 }
 
-// Flag creates or copies a FlagBuilder for building a test flag configuration.
+// Flag creates or copies a [FlagBuilder] for building a test flag configuration.
 //
 // If this flag key has already been defined in this TestDataSource instance, then the builder
 // starts with the same configuration that was last provided for this flag.
@@ -113,7 +117,7 @@ func (t *TestDataSource) UpdateStatus(
 // you can only replace it with an entirely new flag configuration.
 //
 // To construct an instance of ldmodel.FeatureFlag, rather than accessing the fields directly it is
-// recommended to use the builder API in github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders.
+// recommended to use the builder API in [github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders].
 func (t *TestDataSource) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *TestDataSource {
 	t.updateInternal(
 		flag.Key,
@@ -142,7 +146,7 @@ func (t *TestDataSource) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *TestDat
 // by just setting flag values.
 //
 // To construct an instance of ldmodel.Segment, rather than accessing the fields directly it is
-// recommended to use the builder API in github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders.
+// recommended to use the builder API in [github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders].
 func (t *TestDataSource) UsePreconfiguredSegment(segment ldmodel.Segment) *TestDataSource {
 	t.lock.Lock()
 	oldItem := t.currentSegments[segment.Key]
@@ -180,13 +184,10 @@ func (t *TestDataSource) updateInternal(
 	}
 }
 
-// CreateDataSource is called internally by the SDK to associate this test data source with an
+// Build is called internally by the SDK to associate this test data source with an
 // LDClient instance. You do not need to call this method.
-func (t *TestDataSource) CreateDataSource(
-	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdates,
-) (subsystems.DataSource, error) {
-	instance := &testDataSourceImpl{owner: t, updates: dataSourceUpdates}
+func (t *TestDataSource) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	instance := &testDataSourceImpl{owner: t, updates: context.GetDataSourceUpdateSink()}
 	t.lock.Lock()
 	t.instances = append(t.instances, instance)
 	t.lock.Unlock()
