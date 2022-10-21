@@ -17,15 +17,8 @@ import (
 
 const testSdkKey = "test-sdk-key"
 
-type badFactory struct{ err error }
-
-func (f badFactory) CreateDataStore(c subsystems.ClientContext, u subsystems.DataStoreUpdates) (subsystems.DataStore, error) {
-	return nil, f.err
-}
-
 func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 	fakeError := errors.New("sorry")
-	factory := badFactory{fakeError}
 
 	doTest := func(name string, config Config, expectedError error) {
 		t.Run(name, func(t *testing.T) {
@@ -37,7 +30,7 @@ func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 	}
 
 	doTest("DataSource", Config{DataSource: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataSource]{Err: fakeError}}, fakeError)
-	doTest("DataStore", Config{DataStore: factory}, fakeError)
+	doTest("DataStore", Config{DataStore: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataStore]{Err: fakeError}}, fakeError)
 	doTest("Events", Config{Events: sharedtest.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{Err: fakeError}}, fakeError)
 	doTest("HTTP", Config{HTTP: ldcomponents.HTTPConfiguration().CACert([]byte{1})}, errors.New("invalid CA certificate data"))
 }

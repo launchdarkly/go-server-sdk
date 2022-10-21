@@ -9,9 +9,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
-func TestDataStoreUpdatesImpl(t *testing.T) {
+func TestDataStoreUpdateSinkImpl(t *testing.T) {
 	t.Run("getStatus", func(t *testing.T) {
-		dataStoreUpdates := NewDataStoreUpdatesImpl(internal.NewBroadcaster[interfaces.DataStoreStatus]())
+		dataStoreUpdates := NewDataStoreUpdateSinkImpl(internal.NewBroadcaster[interfaces.DataStoreStatus]())
 
 		assert.Equal(t, interfaces.DataStoreStatus{Available: true}, dataStoreUpdates.getStatus())
 
@@ -27,7 +27,7 @@ func TestDataStoreUpdatesImpl(t *testing.T) {
 
 		ch := broadcaster.AddListener()
 
-		dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
+		dataStoreUpdates := NewDataStoreUpdateSinkImpl(broadcaster)
 
 		newStatus := interfaces.DataStoreStatus{Available: false}
 		dataStoreUpdates.UpdateStatus(newStatus)

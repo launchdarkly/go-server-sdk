@@ -10,7 +10,8 @@ import (
 // Application code does not need to use this type. It is for data source implementations.
 //
 // The data source interacts with this object, rather than manipulating the data store directly, so that
-// the SDK can perform any other necessary operations that must happen when data is updated.
+// the SDK can perform any other necessary operations that must happen when data is updated. The SDK
+// passes this in the ClientContext when it is creating a data source component.
 type DataSourceUpdateSink interface {
 	// Init overwrites the current contents of the data store with a set of items for each collection.
 	//

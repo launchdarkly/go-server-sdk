@@ -18,7 +18,7 @@ import (
 // persistentDataStoreWrapper is the implementation of DataStore that we use for all persistent data stores.
 type persistentDataStoreWrapper struct {
 	core             subsystems.PersistentDataStore
-	dataStoreUpdates subsystems.DataStoreUpdates
+	dataStoreUpdates subsystems.DataStoreUpdateSink
 	statusPoller     *dataStoreStatusPoller
 	cache            *cache.Cache
 	cacheTTL         time.Duration
@@ -34,7 +34,7 @@ const initCheckedKey = "$initChecked"
 // stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
 func NewPersistentDataStoreWrapper(
 	core subsystems.PersistentDataStore,
-	dataStoreUpdates subsystems.DataStoreUpdates,
+	dataStoreUpdates subsystems.DataStoreUpdateSink,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
 ) subsystems.DataStore {

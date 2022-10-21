@@ -40,7 +40,7 @@ func withFileDataSourceTestParams(
 	p := fileDataSourceTestParams{}
 	mockLog := ldlogtest.NewMockLog()
 	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
 	testContext.DataSourceUpdateSink = updates
 	dataSource, err := factory.Build(testContext)
@@ -54,7 +54,7 @@ func withFileDataSourceTestParams(
 
 func expectCreationError(t *testing.T, factory subsystems.ComponentConfigurer[subsystems.DataSource]) error {
 	testContext := sharedtest.NewTestContext("", nil, nil)
-	store, _ := ldcomponents.InMemoryDataStore().CreateDataStore(testContext, nil)
+	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
 	updates := sharedtest.NewMockDataSourceUpdates(store)
 	testContext.DataSourceUpdateSink = updates
 	dataSource, err := factory.Build(testContext)

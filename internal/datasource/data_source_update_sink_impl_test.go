@@ -39,7 +39,7 @@ func dataSourceUpdateSinkImplTest(action func(dataSourceUpdateSinkImplTestParams
 	p := dataSourceUpdateSinkImplTestParams{}
 	p.mockLoggers = ldlogtest.NewMockLog()
 	p.store = sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
-	dataStoreUpdates := datastore.NewDataStoreUpdatesImpl(nil)
+	dataStoreUpdates := datastore.NewDataStoreUpdateSinkImpl(nil)
 	p.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
 	dataSourceStatusBroadcaster := internal.NewBroadcaster[interfaces.DataSourceStatus]()
 	defer dataSourceStatusBroadcaster.Close()

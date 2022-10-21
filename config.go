@@ -90,7 +90,7 @@ type Config struct {
 	//     import ldredis "github.com/launchdarkly/go-server-sdk-redis-redigo"
 	//
 	//     config.DataStore = ldcomponents.PersistentDataStore(ldredis.DataStore())
-	DataStore subsystems.DataStoreFactory
+	DataStore subsystems.ComponentConfigurer[subsystems.DataStore]
 
 	// Set to true to opt out of sending diagnostic events.
 	//

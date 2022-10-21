@@ -14,7 +14,7 @@ import (
 
 type dataStoreStatusProviderTestParams struct {
 	dataStore               *sharedtest.CapturingDataStore
-	dataStoreUpdates        subsystems.DataStoreUpdates
+	dataStoreUpdates        subsystems.DataStoreUpdateSink
 	dataStoreStatusProvider interfaces.DataStoreStatusProvider
 }
 
@@ -23,7 +23,7 @@ func dataStoreStatusProviderTest(action func(dataStoreStatusProviderTestParams))
 	p.dataStore = sharedtest.NewCapturingDataStore(NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	defer broadcaster.Close()
-	dataStoreUpdates := NewDataStoreUpdatesImpl(broadcaster)
+	dataStoreUpdates := NewDataStoreUpdateSinkImpl(broadcaster)
 	p.dataStoreUpdates = dataStoreUpdates
 	p.dataStoreStatusProvider = NewDataStoreStatusProviderImpl(p.dataStore, dataStoreUpdates)
 

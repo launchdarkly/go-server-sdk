@@ -12,7 +12,7 @@ import (
 
 func TestInMemoryDataStoreFactory(t *testing.T) {
 	factory := InMemoryDataStore()
-	store, err := factory.CreateDataStore(basicClientContext(), nil)
+	store, err := factory.Build(basicClientContext())
 	require.NoError(t, err)
 	require.NotNil(t, store)
 	assert.IsType(t, datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()), store)
