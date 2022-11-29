@@ -3,7 +3,6 @@ package ldclient
 import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 )
 
@@ -111,26 +110,30 @@ type Config struct {
 
 	// Provides configuration of the SDK's network connection behavior.
 	//
-	// If nil, the default is ldcomponents.HTTPConfiguration(); see that method for an explanation of how to
-	// further configure these options.
+	// The interface type used here is implemented by ldcomponents.HTTPConfigurationBuilder, which
+	// you can create by calling ldcomponents.HTTPConfiguration(). See that method for an explanation
+	// of how to configure the builder. If nil, the default is ldcomponents.HTTPConfiguration() with
+	// no custom settings.
 	//
 	// If Offline is set to true, then HTTP is ignored.
 	//
 	//     // example: set connection timeout to 8 seconds and use a proxy server
 	//     config.HTTP = ldcomponents.HTTPConfiguration().ConnectTimeout(8 * time.Second).ProxyURL(myProxyURL)
-	HTTP *ldcomponents.HTTPConfigurationBuilder
+	HTTP subsystems.ComponentConfigurer[subsystems.HTTPConfiguration]
 
 	// Provides configuration of the SDK's logging behavior.
 	//
-	// If nil, the default is ldcomponents.Logging(); see that method for an explanation of how to
-	// further configure logging behavior. The other option is ldcomponents.NoLogging().
+	// The interface type used here is implemented by ldcomponents.LoggingConfigurationBuilder, which
+	// you can create by calling ldcomponents.Logging(). See that method for an explanation of how to
+	// configure the builder. If nil, the default is ldcomponents.Logging() with no custom settings.
+	// You can also set this field to ldcomponents.NoLogging() to disable all logging.
 	//
 	// This example sets the minimum logging level to Warn, so Debug and Info messages will not be logged:
 	//
 	//     // example: enable logging only for Warn level and above
 	//     // (note: ldlog is github.com/launchdarkly/go-sdk-common/v3/ldlog)
 	//     config.Logging = ldcomponents.Logging().MinLevel(ldlog.Warn)
-	Logging *ldcomponents.LoggingConfigurationBuilder
+	Logging subsystems.ComponentConfigurer[subsystems.LoggingConfiguration]
 
 	// Sets whether this client is offline. An offline client will not make any network connections to LaunchDarkly,
 	// and will return default values for all feature flags.
