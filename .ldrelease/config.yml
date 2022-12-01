@@ -5,6 +5,7 @@ repo:
   private: go-server-sdk-private
 
 branches:
+  - name: v6
   - name: v5
   - name: v4
 
