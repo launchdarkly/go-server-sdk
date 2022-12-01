@@ -2,6 +2,7 @@ package sharedtest
 
 import (
 	"encoding/json"
+	"time"
 
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 )
@@ -28,6 +29,8 @@ func (c *CapturingEventProcessor) RecordRawEvent(e json.RawMessage) { //nolint:r
 }
 
 func (c *CapturingEventProcessor) Flush() {} //nolint:revive
+
+func (c *CapturingEventProcessor) FlushBlocking(time.Duration) bool { return true } //nolint:revive
 
 func (c *CapturingEventProcessor) Close() error { //nolint:revive
 	return nil
