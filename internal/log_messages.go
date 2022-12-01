@@ -12,5 +12,5 @@ import (
 // LogErrorNilPointerMethod prints a message to os.Stderr to indicate that the application tried to call
 // a method on a nil pointer receiver.
 func LogErrorNilPointerMethod(typeName string) {
-	fmt.Fprintf(os.Stderr, "[LaunchDarkly] ERROR: tried to call a method on a nil pointer of type *%s", typeName)
+	fmt.Fprintf(os.Stderr, "[LaunchDarkly] ERROR: tried to call a method on a nil pointer of type *%s\n", typeName)
 }

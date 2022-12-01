@@ -15,35 +15,41 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 	basicConfig := subsystems.BasicClientContext{}
 
 	t.Run("defaults", func(t *testing.T) {
-		c := Logging().Build(basicConfig)
+		c, err := Logging().Build(basicConfig)
+		assert.Nil(t, err)
 		assert.False(t, c.LogEvaluationErrors)
 		assert.False(t, c.LogContextKeyInErrors)
 	})
 
 	t.Run("LogDataSourceOutageAsErrorAfter", func(t *testing.T) {
-		c := Logging().LogDataSourceOutageAsErrorAfter(time.Hour).Build(basicConfig)
+		c, err := Logging().LogDataSourceOutageAsErrorAfter(time.Hour).Build(basicConfig)
+		assert.Nil(t, err)
 		assert.Equal(t, time.Hour, c.LogDataSourceOutageAsErrorAfter)
 	})
 
 	t.Run("LogEvaluationErrors", func(t *testing.T) {
-		c := Logging().LogEvaluationErrors(true).Build(basicConfig)
+		c, err := Logging().LogEvaluationErrors(true).Build(basicConfig)
+		assert.Nil(t, err)
 		assert.True(t, c.LogEvaluationErrors)
 	})
 
 	t.Run("LogContextKeyInErrors", func(t *testing.T) {
-		c := Logging().LogContextKeyInErrors(true).Build(basicConfig)
+		c, err := Logging().LogContextKeyInErrors(true).Build(basicConfig)
+		assert.Nil(t, err)
 		assert.True(t, c.LogContextKeyInErrors)
 	})
 
 	t.Run("Loggers", func(t *testing.T) {
 		mockLoggers := ldlogtest.NewMockLog()
-		c := Logging().Loggers(mockLoggers.Loggers).Build(basicConfig)
+		c, err := Logging().Loggers(mockLoggers.Loggers).Build(basicConfig)
+		assert.Nil(t, err)
 		assert.Equal(t, mockLoggers.Loggers, c.Loggers)
 	})
 
 	t.Run("MinLevel", func(t *testing.T) {
 		mockLoggers := ldlogtest.NewMockLog()
-		c := Logging().Loggers(mockLoggers.Loggers).MinLevel(ldlog.Error).Build(basicConfig)
+		c, err := Logging().Loggers(mockLoggers.Loggers).MinLevel(ldlog.Error).Build(basicConfig)
+		assert.Nil(t, err)
 		c.Loggers.Info("suppress this message")
 		c.Loggers.Error("log this message")
 		assert.Len(t, mockLoggers.GetOutput(ldlog.Info), 0)
@@ -51,7 +57,8 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 	})
 
 	t.Run("NoLogging", func(t *testing.T) {
-		c := NoLogging().Build(basicConfig)
+		c, err := NoLogging().Build(basicConfig)
+		assert.Nil(t, err)
 		assert.Equal(t, ldlog.NewDisabledLoggers(), c.Loggers)
 	})
 
@@ -59,6 +66,6 @@ func TestLoggingConfigurationBuilder(t *testing.T) {
 		var b *LoggingConfigurationBuilder = nil
 		b = b.LogContextKeyInErrors(true).LogDataSourceOutageAsErrorAfter(0).LogEvaluationErrors(true).
 			Loggers(ldlog.NewDefaultLoggers()).MinLevel(ldlog.Debug)
-		_ = b.Build(subsystems.BasicClientContext{})
+		_, _ = b.Build(subsystems.BasicClientContext{})
 	})
 }
