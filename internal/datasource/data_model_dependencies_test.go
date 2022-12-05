@@ -28,12 +28,12 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
 				ldbuilders.Clause("key", ldmodel.OperatorIn, ldvalue.String("ignore")),
-				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment1"), ldvalue.String("segment2")),
+				ldbuilders.SegmentMatchClause("segment1", "segment2"),
 			),
 		).
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
-				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment3")),
+				ldbuilders.SegmentMatchClause("segment3"),
 			),
 		).
 		Build()
@@ -53,7 +53,7 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
 				ldbuilders.Clause("key}", ldmodel.OperatorIn, ldvalue.String("ignore")),
-				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment1"), ldvalue.String("segment2")),
+				ldbuilders.SegmentMatchClause("segment1", "segment2"),
 			),
 		).
 		Build()
@@ -73,6 +73,22 @@ func TestComputeDependenciesFromSegment(t *testing.T) {
 		t,
 		computeDependenciesFrom(datakinds.Segments, st.ItemDescriptor{Version: segment.Version, Item: &segment}),
 		0,
+	)
+}
+
+func TestComputeDependenciesFromSegmentWithSegmentReferences(t *testing.T) {
+	segment1 := ldbuilders.NewSegmentBuilder("segment1").
+		AddRule(ldbuilders.NewSegmentRuleBuilder().Clauses(
+			ldbuilders.SegmentMatchClause("segment2", "segment3"),
+		)).
+		Build()
+	assert.Equal(
+		t,
+		kindAndKeySet{
+			{datakinds.Segments, "segment2"}: true,
+			{datakinds.Segments, "segment3"}: true,
+		},
+		computeDependenciesFrom(datakinds.Segments, st.ItemDescriptor{Version: segment1.Version, Item: &segment1}),
 	)
 }
 
@@ -103,14 +119,16 @@ func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
 	item2 := sharedtest.MockDataItem{Key: "item2"}
 	flag := ldbuilders.NewFlagBuilder("a").Build()
 	inputData := []st.Collection{
-		{sharedtest.MockData, []st.KeyedItemDescriptor{
-			{item1.Key, item1.ToItemDescriptor()},
-			{item2.Key, item2.ToItemDescriptor()},
-		}},
-		{datakinds.Features, []st.KeyedItemDescriptor{
-			{"a", sharedtest.FlagDescriptor(flag)},
-		}},
-		{datakinds.Segments, nil},
+		{Kind: sharedtest.MockData,
+			Items: []st.KeyedItemDescriptor{
+				{Key: item1.Key, Item: item1.ToItemDescriptor()},
+				{Key: item2.Key, Item: item2.ToItemDescriptor()},
+			}},
+		{Kind: datakinds.Features,
+			Items: []st.KeyedItemDescriptor{
+				{Key: "a", Item: sharedtest.FlagDescriptor(flag)},
+			}},
+		{Kind: datakinds.Segments, Items: nil},
 	}
 	sortedData := sortCollectionsForDataStoreInit(inputData)
 
@@ -132,26 +150,39 @@ func TestDependencyTrackerReturnsSingleValueResultForUnknownItem(t *testing.T) {
 func TestDependencyTrackerBuildsGraph(t *testing.T) {
 	dt := newDependencyTracker()
 
+	segment3 := ldbuilders.NewSegmentBuilder("segment3").Build()
+	segment2 := ldbuilders.NewSegmentBuilder("segment2").
+		AddRule(ldbuilders.NewSegmentRuleBuilder().Clauses(
+			ldbuilders.SegmentMatchClause(segment3.Key),
+		)).
+		Build()
+	segment1 := ldbuilders.NewSegmentBuilder("segment1").Build()
+
 	flag1 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag2", 0).
 		AddPrerequisite("flag3", 0).
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
-				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment1"), ldvalue.String("segment2")),
+				ldbuilders.SegmentMatchClause(segment1.Key, segment2.Key),
 			),
 		).
 		Build()
-	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
 	flag2 := ldbuilders.NewFlagBuilder("flag2").
 		AddPrerequisite("flag4", 0).
 		AddRule(
 			ldbuilders.NewRuleBuilder().Clauses(
-				ldbuilders.Clause("", ldmodel.OperatorSegmentMatch, ldvalue.String("segment2")),
+				ldbuilders.SegmentMatchClause(segment2.Key),
 			),
 		).
 		Build()
-	dt.updateDependenciesFrom(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
+
+	for _, s := range []ldmodel.Segment{segment1, segment2, segment3} {
+		dt.updateDependenciesFrom(datakinds.Segments, s.Key, sharedtest.SegmentDescriptor(s))
+	}
+	for _, f := range []ldmodel.FeatureFlag{flag1, flag2} {
+		dt.updateDependenciesFrom(datakinds.Features, f.Key, sharedtest.FlagDescriptor(f))
+	}
 
 	// a change to flag1 affects only flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1",
@@ -178,6 +209,14 @@ func TestDependencyTrackerBuildsGraph(t *testing.T) {
 
 	// a change to segment2 affects segment2, flag1, and flag2
 	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment2",
+		kindAndKey{datakinds.Segments, "segment2"},
+		kindAndKey{datakinds.Features, "flag1"},
+		kindAndKey{datakinds.Features, "flag2"},
+	)
+
+	// a change to segment3 affects segment2, which affects flag1 and flag2
+	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment3",
+		kindAndKey{datakinds.Segments, "segment3"},
 		kindAndKey{datakinds.Segments, "segment2"},
 		kindAndKey{datakinds.Features, "flag1"},
 		kindAndKey{datakinds.Features, "flag2"},
