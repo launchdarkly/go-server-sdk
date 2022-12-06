@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"testing"
+	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -11,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	helpers "github.com/launchdarkly/go-test-helpers/v3"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -209,4 +211,85 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 			return c.WithEventsDisabled(true).WithEventsDisabled(true)
 		},
 		false)
+}
+
+func TestFlushAsync(t *testing.T) {
+	g := newGatedEventSender()
+	client := makeTestClientWithEventSender(g)
+	defer client.Close()
+
+	client.Identify(evalTestUser)
+	client.Flush()
+
+	helpers.AssertNoMoreValues(t, g.didSendCh, time.Millisecond*50) // didn't do the flush yet
+
+	g.canSendCh <- struct{}{} // allow the sender to proceed with the fake flush
+
+	helpers.RequireValue(t, g.didSendCh, time.Millisecond*100) // now the flush has happened
+}
+
+func TestFlushAndWaitSucceeds(t *testing.T) {
+	g := newGatedEventSender()
+	client := makeTestClientWithEventSender(g)
+	defer client.Close()
+
+	client.Identify(evalTestUser)
+
+	go func() {
+		time.Sleep(time.Millisecond * 20)
+		g.canSendCh <- struct{}{}
+	}()
+
+	sent := client.FlushAndWait(time.Millisecond * 500)
+	assert.True(t, sent)
+
+	helpers.RequireValue(t, g.didSendCh, time.Millisecond*50)
+}
+
+func TestFlushAndWaitTimesOut(t *testing.T) {
+	g := newGatedEventSender()
+	client := makeTestClientWithEventSender(g)
+	defer client.Close()
+
+	client.Identify(evalTestUser)
+
+	go func() {
+		time.Sleep(time.Millisecond * 200)
+		g.canSendCh <- struct{}{}
+	}()
+
+	sent := client.FlushAndWait(time.Millisecond * 10)
+	assert.False(t, sent)
+
+	helpers.AssertNoMoreValues(t, g.didSendCh, time.Millisecond*50) // didn't do the flush yet
+}
+
+type gatedEventSender struct {
+	canSendCh chan struct{}
+	didSendCh chan struct{}
+}
+
+func newGatedEventSender() *gatedEventSender {
+	return &gatedEventSender{canSendCh: make(chan struct{}, 100), didSendCh: make(chan struct{}, 100)}
+}
+
+func (g *gatedEventSender) SendEventData(kind ldevents.EventDataKind, data []byte, eventCount int) ldevents.EventSenderResult {
+	<-g.canSendCh
+	g.didSendCh <- struct{}{}
+	return ldevents.EventSenderResult{Success: true}
+}
+
+func makeTestClientWithEventSender(s ldevents.EventSender) *LDClient {
+	eventsConfig := ldevents.EventsConfiguration{
+		Capacity:              1000,
+		EventSender:           s,
+		FlushInterval:         time.Hour,
+		Loggers:               ldlog.NewDisabledLoggers(),
+		UserKeysCapacity:      1000,
+		UserKeysFlushInterval: time.Hour,
+	}
+	ep := ldevents.NewDefaultEventProcessor(eventsConfig)
+	return makeTestClientWithConfig(func(c *Config) {
+		c.Events = sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: ep}
+	})
 }
