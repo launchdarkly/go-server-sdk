@@ -122,12 +122,12 @@ func (b *LoggingConfigurationBuilder) MinLevel(level ldlog.LogLevel) *LoggingCon
 // Build is called internally by the SDK.
 func (b *LoggingConfigurationBuilder) Build(
 	clientContext subsystems.ClientContext,
-) subsystems.LoggingConfiguration {
+) (subsystems.LoggingConfiguration, error) {
 	if !b.checkValid() {
 		defaults := LoggingConfigurationBuilder{}
 		return defaults.Build(clientContext)
 	}
-	return b.config
+	return b.config, nil
 }
 
 // NoLogging returns a configuration object that disables logging.
@@ -135,6 +135,8 @@ func (b *LoggingConfigurationBuilder) Build(
 //	config := ld.Config{
 //	    Logging: ldcomponents.NoLogging(),
 //	}
-func NoLogging() *LoggingConfigurationBuilder {
+func NoLogging() subsystems.ComponentConfigurer[subsystems.LoggingConfiguration] {
+	// Note that we're using the builder type but returning it as just an opaque ComponentConfigurer, so
+	// you can't do something illogical like call MinLevel on it.
 	return Logging().Loggers(ldlog.NewDisabledLoggers())
 }

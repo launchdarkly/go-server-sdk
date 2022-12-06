@@ -28,9 +28,26 @@ func (s kindAndKeySet) contains(value kindAndKey) bool {
 }
 
 func computeDependenciesFrom(kind st.DataKind, fromItem st.ItemDescriptor) kindAndKeySet {
-	if kind == ldstoreimpl.Features() {
+	// For any given flag or segment, find all the flags/segments that it directly references.
+	// Transitive references are handled by recursive logic at a higher level.
+	var ret kindAndKeySet
+	checkClauses := func(clauses []ldmodel.Clause) {
+		for _, c := range clauses {
+			if c.Op == ldmodel.OperatorSegmentMatch {
+				for _, v := range c.Values {
+					if v.Type() == ldvalue.StringType {
+						if ret == nil {
+							ret = make(kindAndKeySet)
+						}
+						ret.add(kindAndKey{datakinds.Segments, v.StringValue()})
+					}
+				}
+			}
+		}
+	}
+	switch kind {
+	case ldstoreimpl.Features():
 		if flag, ok := fromItem.Item.(*ldmodel.FeatureFlag); ok {
-			var ret kindAndKeySet
 			if len(flag.Prerequisites) > 0 {
 				ret = make(kindAndKeySet, len(flag.Prerequisites))
 				for _, p := range flag.Prerequisites {
@@ -38,23 +55,19 @@ func computeDependenciesFrom(kind st.DataKind, fromItem st.ItemDescriptor) kindA
 				}
 			}
 			for _, r := range flag.Rules {
-				for _, c := range r.Clauses {
-					if c.Op == ldmodel.OperatorSegmentMatch {
-						for _, v := range c.Values {
-							if v.Type() == ldvalue.StringType {
-								if ret == nil {
-									ret = make(kindAndKeySet)
-								}
-								ret.add(kindAndKey{datakinds.Segments, v.StringValue()})
-							}
-						}
-					}
-				}
+				checkClauses(r.Clauses)
 			}
 			return ret
 		}
+
+	case ldstoreimpl.Segments():
+		if segment, ok := fromItem.Item.(*ldmodel.Segment); ok {
+			for _, r := range segment.Rules {
+				checkClauses(r.Clauses)
+			}
+		}
 	}
-	return nil
+	return ret
 }
 
 func sortCollectionsForDataStoreInit(allData []st.Collection) []st.Collection {

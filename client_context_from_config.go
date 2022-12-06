@@ -35,12 +35,16 @@ func newClientContextFromConfig(
 	if loggingFactory == nil {
 		loggingFactory = ldcomponents.Logging()
 	}
-	basicConfig.Logging = loggingFactory.Build(basicConfig)
+	logging, err := loggingFactory.Build(basicConfig)
+	if err != nil {
+		return nil, err
+	}
+	basicConfig.Logging = logging
 
 	basicConfig.ApplicationInfo.ApplicationID = validateTagValue(config.ApplicationInfo.ApplicationID,
-		"ApplicationID", basicConfig.Logging.Loggers)
+		"ApplicationID", logging.Loggers)
 	basicConfig.ApplicationInfo.ApplicationVersion = validateTagValue(config.ApplicationInfo.ApplicationVersion,
-		"ApplicationVersion", basicConfig.Logging.Loggers)
+		"ApplicationVersion", logging.Loggers)
 
 	httpFactory := config.HTTP
 	if httpFactory == nil {
