@@ -503,12 +503,36 @@ func (client *LDClient) Close() error {
 }
 
 // Flush tells the client that all pending analytics events (if any) should be delivered as soon
-// as possible. Flushing is asynchronous, so this method will return before it is complete.
-// However, if you call [LDClient.Close], events are guaranteed to be sent before that method returns.
+// as possible. This flush is asynchronous, so this method will return before it is complete. To wait
+// for the flush to complete, use [LDClient.FlushAndWait] instead (or, if you are done with the SDK,
+// [LDClient.Close]).
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/flush#go
 func (client *LDClient) Flush() {
 	client.eventProcessor.Flush()
+}
+
+// FlushAndWait tells the client to deliver any pending analytics events synchronously now.
+//
+// Unlike [LDClient.Flush], this method waits for event delivery to finish. The timeout parameter, if
+// greater than zero, specifies the maximum amount of time to wait. If the timeout elapses before
+// delivery is finished, the method returns early and returns false; in this case, the SDK may still
+// continue trying to deliver the events in the background.
+//
+// If the timeout parameter is zero or negative, the method waits as long as necessary to deliver the
+// events. However, the SDK does not retry event delivery indefinitely; currently, any network error
+// or server error will cause the SDK to wait one second and retry one time, after which the events
+// will be discarded so that the SDK will not keep consuming more memory for events indefinitely.
+//
+// The method returns true if event delivery either succeeded, or definitively failed, before the
+// timeout elapsed. It returns false if the timeout elapsed.
+//
+// This method is also implicitly called if you call [LDClient.Close]. The difference is that
+// FlushAndWait does not shut down the SDK client.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/flush#go
+func (client *LDClient) FlushAndWait(timeout time.Duration) bool {
+	return client.eventProcessor.FlushBlocking(timeout)
 }
 
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a given evaluation.
