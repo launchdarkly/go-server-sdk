@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.10.1] - 2023-01-17
+### Fixed:
+- If the application configured custom base URIs that did not have a valid URI syntax, the SDK could panic at startup time. It will now simply log an error and be unable to connect to LaunchDarkly.
+- Fixed shared test logic that is used by the database integration packages.
+
 ## [6.0.0] - 2022-12-07
 The latest version of this SDK supports LaunchDarkly's new custom contexts feature. Contexts are an evolution of a previously-existing concept, "users." Contexts let you create targeting rules for feature flags based on a variety of different information, including attributes pertaining to users, organizations, devices, and more. You can even combine contexts to create "multi-contexts." 
 
