@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [5.10.1] - 2023-01-17
+### Fixed:
+- If the application configured custom base URIs that did not have a valid URI syntax, the SDK could panic at startup time. It will now simply log an error and be unable to connect to LaunchDarkly.
+- Fixed shared test logic that is used by the database integration packages.
+
 ## [5.10.0] - 2022-07-05
 ### Added:
 - `ldtestdata.FlagBuilder.VariationForAll` and `VariationForAllIndex`: new names for the deprecated methods listed below.
