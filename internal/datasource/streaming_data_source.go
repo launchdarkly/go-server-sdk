@@ -251,7 +251,22 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 }
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, _ := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
+	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
+	if reqErr != nil {
+		sp.loggers.Errorf(
+			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
+			reqErr,
+		)
+		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{
+			Kind:    interfaces.DataSourceErrorKindUnknown,
+			Message: reqErr.Error(),
+			Time:    time.Now(),
+		})
+		sp.logConnectionResult(false)
+		close(closeWhenReady)
+		return
+	}
+
 	for k, vv := range sp.headers {
 		req.Header[k] = vv
 	}

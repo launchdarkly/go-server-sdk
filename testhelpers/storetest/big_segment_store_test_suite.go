@@ -82,8 +82,11 @@ func (s *BigSegmentStoreTestSuite) runMetadataTests(t testbox.TestingT) {
 
 	t.Run("no value", func(t testbox.TestingT) {
 		s.withStoreAndEmptyData(t, func(store interfaces.BigSegmentStore) {
-			_, err := store.GetMetadata()
-			require.Error(t, err)
+			meta, err := store.GetMetadata()
+			// The Big Segment store should not return a database error in this case; it should return
+			// a result with an unset (zero) LastUpToDate, meaning "the store has not been updated ever".
+			assert.Equal(t, ldtime.UnixMillisecondTime(0), meta.LastUpToDate)
+			assert.NoError(t, err)
 		})
 	})
 }

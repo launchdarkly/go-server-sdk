@@ -565,3 +565,26 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 		})
 	})
 }
+
+func TestMalformedStreamBaseURI(t *testing.T) {
+	mockLog := ldlogtest.NewMockLog()
+	defer mockLog.DumpIfTestFailed(t)
+	clientContext := internal.NewClientContextImpl(
+		interfaces.BasicConfiguration{SDKKey: testSDKKey},
+		sharedtest.TestHTTPConfig(),
+		sharedtest.TestLoggingConfigWithLoggers(mockLog.Loggers),
+	)
+	withMockDataSourceUpdates(func(updates *sharedtest.MockDataSourceUpdates) {
+		sp := NewStreamProcessor(clientContext, updates, ":/", briefDelay)
+		defer sp.Close()
+
+		closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
+
+		status := updates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+		assert.Equal(t, interfaces.DataSourceErrorKindUnknown, status.LastError.Kind)
+		<-closeWhenReady
+
+		mockLog.AssertMessageMatch(t, true, ldlog.Error, "Unable to create a stream request")
+	})
+}
