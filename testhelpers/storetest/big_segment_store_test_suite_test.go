@@ -48,7 +48,7 @@ func (s *mockSegmentStore) GetMetadata() (interfaces.BigSegmentStoreMetadata, er
 		return s.owner.overrideGetMetadata(s)
 	}
 	if s.metadata == nil {
-		return interfaces.BigSegmentStoreMetadata{}, errors.New("not found")
+		return interfaces.BigSegmentStoreMetadata{}, nil
 	}
 	return *s.metadata, nil
 }
