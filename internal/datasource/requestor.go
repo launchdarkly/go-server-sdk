@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
@@ -84,6 +85,10 @@ func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
 func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
+		reqErr = fmt.Errorf(
+			"unable to create a poll request; this is not a network problem, most likely a bad base URI: %w",
+			reqErr,
+		)
 		return nil, false, reqErr
 	}
 	url := req.URL.String()
