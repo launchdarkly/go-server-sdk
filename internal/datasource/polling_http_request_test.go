@@ -11,7 +11,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
@@ -19,55 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// this mock is not used in the tests in this file; it's used in the polling/streaming data source tests
-type mockRequestor struct {
-	requestAllRespCh      chan mockRequestAllResponse
-	requestResourceRespCh chan mockRequestResourceResponse
-	pollsCh               chan struct{}
-	closerCh              chan struct{}
-}
-
-type mockRequestAllResponse struct {
-	data   []ldstoretypes.Collection
-	cached bool
-	err    error
-}
-
-type mockRequestResourceResponse struct {
-	item ldstoretypes.ItemDescriptor
-	err  error
-}
-
-func newMockRequestor() *mockRequestor {
-	return &mockRequestor{
-		requestAllRespCh: make(chan mockRequestAllResponse, 100),
-		pollsCh:          make(chan struct{}, 100),
-		closerCh:         make(chan struct{}),
-	}
-}
-
-func (r *mockRequestor) Close() {
-	close(r.closerCh)
-}
-
-func (r *mockRequestor) filter() string {
-	return ""
-}
-
-func (r *mockRequestor) baseUri() string {
-	return ""
-}
-
-func (r *mockRequestor) requestAll() ([]ldstoretypes.Collection, bool, error) {
-	select {
-	case resp := <-r.requestAllRespCh:
-		r.pollsCh <- struct{}{}
-		return resp.data, resp.cached, resp.err
-	case <-r.closerCh:
-		return nil, false, nil
-	}
-}
 
 func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
@@ -78,9 +28,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
 		)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, "")
+			r := newPollingHTTPRequester(basicClientContext(), nil, ts.URL, "")
 
-			data, cached, err := r.requestAll()
+			data, cached, err := r.Request()
 
 			assert.NoError(t, err)
 			assert.False(t, cached)
@@ -95,9 +45,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("HTTP error response", func(t *testing.T) {
 		handler := httphelpers.HandlerWithStatus(500)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, "")
+			r := newPollingHTTPRequester(basicClientContext(), nil, ts.URL, "")
 
-			data, cached, err := r.requestAll()
+			data, cached, err := r.Request()
 
 			assert.Error(t, err)
 			if he, ok := err.(httpStatusError); assert.True(t, ok) {
@@ -114,9 +64,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			closedServerURL = ts.URL
 		})
-		r := newRequestorImpl(basicClientContext(), nil, closedServerURL, "")
+		r := newPollingHTTPRequester(basicClientContext(), nil, closedServerURL, "")
 
-		data, cached, err := r.requestAll()
+		data, cached, err := r.Request()
 
 		assert.Error(t, err)
 		assert.False(t, cached)
@@ -126,9 +76,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("malformed data", func(t *testing.T) {
 		handler := httphelpers.HandlerWithResponse(200, nil, []byte("{"))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL, "")
+			r := newPollingHTTPRequester(basicClientContext(), nil, ts.URL, "")
 
-			data, cached, err := r.requestAll()
+			data, cached, err := r.Request()
 
 			require.Error(t, err)
 			_, ok := err.(malformedJSONError)
@@ -139,9 +89,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	})
 
 	t.Run("malformed base URI", func(t *testing.T) {
-		r := newRequestorImpl(basicClientContext(), nil, "::::", "")
+		r := newPollingHTTPRequester(basicClientContext(), nil, "::::", "")
 
-		data, cached, err := r.requestAll()
+		data, cached, err := r.Request()
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing protocol scheme")
@@ -159,9 +109,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL, "")
+			r := newPollingHTTPRequester(context, nil, ts.URL, "")
 
-			_, _, err := r.requestAll()
+			_, _, err := r.Request()
 			assert.NoError(t, err)
 
 			req := <-requestsCh
@@ -176,9 +126,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL, "")
+			r := newPollingHTTPRequester(context, nil, ts.URL, "")
 
-			_, _, err := r.requestAll()
+			_, _, err := r.Request()
 			assert.NoError(t, err)
 
 			assert.Equal(t, []string{"Polling LaunchDarkly for feature flag updates"},
@@ -202,9 +152,9 @@ func TestRequestorImplCaching(t *testing.T) {
 		),
 	)
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
-		r := newRequestorImpl(basicClientContext(), nil, ts.URL)
+		r := newPollingHTTPRequester(basicClientContext(), nil, ts.URL, "")
 
-		data1, cached1, err1 := r.requestAll()
+		data1, cached1, err1 := r.Request()
 
 		assert.NoError(t, err1)
 		assert.False(t, cached1)
@@ -214,7 +164,7 @@ func TestRequestorImplCaching(t *testing.T) {
 		assert.Equal(t, "/sdk/latest-all", req1.Request.URL.String())
 		assert.Equal(t, "", req1.Request.Header.Get("If-None-Match"))
 
-		data2, cached2, err2 := r.requestAll()
+		data2, cached2, err2 := r.Request()
 
 		assert.NoError(t, err2)
 		assert.True(t, cached2)
@@ -234,9 +184,9 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		r := newRequestorImpl(context, nil, ts.URL)
+		r := newPollingHTTPRequester(context, nil, ts.URL, "")
 
-		_, _, _ = r.requestAll()
+		_, _, _ = r.Request()
 
 		req := <-requestsCh
 

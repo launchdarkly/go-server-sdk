@@ -61,7 +61,7 @@ func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCas
 	})
 
 	// Set up the feature flag store. Note that we're using a regular in-memory data store, so the
-	// benchmarks will include the overhead of calling Get on the store.
+	// benchmarks will include the overhead of calling Request on the store.
 	testFlags := makeEvalBenchmarkFlags(bc, variations)
 	for _, ff := range testFlags {
 		env.client.store.Upsert(datakinds.Features, ff.Key, sharedtest.FlagDescriptor(*ff))

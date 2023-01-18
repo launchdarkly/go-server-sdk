@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"sync"
 	"time"
 
@@ -21,6 +22,12 @@ type PollingConfig struct {
 	FilterKey    string
 }
 
+type Requester interface {
+	Request() (data []ldstoretypes.Collection, cached bool, err error)
+	BaseURI() string
+	Filter() string
+}
+
 // PollingProcessor is the internal implementation of the polling data source.
 //
 // This type is exported from internal so that the PollingDataSourceBuilder tests can verify its
@@ -28,7 +35,7 @@ type PollingConfig struct {
 // DataSource interface.
 type PollingProcessor struct {
 	dataSourceUpdates  subsystems.DataSourceUpdateSink
-	requestor          requestor
+	requester          Requester
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
@@ -43,19 +50,19 @@ func NewPollingProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg PollingConfig,
 ) *PollingProcessor {
-	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
-	return newPollingProcessor(context, dataSourceUpdates, requestor, cfg.PollInterval)
+	httpRequester := newPollingHTTPRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
+	return newPollingProcessor(context, dataSourceUpdates, httpRequester, cfg.PollInterval)
 }
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
-	requestor requestor,
+	requester Requester,
 	pollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
 		dataSourceUpdates: dataSourceUpdates,
-		requestor:         requestor,
+		requester:         requester,
 		pollInterval:      pollInterval,
 		loggers:           context.GetLogging().Loggers,
 		quit:              make(chan struct{}),
@@ -133,7 +140,7 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 }
 
 func (pp *PollingProcessor) poll() error {
-	allData, cached, err := pp.requestor.requestAll()
+	allData, cached, err := pp.requester.Request()
 
 	if err != nil {
 		return err
@@ -161,7 +168,7 @@ func (pp *PollingProcessor) IsInitialized() bool {
 
 // GetBaseURI returns the configured polling base URI, for testing.
 func (pp *PollingProcessor) GetBaseURI() string {
-	return pp.requestor.baseUri()
+	return pp.requester.BaseURI()
 }
 
 // GetPollInterval returns the configured polling interval, for testing.
@@ -171,7 +178,7 @@ func (pp *PollingProcessor) GetPollInterval() time.Duration {
 
 // GetFilter returns the configured filter, for testing.
 func (pp *PollingProcessor) GetFilter() string {
-	return pp.requestor.filter()
+	return pp.requester.Filter()
 }
 
 type tickerWithInitialTick struct {

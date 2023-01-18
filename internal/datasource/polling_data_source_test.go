@@ -3,6 +3,7 @@ package datasource
 import (
 	"errors"
 	"fmt"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource/mocks"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -22,9 +23,9 @@ import (
 )
 
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
-	r := newMockRequestor()
+	r := mocks.NewPollingRequester()
 	defer r.Close()
-	r.requestAllRespCh <- mockRequestAllResponse{}
+	r.RequestAllRespCh <- mocks.RequestAllResponse{}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Minute)
@@ -42,11 +43,11 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
 	segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
 
-	r := newMockRequestor()
+	r := mocks.NewPollingRequester()
 	defer r.Close()
 	expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
-	resp := mockRequestAllResponse{data: expectedData.Build()}
-	r.requestAllRespCh <- resp
+	resp := mocks.RequestAllResponse{Data: expectedData.Build()}
+	r.RequestAllRespCh <- resp
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
@@ -64,8 +65,8 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		dataSourceUpdates.DataStore.WaitForInit(t, expectedData.ToServerSDKData(), 2*time.Second)
 
 		for i := 0; i < 2; i++ {
-			r.requestAllRespCh <- resp
-			if _, ok, closed := th.TryReceive(r.pollsCh, time.Second); !ok || closed {
+			r.RequestAllRespCh <- resp
+			if _, ok, closed := th.TryReceive(r.PollsCh, time.Second); !ok || closed {
 				assert.Fail(t, "Expected 2 polls", "but only got %d", i)
 				return
 			}
@@ -111,10 +112,10 @@ func TestPollingProcessorRecoverableErrors(t *testing.T) {
 }
 
 func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError func(interfaces.DataSourceErrorInfo)) {
-	req := newMockRequestor()
+	req := mocks.NewPollingRequester()
 	defer req.Close()
 
-	req.requestAllRespCh <- mockRequestAllResponse{err: err}
+	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
@@ -123,7 +124,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 		p.Start(closeWhenReady)
 
 		// wait for first poll
-		<-req.pollsCh
+		<-req.PollsCh
 
 		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 		verifyError(status.LastError)
@@ -132,10 +133,10 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 			t.FailNow()
 		}
 
-		req.requestAllRespCh <- mockRequestAllResponse{}
+		req.RequestAllRespCh <- mocks.RequestAllResponse{}
 
 		// wait for second poll
-		th.RequireValue(t, req.pollsCh, time.Second, "failed to retry")
+		th.RequireValue(t, req.PollsCh, time.Second, "failed to retry")
 
 		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 		_ = dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateValid)
@@ -162,11 +163,11 @@ func testPollingProcessorUnrecoverableError(
 	err error,
 	verifyError func(interfaces.DataSourceErrorInfo),
 ) {
-	req := newMockRequestor()
+	req := mocks.NewPollingRequester()
 	defer req.Close()
 
-	req.requestAllRespCh <- mockRequestAllResponse{err: err}
-	req.requestAllRespCh <- mockRequestAllResponse{} // we shouldn't get a second request, but just in case
+	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
+	req.RequestAllRespCh <- mocks.RequestAllResponse{} // we shouldn't get a second request, but just in case
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
@@ -175,13 +176,13 @@ func testPollingProcessorUnrecoverableError(
 		p.Start(closeWhenReady)
 
 		// wait for first poll
-		<-req.pollsCh
+		<-req.PollsCh
 
 		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 
 		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
 		verifyError(status.LastError)
-		assert.Len(t, req.pollsCh, 0)
+		assert.Len(t, req.PollsCh, 0)
 	})
 }
 

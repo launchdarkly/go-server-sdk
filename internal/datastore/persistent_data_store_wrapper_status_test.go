@@ -52,7 +52,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 		})
 	}
 
-	runTests(t, "Status is unavailable after error (Get)", func(t *testing.T, mode testCacheMode) {
+	runTests(t, "Status is unavailable after error (Request)", func(t *testing.T, mode testCacheMode) {
 		withDataStoreStatusTestParams(mode, func(p dataStoreStatusTestParams) {
 			myError := errors.New("sorry")
 			p.core.SetFakeError(myError)

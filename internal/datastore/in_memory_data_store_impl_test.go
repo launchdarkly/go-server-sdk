@@ -19,7 +19,7 @@ import (
 
 func TestInMemoryDataStore(t *testing.T) {
 	t.Run("Init", testInMemoryDataStoreInit)
-	t.Run("Get", testInMemoryDataStoreGet)
+	t.Run("Request", testInMemoryDataStoreGet)
 	t.Run("GetAll", testInMemoryDataStoreGetAll)
 	t.Run("Upsert", testInMemoryDataStoreUpsert)
 	t.Run("Delete", testInMemoryDataStoreDelete)

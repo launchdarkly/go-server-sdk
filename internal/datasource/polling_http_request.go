@@ -17,15 +17,8 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-// requestor is the interface implemented by requestorImpl, used for testing purposes
-type requestor interface {
-	requestAll() (data []ldstoretypes.Collection, cached bool, err error)
-	filter() string
-	baseUri() string
-}
-
-// requestorImpl is the internal implementation of getting flag/segment data from the LD polling endpoints.
-type requestorImpl struct {
+// httpPollRequest is the internal implementation of getting flag/segment data from the LD polling endpoints.
+type httpPollRequest struct {
 	httpClient *http.Client
 	baseURI    string
 	filterKey  string
@@ -41,12 +34,12 @@ func (e malformedJSONError) Error() string {
 	return e.innerError.Error()
 }
 
-func newRequestorImpl(
+func newPollingHTTPRequester(
 	context subsystems.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
 	filterKey string,
-) requestor {
+) *httpPollRequest {
 	if httpClient == nil {
 		httpClient = context.GetHTTP().CreateHTTPClient()
 	}
@@ -58,7 +51,7 @@ func newRequestorImpl(
 		Transport:           httpClient.Transport,
 	}
 
-	return &requestorImpl{
+	return &httpPollRequest{
 		httpClient: &modifiedClient,
 		baseURI:    baseURI,
 		filterKey:  filterKey,
@@ -67,15 +60,15 @@ func newRequestorImpl(
 	}
 }
 
-func (r *requestorImpl) baseUri() string {
+func (r *httpPollRequest) BaseURI() string {
 	return r.baseURI
 }
 
-func (r *requestorImpl) filter() string {
+func (r *httpPollRequest) Filter() string {
 	return r.filterKey
 }
 
-func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
+func (r *httpPollRequest) Request() ([]ldstoretypes.Collection, bool, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -96,7 +89,7 @@ func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
 	return data, cached, nil
 }
 
-func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
+func (r *httpPollRequest) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(

@@ -84,8 +84,10 @@ func runStreamingTestWithConfiguration(
 			sp := NewStreamProcessor(
 				context,
 				dataSourceUpdates,
-				streamServer.URL,
-				briefDelay,
+				StreamConfig{
+					URI:                   streamServer.URL,
+					InitialReconnectDelay: briefDelay,
+				},
 			)
 			defer sp.Close()
 
@@ -390,7 +392,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 				DiagnosticsManager: diagnosticsManager,
 			}
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, time.Second)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: time.Second})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -431,7 +433,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 				DiagnosticsManager: diagnosticsManager,
 			}
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -464,7 +466,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
@@ -490,7 +492,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
@@ -510,7 +512,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
-			sp := NewStreamProcessor(basicClientContext(), updates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(basicClientContext(), updates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -539,7 +541,7 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 		},
 	}
 	withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
-		sp := NewStreamProcessor(clientContext, updates, ":/", briefDelay)
+		sp := NewStreamProcessor(clientContext, updates, StreamConfig{URI: ":/", InitialReconnectDelay: briefDelay})
 		defer sp.Close()
 
 		closeWhenReady := make(chan struct{})

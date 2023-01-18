@@ -134,7 +134,7 @@ func (s *PersistentDataStoreTestSuite) Run(t *testing.T) {
 func (s *PersistentDataStoreTestSuite) runInternal(t testbox.TestingT) {
 	if s.includeBaseTests { // PersistentDataStoreTestSuiteTest can disable these
 		t.Run("Init", s.runInitTests)
-		t.Run("Get", s.runGetTests)
+		t.Run("Request", s.runGetTests)
 		t.Run("Upsert", s.runUpsertTests)
 		t.Run("Delete", s.runDeleteTests)
 
@@ -587,7 +587,7 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t testbox.TestingT) {
 		errorValidator(t, err)
 	})
 
-	t.Run("Get", func(t testbox.TestingT) {
+	t.Run("Request", func(t testbox.TestingT) {
 		_, err := store.Get(datakinds.Features, "key")
 		require.Error(t, err)
 		errorValidator(t, err)
