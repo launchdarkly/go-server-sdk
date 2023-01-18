@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -64,6 +65,7 @@ const (
 type StreamProcessor struct {
 	dataSourceUpdates          subsystems.DataSourceUpdateSink
 	streamURI                  string
+	filterKey                  string
 	initialReconnectDelay      time.Duration
 	client                     *http.Client
 	headers                    http.Header
@@ -84,10 +86,12 @@ func NewStreamProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	streamURI string,
 	initialReconnectDelay time.Duration,
+	filterKey string,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
 		dataSourceUpdates:     dataSourceUpdates,
 		streamURI:             streamURI,
+		filterKey:             filterKey,
 		initialReconnectDelay: initialReconnectDelay,
 		headers:               context.GetHTTP().DefaultHeaders,
 		loggers:               context.GetLogging().Loggers,
@@ -255,6 +259,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
+	if sp.filterKey != "" {
+		req.URL.RawQuery = url.Values{
+			"filter": {sp.filterKey},
+		}.Encode()
+	}
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
@@ -395,4 +404,9 @@ func (sp *StreamProcessor) GetBaseURI() string {
 // GetInitialReconnectDelay returns the configured reconnect delay, for testing.
 func (sp *StreamProcessor) GetInitialReconnectDelay() time.Duration {
 	return sp.initialReconnectDelay
+}
+
+// GetFilter returns the configured filter, for testing.
+func (sp *StreamProcessor) GetFilter() string {
+	return sp.filterKey
 }

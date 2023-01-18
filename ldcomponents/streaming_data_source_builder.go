@@ -15,12 +15,17 @@ const DefaultStreamingBaseURI = endpoints.DefaultStreamingBaseURI
 // DefaultInitialReconnectDelay is the default value for [StreamingDataSourceBuilder.InitialReconnectDelay].
 const DefaultInitialReconnectDelay = time.Second
 
+// DefaultFilterKey is the default value for [StreamingDataSourceBuilder.Filter]. The empty string
+// signifies that no filter should be used.
+const DefaultFilterKey = ""
+
 // StreamingDataSourceBuilder provides methods for configuring the streaming data source.
 //
 // See StreamingDataSource for usage.
 type StreamingDataSourceBuilder struct {
 	baseURI               string
 	initialReconnectDelay time.Duration
+	filterKey             string
 }
 
 // StreamingDataSource returns a configurable factory for using streaming mode to get feature flag data.
@@ -36,6 +41,7 @@ type StreamingDataSourceBuilder struct {
 func StreamingDataSource() *StreamingDataSourceBuilder {
 	return &StreamingDataSourceBuilder{
 		initialReconnectDelay: DefaultInitialReconnectDelay,
+		filterKey:             DefaultFilterKey,
 	}
 }
 
@@ -57,6 +63,18 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 	return b
 }
 
+// Filter sets the filter key for the streaming connection.
+//
+// By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
+// for example, the environment contains thousands of flags, but this application only needs to evaluate
+// a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
+//
+// Evaluations for flags that aren't part of the filtered environment will return default values.
+func (b *StreamingDataSourceBuilder) Filter(filterKey string) *StreamingDataSourceBuilder {
+	b.filterKey = filterKey
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	configuredBaseURI := endpoints.SelectBaseURI(
@@ -71,6 +89,7 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 		context.GetDataSourceUpdateSink(),
 		configuredBaseURI,
 		b.initialReconnectDelay,
+		b.filterKey,
 	), nil
 }
 
