@@ -21,25 +21,40 @@ import (
 
 func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
-		segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
-		expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
-		handler, requestsCh := httphelpers.RecordingHandler(
-			ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
-		)
-		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newPollingHTTPRequester(basicClientContext(), nil, ts.URL, "")
 
-			data, cached, err := r.Request()
+		tests := []struct {
+			name     string
+			filter   string
+			expected string
+		}{
+			{"no filter", "", ""},
+			{"filter", "microservice-1", "?filter=microservice-1"},
+			{"filter requires urlencoding", "micro service 1", "?filter=micro+service+1"},
+		}
 
-			assert.NoError(t, err)
-			assert.False(t, cached)
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
+				segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
+				expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
+				handler, requestsCh := httphelpers.RecordingHandler(
+					ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
+				)
+				httphelpers.WithServer(handler, func(ts *httptest.Server) {
+					r := newPollingHTTPRequester(basicClientContext(), nil, ts.URL, test.filter)
 
-			assert.Equal(t, sharedtest.NormalizeDataSet(expectedData.Build()), sharedtest.NormalizeDataSet(data))
+					data, cached, err := r.Request()
 
-			req := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", req.Request.URL.String())
-		})
+					assert.NoError(t, err)
+					assert.False(t, cached)
+
+					assert.Equal(t, sharedtest.NormalizeDataSet(expectedData.Build()), sharedtest.NormalizeDataSet(data))
+
+					req := <-requestsCh
+					assert.Equal(t, "/sdk/latest-all"+test.expected, req.Request.URL.String())
+				})
+			})
+		}
 	})
 
 	t.Run("HTTP error response", func(t *testing.T) {
@@ -183,13 +198,27 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 	context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		r := newPollingHTTPRequester(context, nil, ts.URL, "")
+	tests := []struct {
+		name     string
+		filter   string
+		expected string
+	}{
+		{"no filter", "", ""},
+		{"filter", "microservice-1", "?filter=microservice-1"},
+		{"filter requires urlencoding", "micro service 1", "?filter=micro+service+1"},
+	}
 
-		_, _, _ = r.Request()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
+				r := newPollingHTTPRequester(context, nil, ts.URL, test.filter)
 
-		req := <-requestsCh
+				_, _, _ = r.Request()
 
-		assert.Equal(t, "/sdk/latest-all/transformed", req.Request.URL.Path)
-	})
+				req := <-requestsCh
+
+				assert.Equal(t, "/sdk/latest-all/transformed"+test.expected, req.Request.URL.String())
+			})
+		})
+	}
 }
