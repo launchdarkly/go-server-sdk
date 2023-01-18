@@ -37,6 +37,7 @@ type PollingProcessor struct {
 	dataSourceUpdates  subsystems.DataSourceUpdateSink
 	requester          Requester
 	pollInterval       time.Duration
+	filterKey          string
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
 	isInitialized      internal.AtomicBoolean
@@ -50,7 +51,7 @@ func NewPollingProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg PollingConfig,
 ) *PollingProcessor {
-	httpRequester := newPollingHTTPRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
+	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
 	return newPollingProcessor(context, dataSourceUpdates, httpRequester, cfg.PollInterval)
 }
 
@@ -176,7 +177,7 @@ func (pp *PollingProcessor) GetPollInterval() time.Duration {
 	return pp.pollInterval
 }
 
-// GetFilter returns the configured filter, for testing.
+// GetFilter returns the configured key, for testing.
 func (pp *PollingProcessor) GetFilter() string {
 	return pp.requester.Filter()
 }

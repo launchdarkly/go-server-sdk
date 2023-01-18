@@ -17,8 +17,8 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-// httpPollRequest is the internal implementation of getting flag/segment data from the LD polling endpoints.
-type httpPollRequest struct {
+// pollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.
+type pollingRequester struct {
 	httpClient *http.Client
 	baseURI    string
 	filterKey  string
@@ -34,12 +34,12 @@ func (e malformedJSONError) Error() string {
 	return e.innerError.Error()
 }
 
-func newPollingHTTPRequester(
+func newPollingRequester(
 	context subsystems.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
 	filterKey string,
-) *httpPollRequest {
+) *pollingRequester {
 	if httpClient == nil {
 		httpClient = context.GetHTTP().CreateHTTPClient()
 	}
@@ -51,7 +51,7 @@ func newPollingHTTPRequester(
 		Transport:           httpClient.Transport,
 	}
 
-	return &httpPollRequest{
+	return &pollingRequester{
 		httpClient: &modifiedClient,
 		baseURI:    baseURI,
 		filterKey:  filterKey,
@@ -59,16 +59,14 @@ func newPollingHTTPRequester(
 		loggers:    context.GetLogging().Loggers,
 	}
 }
-
-func (r *httpPollRequest) BaseURI() string {
+func (r *pollingRequester) BaseURI() string {
 	return r.baseURI
 }
 
-func (r *httpPollRequest) Filter() string {
+func (r *pollingRequester) Filter() string {
 	return r.filterKey
 }
-
-func (r *httpPollRequest) Request() ([]ldstoretypes.Collection, bool, error) {
+func (r *pollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -89,7 +87,7 @@ func (r *httpPollRequest) Request() ([]ldstoretypes.Collection, bool, error) {
 	return data, cached, nil
 }
 
-func (r *httpPollRequest) makeRequest(resource string) ([]byte, bool, error) {
+func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(

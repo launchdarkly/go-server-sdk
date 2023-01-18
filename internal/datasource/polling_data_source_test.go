@@ -144,7 +144,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 }
 
 func TestPollingProcessorUnrecoverableErrors(t *testing.T) {
-	for _, statusCode := range []int{401, 403, 405} {
+	for _, statusCode := range []int{401, 403, 404, 405} {
 		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
 			testPollingProcessorUnrecoverableError(
 				t,
@@ -207,6 +207,31 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 			r := <-requestsCh
 
 			assert.Equal(t, "/sdk/latest-all/transformed", r.Request.URL.Path)
+		})
+	})
+}
+
+func TestPollingProcessorAppendsFilterParameter(t *testing.T) {
+	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+
+	testWithFilters(t, func(t *testing.T, filter filterTest) {
+		pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
+			withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+				p := NewPollingProcessor(basicClientContext(), dataSourceUpdates, PollingConfig{
+					BaseURI:      ts.URL,
+					PollInterval: time.Minute * 30,
+					FilterKey:    filter.key,
+				})
+
+				defer p.Close()
+				closeWhenReady := make(chan struct{})
+				p.Start(closeWhenReady)
+
+				r := <-requestsCh
+
+				assert.Equal(t, filter.query, r.Request.URL.RawQuery)
+			})
 		})
 	})
 }

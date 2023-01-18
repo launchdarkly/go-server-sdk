@@ -2,7 +2,7 @@ package mocks
 
 import "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
-type requester struct {
+type Requester struct {
 	RequestAllRespCh      chan RequestAllResponse
 	requestResourceRespCh chan requestResourceResponse
 	PollsCh               chan struct{}
@@ -20,27 +20,25 @@ type requestResourceResponse struct {
 	err  error
 }
 
-func NewPollingRequester() *requester {
-	return &requester{
+func NewPollingRequester() *Requester {
+	return &Requester{
 		RequestAllRespCh: make(chan RequestAllResponse, 100),
 		PollsCh:          make(chan struct{}, 100),
 		CloserCh:         make(chan struct{}),
 	}
 }
 
-func (r *requester) Close() {
+func (r *Requester) Close() {
 	close(r.CloserCh)
 }
-
-func (r *requester) Filter() string {
+func (r *Requester) BaseURI() string {
 	return ""
 }
 
-func (r *requester) BaseURI() string {
+func (r *Requester) Filter() string {
 	return ""
 }
-
-func (r *requester) Request() ([]ldstoretypes.Collection, bool, error) {
+func (r *Requester) Request() ([]ldstoretypes.Collection, bool, error) {
 	select {
 	case resp := <-r.RequestAllRespCh:
 		r.PollsCh <- struct{}{}
