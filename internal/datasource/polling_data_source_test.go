@@ -194,7 +194,11 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-			p := NewPollingProcessor(context, dataSourceUpdates, ts.URL, time.Minute*30)
+			p := NewPollingProcessor(context, dataSourceUpdates, PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			})
+
 			defer p.Close()
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)

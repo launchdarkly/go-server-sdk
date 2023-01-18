@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
@@ -19,12 +20,15 @@ import (
 // requestor is the interface implemented by requestorImpl, used for testing purposes
 type requestor interface {
 	requestAll() (data []ldstoretypes.Collection, cached bool, err error)
+	filter() string
+	baseUri() string
 }
 
 // requestorImpl is the internal implementation of getting flag/segment data from the LD polling endpoints.
 type requestorImpl struct {
 	httpClient *http.Client
 	baseURI    string
+	filterKey  string
 	headers    http.Header
 	loggers    ldlog.Loggers
 }
@@ -41,6 +45,7 @@ func newRequestorImpl(
 	context subsystems.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
+	filterKey string,
 ) requestor {
 	if httpClient == nil {
 		httpClient = context.GetHTTP().CreateHTTPClient()
@@ -56,9 +61,18 @@ func newRequestorImpl(
 	return &requestorImpl{
 		httpClient: &modifiedClient,
 		baseURI:    baseURI,
+		filterKey:  filterKey,
 		headers:    context.GetHTTP().DefaultHeaders,
 		loggers:    context.GetLogging().Loggers,
 	}
+}
+
+func (r *requestorImpl) baseUri() string {
+	return r.baseURI
+}
+
+func (r *requestorImpl) filter() string {
+	return r.filterKey
 }
 
 func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
@@ -90,6 +104,11 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 			reqErr,
 		)
 		return nil, false, reqErr
+	}
+	if r.filterKey != "" {
+		req.URL.RawQuery = url.Values{
+			"filter": {r.filterKey},
+		}.Encode()
 	}
 	url := req.URL.String()
 	if r.headers != nil {

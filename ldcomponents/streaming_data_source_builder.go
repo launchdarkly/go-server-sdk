@@ -83,13 +83,15 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 		b.baseURI,
 		context.GetLogging().Loggers,
 	)
-
+	cfg := datasource.StreamConfig{
+		URI:                   configuredBaseURI,
+		InitialReconnectDelay: b.initialReconnectDelay,
+		FilterKey:             b.filterKey,
+	}
 	return datasource.NewStreamProcessor(
 		context,
 		context.GetDataSourceUpdateSink(),
-		configuredBaseURI,
-		b.initialReconnectDelay,
-		b.filterKey,
+		cfg,
 	), nil
 }
 

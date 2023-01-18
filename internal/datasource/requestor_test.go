@@ -51,6 +51,14 @@ func (r *mockRequestor) Close() {
 	close(r.closerCh)
 }
 
+func (r *mockRequestor) filter() string {
+	return ""
+}
+
+func (r *mockRequestor) baseUri() string {
+	return ""
+}
+
 func (r *mockRequestor) requestAll() ([]ldstoretypes.Collection, bool, error) {
 	select {
 	case resp := <-r.requestAllRespCh:
@@ -70,7 +78,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
 		)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
+			r := newRequestorImpl(basicClientContext(), nil, ts.URL, "")
 
 			data, cached, err := r.requestAll()
 
@@ -87,7 +95,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("HTTP error response", func(t *testing.T) {
 		handler := httphelpers.HandlerWithStatus(500)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
+			r := newRequestorImpl(basicClientContext(), nil, ts.URL, "")
 
 			data, cached, err := r.requestAll()
 
@@ -106,7 +114,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			closedServerURL = ts.URL
 		})
-		r := newRequestorImpl(basicClientContext(), nil, closedServerURL)
+		r := newRequestorImpl(basicClientContext(), nil, closedServerURL, "")
 
 		data, cached, err := r.requestAll()
 
@@ -118,7 +126,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	t.Run("malformed data", func(t *testing.T) {
 		handler := httphelpers.HandlerWithResponse(200, nil, []byte("{"))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(basicClientContext(), nil, ts.URL)
+			r := newRequestorImpl(basicClientContext(), nil, ts.URL, "")
 
 			data, cached, err := r.requestAll()
 
@@ -131,7 +139,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 	})
 
 	t.Run("malformed base URI", func(t *testing.T) {
-		r := newRequestorImpl(basicClientContext(), nil, "::::")
+		r := newRequestorImpl(basicClientContext(), nil, "::::", "")
 
 		data, cached, err := r.requestAll()
 
@@ -151,7 +159,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL)
+			r := newRequestorImpl(context, nil, ts.URL, "")
 
 			_, _, err := r.requestAll()
 			assert.NoError(t, err)
@@ -168,7 +176,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newRequestorImpl(context, nil, ts.URL)
+			r := newRequestorImpl(context, nil, ts.URL, "")
 
 			_, _, err := r.requestAll()
 			assert.NoError(t, err)

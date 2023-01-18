@@ -21,6 +21,7 @@ const DefaultPollInterval = 30 * time.Second
 type PollingDataSourceBuilder struct {
 	baseURI      string
 	pollInterval time.Duration
+	filterKey    string
 }
 
 // PollingDataSource returns a configurable factory for using polling mode to get feature flag data.
@@ -40,6 +41,7 @@ type PollingDataSourceBuilder struct {
 func PollingDataSource() *PollingDataSourceBuilder {
 	return &PollingDataSourceBuilder{
 		pollInterval: DefaultPollInterval,
+		filterKey:    DefaultFilterKey,
 	}
 }
 
@@ -65,6 +67,18 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 	return b
 }
 
+// Filter sets the filter key for the polling connection.
+//
+// By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
+// for example, the environment contains thousands of flags, but this application only needs to evaluate
+// a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
+//
+// Evaluations for flags that aren't part of the filtered environment will return default values.
+func (b *PollingDataSourceBuilder) Filter(filterKey string) *PollingDataSourceBuilder {
+	b.filterKey = filterKey
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Warn(
@@ -75,7 +89,12 @@ func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subs
 		b.baseURI,
 		context.GetLogging().Loggers,
 	)
-	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), configuredBaseURI, b.pollInterval)
+	cfg := datasource.PollingConfig{
+		BaseURI:      configuredBaseURI,
+		PollInterval: b.pollInterval,
+		FilterKey:    b.filterKey,
+	}
+	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg)
 	return pp, nil
 }
 

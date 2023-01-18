@@ -15,6 +15,12 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
+type PollingConfig struct {
+	BaseURI      string
+	PollInterval time.Duration
+	FilterKey    string
+}
+
 // PollingProcessor is the internal implementation of the polling data source.
 //
 // This type is exported from internal so that the PollingDataSourceBuilder tests can verify its
@@ -35,11 +41,10 @@ type PollingProcessor struct {
 func NewPollingProcessor(
 	context subsystems.ClientContext,
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
-	baseURI string,
-	pollInterval time.Duration,
+	cfg PollingConfig,
 ) *PollingProcessor {
-	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), baseURI)
-	return newPollingProcessor(context, dataSourceUpdates, requestor, pollInterval)
+	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
+	return newPollingProcessor(context, dataSourceUpdates, requestor, cfg.PollInterval)
 }
 
 func newPollingProcessor(
@@ -55,7 +60,6 @@ func newPollingProcessor(
 		loggers:           context.GetLogging().Loggers,
 		quit:              make(chan struct{}),
 	}
-
 	return pp
 }
 
@@ -157,12 +161,17 @@ func (pp *PollingProcessor) IsInitialized() bool {
 
 // GetBaseURI returns the configured polling base URI, for testing.
 func (pp *PollingProcessor) GetBaseURI() string {
-	return (pp.requestor.(*requestorImpl)).baseURI
+	return pp.requestor.baseUri()
 }
 
 // GetPollInterval returns the configured polling interval, for testing.
 func (pp *PollingProcessor) GetPollInterval() time.Duration {
 	return pp.pollInterval
+}
+
+// GetFilter returns the configured filter, for testing.
+func (pp *PollingProcessor) GetFilter() string {
+	return pp.requestor.filter()
 }
 
 type tickerWithInitialTick struct {
