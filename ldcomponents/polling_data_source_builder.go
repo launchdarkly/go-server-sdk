@@ -41,7 +41,6 @@ type PollingDataSourceBuilder struct {
 func PollingDataSource() *PollingDataSourceBuilder {
 	return &PollingDataSourceBuilder{
 		pollInterval: DefaultPollInterval,
-		filterKey:    DefaultFilterKey,
 	}
 }
 

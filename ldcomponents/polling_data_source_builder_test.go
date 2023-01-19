@@ -31,7 +31,7 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 
 	t.Run("Filter", func(t *testing.T) {
 		s := PollingDataSource()
-		assert.Equal(t, DefaultFilterKey, s.filterKey)
+		assert.Equal(t, "", s.filterKey)
 
 		s.Filter("microservice-1")
 		assert.Equal(t, "microservice-1", s.filterKey)

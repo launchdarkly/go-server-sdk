@@ -31,7 +31,7 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 
 	t.Run("Filter", func(t *testing.T) {
 		s := StreamingDataSource()
-		assert.Equal(t, DefaultFilterKey, s.filterKey)
+		assert.Equal(t, "", s.filterKey)
 
 		s.Filter("microservice-1")
 		assert.Equal(t, "microservice-1", s.filterKey)
@@ -56,7 +56,7 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 		sp := ds.(*datasource.StreamProcessor)
 		assert.Equal(t, baseURI, sp.GetBaseURI())
 		assert.Equal(t, DefaultInitialReconnectDelay, sp.GetInitialReconnectDelay())
-		assert.Equal(t, DefaultFilterKey, sp.GetFilter())
+		assert.Equal(t, "", sp.GetFilter())
 	})
 
 	t.Run("CreateCustomizedDataSource", func(t *testing.T) {

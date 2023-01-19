@@ -15,10 +15,6 @@ const DefaultStreamingBaseURI = endpoints.DefaultStreamingBaseURI
 // DefaultInitialReconnectDelay is the default value for [StreamingDataSourceBuilder.InitialReconnectDelay].
 const DefaultInitialReconnectDelay = time.Second
 
-// DefaultFilterKey is the default value for [StreamingDataSourceBuilder.Filter]. The empty string
-// signifies that no filter should be used.
-const DefaultFilterKey = ""
-
 // StreamingDataSourceBuilder provides methods for configuring the streaming data source.
 //
 // See StreamingDataSource for usage.
@@ -41,7 +37,6 @@ type StreamingDataSourceBuilder struct {
 func StreamingDataSource() *StreamingDataSourceBuilder {
 	return &StreamingDataSourceBuilder{
 		initialReconnectDelay: DefaultInitialReconnectDelay,
-		filterKey:             DefaultFilterKey,
 	}
 }
 
