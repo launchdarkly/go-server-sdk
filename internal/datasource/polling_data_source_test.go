@@ -73,7 +73,6 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		}
 	})
 }
-
 func TestPollingProcessorRecoverableErrors(t *testing.T) {
 	for _, statusCode := range []int{400, 408, 429, 500, 503} {
 		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {

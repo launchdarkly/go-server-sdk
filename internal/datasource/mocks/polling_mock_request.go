@@ -2,22 +2,19 @@ package mocks
 
 import "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
+// Requester is a mock used in polling_data_source_test.go, to satisfy the
+// datasource.Requester interface (used by PollingProcessor).
+// Its purpose is to allow the PollingProcessor to be tested without involving actual HTTP operations.
 type Requester struct {
-	RequestAllRespCh      chan RequestAllResponse
-	requestResourceRespCh chan requestResourceResponse
-	PollsCh               chan struct{}
-	CloserCh              chan struct{}
+	RequestAllRespCh chan RequestAllResponse
+	PollsCh          chan struct{}
+	CloserCh         chan struct{}
 }
 
 type RequestAllResponse struct {
 	Data   []ldstoretypes.Collection
 	Cached bool
 	Err    error
-}
-
-type requestResourceResponse struct {
-	item ldstoretypes.ItemDescriptor
-	err  error
 }
 
 func NewPollingRequester() *Requester {

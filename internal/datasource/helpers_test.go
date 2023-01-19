@@ -28,28 +28,26 @@ func TestHTTPErrorDescription(t *testing.T) {
 	assert.Equal(t, "HTTP error 500", httpErrorDescription(500))
 }
 
-type filterTestCase struct {
-	name   string
-	params filterTest
-}
-
+// filterTest represents the expected URL query parameter that should
+// be generated for a particular filter key. For example, filter 'foo' should generate
+// query parameter 'filter=foo'.
 type filterTest struct {
 	key   string
 	query string
 }
 
-func filterTests() []filterTestCase {
-	return []filterTestCase{
-		{"no filter", filterTest{"", ""}},
-		{"filter", filterTest{"microservice-1", "filter=microservice-1"}},
-		{"filter requires urlencoding", filterTest{"micro service 1", "filter=micro+service+1"}},
+// testWithFilters generates a nested test for a set of relevant filters.
+// The 'test' function is executed with the requested filter, and the expected query parameter
+// for that filter.
+func testWithFilters(t *testing.T, test func(t *testing.T, filterTest filterTest)) {
+	testCases := map[string]filterTest{
+		"no filter":                   {"", ""},
+		"filter requires no encoding": {"microservice-1", "filter=microservice-1"},
+		"filter requires urlencoding": {"micro service 1", "filter=micro+service+1"},
 	}
-}
-
-func testWithFilters(t *testing.T, testFn func(t *testing.T, filterTest filterTest)) {
-	for _, test := range filterTests() {
-		t.Run(test.name, func(t *testing.T) {
-			testFn(t, test.params)
+	for name, params := range testCases {
+		t.Run(name, func(t *testing.T) {
+			test(t, params)
 		})
 	}
 }

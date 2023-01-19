@@ -22,6 +22,8 @@ type PollingConfig struct {
 	FilterKey    string
 }
 
+// Requester allows PollingProcessor to delegate fetching data to another component.
+// This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type Requester interface {
 	Request() (data []ldstoretypes.Collection, cached bool, err error)
 	BaseURI() string
