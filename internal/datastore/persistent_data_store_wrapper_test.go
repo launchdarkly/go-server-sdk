@@ -76,7 +76,7 @@ func TestPersistentDataStoreWrapper(t *testing.T) {
 		})
 	}
 
-	runTests("Request", testPersistentDataStoreWrapperGet, allCacheModes...)
+	runTests("Get", testPersistentDataStoreWrapperGet, allCacheModes...)
 	runTests("GetAll", testPersistentDataStoreWrapperGetAll, allCacheModes...)
 	runTests("Upsert", testPersistentDataStoreWrapperUpsert, allCacheModes...)
 	runTests("Delete", testPersistentDataStoreWrapperDelete, allCacheModes...)
@@ -357,7 +357,7 @@ func testPersistentDataStoreWrapperUpsert(t *testing.T, mode testCacheMode) {
 		require.Equal(t, itemv2.ToSerializedItemDescriptor(), core.ForceGet(mocks.MockData, key))
 
 		// if we have a cache, verify that the new item is now cached by writing a different value
-		// to the underlying data - Request should still return the cached item
+		// to the underlying data - Get should still return the cached item
 		if mode.isCached() {
 			itemv3 := mocks.MockDataItem{Key: key, Version: 3}
 			core.ForceSet(mocks.MockData, key, itemv3.ToSerializedItemDescriptor())
@@ -410,7 +410,7 @@ func testPersistentDataStoreWrapperDelete(t *testing.T, mode testCacheMode) {
 		assert.True(t, updated)
 
 		// if we have a cache, verify that the new item is now cached by writing a different value
-		// to the underlying data - Request should still return the cached item
+		// to the underlying data - Get should still return the cached item
 		if mode.isCached() {
 			itemv3 := mocks.MockDataItem{Key: key, Version: 3}
 			core.ForceSet(mocks.MockData, key, itemv3.ToSerializedItemDescriptor())
