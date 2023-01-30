@@ -33,6 +33,7 @@ var capabilities = []string{
 	servicedef.CapabilityServerSidePolling,
 	servicedef.CapabilityServiceEndpoints,
 	servicedef.CapabilityTags,
+	servicedef.CapabilityFiltering,
 }
 
 // gets the specified environment variable, or the default if not set
