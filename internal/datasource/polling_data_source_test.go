@@ -3,7 +3,6 @@ package datasource
 import (
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource/mocks"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -216,7 +215,7 @@ func TestPollingProcessorAppendsFilterParameter(t *testing.T) {
 	testWithFilters(t, func(t *testing.T, filter filterTest) {
 		pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-			withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+			withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 				p := NewPollingProcessor(basicClientContext(), dataSourceUpdates, PollingConfig{
 					BaseURI:      ts.URL,
 					PollInterval: time.Minute * 30,

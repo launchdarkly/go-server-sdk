@@ -568,7 +568,7 @@ func TestStreamProcessorAppendsFilterParameter(t *testing.T) {
 		handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
 
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+			withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 
 				sp := NewStreamProcessor(basicClientContext(), dataSourceUpdates, StreamConfig{
 					URI:                   ts.URL,

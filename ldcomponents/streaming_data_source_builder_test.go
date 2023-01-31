@@ -45,7 +45,7 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 
 		s := StreamingDataSource()
 
-		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
 		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
 		ds, err := s.Build(clientContext)

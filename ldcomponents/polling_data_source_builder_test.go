@@ -45,7 +45,7 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 
 		p := PollingDataSource()
 
-		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
 		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
 		ds, err := p.Build(clientContext)
