@@ -57,6 +57,8 @@ const (
 	streamingWillRetryMessage = "will retry"
 )
 
+// StreamConfig describes the configuration for a streaming data source. It is exported so that
+// it can be used in the StreamingDataSourceBuilder.
 type StreamConfig struct {
 	URI                   string
 	FilterKey             string

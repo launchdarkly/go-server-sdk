@@ -1,9 +1,10 @@
 package datasource
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"sync"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
@@ -16,6 +17,8 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
+// PollingConfig describes the configuration for a polling data source. It is exported so that
+// it can be used in the PollingDataSourceBuilder.
 type PollingConfig struct {
 	BaseURI      string
 	PollInterval time.Duration
@@ -39,7 +42,6 @@ type PollingProcessor struct {
 	dataSourceUpdates  subsystems.DataSourceUpdateSink
 	requester          Requester
 	pollInterval       time.Duration
-	filterKey          string
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
 	isInitialized      internal.AtomicBoolean
