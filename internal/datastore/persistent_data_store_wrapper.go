@@ -69,23 +69,24 @@ func (w *persistentDataStoreWrapper) Init(allData []st.Collection) error {
 	if w.cache != nil {
 		w.cache.Flush()
 	}
-	if err != nil && !w.hasCacheWithInfiniteTTL() {
-		// Normally, if the underlying store failed to do the update, we do not want to update the cache -
-		// the idea being that it's better to stay in a consistent state of having old data than to act
-		// like we have new data but then suddenly fall back to old data when the cache expires. However,
-		// if the cache TTL is infinite, then it makes sense to update the cache always.
+	if err != nil && !w.hasInfiniteCache() {
+		// If the underlying store failed to do the update, and we've got an expiring cache, then:
+		// 1) We shouldn't update the cache, and
+		// 2) We shouldn't be considered initialized.
+		// The rationale is that it's better to stay in a consistent state of having old data than to act
+		// like we have new data, but then suddenly fall back to old data when the cache expires.
 		return err
 	}
+	// However, if the cache TTL is infinite, then it makes sense to update the cache regardless of the
+	// initialization result of the underlying store.
 	if w.cache != nil {
 		for _, coll := range allData {
 			w.cacheItems(coll.Kind, coll.Items)
 		}
 	}
-	if err == nil || w.hasCacheWithInfiniteTTL() {
-		w.initLock.Lock()
-		defer w.initLock.Unlock()
-		w.inited = true
-	}
+	w.initLock.Lock()
+	defer w.initLock.Unlock()
+	w.inited = true
 	return err
 }
 
@@ -173,7 +174,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 	// like we have new data but then suddenly fall back to old data when the cache expires. However,
 	// if the cache TTL is infinite, then it makes sense to update the cache always.
 	if err != nil {
-		if !w.hasCacheWithInfiniteTTL() {
+		if !w.hasInfiniteCache() {
 			return updated, err
 		}
 	}
@@ -187,7 +188,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 				// a reread the next time All is called. However, if it's an infinite TTL, we need to just
 				// update the item within the existing "all items" entry (since we want things to still work
 				// even if the underlying store is unavailable).
-				if w.hasCacheWithInfiniteTTL() {
+				if w.hasInfiniteCache() {
 					if data, present := w.cache.Get(allCacheKey); present {
 						if items, ok := data.([]st.KeyedItemDescriptor); ok {
 							w.cache.Set(allCacheKey, updateSingleItem(items, key, newItem), cache.DefaultExpiration)
@@ -206,7 +207,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 			// The underlying store returned an error. If the cache has an infinite TTL, then we should go
 			// ahead and update the cache so that it always has the latest data; we may be able to use the
 			// cached data to repopulate the store later if it starts working again.
-			if w.hasCacheWithInfiniteTTL() {
+			if w.hasInfiniteCache() {
 				w.cache.Set(cacheKey, newItem, cache.DefaultExpiration)
 				cachedItems := []st.KeyedItemDescriptor{}
 				if data, present := w.cache.Get(allCacheKey); present {
@@ -262,7 +263,7 @@ func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	if !w.core.IsStoreAvailable() {
 		return false
 	}
-	if w.hasCacheWithInfiniteTTL() {
+	if w.hasInfiniteCache() {
 		// If we're in infinite cache mode, then we can assume the cache has a full set of current
 		// flag data (since presumably the data source has still been running) and we can just
 		// write the contents of the cache to the underlying data store.
@@ -291,10 +292,9 @@ func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	return true
 }
 
-func (w *persistentDataStoreWrapper) hasCacheWithInfiniteTTL() bool {
+func (w *persistentDataStoreWrapper) hasInfiniteCache() bool {
 	return w.cache != nil && w.cacheTTL < 0
 }
-
 func dataStoreCacheKey(kind st.DataKind, key string) string {
 	return kind.GetName() + ":" + key
 }
