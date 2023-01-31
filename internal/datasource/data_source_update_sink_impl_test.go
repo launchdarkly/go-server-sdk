@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
@@ -28,7 +30,7 @@ import (
 const testDataSourceOutageTimeout = 200 * time.Millisecond
 
 type dataSourceUpdateSinkImplTestParams struct {
-	store                   *sharedtest.CapturingDataStore
+	store                   *mocks.CapturingDataStore
 	dataStoreStatusProvider intf.DataStoreStatusProvider
 	dataSourceUpdates       *DataSourceUpdateSinkImpl
 	flagChangeBroadcaster   *internal.Broadcaster[interfaces.FlagChangeEvent]
@@ -38,7 +40,7 @@ type dataSourceUpdateSinkImplTestParams struct {
 func dataSourceUpdateSinkImplTest(action func(dataSourceUpdateSinkImplTestParams)) {
 	p := dataSourceUpdateSinkImplTestParams{}
 	p.mockLoggers = ldlogtest.NewMockLog()
-	p.store = sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
+	p.store = mocks.NewCapturingDataStore(datastore.NewInMemoryDataStore(p.mockLoggers.Loggers))
 	dataStoreUpdates := datastore.NewDataStoreUpdateSinkImpl(nil)
 	p.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(p.store, dataStoreUpdates)
 	dataSourceStatusBroadcaster := internal.NewBroadcaster[interfaces.DataSourceStatus]()

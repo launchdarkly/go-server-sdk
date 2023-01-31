@@ -3,6 +3,8 @@ package datastore
 import (
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,14 +15,14 @@ import (
 )
 
 type dataStoreStatusProviderTestParams struct {
-	dataStore               *sharedtest.CapturingDataStore
+	dataStore               *mocks.CapturingDataStore
 	dataStoreUpdates        subsystems.DataStoreUpdateSink
 	dataStoreStatusProvider interfaces.DataStoreStatusProvider
 }
 
 func dataStoreStatusProviderTest(action func(dataStoreStatusProviderTestParams)) {
 	p := dataStoreStatusProviderTestParams{}
-	p.dataStore = sharedtest.NewCapturingDataStore(NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	p.dataStore = mocks.NewCapturingDataStore(NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	defer broadcaster.Close()
 	dataStoreUpdates := NewDataStoreUpdateSinkImpl(broadcaster)

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +23,7 @@ import (
 
 type fileDataSourceTestParams struct {
 	dataSource     subsystems.DataSource
-	updates        *sharedtest.MockDataSourceUpdates
+	updates        *mocks.MockDataSourceUpdates
 	mockLog        *ldlogtest.MockLog
 	closeWhenReady chan struct{}
 }
@@ -40,7 +42,7 @@ func withFileDataSourceTestParams(
 	p.mockLog = ldlogtest.NewMockLog()
 	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: p.mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
-	p.updates = sharedtest.NewMockDataSourceUpdates(store)
+	p.updates = mocks.NewMockDataSourceUpdates(store)
 	testContext.DataSourceUpdateSink = p.updates
 	dataSource, err := factory.Build(testContext)
 	if err != nil {

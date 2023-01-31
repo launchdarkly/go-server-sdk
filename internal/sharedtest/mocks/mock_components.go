@@ -1,4 +1,4 @@
-package sharedtest
+package mocks
 
 import "github.com/launchdarkly/go-server-sdk/v6/subsystems"
 

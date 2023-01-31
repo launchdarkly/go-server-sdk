@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	th "github.com/launchdarkly/go-test-helpers/v3"
@@ -29,7 +30,7 @@ func TestBigSegmentStoreWrapper(t *testing.T) {
 
 type storeWrapperTestParams struct {
 	t        *testing.T
-	store    *sharedtest.MockBigSegmentStore
+	store    *mocks.MockBigSegmentStore
 	wrapper  *BigSegmentStoreWrapper
 	config   BigSegmentsConfigurationProperties
 	statusCh chan interfaces.BigSegmentStoreStatus
@@ -41,7 +42,7 @@ func storeWrapperTest(t *testing.T) *storeWrapperTestParams {
 	mockLog.Loggers.SetMinLevel(ldlog.Debug)
 	return &storeWrapperTestParams{
 		t:     t,
-		store: &sharedtest.MockBigSegmentStore{},
+		store: &mocks.MockBigSegmentStore{},
 		config: BigSegmentsConfigurationProperties{
 			StatusPollInterval: time.Millisecond * 10,
 			StaleAfter:         time.Hour,
@@ -158,15 +159,15 @@ func testBigSegmentStoreWrapperMembershipCaching(t *testing.T) {
 func testBigSegmentStoreWrapperStatusUpdates(t *testing.T) {
 	t.Run("polling detects store unavailability", func(t *testing.T) {
 		storeWrapperTest(t).run(func(p *storeWrapperTestParams) {
-			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
+			mocks.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 
 			p.store.TestSetMetadataState(subsystems.BigSegmentStoreMetadata{}, errors.New("sorry"))
-			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
+			mocks.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
 				interfaces.BigSegmentStoreStatus{Available: false, Stale: false})
 
 			p.store.TestSetMetadataToCurrentTime()
-			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
+			mocks.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 		})
 	})
@@ -196,15 +197,15 @@ func testBigSegmentStoreWrapperStatusUpdates(t *testing.T) {
 				}
 			}()
 
-			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
+			mocks.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Second,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 
 			shouldUpdate.Store(false)
-			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Millisecond*200,
+			mocks.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Millisecond*200,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: true})
 
 			shouldUpdate.Store(true)
-			sharedtest.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Millisecond*200,
+			mocks.ExpectBigSegmentStoreStatus(t, p.statusCh, p.wrapper.GetStatus, time.Millisecond*200,
 				interfaces.BigSegmentStoreStatus{Available: true, Stale: false})
 		})
 	})

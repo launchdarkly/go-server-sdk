@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,7 +31,7 @@ func TestStatusListener(t *testing.T) {
 
 	status := interfaces.BigSegmentStoreStatus{Available: false, Stale: false}
 	broadcaster.Broadcast(status)
-	sharedtest.ExpectBigSegmentStoreStatus(t, ch1, nil, time.Second, status)
-	sharedtest.ExpectBigSegmentStoreStatus(t, ch3, nil, time.Second, status)
+	mocks.ExpectBigSegmentStoreStatus(t, ch1, nil, time.Second, status)
+	mocks.ExpectBigSegmentStoreStatus(t, ch3, nil, time.Second, status)
 	assert.Len(t, ch2, 0)
 }

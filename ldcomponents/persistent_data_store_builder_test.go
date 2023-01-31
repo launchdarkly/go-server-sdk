@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
@@ -26,7 +28,7 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 
 	t.Run("calls factory", func(t *testing.T) {
 		pdsf := &mockPersistentDataStoreFactory{}
-		pdsf.store = sharedtest.NewMockPersistentDataStore()
+		pdsf.store = mocks.NewMockPersistentDataStore()
 		f := PersistentDataStore(pdsf)
 
 		logConfig := subsystems.LoggingConfiguration{Loggers: ldlog.NewDisabledLoggers()}

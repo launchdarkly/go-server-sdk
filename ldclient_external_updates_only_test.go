@@ -3,6 +3,8 @@ package ldclient
 import (
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -29,7 +31,7 @@ func withClientExternalUpdatesTestParams(callback func(clientExternalUpdatesTest
 	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
-		DataStore:  sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
+		DataStore:  mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
 		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)
