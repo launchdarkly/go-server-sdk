@@ -30,7 +30,7 @@ type PollingConfig struct {
 type Requester interface {
 	Request() (data []ldstoretypes.Collection, cached bool, err error)
 	BaseURI() string
-	Filter() string
+	FilterKey() string
 }
 
 // PollingProcessor is the internal implementation of the polling data source.
@@ -181,9 +181,9 @@ func (pp *PollingProcessor) GetPollInterval() time.Duration {
 	return pp.pollInterval
 }
 
-// GetFilter returns the configured key, for testing.
-func (pp *PollingProcessor) GetFilter() string {
-	return pp.requester.Filter()
+// GetFilterKey returns the configured filter key, for testing.
+func (pp *PollingProcessor) GetFilterKey() string {
+	return pp.requester.FilterKey()
 }
 
 type tickerWithInitialTick struct {

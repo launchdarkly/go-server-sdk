@@ -29,14 +29,14 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		assert.Equal(t, time.Second, p.pollInterval)
 	})
 
-	t.Run("Filter", func(t *testing.T) {
+	t.Run("FilterKey", func(t *testing.T) {
 		s := PollingDataSource()
 		assert.Equal(t, "", s.filterKey)
 
-		s.Filter("microservice-1")
+		s.FilterKey("microservice-1")
 		assert.Equal(t, "microservice-1", s.filterKey)
 
-		s.Filter("")
+		s.FilterKey("")
 		assert.Equal(t, "", s.filterKey)
 	})
 
@@ -63,7 +63,7 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		interval := time.Hour
 		filter := "microservice-1"
 
-		p := PollingDataSource().PollInterval(interval).Filter(filter)
+		p := PollingDataSource().PollInterval(interval).FilterKey(filter)
 
 		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
@@ -76,6 +76,6 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		pp := ds.(*datasource.PollingProcessor)
 		assert.Equal(t, baseURI, pp.GetBaseURI())
 		assert.Equal(t, interval, pp.GetPollInterval())
-		assert.Equal(t, filter, pp.GetFilter())
+		assert.Equal(t, filter, pp.GetFilterKey())
 	})
 }

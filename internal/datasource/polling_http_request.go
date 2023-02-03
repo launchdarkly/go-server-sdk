@@ -63,7 +63,7 @@ func (r *pollingRequester) BaseURI() string {
 	return r.baseURI
 }
 
-func (r *pollingRequester) Filter() string {
+func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
 func (r *pollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {

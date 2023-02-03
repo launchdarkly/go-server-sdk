@@ -408,7 +408,7 @@ func (sp *StreamProcessor) GetInitialReconnectDelay() time.Duration {
 	return sp.cfg.InitialReconnectDelay
 }
 
-// GetFilter returns the configured key, for testing.
-func (sp *StreamProcessor) GetFilter() string {
+// GetFilterKey returns the configured key, for testing.
+func (sp *StreamProcessor) GetFilterKey() string {
 	return sp.cfg.FilterKey
 }

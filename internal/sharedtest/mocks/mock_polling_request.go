@@ -38,8 +38,8 @@ func (r *Requester) BaseURI() string {
 	return ""
 }
 
-// Filter exists to fulfil the datasource.Requester interface; here it returns an empty string.
-func (r *Requester) Filter() string {
+// FilterKey exists to fulfil the datasource.Requester interface; here it returns an empty string.
+func (r *Requester) FilterKey() string {
 	return ""
 }
 
