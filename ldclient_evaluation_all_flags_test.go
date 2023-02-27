@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
@@ -191,7 +193,7 @@ func TestAllFlagsStateReturnsInvalidStateIfClientAndStoreAreNotInitialized(t *te
 	mockLoggers := ldlogtest.NewMockLog()
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()
@@ -209,8 +211,8 @@ func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsI
 	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
-		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
+		c.DataStore = mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()
@@ -225,14 +227,14 @@ func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsI
 
 func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 	myError := errors.New("sorry")
-	store := sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	store := mocks.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	_ = store.Init(nil)
 	store.SetFakeError(myError)
 	mockLoggers := ldlogtest.NewMockLog()
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = sharedtest.DataSourceThatIsAlwaysInitialized()
-		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
+		c.DataSource = mocks.DataSourceThatIsAlwaysInitialized()
+		c.DataStore = mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -53,7 +55,7 @@ type clientEvalTestParams struct {
 	client  *LDClient
 	store   subsystems.DataStore
 	data    *ldtestdata.TestDataSource
-	events  *sharedtest.CapturingEventProcessor
+	events  *mocks.CapturingEventProcessor
 	mockLog *ldlogtest.MockLog
 }
 
@@ -74,13 +76,13 @@ func withClientEvalTestParams(callback func(clientEvalTestParams)) {
 	p := clientEvalTestParams{}
 	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
 	p.data = ldtestdata.DataSource()
-	p.events = &sharedtest.CapturingEventProcessor{}
+	p.events = &mocks.CapturingEventProcessor{}
 	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		Offline:    false,
-		DataStore:  sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
+		DataStore:  mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
 		DataSource: p.data,
-		Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: p.events},
+		Events:     mocks.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: p.events},
 		Logging:    ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)
@@ -695,11 +697,11 @@ func TestEvaluatingFlagWithPrerequisiteSendsPrerequisiteEvent(t *testing.T) {
 
 func TestEvalErrorIfStoreReturnsError(t *testing.T) {
 	myError := errors.New("sorry")
-	store := sharedtest.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	store := mocks.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	_ = store.Init(nil)
 	store.SetFakeError(myError)
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
+		c.DataStore = mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 	})
 	defer client.Close()
 
@@ -775,7 +777,7 @@ func TestEvalReturnsDefaultIfClientAndStoreAreNotInitialized(t *testing.T) {
 	mockLoggers := ldlogtest.NewMockLog()
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()
@@ -797,8 +799,8 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
 
 	client := makeTestClientWithConfig(func(c *Config) {
-		c.DataSource = sharedtest.DataSourceThatNeverInitializes()
-		c.DataStore = sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
+		c.DataStore = mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
 		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
 	})
 	defer client.Close()

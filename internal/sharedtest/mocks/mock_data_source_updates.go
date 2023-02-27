@@ -1,4 +1,4 @@
-package sharedtest
+package mocks
 
 import (
 	"sync"

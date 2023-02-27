@@ -11,7 +11,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
@@ -47,12 +48,12 @@ func addBigSegmentAndFlag(testData *ldtestdata.TestDataSource) {
 
 func doBigSegmentsTest(
 	t *testing.T,
-	action func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore),
+	action func(client *LDClient, bsStore *mocks.MockBigSegmentStore),
 ) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
 	testData := ldtestdata.DataSource()
-	bsStore := &sharedtest.MockBigSegmentStore{}
+	bsStore := &mocks.MockBigSegmentStore{}
 	bsStore.TestSetMetadataToCurrentTime()
 
 	addBigSegmentAndFlag(testData)
@@ -60,7 +61,7 @@ func doBigSegmentsTest(
 	client := makeTestClientWithConfig(func(c *Config) {
 		c.DataSource = testData
 		c.BigSegments = ldcomponents.BigSegments(
-			sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: bsStore},
+			mocks.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: bsStore},
 		)
 		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
 	})
@@ -71,7 +72,7 @@ func doBigSegmentsTest(
 
 func TestEvalWithBigSegments(t *testing.T) {
 	t.Run("user not found", func(t *testing.T) {
-		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
+		doBigSegmentsTest(t, func(client *LDClient, bsStore *mocks.MockBigSegmentStore) {
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)
 			require.NoError(t, err)
 			assert.False(t, value)
@@ -80,7 +81,7 @@ func TestEvalWithBigSegments(t *testing.T) {
 	})
 
 	t.Run("user found", func(t *testing.T) {
-		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
+		doBigSegmentsTest(t, func(client *LDClient, bsStore *mocks.MockBigSegmentStore) {
 			membership := ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(
 				[]string{makeBigSegmentRef(bigSegmentKey, 1)}, nil)
 			bsStore.TestSetMembership(bigsegments.HashForContextKey(evalTestUser.Key()), membership)
@@ -93,7 +94,7 @@ func TestEvalWithBigSegments(t *testing.T) {
 	})
 
 	t.Run("store error", func(t *testing.T) {
-		doBigSegmentsTest(t, func(client *LDClient, bsStore *sharedtest.MockBigSegmentStore) {
+		doBigSegmentsTest(t, func(client *LDClient, bsStore *mocks.MockBigSegmentStore) {
 			bsStore.TestSetMembershipError(errors.New("sorry"))
 
 			value, detail, err := client.BoolVariationDetail(evalFlagKey, evalTestUser, false)

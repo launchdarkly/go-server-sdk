@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -33,7 +35,7 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 
 		p := PollingDataSource().PollInterval(interval)
 
-		dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
 		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
 		ds, err := p.Build(clientContext)

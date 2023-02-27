@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -24,7 +26,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	defer r.Close()
 	r.requestAllRespCh <- mockRequestAllResponse{}
 
-	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Minute)
 
 		p.Close()
@@ -46,7 +48,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	resp := mockRequestAllResponse{data: expectedData.Build()}
 	r.requestAllRespCh <- resp
 
-	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
 		defer p.Close()
 
@@ -114,7 +116,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 
 	req.requestAllRespCh <- mockRequestAllResponse{err: err}
 
-	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
 		defer p.Close()
 		closeWhenReady := make(chan struct{})
@@ -166,7 +168,7 @@ func testPollingProcessorUnrecoverableError(
 	req.requestAllRespCh <- mockRequestAllResponse{err: err}
 	req.requestAllRespCh <- mockRequestAllResponse{} // we shouldn't get a second request, but just in case
 
-	withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
 		defer p.Close()
 		closeWhenReady := make(chan struct{})
@@ -187,7 +189,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)

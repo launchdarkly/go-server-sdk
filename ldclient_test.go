@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -29,9 +31,9 @@ func TestErrorFromComponentFactoryStopsClientCreation(t *testing.T) {
 		})
 	}
 
-	doTest("DataSource", Config{DataSource: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataSource]{Err: fakeError}}, fakeError)
-	doTest("DataStore", Config{DataStore: sharedtest.ComponentConfigurerThatReturnsError[subsystems.DataStore]{Err: fakeError}}, fakeError)
-	doTest("Events", Config{Events: sharedtest.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{Err: fakeError}}, fakeError)
+	doTest("DataSource", Config{DataSource: mocks.ComponentConfigurerThatReturnsError[subsystems.DataSource]{Err: fakeError}}, fakeError)
+	doTest("DataStore", Config{DataStore: mocks.ComponentConfigurerThatReturnsError[subsystems.DataStore]{Err: fakeError}}, fakeError)
+	doTest("Events", Config{Events: mocks.ComponentConfigurerThatReturnsError[ldevents.EventProcessor]{Err: fakeError}}, fakeError)
 	doTest("HTTP", Config{HTTP: ldcomponents.HTTPConfiguration().CACert([]byte{1})}, errors.New("invalid CA certificate data"))
 }
 
@@ -50,7 +52,7 @@ func TestSecureModeHash(t *testing.T) {
 func TestMakeCustomClientWithFailedInitialization(t *testing.T) {
 	client, err := MakeCustomClient(testSdkKey, Config{
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
-		DataSource: sharedtest.DataSourceThatNeverInitializes(),
+		DataSource: mocks.DataSourceThatNeverInitializes(),
 		Events:     ldcomponents.NoEvents(),
 	}, time.Second)
 
@@ -78,8 +80,8 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	config := Config{
 		Offline:    false,
 		DataStore:  ldcomponents.InMemoryDataStore(),
-		DataSource: sharedtest.DataSourceThatIsAlwaysInitialized(),
-		Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: &sharedtest.CapturingEventProcessor{}},
+		DataSource: mocks.DataSourceThatIsAlwaysInitialized(),
+		Events:     mocks.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: &mocks.CapturingEventProcessor{}},
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 	}
 	if modConfig != nil {

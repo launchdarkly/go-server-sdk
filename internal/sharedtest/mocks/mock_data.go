@@ -1,5 +1,5 @@
 //nolint:gochecknoglobals
-package sharedtest
+package mocks
 
 import (
 	"errors"

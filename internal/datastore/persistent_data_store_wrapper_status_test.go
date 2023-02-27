@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
@@ -22,7 +24,7 @@ import (
 
 type dataStoreStatusTestParams struct {
 	store            subsystems.DataStore
-	core             *sharedtest.MockPersistentDataStore
+	core             *mocks.MockPersistentDataStore
 	dataStoreUpdates *DataStoreUpdateSinkImpl
 	broadcaster      *internal.Broadcaster[interfaces.DataStoreStatus]
 }
@@ -32,7 +34,7 @@ func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStat
 	params.broadcaster = internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	defer params.broadcaster.Close()
 	params.dataStoreUpdates = NewDataStoreUpdateSinkImpl(params.broadcaster)
-	params.core = sharedtest.NewMockPersistentDataStore()
+	params.core = mocks.NewMockPersistentDataStore()
 	params.store = NewPersistentDataStoreWrapper(params.core, params.dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers())
 	defer params.store.Close()
 	action(params)

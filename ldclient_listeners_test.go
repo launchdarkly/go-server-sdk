@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
@@ -39,9 +41,9 @@ func clientListenersTest(action func(clientListenersTestParams)) {
 
 func clientListenersTestWithConfig(configAction func(*Config), action func(clientListenersTestParams)) {
 	testData := ldtestdata.DataSource()
-	capturingStoreConfigurer := &sharedtest.ComponentConfigurerThatCapturesClientContext[subsystems.DataStore]{
+	capturingStoreConfigurer := &mocks.ComponentConfigurerThatCapturesClientContext[subsystems.DataStore]{
 		Configurer: ldcomponents.PersistentDataStore(
-			sharedtest.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: sharedtest.NewMockPersistentDataStore()},
+			mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: mocks.NewMockPersistentDataStore()},
 		),
 	}
 	config := Config{
@@ -197,9 +199,9 @@ func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 	})
 
 	t.Run("sends status updates", func(t *testing.T) {
-		store := &sharedtest.MockBigSegmentStore{}
+		store := &mocks.MockBigSegmentStore{}
 		store.TestSetMetadataToCurrentTime()
-		storeFactory := sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
+		storeFactory := mocks.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
 		clientListenersTestWithConfig(
 			func(c *Config) {
 				c.BigSegments = ldcomponents.BigSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)
@@ -207,7 +209,7 @@ func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 			func(p clientListenersTestParams) {
 				statusCh := p.client.GetBigSegmentStoreStatusProvider().AddStatusListener()
 
-				sharedtest.ExpectBigSegmentStoreStatus(
+				mocks.ExpectBigSegmentStoreStatus(
 					t,
 					statusCh,
 					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
@@ -217,7 +219,7 @@ func TestBigSegmentsStoreStatusProvider(t *testing.T) {
 
 				store.TestSetMetadataState(subsystems.BigSegmentStoreMetadata{}, errors.New("failing"))
 
-				sharedtest.ExpectBigSegmentStoreStatus(
+				mocks.ExpectBigSegmentStoreStatus(
 					t,
 					statusCh,
 					p.client.GetBigSegmentStoreStatusProvider().GetStatus,

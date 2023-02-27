@@ -4,7 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-test-helpers/v3/testbox"
@@ -63,7 +64,7 @@ func (d *mockSegmentStoreData) factory(prefix string) subsystems.ComponentConfig
 		}
 		d.storesByPrefix[prefix] = store
 	}
-	return sharedtest.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
+	return mocks.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
 }
 
 func (d *mockSegmentStoreData) clearData(prefix string) error {

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
@@ -95,7 +97,7 @@ func TestComputeDependenciesFromSegmentWithSegmentReferences(t *testing.T) {
 func TestComputeDependenciesFromUnknownDataKind(t *testing.T) {
 	assert.Len(
 		t,
-		computeDependenciesFrom(sharedtest.MockData, st.ItemDescriptor{Version: 1, Item: "x"}),
+		computeDependenciesFrom(mocks.MockData, st.ItemDescriptor{Version: 1, Item: "x"}),
 		0,
 	)
 }
@@ -115,11 +117,11 @@ func TestSortCollectionsForDataStoreInit(t *testing.T) {
 }
 
 func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
-	item1 := sharedtest.MockDataItem{Key: "item1"}
-	item2 := sharedtest.MockDataItem{Key: "item2"}
+	item1 := mocks.MockDataItem{Key: "item1"}
+	item2 := mocks.MockDataItem{Key: "item2"}
 	flag := ldbuilders.NewFlagBuilder("a").Build()
 	inputData := []st.Collection{
-		{Kind: sharedtest.MockData,
+		{Kind: mocks.MockData,
 			Items: []st.KeyedItemDescriptor{
 				{Key: item1.Key, Item: item1.ToItemDescriptor()},
 				{Key: item2.Key, Item: item2.ToItemDescriptor()},
@@ -136,7 +138,7 @@ func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
 	assert.Len(t, sortedData, 3)
 	assert.Equal(t, datakinds.Segments, sortedData[0].Kind)
 	assert.Equal(t, datakinds.Features, sortedData[1].Kind)
-	assert.Equal(t, sharedtest.MockData, sortedData[2].Kind)
+	assert.Equal(t, mocks.MockData, sortedData[2].Kind)
 	assert.Equal(t, inputData[0].Items, sortedData[2].Items)
 }
 

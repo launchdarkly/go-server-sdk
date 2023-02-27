@@ -3,11 +3,12 @@ package ldclient
 import (
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
@@ -26,7 +27,7 @@ func withClientOfflineTestParams(callback func(clientExternalUpdatesTestParams))
 	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		Offline:   true,
-		DataStore: sharedtest.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
+		DataStore: mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: p.store},
 		Logging:   ldcomponents.Logging().Loggers(p.mockLog.Loggers),
 	}
 	p.client, _ = MakeCustomClient("sdk_key", config, 0)

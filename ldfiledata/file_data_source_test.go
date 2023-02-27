@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -23,7 +25,7 @@ import (
 
 type fileDataSourceTestParams struct {
 	dataSource     subsystems.DataSource
-	updates        *sharedtest.MockDataSourceUpdates
+	updates        *mocks.MockDataSourceUpdates
 	mockLog        *ldlogtest.MockLog
 	closeWhenReady chan struct{}
 }
@@ -41,7 +43,7 @@ func withFileDataSourceTestParams(
 	mockLog := ldlogtest.NewMockLog()
 	testContext := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
-	updates := sharedtest.NewMockDataSourceUpdates(store)
+	updates := mocks.NewMockDataSourceUpdates(store)
 	testContext.DataSourceUpdateSink = updates
 	dataSource, err := factory.Build(testContext)
 	if err != nil {
@@ -55,7 +57,7 @@ func withFileDataSourceTestParams(
 func expectCreationError(t *testing.T, factory subsystems.ComponentConfigurer[subsystems.DataSource]) error {
 	testContext := sharedtest.NewTestContext("", nil, nil)
 	store, _ := ldcomponents.InMemoryDataStore().Build(testContext)
-	updates := sharedtest.NewMockDataSourceUpdates(store)
+	updates := mocks.NewMockDataSourceUpdates(store)
 	testContext.DataSourceUpdateSink = updates
 	dataSource, err := factory.Build(testContext)
 	require.Error(t, err)
