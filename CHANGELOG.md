@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.0.2] - 2023-02-27
+### Changed:
+- Bumped golang/x/crypto and golang/x/sys to v0.1.0
+
 ## [6.0.1] - 2023-01-17
 ### Fixed:
 - If the application configured custom base URIs that did not have a valid URI syntax, the SDK could panic at startup time. It will now simply log an error and be unable to connect to LaunchDarkly.
