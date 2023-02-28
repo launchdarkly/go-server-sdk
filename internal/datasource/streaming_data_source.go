@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -56,15 +57,22 @@ const (
 	streamingWillRetryMessage = "will retry"
 )
 
+// StreamConfig describes the configuration for a streaming data source. It is exported so that
+// it can be used in the StreamingDataSourceBuilder.
+type StreamConfig struct {
+	URI                   string
+	FilterKey             string
+	InitialReconnectDelay time.Duration
+}
+
 // StreamProcessor is the internal implementation of the streaming data source.
 //
 // This type is exported from internal so that the StreamingDataSourceBuilder tests can verify its
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type StreamProcessor struct {
+	cfg                        StreamConfig
 	dataSourceUpdates          subsystems.DataSourceUpdateSink
-	streamURI                  string
-	initialReconnectDelay      time.Duration
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
@@ -82,16 +90,14 @@ type StreamProcessor struct {
 func NewStreamProcessor(
 	context subsystems.ClientContext,
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
-	streamURI string,
-	initialReconnectDelay time.Duration,
+	cfg StreamConfig,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
-		dataSourceUpdates:     dataSourceUpdates,
-		streamURI:             streamURI,
-		initialReconnectDelay: initialReconnectDelay,
-		headers:               context.GetHTTP().DefaultHeaders,
-		loggers:               context.GetLogging().Loggers,
-		halt:                  make(chan struct{}),
+		dataSourceUpdates: dataSourceUpdates,
+		headers:           context.GetHTTP().DefaultHeaders,
+		loggers:           context.GetLogging().Loggers,
+		halt:              make(chan struct{}),
+		cfg:               cfg,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -254,7 +260,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 }
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.streamURI, endpoints.StreamingRequestPath), nil)
+	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
@@ -269,6 +275,11 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		close(closeWhenReady)
 		return
 	}
+	if sp.cfg.FilterKey != "" {
+		req.URL.RawQuery = url.Values{
+			"filter": {sp.cfg.FilterKey},
+		}.Encode()
+	}
 	if sp.headers != nil {
 		req.Header = maps.Clone(sp.headers)
 	}
@@ -276,7 +287,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 
 	sp.logConnectionStarted()
 
-	initialRetryDelay := sp.initialReconnectDelay
+	initialRetryDelay := sp.cfg.InitialReconnectDelay
 	if initialRetryDelay <= 0 { // COVERAGE: can't cause this condition in unit tests
 		initialRetryDelay = defaultStreamRetryDelay
 	}
@@ -389,10 +400,15 @@ func (sp *StreamProcessor) Close() error {
 
 // GetBaseURI returns the configured streaming base URI, for testing.
 func (sp *StreamProcessor) GetBaseURI() string {
-	return sp.streamURI
+	return sp.cfg.URI
 }
 
 // GetInitialReconnectDelay returns the configured reconnect delay, for testing.
 func (sp *StreamProcessor) GetInitialReconnectDelay() time.Duration {
-	return sp.initialReconnectDelay
+	return sp.cfg.InitialReconnectDelay
+}
+
+// GetFilterKey returns the configured key, for testing.
+func (sp *StreamProcessor) GetFilterKey() string {
+	return sp.cfg.FilterKey
 }

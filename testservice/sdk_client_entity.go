@@ -262,6 +262,9 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		if config.Streaming.InitialRetryDelayMS != nil {
 			builder.InitialReconnectDelay(time.Millisecond * time.Duration(*config.Streaming.InitialRetryDelayMS))
 		}
+		if config.Streaming.Filter.IsDefined() {
+			builder.PayloadFilter(config.Streaming.Filter.String())
+		}
 		ret.DataSource = builder
 	} else if config.Polling != nil {
 		if config.Polling.BaseURI != "" {
@@ -270,6 +273,9 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		builder := ldcomponents.PollingDataSource()
 		if config.Polling.PollIntervalMS != nil {
 			builder.PollInterval(time.Millisecond * time.Duration(*config.Polling.PollIntervalMS))
+		}
+		if config.Polling.Filter.IsDefined() {
+			builder.FilterKey(config.Polling.Filter.String())
 		}
 		ret.DataSource = builder
 	}

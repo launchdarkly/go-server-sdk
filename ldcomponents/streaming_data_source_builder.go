@@ -21,6 +21,7 @@ const DefaultInitialReconnectDelay = time.Second
 type StreamingDataSourceBuilder struct {
 	baseURI               string
 	initialReconnectDelay time.Duration
+	filterKey             string
 }
 
 // StreamingDataSource returns a configurable factory for using streaming mode to get feature flag data.
@@ -57,6 +58,18 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 	return b
 }
 
+// PayloadFilter sets the payload filter key for this streaming connection.
+//
+// By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
+// for example, the environment contains thousands of flags, but this application only needs to evaluate
+// a smaller, known subset - then a payload filter may be setup in LaunchDarkly, and the filter's key specified here.
+//
+// Evaluations for flags that aren't part of the filtered environment will return default values.
+func (b *StreamingDataSourceBuilder) PayloadFilter(filterKey string) *StreamingDataSourceBuilder {
+	b.filterKey = filterKey
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	configuredBaseURI := endpoints.SelectBaseURI(
@@ -65,12 +78,15 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 		b.baseURI,
 		context.GetLogging().Loggers,
 	)
-
+	cfg := datasource.StreamConfig{
+		URI:                   configuredBaseURI,
+		InitialReconnectDelay: b.initialReconnectDelay,
+		FilterKey:             b.filterKey,
+	}
 	return datasource.NewStreamProcessor(
 		context,
 		context.GetDataSourceUpdateSink(),
-		configuredBaseURI,
-		b.initialReconnectDelay,
+		cfg,
 	), nil
 }
 

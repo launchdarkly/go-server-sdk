@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
@@ -16,15 +17,11 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-// requestor is the interface implemented by requestorImpl, used for testing purposes
-type requestor interface {
-	requestAll() (data []ldstoretypes.Collection, cached bool, err error)
-}
-
-// requestorImpl is the internal implementation of getting flag/segment data from the LD polling endpoints.
-type requestorImpl struct {
+// pollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.
+type pollingRequester struct {
 	httpClient *http.Client
 	baseURI    string
+	filterKey  string
 	headers    http.Header
 	loggers    ldlog.Loggers
 }
@@ -37,11 +34,12 @@ func (e malformedJSONError) Error() string {
 	return e.innerError.Error()
 }
 
-func newRequestorImpl(
+func newPollingRequester(
 	context subsystems.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
-) requestor {
+	filterKey string,
+) *pollingRequester {
 	if httpClient == nil {
 		httpClient = context.GetHTTP().CreateHTTPClient()
 	}
@@ -53,15 +51,22 @@ func newRequestorImpl(
 		Transport:           httpClient.Transport,
 	}
 
-	return &requestorImpl{
+	return &pollingRequester{
 		httpClient: &modifiedClient,
 		baseURI:    baseURI,
+		filterKey:  filterKey,
 		headers:    context.GetHTTP().DefaultHeaders,
 		loggers:    context.GetLogging().Loggers,
 	}
 }
+func (r *pollingRequester) BaseURI() string {
+	return r.baseURI
+}
 
-func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
+func (r *pollingRequester) FilterKey() string {
+	return r.filterKey
+}
+func (r *pollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -82,7 +87,7 @@ func (r *requestorImpl) requestAll() ([]ldstoretypes.Collection, bool, error) {
 	return data, cached, nil
 }
 
-func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
+func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(
@@ -90,6 +95,11 @@ func (r *requestorImpl) makeRequest(resource string) ([]byte, bool, error) {
 			reqErr,
 		)
 		return nil, false, reqErr
+	}
+	if r.filterKey != "" {
+		req.URL.RawQuery = url.Values{
+			"filter": {r.filterKey},
+		}.Encode()
 	}
 	url := req.URL.String()
 	if r.headers != nil {
