@@ -1,17 +1,19 @@
 package ldclient
 
 import (
+	"testing"
+	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	helpers "github.com/launchdarkly/go-test-helpers/v3"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,6 +213,7 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 		},
 		false)
 }
+
 func TestFlushAsync(t *testing.T) {
 	g := newGatedEventSender()
 	client := makeTestClientWithEventSender(g)
