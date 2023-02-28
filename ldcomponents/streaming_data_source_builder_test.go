@@ -29,14 +29,14 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 		assert.Equal(t, DefaultInitialReconnectDelay, s.initialReconnectDelay)
 	})
 
-	t.Run("FilterKey", func(t *testing.T) {
+	t.Run("PayloadFilter", func(t *testing.T) {
 		s := StreamingDataSource()
 		assert.Equal(t, "", s.filterKey)
 
-		s.FilterKey("microservice-1")
+		s.PayloadFilter("microservice-1")
 		assert.Equal(t, "microservice-1", s.filterKey)
 
-		s.FilterKey("")
+		s.PayloadFilter("")
 		assert.Equal(t, "", s.filterKey)
 	})
 
@@ -64,7 +64,7 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 		delay := time.Hour
 		filter := "microservice-1"
 
-		s := StreamingDataSource().InitialReconnectDelay(delay).FilterKey(filter)
+		s := StreamingDataSource().InitialReconnectDelay(delay).PayloadFilter(filter)
 
 		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
