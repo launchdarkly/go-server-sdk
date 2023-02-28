@@ -29,7 +29,7 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		assert.Equal(t, time.Second, p.pollInterval)
 	})
 
-	t.Run("FilterKey", func(t *testing.T) {
+	t.Run("PayloadFilter", func(t *testing.T) {
 		s := PollingDataSource()
 		assert.Equal(t, "", s.filterKey)
 

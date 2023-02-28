@@ -58,14 +58,14 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 	return b
 }
 
-// FilterKey sets the filter key for the streaming connection.
+// PayloadFilter sets the payload filter key for this streaming connection.
 //
 // By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
 // for example, the environment contains thousands of flags, but this application only needs to evaluate
-// a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
+// a smaller, known subset - then a payload filter may be setup in LaunchDarkly, and the filter's key specified here.
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
-func (b *StreamingDataSourceBuilder) FilterKey(filterKey string) *StreamingDataSourceBuilder {
+func (b *StreamingDataSourceBuilder) PayloadFilter(filterKey string) *StreamingDataSourceBuilder {
 	b.filterKey = filterKey
 	return b
 }
