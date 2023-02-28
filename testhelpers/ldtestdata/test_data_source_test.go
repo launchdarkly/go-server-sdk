@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
@@ -26,7 +28,7 @@ var (
 
 type testDataSourceTestParams struct {
 	td      *TestDataSource
-	updates *sharedtest.MockDataSourceUpdates
+	updates *mocks.MockDataSourceUpdates
 }
 
 func testDataSourceTest(t *testing.T, action func(testDataSourceTestParams)) {
@@ -34,7 +36,7 @@ func testDataSourceTest(t *testing.T, action func(testDataSourceTestParams)) {
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	var p testDataSourceTestParams
 	p.td = DataSource()
-	p.updates = sharedtest.NewMockDataSourceUpdates(store)
+	p.updates = mocks.NewMockDataSourceUpdates(store)
 	action(p)
 }
 

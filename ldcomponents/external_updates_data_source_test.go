@@ -3,6 +3,8 @@ package ldcomponents
 import (
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,7 +16,7 @@ import (
 )
 
 func TestExternalUpdatesOnly(t *testing.T) {
-	dsu := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	context := subsystems.BasicClientContext{DataSourceUpdateSink: dsu}
 	ds, err := ExternalUpdatesOnly().Build(context)
 	require.NoError(t, err)

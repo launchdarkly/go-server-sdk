@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
@@ -18,8 +20,8 @@ func basicClientContext() subsystems.ClientContext {
 	return sharedtest.NewSimpleTestContext(testSDKKey)
 }
 
-func withMockDataSourceUpdates(action func(*sharedtest.MockDataSourceUpdates)) {
-	d := sharedtest.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+func withMockDataSourceUpdates(action func(*mocks.MockDataSourceUpdates)) {
+	d := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	// currently don't need to defer any cleanup actions
 	action(d)
 }

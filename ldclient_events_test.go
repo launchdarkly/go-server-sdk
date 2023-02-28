@@ -1,18 +1,17 @@
 package ldclient
 
 import (
-	"testing"
-	"time"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	helpers "github.com/launchdarkly/go-test-helpers/v3"
+	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +25,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	err := client.Identify(user)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.IdentifyEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
@@ -39,7 +38,7 @@ func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	err := client.Identify(lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 0, len(events))
 }
 
@@ -52,7 +51,7 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	err := client.TrackEvent(key, user)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
@@ -71,7 +70,7 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	err := client.TrackData(key, user, data)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
@@ -91,7 +90,7 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	err := client.TrackMetric(key, user, metric, data)
 	assert.NoError(t, err)
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.CustomEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
@@ -108,7 +107,7 @@ func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	err := client.TrackEvent("eventkey", lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 0, len(events))
 }
 
@@ -119,7 +118,7 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	err := client.TrackMetric("eventKey", lduser.NewUser(""), 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
-	events := client.eventProcessor.(*sharedtest.CapturingEventProcessor).Events
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
 	assert.Equal(t, 0, len(events))
 }
 
@@ -153,10 +152,10 @@ func TestTrackWithEventsDisabledDoesNotCauseError(t *testing.T) {
 func TestWithEventsDisabledDecorator(t *testing.T) {
 	doTest := func(name string, fn func(*LDClient) interfaces.LDClientInterface, shouldBeSent bool) {
 		t.Run(name, func(t *testing.T) {
-			events := &sharedtest.CapturingEventProcessor{}
+			events := &mocks.CapturingEventProcessor{}
 			config := Config{
 				DataSource: ldcomponents.ExternalUpdatesOnly(),
-				Events:     sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: events},
+				Events:     mocks.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: events},
 			}
 			client, err := MakeCustomClient("", config, 0)
 			require.NoError(t, err)
@@ -212,7 +211,6 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 		},
 		false)
 }
-
 func TestFlushAsync(t *testing.T) {
 	g := newGatedEventSender()
 	client := makeTestClientWithEventSender(g)
@@ -290,6 +288,6 @@ func makeTestClientWithEventSender(s ldevents.EventSender) *LDClient {
 	}
 	ep := ldevents.NewDefaultEventProcessor(eventsConfig)
 	return makeTestClientWithConfig(func(c *Config) {
-		c.Events = sharedtest.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: ep}
+		c.Events = mocks.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: ep}
 	})
 }

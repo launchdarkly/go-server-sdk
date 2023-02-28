@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -34,7 +36,7 @@ const (
 
 type streamingTestParams struct {
 	events   chan<- eventsource.Event
-	updates  *sharedtest.MockDataSourceUpdates
+	updates  *mocks.MockDataSourceUpdates
 	stream   httphelpers.SSEStreamControl
 	requests <-chan httphelpers.HTTPRequestInfo
 	mockLog  *ldlogtest.MockLog
@@ -51,7 +53,7 @@ func runStreamingTest(
 func runStreamingTestWithConfiguration(
 	t *testing.T,
 	initialData *ldservices.ServerSDKData,
-	configureUpdates func(*sharedtest.MockDataSourceUpdates),
+	configureUpdates func(*mocks.MockDataSourceUpdates),
 	test func(streamingTestParams),
 ) {
 	events := make(chan eventsource.Event, 1000)
@@ -74,7 +76,7 @@ func runStreamingTestWithConfiguration(
 		&subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
-		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			if configureUpdates != nil {
 				configureUpdates(dataSourceUpdates)
 			}
@@ -356,7 +358,7 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 	fakeError := errors.New("sorry")
 
 	initialData := ldservices.NewServerSDKData()
-	noStatusMonitoring := func(u *sharedtest.MockDataSourceUpdates) {
+	noStatusMonitoring := func(u *mocks.MockDataSourceUpdates) {
 		u.DataStore.SetStatusMonitoringEnabled(false)
 	}
 
@@ -377,7 +379,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
-		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := &internal.ClientContextImpl{
@@ -418,7 +420,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
-		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(testSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := &internal.ClientContextImpl{
@@ -457,7 +459,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
 
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
-		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
@@ -479,7 +481,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
-		withMockDataSourceUpdates(func(dataSourceUpdates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			httpClientFactory := func() *http.Client {
 				c := *http.DefaultClient
 				c.Timeout = 200 * time.Millisecond
@@ -507,7 +509,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 	streamHandler := httphelpers.SequentialHandler(streamHandler1, streamHandler2)
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
-		withMockDataSourceUpdates(func(updates *sharedtest.MockDataSourceUpdates) {
+		withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
 			sp := NewStreamProcessor(basicClientContext(), updates, ts.URL, briefDelay)
 			defer sp.Close()
 
@@ -524,5 +526,29 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 			// When the stream restarts, it'll call Init with the updated data from streamHandler1
 			updates.DataStore.WaitForInit(t, updatedData, 3*time.Second)
 		})
+	})
+}
+
+func TestMalformedStreamBaseURI(t *testing.T) {
+	mockLog := ldlogtest.NewMockLog()
+	defer mockLog.DumpIfTestFailed(t)
+	clientContext := &internal.ClientContextImpl{
+		BasicClientContext: subsystems.BasicClientContext{
+			SDKKey:  testSDKKey,
+			Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
+		},
+	}
+	withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
+		sp := NewStreamProcessor(clientContext, updates, ":/", briefDelay)
+		defer sp.Close()
+
+		closeWhenReady := make(chan struct{})
+		sp.Start(closeWhenReady)
+
+		status := updates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+		assert.Equal(t, interfaces.DataSourceErrorKindUnknown, status.LastError.Kind)
+		<-closeWhenReady
+
+		mockLog.AssertMessageMatch(t, true, ldlog.Error, "Unable to create a stream request")
 	})
 }

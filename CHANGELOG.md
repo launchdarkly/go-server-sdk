@@ -2,6 +2,57 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.0.2] - 2023-02-27
+### Changed:
+- Bumped golang/x/crypto and golang/x/sys to v0.1.0
+
+## [6.0.1] - 2023-01-17
+### Fixed:
+- If the application configured custom base URIs that did not have a valid URI syntax, the SDK could panic at startup time. It will now simply log an error and be unable to connect to LaunchDarkly.
+- Fixed shared test logic that is used by the database integration packages.
+
+## [5.10.1] - 2023-01-17
+### Fixed:
+- If the application configured custom base URIs that did not have a valid URI syntax, the SDK could panic at startup time. It will now simply log an error and be unable to connect to LaunchDarkly.
+- Fixed shared test logic that is used by the database integration packages.
+
+## [6.0.0] - 2022-12-07
+The latest version of this SDK supports LaunchDarkly's new custom contexts feature. Contexts are an evolution of a previously-existing concept, "users." Contexts let you create targeting rules for feature flags based on a variety of different information, including attributes pertaining to users, organizations, devices, and more. You can even combine contexts to create "multi-contexts." 
+
+This feature is only available to members of LaunchDarkly's Early Access Program (EAP). If you're in the EAP, you can use contexts by updating your SDK to the latest version and, if applicable, updating your Relay Proxy. Outdated SDK versions do not support contexts, and will cause unpredictable flag evaluation behavior.
+
+If you are not in the EAP, only use single contexts of kind "user", or continue to use the user type if available. If you try to create contexts, the context will be sent to LaunchDarkly, but any data not related to the user object will be ignored.
+
+For detailed information about this version, please refer to the list below. For information on how to upgrade from the previous version, please read the [migration guide](https://docs.launchdarkly.com/sdk/server-side/go/migration-5-to-6).
+
+### Added:
+- In `go-sdk-common`, the new package `ldcontext` with the types `Context` and `Kind` defines the new context model.
+- The `ldtestdata` flag builder methods have been extended to support now context-related options, such as matching a key for a specific context type other than "user".
+- `LDClient.FlushAndWait()` is a synchronous version of `Flush()`.
+
+### Changed _(breaking changes from 5.x)_:
+- The SDK packages now use regular Go module import paths rather than `gopkg.in` paths: `gopkg.in/launchdarkly/go-server-sdk.v5` is replaced by `github.com/launchdarkly/go-server-sdk/v6` and `gopkg.in/launchdarkly/go-sdk-common.v2` is replaced by `github.com/launchdarkly/go-sdk-common/v3`.
+- The type `lduser.User` has been redefined to be an alias for `ldcontext.Context`. This means that existing application code referencing `lduser.User` can still work as long as it is treating the user as an opaque value, and not calling methods on it that were specific to that type.
+- All methods that used the type `lduser.User` now use `ldcontext.Context` instead.
+- `lduser.NewUser` and `lduser.UserBuilder` now create an instance of `Context` instead of `User`. This is as a convenience so that any code that was previously using these methods to construct a user, but did _not_ reference the `User` type directly for the result, may still be usable without changes. It is still preferable to use the new constructors and builders for `Context`.
+- The `Secondary` attribute which existed in `User` does not exist in `Context` and is no longer a supported feature.
+- It was previously allowable to set a user key to an empty string. In the new context model, the key is not allowed to be empty. Trying to use an empty key will cause evaluations to fail and return the default value.
+- If you were using JSON serialization to produce a representation of a `User`, the new type `Context` uses a different JSON schema, so any code that reads the JSON will need to be adjusted. If you are passing the JSON to other code that uses LaunchDarkly SDKs, make sure you have updated all SDKs to versions that use the new context model. (However, _unmarshaling_ a `Context` from JSON data will still work correctly even if the JSON is in the old user format.)
+- Types such as `DataStore`, which define the low-level interfaces of LaunchDarkly SDK components and allow implementation of custom components, have been moved out of the `interfaces` subpackage into a new `subsystems` subpackage. Some types have been removed by using generics: for instance, the interface type `DataSourceFactory` has been replaced by `ComponentConfigurer[DataSource]`. Application code normally does not refer to these types except possibly to hold a value for a configuration property such as `Config.DataStore`, so this change is likely to only affect configuration-related logic.
+
+### Changed (requirements/dependencies/build):
+- The minimum Go version is now 1.18.
+
+### Changed (behavioral changes):
+- The SDK can now evaluate segments that have rules referencing other segments.
+- Analytics event data now uses a new JSON schema due to differences between the context model and the old user model.
+
+### Removed:
+- Removed all types, fields, and methods that were deprecated as of the most recent 5.x release.
+- Removed the `Secondary` meta-attribute in `lduser.User` and `lduser.UserBuilder`.
+- The `Alias` method no longer exists because alias events are not needed in the new context model.
+- The `InlineUsersInEvents` option no longer exists because it is not relevant in the new context model.
+
 ## [5.10.0] - 2022-07-05
 ### Added:
 - `ldtestdata.FlagBuilder.VariationForAll` and `VariationForAllIndex`: new names for the deprecated methods listed below.

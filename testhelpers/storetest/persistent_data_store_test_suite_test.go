@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-test-helpers/v3/testbox"
 
@@ -21,21 +21,21 @@ import (
 // necessary. MockPersistentDataStore is able to simulate both of these scenarios, and we test both here.
 
 type mockStoreFactory struct {
-	db                  *sharedtest.MockDatabaseInstance
+	db                  *mocks.MockDatabaseInstance
 	prefix              string
 	persistOnlyAsString bool
 	fakeError           error
 }
 
 func (f mockStoreFactory) Build(context subsystems.ClientContext) (subsystems.PersistentDataStore, error) {
-	store := sh.NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
+	store := mocks.NewMockPersistentDataStoreWithPrefix(f.db, f.prefix)
 	store.SetPersistOnlyAsString(f.persistOnlyAsString)
 	store.SetFakeError(f.fakeError)
 	return store, nil
 }
 
 func TestPersistentDataStoreTestSuite(t *testing.T) {
-	db := sh.NewMockDatabaseInstance()
+	db := mocks.NewMockDatabaseInstance()
 
 	baseSuite := func(persistOnlyAsString bool, fakeError error) *PersistentDataStoreTestSuite {
 		return NewPersistentDataStoreTestSuite(
@@ -53,7 +53,7 @@ func TestPersistentDataStoreTestSuite(t *testing.T) {
 		baseSuite(persistOnlyAsString, nil).
 			ConcurrentModificationHook(
 				func(store subsystems.PersistentDataStore, hook func()) {
-					store.(*sh.MockPersistentDataStore).SetTestTxHook(hook)
+					store.(*mocks.MockPersistentDataStore).SetTestTxHook(hook)
 				}).
 			Run(t)
 	}
