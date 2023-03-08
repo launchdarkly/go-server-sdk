@@ -275,7 +275,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 			builder.PollInterval(time.Millisecond * time.Duration(*config.Polling.PollIntervalMS))
 		}
 		if config.Polling.Filter.IsDefined() {
-			builder.FilterKey(config.Polling.Filter.String())
+			builder.PayloadFilter(config.Polling.Filter.String())
 		}
 		ret.DataSource = builder
 	}

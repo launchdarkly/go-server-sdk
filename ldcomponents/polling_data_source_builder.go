@@ -66,14 +66,14 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 	return b
 }
 
-// FilterKey sets the filter key for the polling connection.
+// PayloadFilter sets the filter key for the polling connection.
 //
 // By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
 // for example, the environment contains thousands of flags, but this application only needs to evaluate
 // a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
-func (b *PollingDataSourceBuilder) FilterKey(filterKey string) *PollingDataSourceBuilder {
+func (b *PollingDataSourceBuilder) PayloadFilter(filterKey string) *PollingDataSourceBuilder {
 	b.filterKey = filterKey
 	return b
 }
