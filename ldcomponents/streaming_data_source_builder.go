@@ -1,6 +1,7 @@
 package ldcomponents
 
 import (
+	"errors"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -21,7 +22,7 @@ const DefaultInitialReconnectDelay = time.Second
 type StreamingDataSourceBuilder struct {
 	baseURI               string
 	initialReconnectDelay time.Duration
-	filterKey             string
+	filterKey             ldvalue.OptionalString
 }
 
 // StreamingDataSource returns a configurable factory for using streaming mode to get feature flag data.
@@ -58,7 +59,8 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 	return b
 }
 
-// PayloadFilter sets the payload filter key for this streaming connection.
+// PayloadFilter sets the payload filter key for this streaming connection. The filter key
+// cannot be an empty string.
 //
 // By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
 // for example, the environment contains thousands of flags, but this application only needs to evaluate
@@ -66,12 +68,16 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
 func (b *StreamingDataSourceBuilder) PayloadFilter(filterKey string) *StreamingDataSourceBuilder {
-	b.filterKey = filterKey
+	b.filterKey = ldvalue.NewOptionalString(filterKey)
 	return b
 }
 
 // Build is called internally by the SDK.
 func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	filterKey, wasSet := b.filterKey.Get()
+	if wasSet && filterKey == "" {
+		return nil, errors.New("payload filter key cannot be an empty string")
+	}
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.StreamingService,
@@ -81,7 +87,7 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 	cfg := datasource.StreamConfig{
 		URI:                   configuredBaseURI,
 		InitialReconnectDelay: b.initialReconnectDelay,
-		FilterKey:             b.filterKey,
+		FilterKey:             filterKey,
 	}
 	return datasource.NewStreamProcessor(
 		context,

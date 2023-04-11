@@ -30,14 +30,28 @@ func TestStreamingDataSourceBuilder(t *testing.T) {
 	})
 
 	t.Run("PayloadFilter", func(t *testing.T) {
-		s := StreamingDataSource()
-		assert.Equal(t, "", s.filterKey)
+		t.Run("build succeeds with no payload filter", func(t *testing.T) {
+			s := StreamingDataSource()
+			clientContext := makeTestContextWithBaseURIs("base")
+			_, err := s.Build(clientContext)
+			assert.NoError(t, err)
+		})
 
-		s.PayloadFilter("microservice-1")
-		assert.Equal(t, "microservice-1", s.filterKey)
+		t.Run("build succeeds with non-empty payload filter", func(t *testing.T) {
+			s := StreamingDataSource()
+			clientContext := makeTestContextWithBaseURIs("base")
+			s.PayloadFilter("microservice-1")
+			_, err := s.Build(clientContext)
+			assert.NoError(t, err)
+		})
 
-		s.PayloadFilter("")
-		assert.Equal(t, "", s.filterKey)
+		t.Run("build fails with empty payload filter", func(t *testing.T) {
+			s := StreamingDataSource()
+			clientContext := makeTestContextWithBaseURIs("base")
+			s.PayloadFilter("")
+			_, err := s.Build(clientContext)
+			assert.Error(t, err)
+		})
 	})
 
 	t.Run("CreateDefaultDataSource", func(t *testing.T) {

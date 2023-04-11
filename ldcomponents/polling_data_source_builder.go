@@ -1,6 +1,7 @@
 package ldcomponents
 
 import (
+	"errors"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -21,7 +22,7 @@ const DefaultPollInterval = 30 * time.Second
 type PollingDataSourceBuilder struct {
 	baseURI      string
 	pollInterval time.Duration
-	filterKey    string
+	filterKey    ldvalue.OptionalString
 }
 
 // PollingDataSource returns a configurable factory for using polling mode to get feature flag data.
@@ -74,7 +75,7 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
 func (b *PollingDataSourceBuilder) PayloadFilter(filterKey string) *PollingDataSourceBuilder {
-	b.filterKey = filterKey
+	b.filterKey = ldvalue.NewOptionalString(filterKey)
 	return b
 }
 
@@ -82,6 +83,10 @@ func (b *PollingDataSourceBuilder) PayloadFilter(filterKey string) *PollingDataS
 func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
+	filterKey, wasSet := b.filterKey.Get()
+	if wasSet && filterKey == "" {
+		return nil, errors.New("payload filter key cannot be an empty string")
+	}
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.PollingService,
@@ -91,7 +96,7 @@ func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subs
 	cfg := datasource.PollingConfig{
 		BaseURI:      configuredBaseURI,
 		PollInterval: b.pollInterval,
-		FilterKey:    b.filterKey,
+		FilterKey:    filterKey,
 	}
 	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg)
 	return pp, nil
