@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.0.3] - 2023-03-01
+### Changed: 
+- Bumped go-sdk-events to v2.0.1
+- Bumped go-server-sdk-evaluation to v2.0.2
+
+### Fixed:
+- Bumped go-sdk-common to v3.0.1. This fixes a bug within the easyJSON unmarshaller when an unexpected privateAttributes or redactedAttributes was encountered in a Context _meta attribute.
+
 ## [6.0.2] - 2023-02-27
 ### Changed:
 - Bumped golang/x/crypto and golang/x/sys to v0.1.0

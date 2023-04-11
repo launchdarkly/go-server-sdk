@@ -15,6 +15,7 @@ const (
 	CapabilityServiceEndpoints  = "service-endpoints"
 	CapabilityTags              = "tags"
 	CapabilityFiltering         = "filtering"
+	CapabilityContextType       = "context-type"
 )
 
 type StatusRep struct {
