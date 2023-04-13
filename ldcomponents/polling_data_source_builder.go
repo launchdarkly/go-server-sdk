@@ -1,6 +1,7 @@
 package ldcomponents
 
 import (
+	"errors"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -21,6 +22,7 @@ const DefaultPollInterval = 30 * time.Second
 type PollingDataSourceBuilder struct {
 	baseURI      string
 	pollInterval time.Duration
+	filterKey    ldvalue.OptionalString
 }
 
 // PollingDataSource returns a configurable factory for using polling mode to get feature flag data.
@@ -65,17 +67,38 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 	return b
 }
 
+// PayloadFilter sets the filter key for the polling connection.
+//
+// By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
+// for example, the environment contains thousands of flags, but this application only needs to evaluate
+// a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
+//
+// Evaluations for flags that aren't part of the filtered environment will return default values.
+func (b *PollingDataSourceBuilder) PayloadFilter(filterKey string) *PollingDataSourceBuilder {
+	b.filterKey = ldvalue.NewOptionalString(filterKey)
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
+	filterKey, wasSet := b.filterKey.Get()
+	if wasSet && filterKey == "" {
+		return nil, errors.New("payload filter key cannot be an empty string")
+	}
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.PollingService,
 		b.baseURI,
 		context.GetLogging().Loggers,
 	)
-	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), configuredBaseURI, b.pollInterval)
+	cfg := datasource.PollingConfig{
+		BaseURI:      configuredBaseURI,
+		PollInterval: b.pollInterval,
+		FilterKey:    filterKey,
+	}
+	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg)
 	return pp, nil
 }
 

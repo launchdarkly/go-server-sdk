@@ -33,8 +33,8 @@ func NewDataSetBuilder() *DataSetBuilder {
 // Build returns the built data sest.
 func (d *DataSetBuilder) Build() []ldstoretypes.Collection {
 	return []ldstoretypes.Collection{
-		ldstoretypes.Collection{Kind: datakinds.Features, Items: d.flags},
-		ldstoretypes.Collection{Kind: datakinds.Segments, Items: d.segments},
+		{Kind: datakinds.Features, Items: d.flags},
+		{Kind: datakinds.Segments, Items: d.segments},
 	}
 }
 

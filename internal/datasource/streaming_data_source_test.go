@@ -84,8 +84,10 @@ func runStreamingTestWithConfiguration(
 			sp := NewStreamProcessor(
 				context,
 				dataSourceUpdates,
-				streamServer.URL,
-				briefDelay,
+				StreamConfig{
+					URI:                   streamServer.URL,
+					InitialReconnectDelay: briefDelay,
+				},
 			)
 			defer sp.Close()
 
@@ -247,7 +249,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 }
 
 func TestStreamProcessorUnrecoverableErrorsCauseStreamShutdown(t *testing.T) {
-	for _, status := range []int{401, 403} {
+	for _, status := range []int{401, 403, 404} {
 		t.Run(fmt.Sprintf("HTTP status %d", status), func(t *testing.T) {
 			testStreamProcessorUnrecoverableHTTPError(t, status)
 		})
@@ -373,6 +375,7 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 
 		p.mockLog.AssertMessageMatch(t, true, ldlog.Error, "Failed to store.*will restart stream")
 	})
+
 }
 
 func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
@@ -390,7 +393,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 				DiagnosticsManager: diagnosticsManager,
 			}
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, time.Second)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: time.Second})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -431,7 +434,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 				DiagnosticsManager: diagnosticsManager,
 			}
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -464,7 +467,11 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: briefDelay,
+			})
+
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
@@ -490,7 +497,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 			closeWhenReady := make(chan struct{})
 			sp.Start(closeWhenReady)
@@ -510,7 +517,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
-			sp := NewStreamProcessor(basicClientContext(), updates, ts.URL, briefDelay)
+			sp := NewStreamProcessor(basicClientContext(), updates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -539,7 +546,10 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 		},
 	}
 	withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
-		sp := NewStreamProcessor(clientContext, updates, ":/", briefDelay)
+		sp := NewStreamProcessor(clientContext, updates, StreamConfig{
+			URI:                   ":/",
+			InitialReconnectDelay: briefDelay,
+		})
 		defer sp.Close()
 
 		closeWhenReady := make(chan struct{})
@@ -550,5 +560,30 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 		<-closeWhenReady
 
 		mockLog.AssertMessageMatch(t, true, ldlog.Error, "Unable to create a stream request")
+	})
+}
+
+func TestStreamProcessorAppendsFilterParameter(t *testing.T) {
+	testWithFilters(t, func(t *testing.T, filter filterTest) {
+		handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
+
+		httphelpers.WithServer(handler, func(ts *httptest.Server) {
+			withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
+
+				sp := NewStreamProcessor(basicClientContext(), dataSourceUpdates, StreamConfig{
+					URI:                   ts.URL,
+					InitialReconnectDelay: briefDelay,
+					FilterKey:             filter.key,
+				})
+
+				defer sp.Close()
+				closeWhenReady := make(chan struct{})
+				sp.Start(closeWhenReady)
+
+				r := <-requestsCh
+
+				assert.Equal(t, filter.query, r.Request.URL.RawQuery)
+			})
+		})
 	})
 }

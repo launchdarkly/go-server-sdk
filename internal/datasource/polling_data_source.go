@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal"
@@ -15,6 +17,22 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
+// PollingConfig describes the configuration for a polling data source. It is exported so that
+// it can be used in the PollingDataSourceBuilder.
+type PollingConfig struct {
+	BaseURI      string
+	PollInterval time.Duration
+	FilterKey    string
+}
+
+// Requester allows PollingProcessor to delegate fetching data to another component.
+// This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
+type Requester interface {
+	Request() (data []ldstoretypes.Collection, cached bool, err error)
+	BaseURI() string
+	FilterKey() string
+}
+
 // PollingProcessor is the internal implementation of the polling data source.
 //
 // This type is exported from internal so that the PollingDataSourceBuilder tests can verify its
@@ -22,7 +40,7 @@ const (
 // DataSource interface.
 type PollingProcessor struct {
 	dataSourceUpdates  subsystems.DataSourceUpdateSink
-	requestor          requestor
+	requester          Requester
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
@@ -35,27 +53,25 @@ type PollingProcessor struct {
 func NewPollingProcessor(
 	context subsystems.ClientContext,
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
-	baseURI string,
-	pollInterval time.Duration,
+	cfg PollingConfig,
 ) *PollingProcessor {
-	requestor := newRequestorImpl(context, context.GetHTTP().CreateHTTPClient(), baseURI)
-	return newPollingProcessor(context, dataSourceUpdates, requestor, pollInterval)
+	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
+	return newPollingProcessor(context, dataSourceUpdates, httpRequester, cfg.PollInterval)
 }
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
-	requestor requestor,
+	requester Requester,
 	pollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
 		dataSourceUpdates: dataSourceUpdates,
-		requestor:         requestor,
+		requester:         requester,
 		pollInterval:      pollInterval,
 		loggers:           context.GetLogging().Loggers,
 		quit:              make(chan struct{}),
 	}
-
 	return pp
 }
 
@@ -129,7 +145,7 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 }
 
 func (pp *PollingProcessor) poll() error {
-	allData, cached, err := pp.requestor.requestAll()
+	allData, cached, err := pp.requester.Request()
 
 	if err != nil {
 		return err
@@ -157,12 +173,17 @@ func (pp *PollingProcessor) IsInitialized() bool {
 
 // GetBaseURI returns the configured polling base URI, for testing.
 func (pp *PollingProcessor) GetBaseURI() string {
-	return (pp.requestor.(*requestorImpl)).baseURI
+	return pp.requester.BaseURI()
 }
 
 // GetPollInterval returns the configured polling interval, for testing.
 func (pp *PollingProcessor) GetPollInterval() time.Duration {
 	return pp.pollInterval
+}
+
+// GetFilterKey returns the configured filter key, for testing.
+func (pp *PollingProcessor) GetFilterKey() string {
+	return pp.requester.FilterKey()
 }
 
 type tickerWithInitialTick struct {

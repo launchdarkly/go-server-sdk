@@ -22,9 +22,9 @@ import (
 )
 
 func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
-	r := newMockRequestor()
+	r := mocks.NewPollingRequester()
 	defer r.Close()
-	r.requestAllRespCh <- mockRequestAllResponse{}
+	r.RequestAllRespCh <- mocks.RequestAllResponse{}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Minute)
@@ -42,11 +42,11 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
 	segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
 
-	r := newMockRequestor()
+	r := mocks.NewPollingRequester()
 	defer r.Close()
 	expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
-	resp := mockRequestAllResponse{data: expectedData.Build()}
-	r.requestAllRespCh <- resp
+	resp := mocks.RequestAllResponse{Data: expectedData.Build()}
+	r.RequestAllRespCh <- resp
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
@@ -64,15 +64,14 @@ func TestPollingProcessorInitialization(t *testing.T) {
 		dataSourceUpdates.DataStore.WaitForInit(t, expectedData.ToServerSDKData(), 2*time.Second)
 
 		for i := 0; i < 2; i++ {
-			r.requestAllRespCh <- resp
-			if _, ok, closed := th.TryReceive(r.pollsCh, time.Second); !ok || closed {
+			r.RequestAllRespCh <- resp
+			if _, ok, closed := th.TryReceive(r.PollsCh, time.Second); !ok || closed {
 				assert.Fail(t, "Expected 2 polls", "but only got %d", i)
 				return
 			}
 		}
 	})
 }
-
 func TestPollingProcessorRecoverableErrors(t *testing.T) {
 	for _, statusCode := range []int{400, 408, 429, 500, 503} {
 		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
@@ -111,10 +110,10 @@ func TestPollingProcessorRecoverableErrors(t *testing.T) {
 }
 
 func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError func(interfaces.DataSourceErrorInfo)) {
-	req := newMockRequestor()
+	req := mocks.NewPollingRequester()
 	defer req.Close()
 
-	req.requestAllRespCh <- mockRequestAllResponse{err: err}
+	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
@@ -123,7 +122,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 		p.Start(closeWhenReady)
 
 		// wait for first poll
-		<-req.pollsCh
+		<-req.PollsCh
 
 		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 		verifyError(status.LastError)
@@ -132,10 +131,10 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 			t.FailNow()
 		}
 
-		req.requestAllRespCh <- mockRequestAllResponse{}
+		req.RequestAllRespCh <- mocks.RequestAllResponse{}
 
 		// wait for second poll
-		th.RequireValue(t, req.pollsCh, time.Second, "failed to retry")
+		th.RequireValue(t, req.PollsCh, time.Second, "failed to retry")
 
 		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 		_ = dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateValid)
@@ -143,7 +142,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 }
 
 func TestPollingProcessorUnrecoverableErrors(t *testing.T) {
-	for _, statusCode := range []int{401, 403, 405} {
+	for _, statusCode := range []int{401, 403, 404, 405} {
 		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
 			testPollingProcessorUnrecoverableError(
 				t,
@@ -162,11 +161,11 @@ func testPollingProcessorUnrecoverableError(
 	err error,
 	verifyError func(interfaces.DataSourceErrorInfo),
 ) {
-	req := newMockRequestor()
+	req := mocks.NewPollingRequester()
 	defer req.Close()
 
-	req.requestAllRespCh <- mockRequestAllResponse{err: err}
-	req.requestAllRespCh <- mockRequestAllResponse{} // we shouldn't get a second request, but just in case
+	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
+	req.RequestAllRespCh <- mocks.RequestAllResponse{} // we shouldn't get a second request, but just in case
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
@@ -175,13 +174,13 @@ func testPollingProcessorUnrecoverableError(
 		p.Start(closeWhenReady)
 
 		// wait for first poll
-		<-req.pollsCh
+		<-req.PollsCh
 
 		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 
 		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
 		verifyError(status.LastError)
-		assert.Len(t, req.pollsCh, 0)
+		assert.Len(t, req.PollsCh, 0)
 	})
 }
 
@@ -194,7 +193,11 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
 
-			p := NewPollingProcessor(context, dataSourceUpdates, ts.URL, time.Minute*30)
+			p := NewPollingProcessor(context, dataSourceUpdates, PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			})
+
 			defer p.Close()
 			closeWhenReady := make(chan struct{})
 			p.Start(closeWhenReady)
@@ -202,6 +205,31 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 			r := <-requestsCh
 
 			assert.Equal(t, "/sdk/latest-all/transformed", r.Request.URL.Path)
+		})
+	})
+}
+
+func TestPollingProcessorAppendsFilterParameter(t *testing.T) {
+	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+
+	testWithFilters(t, func(t *testing.T, filter filterTest) {
+		pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
+			withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
+				p := NewPollingProcessor(basicClientContext(), dataSourceUpdates, PollingConfig{
+					BaseURI:      ts.URL,
+					PollInterval: time.Minute * 30,
+					FilterKey:    filter.key,
+				})
+
+				defer p.Close()
+				closeWhenReady := make(chan struct{})
+				p.Start(closeWhenReady)
+
+				r := <-requestsCh
+
+				assert.Equal(t, filter.query, r.Request.URL.RawQuery)
+			})
 		})
 	})
 }

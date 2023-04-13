@@ -29,11 +29,54 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		assert.Equal(t, time.Second, p.pollInterval)
 	})
 
-	t.Run("CreateDataSource", func(t *testing.T) {
+	t.Run("PayloadFilter", func(t *testing.T) {
+		t.Run("build succeeds with no payload filter", func(t *testing.T) {
+			s := PollingDataSource()
+			clientContext := makeTestContextWithBaseURIs("base")
+			_, err := s.Build(clientContext)
+			assert.NoError(t, err)
+		})
+
+		t.Run("build succeeds with non-empty payload filter", func(t *testing.T) {
+			s := PollingDataSource()
+			clientContext := makeTestContextWithBaseURIs("base")
+			s.PayloadFilter("microservice-1")
+			_, err := s.Build(clientContext)
+			assert.NoError(t, err)
+		})
+
+		t.Run("build fails with empty payload filter", func(t *testing.T) {
+			s := PollingDataSource()
+			clientContext := makeTestContextWithBaseURIs("base")
+			s.PayloadFilter("")
+			_, err := s.Build(clientContext)
+			assert.Error(t, err)
+		})
+	})
+	t.Run("CreateDefaultDataSource", func(t *testing.T) {
+		baseURI := "base"
+
+		p := PollingDataSource()
+
+		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		clientContext := makeTestContextWithBaseURIs(baseURI)
+		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		ds, err := p.Build(clientContext)
+		require.NoError(t, err)
+		require.NotNil(t, ds)
+		defer ds.Close()
+
+		pp := ds.(*datasource.PollingProcessor)
+		assert.Equal(t, baseURI, pp.GetBaseURI())
+		assert.Equal(t, DefaultPollInterval, pp.GetPollInterval())
+	})
+
+	t.Run("CreateCustomizedDataSource", func(t *testing.T) {
 		baseURI := "base"
 		interval := time.Hour
+		filter := "microservice-1"
 
-		p := PollingDataSource().PollInterval(interval)
+		p := PollingDataSource().PollInterval(interval).PayloadFilter(filter)
 
 		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
@@ -46,5 +89,6 @@ func TestPollingDataSourceBuilder(t *testing.T) {
 		pp := ds.(*datasource.PollingProcessor)
 		assert.Equal(t, baseURI, pp.GetBaseURI())
 		assert.Equal(t, interval, pp.GetPollInterval())
+		assert.Equal(t, filter, pp.GetFilterKey())
 	})
 }
