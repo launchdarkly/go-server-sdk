@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.1.0] - 2023-04-13
+### Added:
+- Support for Payload Filtering in streaming and polling modes. Payload Filtering is a beta feature that allows SDKs to download a subset of environment data, rather than full environments.
+
 ## [6.0.3] - 2023-03-01
 ### Changed: 
 - Bumped go-sdk-events to v2.0.1
