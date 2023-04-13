@@ -91,6 +91,7 @@ func replaceFileContents(filename string, text string) {
 }
 
 func requireTrueWithinDuration(t *testing.T, maxTime time.Duration, test func() bool) {
+	t.Helper()
 	deadline := time.Now().Add(maxTime)
 	for {
 		if time.Now().After(deadline) {

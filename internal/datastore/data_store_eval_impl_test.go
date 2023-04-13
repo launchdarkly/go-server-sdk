@@ -15,7 +15,7 @@ func TestDataStoreEvalFeatures(t *testing.T) {
 	store := fakeStoreForDataStoreProvider{}
 	flag := ldbuilders.NewFlagBuilder("flagkey").Build()
 	store.data = map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
-		datakinds.Features: map[string]ldstoretypes.ItemDescriptor{
+		datakinds.Features: {
 			flag.Key:      {Version: flag.Version, Item: &flag},
 			"deleted-key": {Version: 9, Item: nil},
 			"wrong-type":  {Version: 1, Item: "not a flag"},
@@ -34,7 +34,7 @@ func TestDataStoreEvalSegments(t *testing.T) {
 	store := fakeStoreForDataStoreProvider{}
 	segment := ldbuilders.NewSegmentBuilder("segmentkey").Build()
 	store.data = map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
-		datakinds.Segments: map[string]ldstoretypes.ItemDescriptor{
+		datakinds.Segments: {
 			segment.Key:   {Version: segment.Version, Item: &segment},
 			"deleted-key": {Version: 9, Item: nil},
 			"wrong-type":  {Version: 1, Item: "not a segment"},

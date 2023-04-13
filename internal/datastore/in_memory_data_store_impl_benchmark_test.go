@@ -82,8 +82,8 @@ func setupInitData(env *inMemoryStoreBenchmarkEnv) {
 		segments[i] = ldstoretypes.KeyedItemDescriptor{Key: s.Key, Item: sharedtest.SegmentDescriptor(*s)}
 	}
 	env.initData = []ldstoretypes.Collection{
-		ldstoretypes.Collection{Kind: datakinds.Features, Items: flags},
-		ldstoretypes.Collection{Kind: datakinds.Segments, Items: segments},
+		{Kind: datakinds.Features, Items: flags},
+		{Kind: datakinds.Segments, Items: segments},
 	}
 }
 
@@ -97,15 +97,15 @@ type inMemoryStoreBenchmarkCase struct {
 }
 
 var inMemoryStoreBenchmarkCases = []inMemoryStoreBenchmarkCase{
-	inMemoryStoreBenchmarkCase{
+	{
 		numFlags:    1,
 		numSegments: 1,
 	},
-	inMemoryStoreBenchmarkCase{
+	{
 		numFlags:    100,
 		numSegments: 100,
 	},
-	inMemoryStoreBenchmarkCase{
+	{
 		numFlags:    1000,
 		numSegments: 1000,
 	},
