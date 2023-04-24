@@ -51,7 +51,7 @@ If you do not set the `launchdarkly_easyjson` build tag, the SDK does not use an
 
 ## Learn more
 
-Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](http://docs.launchdarkly.com/docs/go-sdk-reference) or our [code-generated API documentation](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6).
+Check out our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [complete reference guide for this SDK](https://docs.launchdarkly.com/sdk/server-side/go) or our [code-generated API documentation](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6).
 
 ## Testing
 
