@@ -334,41 +334,80 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-const int MigrationStage int (
-   off iota,
-   shadow,
-   live,
-   complete
+type MigrationStage int
+
+const (
+	Off = iota
+	Shadow
+	Live
+	Complete
 )
 
-func (client *LDClient) MigrationVariation(key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
-	variation, err := client.StringVariation(key, context, defaultStage)
-	return 0, err
-}
-
-type MigrationConfig struct {
-	typeConsistencyCheckFn func (interface{}) interface{}
-	latencyCheck bool
-	parallelThingies bool
-}
-
-
-
-func (client *LDClient) Migration(key string, context ldcontext.Context) {
-
-
-	variation := client.MigrationVariation()
-
-	switch(variation) {
-	case off:
-	case shadow:
-	case live:
-	case complete:
+func strToStage(val string) MigrationStage {
+	switch val {
+	case "off":
+		return Off
+	case "shadow":
+		return Shadow
+	case "live":
+		return Live
+	case "complete":
+		return Complete
+	default:
+		return Off
 	}
 }
 
+func stageToStr(val MigrationStage) string {
+	switch val {
+	case Off:
+		return "off"
+	case Shadow:
+		return "shadow"
+	case Live:
+		return "live"
+	case Complete:
+		return "complete"
+	default:
+		return "off"
+	}
+}
 
+// MigrationVariation does the thing
+func (client *LDClient) MigrationVariation(key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
+	defaultString := stageToStr(defaultStage)
+	variation, err := client.StringVariation(key, context, defaultString)
+	return strToStage(variation), err
+}
 
+// MigrationConfig does the thing
+type MigrationConfig struct {
+	typeConsistencyCheckFn func(interface{}) interface{}
+	latencyCheck           bool
+	parallelThingies       bool
+	key                    string
+	defaultStage           MigrationStage
+}
+
+// Migration does the thing
+func (client *LDClient) Migration(context ldcontext.Context, config MigrationConfig) error {
+
+	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
+
+	if err != nil {
+		return err
+	}
+
+	switch stage {
+	case Off:
+	case Shadow:
+	case Live:
+	case Complete:
+	default:
+	}
+
+	return nil
+}
 
 // Identify reports details about an evaluation context.
 //
