@@ -335,15 +335,15 @@ func createDataSource(
 }
 
 type Migration interface {
-  Old () (interface{}, error)
-  New () (interface{}, error)
-  ConsistencyCheck (interface{},interface{}) bool
-  Key () string
-  Default () MigrationStage
+	Old() (interface{}, error)
+	New() (interface{}, error)
+	ConsistencyCheck(interface{}, interface{}) bool
+	Key() string
+	Default() MigrationStage
 }
 
 func (client *LDClient) Run(m Migration, context ldcontext.Context) (interface{}, error) {
-  return nil, nil
+	return nil, nil
 }
 
 type MigrationStage int
@@ -451,7 +451,7 @@ func (client *LDClient) Migration(context ldcontext.Context, config MigrationCon
 	} else if stage == Shadow || stage == Live {
 		var resultOld, resultNew interface{}
 		resultOld, resultNew, err = runBothImplementations(config)
-		// client.TrackConsistency(config.typeConsistencyCheckFn(resultOld, resultNew))
+		client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
 		if stage == Shadow {
 			return resultOld, err
 		} else {
@@ -491,6 +491,10 @@ func (client *LDClient) Identify(context ldcontext.Context) error {
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 func (client *LDClient) TrackEvent(eventName string, context ldcontext.Context) error {
 	return client.TrackData(eventName, context, ldvalue.Null())
+}
+
+func (client *LDClient) TrackConsistency(flagKey string, context ldcontext.Context, consistent bool) error {
+	return client.TrackData("consistency-event"+flagKey, context, ldvalue.Bool(consistent)) //TODO replace with purpose-built event type
 }
 
 // TrackData reports an event associated with an evaluation context, and adds custom data.
