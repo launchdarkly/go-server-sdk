@@ -334,16 +334,41 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-// type MigrationStage int {
-//    off iota,
-//    shadow,
-//    live,
-//    complete
-// }
+const int MigrationStage int (
+   off iota,
+   shadow,
+   live,
+   complete
+)
 
-func (client *LDClient) MigrationVariation(key string, context ldcontext.Context) MigrationStage, error {
-	variation, err := client.StringVariation(key, context)
+func (client *LDClient) MigrationVariation(key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
+	variation, err := client.StringVariation(key, context, defaultStage)
+	return 0, err
 }
+
+type MigrationConfig struct {
+	typeConsistencyCheckFn func (interface{}) interface{}
+	latencyCheck bool
+	parallelThingies bool
+}
+
+
+
+func (client *LDClient) Migration(key string, context ldcontext.Context) {
+
+
+	variation := client.MigrationVariation()
+
+	switch(variation) {
+	case off:
+	case shadow:
+	case live:
+	case complete:
+	}
+}
+
+
+
 
 // Identify reports details about an evaluation context.
 //
