@@ -407,18 +407,24 @@ type MigrationConfig struct {
 
 type ImplementationFn func(interface{}) (interface{}, error)
 
-func runBothImplementations(config MigrationConfig) (interface{}, interface{}, error) {
+func (client *LDClient) runBothImplementations(config MigrationConfig, context ldcontext.Context) (interface{}, interface{}, error) {
 
 	seqExec := func() (interface{}, interface{}, error) {
 		if config.randomizeSeqExecOrder {
-			//do some random stuff
+			// do some random stuff
 			return nil, nil, nil
 		} else {
+			start := time.Now()
 			resultOld, err := config.implOld(config.input)
+			elapsedOld := time.Now().Sub(start)
+			client.TrackData(config.key+".old", context, ldvalue.Int(int(elapsedOld.Milliseconds())))
 			if err != nil {
 				return nil, nil, err
 			}
+			startNew := time.Now()
 			resultNew, err := config.implNew(config.input)
+			elapsedNew := time.Now().Sub(startNew)
+			client.TrackData(config.key+".new", context, ldvalue.Int(int(elapsedNew.Milliseconds())))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -427,7 +433,34 @@ func runBothImplementations(config MigrationConfig) (interface{}, interface{}, e
 	}
 
 	parallelExec := func() (interface{}, interface{}, error) {
-		return nil, nil, nil
+		var resultOld interface{}
+		var errOld error
+		//waitgroup?
+		go func() {
+			start := time.Now()
+			resultOld, errOld = config.implOld(config.input)
+			elapsedOld := time.Now().Sub(start)
+			client.TrackData(config.key+".old", context, ldvalue.Int(int(elapsedOld.Milliseconds())))
+			//waitgroup?
+		}()
+		//waitgroup to join?
+		start := time.Now()
+		resultNew, errNew := config.implNew(config.input)
+		elapsedNew := time.Now().Sub(start)
+		client.TrackData(config.key+".new", context, ldvalue.Int(int(elapsedNew.Milliseconds())))
+
+		//what do we do with errOld *and* errNew?
+		//for now, favor old errors ahead of new errors (though should probably actually return both)
+
+		if errOld != nil {
+			return nil, nil, errOld
+		}
+
+		if errNew != nil {
+			return nil, nil, errNew
+		}
+
+		return resultOld, resultNew, nil
 	}
 
 	if config.runInParallel {
@@ -450,7 +483,7 @@ func (client *LDClient) Migration(context ldcontext.Context, config MigrationCon
 		return config.implOld(config.input)
 	} else if stage == Shadow || stage == Live {
 		var resultOld, resultNew interface{}
-		resultOld, resultNew, err = runBothImplementations(config)
+		resultOld, resultNew, err = client.runBothImplementations(config, context)
 		client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
 		if stage == Shadow {
 			return resultOld, err
