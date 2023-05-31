@@ -334,6 +334,12 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
+type Migration interface {
+  Old () (interface{}, error)
+  New () (interface{}, error)
+  ConsistencyCheck (interface{},interface{}) bool
+}
+
 type MigrationStage int
 
 const (
