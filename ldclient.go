@@ -336,9 +336,9 @@ func createDataSource(
 
 type MigrationStage int 
 const (
-   Off = iota,
-   Shadow,
-   Live,
+   Off = iota
+   Shadow
+   Live
    Complete
 )
 
