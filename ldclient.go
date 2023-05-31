@@ -334,12 +334,13 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-// type MigrationStage int {
-//    off iota,
-//    shadow,
-//    live,
-//    complete
-// }
+type MigrationStage int 
+const (
+   Off = iota,
+   Shadow,
+   Live,
+   Complete
+)
 
 func (client *LDClient) MigrationVariation(key string, context ldcontext.Context) MigrationStage, error {
 	variation, err := client.StringVariation(key, context)
