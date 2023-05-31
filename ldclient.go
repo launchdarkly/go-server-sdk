@@ -382,31 +382,75 @@ func (client *LDClient) MigrationVariation(key string, context ldcontext.Context
 
 // MigrationConfig does the thing
 type MigrationConfig struct {
-	typeConsistencyCheckFn func(interface{}) interface{}
+	typeConsistencyCheckFn func(interface{}, interface{}) bool
 	latencyCheck           bool
-	parallelThingies       bool
+	runInParallel          bool
 	key                    string
 	defaultStage           MigrationStage
+	randomizeSeqExecOrder  bool
+	implOld                ImplementationFn
+	implNew                ImplementationFn
+	input                  interface{}
+}
+
+type ImplementationFn func(interface{}) (interface{}, error)
+
+func runBothImplementations(config MigrationConfig) (interface{}, interface{}, error) {
+
+	seqExec := func() (interface{}, interface{}, error) {
+		if config.randomizeSeqExecOrder {
+			//do some random stuff
+			return nil, nil, nil
+		} else {
+			resultOld, err := config.implOld(config.input)
+			if err != nil {
+				return nil, nil, err
+			}
+			resultNew, err := config.implNew(config.input)
+			if err != nil {
+				return nil, nil, err
+			}
+			return resultOld, resultNew, nil
+		}
+	}
+
+	parallelExec := func() (interface{}, interface{}, error) {
+		return nil, nil, nil
+	}
+
+	if config.runInParallel {
+		return parallelExec()
+	} else {
+		return seqExec()
+	}
 }
 
 // Migration does the thing
-func (client *LDClient) Migration(context ldcontext.Context, config MigrationConfig) error {
-
+func (client *LDClient) Migration(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
 	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	switch stage {
-	case Off:
-	case Shadow:
-	case Live:
-	case Complete:
-	default:
+	//nolint
+	if stage == Off {
+		return config.implOld(config.input)
+	} else if stage == Shadow || stage == Live {
+		var resultOld, resultNew interface{}
+		resultOld, resultNew, err = runBothImplementations(config)
+		// client.TrackConsistency(config.typeConsistencyCheckFn(resultOld, resultNew))
+		if stage == Shadow {
+			return resultOld, err
+		} else {
+			return resultNew, err
+		}
+	} else if stage == Complete {
+		return config.implNew(config.input)
+	} else {
+		// shouldn't ever happen
+		return nil, nil
 	}
-
-	return nil
 }
 
 // Identify reports details about an evaluation context.
