@@ -334,6 +334,17 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
+// type MigrationStage int {
+//    off iota,
+//    shadow,
+//    live,
+//    complete
+// }
+
+func (client *LDClient) MigrationVariation(key string, context ldcontext.Context) MigrationStage, error {
+	variation, err := client.StringVariation(key, context)
+}
+
 // Identify reports details about an evaluation context.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
