@@ -338,6 +338,12 @@ type Migration interface {
   Old () (interface{}, error)
   New () (interface{}, error)
   ConsistencyCheck (interface{},interface{}) bool
+  Key () string
+  Default () MigrationStage
+}
+
+func (client *LDClient) Run(m Migration, context ldcontext.Context) (interface{}, error) {
+  return nil, nil
 }
 
 type MigrationStage int
