@@ -415,7 +415,7 @@ type MigrationConfig struct {
 	input                  interface{}
 }
 
-// ImplementationFn Animplementation function to do something old (migrating from) and new (migrating to)
+// ImplementationFn An implementation function to do something old (migrating from) and new (migrating to)
 type ImplementationFn func(interface{}) (interface{}, error)
 
 // Migration runs the actual migration per the configuration parameters
