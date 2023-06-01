@@ -415,10 +415,10 @@ type MigrationConfig struct {
 	input                  interface{}
 }
 
-// ImplementationFn A customer-provided implementation function
+// ImplementationFn Animplementation function to do something old (migrating from) and new (migrating to)
 type ImplementationFn func(interface{}) (interface{}, error)
 
-// Migration does the thing
+// Migration runs the actual migration per the configuration parameters
 func (client *LDClient) Migration(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
 	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 
@@ -559,17 +559,17 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 	return nil
 }
 
-// TrackConsistency does something
+// TrackConsistency reports an event specifying if data was consistent for a given migration flag
 func (client *LDClient) TrackConsistency(flagKey string, context ldcontext.Context, consistent bool) error {
 	return client.TrackData(flagKey+"-consistency", context, ldvalue.Bool(consistent))
 }
 
-// TrackLatencyOldData does something
+// TrackLatencyOldData reports an event specifying the latency for a migration flag's "old implementation"
 func (client *LDClient) TrackLatencyOldData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
 	return client.TrackData(flagKey+"-latency-old", context, ldvalue.Int(int(elapsed.Milliseconds())))
 }
 
-// TrackLatencyNewData does something
+// TrackLatencyNewData reports an event specifying the latency for a migration flag's "new implementation"
 func (client *LDClient) TrackLatencyNewData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
 	return client.TrackData(flagKey+"-latency-new", context, ldvalue.Int(int(elapsed.Milliseconds())))
 }
