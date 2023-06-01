@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"time"
 
@@ -334,18 +335,151 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-// // Migration something something
-// type Migration interface {
-// 	Old() (interface{}, error)
-// 	New() (interface{}, error)
-// 	ConsistencyCheck(interface{}, interface{}) bool
-// 	Key() string
-// 	Default() MigrationStage
-// }
+type MigrationComparisonFn func(*MigrationImplResult, *MigrationImplResult) bool
+type MigrationImplFn func(MigrationImplInput) (*MigrationImplResult, error)
 
-// func (client *LDClient) Run(m Migration, context ldcontext.Context) (interface{}, error) {
-// 	return nil, nil
-// }
+type MigrationImplInput struct{}
+type MigrationImplResult struct{}
+
+type MigrationImplExecutor struct {
+	name           string
+	key            string
+	context        ldcontext.Context
+	impl           MigrationImplFn
+	measureLatency bool
+}
+
+type MigrationStageRunner interface {
+	Run(MigrationImplInput, string, *LDClient, ldcontext.Context) (*MigrationImplResult, error)
+}
+
+type MigrationStrategyReadBothAndCompare struct {
+	authoritative *MigrationImplExecutor
+	shadow        *MigrationImplExecutor
+
+	config  MigrationConfig
+	runBoth bool
+}
+
+type MigrationConfig struct {
+	input   MigrationImplInput
+	old     MigrationImplFn
+	new     MigrationImplFn
+	compare MigrationComparisonFn
+
+	defaultStage          MigrationStage
+	key                   string
+	runInParallel         bool
+	randomizeSeqExecOrder bool
+	measureLatency        bool
+}
+
+func (client *LDClient) ValidateMigration(context ldcontext.Context, config MigrationConfig) (*MigrationImplResult, error) {
+	runner, err := MakeMigrationStrategyReadBothAndCompare(context, config, client)
+	if err != nil {
+		return nil, err
+	}
+	return runner.Run(config.input, config.key, client, context)
+}
+
+func MakeMigrationStrategyReadBothAndCompare(context ldcontext.Context, config MigrationConfig, client *LDClient) (MigrationStageRunner, error) {
+	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
+	if err != nil {
+		return nil, err
+	}
+	runner := &MigrationStrategyReadBothAndCompare{
+		config: config,
+	}
+	oldExecutor := &MigrationImplExecutor{
+		name:           "old",
+		key:            config.key,
+		impl:           config.old,
+		measureLatency: config.measureLatency,
+	}
+	newExecutor := &MigrationImplExecutor{
+		name:           "new",
+		key:            config.key,
+		impl:           config.new,
+		measureLatency: config.measureLatency,
+	}
+
+	switch stage {
+	case Off:
+		runner.authoritative = oldExecutor
+		runner.runBoth = false
+	case Shadow:
+		runner.authoritative = oldExecutor
+		runner.shadow = newExecutor
+		runner.runBoth = true
+	case Live:
+		runner.authoritative = newExecutor
+		runner.shadow = oldExecutor
+		runner.runBoth = true
+	case Complete:
+		runner.authoritative = newExecutor
+		runner.runBoth = false
+	}
+	return runner, nil
+}
+
+func (r MigrationStrategyReadBothAndCompare) Run(
+	input MigrationImplInput,
+	key string,
+	client *LDClient,
+	context ldcontext.Context,
+) (*MigrationImplResult, error) {
+	if r.runBoth {
+		if r.config.runInParallel {
+			resultAuth, err := r.authoritative.exec(input, client, context)
+
+			go func() {
+				resultShadow, _ := r.shadow.exec(input, client, context)
+				_ = client.TrackConsistency(key, context, r.config.compare(resultAuth, resultShadow))
+			}()
+
+			if err != nil {
+				return nil, err
+			}
+			return resultAuth, nil
+		} else { //sequential
+			if r.config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
+				resultShadow, _ := r.shadow.exec(input, client, context)
+
+				resultAuth, err := r.authoritative.exec(input, client, context)
+
+				_ = client.TrackConsistency(key, context, r.config.compare(resultAuth, resultShadow))
+				if err != nil {
+					return nil, err
+				}
+				return resultAuth, nil
+
+			} else {
+				resultAuth, err := r.authoritative.exec(input, client, context)
+				resultShadow, _ := r.shadow.exec(input, client, context)
+				_ = client.TrackConsistency(key, context, r.config.compare(resultAuth, resultShadow))
+				if err != nil {
+					return nil, err
+				}
+				return resultAuth, nil
+			}
+		}
+	} else { //run just one
+		return r.authoritative.exec(input, client, context)
+	}
+}
+
+func (executor MigrationImplExecutor) exec(input MigrationImplInput, client *LDClient, context ldcontext.Context) (*MigrationImplResult, error) {
+	start := time.Now()
+	result, err := executor.impl(input)
+	if executor.measureLatency {
+		elapsed := time.Now().Sub(start)
+		client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
 
 // MigrationStage something something
 type MigrationStage int
@@ -400,105 +534,6 @@ func (client *LDClient) MigrationVariation(
 	defaultString := stageToStr(defaultStage)
 	variation, err := client.StringVariation(key, context, defaultString)
 	return strToStage(variation), err
-}
-
-// MigrationConfig The configuration properties pertaining to a specific migration
-type MigrationConfig struct {
-	typeConsistencyCheckFn func(interface{}, interface{}) bool
-	latencyCheck           bool
-	runInParallel          bool
-	key                    string
-	defaultStage           MigrationStage
-	randomizeSeqExecOrder  bool
-	implOld                ImplementationFn
-	implNew                ImplementationFn
-	input                  interface{}
-}
-
-// ImplementationFn An implementation function to do something old (migrating from) and new (migrating to)
-type ImplementationFn func(interface{}) (interface{}, error)
-
-// Migration runs the actual migration per the configuration parameters
-func (client *LDClient) Migration(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
-	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
-
-	if err != nil {
-		return nil, err
-	}
-
-	switch stage {
-	case Off:
-		return config.implOld(config.input)
-	case Shadow:
-		if config.runInParallel {
-			var resultOld interface{}
-			var errOld error
-
-			start := time.Now()
-			resultOld, errOld = config.implOld(config.input)
-			if err != nil {
-				return nil, errOld
-			}
-			if config.latencyCheck {
-				elapsedOld := time.Since(start)
-				_ = client.TrackLatencyOldData(config.key, context, elapsedOld)
-			}
-
-			// New is not authoritative, so run in background and don't care if there's errors
-			go func() {
-				start := time.Now()
-				resultNew, _ := config.implNew(config.input)
-
-				if config.latencyCheck {
-					elapsedNew := time.Since(start)
-					_ = client.TrackLatencyNewData(config.key, context, elapsedNew)
-				}
-				_ = client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
-			}()
-			return resultOld, nil
-		} else {
-			if config.randomizeSeqExecOrder {
-				// randomize the sequence order, then execute them in sequence
-
-				return nil, nil
-			} else {
-				// execute them in sequence (old then new)
-				start := time.Now()
-				resultOld, err := config.implOld(config.input)
-
-				if config.latencyCheck {
-					elapsedOld := time.Since(start)
-					_ = client.TrackLatencyOldData(config.key, context, elapsedOld)
-				}
-				if err != nil {
-					return nil, err
-				}
-				startNew := time.Now()
-				resultNew, err := config.implNew(config.input)
-
-				if config.latencyCheck {
-					elapsedNew := time.Since(startNew)
-					_ = client.TrackLatencyNewData(config.key, context, elapsedNew)
-				}
-				if err != nil {
-					return nil, err
-				}
-
-				_ = client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
-
-				return resultOld, nil
-			}
-		}
-
-	case Live:
-		// TODO left as an exercise for the reader, see Shadow above. basically the same thing except "new" should be before "old"
-		return nil, nil
-	case Complete:
-		return config.implNew(config.input)
-	default:
-		// shouldn't ever happen
-		return nil, nil
-	}
 }
 
 // Identify reports details about an evaluation context.
