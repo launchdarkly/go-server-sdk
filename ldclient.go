@@ -351,16 +351,16 @@ func createDataSource(
 type MigrationStage int
 
 const (
-	// Off something something
+	// Off Stage 1 - migration hasn't started
 	Off = iota
 
-	// Shadow something something
+	// Shadow Stage 2 - both "new" and "old" versions run with a preference for "old"
 	Shadow
 
-	// Live something something
+	// Live Stage 3 - both "new" and "old" versions run with a preference for "new"
 	Live
 
-	// Complete something something
+	// Complete Stage 4 - migration is done
 	Complete
 )
 
