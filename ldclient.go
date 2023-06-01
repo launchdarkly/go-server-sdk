@@ -334,24 +334,33 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-type Migration interface {
-	Old() (interface{}, error)
-	New() (interface{}, error)
-	ConsistencyCheck(interface{}, interface{}) bool
-	Key() string
-	Default() MigrationStage
-}
+// // Migration something something
+// type Migration interface {
+// 	Old() (interface{}, error)
+// 	New() (interface{}, error)
+// 	ConsistencyCheck(interface{}, interface{}) bool
+// 	Key() string
+// 	Default() MigrationStage
+// }
 
-func (client *LDClient) Run(m Migration, context ldcontext.Context) (interface{}, error) {
-	return nil, nil
-}
+// func (client *LDClient) Run(m Migration, context ldcontext.Context) (interface{}, error) {
+// 	return nil, nil
+// }
 
+// MigrationStage something something
 type MigrationStage int
 
 const (
+	// Off something something
 	Off = iota
+
+	// Shadow something something
 	Shadow
+
+	// Live something something
 	Live
+
+	// Complete something something
 	Complete
 )
 
@@ -405,70 +414,8 @@ type MigrationConfig struct {
 	input                  interface{}
 }
 
+// ImplementationFn something something
 type ImplementationFn func(interface{}) (interface{}, error)
-
-func (client *LDClient) runBothImplementations(config MigrationConfig, context ldcontext.Context) (interface{}, interface{}, error) {
-
-	seqExec := func() (interface{}, interface{}, error) {
-		if config.randomizeSeqExecOrder {
-			// do some random stuff
-			return nil, nil, nil
-		} else {
-			start := time.Now()
-			resultOld, err := config.implOld(config.input)
-			elapsedOld := time.Now().Sub(start)
-			client.TrackData(config.key+".old", context, ldvalue.Int(int(elapsedOld.Milliseconds())))
-			if err != nil {
-				return nil, nil, err
-			}
-			startNew := time.Now()
-			resultNew, err := config.implNew(config.input)
-			elapsedNew := time.Now().Sub(startNew)
-			client.TrackData(config.key+".new", context, ldvalue.Int(int(elapsedNew.Milliseconds())))
-			if err != nil {
-				return nil, nil, err
-			}
-			return resultOld, resultNew, nil
-		}
-	}
-
-	parallelExec := func() (interface{}, interface{}, error) {
-		var resultOld interface{}
-		var errOld error
-		//waitgroup?
-		go func() {
-			start := time.Now()
-			resultOld, errOld = config.implOld(config.input)
-			elapsedOld := time.Now().Sub(start)
-			client.TrackData(config.key+".old", context, ldvalue.Int(int(elapsedOld.Milliseconds())))
-			//waitgroup?
-		}()
-		//waitgroup to join?
-		start := time.Now()
-		resultNew, errNew := config.implNew(config.input)
-		elapsedNew := time.Now().Sub(start)
-		client.TrackData(config.key+".new", context, ldvalue.Int(int(elapsedNew.Milliseconds())))
-
-		//what do we do with errOld *and* errNew?
-		//for now, favor old errors ahead of new errors (though should probably actually return both)
-
-		if errOld != nil {
-			return nil, nil, errOld
-		}
-
-		if errNew != nil {
-			return nil, nil, errNew
-		}
-
-		return resultOld, resultNew, nil
-	}
-
-	if config.runInParallel {
-		return parallelExec()
-	} else {
-		return seqExec()
-	}
-}
 
 // Migration does the thing
 func (client *LDClient) Migration(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
@@ -478,21 +425,76 @@ func (client *LDClient) Migration(context ldcontext.Context, config MigrationCon
 		return nil, err
 	}
 
-	//nolint
-	if stage == Off {
+	switch stage {
+	case Off:
 		return config.implOld(config.input)
-	} else if stage == Shadow || stage == Live {
-		var resultOld, resultNew interface{}
-		resultOld, resultNew, err = client.runBothImplementations(config, context)
-		client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
-		if stage == Shadow {
-			return resultOld, err
+	case Shadow:
+		if config.runInParallel {
+			var resultOld interface{}
+			var errOld error
+
+			start := time.Now()
+			resultOld, errOld = config.implOld(config.input)
+			if err != nil {
+				return nil, errOld
+			}
+			if config.latencyCheck {
+				elapsedOld := time.Since(start)
+				_ = client.TrackLatencyOldData(config.key, context, elapsedOld)
+			}
+
+			// New is not authoritative, so run in background and don't care if there's errors
+			go func() {
+				start := time.Now()
+				resultNew, _ := config.implNew(config.input)
+
+				if config.latencyCheck {
+					elapsedNew := time.Since(start)
+					_ = client.TrackLatencyNewData(config.key, context, elapsedNew)
+				}
+				_ = client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
+			}()
+			return resultOld, nil
 		} else {
-			return resultNew, err
+			if config.randomizeSeqExecOrder {
+				// randomize the sequence order, then execute them in sequence
+
+				return nil, nil
+			} else {
+				// execute them in sequence (old then new)
+				start := time.Now()
+				resultOld, err := config.implOld(config.input)
+
+				if config.latencyCheck {
+					elapsedOld := time.Since(start)
+					_ = client.TrackLatencyOldData(config.key, context, elapsedOld)
+				}
+				if err != nil {
+					return nil, err
+				}
+				startNew := time.Now()
+				resultNew, err := config.implNew(config.input)
+
+				if config.latencyCheck {
+					elapsedNew := time.Since(startNew)
+					_ = client.TrackLatencyNewData(config.key, context, elapsedNew)
+				}
+				if err != nil {
+					return nil, err
+				}
+
+				_ = client.TrackConsistency(config.key, context, config.typeConsistencyCheckFn(resultOld, resultNew))
+
+				return resultOld, nil
+			}
 		}
-	} else if stage == Complete {
+
+	case Live:
+		// TODO left as an exercise for the reader, see Shadow above. basically the same thing except "new" should be before "old"
+		return nil, nil
+	case Complete:
 		return config.implNew(config.input)
-	} else {
+	default:
 		// shouldn't ever happen
 		return nil, nil
 	}
@@ -526,10 +528,6 @@ func (client *LDClient) TrackEvent(eventName string, context ldcontext.Context) 
 	return client.TrackData(eventName, context, ldvalue.Null())
 }
 
-func (client *LDClient) TrackConsistency(flagKey string, context ldcontext.Context, consistent bool) error {
-	return client.TrackData("consistency-event"+flagKey, context, ldvalue.Bool(consistent)) //TODO replace with purpose-built event type
-}
-
 // TrackData reports an event associated with an evaluation context, and adds custom data.
 //
 // The eventName parameter is defined by the application and will be shown in analytics reports;
@@ -558,6 +556,21 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 			0,
 		))
 	return nil
+}
+
+// TrackConsistency does something
+func (client *LDClient) TrackConsistency(flagKey string, context ldcontext.Context, consistent bool) error {
+	return client.TrackData(flagKey+"-consistency", context, ldvalue.Bool(consistent))
+}
+
+// TrackLatencyOldData does something
+func (client *LDClient) TrackLatencyOldData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
+	return client.TrackData(flagKey+"-latency-old", context, ldvalue.Int(int(elapsed.Milliseconds())))
+}
+
+// TrackLatencyNewData does something
+func (client *LDClient) TrackLatencyNewData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
+	return client.TrackData(flagKey+"-latency-new", context, ldvalue.Int(int(elapsed.Milliseconds())))
 }
 
 // TrackMetric reports an event associated with an evaluation context, and adds a numeric value.
