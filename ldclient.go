@@ -394,14 +394,15 @@ func stageToStr(val MigrationStage) string {
 	}
 }
 
-// MigrationVariation does the thing
-func (client *LDClient) MigrationVariation(key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
+// MigrationVariation Get the variation (the migration strategy) for the specified migration feature flag
+func (client *LDClient) MigrationVariation(
+	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
 	defaultString := stageToStr(defaultStage)
 	variation, err := client.StringVariation(key, context, defaultString)
 	return strToStage(variation), err
 }
 
-// MigrationConfig does the thing
+// MigrationConfig The configuration properties pertaining to a specific migration
 type MigrationConfig struct {
 	typeConsistencyCheckFn func(interface{}, interface{}) bool
 	latencyCheck           bool
@@ -414,7 +415,7 @@ type MigrationConfig struct {
 	input                  interface{}
 }
 
-// ImplementationFn something something
+// ImplementationFn A customer-provided implementation function
 type ImplementationFn func(interface{}) (interface{}, error)
 
 // Migration does the thing
