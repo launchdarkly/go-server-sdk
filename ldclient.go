@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -335,11 +336,8 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-type MigrationComparisonFn func(*MigrationImplResult, *MigrationImplResult) bool
-type MigrationImplFn func(MigrationImplInput) (*MigrationImplResult, error)
-
-type MigrationImplInput struct{}
-type MigrationImplResult struct{}
+type MigrationComparisonFn func(interface{}, interface{}) bool
+type MigrationImplFn func() (interface{}, error)
 
 type MigrationImplExecutor struct {
 	name           string
@@ -349,25 +347,7 @@ type MigrationImplExecutor struct {
 	measureLatency bool
 }
 
-type MigrationStageRunner interface {
-	Run(MigrationImplInput, string, *LDClient, ldcontext.Context) (*MigrationImplResult, error)
-}
-
-type MigrationStrategyEitherOr struct {
-	authoritative *MigrationImplExecutor
-	config        MigrationConfig
-}
-
-type MigrationStrategyReadBothAndCompare struct {
-	authoritative *MigrationImplExecutor
-	shadow        *MigrationImplExecutor
-
-	config  MigrationConfig
-	runBoth bool
-}
-
 type MigrationConfig struct {
-	input   MigrationImplInput
 	old     MigrationImplFn
 	new     MigrationImplFn
 	compare MigrationComparisonFn
@@ -379,54 +359,18 @@ type MigrationConfig struct {
 	measureLatency        bool
 }
 
-func (client *LDClient) ValidateMigration(context ldcontext.Context, config MigrationConfig) (*MigrationImplResult, error) {
-	runner, err := MakeMigrationStrategyReadBothAndCompare(context, config, client)
-	if err != nil {
-		return nil, err
-	}
-	return runner.Run(config.input, config.key, client, context)
-}
-
-func MakeMigrationStrategyEitherOr(context ldcontext.Context, config MigrationConfig, client *LDClient) (MigrationStageRunner, error) {
+func (client *LDClient) ValidateRead(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
 	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 	if err != nil {
 		return nil, err
 	}
-	runner := &MigrationStrategyEitherOr{
-		config: config,
-	}
 
-	switch stage {
-	case Off:
-		runner.authoritative = &MigrationImplExecutor{
-			name:           "old",
-			key:            config.key,
-			impl:           config.old,
-			measureLatency: config.measureLatency,
-		}
-	case Shadow:
-		//illegal mode for this strategy
-	case Live:
-		//illegal mode for this strategy
-	case Complete:
-		runner.authoritative = &MigrationImplExecutor{
-			name:           "new",
-			key:            config.key,
-			impl:           config.new,
-			measureLatency: config.measureLatency,
-		}
-	}
-	return runner, nil
-}
-
-func MakeMigrationStrategyReadBothAndCompare(context ldcontext.Context, config MigrationConfig, client *LDClient) (MigrationStageRunner, error) {
-	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 	if err != nil {
 		return nil, err
 	}
-	runner := &MigrationStrategyReadBothAndCompare{
-		config: config,
-	}
+
+	runInParallel := true
+
 	oldExecutor := &MigrationImplExecutor{
 		name:           "old",
 		key:            config.key,
@@ -442,82 +386,128 @@ func MakeMigrationStrategyReadBothAndCompare(context ldcontext.Context, config M
 
 	switch stage {
 	case Off:
-		runner.authoritative = oldExecutor
-		runner.runBoth = false
+		return oldExecutor.exec(client, context)
+	case DualWrite:
+		return oldExecutor.exec(client, context)
 	case Shadow:
-		runner.authoritative = oldExecutor
-		runner.shadow = newExecutor
-		runner.runBoth = true
+		result, activeErr, _ := runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+		return result, activeErr
 	case Live:
-		runner.authoritative = newExecutor
-		runner.shadow = oldExecutor
-		runner.runBoth = true
+		result, activeErr, _ := runboth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
+		return result, activeErr
+	case RampDown:
+		return newExecutor.exec(client, context)
 	case Complete:
-		runner.authoritative = newExecutor
-		runner.runBoth = false
+		return newExecutor.exec(client, context)
 	}
-	return runner, nil
+	return nil, nil
+
 }
 
-func (r MigrationStrategyEitherOr) Run(
-	input MigrationImplInput,
+func (client *LDClient) ValidateWrite(context ldcontext.Context, config MigrationConfig) (interface{}, error, error) {
+	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
+	if err != nil {
+		return nil, err, nil
+	}
+
+	if err != nil {
+		return nil, err, nil
+	}
+
+	//we do not want to run write operations in parallel
+	runInParallel := false
+
+	oldExecutor := &MigrationImplExecutor{
+		name:           "old",
+		key:            config.key,
+		impl:           config.old,
+		measureLatency: config.measureLatency,
+	}
+	newExecutor := &MigrationImplExecutor{
+		name:           "new",
+		key:            config.key,
+		impl:           config.new,
+		measureLatency: config.measureLatency,
+	}
+
+	switch stage {
+	case Off:
+		result, err := oldExecutor.exec(client, context)
+		return result, err, nil
+	case DualWrite:
+		return runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+	case Shadow:
+		return runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+	case Live:
+		return runboth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
+	case RampDown:
+		return runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+	case Complete:
+		result, err := newExecutor.exec(client, context)
+		return result, err, nil
+	}
+
+	return nil, nil, nil
+}
+
+func runboth(
 	key string,
 	client *LDClient,
 	context ldcontext.Context,
+	config MigrationConfig,
+	active MigrationImplExecutor,
+	passive MigrationImplExecutor,
+	runInParallel bool,
+) (interface{}, error, error) {
+	if runInParallel {
+		resultActive, errActive := active.exec(client, context)
 
-) (*MigrationImplResult, error) {
-	return r.authoritative.exec(input, client, context)
-}
+		var resultPassive interface{}
+		var errPassive error
 
-func (r MigrationStrategyReadBothAndCompare) Run(
-	input MigrationImplInput,
-	key string,
-	client *LDClient,
-	context ldcontext.Context,
-) (*MigrationImplResult, error) {
-	if r.runBoth {
-		if r.config.runInParallel {
-			resultAuth, err := r.authoritative.exec(input, client, context)
+		var wg sync.WaitGroup
+		wg.Add(1)
 
-			go func() {
-				resultShadow, _ := r.shadow.exec(input, client, context)
-				_ = client.TrackConsistency(key, context, r.config.compare(resultAuth, resultShadow))
-			}()
+		go func() {
+			resultPassive, errPassive = passive.exec(client, context)
+			defer wg.Done()
+		}()
 
-			if err != nil {
-				return nil, err
-			}
-			return resultAuth, nil
-		} else { //sequential
-			if r.config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
-				resultShadow, _ := r.shadow.exec(input, client, context)
+		wg.Wait()
 
-				resultAuth, err := r.authoritative.exec(input, client, context)
+		_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
 
-				_ = client.TrackConsistency(key, context, r.config.compare(resultAuth, resultShadow))
-				if err != nil {
-					return nil, err
-				}
-				return resultAuth, nil
-
-			} else {
-				resultAuth, err := r.authoritative.exec(input, client, context)
-				resultShadow, _ := r.shadow.exec(input, client, context)
-				_ = client.TrackConsistency(key, context, r.config.compare(resultAuth, resultShadow))
-				if err != nil {
-					return nil, err
-				}
-				return resultAuth, nil
-			}
+		if errActive != nil || errPassive != nil {
+			return nil, errActive, errPassive
 		}
-	} else { //run just one
-		return r.authoritative.exec(input, client, context)
+		return resultActive, nil, nil
+	}
+
+	if config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
+		resultPassive, errPassive := passive.exec(client, context)
+
+		resultActive, errActive := active.exec(client, context)
+
+		_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
+		if errActive != nil || errPassive != nil {
+			return nil, errActive, errPassive
+		}
+		return resultActive, nil, nil
+
+	} else {
+		resultActive, errActive := active.exec(client, context)
+		resultPassive, errPassive := passive.exec(client, context)
+		_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
+		if errActive != nil || errPassive != nil {
+			return nil, errActive, errPassive
+		}
+		return resultActive, nil, nil
 	}
 }
 
-func (executor MigrationImplExecutor) exec(input MigrationImplInput, client *LDClient, context ldcontext.Context) (*MigrationImplResult, error) {
+func (executor MigrationImplExecutor) exec(client *LDClient, context ldcontext.Context) (interface{}, error) {
 	start := time.Now()
-	result, err := executor.impl(input)
+	result, err := executor.impl()
 	if executor.measureLatency {
 		elapsed := time.Now().Sub(start)
 		client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
@@ -532,16 +522,22 @@ func (executor MigrationImplExecutor) exec(input MigrationImplInput, client *LDC
 type MigrationStage int
 
 const (
-	// Off Stage 1 - migration hasn't started
+	// Off Stage 1 - migration hasn't started, "old" is authoritative for reads and writes
 	Off = iota
 
-	// Shadow Stage 2 - both "new" and "old" versions run with a preference for "old"
+	// DualWrite Stage 2 - write to both "old" and "new", "old" is authoriative for reads
+	DualWrite
+
+	// Shadow Stage 3 - both "new" and "old" versions run with a preference for "old"
 	Shadow
 
-	// Live Stage 3 - both "new" and "old" versions run with a preference for "new"
+	// Live Stage 4 - both "new" and "old" versions run with a preference for "new"
 	Live
 
-	// Complete Stage 4 - migration is done
+	// RampDown Stage 5 only read from "new", write to "old" and "new"
+	RampDown
+
+	// Complete Stage 6 - migration is done
 	Complete
 )
 
@@ -549,10 +545,14 @@ func strToStage(val string) MigrationStage {
 	switch val {
 	case "off":
 		return Off
+	case "dualwrite":
+		return DualWrite
 	case "shadow":
 		return Shadow
 	case "live":
 		return Live
+	case "rampdown":
+		return RampDown
 	case "complete":
 		return Complete
 	default:
@@ -564,10 +564,14 @@ func stageToStr(val MigrationStage) string {
 	switch val {
 	case Off:
 		return "off"
+	case DualWrite:
+		return "dualwrite"
 	case Shadow:
 		return "shadow"
 	case Live:
 		return "live"
+	case RampDown:
+		return "rampdown"
 	case Complete:
 		return "complete"
 	default:
@@ -575,7 +579,7 @@ func stageToStr(val MigrationStage) string {
 	}
 }
 
-// MigrationVariation Get the variation (the migration strategy) for the specified migration feature flag
+// MigrationVariation Get the variation (the migration stage) for the specified migration feature flag
 func (client *LDClient) MigrationVariation(
 	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
 	defaultString := stageToStr(defaultStage)
