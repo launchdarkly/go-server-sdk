@@ -353,6 +353,11 @@ type MigrationStageRunner interface {
 	Run(MigrationImplInput, string, *LDClient, ldcontext.Context) (*MigrationImplResult, error)
 }
 
+type MigrationStrategyEitherOr struct {
+	authoritative *MigrationImplExecutor
+	config        MigrationConfig
+}
+
 type MigrationStrategyReadBothAndCompare struct {
 	authoritative *MigrationImplExecutor
 	shadow        *MigrationImplExecutor
@@ -380,6 +385,38 @@ func (client *LDClient) ValidateMigration(context ldcontext.Context, config Migr
 		return nil, err
 	}
 	return runner.Run(config.input, config.key, client, context)
+}
+
+func MakeMigrationStrategyEitherOr(context ldcontext.Context, config MigrationConfig, client *LDClient) (MigrationStageRunner, error) {
+	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
+	if err != nil {
+		return nil, err
+	}
+	runner := &MigrationStrategyEitherOr{
+		config: config,
+	}
+
+	switch stage {
+	case Off:
+		runner.authoritative = &MigrationImplExecutor{
+			name:           "old",
+			key:            config.key,
+			impl:           config.old,
+			measureLatency: config.measureLatency,
+		}
+	case Shadow:
+		//illegal mode for this strategy
+	case Live:
+		//illegal mode for this strategy
+	case Complete:
+		runner.authoritative = &MigrationImplExecutor{
+			name:           "new",
+			key:            config.key,
+			impl:           config.new,
+			measureLatency: config.measureLatency,
+		}
+	}
+	return runner, nil
 }
 
 func MakeMigrationStrategyReadBothAndCompare(context ldcontext.Context, config MigrationConfig, client *LDClient) (MigrationStageRunner, error) {
@@ -420,6 +457,16 @@ func MakeMigrationStrategyReadBothAndCompare(context ldcontext.Context, config M
 		runner.runBoth = false
 	}
 	return runner, nil
+}
+
+func (r MigrationStrategyEitherOr) Run(
+	input MigrationImplInput,
+	key string,
+	client *LDClient,
+	context ldcontext.Context,
+
+) (*MigrationImplResult, error) {
+	return r.authoritative.exec(input, client, context)
 }
 
 func (r MigrationStrategyReadBothAndCompare) Run(
