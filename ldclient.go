@@ -354,7 +354,6 @@ type MigrationConfig struct {
 
 	defaultStage          MigrationStage
 	key                   string
-	runInParallel         bool
 	randomizeSeqExecOrder bool
 	measureLatency        bool
 }
