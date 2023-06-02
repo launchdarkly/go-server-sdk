@@ -493,7 +493,7 @@ func (executor MigrationImplExecutor) exec(client *LDClient, context ldcontext.C
 	// fast, the latency metric might look really good for the new version
 	// quite some time after the fix was put in place.
 	if executor.measureLatency {
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
 	}
 	if err != nil {
