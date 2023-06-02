@@ -336,10 +336,13 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
+// MigrationComparisonFn TKTK
 type MigrationComparisonFn func(interface{}, interface{}) bool
+
+// MigrationImplFn TKTK
 type MigrationImplFn func() (interface{}, error)
 
-type MigrationImplExecutor struct {
+type migrationImplExecutor struct {
 	name           string
 	key            string
 	context        ldcontext.Context
@@ -367,13 +370,13 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 	// Reads should always be available to run in parallel.
 	runInParallel := true
 
-	oldExecutor := &MigrationImplExecutor{
+	oldExecutor := &migrationImplExecutor{
 		name:           "old",
 		key:            config.key,
 		impl:           config.old,
 		measureLatency: config.measureLatency,
 	}
-	newExecutor := &MigrationImplExecutor{
+	newExecutor := &migrationImplExecutor{
 		name:           "new",
 		key:            config.key,
 		impl:           config.new,
@@ -396,8 +399,8 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 	case Complete:
 		return newExecutor.exec(client, context)
 	}
-	return nil, nil
 
+	return nil, nil
 }
 
 func (client *LDClient) ValidateWrite(context ldcontext.Context, config MigrationConfig) (interface{}, error, error) {
@@ -406,16 +409,16 @@ func (client *LDClient) ValidateWrite(context ldcontext.Context, config Migratio
 		return nil, err, nil
 	}
 
-	//we do not want to run write operations in parallel
+	// We do not want to run write operations in parallel
 	runInParallel := false
 
-	oldExecutor := &MigrationImplExecutor{
+	oldExecutor := &migrationImplExecutor{
 		name:           "old",
 		key:            config.key,
 		impl:           config.old,
 		measureLatency: config.measureLatency,
 	}
-	newExecutor := &MigrationImplExecutor{
+	newExecutor := &migrationImplExecutor{
 		name:           "new",
 		key:            config.key,
 		impl:           config.new,
@@ -447,14 +450,15 @@ func runboth(
 	client *LDClient,
 	context ldcontext.Context,
 	config MigrationConfig,
-	active MigrationImplExecutor,
-	passive MigrationImplExecutor,
+	active migrationImplExecutor,
+	passive migrationImplExecutor,
 	runInParallel bool,
 ) (interface{}, error, error) {
 	var resultActive, resultPassive interface{}
 	var errActive, errPassive error
 
-	if runInParallel {
+	switch {
+	case runInParallel:
 		var wg sync.WaitGroup
 		wg.Add(2)
 
@@ -469,10 +473,10 @@ func runboth(
 		}()
 
 		wg.Wait()
-	} else if config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
+	case config.randomizeSeqExecOrder && rand.Float32() > 0.5: //nolint:gosec // This doesn't have to cryptographically secure
 		resultPassive, errPassive = passive.exec(client, context)
 		resultActive, errActive = active.exec(client, context)
-	} else {
+	default:
 		resultActive, errActive = active.exec(client, context)
 		resultPassive, errPassive = passive.exec(client, context)
 	}
@@ -485,7 +489,7 @@ func runboth(
 	return resultActive, nil, nil
 }
 
-func (executor MigrationImplExecutor) exec(client *LDClient, context ldcontext.Context) (interface{}, error) {
+func (executor migrationImplExecutor) exec(client *LDClient, context ldcontext.Context) (interface{}, error) {
 	start := time.Now()
 	result, err := executor.impl()
 
@@ -494,7 +498,7 @@ func (executor MigrationImplExecutor) exec(client *LDClient, context ldcontext.C
 	// quite some time after the fix was put in place.
 	if executor.measureLatency {
 		elapsed := time.Since(start)
-		client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
+		_ = client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
 	}
 	if err != nil {
 		return nil, err
@@ -508,7 +512,7 @@ type MigrationStage int
 func (s MigrationStage) String() string {
 	switch s {
 	case Off:
-		return "off"
+		return "off" //nolint:goconst // linter wants a const. If go had better generics this wouldn't even be necessary as the condition is impossible
 	case DualWrite:
 		return "dualwrite"
 	case Shadow:
