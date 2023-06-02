@@ -390,10 +390,10 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 	case DualWrite:
 		return oldExecutor.exec(client, context)
 	case Shadow:
-		result, activeErr, _ := runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+		result, activeErr, _ := runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
 		return result, activeErr
 	case Live:
-		result, activeErr, _ := runboth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
+		result, activeErr, _ := runBoth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
 		return result, activeErr
 	case RampDown:
 		return newExecutor.exec(client, context)
@@ -432,13 +432,13 @@ func (client *LDClient) ValidateWrite(context ldcontext.Context, config Migratio
 		result, err := oldExecutor.exec(client, context)
 		return result, err, nil
 	case DualWrite:
-		return runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
 	case Shadow:
-		return runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
 	case Live:
-		return runboth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
+		return runBoth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
 	case RampDown:
-		return runboth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
+		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
 	case Complete:
 		result, err := newExecutor.exec(client, context)
 		return result, err, nil
@@ -447,7 +447,7 @@ func (client *LDClient) ValidateWrite(context ldcontext.Context, config Migratio
 	return nil, nil, nil
 }
 
-func runboth(
+func runBoth(
 	key string,
 	client *LDClient,
 	context ldcontext.Context,
