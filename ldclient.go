@@ -451,11 +451,10 @@ func runboth(
 	passive MigrationImplExecutor,
 	runInParallel bool,
 ) (interface{}, error, error) {
+	var resultActive, resultPassive interface{}
+	var errActive, errPassive error
+
 	if runInParallel {
-
-		var resultActive, resultPassive interface{}
-		var errActive, errPassive error
-
 		var wg sync.WaitGroup
 		wg.Add(2)
 
@@ -470,22 +469,9 @@ func runboth(
 		}()
 
 		wg.Wait()
-
-		_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
-
-		if errActive != nil || errPassive != nil {
-			return nil, errActive, errPassive
-		}
-		return resultActive, nil, nil
-	}
-
-	var resultPassive, resultActive interface{}
-	var errPassive, errActive error
-
-	if config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
+	} else if config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
 		resultPassive, errPassive = passive.exec(client, context)
 		resultActive, errActive = active.exec(client, context)
-
 	} else {
 		resultActive, errActive = active.exec(client, context)
 		resultPassive, errPassive = passive.exec(client, context)
