@@ -334,6 +334,37 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
+// MigrationVariation Get the variation (the migration stage) for the specified migration feature flag
+func (client *LDClient) MigrationVariation(
+	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
+	variation, err := client.StringVariation(key, context, defaultStage.String())
+
+	if err != nil {
+		return Off, err
+	}
+
+	return strToStage(variation)
+}
+
+func strToStage(val string) (MigrationStage, error) {
+	switch val {
+	case "off": //nolint:goconst
+		return Off, nil
+	case "dualwrite":
+		return DualWrite, nil
+	case "shadow":
+		return Shadow, nil
+	case "live":
+		return Live, nil
+	case "rampdown":
+		return RampDown, nil
+	case "complete":
+		return Complete, nil
+	default:
+		return Off, fmt.Errorf("invalid stage %s provided; assuming off", val)
+	}
+}
+
 // Identify reports details about an evaluation context.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
@@ -390,6 +421,21 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 			0,
 		))
 	return nil
+}
+
+// TrackConsistency reports an event specifying if data was consistent for a given migration flag
+func (client *LDClient) TrackConsistency(flagKey string, context ldcontext.Context, consistent bool) error {
+	return client.TrackData(flagKey+"-consistency", context, ldvalue.Bool(consistent))
+}
+
+// TrackLatencyOldData reports an event specifying the latency for a migration flag's "old implementation"
+func (client *LDClient) TrackLatencyOldData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
+	return client.TrackData(flagKey+"-latency-old", context, ldvalue.Int(int(elapsed.Milliseconds())))
+}
+
+// TrackLatencyNewData reports an event specifying the latency for a migration flag's "new implementation"
+func (client *LDClient) TrackLatencyNewData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
+	return client.TrackData(flagKey+"-latency-new", context, ldvalue.Int(int(elapsed.Milliseconds())))
 }
 
 // TrackMetric reports an event associated with an evaluation context, and adds a numeric value.
