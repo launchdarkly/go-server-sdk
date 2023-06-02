@@ -345,11 +345,11 @@ type MigrationImplFn func() (interface{}, error)
 type migrationImplExecutor struct {
 	name           string
 	key            string
-	context        ldcontext.Context
 	impl           MigrationImplFn
 	measureLatency bool
 }
 
+// MigrationConfig TKTK
 type MigrationConfig struct {
 	old     MigrationImplFn
 	new     MigrationImplFn
@@ -361,6 +361,7 @@ type MigrationConfig struct {
 	measureLatency        bool
 }
 
+// ValidateRead TKTK
 func (client *LDClient) ValidateRead(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
 	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 	if err != nil {
@@ -403,6 +404,7 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 	return nil, nil
 }
 
+// ValidateWrite TKTK
 func (client *LDClient) ValidateWrite(context ldcontext.Context, config MigrationConfig) (interface{}, error, error) {
 	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 	if err != nil {
@@ -473,7 +475,8 @@ func runboth(
 		}()
 
 		wg.Wait()
-	case config.randomizeSeqExecOrder && rand.Float32() > 0.5: //nolint:gosec // This doesn't have to cryptographically secure
+	//nolint:gosec // This doesn't have to cryptographically secure
+	case config.randomizeSeqExecOrder && rand.Float32() > 0.5:
 		resultPassive, errPassive = passive.exec(client, context)
 		resultActive, errActive = active.exec(client, context)
 	default:
@@ -512,7 +515,8 @@ type MigrationStage int
 func (s MigrationStage) String() string {
 	switch s {
 	case Off:
-		return "off" //nolint:goconst // linter wants a const. If go had better generics this wouldn't even be necessary as the condition is impossible
+		//nolint:goconst
+		return "off"
 	case DualWrite:
 		return "dualwrite"
 	case Shadow:
