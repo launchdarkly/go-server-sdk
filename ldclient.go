@@ -514,47 +514,8 @@ func (executor MigrationImplExecutor) exec(client *LDClient, context ldcontext.C
 // MigrationStage something something
 type MigrationStage int
 
-const (
-	// Off Stage 1 - migration hasn't started, "old" is authoritative for reads and writes
-	Off = iota
-
-	// DualWrite Stage 2 - write to both "old" and "new", "old" is authoriative for reads
-	DualWrite
-
-	// Shadow Stage 3 - both "new" and "old" versions run with a preference for "old"
-	Shadow
-
-	// Live Stage 4 - both "new" and "old" versions run with a preference for "new"
-	Live
-
-	// RampDown Stage 5 only read from "new", write to "old" and "new"
-	RampDown
-
-	// Complete Stage 6 - migration is done
-	Complete
-)
-
-func strToStage(val string) MigrationStage {
-	switch val {
-	case "off":
-		return Off
-	case "dualwrite":
-		return DualWrite
-	case "shadow":
-		return Shadow
-	case "live":
-		return Live
-	case "rampdown":
-		return RampDown
-	case "complete":
-		return Complete
-	default:
-		return Off
-	}
-}
-
-func stageToStr(val MigrationStage) string {
-	switch val {
+func (s MigrationStage) String() string {
+	switch s {
 	case Off:
 		return "off"
 	case DualWrite:
@@ -572,12 +533,55 @@ func stageToStr(val MigrationStage) string {
 	}
 }
 
+const (
+	// Off Stage 1 - migration hasn't started, "old" is authoritative for reads and writes
+	Off MigrationStage = iota
+
+	// DualWrite Stage 2 - write to both "old" and "new", "old" is authoritative for reads
+	DualWrite
+
+	// Shadow Stage 3 - both "new" and "old" versions run with a preference for "old"
+	Shadow
+
+	// Live Stage 4 - both "new" and "old" versions run with a preference for "new"
+	Live
+
+	// RampDown Stage 5 only read from "new", write to "old" and "new"
+	RampDown
+
+	// Complete Stage 6 - migration is done
+	Complete
+)
+
+func strToStage(val string) (MigrationStage, error) {
+	switch val {
+	case "off":
+		return Off, nil
+	case "dualwrite":
+		return DualWrite, nil
+	case "shadow":
+		return Shadow, nil
+	case "live":
+		return Live, nil
+	case "rampdown":
+		return RampDown, nil
+	case "complete":
+		return Complete, nil
+	default:
+		return Off, fmt.Errorf("invalid stage %s provided; assuming off", val)
+	}
+}
+
 // MigrationVariation Get the variation (the migration stage) for the specified migration feature flag
 func (client *LDClient) MigrationVariation(
 	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
-	defaultString := stageToStr(defaultStage)
-	variation, err := client.StringVariation(key, context, defaultString)
-	return strToStage(variation), err
+	variation, err := client.StringVariation(key, context, defaultStage.String())
+
+	if err != nil {
+		return Off, err
+	}
+
+	return strToStage(variation)
 }
 
 // Identify reports details about an evaluation context.
