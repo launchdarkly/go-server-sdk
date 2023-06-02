@@ -364,10 +364,6 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	runInParallel := true
 
 	oldExecutor := &MigrationImplExecutor{
@@ -405,10 +401,6 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 
 func (client *LDClient) ValidateWrite(context ldcontext.Context, config MigrationConfig) (interface{}, error, error) {
 	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
-	if err != nil {
-		return nil, err, nil
-	}
-
 	if err != nil {
 		return nil, err, nil
 	}
@@ -482,31 +474,33 @@ func runboth(
 		return resultActive, nil, nil
 	}
 
+	var resultPassive, resultActive interface{}
+	var errPassive, errActive error
+
 	if config.randomizeSeqExecOrder && rand.Float32() > 0.5 {
-		resultPassive, errPassive := passive.exec(client, context)
-
-		resultActive, errActive := active.exec(client, context)
-
-		_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
-		if errActive != nil || errPassive != nil {
-			return nil, errActive, errPassive
-		}
-		return resultActive, nil, nil
+		resultPassive, errPassive = passive.exec(client, context)
+		resultActive, errActive = active.exec(client, context)
 
 	} else {
-		resultActive, errActive := active.exec(client, context)
-		resultPassive, errPassive := passive.exec(client, context)
-		_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
-		if errActive != nil || errPassive != nil {
-			return nil, errActive, errPassive
-		}
-		return resultActive, nil, nil
+		resultActive, errActive = active.exec(client, context)
+		resultPassive, errPassive = passive.exec(client, context)
 	}
+
+	// QUESTION: Should we also be providing the errors here in case they want to compare those things?
+	_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
+	if errActive != nil || errPassive != nil {
+		return nil, errActive, errPassive
+	}
+	return resultActive, nil, nil
 }
 
 func (executor MigrationImplExecutor) exec(client *LDClient, context ldcontext.Context) (interface{}, error) {
 	start := time.Now()
 	result, err := executor.impl()
+
+	// QUESTION: How sure are we that we want to do this? If a call is failing
+	// fast, the latency metric might look really good for the new version
+	// quite some time after the fix was put in place.
 	if executor.measureLatency {
 		elapsed := time.Now().Sub(start)
 		client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
