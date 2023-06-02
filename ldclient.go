@@ -364,6 +364,7 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 		return nil, err
 	}
 
+	// Reads should always be available to run in parallel.
 	runInParallel := true
 
 	oldExecutor := &MigrationImplExecutor{
@@ -451,13 +452,17 @@ func runboth(
 	runInParallel bool,
 ) (interface{}, error, error) {
 	if runInParallel {
-		resultActive, errActive := active.exec(client, context)
 
-		var resultPassive interface{}
-		var errPassive error
+		var resultActive, resultPassive interface{}
+		var errActive, errPassive error
 
 		var wg sync.WaitGroup
-		wg.Add(1)
+		wg.Add(2)
+
+		go func() {
+			resultActive, errActive = active.exec(client, context)
+			defer wg.Done()
+		}()
 
 		go func() {
 			resultPassive, errPassive = passive.exec(client, context)
