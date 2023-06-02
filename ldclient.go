@@ -347,6 +347,7 @@ type migrationImplExecutor struct {
 	key            string
 	impl           MigrationImplFn
 	measureLatency bool
+	trackData      func(key string, context ldcontext.Context, elapsed time.Duration) error
 }
 
 // MigrationConfig TKTK
@@ -376,12 +377,14 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 		key:            config.key,
 		impl:           config.old,
 		measureLatency: config.measureLatency,
+		trackData:      client.TrackLatencyOldData,
 	}
 	newExecutor := &migrationImplExecutor{
 		name:           "new",
 		key:            config.key,
 		impl:           config.new,
 		measureLatency: config.measureLatency,
+		trackData:      client.TrackLatencyNewData,
 	}
 
 	switch stage {
@@ -419,12 +422,14 @@ func (client *LDClient) ValidateWrite(context ldcontext.Context, config Migratio
 		key:            config.key,
 		impl:           config.old,
 		measureLatency: config.measureLatency,
+		trackData:      client.TrackLatencyOldData,
 	}
 	newExecutor := &migrationImplExecutor{
 		name:           "new",
 		key:            config.key,
 		impl:           config.new,
 		measureLatency: config.measureLatency,
+		trackData:      client.TrackLatencyNewData,
 	}
 
 	switch stage {
@@ -501,7 +506,7 @@ func (executor migrationImplExecutor) exec(client *LDClient, context ldcontext.C
 	// quite some time after the fix was put in place.
 	if executor.measureLatency {
 		elapsed := time.Since(start)
-		_ = client.TrackData(executor.key+"-latency-"+executor.name, context, ldvalue.Int(int(elapsed.Milliseconds())))
+		_ = executor.trackData(executor.key+"-latency-"+executor.name, context, elapsed)
 	}
 	if err != nil {
 		return nil, err
