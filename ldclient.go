@@ -6,9 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
 	"reflect"
-	"sync"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -336,230 +334,21 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-// MigrationComparisonFn TKTK
-type MigrationComparisonFn func(interface{}, interface{}) bool
+// MigrationVariation Get the variation (the migration stage) for the specified migration feature flag
+func (client *LDClient) MigrationVariation(
+	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
+	variation, err := client.StringVariation(key, context, defaultStage.String())
 
-// MigrationImplFn TKTK
-type MigrationImplFn func() (interface{}, error)
-
-type migrationImplExecutor struct {
-	name           string
-	key            string
-	impl           MigrationImplFn
-	measureLatency bool
-	trackData      func(key string, context ldcontext.Context, elapsed time.Duration) error
-}
-
-// MigrationConfig TKTK
-type MigrationConfig struct {
-	old     MigrationImplFn
-	new     MigrationImplFn
-	compare MigrationComparisonFn
-
-	defaultStage          MigrationStage
-	key                   string
-	randomizeSeqExecOrder bool
-	measureLatency        bool
-}
-
-// ValidateRead TKTK
-func (client *LDClient) ValidateRead(context ldcontext.Context, config MigrationConfig) (interface{}, error) {
-	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
 	if err != nil {
-		return nil, err
+		return Off, err
 	}
 
-	// Reads should always be available to run in parallel.
-	runInParallel := true
-
-	oldExecutor := &migrationImplExecutor{
-		name:           "old",
-		key:            config.key,
-		impl:           config.old,
-		measureLatency: config.measureLatency,
-		trackData:      client.TrackLatencyOldData,
-	}
-	newExecutor := &migrationImplExecutor{
-		name:           "new",
-		key:            config.key,
-		impl:           config.new,
-		measureLatency: config.measureLatency,
-		trackData:      client.TrackLatencyNewData,
-	}
-
-	switch stage {
-	case Off:
-		return oldExecutor.exec(context)
-	case DualWrite:
-		return oldExecutor.exec(context)
-	case Shadow:
-		result, activeErr, _ := runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
-		return result, activeErr
-	case Live:
-		result, activeErr, _ := runBoth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
-		return result, activeErr
-	case RampDown:
-		return newExecutor.exec(context)
-	case Complete:
-		return newExecutor.exec(context)
-	}
-
-	return nil, nil
+	return strToStage(variation)
 }
-
-// ValidateWrite TKTK
-func (client *LDClient) ValidateWrite(context ldcontext.Context, config MigrationConfig) (interface{}, error, error) {
-	stage, err := client.MigrationVariation(config.key, context, config.defaultStage)
-	if err != nil {
-		return nil, err, nil
-	}
-
-	// We do not want to run write operations in parallel
-	runInParallel := false
-
-	oldExecutor := &migrationImplExecutor{
-		name:           "old",
-		key:            config.key,
-		impl:           config.old,
-		measureLatency: config.measureLatency,
-		trackData:      client.TrackLatencyOldData,
-	}
-	newExecutor := &migrationImplExecutor{
-		name:           "new",
-		key:            config.key,
-		impl:           config.new,
-		measureLatency: config.measureLatency,
-		trackData:      client.TrackLatencyNewData,
-	}
-
-	switch stage {
-	case Off:
-		result, err := oldExecutor.exec(context)
-		return result, err, nil
-	case DualWrite:
-		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
-	case Shadow:
-		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
-	case Live:
-		return runBoth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
-	case RampDown:
-		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
-	case Complete:
-		result, err := newExecutor.exec(context)
-		return result, err, nil
-	}
-
-	return nil, nil, nil
-}
-
-func runBoth(
-	key string,
-	client *LDClient,
-	context ldcontext.Context,
-	config MigrationConfig,
-	active migrationImplExecutor,
-	passive migrationImplExecutor,
-	runInParallel bool,
-) (interface{}, error, error) {
-	var resultActive, resultPassive interface{}
-	var errActive, errPassive error
-
-	switch {
-	case runInParallel:
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		go func() {
-			resultActive, errActive = active.exec(context)
-			defer wg.Done()
-		}()
-
-		go func() {
-			resultPassive, errPassive = passive.exec(context)
-			defer wg.Done()
-		}()
-
-		wg.Wait()
-	//nolint:gosec // This doesn't have to cryptographically secure
-	case config.randomizeSeqExecOrder && rand.Float32() > 0.5:
-		resultPassive, errPassive = passive.exec(context)
-		resultActive, errActive = active.exec(context)
-	default:
-		resultActive, errActive = active.exec(context)
-		resultPassive, errPassive = passive.exec(context)
-	}
-
-	// QUESTION: Should we also be providing the errors here in case they want to compare those things?
-	_ = client.TrackConsistency(key, context, config.compare(resultActive, resultPassive))
-	if errActive != nil || errPassive != nil {
-		return nil, errActive, errPassive
-	}
-	return resultActive, nil, nil
-}
-
-func (executor migrationImplExecutor) exec(context ldcontext.Context) (interface{}, error) {
-	start := time.Now()
-	result, err := executor.impl()
-
-	// QUESTION: How sure are we that we want to do this? If a call is failing
-	// fast, the latency metric might look really good for the new version
-	// quite some time after the fix was put in place.
-	if executor.measureLatency {
-		elapsed := time.Since(start)
-		_ = executor.trackData(executor.key+"-latency-"+executor.name, context, elapsed)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// MigrationStage something something
-type MigrationStage int
-
-func (s MigrationStage) String() string {
-	switch s {
-	case Off:
-		//nolint:goconst
-		return "off"
-	case DualWrite:
-		return "dualwrite"
-	case Shadow:
-		return "shadow"
-	case Live:
-		return "live"
-	case RampDown:
-		return "rampdown"
-	case Complete:
-		return "complete"
-	default:
-		return "off"
-	}
-}
-
-const (
-	// Off Stage 1 - migration hasn't started, "old" is authoritative for reads and writes
-	Off MigrationStage = iota
-
-	// DualWrite Stage 2 - write to both "old" and "new", "old" is authoritative for reads
-	DualWrite
-
-	// Shadow Stage 3 - both "new" and "old" versions run with a preference for "old"
-	Shadow
-
-	// Live Stage 4 - both "new" and "old" versions run with a preference for "new"
-	Live
-
-	// RampDown Stage 5 only read from "new", write to "old" and "new"
-	RampDown
-
-	// Complete Stage 6 - migration is done
-	Complete
-)
 
 func strToStage(val string) (MigrationStage, error) {
 	switch val {
-	case "off":
+	case "off": //nolint:goconst
 		return Off, nil
 	case "dualwrite":
 		return DualWrite, nil
@@ -574,18 +363,6 @@ func strToStage(val string) (MigrationStage, error) {
 	default:
 		return Off, fmt.Errorf("invalid stage %s provided; assuming off", val)
 	}
-}
-
-// MigrationVariation Get the variation (the migration stage) for the specified migration feature flag
-func (client *LDClient) MigrationVariation(
-	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
-	variation, err := client.StringVariation(key, context, defaultStage.String())
-
-	if err != nil {
-		return Off, err
-	}
-
-	return strToStage(variation)
 }
 
 // Identify reports details about an evaluation context.
