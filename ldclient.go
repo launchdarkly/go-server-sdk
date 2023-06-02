@@ -389,9 +389,9 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 
 	switch stage {
 	case Off:
-		return oldExecutor.exec(client, context)
+		return oldExecutor.exec(context)
 	case DualWrite:
-		return oldExecutor.exec(client, context)
+		return oldExecutor.exec(context)
 	case Shadow:
 		result, activeErr, _ := runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
 		return result, activeErr
@@ -399,9 +399,9 @@ func (client *LDClient) ValidateRead(context ldcontext.Context, config Migration
 		result, activeErr, _ := runBoth(config.key, client, context, config, *newExecutor, *oldExecutor, runInParallel)
 		return result, activeErr
 	case RampDown:
-		return newExecutor.exec(client, context)
+		return newExecutor.exec(context)
 	case Complete:
-		return newExecutor.exec(client, context)
+		return newExecutor.exec(context)
 	}
 
 	return nil, nil
@@ -434,7 +434,7 @@ func (client *LDClient) ValidateWrite(context ldcontext.Context, config Migratio
 
 	switch stage {
 	case Off:
-		result, err := oldExecutor.exec(client, context)
+		result, err := oldExecutor.exec(context)
 		return result, err, nil
 	case DualWrite:
 		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
@@ -445,7 +445,7 @@ func (client *LDClient) ValidateWrite(context ldcontext.Context, config Migratio
 	case RampDown:
 		return runBoth(config.key, client, context, config, *oldExecutor, *newExecutor, runInParallel)
 	case Complete:
-		result, err := newExecutor.exec(client, context)
+		result, err := newExecutor.exec(context)
 		return result, err, nil
 	}
 
@@ -470,23 +470,23 @@ func runBoth(
 		wg.Add(2)
 
 		go func() {
-			resultActive, errActive = active.exec(client, context)
+			resultActive, errActive = active.exec(context)
 			defer wg.Done()
 		}()
 
 		go func() {
-			resultPassive, errPassive = passive.exec(client, context)
+			resultPassive, errPassive = passive.exec(context)
 			defer wg.Done()
 		}()
 
 		wg.Wait()
 	//nolint:gosec // This doesn't have to cryptographically secure
 	case config.randomizeSeqExecOrder && rand.Float32() > 0.5:
-		resultPassive, errPassive = passive.exec(client, context)
-		resultActive, errActive = active.exec(client, context)
+		resultPassive, errPassive = passive.exec(context)
+		resultActive, errActive = active.exec(context)
 	default:
-		resultActive, errActive = active.exec(client, context)
-		resultPassive, errPassive = passive.exec(client, context)
+		resultActive, errActive = active.exec(context)
+		resultPassive, errPassive = passive.exec(context)
 	}
 
 	// QUESTION: Should we also be providing the errors here in case they want to compare those things?
@@ -497,7 +497,7 @@ func runBoth(
 	return resultActive, nil, nil
 }
 
-func (executor migrationImplExecutor) exec(client *LDClient, context ldcontext.Context) (interface{}, error) {
+func (executor migrationImplExecutor) exec(context ldcontext.Context) (interface{}, error) {
 	start := time.Now()
 	result, err := executor.impl()
 
