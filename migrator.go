@@ -61,7 +61,7 @@ type MigrationImplFn func() (interface{}, error)
 type migrationConfig struct {
 	old     MigrationImplFn
 	new     MigrationImplFn
-	compare MigrationComparisonFn
+	compare *MigrationComparisonFn
 }
 
 // Migrator TKTK
@@ -154,13 +154,13 @@ func (m migratorImpl) ValidateWrite(
 		result, err := oldExecutor.exec(context)
 		return result, err, nil
 	case DualWrite:
-		return m.runBoth(key, context, *oldExecutor, *newExecutor, m.writeConfig.compare, runInParallel)
+		return m.runBoth(key, context, *oldExecutor, *newExecutor, nil, runInParallel)
 	case Shadow:
-		return m.runBoth(key, context, *oldExecutor, *newExecutor, m.writeConfig.compare, runInParallel)
+		return m.runBoth(key, context, *oldExecutor, *newExecutor, nil, runInParallel)
 	case Live:
-		return m.runBoth(key, context, *newExecutor, *oldExecutor, m.writeConfig.compare, runInParallel)
+		return m.runBoth(key, context, *newExecutor, *oldExecutor, nil, runInParallel)
 	case RampDown:
-		return m.runBoth(key, context, *oldExecutor, *newExecutor, m.writeConfig.compare, runInParallel)
+		return m.runBoth(key, context, *oldExecutor, *newExecutor, nil, runInParallel)
 	case Complete:
 		result, err := newExecutor.exec(context)
 		return result, err, nil
@@ -174,7 +174,7 @@ func (m migratorImpl) runBoth(
 	context ldcontext.Context,
 	active migrationExecutor,
 	passive migrationExecutor,
-	comparison MigrationComparisonFn,
+	comparison *MigrationComparisonFn,
 	runInParallel bool,
 ) (interface{}, error, error) {
 	var resultActive, resultPassive interface{}
@@ -206,7 +206,9 @@ func (m migratorImpl) runBoth(
 	}
 
 	// QUESTION: Should we also be providing the errors here in case they want to compare those things?
-	_ = m.client.TrackConsistency(key, context, comparison(resultActive, resultPassive))
+	if comparison != nil {
+		_ = m.client.TrackConsistency(key, context, (*comparison)(resultActive, resultPassive))
+	}
 	if errActive != nil || errPassive != nil {
 		return nil, errActive, errPassive
 	}

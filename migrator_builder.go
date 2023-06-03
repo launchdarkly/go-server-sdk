@@ -37,7 +37,7 @@ func (b *MigratorBuilder) TrackLatency() *MigratorBuilder {
 }
 
 // Read TKTK
-func (b *MigratorBuilder) Read(oldReadFn, newReadFn MigrationImplFn, comparisonFn MigrationComparisonFn) *MigratorBuilder {
+func (b *MigratorBuilder) Read(oldReadFn, newReadFn MigrationImplFn, comparisonFn *MigrationComparisonFn) *MigratorBuilder {
 	b.readConfig = &migrationConfig{
 		old:     oldReadFn,
 		new:     newReadFn,
@@ -47,11 +47,10 @@ func (b *MigratorBuilder) Read(oldReadFn, newReadFn MigrationImplFn, comparisonF
 }
 
 // Write TKTK
-func (b *MigratorBuilder) Write(oldWriteFn, newWriteFn MigrationImplFn, comparisonFn MigrationComparisonFn) *MigratorBuilder {
+func (b *MigratorBuilder) Write(oldWriteFn, newWriteFn MigrationImplFn) *MigratorBuilder {
 	b.writeConfig = &migrationConfig{
-		old:     oldWriteFn,
-		new:     newWriteFn,
-		compare: comparisonFn,
+		old: oldWriteFn,
+		new: newWriteFn,
 	}
 	return b
 }
