@@ -2,42 +2,62 @@ package ldclient
 
 import (
 	"errors"
-	"time"
-
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 )
 
-// MigratorBuilder TKTK
+// MigratorBuilder provides a mechanism to construct a Migrator instance.
 type MigratorBuilder struct {
-	client                *LDClient
-	randomizeSeqExecOrder bool
-	measureLatency        bool
+	client             *LDClient
+	readExecutionOrder ExecutionOrder
+
+	measureLatency bool
+	measureErrors  bool
 
 	readConfig  *migrationConfig
 	writeConfig *migrationConfig
 }
 
-// Migration TKTK
+// Migration creates a new MigratorBuilder instance with sane defaults.
+//
+// The builder defaults to tracking latency and error metrics, and will execute
+// multiple migration-reads concurrently when possible.
 func Migration(client *LDClient) *MigratorBuilder {
 	return &MigratorBuilder{
-		client: client,
+		client:             client,
+		measureLatency:     true,
+		measureErrors:      true,
+		readExecutionOrder: Concurrently,
 	}
 }
 
-// RandomizeExecution TKTK
-func (b *MigratorBuilder) RandomizeExecution() *MigratorBuilder {
-	b.randomizeSeqExecOrder = true
+// ReadExecutionOrder influences the level of concurrency when the migration stage calls for multiple execution reads.
+func (b *MigratorBuilder) ReadExecutionOrder(order ExecutionOrder) *MigratorBuilder {
+	b.readExecutionOrder = order
 	return b
 }
 
-// TrackLatency TKTK
-func (b *MigratorBuilder) TrackLatency() *MigratorBuilder {
-	b.measureLatency = true
+// TrackLatency can be used to enable or disable latency tracking methods. Tracking is enabled by default.
+func (b *MigratorBuilder) TrackLatency(enabled bool) *MigratorBuilder {
+	b.measureLatency = enabled
 	return b
 }
 
-// Read TKTK
-func (b *MigratorBuilder) Read(oldReadFn, newReadFn MigrationImplFn, comparisonFn *MigrationComparisonFn) *MigratorBuilder {
+// TrackErrors can be used to enable or disable error tracking. Tracking is enabled by default.
+func (b *MigratorBuilder) TrackErrors(enabled bool) *MigratorBuilder {
+	b.measureErrors = enabled
+	return b
+}
+
+// Read can be used to configure the migration-read behavior of the resulting Migrator instance.
+//
+// Users are required to provide two different read methods -- one to read from the old migration source, and one to
+// read from the new source. Additionally, customers can opt-in to consistency tracking by providing a comparison
+// function.
+//
+// Depending on the migration stage, one or both of these read methods may be called.
+func (b *MigratorBuilder) Read(
+	oldReadFn, newReadFn MigrationImplFn,
+	comparisonFn *MigrationComparisonFn,
+) *MigratorBuilder {
 	b.readConfig = &migrationConfig{
 		old:     oldReadFn,
 		new:     newReadFn,
@@ -46,7 +66,12 @@ func (b *MigratorBuilder) Read(oldReadFn, newReadFn MigrationImplFn, comparisonF
 	return b
 }
 
-// Write TKTK
+// Write can be used to configure the migration-write behavior of the resulting Migrator instance.
+//
+// Users are required to provide two different write methods -- one to write to the old migration source, and one to
+// write to the new source. Not every stage requires
+//
+// Depending on the migration stage, one or both of these write methods may be called.
 func (b *MigratorBuilder) Write(oldWriteFn, newWriteFn MigrationImplFn) *MigratorBuilder {
 	b.writeConfig = &migrationConfig{
 		old: oldWriteFn,
@@ -55,7 +80,8 @@ func (b *MigratorBuilder) Write(oldWriteFn, newWriteFn MigrationImplFn) *Migrato
 	return b
 }
 
-// Build TKTK
+// Build constructs a Migrator instance to support migration-based reads and writes. An error will be returned if the
+// build process fails.
 func (b *MigratorBuilder) Build() (Migrator, error) {
 	if b == nil {
 		return nil, errors.New("calling build on nil pointer")
@@ -74,17 +100,12 @@ func (b *MigratorBuilder) Build() (Migrator, error) {
 	}
 
 	migrator := migratorImpl{
-		client:                b.client,
-		randomizeSeqExecOrder: b.randomizeSeqExecOrder,
-		readConfig:            *b.readConfig,
-		writeConfig:           *b.writeConfig,
-		oldLatencyFn:          func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
-		newLatencyFn:          func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
-	}
-
-	if b.measureLatency {
-		migrator.oldLatencyFn = b.client.TrackLatencyOldData
-		migrator.newLatencyFn = b.client.TrackLatencyNewData
+		client:             b.client,
+		readExecutionOrder: b.readExecutionOrder,
+		readConfig:         *b.readConfig,
+		writeConfig:        *b.writeConfig,
+		measureLatency:     b.measureLatency,
+		measureErrors:      b.measureErrors,
 	}
 
 	return migrator, nil

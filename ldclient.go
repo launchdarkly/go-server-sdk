@@ -340,10 +340,15 @@ func (client *LDClient) MigrationVariation(
 	variation, err := client.StringVariation(key, context, defaultStage.String())
 
 	if err != nil {
-		return Off, err
+		return defaultStage, err
 	}
 
-	return strToStage(variation)
+	stage, err := strToStage(variation)
+	if err != nil {
+		return defaultStage, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
+	}
+
+	return stage, nil
 }
 
 func strToStage(val string) (MigrationStage, error) {
@@ -361,7 +366,7 @@ func strToStage(val string) (MigrationStage, error) {
 	case "complete":
 		return Complete, nil
 	default:
-		return Off, fmt.Errorf("invalid stage %s provided; assuming off", val)
+		return Off, fmt.Errorf("invalid stage %s provided", val)
 	}
 }
 
@@ -421,21 +426,6 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 			0,
 		))
 	return nil
-}
-
-// TrackConsistency reports an event specifying if data was consistent for a given migration flag
-func (client *LDClient) TrackConsistency(flagKey string, context ldcontext.Context, consistent bool) error {
-	return client.TrackData(flagKey+"-consistency", context, ldvalue.Bool(consistent))
-}
-
-// TrackLatencyOldData reports an event specifying the latency for a migration flag's "old implementation"
-func (client *LDClient) TrackLatencyOldData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
-	return client.TrackData(flagKey+"-latency-old", context, ldvalue.Int(int(elapsed.Milliseconds())))
-}
-
-// TrackLatencyNewData reports an event specifying the latency for a migration flag's "new implementation"
-func (client *LDClient) TrackLatencyNewData(flagKey string, context ldcontext.Context, elapsed time.Duration) error {
-	return client.TrackData(flagKey+"-latency-new", context, ldvalue.Int(int(elapsed.Milliseconds())))
 }
 
 // TrackMetric reports an event associated with an evaluation context, and adds a numeric value.

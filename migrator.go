@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -8,232 +9,179 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 )
 
-// MigrationStage TKTK
-type MigrationStage int
-
-// String TKTK
-func (s MigrationStage) String() string {
-	switch s {
-	case Off:
-		return "off"
-	case DualWrite:
-		return "dualwrite"
-	case Shadow:
-		return "shadow"
-	case Live:
-		return "live"
-	case RampDown:
-		return "rampdown"
-	case Complete:
-		return "complete"
-	default:
-		return "off"
-	}
-}
-
-const (
-	// Off Stage 1 - migration hasn't started, "old" is authoritative for reads and writes
-	Off MigrationStage = iota
-
-	// DualWrite Stage 2 - write to both "old" and "new", "old" is authoritative for reads
-	DualWrite
-
-	// Shadow Stage 3 - both "new" and "old" versions run with a preference for "old"
-	Shadow
-
-	// Live Stage 4 - both "new" and "old" versions run with a preference for "new"
-	Live
-
-	// RampDown Stage 5 only read from "new", write to "old" and "new"
-	RampDown
-
-	// Complete Stage 6 - migration is done
-	Complete
-)
-
-// MigrationComparisonFn TKTK
-type MigrationComparisonFn func(interface{}, interface{}) bool
-
-// MigrationImplFn TKTK
-type MigrationImplFn func() (interface{}, error)
-
-// MigrationConfig TKTK
-type migrationConfig struct {
-	old     MigrationImplFn
-	new     MigrationImplFn
-	compare *MigrationComparisonFn
-}
-
-// Migrator TKTK
-type Migrator interface {
-	ValidateRead(key string, context ldcontext.Context, defaultStage MigrationStage) (interface{}, error)
-	ValidateWrite(key string, context ldcontext.Context, defaultStage MigrationStage) (interface{}, error, error)
-}
-
 type migratorImpl struct {
-	client                *LDClient
-	randomizeSeqExecOrder bool
+	client             *LDClient
+	readExecutionOrder ExecutionOrder
 
 	readConfig  migrationConfig
 	writeConfig migrationConfig
 
-	oldLatencyFn func(key string, context ldcontext.Context, elapsed time.Duration) error
-	newLatencyFn func(key string, context ldcontext.Context, elapsed time.Duration) error
+	measureLatency bool
+	measureErrors  bool
 }
 
 func (m migratorImpl) ValidateRead(
 	key string, context ldcontext.Context, defaultStage MigrationStage,
-) (interface{}, error) {
+) MigrationReadResult {
 	stage, err := m.client.MigrationVariation(key, context, defaultStage)
 	if err != nil {
-		return nil, err
+		m.client.loggers.Error(err)
 	}
-
-	// Reads should always be available to run in parallel.
-	runInParallel := true
 
 	oldExecutor := &migrationExecutor{
-		label:     "old",
 		key:       key,
+		origin:    Old,
 		impl:      m.readConfig.old,
-		latencyFn: m.oldLatencyFn,
+		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
 	}
 	newExecutor := &migrationExecutor{
-		label:     "new",
 		key:       key,
+		origin:    New,
 		impl:      m.readConfig.new,
-		latencyFn: m.newLatencyFn,
+		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
 	}
+
+	var readResult MigrationReadResult
 
 	switch stage {
 	case Off:
-		return oldExecutor.exec(context)
+		readResult.MigrationResult = oldExecutor.exec(context)
+		return readResult
 	case DualWrite:
-		return oldExecutor.exec(context)
+		readResult.MigrationResult = oldExecutor.exec(context)
+		return readResult
 	case Shadow:
-		result, activeErr, _ := m.runBoth(key, context, *oldExecutor, *newExecutor, m.readConfig.compare, runInParallel)
-		return result, activeErr
+		authoritativeResult, _ := m.runBoth(context, *oldExecutor, *newExecutor, m.readConfig.compare, m.readExecutionOrder)
+		readResult.MigrationResult = authoritativeResult
+		return readResult
 	case Live:
-		result, activeErr, _ := m.runBoth(key, context, *newExecutor, *oldExecutor, m.readConfig.compare, runInParallel)
-		return result, activeErr
+		authoritativeResult, _ := m.runBoth(context, *newExecutor, *oldExecutor, m.readConfig.compare, m.readExecutionOrder)
+		readResult.MigrationResult = authoritativeResult
+		return readResult
 	case RampDown:
-		return newExecutor.exec(context)
+		readResult.MigrationResult = newExecutor.exec(context)
+		return readResult
 	case Complete:
-		return newExecutor.exec(context)
+		readResult.MigrationResult = newExecutor.exec(context)
+		return readResult
 	}
 
-	return nil, nil
+	// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
+	readResult.MigrationResult = MigrationResult{
+		error: fmt.Errorf("invalid stage %s detected; cannot execute read", stage),
+	}
+
+	return readResult
 }
 
 func (m migratorImpl) ValidateWrite(
 	key string, context ldcontext.Context, defaultStage MigrationStage,
-) (interface{}, error, error) {
+) MigrationWriteResult {
 	stage, err := m.client.MigrationVariation(key, context, defaultStage)
 	if err != nil {
-		return nil, err, nil
+		m.client.loggers.Error(err)
 	}
-
-	// We do not want to run write operations in parallel
-	runInParallel := false
 
 	oldExecutor := &migrationExecutor{
-		label:     "old",
 		key:       key,
 		impl:      m.writeConfig.old,
-		latencyFn: m.oldLatencyFn,
+		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
 	}
 	newExecutor := &migrationExecutor{
-		label:     "new",
 		key:       key,
 		impl:      m.writeConfig.new,
-		latencyFn: m.newLatencyFn,
+		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
 	}
 
 	switch stage {
 	case Off:
-		result, err := oldExecutor.exec(context)
-		return result, err, nil
+		result := oldExecutor.exec(context)
+		return NewMigrationWriteResult(result, nil)
 	case DualWrite:
-		return m.runBoth(key, context, *oldExecutor, *newExecutor, nil, runInParallel)
+		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *oldExecutor, *newExecutor, nil, Serial)
+		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
 	case Shadow:
-		return m.runBoth(key, context, *oldExecutor, *newExecutor, nil, runInParallel)
+		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *oldExecutor, *newExecutor, nil, Serial)
+		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
 	case Live:
-		return m.runBoth(key, context, *newExecutor, *oldExecutor, nil, runInParallel)
+		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *newExecutor, *oldExecutor, nil, Serial)
+		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
 	case RampDown:
-		return m.runBoth(key, context, *oldExecutor, *newExecutor, nil, runInParallel)
+		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *oldExecutor, *newExecutor, nil, Serial)
+		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
 	case Complete:
-		result, err := newExecutor.exec(context)
-		return result, err, nil
+		authoritativeResult := newExecutor.exec(context)
+		return NewMigrationWriteResult(authoritativeResult, nil)
 	}
 
-	return nil, nil, nil
+	// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
+	return MigrationWriteResult{
+		authoritative: MigrationResult{
+			error: fmt.Errorf("invalid stage %s detected; cannot execute read", stage),
+		},
+	}
 }
 
 func (m migratorImpl) runBoth(
-	key string,
 	context ldcontext.Context,
-	active migrationExecutor,
-	passive migrationExecutor,
+	authoritative, nonAuthoritative migrationExecutor,
 	comparison *MigrationComparisonFn,
-	runInParallel bool,
-) (interface{}, error, error) {
-	var resultActive, resultPassive interface{}
-	var errActive, errPassive error
+	executionOrder ExecutionOrder,
+) (MigrationResult, MigrationResult) {
+	var authoritativeMigrationResult, nonAuthoritativeMigrationResult MigrationResult
 
 	switch {
-	case runInParallel:
+	case executionOrder == Concurrently:
 		var wg sync.WaitGroup
 		wg.Add(2)
 
 		go func() {
-			resultActive, errActive = active.exec(context)
+			authoritativeMigrationResult = authoritative.exec(context)
 			defer wg.Done()
 		}()
 
 		go func() {
-			resultPassive, errPassive = passive.exec(context)
+			nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
 			defer wg.Done()
 		}()
 
 		wg.Wait()
-	//nolint:gosec // This doesn't have to cryptographically secure
-	case m.randomizeSeqExecOrder && rand.Float32() > 0.5:
-		resultPassive, errPassive = passive.exec(context)
-		resultActive, errActive = active.exec(context)
+	case executionOrder == Randomized && rand.Float32() > 0.5: //nolint:gosec // doesn't need cryptographic security
+		nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
+		authoritativeMigrationResult = authoritative.exec(context)
 	default:
-		resultActive, errActive = active.exec(context)
-		resultPassive, errPassive = passive.exec(context)
+		authoritativeMigrationResult = authoritative.exec(context)
+		nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
 	}
 
-	// QUESTION: Should we also be providing the errors here in case they want to compare those things?
 	if comparison != nil {
-		_ = m.client.TrackConsistency(key, context, (*comparison)(resultActive, resultPassive))
+		_ = (*comparison)(authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult())
+		// NOTE: Handle this consistency check
 	}
-	if errActive != nil || errPassive != nil {
-		return nil, errActive, errPassive
-	}
-	return resultActive, nil, nil
+
+	return authoritativeMigrationResult, nonAuthoritativeMigrationResult
 }
 
 type migrationExecutor struct {
-	label     string
 	key       string
+	origin    MigrationOrigin
 	impl      MigrationImplFn
 	latencyFn func(key string, context ldcontext.Context, elapsed time.Duration) error
 }
 
-func (e migrationExecutor) exec(context ldcontext.Context) (interface{}, error) {
+func (e migrationExecutor) exec(context ldcontext.Context) MigrationResult {
 	start := time.Now()
 	result, err := e.impl()
 
 	// QUESTION: How sure are we that we want to do this? If a call is failing
-	// fast, the latency metric might look really good for the new version
+	// fast, the latency metric might look wonderful for the new version
 	// quite some time after the fix was put in place.
 	elapsed := time.Since(start)
-	_ = e.latencyFn(e.key+"-latency-"+e.label, context, elapsed)
+	_ = e.latencyFn(e.key+"-latency-", context, elapsed)
 
 	if err != nil {
-		return nil, err
+		return NewErrorMigrationResult(e.origin, err)
 	}
-	return result, nil
+
+	return NewSuccessfulMigrationResult(e.origin, result)
 }
