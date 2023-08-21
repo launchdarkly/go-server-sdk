@@ -41,9 +41,9 @@ func TestTrackerCanTrackErrors(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, event)
 
-		assert.True(t, event.Errors[ldmigration.New])
-		assert.False(t, event.Errors[ldmigration.Old])
-		assert.Len(t, event.Errors, 2)
+		assert.True(t, event.Error[ldmigration.New])
+		assert.False(t, event.Error[ldmigration.Old])
+		assert.Len(t, event.Error, 2)
 	})
 
 	t.Run("for individual origins", func(t *testing.T) {
@@ -56,8 +56,8 @@ func TestTrackerCanTrackErrors(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, event)
 
-			assert.True(t, event.Errors[origin])
-			assert.Len(t, event.Errors, 1)
+			assert.True(t, event.Error[origin])
+			assert.Len(t, event.Error, 1)
 		}
 	})
 }

@@ -76,7 +76,7 @@ func TestTestDataSource(t *testing.T) {
 			p.withDataSource(t, func(subsystems.DataSource) {
 				initData := p.updates.DataStore.WaitForNextInit(t, time.Millisecond)
 				dataMap := sharedtest.DataSetToMap(initData)
-				require.Len(t, dataMap, 2)
+				require.Len(t, dataMap, 4)
 				flags := dataMap[ldstoreimpl.Features()]
 				require.Len(t, flags, 2)
 
@@ -162,6 +162,49 @@ func TestTestDataSource(t *testing.T) {
 
 				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 2, time.Millisecond)
 				assert.Equal(t, &expectedSegmentV2, up.Item.Item.(*ldmodel.Segment))
+			})
+		})
+	})
+
+	t.Run("adds or updates preconfigured config override", func(t *testing.T) {
+		override := ldbuilders.NewConfigOverrideBuilder("override-key").Value(ldvalue.Int(1)).Version(1).Build()
+
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
+			p.withDataSource(t, func(subsystems.DataSource) {
+				p.td.UsePreconfiguredConfigOverride(override)
+
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.ConfigOverrides(), "override-key", 1, time.Millisecond)
+				assert.Equal(t, &override, up.Item.Item.(*ldmodel.ConfigOverride))
+
+				updatedConfigOverride := override
+				updatedConfigOverride.Value = ldvalue.String("hi there")
+				expectedConfigOverrideV2 := updatedConfigOverride
+				expectedConfigOverrideV2.Version = 2
+				p.td.UsePreconfiguredConfigOverride(updatedConfigOverride)
+
+				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.ConfigOverrides(), "override-key", 2, time.Millisecond)
+				assert.Equal(t, &expectedConfigOverrideV2, up.Item.Item.(*ldmodel.ConfigOverride))
+			})
+		})
+	})
+
+	t.Run("adds or updates preconfigured metrics", func(t *testing.T) {
+		metric := ldbuilders.NewMetricBuilder("metric-key").SamplingRatio(ldvalue.NewOptionalInt(10)).Version(1).Build()
+		testDataSourceTest(t, func(p testDataSourceTestParams) {
+			p.withDataSource(t, func(subsystems.DataSource) {
+				p.td.UsePreconfiguredMetric(metric)
+
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Metrics(), "metric-key", 1, time.Millisecond)
+				assert.Equal(t, &metric, up.Item.Item.(*ldmodel.Metric))
+
+				updatedMetric := metric
+				updatedMetric.SamplingRatio = ldvalue.NewOptionalInt(100)
+				expectedMetricV2 := updatedMetric
+				expectedMetricV2.Version = 2
+				p.td.UsePreconfiguredMetric(updatedMetric)
+
+				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Metrics(), "metric-key", 2, time.Millisecond)
+				assert.Equal(t, &expectedMetricV2, up.Item.Item.(*ldmodel.Metric))
 			})
 		})
 	})

@@ -10,6 +10,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 )
 
@@ -117,9 +118,9 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 		FlagKey:            t.flagKey,
 		Default:            t.defaultStage,
 		Evaluation:         t.evaluation,
-		SamplingRatio:      0, // TODO: Need to deal with this still
+		SamplingRatio:      ldvalue.NewOptionalInt(0), // TODO: Need to deal with this still
 		ConsistencyCheck:   t.consistencyCheck,
-		Errors:             t.errors,
+		Error:              t.errors,
 		Latency:            t.latency,
 		CustomMeasurements: t.customMeasurements,
 	}, nil

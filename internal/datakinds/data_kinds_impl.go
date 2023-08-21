@@ -27,6 +27,8 @@ const deletedItemPlaceholderKey = "$deleted"
 // Type aliases for our two implementations of StoreDataKind
 type featureFlagStoreDataKind struct{}
 type segmentStoreDataKind struct{}
+type configOverridesDataKind struct{}
+type metricsDataKind struct{}
 
 // Features is the global StoreDataKind instance for feature flags.
 var Features DataKindInternal = featureFlagStoreDataKind{} //nolint:gochecknoglobals
@@ -34,9 +36,15 @@ var Features DataKindInternal = featureFlagStoreDataKind{} //nolint:gochecknoglo
 // Segments is the global StoreDataKind instance for segments.
 var Segments DataKindInternal = segmentStoreDataKind{} //nolint:gochecknoglobals
 
+// ConfigOverrides is the global StoreDataKind instance for configuration overrides.
+var ConfigOverrides DataKindInternal = configOverridesDataKind{} //nolint:gochecknoglobals
+
+// Metrics is the global StoreDataKind instance for custom-metric overrides.
+var Metrics DataKindInternal = metricsDataKind{} //nolint:gochecknoglobals
+
 // AllDataKinds returns all the supported data StoreDataKinds.
 func AllDataKinds() []ldstoretypes.DataKind {
-	return []ldstoretypes.DataKind{Features, Segments}
+	return []ldstoretypes.DataKind{Features, Segments, ConfigOverrides, Metrics}
 }
 
 // GetName returns the unique namespace identifier for feature flag objects.
@@ -132,4 +140,100 @@ func maybeSegment(segment ldmodel.Segment, err error) (ldstoretypes.ItemDescript
 // String returns a human-readable string identifier.
 func (sk segmentStoreDataKind) String() string {
 	return sk.GetName()
+}
+
+// GetName returns the unique namespace identifier for feature flag objects.
+func (fk configOverridesDataKind) GetName() string {
+	return "configurationOverrides"
+}
+
+// Serialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk configOverridesDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
+	if item.Item == nil {
+		override := ldmodel.ConfigOverride{Version: item.Version, Deleted: true}
+		if bytes, err := modelSerialization.MarshalConfigOverride(override); err == nil {
+			return bytes
+		}
+	} else if override, ok := item.Item.(*ldmodel.ConfigOverride); ok {
+		if bytes, err := modelSerialization.MarshalConfigOverride(*override); err == nil {
+			return bytes
+		}
+	}
+	return nil
+}
+
+// Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk configOverridesDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	override, err := modelSerialization.UnmarshalConfigOverride(data)
+	return maybeConfigOverride(override, err)
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (fk configOverridesDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
+	ldstoretypes.ItemDescriptor, error) {
+	override := ldmodel.UnmarshalConfigOverrideFromJSONReader(reader)
+	return maybeConfigOverride(override, reader.Error())
+}
+
+func maybeConfigOverride(override ldmodel.ConfigOverride, err error) (ldstoretypes.ItemDescriptor, error) {
+	if err != nil {
+		return ldstoretypes.ItemDescriptor{}, err
+	}
+	if override.Deleted {
+		return ldstoretypes.ItemDescriptor{Version: override.Version, Item: nil}, nil
+	}
+	return ldstoretypes.ItemDescriptor{Version: override.Version, Item: &override}, nil
+}
+
+// String returns a human-readable string identifier.
+func (fk configOverridesDataKind) String() string {
+	return fk.GetName()
+}
+
+// GetName returns the unique namespace identifier for feature flag objects.
+func (fk metricsDataKind) GetName() string {
+	return "metrics"
+}
+
+// Serialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk metricsDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
+	if item.Item == nil {
+		metric := ldmodel.Metric{Version: item.Version, Deleted: true}
+		if bytes, err := modelSerialization.MarshalMetric(metric); err == nil {
+			return bytes
+		}
+	} else if metric, ok := item.Item.(*ldmodel.Metric); ok {
+		if bytes, err := modelSerialization.MarshalMetric(*metric); err == nil {
+			return bytes
+		}
+	}
+	return nil
+}
+
+// Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk metricsDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	metric, err := modelSerialization.UnmarshalMetric(data)
+	return maybeMetric(metric, err)
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (fk metricsDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
+	ldstoretypes.ItemDescriptor, error) {
+	metric := ldmodel.UnmarshalMetricFromJSONReader(reader)
+	return maybeMetric(metric, reader.Error())
+}
+
+func maybeMetric(metric ldmodel.Metric, err error) (ldstoretypes.ItemDescriptor, error) {
+	if err != nil {
+		return ldstoretypes.ItemDescriptor{}, err
+	}
+	if metric.Deleted {
+		return ldstoretypes.ItemDescriptor{Version: metric.Version, Item: nil}, nil
+	}
+	return ldstoretypes.ItemDescriptor{Version: metric.Version, Item: &metric}, nil
+}
+
+// String returns a human-readable string identifier.
+func (fk metricsDataKind) String() string {
+	return fk.GetName()
 }

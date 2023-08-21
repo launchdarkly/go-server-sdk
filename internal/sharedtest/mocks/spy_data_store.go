@@ -181,7 +181,7 @@ func assertReceivedInitDataEquals(
 	expected *ldservices.ServerSDKData,
 	received []ldstoretypes.Collection,
 ) {
-	assert.Equal(t, 2, len(received))
+	assert.Equal(t, 4, len(received))
 	for _, coll := range received {
 		var itemsMap map[string]interface{}
 		switch coll.Kind {
@@ -189,6 +189,10 @@ func assertReceivedInitDataEquals(
 			itemsMap = expected.FlagsMap
 		case datakinds.Segments:
 			itemsMap = expected.SegmentsMap
+		case datakinds.ConfigOverrides:
+			itemsMap = expected.ConfigOverridesMap
+		case datakinds.Metrics:
+			itemsMap = expected.MetricsMap
 		default:
 			assert.Fail(t, "received unknown data kind: %s", coll.Kind)
 		}

@@ -25,15 +25,21 @@ var ( // assign to package-level variables in benchmarks so function calls won't
 )
 
 type inMemoryStoreBenchmarkEnv struct {
-	store             subsystems.DataStore
-	flags             []*ldmodel.FeatureFlag
-	segments          []*ldmodel.Segment
-	targetFlagKey     string
-	targetSegmentKey  string
-	targetFlagCopy    *ldmodel.FeatureFlag
-	targetSegmentCopy *ldmodel.Segment
-	unknownKey        string
-	initData          []ldstoretypes.Collection
+	store                    subsystems.DataStore
+	flags                    []*ldmodel.FeatureFlag
+	segments                 []*ldmodel.Segment
+	configOverrides          []*ldmodel.ConfigOverride
+	metrics                  []*ldmodel.Metric
+	targetFlagKey            string
+	targetSegmentKey         string
+	targetConfigOverrideKey  string
+	targetMetricKey          string
+	targetFlagCopy           *ldmodel.FeatureFlag
+	targetSegmentCopy        *ldmodel.Segment
+	targetConfigOverrideCopy *ldmodel.ConfigOverride
+	targetMetricCopy         *ldmodel.Metric
+	unknownKey               string
+	initData                 []ldstoretypes.Collection
 }
 
 func newInMemoryStoreBenchmarkEnv() *inMemoryStoreBenchmarkEnv {
@@ -58,7 +64,7 @@ func (env *inMemoryStoreBenchmarkEnv) setUp(bc inMemoryStoreBenchmarkCase) {
 
 	env.segments = make([]*ldmodel.Segment, bc.numFlags)
 	for i := 0; i < bc.numSegments; i++ {
-		segment := ldbuilders.NewSegmentBuilder(fmt.Sprintf("flag-%d", i)).Version(10).Build()
+		segment := ldbuilders.NewSegmentBuilder(fmt.Sprintf("segment-%d", i)).Version(10).Build()
 		env.segments[i] = &segment
 	}
 	for _, segment := range env.segments {
@@ -68,6 +74,32 @@ func (env *inMemoryStoreBenchmarkEnv) setUp(bc inMemoryStoreBenchmarkCase) {
 	env.targetSegmentKey = s.Key
 	s1 := ldbuilders.NewSegmentBuilder(s.Key).Version(s.Version).Build()
 	env.targetSegmentCopy = &s1
+
+	env.configOverrides = make([]*ldmodel.ConfigOverride, bc.numConfigOverrides)
+	for i := 0; i < bc.numConfigOverrides; i++ {
+		override := ldbuilders.NewConfigOverrideBuilder(fmt.Sprintf("overrides-%d", i)).Version(10).Build()
+		env.configOverrides[i] = &override
+	}
+	for _, override := range env.configOverrides {
+		env.store.Upsert(datakinds.ConfigOverrides, override.Key, sharedtest.ConfigOverrideDescriptor(*override))
+	}
+	o := env.configOverrides[bc.numConfigOverrides/2]
+	env.targetConfigOverrideKey = o.Key
+	o1 := ldbuilders.NewConfigOverrideBuilder(o.Key).Version(o.Version).Build()
+	env.targetConfigOverrideCopy = &o1
+
+	env.metrics = make([]*ldmodel.Metric, bc.numMetrics)
+	for i := 0; i < bc.numMetrics; i++ {
+		metric := ldbuilders.NewMetricBuilder(fmt.Sprintf("overrides-%d", i)).Version(10).Build()
+		env.metrics[i] = &metric
+	}
+	for _, metric := range env.metrics {
+		env.store.Upsert(datakinds.Metrics, metric.Key, sharedtest.MetricDescriptor(*metric))
+	}
+	m := env.metrics[bc.numMetrics/2]
+	env.targetMetricKey = o.Key
+	m1 := ldbuilders.NewMetricBuilder(m.Key).Version(m.Version).Build()
+	env.targetMetricCopy = &m1
 
 	env.unknownKey = "no-match"
 }
@@ -81,9 +113,19 @@ func setupInitData(env *inMemoryStoreBenchmarkEnv) {
 	for i, s := range env.segments {
 		segments[i] = ldstoretypes.KeyedItemDescriptor{Key: s.Key, Item: sharedtest.SegmentDescriptor(*s)}
 	}
+	overrides := make([]ldstoretypes.KeyedItemDescriptor, len(env.configOverrides))
+	for i, o := range env.configOverrides {
+		overrides[i] = ldstoretypes.KeyedItemDescriptor{Key: o.Key, Item: sharedtest.ConfigOverrideDescriptor(*o)}
+	}
+	metrics := make([]ldstoretypes.KeyedItemDescriptor, len(env.metrics))
+	for i, m := range env.metrics {
+		metrics[i] = ldstoretypes.KeyedItemDescriptor{Key: m.Key, Item: sharedtest.MetricDescriptor(*m)}
+	}
 	env.initData = []ldstoretypes.Collection{
 		{Kind: datakinds.Features, Items: flags},
 		{Kind: datakinds.Segments, Items: segments},
+		{Kind: datakinds.ConfigOverrides, Items: overrides},
+		{Kind: datakinds.Metrics, Items: metrics},
 	}
 }
 
@@ -91,23 +133,31 @@ func (env *inMemoryStoreBenchmarkEnv) tearDown() {
 }
 
 type inMemoryStoreBenchmarkCase struct {
-	numFlags     int
-	numSegments  int
-	withInitData bool
+	numFlags           int
+	numSegments        int
+	numConfigOverrides int
+	numMetrics         int
+	withInitData       bool
 }
 
 var inMemoryStoreBenchmarkCases = []inMemoryStoreBenchmarkCase{
 	{
-		numFlags:    1,
-		numSegments: 1,
+		numFlags:           1,
+		numSegments:        1,
+		numConfigOverrides: 1,
+		numMetrics:         1,
 	},
 	{
-		numFlags:    100,
-		numSegments: 100,
+		numFlags:           100,
+		numSegments:        100,
+		numConfigOverrides: 100,
+		numMetrics:         100,
 	},
 	{
-		numFlags:    1000,
-		numSegments: 1000,
+		numFlags:           1000,
+		numSegments:        1000,
+		numConfigOverrides: 1000,
+		numMetrics:         1000,
 	},
 }
 
@@ -154,6 +204,20 @@ func BenchmarkInMemoryStoreGetSegment(b *testing.B) {
 	})
 }
 
+func BenchmarkInMemoryStoreGetConfigOverride(b *testing.B) {
+	dataKind := datakinds.ConfigOverrides
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		inMemoryStoreBenchmarkResultItem, _ = env.store.Get(dataKind, env.targetConfigOverrideKey)
+	})
+}
+
+func BenchmarkInMemoryStoreGetMetric(b *testing.B) {
+	dataKind := datakinds.Metrics
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		inMemoryStoreBenchmarkResultItem, _ = env.store.Get(dataKind, env.targetMetricKey)
+	})
+}
+
 func BenchmarkInMemoryStoreGetUnknownFlag(b *testing.B) {
 	dataKind := datakinds.Features
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
@@ -168,6 +232,20 @@ func BenchmarkInMemoryStoreGetUnknownSegment(b *testing.B) {
 	})
 }
 
+func BenchmarkInMemoryStoreGetUnknownConfigOverride(b *testing.B) {
+	dataKind := datakinds.ConfigOverrides
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		inMemoryStoreBenchmarkResultItem, _ = env.store.Get(dataKind, env.unknownKey)
+	})
+}
+
+func BenchmarkInMemoryStoreGetUnknownMetric(b *testing.B) {
+	dataKind := datakinds.Metrics
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		inMemoryStoreBenchmarkResultItem, _ = env.store.Get(dataKind, env.unknownKey)
+	})
+}
+
 func BenchmarkInMemoryStoreGetAllFlags(b *testing.B) {
 	dataKind := datakinds.Features
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
@@ -177,6 +255,20 @@ func BenchmarkInMemoryStoreGetAllFlags(b *testing.B) {
 
 func BenchmarkInMemoryStoreGetAllSegments(b *testing.B) {
 	dataKind := datakinds.Segments
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		inMemoryStoreBenchmarkResultItems, _ = env.store.GetAll(dataKind)
+	})
+}
+
+func BenchmarkInMemoryStoreGetAllConfigOverrides(b *testing.B) {
+	dataKind := datakinds.ConfigOverrides
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		inMemoryStoreBenchmarkResultItems, _ = env.store.GetAll(dataKind)
+	})
+}
+
+func BenchmarkInMemoryStoreGetAllMetrics(b *testing.B) {
+	dataKind := datakinds.Metrics
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		inMemoryStoreBenchmarkResultItems, _ = env.store.GetAll(dataKind)
 	})
@@ -233,5 +325,59 @@ func BenchmarkInMemoryStoreUpsertNewSegment(b *testing.B) {
 		env.targetSegmentCopy.Key = env.unknownKey
 		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
 			sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
+	})
+}
+
+func BenchmarkInMemoryStoreUpsertExistingConfigOverrideSuccess(b *testing.B) {
+	dataKind := datakinds.ConfigOverrides
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		env.targetConfigOverrideCopy.Version++
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetConfigOverrideKey,
+			sharedtest.ConfigOverrideDescriptor(*env.targetConfigOverrideCopy))
+	})
+}
+
+func BenchmarkInMemoryStoreUpsertExistingConfigOverrideFailure(b *testing.B) {
+	dataKind := datakinds.ConfigOverrides
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		env.targetConfigOverrideCopy.Version--
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetConfigOverrideKey,
+			sharedtest.ConfigOverrideDescriptor(*env.targetConfigOverrideCopy))
+	})
+}
+
+func BenchmarkInMemoryStoreUpsertNewConfigOverride(b *testing.B) {
+	dataKind := datakinds.ConfigOverrides
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		env.targetConfigOverrideCopy.Key = env.unknownKey
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
+			sharedtest.ConfigOverrideDescriptor(*env.targetConfigOverrideCopy))
+	})
+}
+
+func BenchmarkInMemoryStoreUpsertExistingMetricSuccess(b *testing.B) {
+	dataKind := datakinds.Metrics
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		env.targetMetricCopy.Version++
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetMetricKey,
+			sharedtest.MetricDescriptor(*env.targetMetricCopy))
+	})
+}
+
+func BenchmarkInMemoryStoreUpsertExistingMetricFailure(b *testing.B) {
+	dataKind := datakinds.Metrics
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		env.targetMetricCopy.Version--
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.targetMetricKey,
+			sharedtest.MetricDescriptor(*env.targetMetricCopy))
+	})
+}
+
+func BenchmarkInMemoryStoreUpsertNewMetric(b *testing.B) {
+	dataKind := datakinds.Metrics
+	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
+		env.targetMetricCopy.Key = env.unknownKey
+		_, inMemoryStoreBenchmarkResultErr = env.store.Upsert(dataKind, env.unknownKey,
+			sharedtest.MetricDescriptor(*env.targetMetricCopy))
 	})
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -53,12 +54,25 @@ func forAllDataKinds(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, 
 		return sharedtest.FlagDescriptor(flag)
 	})
 	test(t, datakinds.Segments, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
-		segment := ldbuilders.NewSegmentBuilder(key).Build()
-		segment.Version = version // SegmentBuilder doesn't currently have a Version method
+		segment := ldbuilders.NewSegmentBuilder(key).Version(version).Build()
 		if otherProperty {
 			segment.Included = []string{"arbitrary value"}
 		}
 		return sharedtest.SegmentDescriptor(segment)
+	})
+	test(t, datakinds.ConfigOverrides, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
+		override := ldbuilders.NewConfigOverrideBuilder(key).Version(version).Build()
+		if otherProperty {
+			override.Value = ldvalue.String("arbitrary value")
+		}
+		return sharedtest.ConfigOverrideDescriptor(override)
+	})
+	test(t, datakinds.Metrics, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
+		metric := ldbuilders.NewMetricBuilder(key).Version(version).Build()
+		if otherProperty {
+			metric.SamplingRatio = ldvalue.NewOptionalInt(10)
+		}
+		return sharedtest.MetricDescriptor(metric)
 	})
 }
 
@@ -76,7 +90,9 @@ func testInMemoryDataStoreInit(t *testing.T) {
 		store := makeInMemoryStore()
 		flag1 := ldbuilders.NewFlagBuilder("key1").Build()
 		segment1 := ldbuilders.NewSegmentBuilder("key1").Build()
-		allData1 := sharedtest.NewDataSetBuilder().Flags(flag1).Segments(segment1).Build()
+		configOverride1 := ldbuilders.NewConfigOverrideBuilder("key1").Build()
+		metric1 := ldbuilders.NewMetricBuilder("key1").Build()
+		allData1 := sharedtest.NewDataSetBuilder().Flags(flag1).Segments(segment1).ConfigOverrides(configOverride1).Metrics(metric1).Build()
 
 		require.NoError(t, store.Init(allData1))
 
@@ -84,12 +100,18 @@ func testInMemoryDataStoreInit(t *testing.T) {
 		require.NoError(t, err)
 		segments, err := store.GetAll(datakinds.Segments)
 		require.NoError(t, err)
+		overrides, err := store.GetAll(datakinds.ConfigOverrides)
+		require.NoError(t, err)
+		metrics, err := store.GetAll(datakinds.Metrics)
+		require.NoError(t, err)
 		sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
-		assert.Equal(t, extractCollections(allData1), [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
+		assert.Equal(t, extractCollections(allData1), [][]ldstoretypes.KeyedItemDescriptor{flags, segments, overrides, metrics})
 
 		flag2 := ldbuilders.NewFlagBuilder("key2").Build()
 		segment2 := ldbuilders.NewSegmentBuilder("key2").Build()
-		allData2 := sharedtest.NewDataSetBuilder().Flags(flag2).Segments(segment2).Build()
+		configOverride2 := ldbuilders.NewConfigOverrideBuilder("key2").Build()
+		metric2 := ldbuilders.NewMetricBuilder("key2").Build()
+		allData2 := sharedtest.NewDataSetBuilder().Flags(flag2).Segments(segment2).ConfigOverrides(configOverride2).Metrics(metric2).Build()
 
 		require.NoError(t, store.Init(allData2))
 
@@ -97,7 +119,11 @@ func testInMemoryDataStoreInit(t *testing.T) {
 		require.NoError(t, err)
 		segments, err = store.GetAll(datakinds.Segments)
 		require.NoError(t, err)
-		assert.Equal(t, extractCollections(allData2), [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
+		overrides, err = store.GetAll(datakinds.ConfigOverrides)
+		require.NoError(t, err)
+		metrics, err = store.GetAll(datakinds.Metrics)
+		require.NoError(t, err)
+		assert.Equal(t, extractCollections(allData2), [][]ldstoretypes.KeyedItemDescriptor{flags, segments, overrides, metrics})
 	})
 }
 
@@ -163,21 +189,31 @@ func testInMemoryDataStoreGetAll(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("flag1").Build()
 	flag2 := ldbuilders.NewFlagBuilder("flag2").Build()
 	segment1 := ldbuilders.NewSegmentBuilder("segment1").Build()
+	override1 := ldbuilders.NewConfigOverrideBuilder("override1").Build()
+	metric1 := ldbuilders.NewMetricBuilder("metric1").Build()
 	_, err = store.Upsert(datakinds.Features, flag1.Key, sharedtest.FlagDescriptor(flag1))
 	require.NoError(t, err)
 	_, err = store.Upsert(datakinds.Features, flag2.Key, sharedtest.FlagDescriptor(flag2))
 	require.NoError(t, err)
 	_, err = store.Upsert(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1))
 	require.NoError(t, err)
+	_, err = store.Upsert(datakinds.ConfigOverrides, override1.Key, sharedtest.ConfigOverrideDescriptor(override1))
+	require.NoError(t, err)
+	_, err = store.Upsert(datakinds.Metrics, metric1.Key, sharedtest.MetricDescriptor(metric1))
+	require.NoError(t, err)
 
 	flags, err := store.GetAll(datakinds.Features)
 	require.NoError(t, err)
 	segments, err := store.GetAll(datakinds.Segments)
 	require.NoError(t, err)
+	overrides, err := store.GetAll(datakinds.ConfigOverrides)
+	require.NoError(t, err)
+	metrics, err := store.GetAll(datakinds.Metrics)
+	require.NoError(t, err)
 
 	sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
-	expected := extractCollections(sharedtest.NewDataSetBuilder().Flags(flag1, flag2).Segments(segment1).Build())
-	assert.Equal(t, expected, [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
+	expected := extractCollections(sharedtest.NewDataSetBuilder().Flags(flag1, flag2).Segments(segment1).ConfigOverrides(override1).Metrics(metric1).Build())
+	assert.Equal(t, expected, [][]ldstoretypes.KeyedItemDescriptor{flags, segments, overrides, metrics})
 
 	result, err = store.GetAll(unknownDataKind{})
 	require.NoError(t, err)

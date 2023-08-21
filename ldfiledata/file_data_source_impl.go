@@ -148,9 +148,11 @@ func absFilePaths(paths []string) ([]string, error) {
 }
 
 type fileData struct {
-	Flags      *map[string]ldmodel.FeatureFlag
-	FlagValues *map[string]ldvalue.Value
-	Segments   *map[string]ldmodel.Segment
+	Flags                  *map[string]ldmodel.FeatureFlag
+	FlagValues             *map[string]ldvalue.Value
+	Segments               *map[string]ldmodel.Segment
+	ConfigurationOverrides *map[string]ldmodel.ConfigOverride
+	Metrics                *map[string]ldmodel.Metric
 }
 
 func insertData(
@@ -200,8 +202,10 @@ func mergeFileData(
 	allFileData ...fileData,
 ) ([]ldstoretypes.Collection, error) {
 	all := map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
-		datakinds.Features: {},
-		datakinds.Segments: {},
+		datakinds.Features:        {},
+		datakinds.Segments:        {},
+		datakinds.ConfigOverrides: {},
+		datakinds.Metrics:         {},
 	}
 	for _, d := range allFileData {
 		if d.Flags != nil {
@@ -227,6 +231,24 @@ func mergeFileData(
 				ss := s
 				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &ss}
 				if err := insertData(all, datakinds.Segments, key, data, duplicateKeysHandling); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if d.ConfigurationOverrides != nil {
+			for key, o := range *d.ConfigurationOverrides {
+				oo := o
+				data := ldstoretypes.ItemDescriptor{Version: o.Version, Item: &oo}
+				if err := insertData(all, datakinds.ConfigOverrides, key, data, duplicateKeysHandling); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if d.Metrics != nil {
+			for key, m := range *d.Metrics {
+				mm := m
+				data := ldstoretypes.ItemDescriptor{Version: m.Version, Item: &mm}
+				if err := insertData(all, datakinds.Metrics, key, data, duplicateKeysHandling); err != nil {
 					return nil, err
 				}
 			}

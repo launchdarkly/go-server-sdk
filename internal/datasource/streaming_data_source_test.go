@@ -108,8 +108,10 @@ func runStreamingTestWithConfiguration(
 func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
 	initialData := ldservices.NewServerSDKData().
-		Flags(ldservices.FlagOrSegment("my-flag", 2)).
-		Segments(ldservices.FlagOrSegment("my-segment", 2))
+		Flags(ldservices.KeyAndVersionItem("my-flag", 2)).
+		Segments(ldservices.KeyAndVersionItem("my-segment", 2)).
+		ConfigOverrides(ldservices.KeyAndVersionItem("my-segment", 2)).
+		Metrics(ldservices.KeyAndVersionItem("my-segment", 2))
 	timeout := 3 * time.Second
 
 	t.Run("configured headers are passed in request", func(t *testing.T) {
@@ -158,6 +160,42 @@ func TestStreamProcessor(t *testing.T) {
 				Data: `{"path": "/segments/my-segment", "version": 8}`})
 
 			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-segment", 8, timeout)
+		})
+	})
+
+	t.Run("patch config override", func(t *testing.T) {
+		runStreamingTest(t, initialData, func(p streamingTestParams) {
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path": "/configurationOverrides/indexSamplingRatio", "data": {"key": "indexSamplingRatio", "version": 7}}`})
+
+			p.updates.DataStore.WaitForUpsert(t, datakinds.ConfigOverrides, "indexSamplingRatio", 7, timeout)
+		})
+	})
+
+	t.Run("delete config override", func(t *testing.T) {
+		runStreamingTest(t, initialData, func(p streamingTestParams) {
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
+				Data: `{"path": "/configurationOverrides/indexSamplingRatio", "version": 8}`})
+
+			p.updates.DataStore.WaitForDelete(t, datakinds.ConfigOverrides, "indexSamplingRatio", 8, timeout)
+		})
+	})
+
+	t.Run("patch metric", func(t *testing.T) {
+		runStreamingTest(t, initialData, func(p streamingTestParams) {
+			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
+				Data: `{"path": "/metrics/custom-metric", "data": {"key": "custom-metric", "version": 7}}`})
+
+			p.updates.DataStore.WaitForUpsert(t, datakinds.Metrics, "custom-metric", 7, timeout)
+		})
+	})
+
+	t.Run("delete metric", func(t *testing.T) {
+		runStreamingTest(t, initialData, func(p streamingTestParams) {
+			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
+				Data: `{"path": "/metrics/custom-metric", "version": 8}`})
+
+			p.updates.DataStore.WaitForDelete(t, datakinds.Metrics, "custom-metric", 8, timeout)
 		})
 	})
 }
@@ -414,7 +452,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 }
 
 func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
-	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 	sequentialHandler := httphelpers.SequentialHandler(
 		httphelpers.HandlerWithStatus(statusCode), // fails the first time
@@ -509,8 +547,8 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 }
 
 func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
-	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 1))
-	updatedData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 1))
+	updatedData := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	streamHandler1, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 	streamHandler2, _ := ldservices.ServerSideStreamingServiceHandler(updatedData.ToPutEvent())
 	streamHandler := httphelpers.SequentialHandler(streamHandler1, streamHandler2)

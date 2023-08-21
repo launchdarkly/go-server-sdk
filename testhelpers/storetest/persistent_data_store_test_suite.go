@@ -1,6 +1,7 @@
 package storetest
 
 import (
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
@@ -581,6 +581,8 @@ func (s *PersistentDataStoreTestSuite) runErrorTests(t testbox.TestingT) {
 		allData := []st.SerializedCollection{
 			{Kind: datakinds.Features},
 			{Kind: datakinds.Segments},
+			{Kind: datakinds.ConfigOverrides},
+			{Kind: datakinds.Metrics},
 		}
 		err := store.Init(allData)
 		require.Error(t, err)
@@ -693,7 +695,7 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	// This is a basic smoke test to verify that the data store component behaves correctly within an
 	// SDK client instance.
 
-	flagKey, segmentKey, userKey, otherUserKey := "flagkey", "segmentkey", "userkey", "otheruser"
+	flagKey, segmentKey, configOverrideKey, metricKey, userKey, otherUserKey := "flagkey", "segmentkey", "overridekey", "metrickey", "userkey", "otheruser"
 	goodValue1, goodValue2, badValue := ldvalue.String("good"), ldvalue.String("better"), ldvalue.String("bad")
 	goodVariation1, goodVariation2, badVariation := 0, 1, 2
 	user, otherUser := ldcontext.New(userKey), ldcontext.New(otherUserKey)
@@ -715,6 +717,8 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	}
 	flag := makeFlagThatReturnsVariationForSegmentMatch(1, goodVariation1)
 	segment := makeSegmentThatMatchesUserKeys(1, userKey)
+	override := ldbuilders.NewConfigOverrideBuilder(configOverrideKey).Build()
+	metric := ldbuilders.NewMetricBuilder(metricKey).Build()
 
 	data := []st.Collection{
 		{Kind: datakinds.Features, Items: []st.KeyedItemDescriptor{
@@ -722,6 +726,12 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 		}},
 		{Kind: datakinds.Segments, Items: []st.KeyedItemDescriptor{
 			{Key: segmentKey, Item: sh.SegmentDescriptor(segment)},
+		}},
+		{Kind: datakinds.ConfigOverrides, Items: []st.KeyedItemDescriptor{
+			{Key: configOverrideKey, Item: sh.ConfigOverrideDescriptor(override)},
+		}},
+		{Kind: datakinds.Metrics, Items: []st.KeyedItemDescriptor{
+			{Key: metricKey, Item: sh.MetricDescriptor(metric)},
 		}},
 	}
 	dataSourceConfigurer := &mocks.ComponentConfigurerThatCapturesClientContext[ssys.DataSource]{

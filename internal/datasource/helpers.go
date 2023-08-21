@@ -92,7 +92,13 @@ func checkForHTTPError(statusCode int, url string) error {
 //	  },
 //	  "segments": {
 //	    "segment1": { "key", "segment1", "version": 1, ...etc. }
-//	  }
+//	  },
+//	  "configurationOverrides": {
+//	    "indexSamplingRatio": { "value", 1, "version": 1, ...etc. }
+//	  },
+//	  "metrics": {
+//	    "custom-metric": { "samplingRatio", 15, "version": 1, ...etc. }
+//	  },
 //	}
 //
 // Even though this is map-like, we don't return the data as a map, because the SDK does not need to
@@ -110,6 +116,10 @@ func parseAllStoreDataFromJSONReader(r *jreader.Reader) []st.Collection {
 			dataKind = datakinds.Features
 		case "segments":
 			dataKind = datakinds.Segments
+		case "configurationOverrides":
+			dataKind = datakinds.ConfigOverrides
+		case "metrics":
+			dataKind = datakinds.Metrics
 		default: // unrecognized category, skip it
 			continue
 		}

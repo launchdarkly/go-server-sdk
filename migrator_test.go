@@ -2,10 +2,11 @@ package ldclient
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
@@ -69,22 +70,22 @@ func TestMigratorSetsBasicEventValues(t *testing.T) {
 
 		assert.Equal(t, ldmigration.Read, readOpEvent.Op)
 		assert.Equal(t, "key", readOpEvent.FlagKey)
-		assert.Equal(t, ldmigration.Complete, readOpEvent.Default)
-		assert.Equal(t, ldmigration.Off.String(), readOpEvent.Evaluation.Value.StringValue())
+		assert.EqualValues(t, ldmigration.Complete, readOpEvent.Default)
+		assert.EqualValues(t, ldmigration.Off, readOpEvent.Evaluation.Value.StringValue())
 		assert.Equal(t, ldvalue.NewOptionalInt(0), readOpEvent.Evaluation.VariationIndex)
 		assert.Equal(t, ldreason.NewEvalReasonOff(), readOpEvent.Evaluation.Reason)
 		assert.Len(t, readOpEvent.Latency, 0)
-		assert.Len(t, readOpEvent.Errors, 0)
+		assert.Len(t, readOpEvent.Error, 0)
 		assert.Len(t, readOpEvent.CustomMeasurements, 0)
 
-		assert.Equal(t, ldmigration.Write, writeOpEvent.Op)
+		assert.EqualValues(t, ldmigration.Write, writeOpEvent.Op)
 		assert.Equal(t, "key", writeOpEvent.FlagKey)
-		assert.Equal(t, ldmigration.Complete, writeOpEvent.Default)
-		assert.Equal(t, ldmigration.Off.String(), writeOpEvent.Evaluation.Value.StringValue())
+		assert.EqualValues(t, ldmigration.Complete, writeOpEvent.Default)
+		assert.EqualValues(t, ldmigration.Off, writeOpEvent.Evaluation.Value.StringValue())
 		assert.Equal(t, ldvalue.NewOptionalInt(0), writeOpEvent.Evaluation.VariationIndex)
 		assert.Equal(t, ldreason.NewEvalReasonOff(), writeOpEvent.Evaluation.Reason)
 		assert.Len(t, writeOpEvent.Latency, 0)
-		assert.Len(t, writeOpEvent.Errors, 0)
+		assert.Len(t, writeOpEvent.Error, 0)
 		assert.Len(t, writeOpEvent.CustomMeasurements, 0)
 	})
 }
@@ -233,9 +234,9 @@ func TestMigratorTracksErrors(t *testing.T) {
 
 			event := p.events.Events[1].(ldevents.MigrationOpEventData) // Ignore evaluation data event
 
-			assert.Len(t, event.Errors, testParam.ErrorCounts)
-			assert.Equal(t, testParam.OldError, event.Errors[ldmigration.Old])
-			assert.Equal(t, testParam.NewError, event.Errors[ldmigration.New])
+			assert.Len(t, event.Error, testParam.ErrorCounts)
+			assert.Equal(t, testParam.OldError, event.Error[ldmigration.Old])
+			assert.Equal(t, testParam.NewError, event.Error[ldmigration.New])
 		})
 	}
 }

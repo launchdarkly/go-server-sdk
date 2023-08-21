@@ -21,7 +21,7 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNonStringType(t *testing.T) {
 		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
 		assert.NoError(t, err)
-		assert.Equal(t, ldmigration.Live, stage)
+		assert.EqualValues(t, ldmigration.Live, stage)
 	})
 }
 
@@ -30,7 +30,7 @@ func TestDefaultIsReturnedIfMigrationFlagDoesNotExist(t *testing.T) {
 		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
 		assert.NoError(t, err)
-		assert.Equal(t, ldmigration.Live, stage)
+		assert.EqualValues(t, ldmigration.Live, stage)
 	})
 }
 
@@ -43,7 +43,7 @@ func TestDefaultIsReturnedFlagEvaluatesToInvalidStageValue(t *testing.T) {
 		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
 		assert.Error(t, err)
-		assert.Equal(t, ldmigration.Live, stage)
+		assert.EqualValues(t, ldmigration.Live, stage)
 	})
 }
 
@@ -56,6 +56,6 @@ func TestCorrectStageCanBeDeterminedFromFlag(t *testing.T) {
 		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
 		assert.NoError(t, err)
-		assert.Equal(t, ldmigration.DualWrite, stage)
+		assert.EqualValues(t, ldmigration.DualWrite, stage)
 	})
 }

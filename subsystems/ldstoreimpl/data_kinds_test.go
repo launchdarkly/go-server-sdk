@@ -15,5 +15,7 @@ func TestDataKinds(t *testing.T) {
 
 	assert.Equal(t, datakinds.Features, Features())
 	assert.Equal(t, datakinds.Segments, Segments())
-	assert.Equal(t, []ldstoretypes.DataKind{Features(), Segments()}, AllKinds())
+	assert.Equal(t, datakinds.ConfigOverrides, ConfigOverrides())
+	assert.Equal(t, datakinds.Metrics, Metrics())
+	assert.Equal(t, []ldstoretypes.DataKind{Features(), Segments(), ConfigOverrides(), Metrics()}, AllKinds())
 }

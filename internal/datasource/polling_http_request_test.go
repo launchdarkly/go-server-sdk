@@ -24,7 +24,9 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
 			flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
 			segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
-			expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
+			override := ldbuilders.NewConfigOverrideBuilder("overridekey").Version(1).Build()
+			metric := ldbuilders.NewMetricBuilder("metrickey").Version(1).Build()
+			expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment).ConfigOverrides(override).Metrics(metric)
 			handler, requestsCh := httphelpers.RecordingHandler(
 				ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
 			)
@@ -188,7 +190,7 @@ func TestRequestorImplCaching(t *testing.T) {
 }
 
 func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	data := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 	httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
@@ -207,7 +209,7 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 }
 
 func TestRequestorImplCanAppendsFilterParameter(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	data := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 
 	testWithFilters(t, func(t *testing.T, filter filterTest) {
