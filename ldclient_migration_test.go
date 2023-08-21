@@ -3,6 +3,7 @@ package ldclient
 import (
 	"testing"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
@@ -17,19 +18,19 @@ func TestDefaultIsReturnedIfFlagEvaluatesToNonStringType(t *testing.T) {
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		p.data.UsePreconfiguredFlag(flag)
 
-		stage, err := p.client.MigrationVariation("migration-key", migrationTestUser, Live)
+		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
 		assert.NoError(t, err)
-		assert.Equal(t, Live, stage)
+		assert.Equal(t, ldmigration.Live, stage)
 	})
 }
 
 func TestDefaultIsReturnedIfMigrationFlagDoesNotExist(t *testing.T) {
 	withClientEvalTestParams(func(p clientEvalTestParams) {
-		stage, err := p.client.MigrationVariation("migration-key", migrationTestUser, Live)
+		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
-		assert.NotNil(t, err)
-		assert.Equal(t, Live, stage)
+		assert.NoError(t, err)
+		assert.Equal(t, ldmigration.Live, stage)
 	})
 }
 
@@ -39,10 +40,10 @@ func TestDefaultIsReturnedFlagEvaluatesToInvalidStageValue(t *testing.T) {
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		p.data.UsePreconfiguredFlag(flag)
 
-		stage, err := p.client.MigrationVariation("migration-key", migrationTestUser, Live)
+		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
-		assert.NotNil(t, err)
-		assert.Equal(t, Live, stage)
+		assert.Error(t, err)
+		assert.Equal(t, ldmigration.Live, stage)
 	})
 }
 
@@ -52,9 +53,9 @@ func TestCorrectStageCanBeDeterminedFromFlag(t *testing.T) {
 	withClientEvalTestParams(func(p clientEvalTestParams) {
 		p.data.UsePreconfiguredFlag(flag)
 
-		stage, err := p.client.MigrationVariation("migration-key", migrationTestUser, Live)
+		stage, _, err := p.client.MigrationVariation("migration-key", migrationTestUser, ldmigration.Live)
 
 		assert.NoError(t, err)
-		assert.Equal(t, DualWrite, stage)
+		assert.Equal(t, ldmigration.DualWrite, stage)
 	})
 }

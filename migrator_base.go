@@ -1,6 +1,22 @@
 package ldclient
 
-import "github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+import (
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+)
+
+// TKTK
+type MigrationCapableClient interface {
+	MigrationVariation(
+		key string,
+		context ldcontext.Context,
+		defaultStage ldmigration.Stage,
+	) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error)
+	TrackMigrationOp(event ldevents.MigrationOpEventData) error
+	Loggers() interfaces.LDLoggers
+}
 
 // ExecutionOrder represents the various execution modes this SDK can operate
 // under while performing migration-assisted reads.
@@ -15,16 +31,6 @@ const (
 	// Concurrently executes both reads in separate go routines, and waits until both calls have finished before
 	// proceeding.
 	Concurrently
-)
-
-// MigrationOrigin represents the source of origin for a migration-related operation.
-type MigrationOrigin int
-
-const (
-	// Old represents the technology source we are migrating away from.
-	Old MigrationOrigin = iota
-	// New represents the technology source we are migrating towards.
-	New
 )
 
 // MigrationWriteResult contains the results of a migration write operation.
@@ -77,13 +83,13 @@ func NewMigrationReadResult(result MigrationResult) MigrationReadResult {
 // MigrationResult represents the result of executing a migration-backed operation (either reads or writes).
 type MigrationResult struct {
 	success bool
-	origin  MigrationOrigin
+	origin  ldmigration.Origin
 	result  interface{}
 	error   error
 }
 
 // NewSuccessfulMigrationResult creates a migration result with a defined origin and an operation result value.
-func NewSuccessfulMigrationResult(origin MigrationOrigin, result interface{}) MigrationResult {
+func NewSuccessfulMigrationResult(origin ldmigration.Origin, result interface{}) MigrationResult {
 	return MigrationResult{
 		success: true,
 		result:  result,
@@ -92,7 +98,7 @@ func NewSuccessfulMigrationResult(origin MigrationOrigin, result interface{}) Mi
 
 // NewErrorMigrationResult creates a failed migration result with a defined origin and the error which caused the
 // migration to fail.
-func NewErrorMigrationResult(origin MigrationOrigin, err error) MigrationResult {
+func NewErrorMigrationResult(origin ldmigration.Origin, err error) MigrationResult {
 	return MigrationResult{
 		success: false,
 		error:   err,
@@ -111,56 +117,13 @@ func (m MigrationResult) GetResult() interface{} {
 
 // GetOrigin returns the origin value associated with this result. Callers can use this to determine which technology
 // source was modified during a migration operation.
-func (m MigrationResult) GetOrigin() MigrationOrigin {
+func (m MigrationResult) GetOrigin() ldmigration.Origin {
 	return m.origin
 }
 
 // GetError returns the error responsible for causing the MigrationResult to fail.
 func (m MigrationResult) GetError() error {
 	return m.error
-}
-
-// MigrationStage denotes one of six possible stages a technology migration could be a part of.
-type MigrationStage int
-
-const (
-	// Off Stage 1 - migration hasn't started, "old" is authoritative for reads and writes
-	Off MigrationStage = iota
-
-	// DualWrite Stage 2 - write to both "old" and "new", "old" is authoritative for reads
-	DualWrite
-
-	// Shadow Stage 3 - both "new" and "old" versions run with a preference for "old"
-	Shadow
-
-	// Live Stage 4 - both "new" and "old" versions run with a preference for "new"
-	Live
-
-	// RampDown Stage 5 only read from "new", write to "old" and "new"
-	RampDown
-
-	// Complete Stage 6 - migration is done
-	Complete
-)
-
-// String converts a MigrationStage into its string representation.
-func (s MigrationStage) String() string {
-	switch s {
-	case Off:
-		return "off"
-	case DualWrite:
-		return "dualwrite"
-	case Shadow:
-		return "shadow"
-	case Live:
-		return "live"
-	case RampDown:
-		return "rampdown"
-	case Complete:
-		return "complete"
-	default:
-		return "off"
-	}
 }
 
 // MigrationComparisonFn is used to compare the results of two migration operations. If the provided results are equal,
@@ -180,7 +143,7 @@ type migrationConfig struct {
 // Migrator represents the interface through which migration support is executed.
 type Migrator interface {
 	// ValidateRead uses the provided flag key and context to execute a migration-backed read operation.
-	ValidateRead(key string, context ldcontext.Context, defaultStage MigrationStage) MigrationReadResult
+	ValidateRead(key string, context ldcontext.Context, defaultStage ldmigration.Stage) MigrationReadResult
 	// ValidateWrite uses the provided flag key and context to execute a migration-backed write operation.
-	ValidateWrite(key string, context ldcontext.Context, defaultStage MigrationStage) MigrationWriteResult
+	ValidateWrite(key string, context ldcontext.Context, defaultStage ldmigration.Stage) MigrationWriteResult
 }

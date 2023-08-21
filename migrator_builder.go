@@ -6,7 +6,7 @@ import (
 
 // MigratorBuilder provides a mechanism to construct a Migrator instance.
 type MigratorBuilder struct {
-	client             *LDClient
+	client             MigrationCapableClient
 	readExecutionOrder ExecutionOrder
 
 	measureLatency bool
@@ -20,7 +20,7 @@ type MigratorBuilder struct {
 //
 // The builder defaults to tracking latency and error metrics, and will execute
 // multiple migration-reads concurrently when possible.
-func Migration(client *LDClient) *MigratorBuilder {
+func Migration(client MigrationCapableClient) *MigratorBuilder {
 	return &MigratorBuilder{
 		client:             client,
 		measureLatency:     true,
@@ -108,5 +108,5 @@ func (b *MigratorBuilder) Build() (Migrator, error) {
 		measureErrors:      b.measureErrors,
 	}
 
-	return migrator, nil
+	return &migrator, nil
 }

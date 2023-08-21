@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
 type migratorImpl struct {
-	client             *LDClient
+	client             MigrationCapableClient
 	readExecutionOrder ExecutionOrder
 
 	readConfig  migrationConfig
@@ -20,113 +22,154 @@ type migratorImpl struct {
 	measureErrors  bool
 }
 
-func (m migratorImpl) ValidateRead(
-	key string, context ldcontext.Context, defaultStage MigrationStage,
+func (m *migratorImpl) ValidateRead(
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
 ) MigrationReadResult {
-	stage, err := m.client.MigrationVariation(key, context, defaultStage)
+	stage, tracker, err := m.client.MigrationVariation(key, context, defaultStage)
+	tracker.Operation(ldmigration.Read)
+
 	if err != nil {
-		m.client.loggers.Error(err)
+		m.client.Loggers().Error(err)
 	}
 
 	oldExecutor := &migrationExecutor{
-		key:       key,
-		origin:    Old,
-		impl:      m.readConfig.old,
-		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
+		key:            key,
+		origin:         ldmigration.Old,
+		impl:           m.readConfig.old,
+		tracker:        tracker,
+		measureLatency: m.measureLatency,
+		measureErrors:  m.measureErrors,
 	}
 	newExecutor := &migrationExecutor{
-		key:       key,
-		origin:    New,
-		impl:      m.readConfig.new,
-		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
+		key:            key,
+		origin:         ldmigration.New,
+		impl:           m.readConfig.new,
+		tracker:        tracker,
+		measureLatency: m.measureLatency,
+		measureErrors:  m.measureErrors,
 	}
 
 	var readResult MigrationReadResult
 
 	switch stage {
-	case Off:
+	case ldmigration.Off:
 		readResult.MigrationResult = oldExecutor.exec(context)
-		return readResult
-	case DualWrite:
+	case ldmigration.DualWrite:
 		readResult.MigrationResult = oldExecutor.exec(context)
-		return readResult
-	case Shadow:
-		authoritativeResult, _ := m.runBoth(context, *oldExecutor, *newExecutor, m.readConfig.compare, m.readExecutionOrder)
+	case ldmigration.Shadow:
+		authoritativeResult, _ := m.readFromBoth(context, *oldExecutor, *newExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
 		readResult.MigrationResult = authoritativeResult
-		return readResult
-	case Live:
-		authoritativeResult, _ := m.runBoth(context, *newExecutor, *oldExecutor, m.readConfig.compare, m.readExecutionOrder)
+	case ldmigration.Live:
+		authoritativeResult, _ := m.readFromBoth(context, *newExecutor, *oldExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
 		readResult.MigrationResult = authoritativeResult
-		return readResult
-	case RampDown:
+	case ldmigration.RampDown:
 		readResult.MigrationResult = newExecutor.exec(context)
-		return readResult
-	case Complete:
+	case ldmigration.Complete:
 		readResult.MigrationResult = newExecutor.exec(context)
-		return readResult
+	default:
+		// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
+		readResult.MigrationResult = MigrationResult{
+			error: fmt.Errorf("invalid stage %s detected; cannot execute read", stage),
+		}
 	}
 
-	// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
-	readResult.MigrationResult = MigrationResult{
-		error: fmt.Errorf("invalid stage %s detected; cannot execute read", stage),
-	}
+	m.trackMigrationOp(tracker)
 
 	return readResult
 }
 
-func (m migratorImpl) ValidateWrite(
-	key string, context ldcontext.Context, defaultStage MigrationStage,
+func (m *migratorImpl) ValidateWrite(
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
 ) MigrationWriteResult {
-	stage, err := m.client.MigrationVariation(key, context, defaultStage)
+	stage, tracker, err := m.client.MigrationVariation(key, context, defaultStage)
+	tracker.Operation(ldmigration.Write)
 	if err != nil {
-		m.client.loggers.Error(err)
+		m.client.Loggers().Error(err)
 	}
 
 	oldExecutor := &migrationExecutor{
-		key:       key,
-		impl:      m.writeConfig.old,
-		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
+		key:            key,
+		impl:           m.writeConfig.old,
+		tracker:        tracker,
+		measureLatency: m.measureLatency,
+		measureErrors:  m.measureErrors,
 	}
 	newExecutor := &migrationExecutor{
-		key:       key,
-		impl:      m.writeConfig.new,
-		latencyFn: func(_ string, _ ldcontext.Context, _ time.Duration) error { return nil },
+		key:            key,
+		impl:           m.writeConfig.new,
+		tracker:        tracker,
+		measureLatency: m.measureLatency,
+		measureErrors:  m.measureErrors,
 	}
+
+	var writeResult MigrationWriteResult
 
 	switch stage {
-	case Off:
+	case ldmigration.Off:
 		result := oldExecutor.exec(context)
-		return NewMigrationWriteResult(result, nil)
-	case DualWrite:
-		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *oldExecutor, *newExecutor, nil, Serial)
-		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
-	case Shadow:
-		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *oldExecutor, *newExecutor, nil, Serial)
-		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
-	case Live:
-		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *newExecutor, *oldExecutor, nil, Serial)
-		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
-	case RampDown:
-		authoritativeResult, nonAuthoritativeResult := m.runBoth(context, *oldExecutor, *newExecutor, nil, Serial)
-		return NewMigrationWriteResult(authoritativeResult, &nonAuthoritativeResult)
-	case Complete:
+		writeResult = NewMigrationWriteResult(result, nil)
+	case ldmigration.DualWrite:
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *oldExecutor, *newExecutor)
+		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
+	case ldmigration.Shadow:
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *oldExecutor, *newExecutor)
+		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
+	case ldmigration.Live:
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *newExecutor, *oldExecutor)
+		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
+	case ldmigration.RampDown:
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *newExecutor, *oldExecutor)
+		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
+	case ldmigration.Complete:
 		authoritativeResult := newExecutor.exec(context)
-		return NewMigrationWriteResult(authoritativeResult, nil)
+		writeResult = NewMigrationWriteResult(authoritativeResult, nil)
+	default:
+		// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
+		writeResult = MigrationWriteResult{
+			authoritative: MigrationResult{
+				error: fmt.Errorf("invalid stage %s detected; cannot execute read", stage),
+			},
+		}
 	}
 
-	// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
-	return MigrationWriteResult{
-		authoritative: MigrationResult{
-			error: fmt.Errorf("invalid stage %s detected; cannot execute read", stage),
-		},
+	m.trackMigrationOp(tracker)
+
+	return writeResult
+}
+
+func (m *migratorImpl) trackMigrationOp(tracker interfaces.LDMigrationOpTracker) {
+	event, err := tracker.Build()
+	if err != nil {
+		m.client.Loggers().Errorf("migration op failed to send; %v", err)
+		return
+	}
+
+	if err := m.client.TrackMigrationOp(*event); err != nil {
+		m.client.Loggers().Errorf("migration op failed to send; %v", err)
 	}
 }
 
-func (m migratorImpl) runBoth(
+func (m *migratorImpl) writeToBoth(
+	context ldcontext.Context,
+	authoritative, nonAuthoritative migrationExecutor,
+) (MigrationResult, *MigrationResult) {
+	var authoritativeMigrationResult, nonAuthoritativeMigrationResult MigrationResult
+
+	authoritativeMigrationResult = authoritative.exec(context)
+	if !authoritativeMigrationResult.IsSuccess() {
+		return authoritativeMigrationResult, nil
+	}
+
+	nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
+	return authoritativeMigrationResult, &nonAuthoritativeMigrationResult
+}
+
+func (m *migratorImpl) readFromBoth(
 	context ldcontext.Context,
 	authoritative, nonAuthoritative migrationExecutor,
 	comparison *MigrationComparisonFn,
 	executionOrder ExecutionOrder,
+	tracker interfaces.LDMigrationOpTracker,
 ) (MigrationResult, MigrationResult) {
 	var authoritativeMigrationResult, nonAuthoritativeMigrationResult MigrationResult
 
@@ -155,18 +198,21 @@ func (m migratorImpl) runBoth(
 	}
 
 	if comparison != nil {
-		_ = (*comparison)(authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult())
-		// NOTE: Handle this consistency check
+		wasConsistent := (*comparison)(authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult())
+		// TODO: need to figure out this samplingRatio stuff
+		tracker.TrackConsistency(wasConsistent, 1)
 	}
 
 	return authoritativeMigrationResult, nonAuthoritativeMigrationResult
 }
 
 type migrationExecutor struct {
-	key       string
-	origin    MigrationOrigin
-	impl      MigrationImplFn
-	latencyFn func(key string, context ldcontext.Context, elapsed time.Duration) error
+	key            string
+	origin         ldmigration.Origin
+	impl           MigrationImplFn
+	tracker        interfaces.LDMigrationOpTracker
+	measureLatency bool
+	measureErrors  bool
 }
 
 func (e migrationExecutor) exec(context ldcontext.Context) MigrationResult {
@@ -176,8 +222,13 @@ func (e migrationExecutor) exec(context ldcontext.Context) MigrationResult {
 	// QUESTION: How sure are we that we want to do this? If a call is failing
 	// fast, the latency metric might look wonderful for the new version
 	// quite some time after the fix was put in place.
-	elapsed := time.Since(start)
-	_ = e.latencyFn(e.key+"-latency-", context, elapsed)
+	if e.measureLatency {
+		e.tracker.TrackLatency(e.origin, time.Since(start))
+	}
+
+	if e.measureErrors {
+		e.tracker.TrackError(e.origin, err != nil)
+	}
 
 	if err != nil {
 		return NewErrorMigrationResult(e.origin, err)

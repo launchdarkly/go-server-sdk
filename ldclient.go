@@ -11,6 +11,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
@@ -334,40 +335,29 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
-// MigrationVariation Get the variation (the migration stage) for the specified migration feature flag
+// MigrationVariation returns the migration stage of the migration feature flag for the given evaluation context.
+//
+// Returns defaultStage if there is an error or if the flag doesn't exist.
 func (client *LDClient) MigrationVariation(
-	key string, context ldcontext.Context, defaultStage MigrationStage) (MigrationStage, error) {
-	variation, err := client.StringVariation(key, context, defaultStage.String())
-
-	if err != nil {
-		return defaultStage, err
-	}
-
-	stage, err := strToStage(variation)
-	if err != nil {
-		return defaultStage, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
-	}
-
-	return stage, nil
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	return client.migrationVariation(key, context, defaultStage, client.eventsDefault)
 }
 
-func strToStage(val string) (MigrationStage, error) {
-	switch val {
-	case "off": //nolint:goconst
-		return Off, nil
-	case "dualwrite":
-		return DualWrite, nil
-	case "shadow":
-		return Shadow, nil
-	case "live":
-		return Live, nil
-	case "rampdown":
-		return RampDown, nil
-	case "complete":
-		return Complete, nil
-	default:
-		return Off, fmt.Errorf("invalid stage %s provided", val)
+func (client *LDClient) migrationVariation(
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	detail, err := client.variation(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
+	tracker := NewMigrationOpTracker(key, context, detail, defaultStage)
+
+	if err != nil {
+		return defaultStage, tracker, nil
 	}
+
+	stage, err := ldmigration.ParseStage(detail.Value.StringValue())
+	if err != nil {
+		return defaultStage, tracker, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
+	}
+
+	return stage, tracker, nil
 }
 
 // Identify reports details about an evaluation context.
@@ -461,6 +451,16 @@ func (client *LDClient) TrackMetric(
 			true,
 			metricValue,
 		))
+	return nil
+}
+
+// TrackMigrationOp reports a migration operation event.
+func (client *LDClient) TrackMigrationOp(event ldevents.MigrationOpEventData) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
+
+	client.eventProcessor.RecordMigrationOpEvent(event)
 	return nil
 }
 
@@ -569,6 +569,11 @@ func (client *LDClient) Flush() {
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/flush#go
 func (client *LDClient) FlushAndWait(timeout time.Duration) bool {
 	return client.eventProcessor.FlushBlocking(timeout)
+}
+
+// TKTK
+func (client *LDClient) Loggers() interfaces.LDLoggers {
+	return client.loggers
 }
 
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a given evaluation.

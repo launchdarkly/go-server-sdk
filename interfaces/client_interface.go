@@ -1,9 +1,13 @@
 package interfaces
 
 import (
+	"time"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces/flagstate"
 )
 
@@ -77,6 +81,15 @@ type LDClientEvaluations interface {
 		context ldcontext.Context,
 		defaultVal string,
 	) (string, ldreason.EvaluationDetail, error)
+
+	// MigrationVariation returns the migration stage of the migration feature flag for the given evaluation context.
+	//
+	// Returns defaultStage if there is an error or if the flag doesn't exist.
+	MigrationVariation(
+		key string,
+		context ldcontext.Context,
+		defaultStage ldmigration.Stage,
+	) (ldmigration.Stage, LDMigrationOpTracker, error)
 
 	// JSONVariation returns the value of a feature flag for the given evaluation context, allowing the value to
 	// be of any JSON type.
@@ -169,6 +182,14 @@ type LDClientEvents interface {
 	//
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 	TrackMetric(eventName string, context ldcontext.Context, metricValue float64, data ldvalue.Value) error
+
+	// TrackMigrationOp reports a migration operation event.
+	//
+	// The measurements included in the event are used by LaunchDarkly to enhance support and
+	// visibility during migration-assisted technology migrations.
+	//
+	// Migration operation events can be created with a [LDMigrationOpTracker].
+	TrackMigrationOp(event ldevents.MigrationOpEventData) error
 }
 
 // LDClientInterface defines the basic SDK client operations implemented by LDClient.
@@ -206,4 +227,46 @@ type LDClientInterface interface {
 	//     value, err = tempClient.BoolVariation("flagkey2", context, false)
 	//     value, err = tempClient.BoolVariation("flagkey3", context, false)
 	WithEventsDisabled(eventsDisabled bool) LDClientInterface
+}
+
+// LDMigrationOpTracker defines the required operations implemented by [MigrationOpTracker].
+//
+// These methods allow incrementally constructing a migration operation event for later reporting to
+// LaunchDarkly through the [LDClientEvents.TrackMigrationOp] method.
+type LDMigrationOpTracker interface {
+	// Operation sets the migration related operation associated with these tracking measurements.
+	Operation(op ldmigration.Operation)
+
+	// TrackConsistency allows recording the results of a consistency check, along with the
+	// sampling ratio used to collect that information.
+	TrackConsistency(wasConsistent bool, samplingRatio int)
+
+	// TrackError allows recording whether or not an error occurred during the operation.
+	TrackError(origin ldmigration.Origin, hadError bool)
+
+	// TrackLatency allows tracking the recorded latency for an individual operation.
+	TrackLatency(origin ldmigration.Origin, duration time.Duration)
+
+	// TrackCustom allows tracking of custom defined measurements.
+	TrackCustom(key string, origin ldmigration.Origin, value float64)
+
+	// Build creates an instance of [ldevents.MigrationOpEventData]. This event data can be provided to
+	// the [LDClientEvents.TrackMigrationOp] method to rely this metric information upstream to LaunchDarkly
+	// services.
+	Build() (*ldevents.MigrationOpEventData, error)
+}
+
+// TKTK
+type LDLoggers interface {
+	Debug(values ...interface{})
+
+	Debugf(format string, values ...interface{})
+
+	Error(values ...interface{})
+
+	Errorf(format string, values ...interface{})
+
+	Warn(values ...interface{})
+
+	Warnf(format string, values ...interface{})
 }

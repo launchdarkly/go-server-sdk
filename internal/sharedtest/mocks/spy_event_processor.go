@@ -24,6 +24,10 @@ func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEventData) 
 	c.Events = append(c.Events, e)
 }
 
+func (c *CapturingEventProcessor) RecordMigrationOpEvent(e ldevents.MigrationOpEventData) { //nolint:revive
+	c.Events = append(c.Events, e)
+}
+
 func (c *CapturingEventProcessor) RecordRawEvent(e json.RawMessage) { //nolint:revive
 	c.Events = append(c.Events, e)
 }
