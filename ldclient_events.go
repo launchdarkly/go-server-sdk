@@ -160,7 +160,8 @@ func (c *clientEventsDisabledDecorator) StringVariationDetail(
 }
 
 func (c *clientEventsDisabledDecorator) MigrationVariation(
-	key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	return c.client.migrationVariation(key, context, defaultStage, c.scope)
 }
 

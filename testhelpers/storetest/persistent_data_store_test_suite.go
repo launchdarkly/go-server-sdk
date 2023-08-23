@@ -1,9 +1,10 @@
 package storetest
 
 import (
-	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
 
@@ -695,7 +696,8 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	// This is a basic smoke test to verify that the data store component behaves correctly within an
 	// SDK client instance.
 
-	flagKey, segmentKey, configOverrideKey, metricKey, userKey, otherUserKey := "flagkey", "segmentkey", "overridekey", "metrickey", "userkey", "otheruser"
+	flagKey, segmentKey, configOverrideKey, metricKey, userKey, otherUserKey :=
+		"flagkey", "segmentkey", "overridekey", "metrickey", "userkey", "otheruser"
 	goodValue1, goodValue2, badValue := ldvalue.String("good"), ldvalue.String("better"), ldvalue.String("bad")
 	goodVariation1, goodVariation2, badVariation := 0, 1, 2
 	user, otherUser := ldcontext.New(userKey), ldcontext.New(otherUserKey)

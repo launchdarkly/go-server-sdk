@@ -71,7 +71,10 @@ func (d *DataSetBuilder) Segments(segments ...ldmodel.Segment) *DataSetBuilder {
 // ConfigOverrides adds config overrides to the data set.
 func (d *DataSetBuilder) ConfigOverrides(overrides ...ldmodel.ConfigOverride) *DataSetBuilder {
 	for _, o := range overrides {
-		d.configOverrides = append(d.configOverrides, ldstoretypes.KeyedItemDescriptor{Key: o.Key, Item: ConfigOverrideDescriptor(o)})
+		d.configOverrides = append(
+			d.configOverrides,
+			ldstoretypes.KeyedItemDescriptor{Key: o.Key, Item: ConfigOverrideDescriptor(o)},
+		)
 	}
 	return d
 }

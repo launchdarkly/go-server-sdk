@@ -50,7 +50,9 @@ func (d dataStoreEvaluatorDataProviderImpl) GetConfigOverride(key string) *ldmod
 		if override, ok := data.(*ldmodel.ConfigOverride); ok {
 			return override
 		}
-		d.loggers.Errorf("unexpected data type (%T) found in store for config override key: %s. Returning default value", data, key)
+		d.loggers.Errorf(
+			"unexpected data type (%T) found in store for config override key: %s. Returning default value",
+			data, key)
 	}
 	return nil
 }

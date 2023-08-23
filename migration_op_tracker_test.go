@@ -33,31 +33,37 @@ func TestTrackerCanBuildSuccessfully(t *testing.T) {
 func TestTrackerCanTrackErrors(t *testing.T) {
 	t.Run("for both origins", func(t *testing.T) {
 		tracker := minimalTracker()
-		tracker.TrackError(ldmigration.New, true)
-		tracker.TrackError(ldmigration.Old, false)
+		tracker.TrackError(ldmigration.New)
+		tracker.TrackError(ldmigration.Old)
 
 		event, err := tracker.Build()
 
 		assert.NoError(t, err)
 		assert.NotNil(t, event)
 
-		assert.True(t, event.Error[ldmigration.New])
-		assert.False(t, event.Error[ldmigration.Old])
 		assert.Len(t, event.Error, 2)
+		if _, ok := event.Error[ldmigration.New]; !ok {
+			assert.Fail(t, "event is missing new origin error")
+		}
+		if _, ok := event.Error[ldmigration.Old]; !ok {
+			assert.Fail(t, "event is missing old origin error")
+		}
 	})
 
 	t.Run("for individual origins", func(t *testing.T) {
 		for _, origin := range allOrigins {
 			tracker := minimalTracker()
-			tracker.TrackError(origin, true)
+			tracker.TrackError(origin)
 
 			event, err := tracker.Build()
 
 			assert.NoError(t, err)
 			assert.NotNil(t, event)
 
-			assert.True(t, event.Error[origin])
 			assert.Len(t, event.Error, 1)
+			if _, ok := event.Error[origin]; !ok {
+				assert.Failf(t, "event is missing %s origin error", string(origin))
+			}
 		}
 	})
 }
@@ -91,57 +97,6 @@ func TestTrackerCanTrackLatency(t *testing.T) {
 			assert.Equal(t, event.Latency[origin], 5_000)
 			assert.Len(t, event.Latency, 1)
 		}
-	})
-}
-
-func TestTrackerCanTrackCustomMeasurements(t *testing.T) {
-	t.Run("for both origins", func(t *testing.T) {
-		tracker := minimalTracker()
-		tracker.TrackCustom("custom-name", ldmigration.New, 30)
-		tracker.TrackCustom("custom-name", ldmigration.Old, 60)
-
-		event, err := tracker.Build()
-
-		assert.NoError(t, err)
-		assert.NotNil(t, event)
-
-		assert.Equal(t, event.CustomMeasurements["custom-name"][ldmigration.New], float64(30))
-		assert.Equal(t, event.CustomMeasurements["custom-name"][ldmigration.Old], float64(60))
-		assert.Len(t, event.CustomMeasurements, 1)
-		assert.Len(t, event.CustomMeasurements["custom-name"], 2)
-	})
-
-	t.Run("for individual origins", func(t *testing.T) {
-		for _, origin := range allOrigins {
-			tracker := minimalTracker()
-			tracker.TrackCustom("custom-name", origin, 30)
-
-			event, err := tracker.Build()
-
-			assert.NoError(t, err)
-			assert.NotNil(t, event)
-
-			assert.Equal(t, event.CustomMeasurements["custom-name"][origin], float64(30))
-			assert.Len(t, event.CustomMeasurements, 1)
-			assert.Len(t, event.CustomMeasurements["custom-name"], 1)
-		}
-	})
-
-	t.Run("for multiple metrics", func(t *testing.T) {
-		tracker := minimalTracker()
-		tracker.TrackCustom("one-custom", ldmigration.New, 30)
-		tracker.TrackCustom("two-custom", ldmigration.Old, 60)
-
-		event, err := tracker.Build()
-
-		assert.NoError(t, err)
-		assert.NotNil(t, event)
-
-		assert.Equal(t, event.CustomMeasurements["one-custom"][ldmigration.New], float64(30))
-		assert.Equal(t, event.CustomMeasurements["two-custom"][ldmigration.Old], float64(60))
-		assert.Len(t, event.CustomMeasurements, 2)
-		assert.Len(t, event.CustomMeasurements["one-custom"], 1)
-		assert.Len(t, event.CustomMeasurements["two-custom"], 1)
 	})
 }
 

@@ -16,6 +16,7 @@ const (
 	CapabilityTags              = "tags"
 	CapabilityFiltering         = "filtering"
 	CapabilityContextType       = "context-type"
+	CapabilityMigrations        = "migrations"
 )
 
 type StatusRep struct {

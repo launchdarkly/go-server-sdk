@@ -10,7 +10,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 )
 
@@ -18,16 +17,14 @@ import (
 // sent upstream to LaunchDarkly servers and used to enhance the visibility of in progress
 // migrations.
 type MigrationOpTracker struct {
-	flagKey            string
-	defaultStage       ldmigration.Stage
-	op                 *ldmigration.Operation
-	samplingRatio      uint32
-	context            ldcontext.Context
-	evaluation         ldreason.EvaluationDetail // TODO: Placeholder type for now
-	consistencyCheck   *ldmigration.ConsistencyCheck
-	errors             map[ldmigration.Origin]bool
-	latency            map[ldmigration.Origin]int
-	customMeasurements map[string]map[ldmigration.Origin]float64
+	flagKey          string
+	defaultStage     ldmigration.Stage
+	op               *ldmigration.Operation
+	context          ldcontext.Context
+	evaluation       ldreason.EvaluationDetail
+	consistencyCheck *ldmigration.ConsistencyCheck
+	errors           map[ldmigration.Origin]struct{}
+	latency          map[ldmigration.Origin]int
 
 	lock sync.Mutex
 }
@@ -38,15 +35,16 @@ type MigrationOpTracker struct {
 // By default, the MigrationOpTracker is invalid. You must set an operation using
 // [MigrationOpTracker.Operation] before the tracker can generate valid event date using
 // [MigrationOpTracker.Build].
-func NewMigrationOpTracker(flagKey string, context ldcontext.Context, detail ldreason.EvaluationDetail, defaultStage ldmigration.Stage) *MigrationOpTracker {
+func NewMigrationOpTracker(
+	flagKey string, context ldcontext.Context, detail ldreason.EvaluationDetail, defaultStage ldmigration.Stage,
+) *MigrationOpTracker {
 	return &MigrationOpTracker{
-		flagKey:            flagKey,
-		defaultStage:       defaultStage,
-		context:            context,
-		evaluation:         detail,
-		errors:             make(map[ldmigration.Origin]bool),
-		latency:            make(map[ldmigration.Origin]int),
-		customMeasurements: make(map[string]map[ldmigration.Origin]float64),
+		flagKey:      flagKey,
+		defaultStage: defaultStage,
+		context:      context,
+		evaluation:   detail,
+		errors:       make(map[ldmigration.Origin]struct{}),
+		latency:      make(map[ldmigration.Origin]int),
 	}
 }
 
@@ -66,10 +64,10 @@ func (t *MigrationOpTracker) TrackConsistency(wasConsistent bool, samplingRatio 
 }
 
 // TrackError allows recording whether or not an error occurred during the operation.
-func (t *MigrationOpTracker) TrackError(origin ldmigration.Origin, hadError bool) {
+func (t *MigrationOpTracker) TrackError(origin ldmigration.Origin) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	t.errors[origin] = hadError
+	t.errors[origin] = struct{}{}
 }
 
 // TrackLatency allows tracking the recorded latency for an individual operation.
@@ -77,17 +75,6 @@ func (t *MigrationOpTracker) TrackLatency(origin ldmigration.Origin, duration ti
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	t.latency[origin] = int(duration.Milliseconds())
-}
-
-// TrackCustom allows tracking of custom defined measurements.
-func (t *MigrationOpTracker) TrackCustom(key string, origin ldmigration.Origin, value float64) {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	if t.customMeasurements[key] == nil {
-		t.customMeasurements[key] = make(map[ldmigration.Origin]float64)
-	}
-
-	t.customMeasurements[key][origin] = value
 }
 
 // Build creates an instance of [ldevents.MigrationOpEventData]. This event data can be provided to
@@ -114,14 +101,12 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 			CreationDate: ldtime.UnixMillisNow(),
 			Context:      ldevents.Context(t.context),
 		},
-		Op:                 *t.op,
-		FlagKey:            t.flagKey,
-		Default:            t.defaultStage,
-		Evaluation:         t.evaluation,
-		SamplingRatio:      ldvalue.NewOptionalInt(0), // TODO: Need to deal with this still
-		ConsistencyCheck:   t.consistencyCheck,
-		Error:              t.errors,
-		Latency:            t.latency,
-		CustomMeasurements: t.customMeasurements,
+		Op:               *t.op,
+		FlagKey:          t.flagKey,
+		Default:          t.defaultStage,
+		Evaluation:       t.evaluation,
+		ConsistencyCheck: t.consistencyCheck,
+		Error:            t.errors,
+		Latency:          t.latency,
 	}, nil
 }

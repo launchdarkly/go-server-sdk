@@ -339,12 +339,14 @@ func createDataSource(
 //
 // Returns defaultStage if there is an error or if the flag doesn't exist.
 func (client *LDClient) MigrationVariation(
-	key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	return client.migrationVariation(key, context, defaultStage, client.eventsDefault)
 }
 
 func (client *LDClient) migrationVariation(
-	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	detail, err := client.variation(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
 	tracker := NewMigrationOpTracker(key, context, detail, defaultStage)
 
@@ -571,7 +573,9 @@ func (client *LDClient) FlushAndWait(timeout time.Duration) bool {
 	return client.eventProcessor.FlushBlocking(timeout)
 }
 
-// TKTK
+// Loggers exposes the logging component used by the SDK.
+//
+// This allows users to easily log messages to a shared channel with the SDK.
 func (client *LDClient) Loggers() interfaces.LDLoggers {
 	return client.loggers
 }

@@ -7,7 +7,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
-// TKTK
+// MigrationCapableClient represents the subset of operations required to perform a migration operation. This interface
+// is satisfied by the LDClient.
 type MigrationCapableClient interface {
 	MigrationVariation(
 		key string,
@@ -91,6 +92,7 @@ type MigrationResult struct {
 // NewSuccessfulMigrationResult creates a migration result with a defined origin and an operation result value.
 func NewSuccessfulMigrationResult(origin ldmigration.Origin, result interface{}) MigrationResult {
 	return MigrationResult{
+		origin:  origin,
 		success: true,
 		result:  result,
 	}
@@ -100,6 +102,7 @@ func NewSuccessfulMigrationResult(origin ldmigration.Origin, result interface{})
 // migration to fail.
 func NewErrorMigrationResult(origin ldmigration.Origin, err error) MigrationResult {
 	return MigrationResult{
+		origin:  origin,
 		success: false,
 		error:   err,
 	}

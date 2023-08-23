@@ -241,14 +241,11 @@ type LDMigrationOpTracker interface {
 	// sampling ratio used to collect that information.
 	TrackConsistency(wasConsistent bool, samplingRatio int)
 
-	// TrackError allows recording whether or not an error occurred during the operation.
-	TrackError(origin ldmigration.Origin, hadError bool)
+	// TrackError allows recording whether an error occurred during the operation.
+	TrackError(origin ldmigration.Origin)
 
 	// TrackLatency allows tracking the recorded latency for an individual operation.
 	TrackLatency(origin ldmigration.Origin, duration time.Duration)
-
-	// TrackCustom allows tracking of custom defined measurements.
-	TrackCustom(key string, origin ldmigration.Origin, value float64)
 
 	// Build creates an instance of [ldevents.MigrationOpEventData]. This event data can be provided to
 	// the [LDClientEvents.TrackMigrationOp] method to rely this metric information upstream to LaunchDarkly
@@ -256,7 +253,7 @@ type LDMigrationOpTracker interface {
 	Build() (*ldevents.MigrationOpEventData, error)
 }
 
-// TKTK
+// LDLoggers represents an interface that provides basic logging reporting methods.
 type LDLoggers interface {
 	Debug(values ...interface{})
 

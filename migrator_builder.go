@@ -2,12 +2,14 @@ package ldclient
 
 import (
 	"errors"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 )
 
 // MigratorBuilder provides a mechanism to construct a Migrator instance.
 type MigratorBuilder struct {
 	client             MigrationCapableClient
-	readExecutionOrder ExecutionOrder
+	readExecutionOrder ldmigration.ExecutionOrder
 
 	measureLatency bool
 	measureErrors  bool
@@ -25,12 +27,12 @@ func Migration(client MigrationCapableClient) *MigratorBuilder {
 		client:             client,
 		measureLatency:     true,
 		measureErrors:      true,
-		readExecutionOrder: Concurrently,
+		readExecutionOrder: ldmigration.Concurrent,
 	}
 }
 
 // ReadExecutionOrder influences the level of concurrency when the migration stage calls for multiple execution reads.
-func (b *MigratorBuilder) ReadExecutionOrder(order ExecutionOrder) *MigratorBuilder {
+func (b *MigratorBuilder) ReadExecutionOrder(order ldmigration.ExecutionOrder) *MigratorBuilder {
 	b.readExecutionOrder = order
 	return b
 }

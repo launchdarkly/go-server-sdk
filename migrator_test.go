@@ -76,7 +76,6 @@ func TestMigratorSetsBasicEventValues(t *testing.T) {
 		assert.Equal(t, ldreason.NewEvalReasonOff(), readOpEvent.Evaluation.Reason)
 		assert.Len(t, readOpEvent.Latency, 0)
 		assert.Len(t, readOpEvent.Error, 0)
-		assert.Len(t, readOpEvent.CustomMeasurements, 0)
 
 		assert.EqualValues(t, ldmigration.Write, writeOpEvent.Op)
 		assert.Equal(t, "key", writeOpEvent.FlagKey)
@@ -86,7 +85,6 @@ func TestMigratorSetsBasicEventValues(t *testing.T) {
 		assert.Equal(t, ldreason.NewEvalReasonOff(), writeOpEvent.Evaluation.Reason)
 		assert.Len(t, writeOpEvent.Latency, 0)
 		assert.Len(t, writeOpEvent.Error, 0)
-		assert.Len(t, writeOpEvent.CustomMeasurements, 0)
 	})
 }
 
@@ -235,8 +233,12 @@ func TestMigratorTracksErrors(t *testing.T) {
 			event := p.events.Events[1].(ldevents.MigrationOpEventData) // Ignore evaluation data event
 
 			assert.Len(t, event.Error, testParam.ErrorCounts)
-			assert.Equal(t, testParam.OldError, event.Error[ldmigration.Old])
-			assert.Equal(t, testParam.NewError, event.Error[ldmigration.New])
+
+			_, ok := event.Error[ldmigration.Old]
+			assert.Equal(t, testParam.OldError, ok)
+
+			_, ok = event.Error[ldmigration.New]
+			assert.Equal(t, testParam.NewError, ok)
 		})
 	}
 }

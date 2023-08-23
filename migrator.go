@@ -13,7 +13,7 @@ import (
 
 type migratorImpl struct {
 	client             MigrationCapableClient
-	readExecutionOrder ExecutionOrder
+	readExecutionOrder ldmigration.ExecutionOrder
 
 	readConfig  migrationConfig
 	writeConfig migrationConfig
@@ -53,19 +53,19 @@ func (m *migratorImpl) ValidateRead(
 
 	switch stage {
 	case ldmigration.Off:
-		readResult.MigrationResult = oldExecutor.exec(context)
+		readResult.MigrationResult = oldExecutor.exec()
 	case ldmigration.DualWrite:
-		readResult.MigrationResult = oldExecutor.exec(context)
+		readResult.MigrationResult = oldExecutor.exec()
 	case ldmigration.Shadow:
-		authoritativeResult, _ := m.readFromBoth(context, *oldExecutor, *newExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
+		authoritativeResult := m.readFromBoth(*oldExecutor, *newExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
 		readResult.MigrationResult = authoritativeResult
 	case ldmigration.Live:
-		authoritativeResult, _ := m.readFromBoth(context, *newExecutor, *oldExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
+		authoritativeResult := m.readFromBoth(*newExecutor, *oldExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
 		readResult.MigrationResult = authoritativeResult
 	case ldmigration.RampDown:
-		readResult.MigrationResult = newExecutor.exec(context)
+		readResult.MigrationResult = newExecutor.exec()
 	case ldmigration.Complete:
-		readResult.MigrationResult = newExecutor.exec(context)
+		readResult.MigrationResult = newExecutor.exec()
 	default:
 		// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
 		readResult.MigrationResult = MigrationResult{
@@ -89,6 +89,7 @@ func (m *migratorImpl) ValidateWrite(
 
 	oldExecutor := &migrationExecutor{
 		key:            key,
+		origin:         ldmigration.Old,
 		impl:           m.writeConfig.old,
 		tracker:        tracker,
 		measureLatency: m.measureLatency,
@@ -96,6 +97,7 @@ func (m *migratorImpl) ValidateWrite(
 	}
 	newExecutor := &migrationExecutor{
 		key:            key,
+		origin:         ldmigration.New,
 		impl:           m.writeConfig.new,
 		tracker:        tracker,
 		measureLatency: m.measureLatency,
@@ -106,22 +108,22 @@ func (m *migratorImpl) ValidateWrite(
 
 	switch stage {
 	case ldmigration.Off:
-		result := oldExecutor.exec(context)
+		result := oldExecutor.exec()
 		writeResult = NewMigrationWriteResult(result, nil)
 	case ldmigration.DualWrite:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *oldExecutor, *newExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*oldExecutor, *newExecutor)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.Shadow:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *oldExecutor, *newExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*oldExecutor, *newExecutor)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.Live:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *newExecutor, *oldExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*newExecutor, *oldExecutor)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.RampDown:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(context, *newExecutor, *oldExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*newExecutor, *oldExecutor)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.Complete:
-		authoritativeResult := newExecutor.exec(context)
+		authoritativeResult := newExecutor.exec()
 		writeResult = NewMigrationWriteResult(authoritativeResult, nil)
 	default:
 		// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
@@ -150,60 +152,57 @@ func (m *migratorImpl) trackMigrationOp(tracker interfaces.LDMigrationOpTracker)
 }
 
 func (m *migratorImpl) writeToBoth(
-	context ldcontext.Context,
 	authoritative, nonAuthoritative migrationExecutor,
 ) (MigrationResult, *MigrationResult) {
 	var authoritativeMigrationResult, nonAuthoritativeMigrationResult MigrationResult
 
-	authoritativeMigrationResult = authoritative.exec(context)
+	authoritativeMigrationResult = authoritative.exec()
 	if !authoritativeMigrationResult.IsSuccess() {
 		return authoritativeMigrationResult, nil
 	}
 
-	nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
+	nonAuthoritativeMigrationResult = nonAuthoritative.exec()
 	return authoritativeMigrationResult, &nonAuthoritativeMigrationResult
 }
 
 func (m *migratorImpl) readFromBoth(
-	context ldcontext.Context,
 	authoritative, nonAuthoritative migrationExecutor,
 	comparison *MigrationComparisonFn,
-	executionOrder ExecutionOrder,
+	executionOrder ldmigration.ExecutionOrder,
 	tracker interfaces.LDMigrationOpTracker,
-) (MigrationResult, MigrationResult) {
+) MigrationResult {
 	var authoritativeMigrationResult, nonAuthoritativeMigrationResult MigrationResult
 
 	switch {
-	case executionOrder == Concurrently:
+	case executionOrder == ldmigration.Concurrent:
 		var wg sync.WaitGroup
 		wg.Add(2)
 
 		go func() {
-			authoritativeMigrationResult = authoritative.exec(context)
+			authoritativeMigrationResult = authoritative.exec()
 			defer wg.Done()
 		}()
 
 		go func() {
-			nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
+			nonAuthoritativeMigrationResult = nonAuthoritative.exec()
 			defer wg.Done()
 		}()
 
 		wg.Wait()
-	case executionOrder == Randomized && rand.Float32() > 0.5: //nolint:gosec // doesn't need cryptographic security
-		nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
-		authoritativeMigrationResult = authoritative.exec(context)
+	case executionOrder == ldmigration.Random && rand.Float32() > 0.5: //nolint:gosec,lll // doesn't need cryptographic security
+		nonAuthoritativeMigrationResult = nonAuthoritative.exec()
+		authoritativeMigrationResult = authoritative.exec()
 	default:
-		authoritativeMigrationResult = authoritative.exec(context)
-		nonAuthoritativeMigrationResult = nonAuthoritative.exec(context)
+		authoritativeMigrationResult = authoritative.exec()
+		nonAuthoritativeMigrationResult = nonAuthoritative.exec()
 	}
 
 	if comparison != nil {
 		wasConsistent := (*comparison)(authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult())
-		// TODO: need to figure out this samplingRatio stuff
 		tracker.TrackConsistency(wasConsistent, 1)
 	}
 
-	return authoritativeMigrationResult, nonAuthoritativeMigrationResult
+	return authoritativeMigrationResult
 }
 
 type migrationExecutor struct {
@@ -215,7 +214,7 @@ type migrationExecutor struct {
 	measureErrors  bool
 }
 
-func (e migrationExecutor) exec(context ldcontext.Context) MigrationResult {
+func (e migrationExecutor) exec() MigrationResult {
 	start := time.Now()
 	result, err := e.impl()
 
@@ -226,8 +225,8 @@ func (e migrationExecutor) exec(context ldcontext.Context) MigrationResult {
 		e.tracker.TrackLatency(e.origin, time.Since(start))
 	}
 
-	if e.measureErrors {
-		e.tracker.TrackError(e.origin, err != nil)
+	if e.measureErrors && err != nil {
+		e.tracker.TrackError(e.origin)
 	}
 
 	if err != nil {
