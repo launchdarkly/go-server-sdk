@@ -237,9 +237,8 @@ type LDMigrationOpTracker interface {
 	// Operation sets the migration related operation associated with these tracking measurements.
 	Operation(op ldmigration.Operation)
 
-	// TrackConsistency allows recording the results of a consistency check, along with the
-	// sampling ratio used to collect that information.
-	TrackConsistency(wasConsistent bool, samplingRatio int)
+	// TrackConsistency allows recording the results of a consistency check.
+	TrackConsistency(wasConsistent bool)
 
 	// TrackError allows recording whether an error occurred during the operation.
 	TrackError(origin ldmigration.Origin)

@@ -11,13 +11,15 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
 // MigrationOpTracker is used to collect migration related measurements. These measurements will be
 // sent upstream to LaunchDarkly servers and used to enhance the visibility of in progress
 // migrations.
 type MigrationOpTracker struct {
-	flagKey          string
+	flag             *ldmodel.FeatureFlag
 	defaultStage     ldmigration.Stage
 	op               *ldmigration.Operation
 	context          ldcontext.Context
@@ -36,10 +38,10 @@ type MigrationOpTracker struct {
 // [MigrationOpTracker.Operation] before the tracker can generate valid event date using
 // [MigrationOpTracker.Build].
 func NewMigrationOpTracker(
-	flagKey string, context ldcontext.Context, detail ldreason.EvaluationDetail, defaultStage ldmigration.Stage,
+	flag *ldmodel.FeatureFlag, context ldcontext.Context, detail ldreason.EvaluationDetail, defaultStage ldmigration.Stage,
 ) *MigrationOpTracker {
 	return &MigrationOpTracker{
-		flagKey:      flagKey,
+		flag:         flag,
 		defaultStage: defaultStage,
 		context:      context,
 		evaluation:   detail,
@@ -57,9 +59,19 @@ func (t *MigrationOpTracker) Operation(op ldmigration.Operation) {
 
 // TrackConsistency allows recording the results of a consistency check, along with the
 // sampling ratio used to collect that information.
-func (t *MigrationOpTracker) TrackConsistency(wasConsistent bool, samplingRatio int) {
+func (t *MigrationOpTracker) TrackConsistency(wasConsistent bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
+
+	samplingRatio := 1
+	if t.flag != nil && t.flag.Migration != nil {
+		samplingRatio = t.flag.Migration.CheckRatio.OrElse(1)
+	}
+
+	if !internal.ShouldSample(samplingRatio) {
+		return
+	}
+
 	t.consistencyCheck = ldmigration.NewConsistencyCheck(wasConsistent, samplingRatio)
 }
 
@@ -84,7 +96,11 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if len(t.flagKey) == 0 {
+	if t.flag == nil {
+		return nil, errors.New("migration op tracker was created without an associated flag")
+	}
+
+	if len(t.flag.Key) == 0 {
 		return nil, errors.New("migration operation cannot contain an empty flag key")
 	}
 
@@ -102,7 +118,7 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 			Context:      ldevents.Context(t.context),
 		},
 		Op:               *t.op,
-		FlagKey:          t.flagKey,
+		FlagKey:          t.flag.Key,
 		Default:          t.defaultStage,
 		Evaluation:       t.evaluation,
 		ConsistencyCheck: t.consistencyCheck,

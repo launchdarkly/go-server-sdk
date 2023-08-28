@@ -199,7 +199,7 @@ func (m *migratorImpl) readFromBoth(
 
 	if comparison != nil {
 		wasConsistent := (*comparison)(authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult())
-		tracker.TrackConsistency(wasConsistent, 1)
+		tracker.TrackConsistency(wasConsistent)
 	}
 
 	return authoritativeMigrationResult

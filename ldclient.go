@@ -347,8 +347,8 @@ func (client *LDClient) MigrationVariation(
 func (client *LDClient) migrationVariation(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	detail, err := client.variation(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
-	tracker := NewMigrationOpTracker(key, context, detail, defaultStage)
+	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
+	tracker := NewMigrationOpTracker(flag, context, detail, defaultStage)
 
 	if err != nil {
 		return defaultStage, tracker, nil
@@ -373,7 +373,9 @@ func (client *LDClient) Identify(context ldcontext.Context) error {
 		client.loggers.Warnf("Identify called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := client.eventsDefault.factory.NewIdentifyEventData(ldevents.Context(context))
+
+	// Identify events should always sample
+	evt := client.eventsDefault.factory.NewIdentifyEventData(ldevents.Context(context), ldvalue.NewOptionalInt(1))
 	client.eventProcessor.RecordIdentifyEvent(evt)
 	return nil
 }
@@ -409,6 +411,7 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 		client.loggers.Warnf("Track called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
+
 	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEventData(
 			eventName,
@@ -416,6 +419,8 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 			data,
 			false,
 			0,
+			client.metricSamplingRatio(eventName),
+			client.indexSamplingRatio(),
 		))
 	return nil
 }
@@ -452,6 +457,8 @@ func (client *LDClient) TrackMetric(
 			data,
 			true,
 			metricValue,
+			client.metricSamplingRatio(eventName),
+			client.indexSamplingRatio(),
 		))
 	return nil
 }
@@ -869,12 +876,25 @@ func (client *LDClient) variation(
 	checkType bool,
 	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
+	detail, _, err := client.variationAndFlag(key, context, defaultVal, checkType, eventsScope)
+	return detail, err
+}
+
+// Generic method for evaluating a feature flag for a given evaluation context,
+// returning both the result and the flag.
+func (client *LDClient) variationAndFlag(
+	key string,
+	context ldcontext.Context,
+	defaultVal ldvalue.Value,
+	checkType bool,
+	eventsScope eventsScope,
+) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 	if err := context.Err(); err != nil {
 		client.loggers.Warnf("Tried to evaluate a flag with an invalid context: %s", err)
-		return newEvaluationError(defaultVal, ldreason.EvalErrorUserNotSpecified), err
+		return newEvaluationError(defaultVal, ldreason.EvalErrorUserNotSpecified), nil, err
 	}
 	if client.IsOffline() {
-		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
+		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil, nil
 	}
 	result, flag, err := client.evaluateInternal(key, context, defaultVal, eventsScope)
 	if err != nil {
@@ -892,6 +912,7 @@ func (client *LDClient) variation(
 				ldevents.Context(context),
 				defaultVal,
 				result.Detail.Reason,
+				client.indexSamplingRatio(),
 			)
 		} else {
 			eval = eventsScope.factory.NewEvaluationData(
@@ -906,12 +927,15 @@ func (client *LDClient) variation(
 				result.IsExperiment,
 				defaultVal,
 				"",
+				flag.SamplingRatio,
+				client.indexSamplingRatio(),
+				flag.ExcludeFromSummaries,
 			)
 		}
 		client.eventProcessor.RecordEvaluation(eval)
 	}
 
-	return result.Detail, err
+	return result.Detail, flag, err
 }
 
 // Performs all the steps of evaluation except for sending the feature request event (the main one;
@@ -981,6 +1005,39 @@ func (client *LDClient) evaluateInternal(
 		result.Detail.Value = defaultVal
 	}
 	return result, feature, nil
+}
+
+func (client *LDClient) metricSamplingRatio(eventName string) ldvalue.OptionalInt {
+	var samplingRatio ldvalue.OptionalInt
+	metricItem, err := client.store.Get(datakinds.Metrics, eventName)
+
+	if err != nil || metricItem.Item == nil {
+		return samplingRatio
+	}
+
+	if metric, ok := metricItem.Item.(*ldmodel.Metric); ok && !metric.Deleted {
+		samplingRatio = metric.SamplingRatio
+	}
+
+	return samplingRatio
+}
+
+func (client *LDClient) indexSamplingRatio() ldvalue.OptionalInt {
+	var samplingRatio ldvalue.OptionalInt
+	overrideItem, err := client.store.Get(datakinds.ConfigOverrides, "indexSamplingRatio")
+
+	if err != nil || overrideItem.Item == nil {
+		return samplingRatio
+	}
+
+	override, ok := overrideItem.Item.(*ldmodel.ConfigOverride)
+	if !ok || override.Deleted || !override.Value.IsNumber() {
+		return samplingRatio
+	}
+
+	samplingRatio = ldvalue.NewOptionalInt(override.Value.IntValue())
+
+	return samplingRatio
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {

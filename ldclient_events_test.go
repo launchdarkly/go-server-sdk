@@ -4,6 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -31,6 +34,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.IdentifyEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
 }
 
 func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
@@ -60,6 +64,45 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, ldvalue.Null(), e.Data)
 	assert.False(t, e.HasMetric)
+	assert.False(t, e.SamplingRatio.IsDefined())
+	assert.False(t, e.IndexSamplingRatio.IsDefined())
+}
+
+func TestTrackEventSendsSamplingRatio(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := lduser.NewUser("userKey")
+	key := "eventKey"
+
+	metric := ldmodel.Metric{
+		Key:           key,
+		SamplingRatio: ldvalue.NewOptionalInt(3),
+		Version:       1,
+		Deleted:       false,
+	}
+	override := ldmodel.ConfigOverride{
+		Key:     "indexSamplingRatio",
+		Value:   ldvalue.Int(5),
+		Version: 1,
+		Deleted: false,
+	}
+
+	client.store.Upsert(datakinds.Metrics, key, sharedtest.MetricDescriptor(metric))
+	client.store.Upsert(datakinds.ConfigOverrides, "indexSamplingRatio", sharedtest.ConfigOverrideDescriptor(override))
+
+	err := client.TrackEvent(key, user)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.CustomEventData)
+	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, ldvalue.Null(), e.Data)
+	assert.False(t, e.HasMetric)
+	assert.Equal(t, ldvalue.NewOptionalInt(3), e.SamplingRatio)
+	assert.Equal(t, ldvalue.NewOptionalInt(5), e.IndexSamplingRatio)
 }
 
 func TestTrackDataSendsCustomEventWithData(t *testing.T) {

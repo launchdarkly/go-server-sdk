@@ -133,6 +133,47 @@ func assertEvalEvent(
 	assert.Equal(t, expectedEvent, actualEvent)
 }
 
+func TestExcludeFromSummaries(t *testing.T) {
+	flag1 := ldbuilders.NewFlagBuilder("key1").On(true).ExcludeFromSummaries(true).Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").On(true).AddPrerequisite(flag1.Key, 0).Build()
+
+	t.Run("flag can be excluded from summaries", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(flag1)
+			p.data.UsePreconfiguredFlag(flag2)
+
+			_, err := p.client.BoolVariation(flag1.Key, evalTestUser, false)
+
+			assert.NoError(t, err)
+			event := p.requireSingleEvent(t)
+
+			assert.False(t, event.SamplingRatio.IsDefined())
+			assert.False(t, event.IndexSamplingRatio.IsDefined())
+			assert.True(t, event.ExcludeFromSummaries)
+		})
+	})
+
+	t.Run("prereq can be excluded individually", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(flag1)
+			p.data.UsePreconfiguredFlag(flag2)
+
+			_, err := p.client.BoolVariation(flag2.Key, evalTestUser, false)
+
+			assert.NoError(t, err)
+			events := p.events.Events
+
+			assert.Len(t, events, 2)
+
+			assert.True(t, events[0].(ldevents.EvaluationData).ExcludeFromSummaries)
+			assert.Equal(t, flag1.Key, events[0].(ldevents.EvaluationData).Key)
+
+			assert.False(t, events[1].(ldevents.EvaluationData).ExcludeFromSummaries)
+			assert.Equal(t, flag2.Key, events[1].(ldevents.EvaluationData).Key)
+		})
+	})
+}
+
 func TestBoolVariation(t *testing.T) {
 	expected, defaultVal := true, false
 
@@ -268,6 +309,46 @@ func TestStringVariation(t *testing.T) {
 			assert.Equal(t, expected, actual)
 
 			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.String(expected), ldvalue.String(defaultVal), noReason)
+		})
+	})
+
+	t.Run("sampling ratios are not defined by default", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
+
+			_, err := p.client.StringVariation(evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+
+			events := p.events.Events
+			assert.Len(t, events, 1)
+
+			eval := events[0]
+			assert.False(t, eval.(ldevents.EvaluationData).SamplingRatio.IsDefined())
+			assert.False(t, eval.(ldevents.EvaluationData).IndexSamplingRatio.IsDefined())
+		})
+	})
+
+	t.Run("sampling ratios can be defined", func(t *testing.T) {
+		configOverride := ldbuilders.NewConfigOverrideBuilder("indexSamplingRatio").Value(ldvalue.Int(13)).Build()
+		flag := ldbuilders.NewFlagBuilder("flag").
+			On(true).
+			SamplingRatio(ldvalue.NewOptionalInt(21)).
+			Build()
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(flag)
+			p.data.UsePreconfiguredConfigOverride(configOverride)
+
+			_, err := p.client.StringVariation(flag.Key, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+
+			events := p.events.Events
+			assert.Len(t, events, 1)
+
+			eval := events[0]
+			assert.Equal(t, 13, eval.(ldevents.EvaluationData).IndexSamplingRatio.IntValue())
+			assert.Equal(t, 21, eval.(ldevents.EvaluationData).SamplingRatio.IntValue())
 		})
 	})
 

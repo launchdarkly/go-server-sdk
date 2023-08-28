@@ -8,22 +8,25 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
 	"github.com/stretchr/testify/assert"
 )
 
 var allOrigins = []ldmigration.Origin{ldmigration.Old, ldmigration.New}
 
-func minimalTracker() *MigrationOpTracker {
+func minimalTracker(samplingRatio int) *MigrationOpTracker {
+	params := ldbuilders.NewMigrationFlagParametersBuilder().CheckRatio(ldvalue.NewOptionalInt(samplingRatio)).Build()
+	flag := ldbuilders.NewFlagBuilder("flag-key").MigrationFlagParameters(params).Build()
 	context := ldcontext.New("user-key")
 	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-	tracker := NewMigrationOpTracker("flag-key", context, detail, ldmigration.Live)
+	tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
 	tracker.Operation(ldmigration.Write)
 
 	return tracker
 }
 
 func TestTrackerCanBuildSuccessfully(t *testing.T) {
-	tracker := minimalTracker()
+	tracker := minimalTracker(1)
 	event, err := tracker.Build()
 
 	assert.NotNil(t, event)
@@ -32,7 +35,7 @@ func TestTrackerCanBuildSuccessfully(t *testing.T) {
 
 func TestTrackerCanTrackErrors(t *testing.T) {
 	t.Run("for both origins", func(t *testing.T) {
-		tracker := minimalTracker()
+		tracker := minimalTracker(1)
 		tracker.TrackError(ldmigration.New)
 		tracker.TrackError(ldmigration.Old)
 
@@ -52,7 +55,7 @@ func TestTrackerCanTrackErrors(t *testing.T) {
 
 	t.Run("for individual origins", func(t *testing.T) {
 		for _, origin := range allOrigins {
-			tracker := minimalTracker()
+			tracker := minimalTracker(1)
 			tracker.TrackError(origin)
 
 			event, err := tracker.Build()
@@ -70,7 +73,7 @@ func TestTrackerCanTrackErrors(t *testing.T) {
 
 func TestTrackerCanTrackLatency(t *testing.T) {
 	t.Run("for both origins", func(t *testing.T) {
-		tracker := minimalTracker()
+		tracker := minimalTracker(1)
 		tracker.TrackLatency(ldmigration.New, 5*time.Second)
 		tracker.TrackLatency(ldmigration.Old, 10*time.Second)
 
@@ -86,7 +89,7 @@ func TestTrackerCanTrackLatency(t *testing.T) {
 
 	t.Run("for individual origins", func(t *testing.T) {
 		for _, origin := range allOrigins {
-			tracker := minimalTracker()
+			tracker := minimalTracker(1)
 			tracker.TrackLatency(origin, 5*time.Second)
 
 			event, err := tracker.Build()
@@ -100,11 +103,60 @@ func TestTrackerCanTrackLatency(t *testing.T) {
 	})
 }
 
+func TestTrackerCanTrackConsistency(t *testing.T) {
+	t.Run("defaults to sampling ratio of 1", func(t *testing.T) {
+		tracker := minimalTracker(1)
+		tracker.TrackConsistency(true)
+
+		event, err := tracker.Build()
+
+		assert.NoError(t, err)
+		assert.NotNil(t, event)
+
+		assert.Equal(t, event.ConsistencyCheck.Consistent(), true)
+		assert.Equal(t, event.ConsistencyCheck.SamplingRatio(), 1)
+	})
+
+	t.Run("can disable consistency check with 0 sampling ratio", func(t *testing.T) {
+		tracker := minimalTracker(0)
+		tracker.TrackConsistency(true)
+
+		event, err := tracker.Build()
+
+		assert.NoError(t, err)
+		assert.NotNil(t, event)
+
+		assert.Nil(t, event.ConsistencyCheck)
+	})
+
+	t.Run("honors sampling ratio", func(t *testing.T) {
+		consistencyWasChecked := 0
+		for i := 0; i < 1_000; i++ {
+			tracker := minimalTracker(10)
+			tracker.TrackConsistency(true)
+
+			event, err := tracker.Build()
+
+			assert.NoError(t, err)
+			assert.NotNil(t, event)
+
+			if event.ConsistencyCheck != nil {
+				consistencyWasChecked += 1
+			}
+		}
+
+		// We limit to 400 to provide a bit of breathing room for randomness.
+		assert.LessOrEqual(t, consistencyWasChecked, 150)
+		assert.GreaterOrEqual(t, consistencyWasChecked, 50)
+	})
+}
+
 func TestTrackerCannotBuild(t *testing.T) {
 	t.Run("without operation", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("user-key")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-		tracker := NewMigrationOpTracker("flag-key", context, detail, ldmigration.Live)
+		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
 
 		event, err := tracker.Build()
 
@@ -113,9 +165,10 @@ func TestTrackerCannotBuild(t *testing.T) {
 	})
 
 	t.Run("with invalid context", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-		tracker := NewMigrationOpTracker("flag-key", context, detail, ldmigration.Live)
+		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
 		tracker.Operation(ldmigration.Write)
 
 		event, err := tracker.Build()
