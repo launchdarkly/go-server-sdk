@@ -27,7 +27,7 @@ require (
 
 replace github.com/launchdarkly/go-server-sdk/v6 => ../
 
-replace github.com/launchdarkly/go-sdk-common/v3 => github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230818171508-4d48cc1dba90
+replace github.com/launchdarkly/go-sdk-common/v3 => github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac
 
 replace github.com/launchdarkly/go-sdk-events/v2 => github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.5.0.20230828175712-cf4fc6d12b81
 

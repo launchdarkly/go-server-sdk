@@ -23,8 +23,8 @@ github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1 h1:Iz5cg9mB/0vt5llZE+J0iGQ5+O/
 github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1/go.mod h1:hKWfH/hga5oslM2mRkDZi+14u2h1dFsmgbvSM9qF8pk=
 github.com/launchdarkly/go-ntlmssp v1.0.1 h1:snB77118TQvf9tfHrkSyrIop/UX5e5VD2D2mv7Kh3wE=
 github.com/launchdarkly/go-ntlmssp v1.0.1/go.mod h1:/cq3t2JyALD7GdVF5BEWcEuGlIGa44FZ4v4CVk7vuCY=
-github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230818171508-4d48cc1dba90 h1:c4zG/qZR9+ckK6l+7QXZJm0QLj1cEbKCgK5JWt1vHcQ=
-github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230818171508-4d48cc1dba90/go.mod h1:H/zISoCNhviHTTqqBjIKQy2YgSHT8ioL1FtgBKpiEGg=
+github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac h1:kwLv85SJo+enOI+h676WoKllGL6RpwX69tGXTHt9XT0=
+github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac/go.mod h1:H/zISoCNhviHTTqqBjIKQy2YgSHT8ioL1FtgBKpiEGg=
 github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.5.0.20230828175712-cf4fc6d12b81 h1:7lVkSXqjgeAnizChB1owMtp0DKNmrPLkNXyR9E/gVP0=
 github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.5.0.20230828175712-cf4fc6d12b81/go.mod h1:kmAnWyH6hmXyV+LaxZM6tn4YKel+gVhdxvxqx3xvvGw=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=

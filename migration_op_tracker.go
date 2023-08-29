@@ -9,10 +9,10 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	ldevents "github.com/launchdarkly/go-sdk-events/v2"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
 )
 
 // MigrationOpTracker is used to collect migration related measurements. These measurements will be
@@ -28,6 +28,7 @@ type MigrationOpTracker struct {
 	consistencyCheck *ldmigration.ConsistencyCheck
 	errors           map[ldmigration.Origin]struct{}
 	latencyMs        map[ldmigration.Origin]int
+	sampler          *ldsampling.RatioSampler
 
 	lock sync.Mutex
 }
@@ -49,6 +50,7 @@ func NewMigrationOpTracker(
 		evaluation:   detail,
 		errors:       make(map[ldmigration.Origin]struct{}),
 		latencyMs:    make(map[ldmigration.Origin]int),
+		sampler:      ldsampling.NewSampler(),
 	}
 }
 
@@ -77,7 +79,7 @@ func (t *MigrationOpTracker) TrackConsistency(wasConsistent bool) {
 		samplingRatio = t.flag.Migration.CheckRatio.OrElse(1)
 	}
 
-	if !internal.ShouldSample(samplingRatio) {
+	if !t.sampler.Sample(samplingRatio) {
 		return
 	}
 
