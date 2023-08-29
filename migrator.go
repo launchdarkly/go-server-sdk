@@ -54,18 +54,26 @@ func (m *migratorImpl) ValidateRead(
 	switch stage {
 	case ldmigration.Off:
 		readResult.MigrationResult = oldExecutor.exec()
+		tracker.TrackInvoked(ldmigration.Old)
 	case ldmigration.DualWrite:
 		readResult.MigrationResult = oldExecutor.exec()
+		tracker.TrackInvoked(ldmigration.Old)
 	case ldmigration.Shadow:
 		authoritativeResult := m.readFromBoth(*oldExecutor, *newExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
 		readResult.MigrationResult = authoritativeResult
+		tracker.TrackInvoked(ldmigration.Old)
+		tracker.TrackInvoked(ldmigration.New)
 	case ldmigration.Live:
 		authoritativeResult := m.readFromBoth(*newExecutor, *oldExecutor, m.readConfig.compare, m.readExecutionOrder, tracker)
 		readResult.MigrationResult = authoritativeResult
+		tracker.TrackInvoked(ldmigration.Old)
+		tracker.TrackInvoked(ldmigration.New)
 	case ldmigration.RampDown:
 		readResult.MigrationResult = newExecutor.exec()
+		tracker.TrackInvoked(ldmigration.New)
 	case ldmigration.Complete:
 		readResult.MigrationResult = newExecutor.exec()
+		tracker.TrackInvoked(ldmigration.New)
 	default:
 		// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
 		readResult.MigrationResult = MigrationResult{
@@ -110,21 +118,23 @@ func (m *migratorImpl) ValidateWrite(
 	case ldmigration.Off:
 		result := oldExecutor.exec()
 		writeResult = NewMigrationWriteResult(result, nil)
+		tracker.TrackInvoked(ldmigration.Old)
 	case ldmigration.DualWrite:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*oldExecutor, *newExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*oldExecutor, *newExecutor, tracker)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.Shadow:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*oldExecutor, *newExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*oldExecutor, *newExecutor, tracker)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.Live:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*newExecutor, *oldExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*newExecutor, *oldExecutor, tracker)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.RampDown:
-		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*newExecutor, *oldExecutor)
+		authoritativeResult, nonAuthoritativeResult := m.writeToBoth(*newExecutor, *oldExecutor, tracker)
 		writeResult = NewMigrationWriteResult(authoritativeResult, nonAuthoritativeResult)
 	case ldmigration.Complete:
 		authoritativeResult := newExecutor.exec()
 		writeResult = NewMigrationWriteResult(authoritativeResult, nil)
+		tracker.TrackInvoked(ldmigration.New)
 	default:
 		// NOTE: This should be unattainable if the above switch is exhaustive as it should be.
 		writeResult = MigrationWriteResult{
@@ -152,16 +162,20 @@ func (m *migratorImpl) trackMigrationOp(tracker interfaces.LDMigrationOpTracker)
 }
 
 func (m *migratorImpl) writeToBoth(
-	authoritative, nonAuthoritative migrationExecutor,
+	authoritative, nonAuthoritative migrationExecutor, tracker interfaces.LDMigrationOpTracker,
 ) (MigrationResult, *MigrationResult) {
 	var authoritativeMigrationResult, nonAuthoritativeMigrationResult MigrationResult
 
 	authoritativeMigrationResult = authoritative.exec()
+	tracker.TrackInvoked(authoritativeMigrationResult.GetOrigin())
+
 	if !authoritativeMigrationResult.IsSuccess() {
 		return authoritativeMigrationResult, nil
 	}
 
 	nonAuthoritativeMigrationResult = nonAuthoritative.exec()
+	tracker.TrackInvoked(nonAuthoritativeMigrationResult.GetOrigin())
+
 	return authoritativeMigrationResult, &nonAuthoritativeMigrationResult
 }
 

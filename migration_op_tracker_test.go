@@ -21,6 +21,8 @@ func minimalTracker(samplingRatio int) *MigrationOpTracker {
 	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
 	tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
 	tracker.Operation(ldmigration.Write)
+	tracker.TrackInvoked(ldmigration.Old)
+	tracker.TrackInvoked(ldmigration.New)
 
 	return tracker
 }
@@ -31,6 +33,50 @@ func TestTrackerCanBuildSuccessfully(t *testing.T) {
 
 	assert.NotNil(t, event)
 	assert.NoError(t, err)
+}
+
+func TestTrackerCanTrackInvocations(t *testing.T) {
+	t.Run("for both origins", func(t *testing.T) {
+		tracker := minimalTracker(1)
+		// Reset since the minimal tracker already includes some values
+		tracker.invoked = make(map[ldmigration.Origin]struct{})
+
+		tracker.TrackInvoked(ldmigration.New)
+		tracker.TrackInvoked(ldmigration.Old)
+
+		event, err := tracker.Build()
+
+		assert.NoError(t, err)
+		assert.NotNil(t, event)
+
+		assert.Len(t, event.Invoked, 2)
+		if _, ok := event.Invoked[ldmigration.New]; !ok {
+			assert.Fail(t, "event is missing new origin invoked")
+		}
+		if _, ok := event.Invoked[ldmigration.Old]; !ok {
+			assert.Fail(t, "event is missing old origin invoked")
+		}
+	})
+
+	t.Run("for individual origins", func(t *testing.T) {
+		for _, origin := range allOrigins {
+			tracker := minimalTracker(1)
+			// Reset since the minimal tracker already includes some values
+			tracker.invoked = make(map[ldmigration.Origin]struct{})
+
+			tracker.TrackInvoked(origin)
+
+			event, err := tracker.Build()
+
+			assert.NoError(t, err)
+			assert.NotNil(t, event)
+
+			assert.Len(t, event.Invoked, 1)
+			if _, ok := event.Invoked[origin]; !ok {
+				assert.Failf(t, "event is missing %s origin invoked", string(origin))
+			}
+		}
+	})
 }
 
 func TestTrackerCanTrackErrors(t *testing.T) {
@@ -152,21 +198,9 @@ func TestTrackerCanTrackConsistency(t *testing.T) {
 }
 
 func TestTrackerCannotBuild(t *testing.T) {
-	t.Run("without operation", func(t *testing.T) {
+	t.Run("without calling invoked", func(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("user-key")
-		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
-
-		event, err := tracker.Build()
-
-		assert.Nil(t, event)
-		assert.Error(t, err)
-	})
-
-	t.Run("with invalid context", func(t *testing.T) {
-		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
-		context := ldcontext.New("")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
 		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
 		tracker.Operation(ldmigration.Write)
@@ -175,5 +209,38 @@ func TestTrackerCannotBuild(t *testing.T) {
 
 		assert.Nil(t, event)
 		assert.Error(t, err)
+
+		assert.Equal(t, err.Error(), "no origins were recorded as being invoked")
+	})
+
+	t.Run("without operation", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
+		context := ldcontext.New("user-key")
+		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
+		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+		tracker.TrackInvoked(ldmigration.Old)
+
+		event, err := tracker.Build()
+
+		assert.Nil(t, event)
+		assert.Error(t, err)
+
+		assert.Equal(t, err.Error(), "migration operation not specified")
+	})
+
+	t.Run("with invalid context", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
+		context := ldcontext.New("")
+		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
+		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+		tracker.Operation(ldmigration.Write)
+		tracker.TrackInvoked(ldmigration.Old)
+
+		event, err := tracker.Build()
+
+		assert.Nil(t, event)
+		assert.Error(t, err)
+
+		assert.Contains(t, err.Error(), "invalid context given")
 	})
 }

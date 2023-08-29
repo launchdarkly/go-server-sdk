@@ -237,6 +237,9 @@ type LDMigrationOpTracker interface {
 	// Operation sets the migration related operation associated with these tracking measurements.
 	Operation(op ldmigration.Operation)
 
+	// TrackInvoked allows recording which origins were called during a migration.
+	TrackInvoked(origin ldmigration.Origin)
+
 	// TrackConsistency allows recording the results of a consistency check.
 	TrackConsistency(wasConsistent bool)
 

@@ -24,9 +24,10 @@ type MigrationOpTracker struct {
 	op               *ldmigration.Operation
 	context          ldcontext.Context
 	evaluation       ldreason.EvaluationDetail
+	invoked          map[ldmigration.Origin]struct{}
 	consistencyCheck *ldmigration.ConsistencyCheck
 	errors           map[ldmigration.Origin]struct{}
-	latency          map[ldmigration.Origin]int
+	latencyMs        map[ldmigration.Origin]int
 
 	lock sync.Mutex
 }
@@ -43,10 +44,11 @@ func NewMigrationOpTracker(
 	return &MigrationOpTracker{
 		flag:         flag,
 		defaultStage: defaultStage,
+		invoked:      make(map[ldmigration.Origin]struct{}),
 		context:      context,
 		evaluation:   detail,
 		errors:       make(map[ldmigration.Origin]struct{}),
-		latency:      make(map[ldmigration.Origin]int),
+		latencyMs:    make(map[ldmigration.Origin]int),
 	}
 }
 
@@ -55,6 +57,13 @@ func (t *MigrationOpTracker) Operation(op ldmigration.Operation) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	t.op = &op
+}
+
+// TrackInvoked allows recording which origins were called during a migration.
+func (t *MigrationOpTracker) TrackInvoked(origin ldmigration.Origin) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	t.invoked[origin] = struct{}{}
 }
 
 // TrackConsistency allows recording the results of a consistency check, along with the
@@ -86,7 +95,7 @@ func (t *MigrationOpTracker) TrackError(origin ldmigration.Origin) {
 func (t *MigrationOpTracker) TrackLatency(origin ldmigration.Origin, duration time.Duration) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	t.latency[origin] = int(duration.Milliseconds())
+	t.latencyMs[origin] = int(duration.Milliseconds())
 }
 
 // Build creates an instance of [ldevents.MigrationOpEventData]. This event data can be provided to
@@ -102,6 +111,10 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 
 	if len(t.flag.Key) == 0 {
 		return nil, errors.New("migration operation cannot contain an empty flag key")
+	}
+
+	if len(t.invoked) == 0 {
+		return nil, errors.New("no origins were recorded as being invoked")
 	}
 
 	if t.op == nil {
@@ -121,8 +134,9 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 		FlagKey:          t.flag.Key,
 		Default:          t.defaultStage,
 		Evaluation:       t.evaluation,
+		Invoked:          t.invoked,
 		ConsistencyCheck: t.consistencyCheck,
 		Error:            t.errors,
-		Latency:          t.latency,
+		Latency:          t.latencyMs,
 	}, nil
 }
