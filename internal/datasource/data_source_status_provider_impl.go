@@ -3,8 +3,8 @@ package datasource
 import (
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 )
 
 // dataSourceStatusProviderImpl is the internal implementation of DataSourceStatusProvider. It's not

@@ -5,9 +5,9 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
-	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
+	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 type kindAndKey struct {

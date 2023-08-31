@@ -2,9 +2,9 @@ package ldcomponents
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 type nullDataSourceFactory struct{}
@@ -12,7 +12,7 @@ type nullDataSourceFactory struct{}
 // ExternalUpdatesOnly returns a configuration object that disables a direct connection with LaunchDarkly
 // for feature flag updates.
 //
-// Storing this in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config] causes the
+// Storing this in the DataSource field of [github.com/launchdarkly/go-server-sdk/v7.Config] causes the
 // SDK not to retrieve feature flag data from LaunchDarkly, regardless of any other configuration. This is
 // normally done if you are using the Relay Proxy (https://docs.launchdarkly.com/home/relay-proxy) in
 // "daemon mode", where an external process-- the Relay Proxy-- connects to LaunchDarkly and populates a

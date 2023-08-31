@@ -1,6 +1,6 @@
 package subsystems
 
-import "github.com/launchdarkly/go-server-sdk/v6/interfaces"
+import "github.com/launchdarkly/go-server-sdk/v7/interfaces"
 
 // DataStoreUpdateSink is an interface that a data store implementation can use to report information
 // back to the SDK.

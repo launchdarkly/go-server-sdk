@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // DefaultStreamingBaseURI is the default value for [StreamingDataSourceBuilder.BaseURI].
@@ -30,7 +30,7 @@ type StreamingDataSourceBuilder struct {
 // By default, the SDK uses a streaming connection to receive feature flag data from LaunchDarkly. To use the
 // default behavior, you do not need to call this method. However, if you want to customize the behavior of
 // the connection, call this method to obtain a builder, set its properties with the [StreamingDataSourceBuilder]
-// methods, and then store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
+// methods, and then store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v7.Config]:
 //
 //	config := ld.Config{
 //	    DataSource: ldcomponents.StreamingDataSource().InitialReconnectDelay(500 * time.Millisecond),

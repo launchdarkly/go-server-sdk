@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"golang.org/x/exp/maps"
 )

@@ -8,9 +8,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v3"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/bigsegments"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/launchdarkly/ccache"
 

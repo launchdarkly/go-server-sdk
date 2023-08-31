@@ -8,7 +8,7 @@ package interfaces
 // documentation about user segments: https://docs.launchdarkly.com/home/users
 //
 // An implementation of this interface is returned by
-// [github.com/launchdarkly/go-server-sdk/v6.LDClient.GetBigSegmentStoreStatusProvider].
+// [github.com/launchdarkly/go-server-sdk/v7.LDClient.GetBigSegmentStoreStatusProvider].
 // Application code should not implement this interface.
 //
 // There are two ways to interact with the status. One is to simply get the current status; if its

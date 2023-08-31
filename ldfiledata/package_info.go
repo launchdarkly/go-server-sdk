@@ -1,6 +1,6 @@
 // Package ldfiledata allows the LaunchDarkly client to read feature flag data from a file.
 //
-// This is different from [github.com/launchdarkly/go-server-sdk/v6/ldtestdata.DataSource], which
+// This is different from [github.com/launchdarkly/go-server-sdk/v7/ldtestdata.DataSource], which
 // allows you to simulate flag configurations programmatically rather than using a file.
 //
 // To use the file-based data source in your SDK configuration, call ldfiledata.[DataSource] to obtain a

@@ -7,9 +7,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 const (
@@ -48,7 +48,7 @@ type EventProcessorBuilder struct {
 //
 // The default configuration has events enabled with default settings. If you want to customize this
 // behavior, call this method to obtain a builder, change its properties with the [EventProcessorBuilder]
-// methods, and store it in the Events field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
+// methods, and store it in the Events field of [github.com/launchdarkly/go-server-sdk/v7.Config]:
 //
 //	config := ld.Config{
 //	    Events: ldcomponents.SendEvents().Capacity(5000).FlushInterval(2 * time.Second),

@@ -3,8 +3,8 @@ package ldcomponents
 import (
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 )
 
 // DefaultBigSegmentsContextCacheSize is the default value for
@@ -30,7 +30,7 @@ const DefaultBigSegmentsStaleAfter = time.Second * 120
 //
 // If you want to set non-default values for any of these properties, create a builder with
 // ldcomponents.[BigSegments](), change its properties with the BigSegmentsConfigurationBuilder
-// methods, and store it in the BigSegments field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
+// methods, and store it in the BigSegments field of [github.com/launchdarkly/go-server-sdk/v7.Config]:
 //
 //	    config := ld.Config{
 //	        BigSegments: ldcomponents.BigSegments(ldredis.DataStore()).

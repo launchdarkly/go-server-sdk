@@ -4,10 +4,10 @@ import (
 	"sync"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"golang.org/x/exp/slices"
 )
@@ -33,7 +33,7 @@ type testDataSourceImpl struct {
 
 // DataSource creates an instance of [TestDataSource].
 //
-// Storing this object in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config]
+// Storing this object in the DataSource field of [github.com/launchdarkly/go-server-sdk/v7.Config]
 // causes the SDK client to use the test data. Any subsequent changes made using methods like
 // [TestDataSource.Update] will propagate to all LDClient instances that are using this data source.
 func DataSource() *TestDataSource {
