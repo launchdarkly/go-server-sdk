@@ -7,8 +7,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -189,7 +189,7 @@ func TestTestDataSource(t *testing.T) {
 	})
 
 	t.Run("adds or updates preconfigured metrics", func(t *testing.T) {
-		metric := ldbuilders.NewMetricBuilder("metric-key").SamplingRatio(ldvalue.NewOptionalInt(10)).Version(1).Build()
+		metric := ldbuilders.NewMetricBuilder("metric-key").SamplingRatio(10).Version(1).Build()
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.UsePreconfiguredMetric(metric)

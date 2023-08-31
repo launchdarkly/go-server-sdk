@@ -1,21 +1,23 @@
 package ldclient
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/stretchr/testify/assert"
 )
 
 var allOrigins = []ldmigration.Origin{ldmigration.Old, ldmigration.New}
 
 func minimalTracker(samplingRatio int) *MigrationOpTracker {
-	params := ldbuilders.NewMigrationFlagParametersBuilder().CheckRatio(ldvalue.NewOptionalInt(samplingRatio)).Build()
+	params := ldbuilders.NewMigrationFlagParametersBuilder().CheckRatio(samplingRatio).Build()
 	flag := ldbuilders.NewFlagBuilder("flag-key").MigrationFlagParameters(params).Build()
 	context := ldcontext.New("user-key")
 	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
@@ -176,9 +178,13 @@ func TestTrackerCanTrackConsistency(t *testing.T) {
 	})
 
 	t.Run("honors sampling ratio", func(t *testing.T) {
+		source := rand.NewSource(1)
+		sampler := ldsampling.NewSamplerFromSource(source)
+
 		consistencyWasChecked := 0
 		for i := 0; i < 1_000; i++ {
 			tracker := minimalTracker(10)
+			tracker.sampler = sampler
 			tracker.TrackConsistency(true)
 
 			event, err := tracker.Build()
@@ -191,9 +197,8 @@ func TestTrackerCanTrackConsistency(t *testing.T) {
 			}
 		}
 
-		// We limit to 400 to provide a bit of breathing room for randomness.
-		assert.LessOrEqual(t, consistencyWasChecked, 150)
-		assert.GreaterOrEqual(t, consistencyWasChecked, 50)
+		// Randomization isn't perfect, but this is pretty close
+		assert.Equal(t, 117, consistencyWasChecked)
 	})
 }
 

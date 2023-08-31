@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,13 +29,13 @@ func defaultMigrator(client *LDClient) *MigratorBuilder {
 		TrackLatency(false).
 		TrackErrors(false).
 		Read(
-			func() (interface{}, error) { return false, nil },
-			func() (interface{}, error) { return false, nil },
+			func(interface{}) (interface{}, error) { return false, nil },
+			func(interface{}) (interface{}, error) { return false, nil },
 			nil,
 		).
 		Write(
-			func() (interface{}, error) { return false, nil },
-			func() (interface{}, error) { return false, nil },
+			func(interface{}) (interface{}, error) { return false, nil },
+			func(interface{}) (interface{}, error) { return false, nil },
 		)
 
 	return migrator
@@ -47,22 +47,22 @@ func TestMigratorSetsBasicEventValues(t *testing.T) {
 
 		migrator, err := defaultMigrator(p.client).
 			Read(
-				func() (interface{}, error) { return true, nil },
-				func() (interface{}, error) { return true, nil },
+				func(interface{}) (interface{}, error) { return true, nil },
+				func(interface{}) (interface{}, error) { return true, nil },
 				nil,
 			).
 			Write(
-				func() (interface{}, error) { return true, nil },
-				func() (interface{}, error) { return true, nil },
+				func(interface{}) (interface{}, error) { return true, nil },
+				func(interface{}) (interface{}, error) { return true, nil },
 			).
 			Build()
 
 		assert.NoError(t, err)
 
-		_ = migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete)
+		_ = migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 		assert.Len(t, p.events.Events, 2)
 
-		_ = migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete)
+		_ = migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 		assert.Len(t, p.events.Events, 4)
 
 		readOpEvent := p.events.Events[1].(ldevents.MigrationOpEventData)  // Ignore evaluation data event
@@ -140,15 +140,15 @@ func TestMigratorTracksLatency(t *testing.T) {
 			migrator, err := defaultMigrator(p.client).
 				TrackLatency(true).
 				Read(
-					func() (interface{}, error) { time.Sleep(500 * time.Millisecond); return true, nil },
-					func() (interface{}, error) { time.Sleep(300 * time.Millisecond); return true, nil },
+					func(interface{}) (interface{}, error) { time.Sleep(500 * time.Millisecond); return true, nil },
+					func(interface{}) (interface{}, error) { time.Sleep(300 * time.Millisecond); return true, nil },
 					nil,
 				).
 				Build()
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete)
+			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.True(t, result.IsSuccess())
 			assert.Equal(t, true, result.GetResult())
@@ -215,15 +215,15 @@ func TestMigratorTracksErrors(t *testing.T) {
 			migrator, err := defaultMigrator(p.client).
 				TrackErrors(true).
 				Read(
-					func() (interface{}, error) { return nil, errors.New("error") },
-					func() (interface{}, error) { return nil, errors.New("error") },
+					func(interface{}) (interface{}, error) { return nil, errors.New("error") },
+					func(interface{}) (interface{}, error) { return nil, errors.New("error") },
 					nil,
 				).
 				Build()
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete)
+			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.False(t, result.IsSuccess())
 			assert.Nil(t, result.GetResult())
@@ -271,15 +271,15 @@ func TestMigratorTracksConsistency(t *testing.T) {
 
 			migrator, err := defaultMigrator(p.client).
 				Read(
-					func() (interface{}, error) { return testParam.OldResult, nil },
-					func() (interface{}, error) { return testParam.NewResult, nil },
+					func(interface{}) (interface{}, error) { return testParam.OldResult, nil },
+					func(interface{}) (interface{}, error) { return testParam.NewResult, nil },
 					&compare,
 				).
 				Build()
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete)
+			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.True(t, result.IsSuccess())
 			assert.Equal(t, testParam.OldResult, result.GetResult())
@@ -292,6 +292,98 @@ func TestMigratorTracksConsistency(t *testing.T) {
 			assert.Equal(t, 1, event.ConsistencyCheck.SamplingRatio())
 		})
 	}
+}
+
+func TestMigratorPassingPayloadThroughCorrectly(t *testing.T) {
+	t.Run("writes", func(t *testing.T) {
+		testParams := []struct {
+			Flag ldmodel.FeatureFlag
+		}{
+			{Flag: makeMigrationFlag("key", "off")},
+			{Flag: makeMigrationFlag("key", "dualwrite")},
+			{Flag: makeMigrationFlag("key", "shadow")},
+			{Flag: makeMigrationFlag("key", "live")},
+			{Flag: makeMigrationFlag("key", "rampdown")},
+			{Flag: makeMigrationFlag("key", "complete")},
+		}
+
+		for _, testParam := range testParams {
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.data.UsePreconfiguredFlag(testParam.Flag)
+
+				var oldBody, newBody string
+				migrator, err := defaultMigrator(p.client).
+					Write(
+						func(payload interface{}) (interface{}, error) { oldBody = payload.(string); return "old", nil },
+						func(payload interface{}) (interface{}, error) { newBody = payload.(string); return "new", nil },
+					).
+					Build()
+
+				assert.NoError(t, err)
+
+				result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, "payload")
+				assert.True(t, result.GetAuthoritativeResult().IsSuccess())
+				if result.GetAuthoritativeResult().GetOrigin() == ldmigration.Old {
+					assert.Equal(t, oldBody, "payload")
+				} else {
+					assert.Equal(t, newBody, "payload")
+				}
+
+				if result.GetNonAuthoritativeResult() != nil {
+					if result.GetNonAuthoritativeResult().GetOrigin() == ldmigration.Old {
+						assert.Equal(t, oldBody, "payload")
+					} else {
+						assert.Equal(t, newBody, "payload")
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("reads", func(t *testing.T) {
+		testParams := []struct {
+			Flag        ldmodel.FeatureFlag
+			ExpectedOld bool
+			ExpectedNew bool
+		}{
+			{Flag: makeMigrationFlag("key", "off"), ExpectedOld: true},
+			{Flag: makeMigrationFlag("key", "dualwrite"), ExpectedOld: true},
+			{Flag: makeMigrationFlag("key", "shadow"), ExpectedOld: true, ExpectedNew: true},
+			{Flag: makeMigrationFlag("key", "live"), ExpectedOld: true, ExpectedNew: true},
+			{Flag: makeMigrationFlag("key", "rampdown"), ExpectedNew: true},
+			{Flag: makeMigrationFlag("key", "complete"), ExpectedNew: true},
+		}
+
+		for _, testParam := range testParams {
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.data.UsePreconfiguredFlag(testParam.Flag)
+
+				var oldBody, newBody string
+				migrator, err := defaultMigrator(p.client).
+					Read(
+						func(payload interface{}) (interface{}, error) { oldBody = payload.(string); return "old", nil },
+						func(payload interface{}) (interface{}, error) { newBody = payload.(string); return "new", nil },
+						nil,
+					).
+					Build()
+
+				assert.NoError(t, err)
+
+				migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, "payload")
+				if testParam.ExpectedOld {
+					assert.Equal(t, oldBody, "payload")
+				} else {
+					assert.Empty(t, oldBody, "payload")
+				}
+
+				if testParam.ExpectedNew {
+					assert.Equal(t, newBody, "payload")
+				} else {
+					assert.Empty(t, newBody, "payload")
+				}
+			})
+		}
+	})
 }
 
 func TestMigratorWriteReturnsCorrectAuthoritativeResults(t *testing.T) {
@@ -336,14 +428,14 @@ func TestMigratorWriteReturnsCorrectAuthoritativeResults(t *testing.T) {
 
 			migrator, err := defaultMigrator(p.client).
 				Write(
-					func() (interface{}, error) { return "old", nil },
-					func() (interface{}, error) { return "new", nil },
+					func(interface{}) (interface{}, error) { return "old", nil },
+					func(interface{}) (interface{}, error) { return "new", nil },
 				).
 				Build()
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete)
+			result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.True(t, result.GetAuthoritativeResult().IsSuccess())
 			assert.Equal(t, testParam.AuthoritativeResult, result.GetAuthoritativeResult().GetResult())
@@ -364,14 +456,14 @@ func TestMigratorWriteStopsOnAuthoritativeFailure(t *testing.T) {
 
 		migrator, err := defaultMigrator(p.client).
 			Write(
-				func() (interface{}, error) { return nil, errors.New("old is failing") },
-				func() (interface{}, error) { return "new", nil },
+				func(interface{}) (interface{}, error) { return nil, errors.New("old is failing") },
+				func(interface{}) (interface{}, error) { return "new", nil },
 			).
 			Build()
 
 		assert.NoError(t, err)
 
-		result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete)
+		result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 		assert.False(t, result.GetAuthoritativeResult().IsSuccess())
 		assert.Error(t, result.GetAuthoritativeResult().GetError(), "old is failing")
@@ -385,14 +477,14 @@ func TestMigratorWriteReturnsResultOnNonAuthoritativeFailure(t *testing.T) {
 
 		migrator, err := defaultMigrator(p.client).
 			Write(
-				func() (interface{}, error) { return "old", nil },
-				func() (interface{}, error) { return nil, errors.New("new is failing") },
+				func(interface{}) (interface{}, error) { return "old", nil },
+				func(interface{}) (interface{}, error) { return nil, errors.New("new is failing") },
 			).
 			Build()
 
 		assert.NoError(t, err)
 
-		result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete)
+		result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 		assert.True(t, result.GetAuthoritativeResult().IsSuccess())
 		assert.Equal(t, "old", result.GetAuthoritativeResult().GetResult())

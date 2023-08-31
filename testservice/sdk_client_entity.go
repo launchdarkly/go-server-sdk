@@ -259,9 +259,13 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 	builder.TrackLatency(p.TrackLatency)
 	builder.TrackErrors(p.TrackErrors)
 
-	readEndpoint := func(endpoint string) func() (interface{}, error) {
-		return func() (interface{}, error) {
-			response, err := http.Post(endpoint, "application/json", nil)
+	readEndpoint := func(endpoint string) func(interface{}) (interface{}, error) {
+		return func(payload interface{}) (interface{}, error) {
+			var reader io.Reader
+			if val, ok := payload.(*string); ok && val != nil {
+				reader = strings.NewReader(*val)
+			}
+			response, err := http.Post(endpoint, "application/json", reader)
 
 			if err != nil {
 				return nil, err
@@ -280,9 +284,13 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 		}
 	}
 
-	writeEndpoint := func(endpoint, payload string) func() (interface{}, error) {
-		return func() (interface{}, error) {
-			response, err := http.Post(endpoint, "application/json", strings.NewReader(payload))
+	writeEndpoint := func(endpoint string) func(interface{}) (interface{}, error) {
+		return func(payload interface{}) (interface{}, error) {
+			var reader io.Reader
+			if val, ok := payload.(*string); ok && val != nil {
+				reader = strings.NewReader(*val)
+			}
+			response, err := http.Post(endpoint, "application/json", reader)
 
 			if err != nil {
 				return nil, err
@@ -312,7 +320,7 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 		builder.Read(readEndpoint(p.OldEndpoint), readEndpoint(p.NewEndpoint), nil)
 	}
 
-	builder.Write(writeEndpoint(p.OldEndpoint, "old"), writeEndpoint(p.NewEndpoint, "new"))
+	builder.Write(writeEndpoint(p.OldEndpoint), writeEndpoint(p.NewEndpoint))
 
 	migrator, err := builder.Build()
 
@@ -321,7 +329,7 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 	}
 
 	if p.Operation == ldmigration.Read {
-		result := migrator.ValidateRead(p.Key, p.Context, p.DefaultStage)
+		result := migrator.ValidateRead(p.Key, p.Context, p.DefaultStage, p.Payload)
 		if err := result.GetError(); err != nil {
 			return &servicedef.MigrationOperationResponse{Result: err.Error()}, nil
 		}
@@ -329,7 +337,7 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 		return &servicedef.MigrationOperationResponse{Result: result.GetResult()}, nil
 	}
 
-	result := migrator.ValidateWrite(p.Key, p.Context, p.DefaultStage)
+	result := migrator.ValidateWrite(p.Key, p.Context, p.DefaultStage, p.Payload)
 	if err := result.GetAuthoritativeResult().GetError(); err != nil {
 		return &servicedef.MigrationOperationResponse{Result: err.Error()}, nil
 	}

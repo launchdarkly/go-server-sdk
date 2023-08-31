@@ -15,9 +15,9 @@ require (
 	github.com/launchdarkly/ccache v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.6.2 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.0.0 // indirect
-	github.com/launchdarkly/go-sdk-events/v2 v2.0.2 // indirect
+	github.com/launchdarkly/go-sdk-events/v3 v3.0.0 // indirect
 	github.com/launchdarkly/go-semver v1.0.2 // indirect
-	github.com/launchdarkly/go-server-sdk-evaluation/v2 v2.0.2 // indirect
+	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.0 // indirect
 	github.com/launchdarkly/go-test-helpers/v2 v2.3.1 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
@@ -29,6 +29,6 @@ replace github.com/launchdarkly/go-server-sdk/v6 => ../
 
 replace github.com/launchdarkly/go-sdk-common/v3 => github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac
 
-replace github.com/launchdarkly/go-sdk-events/v2 => github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.5.0.20230828175712-cf4fc6d12b81
+replace github.com/launchdarkly/go-sdk-events/v3 => github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20230829233031-ed3dc538caac
 
-replace github.com/launchdarkly/go-server-sdk-evaluation/v2 => github.com/launchdarkly/go-server-sdk-evaluation-private/v2 v2.0.0-alpha.7.0.20230828162739-3458fcf551b1
+replace github.com/launchdarkly/go-server-sdk-evaluation/v3 => github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20230829233102-4fc0fa5a3369

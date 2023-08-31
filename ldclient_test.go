@@ -8,7 +8,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"

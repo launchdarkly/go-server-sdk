@@ -19,12 +19,12 @@ github.com/launchdarkly/go-jsonstream/v3 v3.0.0 h1:qJF/WI09EUJ7kSpmP5d1Rhc81NQdY
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0/go.mod h1:/1Gyml6fnD309JOvunOSfyysWbZ/ZzcA120gF/cQtC4=
 github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac h1:kwLv85SJo+enOI+h676WoKllGL6RpwX69tGXTHt9XT0=
 github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac/go.mod h1:H/zISoCNhviHTTqqBjIKQy2YgSHT8ioL1FtgBKpiEGg=
-github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.5.0.20230828175712-cf4fc6d12b81 h1:7lVkSXqjgeAnizChB1owMtp0DKNmrPLkNXyR9E/gVP0=
-github.com/launchdarkly/go-sdk-events-private/v2 v2.0.0-alpha.5.0.20230828175712-cf4fc6d12b81/go.mod h1:kmAnWyH6hmXyV+LaxZM6tn4YKel+gVhdxvxqx3xvvGw=
+github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20230829233031-ed3dc538caac h1:QX5PGH5zu61rFP0H2SW6i2aR5IcDRysBmqeVuS71MM4=
+github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20230829233031-ed3dc538caac/go.mod h1:A74uZJygDnW7+92OJMwNUXDgf4KbQXJ/L9SVFVV0+r8=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=
 github.com/launchdarkly/go-semver v1.0.2/go.mod h1:xFmMwXba5Mb+3h72Z+VeSs9ahCvKo2QFUTHRNHVqR28=
-github.com/launchdarkly/go-server-sdk-evaluation-private/v2 v2.0.0-alpha.7.0.20230828162739-3458fcf551b1 h1:G9jrOIS4fxsQOvyftl54B4/+zI29nEZbSowF3F0Xb3I=
-github.com/launchdarkly/go-server-sdk-evaluation-private/v2 v2.0.0-alpha.7.0.20230828162739-3458fcf551b1/go.mod h1:uLwtibOs7fy4WkpNI7Av3c1M1Ozo7FkRigxfJ1nQ9n8=
+github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20230829233102-4fc0fa5a3369 h1:nHrnExN/Jt6eAXfW8iSlNmznhpbCfFfycChssLYEk9Q=
+github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20230829233102-4fc0fa5a3369/go.mod h1:ibc3fY5lI7Y6GKMmYPucaFxdAlmzujmS6+Le9oeTll4=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
 github.com/launchdarkly/go-test-helpers/v2 v2.3.1 h1:KXUAQVTeHNcWVDVQ94uEkybI+URXI9rEd7E553EsZFw=
 github.com/launchdarkly/go-test-helpers/v2 v2.3.1/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=

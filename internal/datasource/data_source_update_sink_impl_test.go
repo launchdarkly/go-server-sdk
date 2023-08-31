@@ -11,7 +11,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"

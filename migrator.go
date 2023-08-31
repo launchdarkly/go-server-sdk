@@ -23,7 +23,7 @@ type migratorImpl struct {
 }
 
 func (m *migratorImpl) ValidateRead(
-	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
 ) MigrationReadResult {
 	stage, tracker, err := m.client.MigrationVariation(key, context, defaultStage)
 	tracker.Operation(ldmigration.Read)
@@ -39,6 +39,7 @@ func (m *migratorImpl) ValidateRead(
 		tracker:        tracker,
 		measureLatency: m.measureLatency,
 		measureErrors:  m.measureErrors,
+		payload:        payload,
 	}
 	newExecutor := &migrationExecutor{
 		key:            key,
@@ -47,6 +48,7 @@ func (m *migratorImpl) ValidateRead(
 		tracker:        tracker,
 		measureLatency: m.measureLatency,
 		measureErrors:  m.measureErrors,
+		payload:        payload,
 	}
 
 	var readResult MigrationReadResult
@@ -87,7 +89,7 @@ func (m *migratorImpl) ValidateRead(
 }
 
 func (m *migratorImpl) ValidateWrite(
-	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
 ) MigrationWriteResult {
 	stage, tracker, err := m.client.MigrationVariation(key, context, defaultStage)
 	tracker.Operation(ldmigration.Write)
@@ -102,6 +104,7 @@ func (m *migratorImpl) ValidateWrite(
 		tracker:        tracker,
 		measureLatency: m.measureLatency,
 		measureErrors:  m.measureErrors,
+		payload:        payload,
 	}
 	newExecutor := &migrationExecutor{
 		key:            key,
@@ -110,6 +113,7 @@ func (m *migratorImpl) ValidateWrite(
 		tracker:        tracker,
 		measureLatency: m.measureLatency,
 		measureErrors:  m.measureErrors,
+		payload:        payload,
 	}
 
 	var writeResult MigrationWriteResult
@@ -226,11 +230,12 @@ type migrationExecutor struct {
 	tracker        interfaces.LDMigrationOpTracker
 	measureLatency bool
 	measureErrors  bool
+	payload        interface{}
 }
 
 func (e migrationExecutor) exec() MigrationResult {
 	start := time.Now()
-	result, err := e.impl()
+	result, err := e.impl(e.payload)
 
 	// QUESTION: How sure are we that we want to do this? If a call is failing
 	// fast, the latency metric might look wonderful for the new version

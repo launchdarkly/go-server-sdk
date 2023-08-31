@@ -137,6 +137,7 @@ type MigrationOperationParams struct {
 	Operation          ldmigration.Operation      `json:"operation"`
 	OldEndpoint        string                     `json:"oldEndpoint"`
 	NewEndpoint        string                     `json:"newEndpoint"`
+	Payload            *string                    `json:"payload,omitempty"`
 	TrackLatency       bool                       `json:"trackLatency"`
 	TrackErrors        bool                       `json:"trackErrors"`
 	TrackConsistency   bool                       `json:"trackConsistency"`

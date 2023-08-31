@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 )
 
 // CapturingEventProcessor is a test implementation of EventProcessor that accumulates all events.

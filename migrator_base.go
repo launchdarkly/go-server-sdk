@@ -3,7 +3,7 @@ package ldclient
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
 )
 
@@ -18,21 +18,6 @@ type MigrationCapableClient interface {
 	TrackMigrationOp(event ldevents.MigrationOpEventData) error
 	Loggers() interfaces.LDLoggers
 }
-
-// ExecutionOrder represents the various execution modes this SDK can operate
-// under while performing migration-assisted reads.
-type ExecutionOrder uint8
-
-const (
-	// Serial execution ensures the authoritative read will always complete execution before executing the
-	// non-authoritative read.
-	Serial ExecutionOrder = iota
-	// Randomized execution randomly decides if the authoritative read should execute first or second.
-	Randomized
-	// Concurrently executes both reads in separate go routines, and waits until both calls have finished before
-	// proceeding.
-	Concurrently
-)
 
 // MigrationWriteResult contains the results of a migration write operation.
 //
@@ -135,7 +120,7 @@ type MigrationComparisonFn func(interface{}, interface{}) bool
 
 // MigrationImplFn represents the customer defined migration operation function. This method is expected to return a
 // meaningful value if the function succeeds, and an error otherwise.
-type MigrationImplFn func() (interface{}, error)
+type MigrationImplFn func(payload interface{}) (interface{}, error)
 
 type migrationConfig struct {
 	old     MigrationImplFn
@@ -146,7 +131,11 @@ type migrationConfig struct {
 // Migrator represents the interface through which migration support is executed.
 type Migrator interface {
 	// ValidateRead uses the provided flag key and context to execute a migration-backed read operation.
-	ValidateRead(key string, context ldcontext.Context, defaultStage ldmigration.Stage) MigrationReadResult
+	ValidateRead(
+		key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
+	) MigrationReadResult
 	// ValidateWrite uses the provided flag key and context to execute a migration-backed write operation.
-	ValidateWrite(key string, context ldcontext.Context, defaultStage ldmigration.Stage) MigrationWriteResult
+	ValidateWrite(
+		key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
+	) MigrationWriteResult
 }

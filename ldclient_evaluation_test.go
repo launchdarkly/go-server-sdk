@@ -13,9 +13,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
@@ -333,7 +333,7 @@ func TestStringVariation(t *testing.T) {
 		configOverride := ldbuilders.NewConfigOverrideBuilder("indexSamplingRatio").Value(ldvalue.Int(13)).Build()
 		flag := ldbuilders.NewFlagBuilder("flag").
 			On(true).
-			SamplingRatio(ldvalue.NewOptionalInt(21)).
+			SamplingRatio(21).
 			Build()
 		withClientEvalTestParams(func(p clientEvalTestParams) {
 			p.data.UsePreconfiguredFlag(flag)

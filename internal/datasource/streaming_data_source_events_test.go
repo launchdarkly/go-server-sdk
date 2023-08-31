@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
 )
@@ -65,7 +65,7 @@ func TestParsePatchData(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagkey").Version(2).On(true).Build()
 	segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(3).Included("x").Build()
 	configOverride := ldbuilders.NewConfigOverrideBuilder("indexSamplingRatio").Value(ldvalue.Int(5)).Version(4).Build()
-	metric := ldbuilders.NewMetricBuilder("custom-metric").SamplingRatio(ldvalue.NewOptionalInt(15)).Version(5).Build()
+	metric := ldbuilders.NewMetricBuilder("custom-metric").SamplingRatio(15).Version(5).Build()
 	flagJSON := `{"key": "flagkey", "version": 2, "on": true}`
 	segmentJSON := `{"key": "segmentkey", "version": 3, "included": ["x"]}`
 	configOverrideJSON := `{"key": "indexSamplingRatio", "value": 5, "version": 4}`
