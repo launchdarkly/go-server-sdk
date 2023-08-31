@@ -241,7 +241,7 @@ type LDMigrationOpTracker interface {
 	TrackInvoked(origin ldmigration.Origin)
 
 	// TrackConsistency allows recording the results of a consistency check.
-	TrackConsistency(wasConsistent bool)
+	TrackConsistency(isConsistent func() bool)
 
 	// TrackError allows recording whether an error occurred during the operation.
 	TrackError(origin ldmigration.Origin)

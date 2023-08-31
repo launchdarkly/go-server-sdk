@@ -216,8 +216,11 @@ func (m *migratorImpl) readFromBoth(
 	}
 
 	if comparison != nil {
-		wasConsistent := (*comparison)(authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult())
-		tracker.TrackConsistency(wasConsistent)
+		tracker.TrackConsistency(func() bool {
+			return (*comparison)(
+				authoritativeMigrationResult.GetResult(), nonAuthoritativeMigrationResult.GetResult(),
+			)
+		})
 	}
 
 	return authoritativeMigrationResult

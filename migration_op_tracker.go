@@ -68,9 +68,12 @@ func (t *MigrationOpTracker) TrackInvoked(origin ldmigration.Origin) {
 	t.invoked[origin] = struct{}{}
 }
 
-// TrackConsistency allows recording the results of a consistency check, along with the
-// sampling ratio used to collect that information.
-func (t *MigrationOpTracker) TrackConsistency(wasConsistent bool) {
+// TrackConsistency allows recording the results of a consistency check.
+//
+// The provided consistency function will be run if the flag's check ratio
+// value allows it. Otherwise, the function is skipped and a consistency
+// measurement is not included.
+func (t *MigrationOpTracker) TrackConsistency(isConsistent func() bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -83,7 +86,7 @@ func (t *MigrationOpTracker) TrackConsistency(wasConsistent bool) {
 		return
 	}
 
-	t.consistencyCheck = ldmigration.NewConsistencyCheck(wasConsistent, samplingRatio)
+	t.consistencyCheck = ldmigration.NewConsistencyCheck(isConsistent(), samplingRatio)
 }
 
 // TrackError allows recording whether or not an error occurred during the operation.

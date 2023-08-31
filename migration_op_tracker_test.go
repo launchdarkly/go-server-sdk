@@ -152,9 +152,11 @@ func TestTrackerCanTrackLatency(t *testing.T) {
 }
 
 func TestTrackerCanTrackConsistency(t *testing.T) {
+	consistent := func() bool { return true }
+
 	t.Run("defaults to sampling ratio of 1", func(t *testing.T) {
 		tracker := minimalTracker(1)
-		tracker.TrackConsistency(true)
+		tracker.TrackConsistency(consistent)
 
 		event, err := tracker.Build()
 
@@ -167,7 +169,7 @@ func TestTrackerCanTrackConsistency(t *testing.T) {
 
 	t.Run("can disable consistency check with 0 sampling ratio", func(t *testing.T) {
 		tracker := minimalTracker(0)
-		tracker.TrackConsistency(true)
+		tracker.TrackConsistency(consistent)
 
 		event, err := tracker.Build()
 
@@ -185,7 +187,7 @@ func TestTrackerCanTrackConsistency(t *testing.T) {
 		for i := 0; i < 1_000; i++ {
 			tracker := minimalTracker(10)
 			tracker.sampler = sampler
-			tracker.TrackConsistency(true)
+			tracker.TrackConsistency(consistent)
 
 			event, err := tracker.Build()
 
