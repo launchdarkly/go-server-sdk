@@ -294,6 +294,36 @@ func TestMigratorTracksConsistency(t *testing.T) {
 	}
 }
 
+func TestMigratorTracksConsistencyUnlessAnErrorOccurs(t *testing.T) {
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		p.data.UsePreconfiguredFlag(makeMigrationFlag("key", "shadow"))
+
+		var compare MigrationComparisonFn = func(old interface{}, new interface{}) bool {
+			return old == new
+		}
+
+		migrator, err := defaultMigrator(p.client).
+			Read(
+				func(interface{}) (interface{}, error) { return nil, errors.New("old error") },
+				func(interface{}) (interface{}, error) { return nil, errors.New("new error") },
+				&compare,
+			).
+			Build()
+
+		assert.NoError(t, err)
+
+		result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+
+		assert.False(t, result.IsSuccess())
+		assert.Error(t, result.GetError())
+		assert.Len(t, p.events.Events, 2)
+
+		event := p.events.Events[1].(ldevents.MigrationOpEventData) // Ignore evaluation data event
+
+		assert.Nil(t, event.ConsistencyCheck)
+	})
+}
+
 func TestMigratorPassingPayloadThroughCorrectly(t *testing.T) {
 	t.Run("writes", func(t *testing.T) {
 		testParams := []struct {
