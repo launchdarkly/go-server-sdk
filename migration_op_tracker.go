@@ -138,6 +138,7 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 		Op:               *t.op,
 		FlagKey:          t.flag.Key,
 		Default:          t.defaultStage,
+		SamplingRatio:    t.flag.SamplingRatio,
 		Evaluation:       t.evaluation,
 		Invoked:          t.invoked,
 		ConsistencyCheck: t.consistencyCheck,
