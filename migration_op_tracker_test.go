@@ -250,4 +250,90 @@ func TestTrackerCannotBuild(t *testing.T) {
 
 		assert.Contains(t, err.Error(), "invalid context given")
 	})
+
+	t.Run("detects when invoked doesn't align", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
+		context := ldcontext.New("user-key")
+		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
+
+		t.Run("with latency", func(t *testing.T) {
+			tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker.Operation(ldmigration.Write)
+			tracker.TrackInvoked(ldmigration.New)
+			tracker.TrackLatency(ldmigration.Old, 5*time.Second)
+
+			event, err := tracker.Build()
+
+			assert.Nil(t, event)
+			assert.Error(t, err)
+
+			assert.Contains(t, err.Error(), "provided latency for 'old' without recording invocation")
+
+			tracker = NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker.Operation(ldmigration.Write)
+			tracker.TrackInvoked(ldmigration.Old)
+			tracker.TrackLatency(ldmigration.New, 5*time.Second)
+
+			event, err = tracker.Build()
+
+			assert.Nil(t, event)
+			assert.Error(t, err)
+
+			assert.Contains(t, err.Error(), "provided latency for 'new' without recording invocation")
+		})
+
+		t.Run("with error", func(t *testing.T) {
+			tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker.Operation(ldmigration.Write)
+			tracker.TrackInvoked(ldmigration.New)
+			tracker.TrackError(ldmigration.Old)
+
+			event, err := tracker.Build()
+
+			assert.Nil(t, event)
+			assert.Error(t, err)
+
+			assert.Contains(t, err.Error(), "provided error for 'old' without recording invocation")
+
+			tracker = NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker.Operation(ldmigration.Write)
+			tracker.TrackInvoked(ldmigration.Old)
+			tracker.TrackError(ldmigration.New)
+
+			event, err = tracker.Build()
+
+			assert.Nil(t, event)
+			assert.Error(t, err)
+
+			assert.Contains(t, err.Error(), "provided error for 'new' without recording invocation")
+		})
+
+		t.Run("with consistent", func(t *testing.T) {
+			consistent := func() bool { return true }
+
+			tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker.Operation(ldmigration.Write)
+			tracker.TrackInvoked(ldmigration.New)
+			tracker.TrackConsistency(consistent)
+
+			event, err := tracker.Build()
+
+			assert.Nil(t, event)
+			assert.Error(t, err)
+
+			assert.Contains(t, err.Error(), "provided consistency without recording both invocations")
+
+			tracker = NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker.Operation(ldmigration.Write)
+			tracker.TrackInvoked(ldmigration.Old)
+			tracker.TrackConsistency(consistent)
+
+			event, err = tracker.Build()
+
+			assert.Nil(t, event)
+			assert.Error(t, err)
+
+			assert.Contains(t, err.Error(), "provided consistency without recording both invocations")
+		})
+	})
 }

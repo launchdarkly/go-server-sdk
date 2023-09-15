@@ -130,6 +130,10 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 		return nil, fmt.Errorf("invalid context given; %s", err)
 	}
 
+	if err := t.checkConsistency(); err != nil {
+		return nil, err
+	}
+
 	return &ldevents.MigrationOpEventData{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: ldtime.UnixMillisNow(),
@@ -145,4 +149,28 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 		Error:            t.errors,
 		Latency:          t.latencyMs,
 	}, nil
+}
+
+func (t *MigrationOpTracker) checkConsistency() error {
+	validOrigins := []ldmigration.Origin{ldmigration.Old, ldmigration.New}
+
+	for _, origin := range validOrigins {
+		if _, ok := t.invoked[origin]; ok {
+			continue
+		}
+
+		if _, ok := t.latencyMs[origin]; ok {
+			return fmt.Errorf("provided latency for '%s' without recording invocation", origin)
+		}
+
+		if _, ok := t.errors[origin]; ok {
+			return fmt.Errorf("provided error for '%s' without recording invocation", origin)
+		}
+	}
+
+	if t.consistencyCheck != nil && len(t.invoked) != 2 {
+		return errors.New("provided consistency without recording both invocations")
+	}
+
+	return nil
 }
