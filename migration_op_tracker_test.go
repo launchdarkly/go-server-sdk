@@ -21,7 +21,7 @@ func minimalTracker(samplingRatio int) *MigrationOpTracker {
 	flag := ldbuilders.NewFlagBuilder("flag-key").MigrationFlagParameters(params).Build()
 	context := ldcontext.New("user-key")
 	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-	tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+	tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 	tracker.Operation(ldmigration.Write)
 	tracker.TrackInvoked(ldmigration.Old)
 	tracker.TrackInvoked(ldmigration.New)
@@ -209,7 +209,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("user-key")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+		tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 		tracker.Operation(ldmigration.Write)
 
 		event, err := tracker.Build()
@@ -224,7 +224,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("user-key")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+		tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 		tracker.TrackInvoked(ldmigration.Old)
 
 		event, err := tracker.Build()
@@ -239,7 +239,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
-		tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+		tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 		tracker.Operation(ldmigration.Write)
 		tracker.TrackInvoked(ldmigration.Old)
 
@@ -251,13 +251,29 @@ func TestTrackerCannotBuild(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid context given")
 	})
 
+	t.Run("with empty flag key", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
+		context := ldcontext.New("")
+		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
+		tracker := NewMigrationOpTracker("", &flag, context, detail, ldmigration.Live)
+		tracker.Operation(ldmigration.Write)
+		tracker.TrackInvoked(ldmigration.Old)
+
+		event, err := tracker.Build()
+
+		assert.Nil(t, event)
+		assert.Error(t, err)
+
+		assert.Contains(t, err.Error(), "migration operation cannot contain an empty key")
+	})
+
 	t.Run("detects when invoked doesn't align", func(t *testing.T) {
 		flag := ldbuilders.NewFlagBuilder("flag-key").Build()
 		context := ldcontext.New("user-key")
 		detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 1, ldreason.NewEvalReasonFallthrough())
 
 		t.Run("with latency", func(t *testing.T) {
-			tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 			tracker.Operation(ldmigration.Write)
 			tracker.TrackInvoked(ldmigration.New)
 			tracker.TrackLatency(ldmigration.Old, 5*time.Second)
@@ -269,7 +285,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 
 			assert.Contains(t, err.Error(), "provided latency for 'old' without recording invocation")
 
-			tracker = NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker = NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 			tracker.Operation(ldmigration.Write)
 			tracker.TrackInvoked(ldmigration.Old)
 			tracker.TrackLatency(ldmigration.New, 5*time.Second)
@@ -283,7 +299,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 		})
 
 		t.Run("with error", func(t *testing.T) {
-			tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 			tracker.Operation(ldmigration.Write)
 			tracker.TrackInvoked(ldmigration.New)
 			tracker.TrackError(ldmigration.Old)
@@ -295,7 +311,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 
 			assert.Contains(t, err.Error(), "provided error for 'old' without recording invocation")
 
-			tracker = NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker = NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 			tracker.Operation(ldmigration.Write)
 			tracker.TrackInvoked(ldmigration.Old)
 			tracker.TrackError(ldmigration.New)
@@ -311,7 +327,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 		t.Run("with consistent", func(t *testing.T) {
 			consistent := func() bool { return true }
 
-			tracker := NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker := NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 			tracker.Operation(ldmigration.Write)
 			tracker.TrackInvoked(ldmigration.New)
 			tracker.TrackConsistency(consistent)
@@ -323,7 +339,7 @@ func TestTrackerCannotBuild(t *testing.T) {
 
 			assert.Contains(t, err.Error(), "provided consistency without recording both invocations")
 
-			tracker = NewMigrationOpTracker(&flag, context, detail, ldmigration.Live)
+			tracker = NewMigrationOpTracker("flag-key", &flag, context, detail, ldmigration.Live)
 			tracker.Operation(ldmigration.Write)
 			tracker.TrackInvoked(ldmigration.Old)
 			tracker.TrackConsistency(consistent)

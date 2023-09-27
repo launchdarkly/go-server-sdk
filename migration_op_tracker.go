@@ -20,6 +20,7 @@ import (
 // sent upstream to LaunchDarkly servers and used to enhance the visibility of in progress
 // migrations.
 type MigrationOpTracker struct {
+	key              string
 	flag             *ldmodel.FeatureFlag
 	defaultStage     ldmigration.Stage
 	op               *ldmigration.Operation
@@ -41,9 +42,11 @@ type MigrationOpTracker struct {
 // [MigrationOpTracker.Operation] before the tracker can generate valid event date using
 // [MigrationOpTracker.Build].
 func NewMigrationOpTracker(
-	flag *ldmodel.FeatureFlag, context ldcontext.Context, detail ldreason.EvaluationDetail, defaultStage ldmigration.Stage,
+	key string, flag *ldmodel.FeatureFlag, context ldcontext.Context,
+	detail ldreason.EvaluationDetail, defaultStage ldmigration.Stage,
 ) *MigrationOpTracker {
 	return &MigrationOpTracker{
+		key:          key,
 		flag:         flag,
 		defaultStage: defaultStage,
 		invoked:      make(map[ldmigration.Origin]struct{}),
@@ -111,12 +114,8 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if t.flag == nil {
-		return nil, errors.New("migration op tracker was created without an associated flag")
-	}
-
-	if len(t.flag.Key) == 0 {
-		return nil, errors.New("migration operation cannot contain an empty flag key")
+	if len(t.key) == 0 {
+		return nil, errors.New("migration operation cannot contain an empty key")
 	}
 
 	if len(t.invoked) == 0 {
@@ -135,22 +134,27 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 		return nil, err
 	}
 
-	return &ldevents.MigrationOpEventData{
+	event := ldevents.MigrationOpEventData{
 		BaseEvent: ldevents.BaseEvent{
 			CreationDate: ldtime.UnixMillisNow(),
 			Context:      ldevents.Context(t.context),
 		},
-		Version:          ldvalue.NewOptionalInt(t.flag.Version),
 		Op:               *t.op,
-		FlagKey:          t.flag.Key,
+		FlagKey:          t.key,
 		Default:          t.defaultStage,
-		SamplingRatio:    t.flag.SamplingRatio,
 		Evaluation:       t.evaluation,
 		Invoked:          t.invoked,
 		ConsistencyCheck: t.consistencyCheck,
 		Error:            t.errors,
 		Latency:          t.latencyMs,
-	}, nil
+	}
+
+	if t.flag != nil {
+		event.SamplingRatio = t.flag.SamplingRatio
+		event.Version = ldvalue.NewOptionalInt(t.flag.Version)
+	}
+
+	return &event, nil
 }
 
 func (t *MigrationOpTracker) checkConsistency() error {

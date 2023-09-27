@@ -348,7 +348,7 @@ func (client *LDClient) migrationVariation(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
-	tracker := NewMigrationOpTracker(flag, context, detail, defaultStage)
+	tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 
 	if err != nil {
 		return defaultStage, tracker, nil
