@@ -329,7 +329,7 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 	}
 
 	if p.Operation == ldmigration.Read {
-		result := migrator.ValidateRead(p.Key, p.Context, p.DefaultStage, p.Payload)
+		result := migrator.Read(p.Key, p.Context, p.DefaultStage, p.Payload)
 		if err := result.GetError(); err != nil {
 			return &servicedef.MigrationOperationResponse{Result: err.Error()}, nil
 		}
@@ -337,7 +337,7 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 		return &servicedef.MigrationOperationResponse{Result: result.GetResult()}, nil
 	}
 
-	result := migrator.ValidateWrite(p.Key, p.Context, p.DefaultStage, p.Payload)
+	result := migrator.Write(p.Key, p.Context, p.DefaultStage, p.Payload)
 	if err := result.GetAuthoritativeResult().GetError(); err != nil {
 		return &servicedef.MigrationOperationResponse{Result: err.Error()}, nil
 	}

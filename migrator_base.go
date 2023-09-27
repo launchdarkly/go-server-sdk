@@ -130,12 +130,12 @@ type migrationConfig struct {
 
 // Migrator represents the interface through which migration support is executed.
 type Migrator interface {
-	// ValidateRead uses the provided flag key and context to execute a migration-backed read operation.
-	ValidateRead(
+	// Read uses the provided flag key and context to execute a migration-backed read operation.
+	Read(
 		key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
 	) MigrationReadResult
-	// ValidateWrite uses the provided flag key and context to execute a migration-backed write operation.
-	ValidateWrite(
+	// Write uses the provided flag key and context to execute a migration-backed write operation.
+	Write(
 		key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
 	) MigrationWriteResult
 }

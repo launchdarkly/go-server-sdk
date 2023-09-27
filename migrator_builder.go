@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 )
 
 // MigratorBuilder provides a mechanism to construct a Migrator instance.
@@ -108,6 +109,7 @@ func (b *MigratorBuilder) Build() (Migrator, error) {
 		writeConfig:        *b.writeConfig,
 		measureLatency:     b.measureLatency,
 		measureErrors:      b.measureErrors,
+		sampler:            ldsampling.NewSampler(),
 	}
 
 	return &migrator, nil

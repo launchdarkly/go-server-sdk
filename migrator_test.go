@@ -59,10 +59,10 @@ func TestMigratorSetsBasicEventValues(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		_ = migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		_ = migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 		assert.Len(t, p.events.Events, 2)
 
-		_ = migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		_ = migrator.Write("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 		assert.Len(t, p.events.Events, 4)
 
 		readOpEvent := p.events.Events[1].(ldevents.MigrationOpEventData)  // Ignore evaluation data event
@@ -148,7 +148,7 @@ func TestMigratorTracksLatency(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+			result := migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.True(t, result.IsSuccess())
 			assert.Equal(t, true, result.GetResult())
@@ -223,7 +223,7 @@ func TestMigratorTracksErrors(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+			result := migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.False(t, result.IsSuccess())
 			assert.Nil(t, result.GetResult())
@@ -279,7 +279,7 @@ func TestMigratorTracksConsistency(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+			result := migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.True(t, result.IsSuccess())
 			assert.Equal(t, testParam.OldResult, result.GetResult())
@@ -312,7 +312,7 @@ func TestMigratorTracksConsistencyUnlessAnErrorOccurs(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		result := migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		result := migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 		assert.False(t, result.IsSuccess())
 		assert.Error(t, result.GetError())
@@ -351,7 +351,7 @@ func TestMigratorPassingPayloadThroughCorrectly(t *testing.T) {
 
 				assert.NoError(t, err)
 
-				result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, "payload")
+				result := migrator.Write("key", ldcontext.New("user-key"), ldmigration.Complete, "payload")
 				assert.True(t, result.GetAuthoritativeResult().IsSuccess())
 				if result.GetAuthoritativeResult().GetOrigin() == ldmigration.Old {
 					assert.Equal(t, oldBody, "payload")
@@ -399,7 +399,7 @@ func TestMigratorPassingPayloadThroughCorrectly(t *testing.T) {
 
 				assert.NoError(t, err)
 
-				migrator.ValidateRead("key", ldcontext.New("user-key"), ldmigration.Complete, "payload")
+				migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, "payload")
 				if testParam.ExpectedOld {
 					assert.Equal(t, oldBody, "payload")
 				} else {
@@ -465,7 +465,7 @@ func TestMigratorWriteReturnsCorrectAuthoritativeResults(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+			result := migrator.Write("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 			assert.True(t, result.GetAuthoritativeResult().IsSuccess())
 			assert.Equal(t, testParam.AuthoritativeResult, result.GetAuthoritativeResult().GetResult())
@@ -493,7 +493,7 @@ func TestMigratorWriteStopsOnAuthoritativeFailure(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		result := migrator.Write("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 		assert.False(t, result.GetAuthoritativeResult().IsSuccess())
 		assert.Error(t, result.GetAuthoritativeResult().GetError(), "old is failing")
@@ -514,7 +514,7 @@ func TestMigratorWriteReturnsResultOnNonAuthoritativeFailure(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		result := migrator.ValidateWrite("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		result := migrator.Write("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
 
 		assert.True(t, result.GetAuthoritativeResult().IsSuccess())
 		assert.Equal(t, "old", result.GetAuthoritativeResult().GetResult())

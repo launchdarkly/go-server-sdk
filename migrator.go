@@ -2,12 +2,12 @@ package ldclient
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 
@@ -20,9 +20,11 @@ type migratorImpl struct {
 
 	measureLatency bool
 	measureErrors  bool
+
+	sampler *ldsampling.RatioSampler
 }
 
-func (m *migratorImpl) ValidateRead(
+func (m *migratorImpl) Read(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
 ) MigrationReadResult {
 	stage, tracker, err := m.client.MigrationVariation(key, context, defaultStage)
@@ -88,7 +90,7 @@ func (m *migratorImpl) ValidateRead(
 	return readResult
 }
 
-func (m *migratorImpl) ValidateWrite(
+func (m *migratorImpl) Write(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, payload interface{},
 ) MigrationWriteResult {
 	stage, tracker, err := m.client.MigrationVariation(key, context, defaultStage)
@@ -207,7 +209,7 @@ func (m *migratorImpl) readFromBoth(
 		}()
 
 		wg.Wait()
-	case executionOrder == ldmigration.Random && rand.Float32() > 0.5: //nolint:gosec,lll // doesn't need cryptographic security
+	case executionOrder == ldmigration.Random && m.sampler.Sample(2):
 		nonAuthoritativeMigrationResult = nonAuthoritative.exec()
 		authoritativeMigrationResult = authoritative.exec()
 	default:
