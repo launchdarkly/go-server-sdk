@@ -11,6 +11,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 )
@@ -139,6 +140,7 @@ func (t *MigrationOpTracker) Build() (*ldevents.MigrationOpEventData, error) {
 			CreationDate: ldtime.UnixMillisNow(),
 			Context:      ldevents.Context(t.context),
 		},
+		Version:          ldvalue.NewOptionalInt(t.flag.Version),
 		Op:               *t.op,
 		FlagKey:          t.flag.Key,
 		Default:          t.defaultStage,
