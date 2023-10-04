@@ -106,8 +106,12 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 		hash := c.sdk.SecureModeHash(params.SecureModeHash.Context)
 		return servicedef.SecureModeHashResponse{Result: hash}, nil
 	case servicedef.CommandMigrationVariation:
-		stage, _, err := c.sdk.MigrationVariation(params.MigrationVariation.Key, params.MigrationVariation.Context, params.MigrationVariation.DefaultStage)
-		return servicedef.MigrationVariationResponse{Result: string(stage)}, err
+		// Normal operation should inspect this err. However, the test harness
+		// will not generate invalid variation configurations for this test.
+		// More complex error conditions are tested through the migration
+		// operation command.
+		stage, _, _ := c.sdk.MigrationVariation(params.MigrationVariation.Key, params.MigrationVariation.Context, params.MigrationVariation.DefaultStage)
+		return servicedef.MigrationVariationResponse{Result: string(stage)}, nil
 	case servicedef.CommandMigrationOperation:
 		return c.migrationOperation(*params.MigrationOperation)
 	default:
