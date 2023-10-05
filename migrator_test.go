@@ -88,6 +88,49 @@ func TestMigratorSetsBasicEventValues(t *testing.T) {
 	})
 }
 
+func TestMigratorSetsWrongTypeErrorIfFlagIsNotValidStage(t *testing.T) {
+	withClientEvalTestParams(func(p clientEvalTestParams) {
+		p.data.UsePreconfiguredFlag(makeMigrationFlag("key", "invalid-stage"))
+
+		migrator, err := defaultMigrator(p.client).
+			Read(
+				func(interface{}) (interface{}, error) { return true, nil },
+				func(interface{}) (interface{}, error) { return true, nil },
+				nil,
+			).
+			Write(
+				func(interface{}) (interface{}, error) { return true, nil },
+				func(interface{}) (interface{}, error) { return true, nil },
+			).
+			Build()
+
+		assert.NoError(t, err)
+
+		_ = migrator.Read("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		assert.Len(t, p.events.Events, 2)
+
+		_ = migrator.Write("key", ldcontext.New("user-key"), ldmigration.Complete, nil)
+		assert.Len(t, p.events.Events, 4)
+
+		readOpEvent := p.events.Events[1].(ldevents.MigrationOpEventData)  // Ignore evaluation data event
+		writeOpEvent := p.events.Events[3].(ldevents.MigrationOpEventData) // Ignore evaluation data event
+
+		assert.Equal(t, ldmigration.Read, readOpEvent.Op)
+		assert.Equal(t, "key", readOpEvent.FlagKey)
+		assert.EqualValues(t, ldmigration.Complete, readOpEvent.Default)
+		assert.EqualValues(t, ldmigration.Complete, readOpEvent.Evaluation.Value.StringValue())
+		assert.False(t, readOpEvent.Evaluation.VariationIndex.IsDefined())
+		assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorWrongType), readOpEvent.Evaluation.Reason)
+
+		assert.Equal(t, ldmigration.Write, writeOpEvent.Op)
+		assert.Equal(t, "key", writeOpEvent.FlagKey)
+		assert.EqualValues(t, ldmigration.Complete, writeOpEvent.Default)
+		assert.EqualValues(t, ldmigration.Complete, writeOpEvent.Evaluation.Value.StringValue())
+		assert.False(t, writeOpEvent.Evaluation.VariationIndex.IsDefined())
+		assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorWrongType), writeOpEvent.Evaluation.Reason)
+	})
+}
+
 func TestMigratorTracksLatency(t *testing.T) {
 	testParams := []struct {
 		Flag              ldmodel.FeatureFlag

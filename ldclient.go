@@ -356,6 +356,8 @@ func (client *LDClient) migrationVariation(
 
 	stage, err := ldmigration.ParseStage(detail.Value.StringValue())
 	if err != nil {
+		detail = ldreason.NewEvaluationDetailForError(ldreason.EvalErrorWrongType, ldvalue.String(string(defaultStage)))
+		tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 		return defaultStage, tracker, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
 	}
 
