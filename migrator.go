@@ -35,7 +35,6 @@ func (m *migratorImpl) Read(
 	}
 
 	oldExecutor := &migrationExecutor{
-		key:            key,
 		origin:         ldmigration.Old,
 		impl:           m.readConfig.old,
 		tracker:        tracker,
@@ -44,7 +43,6 @@ func (m *migratorImpl) Read(
 		payload:        payload,
 	}
 	newExecutor := &migrationExecutor{
-		key:            key,
 		origin:         ldmigration.New,
 		impl:           m.readConfig.new,
 		tracker:        tracker,
@@ -100,7 +98,6 @@ func (m *migratorImpl) Write(
 	}
 
 	oldExecutor := &migrationExecutor{
-		key:            key,
 		origin:         ldmigration.Old,
 		impl:           m.writeConfig.old,
 		tracker:        tracker,
@@ -109,7 +106,6 @@ func (m *migratorImpl) Write(
 		payload:        payload,
 	}
 	newExecutor := &migrationExecutor{
-		key:            key,
 		origin:         ldmigration.New,
 		impl:           m.writeConfig.new,
 		tracker:        tracker,
@@ -233,7 +229,6 @@ func (m *migratorImpl) readFromBoth(
 }
 
 type migrationExecutor struct {
-	key            string
 	origin         ldmigration.Origin
 	impl           MigrationImplFn
 	tracker        interfaces.LDMigrationOpTracker
