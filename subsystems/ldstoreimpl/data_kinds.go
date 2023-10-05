@@ -24,13 +24,3 @@ func Features() ldstoretypes.DataKind {
 func Segments() ldstoretypes.DataKind {
 	return datakinds.Segments
 }
-
-// ConfigOverrides returns the StoreDataKind instance corresponding to upstream configuration overrides.
-func ConfigOverrides() ldstoretypes.DataKind {
-	return datakinds.ConfigOverrides
-}
-
-// Metrics returns the StoreDataKind instance corresponding to upstream metric configuration overrides.
-func Metrics() ldstoretypes.DataKind {
-	return datakinds.Metrics
-}

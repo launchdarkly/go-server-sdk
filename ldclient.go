@@ -421,8 +421,7 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 			data,
 			false,
 			0,
-			client.metricSamplingRatio(eventName),
-			client.indexSamplingRatio(),
+			ldvalue.NewOptionalInt(1),
 		))
 	return nil
 }
@@ -459,8 +458,7 @@ func (client *LDClient) TrackMetric(
 			data,
 			true,
 			metricValue,
-			client.metricSamplingRatio(eventName),
-			client.indexSamplingRatio(),
+			ldvalue.NewOptionalInt(1),
 		))
 	return nil
 }
@@ -914,7 +912,6 @@ func (client *LDClient) variationAndFlag(
 				ldevents.Context(context),
 				defaultVal,
 				result.Detail.Reason,
-				client.indexSamplingRatio(),
 			)
 		} else {
 			eval = eventsScope.factory.NewEvaluationData(
@@ -930,7 +927,6 @@ func (client *LDClient) variationAndFlag(
 				defaultVal,
 				"",
 				flag.SamplingRatio,
-				client.indexSamplingRatio(),
 				flag.ExcludeFromSummaries,
 			)
 		}
@@ -1007,39 +1003,6 @@ func (client *LDClient) evaluateInternal(
 		result.Detail.Value = defaultVal
 	}
 	return result, feature, nil
-}
-
-func (client *LDClient) metricSamplingRatio(eventName string) ldvalue.OptionalInt {
-	var samplingRatio ldvalue.OptionalInt
-	metricItem, err := client.store.Get(datakinds.Metrics, eventName)
-
-	if err != nil || metricItem.Item == nil {
-		return samplingRatio
-	}
-
-	if metric, ok := metricItem.Item.(*ldmodel.Metric); ok && !metric.Deleted {
-		samplingRatio = metric.SamplingRatio
-	}
-
-	return samplingRatio
-}
-
-func (client *LDClient) indexSamplingRatio() ldvalue.OptionalInt {
-	var samplingRatio ldvalue.OptionalInt
-	overrideItem, err := client.store.Get(datakinds.ConfigOverrides, "indexSamplingRatio")
-
-	if err != nil || overrideItem.Item == nil {
-		return samplingRatio
-	}
-
-	override, ok := overrideItem.Item.(*ldmodel.ConfigOverride)
-	if !ok || override.Deleted || !override.Value.IsNumber() {
-		return samplingRatio
-	}
-
-	samplingRatio = ldvalue.NewOptionalInt(override.Value.IntValue())
-
-	return samplingRatio
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {

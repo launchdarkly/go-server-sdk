@@ -19,22 +19,10 @@ func SegmentDescriptor(s ldmodel.Segment) ldstoretypes.ItemDescriptor {
 	return ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
 }
 
-// ConfigOverrideDescriptor is a shortcut for creating a StoreItemDescriptor from a segment.
-func ConfigOverrideDescriptor(s ldmodel.ConfigOverride) ldstoretypes.ItemDescriptor {
-	return ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
-}
-
-// MetricDescriptor is a shortcut for creating a StoreItemDescriptor from a segment.
-func MetricDescriptor(s ldmodel.Metric) ldstoretypes.ItemDescriptor {
-	return ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
-}
-
 // DataSetBuilder is a helper for creating collections of flags and segments.
 type DataSetBuilder struct {
-	flags           []ldstoretypes.KeyedItemDescriptor
-	segments        []ldstoretypes.KeyedItemDescriptor
-	configOverrides []ldstoretypes.KeyedItemDescriptor
-	metrics         []ldstoretypes.KeyedItemDescriptor
+	flags    []ldstoretypes.KeyedItemDescriptor
+	segments []ldstoretypes.KeyedItemDescriptor
 }
 
 // NewDataSetBuilder creates a DataSetBuilder.
@@ -47,8 +35,6 @@ func (d *DataSetBuilder) Build() []ldstoretypes.Collection {
 	return []ldstoretypes.Collection{
 		{Kind: datakinds.Features, Items: d.flags},
 		{Kind: datakinds.Segments, Items: d.segments},
-		{Kind: datakinds.ConfigOverrides, Items: d.configOverrides},
-		{Kind: datakinds.Metrics, Items: d.metrics},
 	}
 }
 
@@ -68,25 +54,6 @@ func (d *DataSetBuilder) Segments(segments ...ldmodel.Segment) *DataSetBuilder {
 	return d
 }
 
-// ConfigOverrides adds config overrides to the data set.
-func (d *DataSetBuilder) ConfigOverrides(overrides ...ldmodel.ConfigOverride) *DataSetBuilder {
-	for _, o := range overrides {
-		d.configOverrides = append(
-			d.configOverrides,
-			ldstoretypes.KeyedItemDescriptor{Key: o.Key, Item: ConfigOverrideDescriptor(o)},
-		)
-	}
-	return d
-}
-
-// Metrics adds metrics to the data set.
-func (d *DataSetBuilder) Metrics(metrics ...ldmodel.Metric) *DataSetBuilder {
-	for _, m := range metrics {
-		d.metrics = append(d.metrics, ldstoretypes.KeyedItemDescriptor{Key: m.Key, Item: MetricDescriptor(m)})
-	}
-	return d
-}
-
 // ToServerSDKData converts the data set to the format used by the ldservices helpers.
 func (d *DataSetBuilder) ToServerSDKData() *ldservices.ServerSDKData {
 	ret := ldservices.NewServerSDKData()
@@ -95,12 +62,6 @@ func (d *DataSetBuilder) ToServerSDKData() *ldservices.ServerSDKData {
 	}
 	for _, s := range d.segments {
 		ret.Segments(s.Item.Item.(*ldmodel.Segment))
-	}
-	for _, o := range d.configOverrides {
-		ret.ConfigOverrides(o.Item.Item.(*ldmodel.ConfigOverride))
-	}
-	for _, m := range d.metrics {
-		ret.Metrics(m.Item.Item.(*ldmodel.Metric))
 	}
 	return ret
 }

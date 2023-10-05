@@ -82,7 +82,6 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 				ldvalue.Null(),
 				params.TargetFlagKey,
 				params.PrerequisiteFlag.SamplingRatio,
-				params.IndexSamplingRatio,
 				params.ExcludeFromSummaries,
 			))
 		},

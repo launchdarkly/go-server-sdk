@@ -172,10 +172,6 @@ func parsePath(path string) (datakinds.DataKindInternal, string) {
 		return datakinds.Segments, strings.TrimPrefix(path, "/segments/")
 	case strings.HasPrefix(path, "/flags/"):
 		return datakinds.Features, strings.TrimPrefix(path, "/flags/")
-	case strings.HasPrefix(path, "/configurationOverrides/"):
-		return datakinds.ConfigOverrides, strings.TrimPrefix(path, "/configurationOverrides/")
-	case strings.HasPrefix(path, "/metrics/"):
-		return datakinds.Metrics, strings.TrimPrefix(path, "/metrics/")
 	default:
 		return nil, ""
 	}

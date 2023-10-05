@@ -49,44 +49,6 @@ func TestDataStoreEvalSegments(t *testing.T) {
 	assert.Nil(t, provider.GetSegment("wrong-type"))
 }
 
-func TestDataStoreEvalConfigOverrides(t *testing.T) {
-	store := fakeStoreForDataStoreProvider{}
-	override := ldbuilders.NewConfigOverrideBuilder("indexSamplingRatio").Build()
-	store.data = map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
-		datakinds.ConfigOverrides: {
-			override.Key:  {Version: override.Version, Item: &override},
-			"deleted-key": {Version: 9, Item: nil},
-			"wrong-type":  {Version: 1, Item: "not an override"},
-		},
-	}
-
-	provider := NewDataStoreEvaluatorDataProviderImpl(store, ldlog.NewDisabledLoggers())
-
-	assert.Equal(t, &override, provider.GetConfigOverride(override.Key))
-	assert.Nil(t, provider.GetConfigOverride("unknown-key"))
-	assert.Nil(t, provider.GetConfigOverride("deleted-key"))
-	assert.Nil(t, provider.GetConfigOverride("wrong-type"))
-}
-
-func TestDataStoreEvalMetrics(t *testing.T) {
-	store := fakeStoreForDataStoreProvider{}
-	metric := ldbuilders.NewMetricBuilder("custom-metric").Build()
-	store.data = map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
-		datakinds.Metrics: {
-			metric.Key:    {Version: metric.Version, Item: &metric},
-			"deleted-key": {Version: 9, Item: nil},
-			"wrong-type":  {Version: 1, Item: "not an override"},
-		},
-	}
-
-	provider := NewDataStoreEvaluatorDataProviderImpl(store, ldlog.NewDisabledLoggers())
-
-	assert.Equal(t, &metric, provider.GetMetric(metric.Key))
-	assert.Nil(t, provider.GetMetric("unknown-key"))
-	assert.Nil(t, provider.GetMetric("deleted-key"))
-	assert.Nil(t, provider.GetMetric("wrong-type"))
-}
-
 type fakeStoreForDataStoreProvider struct {
 	data      map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	fakeError error

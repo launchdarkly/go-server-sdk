@@ -86,14 +86,6 @@ segments:
 
 			segment := requireSegment(t, p.updates.DataStore, "my-segment")
 			assert.Empty(t, segment.Rules)
-
-			overrides, err := p.updates.DataStore.GetAll(datakinds.ConfigOverrides)
-			assert.NoError(t, err)
-			assert.Empty(t, overrides)
-
-			metrics, err := p.updates.DataStore.GetAll(datakinds.Metrics)
-			assert.NoError(t, err)
-			assert.Empty(t, metrics)
 		})
 	})
 }
@@ -107,13 +99,6 @@ func TestNewFileDataSourceJson(t *testing.T) {
 
 			flag := requireFlag(t, p.updates.DataStore, "my-flag")
 			assert.True(t, flag.On)
-
-			override := requireConfigOverride(t, p.updates.DataStore, "my-override")
-			assert.Equal(t, 1, override.Value.IntValue())
-
-			metric := requireMetric(t, p.updates.DataStore, "my-metric")
-			assert.True(t, metric.SamplingRatio.IsDefined())
-			assert.Equal(t, 10, metric.SamplingRatio.IntValue())
 		})
 	})
 }
@@ -267,18 +252,4 @@ func requireSegment(t *testing.T, store subsystems.DataStore, key string) *ldmod
 	require.NoError(t, err)
 	require.NotNil(t, item.Item)
 	return item.Item.(*ldmodel.Segment)
-}
-
-func requireConfigOverride(t *testing.T, store subsystems.DataStore, key string) *ldmodel.ConfigOverride {
-	item, err := store.Get(datakinds.ConfigOverrides, key)
-	require.NoError(t, err)
-	require.NotNil(t, item.Item)
-	return item.Item.(*ldmodel.ConfigOverride)
-}
-
-func requireMetric(t *testing.T, store subsystems.DataStore, key string) *ldmodel.Metric {
-	item, err := store.Get(datakinds.Metrics, key)
-	require.NoError(t, err)
-	require.NotNil(t, item.Item)
-	return item.Item.(*ldmodel.Metric)
 }

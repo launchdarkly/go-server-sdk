@@ -162,42 +162,6 @@ func TestStreamProcessor(t *testing.T) {
 			p.updates.DataStore.WaitForDelete(t, datakinds.Segments, "my-segment", 8, timeout)
 		})
 	})
-
-	t.Run("patch config override", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
-				Data: `{"path": "/configurationOverrides/indexSamplingRatio", "data": {"key": "indexSamplingRatio", "version": 7}}`})
-
-			p.updates.DataStore.WaitForUpsert(t, datakinds.ConfigOverrides, "indexSamplingRatio", 7, timeout)
-		})
-	})
-
-	t.Run("delete config override", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
-				Data: `{"path": "/configurationOverrides/indexSamplingRatio", "version": 8}`})
-
-			p.updates.DataStore.WaitForDelete(t, datakinds.ConfigOverrides, "indexSamplingRatio", 8, timeout)
-		})
-	})
-
-	t.Run("patch metric", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.stream.Send(httphelpers.SSEEvent{Event: patchEvent,
-				Data: `{"path": "/metrics/custom-metric", "data": {"key": "custom-metric", "version": 7}}`})
-
-			p.updates.DataStore.WaitForUpsert(t, datakinds.Metrics, "custom-metric", 7, timeout)
-		})
-	})
-
-	t.Run("delete metric", func(t *testing.T) {
-		runStreamingTest(t, initialData, func(p streamingTestParams) {
-			p.stream.Send(httphelpers.SSEEvent{Event: deleteEvent,
-				Data: `{"path": "/metrics/custom-metric", "version": 8}`})
-
-			p.updates.DataStore.WaitForDelete(t, datakinds.Metrics, "custom-metric", 8, timeout)
-		})
-	})
 }
 
 func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {

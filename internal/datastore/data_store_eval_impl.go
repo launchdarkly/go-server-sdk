@@ -42,29 +42,3 @@ func (d dataStoreEvaluatorDataProviderImpl) GetSegment(key string) *ldmodel.Segm
 	}
 	return nil
 }
-
-func (d dataStoreEvaluatorDataProviderImpl) GetConfigOverride(key string) *ldmodel.ConfigOverride {
-	item, err := d.store.Get(datakinds.ConfigOverrides, key)
-	if err == nil && item.Item != nil {
-		data := item.Item
-		if override, ok := data.(*ldmodel.ConfigOverride); ok {
-			return override
-		}
-		d.loggers.Errorf(
-			"unexpected data type (%T) found in store for config override key: %s. Returning default value",
-			data, key)
-	}
-	return nil
-}
-
-func (d dataStoreEvaluatorDataProviderImpl) GetMetric(key string) *ldmodel.Metric {
-	item, err := d.store.Get(datakinds.Metrics, key)
-	if err == nil && item.Item != nil {
-		data := item.Item
-		if metric, ok := data.(*ldmodel.Metric); ok {
-			return metric
-		}
-		d.loggers.Errorf("unexpected data type (%T) found in store for metric key: %s. Returning default value", data, key)
-	}
-	return nil
-}

@@ -148,7 +148,6 @@ func TestExcludeFromSummaries(t *testing.T) {
 			event := p.requireSingleEvent(t)
 
 			assert.False(t, event.SamplingRatio.IsDefined())
-			assert.False(t, event.IndexSamplingRatio.IsDefined())
 			assert.True(t, event.ExcludeFromSummaries)
 		})
 	})
@@ -325,19 +324,16 @@ func TestStringVariation(t *testing.T) {
 
 			eval := events[0]
 			assert.False(t, eval.(ldevents.EvaluationData).SamplingRatio.IsDefined())
-			assert.False(t, eval.(ldevents.EvaluationData).IndexSamplingRatio.IsDefined())
 		})
 	})
 
 	t.Run("sampling ratios can be defined", func(t *testing.T) {
-		configOverride := ldbuilders.NewConfigOverrideBuilder("indexSamplingRatio").Value(ldvalue.Int(13)).Build()
 		flag := ldbuilders.NewFlagBuilder("flag").
 			On(true).
 			SamplingRatio(21).
 			Build()
 		withClientEvalTestParams(func(p clientEvalTestParams) {
 			p.data.UsePreconfiguredFlag(flag)
-			p.data.UsePreconfiguredConfigOverride(configOverride)
 
 			_, err := p.client.StringVariation(flag.Key, evalTestUser, defaultVal)
 
@@ -347,7 +343,6 @@ func TestStringVariation(t *testing.T) {
 			assert.Len(t, events, 1)
 
 			eval := events[0]
-			assert.Equal(t, 13, eval.(ldevents.EvaluationData).IndexSamplingRatio.IntValue())
 			assert.Equal(t, 21, eval.(ldevents.EvaluationData).SamplingRatio.IntValue())
 		})
 	})

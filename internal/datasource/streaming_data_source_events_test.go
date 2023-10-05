@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
@@ -32,8 +31,6 @@ func TestParsePutData(t *testing.T) {
 		Flags(ldbuilders.NewFlagBuilder("flag1").Version(1).Build(),
 			ldbuilders.NewFlagBuilder("flag2").Version(2).Build()).
 		Segments(ldbuilders.NewSegmentBuilder("segment1").Version(3).Build()).
-		ConfigOverrides(ldbuilders.NewConfigOverrideBuilder("override1").Version(4).Build()).
-		Metrics(ldbuilders.NewMetricBuilder("metric1").Version(5).Build()).
 		Build()
 
 	t.Run("valid", func(t *testing.T) {
@@ -64,12 +61,8 @@ func TestParsePutData(t *testing.T) {
 func TestParsePatchData(t *testing.T) {
 	flag := ldbuilders.NewFlagBuilder("flagkey").Version(2).On(true).Build()
 	segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(3).Included("x").Build()
-	configOverride := ldbuilders.NewConfigOverrideBuilder("indexSamplingRatio").Value(ldvalue.Int(5)).Version(4).Build()
-	metric := ldbuilders.NewMetricBuilder("custom-metric").SamplingRatio(15).Version(5).Build()
 	flagJSON := `{"key": "flagkey", "version": 2, "on": true}`
 	segmentJSON := `{"key": "segmentkey", "version": 3, "included": ["x"]}`
-	configOverrideJSON := `{"key": "indexSamplingRatio", "value": 5, "version": 4}`
-	metricJSON := `{"key": "custom-metric", "samplingRatio": 15, "version": 5}`
 
 	t.Run("valid flag", func(t *testing.T) {
 		input := []byte(`{"path": "/flags/flagkey", "data": ` + flagJSON + `}`)
@@ -89,26 +82,6 @@ func TestParsePatchData(t *testing.T) {
 		assert.Equal(t, datakinds.Segments, result.Kind)
 		assert.Equal(t, "segmentkey", result.Key)
 		assert.Equal(t, sharedtest.SegmentDescriptor(segment), result.Data)
-	})
-
-	t.Run("valid config override", func(t *testing.T) {
-		input := []byte(`{"path": "/configurationOverrides/indexSamplingRatio", "data": ` + configOverrideJSON + `}`)
-		result, err := parsePatchData(input)
-		require.NoError(t, err)
-
-		assert.Equal(t, datakinds.ConfigOverrides, result.Kind)
-		assert.Equal(t, "indexSamplingRatio", result.Key)
-		assert.Equal(t, sharedtest.ConfigOverrideDescriptor(configOverride), result.Data)
-	})
-
-	t.Run("valid metric", func(t *testing.T) {
-		input := []byte(`{"path": "/metrics/custom-metric", "data": ` + metricJSON + `}`)
-		result, err := parsePatchData(input)
-		require.NoError(t, err)
-
-		assert.Equal(t, datakinds.Metrics, result.Kind)
-		assert.Equal(t, "custom-metric", result.Key)
-		assert.Equal(t, sharedtest.MetricDescriptor(metric), result.Data)
 	})
 
 	t.Run("valid but data property appears before path", func(t *testing.T) {
@@ -161,26 +134,6 @@ func TestParseDeleteData(t *testing.T) {
 
 		assert.Equal(t, datakinds.Segments, result.Kind)
 		assert.Equal(t, "segmentkey", result.Key)
-		assert.Equal(t, 4, result.Version)
-	})
-
-	t.Run("valid config overrides", func(t *testing.T) {
-		input := []byte(`{"path": "/configurationOverrides/indexSamplingRatio", "version": 4}`)
-		result, err := parseDeleteData(input)
-		require.NoError(t, err)
-
-		assert.Equal(t, datakinds.ConfigOverrides, result.Kind)
-		assert.Equal(t, "indexSamplingRatio", result.Key)
-		assert.Equal(t, 4, result.Version)
-	})
-
-	t.Run("valid metric", func(t *testing.T) {
-		input := []byte(`{"path": "/metrics/metrickey", "version": 4}`)
-		result, err := parseDeleteData(input)
-		require.NoError(t, err)
-
-		assert.Equal(t, datakinds.Metrics, result.Kind)
-		assert.Equal(t, "metrickey", result.Key)
 		assert.Equal(t, 4, result.Version)
 	})
 

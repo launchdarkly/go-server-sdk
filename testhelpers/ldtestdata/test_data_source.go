@@ -17,13 +17,11 @@ import (
 //
 // See package description for more details and usage examples.
 type TestDataSource struct {
-	currentFlags           map[string]ldstoretypes.ItemDescriptor
-	currentBuilders        map[string]*FlagBuilder
-	currentSegments        map[string]ldstoretypes.ItemDescriptor
-	currentConfigOverrides map[string]ldstoretypes.ItemDescriptor
-	currentMetrics         map[string]ldstoretypes.ItemDescriptor
-	instances              []*testDataSourceImpl
-	lock                   sync.Mutex
+	currentFlags    map[string]ldstoretypes.ItemDescriptor
+	currentBuilders map[string]*FlagBuilder
+	currentSegments map[string]ldstoretypes.ItemDescriptor
+	instances       []*testDataSourceImpl
+	lock            sync.Mutex
 }
 
 type testDataSourceImpl struct {
@@ -38,11 +36,9 @@ type testDataSourceImpl struct {
 // [TestDataSource.Update] will propagate to all LDClient instances that are using this data source.
 func DataSource() *TestDataSource {
 	return &TestDataSource{
-		currentFlags:           make(map[string]ldstoretypes.ItemDescriptor),
-		currentBuilders:        make(map[string]*FlagBuilder),
-		currentSegments:        make(map[string]ldstoretypes.ItemDescriptor),
-		currentConfigOverrides: make(map[string]ldstoretypes.ItemDescriptor),
-		currentMetrics:         make(map[string]ldstoretypes.ItemDescriptor),
+		currentFlags:    make(map[string]ldstoretypes.ItemDescriptor),
+		currentBuilders: make(map[string]*FlagBuilder),
+		currentSegments: make(map[string]ldstoretypes.ItemDescriptor),
 	}
 }
 
@@ -168,62 +164,6 @@ func (t *TestDataSource) UsePreconfiguredSegment(segment ldmodel.Segment) *TestD
 	return t
 }
 
-// UsePreconfiguredConfigOverride copies a full config override data model object into the test data.
-//
-// It immediately propagates the flag change to any LDClient instance(s) that you have already
-// configured to use this TestDataSource. If no LDClient has been started yet, it simply adds
-// this flag to the test data which will be provided to any LDClient that you subsequently
-// configure.
-//
-// This method is currently the only way to inject config override data, since there is no builder
-// API for config overrides. It is mainly intended for the SDK's own tests of config override functionality,
-// since application tests that need to produce a desired evaluation state could do so more easily
-// by just setting values.
-func (t *TestDataSource) UsePreconfiguredConfigOverride(override ldmodel.ConfigOverride) *TestDataSource {
-	t.lock.Lock()
-	oldItem := t.currentConfigOverrides[override.Key]
-	newConfigOverride := override
-	newConfigOverride.Version = oldItem.Version + 1
-	newItem := ldstoretypes.ItemDescriptor{Version: newConfigOverride.Version, Item: &newConfigOverride}
-	t.currentConfigOverrides[override.Key] = newItem
-	instances := slices.Clone(t.instances)
-	t.lock.Unlock()
-
-	for _, instance := range instances {
-		instance.updates.Upsert(ldstoreimpl.ConfigOverrides(), override.Key, newItem)
-	}
-
-	return t
-}
-
-// UsePreconfiguredMetric copies a full config override data model object into the test data.
-//
-// It immediately propagates the flag change to any LDClient instance(s) that you have already
-// configured to use this TestDataSource. If no LDClient has been started yet, it simply adds
-// this flag to the test data which will be provided to any LDClient that you subsequently
-// configure.
-//
-// This method is currently the only way to inject config override data, since there is no builder
-// API for config overrides. It is mainly intended for the SDK's own tests of config override functionality,
-// since application tests that need to produce a desired evaluation state could do so more easily
-// by just setting values.
-func (t *TestDataSource) UsePreconfiguredMetric(metric ldmodel.Metric) *TestDataSource {
-	t.lock.Lock()
-	oldItem := t.currentMetrics[metric.Key]
-	newMetric := metric
-	newMetric.Version = oldItem.Version + 1
-	newItem := ldstoretypes.ItemDescriptor{Version: newMetric.Version, Item: &newMetric}
-	t.currentMetrics[metric.Key] = newItem
-	instances := slices.Clone(t.instances)
-	t.lock.Unlock()
-
-	for _, instance := range instances {
-		instance.updates.Upsert(ldstoreimpl.Metrics(), metric.Key, newItem)
-	}
-
-	return t
-}
-
 func (t *TestDataSource) updateInternal(
 	key string,
 	makeFlag func(int) ldmodel.FeatureFlag,
@@ -259,25 +199,15 @@ func (t *TestDataSource) makeInitData() []ldstoretypes.Collection {
 	defer t.lock.Unlock()
 	flags := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentFlags))
 	segments := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentSegments))
-	configOverrides := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentConfigOverrides))
-	metrics := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentMetrics))
 	for key, item := range t.currentFlags {
 		flags = append(flags, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
 	}
 	for key, item := range t.currentSegments {
 		segments = append(segments, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
 	}
-	for key, item := range t.currentConfigOverrides {
-		configOverrides = append(configOverrides, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
-	}
-	for key, item := range t.currentMetrics {
-		metrics = append(metrics, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
-	}
 	return []ldstoretypes.Collection{
 		{Kind: ldstoreimpl.Features(), Items: flags},
 		{Kind: ldstoreimpl.Segments(), Items: segments},
-		{Kind: ldstoreimpl.ConfigOverrides(), Items: configOverrides},
-		{Kind: ldstoreimpl.Metrics(), Items: metrics},
 	}
 }
 

@@ -24,9 +24,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		t.Run("success", func(t *testing.T) {
 			flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).SingleVariation(ldvalue.Bool(true)).Build()
 			segment := ldbuilders.NewSegmentBuilder("segmentkey").Version(1).Build()
-			override := ldbuilders.NewConfigOverrideBuilder("overridekey").Version(1).Build()
-			metric := ldbuilders.NewMetricBuilder("metrickey").Version(1).Build()
-			expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment).ConfigOverrides(override).Metrics(metric)
+			expectedData := sharedtest.NewDataSetBuilder().Flags(flag).Segments(segment)
 			handler, requestsCh := httphelpers.RecordingHandler(
 				ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
 			)

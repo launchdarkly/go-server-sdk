@@ -18,8 +18,6 @@ const (
 	CapabilityContextType        = "context-type"
 	CapabilityMigrations         = "migrations"
 	CapabilityEventSampling      = "event-sampling"
-	CapabilityConfigOverrideKind = "config-override-kind"
-	CapabilityMetricKind         = "metric-kind"
 )
 
 type StatusRep struct {

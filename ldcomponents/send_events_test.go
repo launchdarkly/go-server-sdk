@@ -95,7 +95,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEventData("event-key", ldevents.Context(lduser.NewUser("key")), ldvalue.Null(), false, 0, ldvalue.OptionalInt{}, ldvalue.OptionalInt{})
+		ce := ef.NewCustomEventData("event-key", ldevents.Context(lduser.NewUser("key")), ldvalue.Null(), false, 0, ldvalue.OptionalInt{})
 		ep.RecordCustomEvent(ce)
 		ep.Flush()
 

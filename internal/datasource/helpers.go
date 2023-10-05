@@ -116,10 +116,6 @@ func parseAllStoreDataFromJSONReader(r *jreader.Reader) []st.Collection {
 			dataKind = datakinds.Features
 		case "segments":
 			dataKind = datakinds.Segments
-		case "configurationOverrides":
-			dataKind = datakinds.ConfigOverrides
-		case "metrics":
-			dataKind = datakinds.Metrics
 		default: // unrecognized category, skip it
 			continue
 		}

@@ -25,12 +25,12 @@ github.com/launchdarkly/go-ntlmssp v1.0.1 h1:snB77118TQvf9tfHrkSyrIop/UX5e5VD2D2
 github.com/launchdarkly/go-ntlmssp v1.0.1/go.mod h1:/cq3t2JyALD7GdVF5BEWcEuGlIGa44FZ4v4CVk7vuCY=
 github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230927180810-0d00fab4be12 h1:1jp0FTGjl6dHR2ElIZlHd/O48d0ViVnAiIvDnO990qg=
 github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230927180810-0d00fab4be12/go.mod h1:H/zISoCNhviHTTqqBjIKQy2YgSHT8ioL1FtgBKpiEGg=
-github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20230927183748-430a2070c9b4 h1:w3f0sOdjzVp8z/CIR73UL3PgSEJiWfXgP7SPB7jljKY=
-github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20230927183748-430a2070c9b4/go.mod h1:D0KPcNe6rBSzJaZ/B8AfEtcuiw7/5gfR4+IqYJQgz1Y=
+github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20231004182805-20327ea92550 h1:niZoEwJZy3ge31I4HCcHYnHWjd5Rwx6ANieSP1yDO3Y=
+github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20231004182805-20327ea92550/go.mod h1:D0KPcNe6rBSzJaZ/B8AfEtcuiw7/5gfR4+IqYJQgz1Y=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=
 github.com/launchdarkly/go-semver v1.0.2/go.mod h1:xFmMwXba5Mb+3h72Z+VeSs9ahCvKo2QFUTHRNHVqR28=
-github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20230927183322-57acdbce9aad h1:sRgC5m+HyTpFo5JBDxLMZXQDziJHU2PTxG+Inv8D+ME=
-github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20230927183322-57acdbce9aad/go.mod h1:oUU6RKFsEh/F3VIHjUWe2wseoFVrk4hngKxAPzTYO0c=
+github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20231004182743-265f879b0c0e h1:o4B9Fc797TJy61gX/ajsjruVsL9CAC1UoUCLNHLIM9s=
+github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20231004182743-265f879b0c0e/go.mod h1:oUU6RKFsEh/F3VIHjUWe2wseoFVrk4hngKxAPzTYO0c=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0 h1:L3kGILP/6ewikhzhdNkHy1b5y4zs50LueWenVF0sBbs=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.2 h1:rh0085g1rVJM5qIukdaQ8z1XTWZztbJ49vRZuveqiuU=
