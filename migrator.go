@@ -241,9 +241,6 @@ func (e migrationExecutor) exec() MigrationResult {
 	start := time.Now()
 	result, err := e.impl(e.payload)
 
-	// QUESTION: How sure are we that we want to do this? If a call is failing
-	// fast, the latency metric might look wonderful for the new version
-	// quite some time after the fix was put in place.
 	if e.measureLatency {
 		e.tracker.TrackLatency(e.origin, time.Since(start))
 	}
