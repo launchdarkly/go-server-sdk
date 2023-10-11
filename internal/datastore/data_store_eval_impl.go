@@ -2,10 +2,10 @@ package datastore
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v3"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 type dataStoreEvaluatorDataProviderImpl struct {

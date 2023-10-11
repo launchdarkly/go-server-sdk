@@ -5,7 +5,7 @@
 //
 // Subpackages in the same repository provide additional functionality for specific features of the
 // client. Most applications that need to change any configuration settings will use the package
-// [github.com/launchdarkly/go-server-sdk/v6/ldcomponents].
+// [github.com/launchdarkly/go-server-sdk/v7/ldcomponents].
 //
 // The SDK also uses types from the go-sdk-common repository and its subpackages
 // ([github.com/launchdarkly/go-sdk-common/v3) that represent standard data structures

@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 func TestAllKinds(t *testing.T) {
@@ -116,7 +116,7 @@ func TestDataKindSegments(t *testing.T) {
 	})
 
 	t.Run("will not serialize wrong type", func(t *testing.T) {
-		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 1, Item: "not a flag"})
+		bytes := kind.Serialize(ldstoretypes.ItemDescriptor{Version: 1, Item: "not a segment"})
 		assert.Nil(t, bytes)
 	})
 

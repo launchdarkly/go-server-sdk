@@ -1,6 +1,6 @@
 package datasource
 
-import "github.com/launchdarkly/go-server-sdk/v6/subsystems"
+import "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 // NewNullDataSource returns a stub implementation of DataSource.
 func NewNullDataSource() subsystems.DataSource {

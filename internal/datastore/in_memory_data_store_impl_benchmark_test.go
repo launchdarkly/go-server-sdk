@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 // These benchmarks cover data store operations with the in-memory store.
@@ -58,7 +58,7 @@ func (env *inMemoryStoreBenchmarkEnv) setUp(bc inMemoryStoreBenchmarkCase) {
 
 	env.segments = make([]*ldmodel.Segment, bc.numFlags)
 	for i := 0; i < bc.numSegments; i++ {
-		segment := ldbuilders.NewSegmentBuilder(fmt.Sprintf("flag-%d", i)).Version(10).Build()
+		segment := ldbuilders.NewSegmentBuilder(fmt.Sprintf("segment-%d", i)).Version(10).Build()
 		env.segments[i] = &segment
 	}
 	for _, segment := range env.segments {

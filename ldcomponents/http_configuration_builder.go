@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/ldhttp"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhttp"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // DefaultConnectTimeout is the HTTP connection timeout that is used if [HTTPConfigurationBuilder.ConnectTimeout]
@@ -22,7 +22,7 @@ const DefaultConnectTimeout = 3 * time.Second
 //
 // If you want to set non-default values for any of these properties, create a builder with
 // ldcomponents.[HTTPConfiguration](), change its properties with the HTTPConfigurationBuilder methods,
-// and store it in the HTTP field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
+// and store it in the HTTP field of [github.com/launchdarkly/go-server-sdk/v7.Config]:
 //
 //	    config := ld.Config{
 //	        HTTP: ldcomponents.HTTPConfiguration().

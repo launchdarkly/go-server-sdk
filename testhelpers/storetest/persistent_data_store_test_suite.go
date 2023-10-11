@@ -4,22 +4,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	ld "github.com/launchdarkly/go-server-sdk/v6"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	sh "github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	ssys "github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	ld "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	sh "github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	ssys "github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers"
 
 	"github.com/launchdarkly/go-test-helpers/v3/testbox"
 
@@ -693,7 +694,8 @@ func (s *PersistentDataStoreTestSuite) runLDClientEndToEndTests(t testbox.Testin
 	// This is a basic smoke test to verify that the data store component behaves correctly within an
 	// SDK client instance.
 
-	flagKey, segmentKey, userKey, otherUserKey := "flagkey", "segmentkey", "userkey", "otheruser"
+	flagKey, segmentKey, userKey, otherUserKey :=
+		"flagkey", "segmentkey", "userkey", "otheruser"
 	goodValue1, goodValue2, badValue := ldvalue.String("good"), ldvalue.String("better"), ldvalue.String("bad")
 	goodVariation1, goodVariation2, badVariation := 0, 1, 2
 	user, otherUser := ldcontext.New(userKey), ldcontext.New(otherUserKey)

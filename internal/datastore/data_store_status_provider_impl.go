@@ -1,8 +1,8 @@
 package datastore
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // dataStoreStatusProviderImpl is the internal implementation of DataStoreStatusProvider. It's not

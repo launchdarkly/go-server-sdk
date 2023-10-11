@@ -9,8 +9,8 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	m "github.com/launchdarkly/go-test-helpers/v3/matchers"
@@ -95,7 +95,7 @@ func TestDefaultEventsConfigWithoutDiagnostics(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ce := ef.NewCustomEventData("event-key", ldevents.Context(lduser.NewUser("key")), ldvalue.Null(), false, 0)
+		ce := ef.NewCustomEventData("event-key", ldevents.Context(lduser.NewUser("key")), ldvalue.Null(), false, 0, ldvalue.OptionalInt{})
 		ep.RecordCustomEvent(ce)
 		ep.Flush()
 
@@ -140,7 +140,7 @@ func TestEventsAllAttributesPrivate(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEventData(ldevents.Context(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
+		ie := ef.NewIdentifyEventData(ldevents.Context(lduser.NewUserBuilder("user-key").Name("user-name").Build()), ldvalue.OptionalInt{})
 		ep.RecordIdentifyEvent(ie)
 		ep.Flush()
 
@@ -169,7 +169,7 @@ func TestEventsCapacity(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEventData(ldevents.Context(lduser.NewUserBuilder("user-key").Name("user-name").Build()))
+		ie := ef.NewIdentifyEventData(ldevents.Context(lduser.NewUserBuilder("user-key").Name("user-name").Build()), ldvalue.OptionalInt{})
 		ep.RecordIdentifyEvent(ie)
 		ep.RecordIdentifyEvent(ie) // 2nd event will be dropped
 		ep.Flush()
@@ -190,7 +190,7 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 		require.NoError(t, err)
 
 		ef := ldevents.NewEventFactory(false, nil)
-		ie := ef.NewIdentifyEventData(ldevents.Context(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build()))
+		ie := ef.NewIdentifyEventData(ldevents.Context(lduser.NewUserBuilder("user-key").Email("user-email").Name("user-name").Build()), ldvalue.OptionalInt{})
 		ep.RecordIdentifyEvent(ie)
 		ep.Flush()
 

@@ -2,7 +2,7 @@ package ldfiledata
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // ReloaderFactory is a function type used with DataSourceBuilder.Reloader, to specify a mechanism for
@@ -25,7 +25,7 @@ const (
 // DataSourceBuilder is a builder for configuring the file-based data source.
 //
 // Obtain an instance of this type by calling [DataSource]. After calling its methods to specify any
-// desired custom settings, store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v6.Config].
+// desired custom settings, store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v7.Config].
 //
 // Builder calls can be chained, for example:
 //
@@ -59,7 +59,7 @@ func (b *DataSourceBuilder) FilePaths(paths ...string) *DataSourceBuilder {
 
 // Reloader specifies a mechanism for reloading data files.
 //
-// It is normally used with the [github.com/launchdarkly/go-server-sdk/v6/ldfilewatch] package, as follows:
+// It is normally used with the [github.com/launchdarkly/go-server-sdk/v7/ldfilewatch] package, as follows:
 //
 //	config := ld.Config{
 //	    DataSource: ldfiledata.DataSource().

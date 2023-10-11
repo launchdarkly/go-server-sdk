@@ -8,18 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	"github.com/launchdarkly/eventsource"
 	th "github.com/launchdarkly/go-test-helpers/v3"
@@ -108,8 +108,8 @@ func runStreamingTestWithConfiguration(
 func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
 	initialData := ldservices.NewServerSDKData().
-		Flags(ldservices.FlagOrSegment("my-flag", 2)).
-		Segments(ldservices.FlagOrSegment("my-segment", 2))
+		Flags(ldservices.KeyAndVersionItem("my-flag", 2)).
+		Segments(ldservices.KeyAndVersionItem("my-segment", 2))
 	timeout := 3 * time.Second
 
 	t.Run("configured headers are passed in request", func(t *testing.T) {
@@ -414,7 +414,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 }
 
 func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
-	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 	sequentialHandler := httphelpers.SequentialHandler(
 		httphelpers.HandlerWithStatus(statusCode), // fails the first time
@@ -509,8 +509,8 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 }
 
 func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
-	initialData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 1))
-	updatedData := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	initialData := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 1))
+	updatedData := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	streamHandler1, _ := ldservices.ServerSideStreamingServiceHandler(initialData.ToPutEvent())
 	streamHandler2, _ := ldservices.ServerSideStreamingServiceHandler(updatedData.ToPutEvent())
 	streamHandler := httphelpers.SequentialHandler(streamHandler1, streamHandler2)

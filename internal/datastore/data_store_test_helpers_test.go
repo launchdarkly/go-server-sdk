@@ -3,7 +3,7 @@ package datastore
 import (
 	"errors"
 
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 type unknownDataKind struct{}

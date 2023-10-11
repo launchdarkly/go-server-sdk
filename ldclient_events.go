@@ -2,14 +2,15 @@ package ldclient
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/flagstate"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v3"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // This file contains internal support code for LDClient's interactions with the analytics event pipeline.
@@ -80,6 +81,8 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 				params.PrerequisiteResult.IsExperiment,
 				ldvalue.Null(),
 				params.TargetFlagKey,
+				params.PrerequisiteFlag.SamplingRatio,
+				params.ExcludeFromSummaries,
 			))
 		},
 	}
@@ -158,6 +161,12 @@ func (c *clientEventsDisabledDecorator) StringVariationDetail(
 	return detail.Value.StringValue(), detail, err
 }
 
+func (c *clientEventsDisabledDecorator) MigrationVariation(
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	return c.client.migrationVariation(key, context, defaultStage, c.scope)
+}
+
 func (c *clientEventsDisabledDecorator) JSONVariation(key string, context ldcontext.Context, defaultVal ldvalue.Value) (
 	ldvalue.Value, error) {
 	detail, err := c.client.variation(key, context, defaultVal, true, c.scope)
@@ -200,6 +209,10 @@ func (c *clientEventsDisabledDecorator) TrackData(
 
 func (c *clientEventsDisabledDecorator) TrackMetric(eventName string, context ldcontext.Context, metricValue float64,
 	data ldvalue.Value) error {
+	return nil
+}
+
+func (c *clientEventsDisabledDecorator) TrackMigrationOp(event ldevents.MigrationOpEventData) error {
 	return nil
 }
 

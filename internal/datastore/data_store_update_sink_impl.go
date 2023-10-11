@@ -3,8 +3,8 @@ package datastore
 import (
 	"sync"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 )
 
 // DataStoreUpdateSinkImpl is the internal implementation of DataStoreUpdateSink. It is exported

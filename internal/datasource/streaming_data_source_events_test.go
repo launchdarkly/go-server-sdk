@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 )
 
 func TestParsePutData(t *testing.T) {
@@ -18,7 +18,7 @@ func TestParsePutData(t *testing.T) {
   "flag2": {"key": "flag2", "version": 2}
  },
  "segments": {
-  "segment1": {"key": "segment1","version": 3}
+  "segment1": {"key": "segment1", "version": 3}
  }
 }`
 	expectedAllData := sharedtest.NewDataSetBuilder().

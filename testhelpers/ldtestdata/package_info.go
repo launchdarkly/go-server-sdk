@@ -2,7 +2,7 @@
 // simplified form to an SDK client in test scenarios. The entry point for using this feature is
 // [DataSource].
 //
-// Unlike the file data source (in the [github.com/launchdarkly/go-server-sdk/v6/ldfiledata] package),
+// Unlike the file data source (in the [github.com/launchdarkly/go-server-sdk/v7/ldfiledata] package),
 // this mechanism does not use any external resources. It provides only the data that the application
 // has put into it using the Update method.
 //

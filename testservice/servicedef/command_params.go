@@ -2,6 +2,7 @@ package servicedef
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
@@ -17,6 +18,8 @@ const (
 	CommandContextBuild             = "contextBuild"
 	CommandContextConvert           = "contextConvert"
 	CommandSecureModeHash           = "secureModeHash"
+	CommandMigrationVariation       = "migrationVariation"
+	CommandMigrationOperation       = "migrationOperation"
 )
 
 type ValueType string
@@ -30,14 +33,16 @@ const (
 )
 
 type CommandParams struct {
-	Command        string                  `json:"command"`
-	Evaluate       *EvaluateFlagParams     `json:"evaluate,omitempty"`
-	EvaluateAll    *EvaluateAllFlagsParams `json:"evaluateAll,omitempty"`
-	CustomEvent    *CustomEventParams      `json:"customEvent,omitempty"`
-	IdentifyEvent  *IdentifyEventParams    `json:"identifyEvent,omitempty"`
-	ContextBuild   *ContextBuildParams     `json:"contextBuild,omitempty"`
-	ContextConvert *ContextConvertParams   `json:"contextConvert,omitempty"`
-	SecureModeHash *SecureModeHashParams   `json:"secureModeHash,omitempty"`
+	Command            string                    `json:"command"`
+	Evaluate           *EvaluateFlagParams       `json:"evaluate,omitempty"`
+	EvaluateAll        *EvaluateAllFlagsParams   `json:"evaluateAll,omitempty"`
+	CustomEvent        *CustomEventParams        `json:"customEvent,omitempty"`
+	IdentifyEvent      *IdentifyEventParams      `json:"identifyEvent,omitempty"`
+	ContextBuild       *ContextBuildParams       `json:"contextBuild,omitempty"`
+	ContextConvert     *ContextConvertParams     `json:"contextConvert,omitempty"`
+	SecureModeHash     *SecureModeHashParams     `json:"secureModeHash,omitempty"`
+	MigrationVariation *MigrationVariationParams `json:"migrationVariation,omitempty"`
+	MigrationOperation *MigrationOperationParams `json:"migrationOperation,omitempty"`
 }
 
 type EvaluateFlagParams struct {
@@ -112,4 +117,32 @@ type SecureModeHashParams struct {
 
 type SecureModeHashResponse struct {
 	Result string `json:"result"`
+}
+
+type MigrationVariationParams struct {
+	Key          string            `json:"key"`
+	Context      ldcontext.Context `json:"context"`
+	DefaultStage ldmigration.Stage `json:"defaultStage"`
+}
+
+type MigrationVariationResponse struct {
+	Result string `json:"result"`
+}
+
+type MigrationOperationParams struct {
+	Key                string                     `json:"key"`
+	Context            ldcontext.Context          `json:"context"`
+	DefaultStage       ldmigration.Stage          `json:"defaultStage"`
+	ReadExecutionOrder ldmigration.ExecutionOrder `json:"readExecutionOrder"`
+	Operation          ldmigration.Operation      `json:"operation"`
+	OldEndpoint        string                     `json:"oldEndpoint"`
+	NewEndpoint        string                     `json:"newEndpoint"`
+	Payload            *string                    `json:"payload,omitempty"`
+	TrackLatency       bool                       `json:"trackLatency"`
+	TrackErrors        bool                       `json:"trackErrors"`
+	TrackConsistency   bool                       `json:"trackConsistency"`
+}
+
+type MigrationOperationResponse struct {
+	Result interface{} `json:"result"`
 }

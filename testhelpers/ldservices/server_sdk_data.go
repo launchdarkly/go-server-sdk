@@ -9,20 +9,20 @@ import (
 	"github.com/launchdarkly/go-test-helpers/v3/jsonhelpers"
 )
 
-type fakeFlagOrSegment struct {
+type fakeVersionedKind struct {
 	Key     string `json:"key"`
 	Version int    `json:"version"`
 }
 
-// FlagOrSegment provides a simple object that has only "key" and "version" properties.
+// KeyAndVersionItem provides a simple object that has only "key" and "version" properties.
 // This may be enough for some testing purposes that don't require full flag or segment data.
-func FlagOrSegment(key string, version int) interface{} {
-	return fakeFlagOrSegment{Key: key, Version: version}
+func KeyAndVersionItem(key string, version int) interface{} {
+	return fakeVersionedKind{Key: key, Version: version}
 }
 
-// ServerSDKData is a convenience type for constructing a test server-side SDK data payload for PollingServiceHandler
-// or StreamingServiceHandler. Its String() method returns a JSON object with the expected "flags" and "segments"
-// properties.
+// ServerSDKData is a convenience type for constructing a test server-side SDK data payload for
+// PollingServiceHandler or StreamingServiceHandler. Its String() method returns a JSON object with
+// the expected "flags" and "segments" properties.
 //
 //	data := NewServerSDKData().Flags(flag1, flag2)
 //	handler := PollingServiceHandler(data)
@@ -33,7 +33,10 @@ type ServerSDKData struct {
 
 // NewServerSDKData creates a ServerSDKData instance.
 func NewServerSDKData() *ServerSDKData {
-	return &ServerSDKData{make(map[string]interface{}), make(map[string]interface{})}
+	return &ServerSDKData{
+		make(map[string]interface{}),
+		make(map[string]interface{}),
+	}
 }
 
 // String returns the JSON encoding of the struct as a string.
@@ -44,7 +47,7 @@ func (s *ServerSDKData) String() string {
 
 // Flags adds the specified items to the struct's "flags" map.
 //
-// Each item may be either a object produced by FlagOrSegment or a real data model object from the ldmodel
+// Each item may be either a object produced by KeyAndVersionItem or a real data model object from the ldmodel
 // package. The minimum requirement is that when converted to JSON, it has a "key" property.
 func (s *ServerSDKData) Flags(flags ...interface{}) *ServerSDKData {
 	for _, flag := range flags {
@@ -57,7 +60,7 @@ func (s *ServerSDKData) Flags(flags ...interface{}) *ServerSDKData {
 
 // Segments adds the specified items to the struct's "segments" map.
 //
-// Each item may be either a object produced by FlagOrSegment or a real data model object from the ldmodel
+// Each item may be either a object produced by KeyAndVersionItem or a real data model object from the ldmodel
 // package. The minimum requirement is that when converted to JSON, it has a "key" property.
 func (s *ServerSDKData) Segments(segments ...interface{}) *ServerSDKData {
 	for _, segment := range segments {

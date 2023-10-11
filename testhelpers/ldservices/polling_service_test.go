@@ -60,7 +60,7 @@ func TestServerSidePollingMarshalsDataAgainForEachRequest(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, `{"flags":{},"segments":{}}`, string(bytes))
 
-	data.Flags(FlagOrSegment("flagkey", 1))
+	data.Flags(KeyAndVersionItem("flagkey", 1))
 	resp, err = client.Get(serverSideSDKPollingPath)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)

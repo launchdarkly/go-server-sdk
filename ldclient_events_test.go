@@ -4,15 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	helpers "github.com/launchdarkly/go-test-helpers/v3"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +31,7 @@ func TestIdentifySendsIdentifyEvent(t *testing.T) {
 	assert.Equal(t, 1, len(events))
 	e := events[0].(ldevents.IdentifyEventData)
 	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
 }
 
 func TestIdentifyWithEmptyUserKeySendsNoEvent(t *testing.T) {
@@ -60,6 +61,27 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, key, e.Key)
 	assert.Equal(t, ldvalue.Null(), e.Data)
 	assert.False(t, e.HasMetric)
+	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
+}
+
+func TestTrackEventSendsSamplingRatio(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := lduser.NewUser("userKey")
+	key := "eventKey"
+
+	err := client.TrackEvent(key, user)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.CustomEventData)
+	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, ldvalue.Null(), e.Data)
+	assert.False(t, e.HasMetric)
+	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
 }
 
 func TestTrackDataSendsCustomEventWithData(t *testing.T) {

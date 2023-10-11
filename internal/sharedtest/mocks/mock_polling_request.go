@@ -1,6 +1,6 @@
 package mocks
 
-import "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+import "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 // Requester is a mock used in polling_data_source_test.go, to satisfy the
 // datasource.Requester interface (used by PollingProcessor).

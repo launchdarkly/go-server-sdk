@@ -3,7 +3,7 @@ package ldstoreimpl
 import (
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 
 	"github.com/stretchr/testify/assert"
 

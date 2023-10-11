@@ -4,15 +4,15 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // LoggingConfigurationBuilder contains methods for configuring the SDK's logging behavior.
 //
 // If you want to set non-default values for any of these properties, create a builder with
 // ldcomponents.[Logging](), change its properties with the LoggingConfigurationBuilder methods, and
-// store it in the Logging field of [github.com/launchdarkly/go-server-sdk/v6.Config]:
+// store it in the Logging field of [github.com/launchdarkly/go-server-sdk/v7.Config]:
 //
 //	config := ld.Config{
 //	    Logging: ldcomponents.Logging().MinLevel(ldlog.Warn),

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -13,16 +13,16 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +131,46 @@ func assertEvalEvent(
 		Reason:    reason,
 	}
 	assert.Equal(t, expectedEvent, actualEvent)
+}
+
+func TestExcludeFromSummaries(t *testing.T) {
+	flag1 := ldbuilders.NewFlagBuilder("key1").On(true).ExcludeFromSummaries(true).Build()
+	flag2 := ldbuilders.NewFlagBuilder("key2").On(true).AddPrerequisite(flag1.Key, 0).Build()
+
+	t.Run("flag can be excluded from summaries", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(flag1)
+			p.data.UsePreconfiguredFlag(flag2)
+
+			_, err := p.client.BoolVariation(flag1.Key, evalTestUser, false)
+
+			assert.NoError(t, err)
+			event := p.requireSingleEvent(t)
+
+			assert.False(t, event.SamplingRatio.IsDefined())
+			assert.True(t, event.ExcludeFromSummaries)
+		})
+	})
+
+	t.Run("prereq can be excluded individually", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(flag1)
+			p.data.UsePreconfiguredFlag(flag2)
+
+			_, err := p.client.BoolVariation(flag2.Key, evalTestUser, false)
+
+			assert.NoError(t, err)
+			events := p.events.Events
+
+			assert.Len(t, events, 2)
+
+			assert.True(t, events[0].(ldevents.EvaluationData).ExcludeFromSummaries)
+			assert.Equal(t, flag1.Key, events[0].(ldevents.EvaluationData).Key)
+
+			assert.False(t, events[1].(ldevents.EvaluationData).ExcludeFromSummaries)
+			assert.Equal(t, flag2.Key, events[1].(ldevents.EvaluationData).Key)
+		})
+	})
 }
 
 func TestBoolVariation(t *testing.T) {
@@ -268,6 +308,42 @@ func TestStringVariation(t *testing.T) {
 			assert.Equal(t, expected, actual)
 
 			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.String(expected), ldvalue.String(defaultVal), noReason)
+		})
+	})
+
+	t.Run("sampling ratios are not defined by default", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
+
+			_, err := p.client.StringVariation(evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+
+			events := p.events.Events
+			assert.Len(t, events, 1)
+
+			eval := events[0]
+			assert.False(t, eval.(ldevents.EvaluationData).SamplingRatio.IsDefined())
+		})
+	})
+
+	t.Run("sampling ratios can be defined", func(t *testing.T) {
+		flag := ldbuilders.NewFlagBuilder("flag").
+			On(true).
+			SamplingRatio(21).
+			Build()
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(flag)
+
+			_, err := p.client.StringVariation(flag.Key, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+
+			events := p.events.Events
+			assert.Len(t, events, 1)
+
+			eval := events[0]
+			assert.Equal(t, 21, eval.(ldevents.EvaluationData).SamplingRatio.IntValue())
 		})
 	})
 

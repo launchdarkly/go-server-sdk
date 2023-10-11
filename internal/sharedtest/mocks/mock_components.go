@@ -1,6 +1,6 @@
 package mocks
 
-import "github.com/launchdarkly/go-server-sdk/v6/subsystems"
+import "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 // SingleComponentConfigurer is a test implementation of ComponentConfigurer that always returns the same
 // pre-existing instance.
