@@ -3,7 +3,7 @@ package ldstoreimpl
 import (
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // BigSegmentsConfigurationProperties encapsulates the SDK's configuration with regard to Big Segments.

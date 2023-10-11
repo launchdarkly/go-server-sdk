@@ -5,17 +5,20 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
-	ld "github.com/launchdarkly/go-server-sdk/v6"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/flagstate"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/testservice/servicedef"
+	ld "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
@@ -102,6 +105,15 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 	case servicedef.CommandSecureModeHash:
 		hash := c.sdk.SecureModeHash(params.SecureModeHash.Context)
 		return servicedef.SecureModeHashResponse{Result: hash}, nil
+	case servicedef.CommandMigrationVariation:
+		// Normal operation should inspect this err. However, the test harness
+		// will not generate invalid variation configurations for this test.
+		// More complex error conditions are tested through the migration
+		// operation command.
+		stage, _, _ := c.sdk.MigrationVariation(params.MigrationVariation.Key, params.MigrationVariation.Context, params.MigrationVariation.DefaultStage)
+		return servicedef.MigrationVariationResponse{Result: string(stage)}, nil
+	case servicedef.CommandMigrationOperation:
+		return c.migrationOperation(*params.MigrationOperation)
 	default:
 		return nil, BadRequestError{Message: fmt.Sprintf("unknown command %q", params.Command)}
 	}
@@ -242,6 +254,99 @@ func (c *SDKClientEntity) contextConvert(p servicedef.ContextConvertParams) (*se
 		return &servicedef.ContextBuildResponse{Error: "re-marshaling failed: " + err.Error()}, nil
 	}
 	return &servicedef.ContextBuildResponse{Output: string(data)}, nil
+}
+
+func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationParams) (*servicedef.MigrationOperationResponse, error) {
+	builder := ld.Migration(c.sdk)
+	builder.ReadExecutionOrder(p.ReadExecutionOrder)
+
+	builder.TrackLatency(p.TrackLatency)
+	builder.TrackErrors(p.TrackErrors)
+
+	readEndpoint := func(endpoint string) func(interface{}) (interface{}, error) {
+		return func(payload interface{}) (interface{}, error) {
+			var reader io.Reader
+			if val, ok := payload.(*string); ok && val != nil {
+				reader = strings.NewReader(*val)
+			}
+			response, err := http.Post(endpoint, "application/json", reader)
+
+			if err != nil {
+				return nil, err
+			}
+
+			if response.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("request failed with status code %d", response.StatusCode)
+			}
+
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			return string(body), nil
+		}
+	}
+
+	writeEndpoint := func(endpoint string) func(interface{}) (interface{}, error) {
+		return func(payload interface{}) (interface{}, error) {
+			var reader io.Reader
+			if val, ok := payload.(*string); ok && val != nil {
+				reader = strings.NewReader(*val)
+			}
+			response, err := http.Post(endpoint, "application/json", reader)
+
+			if err != nil {
+				return nil, err
+			}
+
+			if response.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("request failed with status code %d", response.StatusCode)
+			}
+
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			return string(body), nil
+		}
+	}
+
+	if p.TrackConsistency {
+		var comparsionFunction ld.MigrationComparisonFn = func(lhs, rhs interface{}) bool {
+			l := lhs.(string)
+			r := rhs.(string)
+			return l == r
+		}
+		builder.Read(readEndpoint(p.OldEndpoint), readEndpoint(p.NewEndpoint), &comparsionFunction)
+	} else {
+		builder.Read(readEndpoint(p.OldEndpoint), readEndpoint(p.NewEndpoint), nil)
+	}
+
+	builder.Write(writeEndpoint(p.OldEndpoint), writeEndpoint(p.NewEndpoint))
+
+	migrator, err := builder.Build()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if p.Operation == ldmigration.Read {
+		result := migrator.Read(p.Key, p.Context, p.DefaultStage, p.Payload)
+		if err := result.GetError(); err != nil {
+			return &servicedef.MigrationOperationResponse{Result: err.Error()}, nil
+		}
+
+		return &servicedef.MigrationOperationResponse{Result: result.GetResult()}, nil
+	}
+
+	result := migrator.Write(p.Key, p.Context, p.DefaultStage, p.Payload)
+	if err := result.GetAuthoritativeResult().GetError(); err != nil {
+		return &servicedef.MigrationOperationResponse{Result: err.Error()}, nil
+	}
+
+	return &servicedef.MigrationOperationResponse{Result: result.GetAuthoritativeResult().GetResult()}, nil
 }
 
 func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.Config {

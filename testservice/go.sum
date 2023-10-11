@@ -17,14 +17,14 @@ github.com/launchdarkly/eventsource v1.6.2 h1:5SbcIqzUomn+/zmJDrkb4LYw7ryoKFzH/0
 github.com/launchdarkly/eventsource v1.6.2/go.mod h1:LHxSeb4OnqznNZxCSXbFghxS/CjIQfzHovNoAqbO/Wk=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0 h1:qJF/WI09EUJ7kSpmP5d1Rhc81NQdYUhP17McKfUq17E=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0/go.mod h1:/1Gyml6fnD309JOvunOSfyysWbZ/ZzcA120gF/cQtC4=
-github.com/launchdarkly/go-sdk-common/v3 v3.0.1 h1:rVdLusAIViduNvyjNKy06RA+SPwk0Eq+NocNd1opDhk=
-github.com/launchdarkly/go-sdk-common/v3 v3.0.1/go.mod h1:H/zISoCNhviHTTqqBjIKQy2YgSHT8ioL1FtgBKpiEGg=
-github.com/launchdarkly/go-sdk-events/v2 v2.0.2 h1:Ngp050AGYUyN3YRxX7zfu110NETHEPEOVys1ey2Hyvw=
-github.com/launchdarkly/go-sdk-events/v2 v2.0.2/go.mod h1:Msqbl6brgFO83RUxmLaJAUx2sYG+WKULcy+Vf3+tKww=
+github.com/launchdarkly/go-sdk-common/v3 v3.1.0 h1:KNCP5rfkOt/25oxGLAVgaU1BgrZnzH9Y/3Z6I8bMwDg=
+github.com/launchdarkly/go-sdk-common/v3 v3.1.0/go.mod h1:mXFmDGEh4ydK3QilRhrAyKuf9v44VZQWnINyhqbbOd0=
+github.com/launchdarkly/go-sdk-events/v3 v3.0.0 h1:u8o4vddKJ7NsFlcVCqeLMypnoM5WYADcLmRm+b3kJVw=
+github.com/launchdarkly/go-sdk-events/v3 v3.0.0/go.mod h1:oepYWQ2RvvjfL2WxkE1uJJIuRsIMOP4WIVgUpXRPcNI=
 github.com/launchdarkly/go-semver v1.0.2 h1:sYVRnuKyvxlmQCnCUyDkAhtmzSFRoX6rG2Xa21Mhg+w=
 github.com/launchdarkly/go-semver v1.0.2/go.mod h1:xFmMwXba5Mb+3h72Z+VeSs9ahCvKo2QFUTHRNHVqR28=
-github.com/launchdarkly/go-server-sdk-evaluation/v2 v2.0.2 h1:PAM0GvE0nIUBeOkjdiymIEKI+8FFLJ+fEsWTupW1yGU=
-github.com/launchdarkly/go-server-sdk-evaluation/v2 v2.0.2/go.mod h1:Mztipcz+7ZMatXVun3k/IfPa8IOgUnAqiZawtFh2MRg=
+github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.0 h1:nQbR1xCpkdU9Z71FI28bWTi5LrmtSVURy0UFcBVD5ZU=
+github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.0/go.mod h1:cwk7/7SzNB2wZbCZS7w2K66klMLBe3NFM3/qd3xnsRc=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
 github.com/launchdarkly/go-test-helpers/v2 v2.3.1 h1:KXUAQVTeHNcWVDVQ94uEkybI+URXI9rEd7E553EsZFw=
 github.com/launchdarkly/go-test-helpers/v2 v2.3.1/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
@@ -49,5 +49,5 @@ golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e/go.mod h1:RxMgew5VJxzue5/jJ
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v2 v2.2.8/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
-gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c h1:dUUwHk2QECo/6vqA44rthZ8ie2QXMNeKRTHCNY2nXvo=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+gopkg.in/yaml.v3 v3.0.0 h1:hjy8E9ON/egN1tAYqKb61G10WtihqetD4sz2H+8nIeA=

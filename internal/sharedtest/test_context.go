@@ -1,7 +1,7 @@
 package sharedtest
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // NewSimpleTestContext returns a basic implementation of interfaces.ClientContext for use in test code.

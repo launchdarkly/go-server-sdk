@@ -8,7 +8,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 )
 
 // These benchmarks cover the DefaultEventProcessor logic for digesting analytics event inputs and producing

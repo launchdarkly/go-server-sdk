@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	intf "github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	intf "github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 // DataSourceUpdateSinkImpl is the internal implementation of DataSourceUpdateSink. It is exported

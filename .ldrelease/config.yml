@@ -17,7 +17,7 @@ jobs:
       name: go
 
 publications:
-  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v6
+  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk/v7
     description: documentation
 
 sdk:

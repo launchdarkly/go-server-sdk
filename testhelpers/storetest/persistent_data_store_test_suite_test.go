@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-test-helpers/v3/testbox"
 
 	"github.com/stretchr/testify/assert"

@@ -15,7 +15,7 @@ COVERAGE_PROFILE_RAW=./build/coverage_raw.out
 COVERAGE_PROFILE_RAW_HTML=./build/coverage_raw.html
 COVERAGE_PROFILE_FILTERED=./build/coverage.out
 COVERAGE_PROFILE_FILTERED_HTML=./build/coverage.html
-COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v6 \
+COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipfiles '(internal/sharedtest/$(COVERAGE_ENFORCER_SKIP_FILES_EXTRA))' \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode

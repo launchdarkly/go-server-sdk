@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 )
 
 // CapturingEventProcessor is a test implementation of EventProcessor that accumulates all events.
@@ -21,6 +21,10 @@ func (c *CapturingEventProcessor) RecordIdentifyEvent(e ldevents.IdentifyEventDa
 }
 
 func (c *CapturingEventProcessor) RecordCustomEvent(e ldevents.CustomEventData) { //nolint:revive
+	c.Events = append(c.Events, e)
+}
+
+func (c *CapturingEventProcessor) RecordMigrationOpEvent(e ldevents.MigrationOpEventData) { //nolint:revive
 	c.Events = append(c.Events, e)
 }
 

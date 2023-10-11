@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/endpoints"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // DefaultPollingBaseURI is the default value for [PollingDataSourceBuilder.BaseURI].
@@ -34,7 +34,7 @@ type PollingDataSourceBuilder struct {
 //
 // To use polling mode, create a builder with PollingDataSource(), set its properties with the methods of
 // [PollingDataSourceBuilder], and then store it in the DataSource field of
-// [github.com/launchdarkly/go-server-sdk/v6.Config]:
+// [github.com/launchdarkly/go-server-sdk/v7.Config]:
 //
 //	config := ld.Config{
 //	    DataSource: ldcomponents.PollingDataSource().PollInterval(45 * time.Second),

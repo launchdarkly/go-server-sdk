@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
@@ -185,7 +185,7 @@ func testPollingProcessorUnrecoverableError(
 }
 
 func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	data := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
@@ -210,7 +210,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 }
 
 func TestPollingProcessorAppendsFilterParameter(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	data := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 
 	testWithFilters(t, func(t *testing.T, filter filterTest) {
 		pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))

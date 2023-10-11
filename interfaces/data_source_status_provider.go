@@ -10,7 +10,7 @@ import (
 // could be polling or file data depending on your configuration.
 //
 // An implementation of this interface is returned by
-// [github.com/launchdarkly/go-server-sdk/v6.LDClient.GetDataSourceStatusProvider()].
+// [github.com/launchdarkly/go-server-sdk/v7.LDClient.GetDataSourceStatusProvider()].
 // Application code should not implement this interface.
 //
 // There are three ways to interact with the data source status. One is to simply get the current status;

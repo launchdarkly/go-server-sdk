@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // Fallible is a general interface for anything with a Failed method. This is used by test helpers to

@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	st "github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/exp/slices"

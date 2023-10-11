@@ -29,13 +29,14 @@ jobs:
       with-coverage:
         type: boolean
         default: false
-  
+
     docker:
       - image: <<parameters.docker-image>>
         environment:
           CIRCLE_TEST_REPORTS: /tmp/circle-reports
           CIRCLE_ARTIFACTS: /tmp/circle-artifacts
           TEST_HARNESS_PARAMS: -junit /tmp/circle-reports/contract-tests-junit.xml
+          GOPRIVATE: github.com/launchdarkly/*-private
 
     steps:
       - checkout
@@ -59,7 +60,7 @@ jobs:
             mkdir -p $CIRCLE_TEST_REPORTS
             mkdir -p $CIRCLE_ARTIFACTS
             make test | tee $CIRCLE_ARTIFACTS/report.txt
-    
+
       - when:
           condition: <<parameters.with-coverage>>
           steps:
@@ -71,7 +72,7 @@ jobs:
                 name: Store coverage results
                 command: cp build/coverage* /tmp/circle-artifacts
                 when: always
-    
+
       - run:
           name: Process test results
           command: go-junit-report < $CIRCLE_ARTIFACTS/report.txt > $CIRCLE_TEST_REPORTS/junit.xml
@@ -99,7 +100,7 @@ jobs:
 
     steps:
       - checkout
-      - run: 
+      - run:
           name: download Go 1.18.5
           command: |
             $ErrorActionPreference = "Stop"
@@ -123,7 +124,7 @@ jobs:
 
     steps:
       - checkout
-      - run: go build ./...      
+      - run: go build ./...
       - run:
           name: Run benchmarks
           command: |

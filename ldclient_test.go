@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

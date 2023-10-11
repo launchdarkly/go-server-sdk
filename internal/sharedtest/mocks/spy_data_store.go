@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	th "github.com/launchdarkly/go-test-helpers/v3"
 

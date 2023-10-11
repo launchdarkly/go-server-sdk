@@ -3,7 +3,7 @@ package subsystems
 import (
 	"net/http"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 
 // ClientContext provides context information from LDClient when creating other components.

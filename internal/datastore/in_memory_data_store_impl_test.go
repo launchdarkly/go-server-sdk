@@ -7,11 +7,11 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,8 +53,7 @@ func forAllDataKinds(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, 
 		return sharedtest.FlagDescriptor(flag)
 	})
 	test(t, datakinds.Segments, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
-		segment := ldbuilders.NewSegmentBuilder(key).Build()
-		segment.Version = version // SegmentBuilder doesn't currently have a Version method
+		segment := ldbuilders.NewSegmentBuilder(key).Version(version).Build()
 		if otherProperty {
 			segment.Included = []string{"arbitrary value"}
 		}

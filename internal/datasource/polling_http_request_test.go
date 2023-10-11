@@ -8,10 +8,10 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldservices"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
@@ -188,7 +188,7 @@ func TestRequestorImplCaching(t *testing.T) {
 }
 
 func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	data := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 	httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
@@ -207,7 +207,7 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 }
 
 func TestRequestorImplCanAppendsFilterParameter(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(ldservices.FlagOrSegment("my-flag", 2))
+	data := ldservices.NewServerSDKData().Flags(ldservices.KeyAndVersionItem("my-flag", 2))
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 
 	testWithFilters(t, func(t *testing.T, filter filterTest) {

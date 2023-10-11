@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/launchdarkly/go-server-sdk/v6/testservice/servicedef"
+	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	ld "github.com/launchdarkly/go-server-sdk/v6"
+	ld "github.com/launchdarkly/go-server-sdk/v7"
 
 	"github.com/gorilla/mux"
 )
@@ -35,6 +35,8 @@ var capabilities = []string{
 	servicedef.CapabilityTags,
 	servicedef.CapabilityFiltering,
 	servicedef.CapabilityContextType,
+	servicedef.CapabilityMigrations,
+	servicedef.CapabilityEventSampling,
 }
 
 // gets the specified environment variable, or the default if not set

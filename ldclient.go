@@ -11,21 +11,22 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v2"
-	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v2"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/flagstate"
-	"github.com/launchdarkly/go-server-sdk/v6/internal"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/bigsegments"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v3"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/bigsegments"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 )
 
 // Version is the SDK version.
@@ -334,6 +335,35 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
+// MigrationVariation returns the migration stage of the migration feature flag for the given evaluation context.
+//
+// Returns defaultStage if there is an error or if the flag doesn't exist.
+func (client *LDClient) MigrationVariation(
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	return client.migrationVariation(key, context, defaultStage, client.eventsDefault)
+}
+
+func (client *LDClient) migrationVariation(
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
+	tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
+
+	if err != nil {
+		return defaultStage, tracker, nil
+	}
+
+	stage, err := ldmigration.ParseStage(detail.Value.StringValue())
+	if err != nil {
+		detail = ldreason.NewEvaluationDetailForError(ldreason.EvalErrorWrongType, ldvalue.String(string(defaultStage)))
+		tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
+		return defaultStage, tracker, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
+	}
+
+	return stage, tracker, nil
+}
+
 // Identify reports details about an evaluation context.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
@@ -345,7 +375,9 @@ func (client *LDClient) Identify(context ldcontext.Context) error {
 		client.loggers.Warnf("Identify called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	evt := client.eventsDefault.factory.NewIdentifyEventData(ldevents.Context(context))
+
+	// Identify events should always sample
+	evt := client.eventsDefault.factory.NewIdentifyEventData(ldevents.Context(context), ldvalue.NewOptionalInt(1))
 	client.eventProcessor.RecordIdentifyEvent(evt)
 	return nil
 }
@@ -381,6 +413,7 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 		client.loggers.Warnf("Track called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
+
 	client.eventProcessor.RecordCustomEvent(
 		client.eventsDefault.factory.NewCustomEventData(
 			eventName,
@@ -388,6 +421,7 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 			data,
 			false,
 			0,
+			ldvalue.NewOptionalInt(1),
 		))
 	return nil
 }
@@ -424,7 +458,18 @@ func (client *LDClient) TrackMetric(
 			data,
 			true,
 			metricValue,
+			ldvalue.NewOptionalInt(1),
 		))
+	return nil
+}
+
+// TrackMigrationOp reports a migration operation event.
+func (client *LDClient) TrackMigrationOp(event ldevents.MigrationOpEventData) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
+
+	client.eventProcessor.RecordMigrationOpEvent(event)
 	return nil
 }
 
@@ -533,6 +578,13 @@ func (client *LDClient) Flush() {
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/flush#go
 func (client *LDClient) FlushAndWait(timeout time.Duration) bool {
 	return client.eventProcessor.FlushBlocking(timeout)
+}
+
+// Loggers exposes the logging component used by the SDK.
+//
+// This allows users to easily log messages to a shared channel with the SDK.
+func (client *LDClient) Loggers() interfaces.LDLoggers {
+	return client.loggers
 }
 
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a given evaluation.
@@ -824,12 +876,25 @@ func (client *LDClient) variation(
 	checkType bool,
 	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
+	detail, _, err := client.variationAndFlag(key, context, defaultVal, checkType, eventsScope)
+	return detail, err
+}
+
+// Generic method for evaluating a feature flag for a given evaluation context,
+// returning both the result and the flag.
+func (client *LDClient) variationAndFlag(
+	key string,
+	context ldcontext.Context,
+	defaultVal ldvalue.Value,
+	checkType bool,
+	eventsScope eventsScope,
+) (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 	if err := context.Err(); err != nil {
 		client.loggers.Warnf("Tried to evaluate a flag with an invalid context: %s", err)
-		return newEvaluationError(defaultVal, ldreason.EvalErrorUserNotSpecified), err
+		return newEvaluationError(defaultVal, ldreason.EvalErrorUserNotSpecified), nil, err
 	}
 	if client.IsOffline() {
-		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil
+		return newEvaluationError(defaultVal, ldreason.EvalErrorClientNotReady), nil, nil
 	}
 	result, flag, err := client.evaluateInternal(key, context, defaultVal, eventsScope)
 	if err != nil {
@@ -861,12 +926,14 @@ func (client *LDClient) variation(
 				result.IsExperiment,
 				defaultVal,
 				"",
+				flag.SamplingRatio,
+				flag.ExcludeFromSummaries,
 			)
 		}
 		client.eventProcessor.RecordEvaluation(eval)
 	}
 
-	return result.Detail, err
+	return result.Detail, flag, err
 }
 
 // Performs all the steps of evaluation except for sending the feature request event (the main one;

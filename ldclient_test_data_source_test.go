@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/ldtestdata"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldtestdata"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

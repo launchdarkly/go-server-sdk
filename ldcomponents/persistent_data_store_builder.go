@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // PersistentDataStoreDefaultCacheTime is the default amount of time that recently read or updated items
@@ -16,7 +16,7 @@ const PersistentDataStoreDefaultCacheTime = 15 * time.Second
 // PersistentDataStore returns a configuration builder for some implementation of a persistent data store.
 //
 // The return value of this function should be stored in the DataStore field of
-// [github.com/launchdarkly/go-server-sdk/v6.Config].
+// [github.com/launchdarkly/go-server-sdk/v7.Config].
 //
 // This method is used in conjunction with another configuration builder object provided by specific
 // packages such as the Redis integration. Each LaunchDarkly Go SDK database integration has a
