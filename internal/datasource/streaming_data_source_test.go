@@ -109,9 +109,7 @@ func TestStreamProcessor(t *testing.T) {
 	t.Parallel()
 	initialData := ldservices.NewServerSDKData().
 		Flags(ldservices.KeyAndVersionItem("my-flag", 2)).
-		Segments(ldservices.KeyAndVersionItem("my-segment", 2)).
-		ConfigOverrides(ldservices.KeyAndVersionItem("my-segment", 2)).
-		Metrics(ldservices.KeyAndVersionItem("my-segment", 2))
+		Segments(ldservices.KeyAndVersionItem("my-segment", 2))
 	timeout := 3 * time.Second
 
 	t.Run("configured headers are passed in request", func(t *testing.T) {

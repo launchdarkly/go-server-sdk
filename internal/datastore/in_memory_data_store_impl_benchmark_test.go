@@ -91,31 +91,23 @@ func (env *inMemoryStoreBenchmarkEnv) tearDown() {
 }
 
 type inMemoryStoreBenchmarkCase struct {
-	numFlags           int
-	numSegments        int
-	numConfigOverrides int
-	numMetrics         int
-	withInitData       bool
+	numFlags     int
+	numSegments  int
+	withInitData bool
 }
 
 var inMemoryStoreBenchmarkCases = []inMemoryStoreBenchmarkCase{
 	{
-		numFlags:           1,
-		numSegments:        1,
-		numConfigOverrides: 1,
-		numMetrics:         1,
+		numFlags:    1,
+		numSegments: 1,
 	},
 	{
-		numFlags:           100,
-		numSegments:        100,
-		numConfigOverrides: 100,
-		numMetrics:         100,
+		numFlags:    100,
+		numSegments: 100,
 	},
 	{
-		numFlags:           1000,
-		numSegments:        1000,
-		numConfigOverrides: 1000,
-		numMetrics:         1000,
+		numFlags:    1000,
+		numSegments: 1000,
 	},
 }
 

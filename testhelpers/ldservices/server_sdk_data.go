@@ -20,24 +20,20 @@ func KeyAndVersionItem(key string, version int) interface{} {
 	return fakeVersionedKind{Key: key, Version: version}
 }
 
-// ServerSDKData is a convenience type for constructing a test server-side SDK data payload for PollingServiceHandler or
-// StreamingServiceHandler. Its String() method returns a JSON object with the expected "flags", "segments",
-// "configurationOverrides", and "metrics" properties.
+// ServerSDKData is a convenience type for constructing a test server-side SDK data payload for
+// PollingServiceHandler or StreamingServiceHandler. Its String() method returns a JSON object with
+// the expected "flags" and "segments" properties.
 //
 //	data := NewServerSDKData().Flags(flag1, flag2)
 //	handler := PollingServiceHandler(data)
 type ServerSDKData struct {
-	FlagsMap           map[string]interface{} `json:"flags"`
-	SegmentsMap        map[string]interface{} `json:"segments"`
-	ConfigOverridesMap map[string]interface{} `json:"configurationOverrides"`
-	MetricsMap         map[string]interface{} `json:"metrics"`
+	FlagsMap    map[string]interface{} `json:"flags"`
+	SegmentsMap map[string]interface{} `json:"segments"`
 }
 
 // NewServerSDKData creates a ServerSDKData instance.
 func NewServerSDKData() *ServerSDKData {
 	return &ServerSDKData{
-		make(map[string]interface{}),
-		make(map[string]interface{}),
 		make(map[string]interface{}),
 		make(map[string]interface{}),
 	}
@@ -70,32 +66,6 @@ func (s *ServerSDKData) Segments(segments ...interface{}) *ServerSDKData {
 	for _, segment := range segments {
 		if key := getKeyFromJSON(segment); key != "" {
 			s.SegmentsMap[key] = segment
-		}
-	}
-	return s
-}
-
-// ConfigOverrides adds the specified items to the struct's "configOverrides" map.
-//
-// Each item may be either a object produced by KeyAndVersionItem or a real data model object from the ldmodel
-// package. The minimum requirement is that when converted to JSON, it has a "key" property.
-func (s *ServerSDKData) ConfigOverrides(overrides ...interface{}) *ServerSDKData {
-	for _, override := range overrides {
-		if key := getKeyFromJSON(override); key != "" {
-			s.ConfigOverridesMap[key] = override
-		}
-	}
-	return s
-}
-
-// Metrics adds the specified items to the struct's "metrics" map.
-//
-// Each item may be either a object produced by KeyAndVersionItem or a real data model object from the ldmodel
-// package. The minimum requirement is that when converted to JSON, it has a "key" property.
-func (s *ServerSDKData) Metrics(metrics ...interface{}) *ServerSDKData {
-	for _, metric := range metrics {
-		if key := getKeyFromJSON(metric); key != "" {
-			s.MetricsMap[key] = metric
 		}
 	}
 	return s

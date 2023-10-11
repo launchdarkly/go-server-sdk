@@ -91,7 +91,7 @@ segments:
 }
 
 func TestNewFileDataSourceJson(t *testing.T) {
-	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}, "configurationOverrides": {"my-override": {"key": "my-override", "value": 1}}, "metrics": {"my-metric": { "key": "my-metric", "samplingRatio": 10 }}}`), func(filename string) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
 		factory := DataSource().FilePaths(filename)
 		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 			p.waitForStart()

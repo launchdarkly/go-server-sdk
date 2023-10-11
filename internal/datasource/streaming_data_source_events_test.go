@@ -19,12 +19,6 @@ func TestParsePutData(t *testing.T) {
  },
  "segments": {
   "segment1": {"key": "segment1", "version": 3}
- },
- "configurationOverrides": {
-  "override1": {"key": "override1", "version": 4}
- },
- "metrics": {
-  "metric1": {"key": "metric1", "version": 5}
  }
 }`
 	expectedAllData := sharedtest.NewDataSetBuilder().

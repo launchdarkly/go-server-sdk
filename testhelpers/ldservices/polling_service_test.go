@@ -58,7 +58,7 @@ func TestServerSidePollingMarshalsDataAgainForEachRequest(t *testing.T) {
 	assert.NotNil(t, resp)
 	bytes, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"flags":{},"segments":{},"configurationOverrides":{},"metrics":{}}`, string(bytes))
+	assert.Equal(t, `{"flags":{},"segments":{}}`, string(bytes))
 
 	data.Flags(KeyAndVersionItem("flagkey", 1))
 	resp, err = client.Get(serverSideSDKPollingPath)
@@ -66,5 +66,5 @@ func TestServerSidePollingMarshalsDataAgainForEachRequest(t *testing.T) {
 	assert.NotNil(t, resp)
 	bytes, err = io.ReadAll(resp.Body)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"flags":{"flagkey":{"key":"flagkey","version":1}},"segments":{},"configurationOverrides":{},"metrics":{}}`, string(bytes))
+	assert.Equal(t, `{"flags":{"flagkey":{"key":"flagkey","version":1}},"segments":{}}`, string(bytes))
 }
