@@ -2,6 +2,11 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.1.1] - 2023-10-11
+### Fixed:
+- Event payloads receiving an HTTP 413 status code will no longer prevent subsequent event payloads from being attempted.
+- Readme Get started hyperlink destination. (Thanks, [christgf](https://github.com/launchdarkly/go-server-sdk/pull/96)!)
+
 ## [6.1.0] - 2023-04-13
 ### Added:
 - Support for Payload Filtering in streaming and polling modes. Payload Filtering is a beta feature that allows SDKs to download a subset of environment data, rather than full environments.
