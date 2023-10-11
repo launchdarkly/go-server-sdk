@@ -2,6 +2,17 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.0.0] - 2023-10-11
+The latest version of this SDK supports the ability to manage migrations or modernizations, using migration flags. You might use this functionality if you are optimizing queries, upgrading to new tech stacks, migrating from one database to another, or other similar technology changes. Migration flags are part of LaunchDarkly's Early Access Program. This feature is available to all LaunchDarkly customers but may undergo additional changes before it is finalized.
+
+### Added:
+- New `Migrator` type which provides an out-of-the-box configurable migration framework.
+- For more advanced use cases, added new `MigrationVariation` and `TrackMigrationOp` methods on `LDClient`.
+
+### Changed:
+- `LDClientEvaluations` interface now has a `MigrationVariation` method.
+- `LDClientEvents` interface now has `TrackMigrationOp` method.
+
 ## [6.1.1] - 2023-10-11
 ### Fixed:
 - Event payloads receiving an HTTP 413 status code will no longer prevent subsequent event payloads from being attempted.
