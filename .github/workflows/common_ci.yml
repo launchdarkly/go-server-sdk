@@ -1,0 +1,52 @@
+name: Common CI
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: "Go version to use for the jobs."
+        required: true
+        type: string
+
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    name: 'Unit Tests'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ inputs.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+      - uses: ./.github/actions/unit-tests
+        with:
+          lint: 'true'
+          coverage: 'true'
+
+  contract-tests:
+    runs-on: ubuntu-latest
+    name: 'Contract Tests'
+    env:
+      TEST_SERVICE_PORT: 8000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ inputs.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+      - run: make start-contract-test-service-bg
+      - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.0.0
+        with:
+          test_service_port: ${{ env.TEST_SERVICE_PORT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  benchmarks:
+    name: 'Benchmarks'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ inputs.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+      - uses: ./.github/actions/benchmarks
