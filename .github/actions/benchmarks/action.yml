@@ -4,11 +4,9 @@ description: "Runs the SDK's performance benchmarks."
 runs:
   using: composite
   steps:
-    - name: Get Go version
+    - uses: ./.github/actions/get-go-version
       id: go-version
-      shell: bash
-      run: |
-        echo "version=$(go version | awk '{print $3}')" >> $GITHUB_OUTPUT
+
     - name: Run Benchmarks
       id: benchmarks
       shell: bash

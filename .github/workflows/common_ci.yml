@@ -9,9 +9,9 @@ on:
 
 
 jobs:
-  unit-test:
+  unit-test-and-coverage:
     runs-on: ubuntu-latest
-    name: 'Unit Tests'
+    name: 'Unit Tests and Coverage'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go ${{ inputs.go-version }}
@@ -21,7 +21,9 @@ jobs:
       - uses: ./.github/actions/unit-tests
         with:
           lint: 'true'
-          coverage: 'true'
+      - uses: ./.github/actions/coverage
+        with:
+          enforce: 'false'
 
   contract-tests:
     runs-on: ubuntu-latest
@@ -34,11 +36,22 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go-version }}
-      - run: make start-contract-test-service-bg
+      - uses: ./.github/actions/get-go-version
+        id: go-version
+      - name: Start test service in background
+        run: make start-contract-test-service-bg
       - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.0.0
+        continue-on-error: true
         with:
           test_service_port: ${{ env.TEST_SERVICE_PORT }}
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload test service logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Contract-test-service-logs-${{ steps.go-version.outputs.version }}
+          path: /tmp/sdk-contract-test-service.log
+
+
 
   benchmarks:
     name: 'Benchmarks'

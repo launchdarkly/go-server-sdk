@@ -74,7 +74,7 @@ lint: $(LINTER_VERSION_FILE)
 	$(LINTER) run ./...
 
 
-TEMP_TEST_OUTPUT=/tmp/sse-contract-test-service.log
+TEMP_TEST_OUTPUT=/tmp/sdk-contract-test-service.log
 
 # TEST_HARNESS_PARAMS can be set to add -skip parameters for any contract tests that cannot yet pass
 TEST_HARNESS_PARAMS=
