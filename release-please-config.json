@@ -1,0 +1,14 @@
+{
+  "packages" : {
+    "." : {
+      "release-type" : "go",
+      "bump-minor-pre-major" : true,
+      "versioning" : "default",
+      "include-component-in-tag" : false,
+      "bootstrap-sha" : "bdd0b16793b8f96bb91e405e0a643759e92f454a",
+      "extra-files" : [
+        "internal/version.go"
+      ]
+    }
+  }
+}
