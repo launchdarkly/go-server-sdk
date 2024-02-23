@@ -1,0 +1,44 @@
+name: Build and Test
+on:
+  push:
+    branches: [ 'v7']
+    paths-ignore:
+      - '**.md' # Don't run CI on markdown changes.
+  pull_request:
+    branches: [ 'v7' ]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  go-versions:
+    uses: ./.github/workflows/go-versions.yml
+
+  # Runs the common tasks (unit tests, lint, contract tests) for each Go version.
+  test-linux:
+    name: ${{ format('Linux, Go {0}', matrix.go-version) }}
+    needs: go-versions
+    strategy:
+      # Let jobs fail independently, in case it's a single version that's broken.
+      fail-fast: false
+      matrix:
+        go-version: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
+    uses: ./.github/workflows/common_ci.yml
+    with:
+      go-version: ${{ matrix.go-version }}
+
+  test-windows:
+    name: ${{ format('Windows, Go {0}', matrix.go-version) }}
+    runs-on: windows-2022
+    needs: go-versions
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Test
+        run: go test -race ./...
