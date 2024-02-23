@@ -1,0 +1,15 @@
+name: Get Go Version
+description: "Gets the currently installed Go version."
+outputs:
+  version:
+    description: 'The currently installed Go version.'
+    value: ${{ steps.go-version.outputs.value }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get Go version
+      id: go-version
+      shell: bash
+      run: |
+        echo "value=$(go version | awk '{print $3}')" >> $GITHUB_OUTPUT

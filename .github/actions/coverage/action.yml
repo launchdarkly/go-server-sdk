@@ -1,0 +1,41 @@
+name: Coverage
+description: "Runs Go Server SDK's code-coverage checker."
+inputs:
+  enforce:
+    description: 'Whether to enforce coverage thresholds.'
+    required: false
+    default: 'false'
+
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/get-go-version
+      id: go-version
+
+    - name: Test with coverage
+      shell: bash
+      id: test-coverage
+      run: |
+        set +e
+        make test-coverage
+        status=$?
+        echo "coverage_status=$status" >> $GITHUB_OUTPUT
+
+    - name: Upload coverage results
+      uses: actions/upload-artifact@v4
+      with:
+        name: Coverage-result-${{ steps.go-version.outputs.version }}
+        path: build/coverage*
+
+    - name: Enforce coverage
+      shell: bash
+      run: |
+        if [ "${{ steps.test-coverage.outputs.coverage_status }}" != "0" ]; then
+          echo "Code isn't fully covered!"
+          if [ "${{ inputs.enforce }}" == "true" ]; then
+            exit 1
+          fi
+        else 
+          echo "Code is fully covered!"
+        fi

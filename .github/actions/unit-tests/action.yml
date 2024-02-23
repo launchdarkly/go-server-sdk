@@ -5,26 +5,18 @@ inputs:
     description: 'Whether to run linters.'
     required: false
     default: 'false'
-  coverage:
-    description: 'Whether to run coverage.'
-    required: false
-    default: 'false'
 
 runs:
   using: composite
   steps:
-    - name: Get Go version
+    - uses: ./.github/actions/get-go-version
       id: go-version
-      shell: bash
-      run: |
-        echo "version=$(go version | awk '{print $3}')" >> $GITHUB_OUTPUT
     - name: Lint
       if: inputs.lint == 'true'
       shell: bash
       run: make lint
 
     - name: Test
-      if: inputs.coverage == 'false'
       shell: bash
       id: test
       run: make test | tee raw_report.txt
@@ -35,23 +27,9 @@ runs:
       shell: bash
       run: go run github.com/jstemmer/go-junit-report@v0.9.1 < raw_report.txt > junit_report.xml
 
-    - name: Test with coverage
-      if: inputs.coverage == 'true'
-      shell: bash
-      id: test-coverage
-      # the || true is so lack of coverage doesn't fail the build.
-      run: make test-coverage || true
-
     - name: Upload test results
       if: steps.process-test.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: Test-result-${{ steps.go-version.outputs.version }}
         path: junit_report.xml
-
-    - name: Upload coverage results
-      if: steps.test-coverage.outcome == 'success'
-      uses: actions/upload-artifact@v4
-      with:
-        name: Coverage-result-${{ steps.go-version.outputs.version }}
-        path: build/coverage*
