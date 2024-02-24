@@ -1,0 +1,20 @@
+name: Benchmarks
+description: "Runs the SDK's performance benchmarks."
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/get-go-version
+      id: go-version
+
+    - name: Run Benchmarks
+      id: benchmarks
+      shell: bash
+      run: make benchmarks | tee benchmarks.txt
+
+    - name: Upload Results
+      if: steps.benchmarks.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Benchmarks-${{ steps.go-version.outputs.version }}
+        path: benchmarks.txt
