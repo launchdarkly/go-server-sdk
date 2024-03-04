@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.0.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.0.0...v7.0.1) (2024-03-01)
+
+
+### Bug Fixes
+
+* **deps:** bump golang.org/x/crypto from 0.1.0 to 0.17.0 ([5d26f59](https://github.com/launchdarkly/go-server-sdk/commit/5d26f59f915c62636d7ba8b0a06e00a6c6c3f677))
+
 ## [7.0.0] - 2023-10-11
 The latest version of this SDK supports the ability to manage migrations or modernizations, using migration flags. You might use this functionality if you are optimizing queries, upgrading to new tech stacks, migrating from one database to another, or other similar technology changes. Migration flags are part of LaunchDarkly's Early Access Program. This feature is available to all LaunchDarkly customers but may undergo additional changes before it is finalized.
 
