@@ -34,7 +34,6 @@ const (
 // See [SendEvents] for usage.
 type EventProcessorBuilder struct {
 	allAttributesPrivate        bool
-	baseURI                     string
 	capacity                    int
 	diagnosticRecordingInterval time.Duration
 	flushInterval               time.Duration
@@ -74,7 +73,6 @@ func (b *EventProcessorBuilder) Build(
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.EventsService,
-		b.baseURI,
 		loggers,
 	)
 
@@ -206,7 +204,7 @@ func (b *EventProcessorBuilder) DescribeConfiguration(context subsystems.ClientC
 	return ldvalue.ObjectBuild().
 		Set("allAttributesPrivate", ldvalue.Bool(b.allAttributesPrivate)).
 		Set("customEventsURI", ldvalue.Bool(
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.EventsService, b.baseURI))).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.EventsService))).
 		Set("diagnosticRecordingIntervalMillis", durationToMillisValue(b.diagnosticRecordingInterval)).
 		Set("eventsCapacity", ldvalue.Int(b.capacity)).
 		Set("eventsFlushIntervalMillis", durationToMillisValue(b.flushInterval)).

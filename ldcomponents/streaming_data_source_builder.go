@@ -20,7 +20,6 @@ const DefaultInitialReconnectDelay = time.Second
 //
 // See StreamingDataSource for usage.
 type StreamingDataSourceBuilder struct {
-	baseURI               string
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
 }
@@ -81,7 +80,6 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.StreamingService,
-		b.baseURI,
 		context.GetLogging().Loggers,
 	)
 	cfg := datasource.StreamConfig{
@@ -101,7 +99,7 @@ func (b *StreamingDataSourceBuilder) DescribeConfiguration(context subsystems.Cl
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", false).
 		SetBool("customStreamURI",
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.StreamingService, b.baseURI)).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.StreamingService)).
 		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		SetBool("usingRelayDaemon", false).
 		Build()

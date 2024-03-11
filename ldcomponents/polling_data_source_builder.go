@@ -20,7 +20,6 @@ const DefaultPollInterval = 30 * time.Second
 //
 // See [PollingDataSource] for usage.
 type PollingDataSourceBuilder struct {
-	baseURI      string
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
 }
@@ -90,7 +89,6 @@ func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subs
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.PollingService,
-		b.baseURI,
 		context.GetLogging().Loggers,
 	)
 	cfg := datasource.PollingConfig{
@@ -107,7 +105,7 @@ func (b *PollingDataSourceBuilder) DescribeConfiguration(context subsystems.Clie
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", true).
 		SetBool("customBaseURI",
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.PollingService, b.baseURI)).
+			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.PollingService)).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		SetBool("usingRelayDaemon", false).
 		Build()

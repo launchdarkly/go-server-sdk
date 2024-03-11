@@ -48,11 +48,8 @@ func getCustom(serviceEndpoints interfaces.ServiceEndpoints, serviceType Service
 }
 
 // IsCustom returns true if the service endpoint has been overridden with a non-default value.
-func IsCustom(serviceEndpoints interfaces.ServiceEndpoints, serviceType ServiceType, overrideValue string) bool {
-	uri := overrideValue
-	if uri == "" {
-		uri = getCustom(serviceEndpoints, serviceType)
-	}
+func IsCustom(serviceEndpoints interfaces.ServiceEndpoints, serviceType ServiceType) bool {
+	uri := getCustom(serviceEndpoints, serviceType)
 	return uri != "" && strings.TrimSuffix(uri, "/") != strings.TrimSuffix(DefaultBaseURI(serviceType), "/")
 }
 
@@ -74,23 +71,20 @@ func DefaultBaseURI(serviceType ServiceType) string {
 func SelectBaseURI(
 	serviceEndpoints interfaces.ServiceEndpoints,
 	serviceType ServiceType,
-	overrideValue string,
 	loggers ldlog.Loggers,
 ) string {
-	configuredBaseURI := overrideValue
-	if configuredBaseURI == "" {
-		if anyCustom(serviceEndpoints) {
-			configuredBaseURI = getCustom(serviceEndpoints, serviceType)
-			if configuredBaseURI == "" {
-				loggers.Errorf(
-					"You have set custom ServiceEndpoints without specifying the %s base URI; connections may not work properly",
-					serviceType,
-				)
-				configuredBaseURI = DefaultBaseURI(serviceType)
-			}
-		} else {
+	var configuredBaseURI string
+	if anyCustom(serviceEndpoints) {
+		configuredBaseURI = getCustom(serviceEndpoints, serviceType)
+		if configuredBaseURI == "" {
+			loggers.Errorf(
+				"You have set custom ServiceEndpoints without specifying the %s base URI; connections may not work properly",
+				serviceType,
+			)
 			configuredBaseURI = DefaultBaseURI(serviceType)
 		}
+	} else {
+		configuredBaseURI = DefaultBaseURI(serviceType)
 	}
 	return strings.TrimRight(configuredBaseURI, "/")
 }
