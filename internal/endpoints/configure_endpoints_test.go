@@ -40,7 +40,6 @@ func TestSelectCustomURIs(t *testing.T) {
 }
 
 func TestLogErrorIfAtLeastOneButNotAllCustomURISpecified(t *testing.T) {
-
 	const customURI = "http://custom_uri"
 
 	cases := []struct {
@@ -84,5 +83,4 @@ func TestLogErrorIfAtLeastOneButNotAllCustomURISpecified(t *testing.T) {
 		}
 		assert.Empty(t, logger.GetOutput(ldlog.Error))
 	})
-
 }
