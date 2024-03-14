@@ -14,7 +14,7 @@ package interfaces
 // using default values for the unset URIs.
 //
 // There are some scenarios where it is desirable to set only some of the
-// fields, but this is not recommended for general usage. If you're scenario
+// fields, but this is not recommended for general usage. If your scenario
 // requires it, you can call [WithPartialSpecification] to suppress the
 // error message.
 //
