@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.1.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.1.0...v7.1.1) (2024-03-14)
+
+
+### Bug Fixes
+
+* do not emit error when RelayProxyEndpointsWithoutEvents is used ([#110](https://github.com/launchdarkly/go-server-sdk/issues/110)) ([0551bf1](https://github.com/launchdarkly/go-server-sdk/commit/0551bf115902f1f2d0691a060c1a16fc60ea7e69))
+
 ## [7.1.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.0.1...v7.1.0) (2024-03-14)
 
 
