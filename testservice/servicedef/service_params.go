@@ -18,6 +18,8 @@ const (
 	CapabilityContextType        = "context-type"
 	CapabilityMigrations         = "migrations"
 	CapabilityEventSampling      = "event-sampling"
+	CapabilityInlineContext      = "inline-context"
+	CapabilityAnonymousRedaction = "anonymous-redaction"
 )
 
 type StatusRep struct {
