@@ -77,10 +77,12 @@ func SelectBaseURI(
 	if anyCustom(serviceEndpoints) {
 		configuredBaseURI = getCustom(serviceEndpoints, serviceType)
 		if configuredBaseURI == "" {
-			loggers.Errorf(
-				"You have set custom ServiceEndpoints without specifying the %s base URI; connections may not work properly",
-				serviceType,
-			)
+			if !serviceEndpoints.PartialSpecificationRequested() {
+				loggers.Errorf(
+					"You have set custom ServiceEndpoints without specifying the %s base URI; connections may not work properly",
+					serviceType,
+				)
+			}
 			configuredBaseURI = DefaultBaseURI(serviceType)
 		}
 	} else {

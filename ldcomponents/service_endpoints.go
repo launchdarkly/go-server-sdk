@@ -31,7 +31,8 @@ func RelayProxyEndpoints(relayProxyBaseURI string) interfaces.ServiceEndpoints {
 }
 
 // RelayProxyEndpointsWithoutEvents specifies a single base URI for a Relay Proxy instance, telling
-// the SDK to use the Relay Proxy for all services except analytics events.
+// the SDK to use the Relay Proxy for all services except analytics events. Note that this does not disable events, it
+// instead means events (if enabled) will be sent directly to LaunchDarkly.
 //
 // When using the LaunchDarkly Relay Proxy (https://docs.launchdarkly.com/home/relay-proxy), the SDK
 // only needs to know the single base URI of the Relay Proxy, which will provide all of the proxied
@@ -51,5 +52,5 @@ func RelayProxyEndpointsWithoutEvents(relayProxyBaseURI string) interfaces.Servi
 	return interfaces.ServiceEndpoints{
 		Streaming: relayProxyBaseURI,
 		Polling:   relayProxyBaseURI,
-	}
+	}.WithPartialSpecification()
 }
