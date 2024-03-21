@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"context"
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -65,23 +66,23 @@ func (h hookRunner) prepareEvaluationSeries(flagKey string, evalContext ldcontex
 	}
 }
 
-func (h hookRunner) beforeEvaluation(execution evaluationExecution) evaluationExecution {
+func (h hookRunner) beforeEvaluation(ctx context.Context, execution evaluationExecution) evaluationExecution {
 	returnData := make([]ldhooks.EvaluationSeriesData, len(execution.hooks))
 
 	for i, hook := range execution.hooks {
-		outData := hook.BeforeEvaluation(execution.context, execution.data[i])
+		outData := hook.BeforeEvaluation(ctx, execution.context, execution.data[i])
 		returnData[i] = outData
 	}
 
 	return execution.withData(returnData)
 }
 
-func (h hookRunner) afterEvaluation(execution evaluationExecution, detail ldreason.EvaluationDetail) evaluationExecution {
+func (h hookRunner) afterEvaluation(ctx context.Context, execution evaluationExecution, detail ldreason.EvaluationDetail) evaluationExecution {
 
 	returnData := make([]ldhooks.EvaluationSeriesData, len(execution.hooks))
 	for i := len(execution.hooks) - 1; i >= 0; i-- {
 		hook := execution.hooks[i]
-		outData := hook.AfterEvaluation(execution.context, execution.data[i], detail)
+		outData := hook.AfterEvaluation(ctx, execution.context, execution.data[i], detail)
 		returnData[i] = outData
 	}
 	return execution.withData(returnData)

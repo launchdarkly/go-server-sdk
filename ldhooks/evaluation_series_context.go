@@ -14,28 +14,28 @@ type EvaluationSeriesContext struct {
 }
 
 // NewEvaluationSeriesContext create a new EvaluationSeriesContext. Hook implementations do not need to use this function.
-func NewEvaluationSeriesContext(flagKey string, context ldcontext.Context,
+func NewEvaluationSeriesContext(flagKey string, evalContext ldcontext.Context,
 	defaultValue any, method string) EvaluationSeriesContext {
 	return EvaluationSeriesContext{
 		flagKey:      flagKey,
-		context:      context,
+		context:      evalContext,
 		defaultValue: ldvalue.CopyArbitraryValue(defaultValue),
 		method:       method,
 	}
 }
 
-func (c EvaluationSeriesContext) GetFlagKey() string {
+func (c EvaluationSeriesContext) FlagKey() string {
 	return c.flagKey
 }
 
-func (c EvaluationSeriesContext) GetContext() ldcontext.Context {
+func (c EvaluationSeriesContext) Context() ldcontext.Context {
 	return c.context
 }
 
-func (c EvaluationSeriesContext) GetDefaultValue() ldvalue.Value {
+func (c EvaluationSeriesContext) DefaultValue() ldvalue.Value {
 	return c.defaultValue
 }
 
-func (c EvaluationSeriesContext) GetMethod() string {
+func (c EvaluationSeriesContext) Method() string {
 	return c.method
 }

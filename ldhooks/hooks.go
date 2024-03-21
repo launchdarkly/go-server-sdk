@@ -1,6 +1,10 @@
 package ldhooks
 
-import "github.com/launchdarkly/go-sdk-common/v3/ldreason"
+import (
+	"context"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+)
 
 // Implementation Note: The UnimplementedHook struct is provided to simplify hook implementation. It should always
 // contain an implementation of all series and handler interfaces. It should not contain the Hook interface directly
@@ -27,7 +31,8 @@ type EvaluationSeries interface {
 	//
 	// The EvaluationSeriesData returned should always contain the previous data as well as any new data which is
 	// required for subsequent stage execution.
-	BeforeEvaluation(seriesContext EvaluationSeriesContext, data EvaluationSeriesData) EvaluationSeriesData
+	BeforeEvaluation(ctx context.Context, seriesContext EvaluationSeriesContext,
+		data EvaluationSeriesData) EvaluationSeriesData
 
 	// AfterEvaluation is called during the execution of the variation method after the flag value has been determined.
 	// The method returns EvaluationSeriesData that will be passed to the next stage in the evaluation
@@ -35,7 +40,7 @@ type EvaluationSeries interface {
 	//
 	// The EvaluationSeriesData returned should always contain the previous data as well as any new data which is
 	// required for subsequent stage execution.
-	AfterEvaluation(seriesContext EvaluationSeriesContext, data EvaluationSeriesData,
+	AfterEvaluation(ctx context.Context, seriesContext EvaluationSeriesContext, data EvaluationSeriesData,
 		detail ldreason.EvaluationDetail) EvaluationSeriesData
 }
 
@@ -56,11 +61,11 @@ type hookInterfaces interface {
 type UnimplementedHook struct {
 }
 
-func (h UnimplementedHook) BeforeEvaluation(_ EvaluationSeriesContext,
+func (h UnimplementedHook) BeforeEvaluation(_ context.Context, _ EvaluationSeriesContext,
 	data EvaluationSeriesData) EvaluationSeriesData {
 	return data
 }
-func (h UnimplementedHook) AfterEvaluation(_ EvaluationSeriesContext,
+func (h UnimplementedHook) AfterEvaluation(_ context.Context, _ EvaluationSeriesContext,
 	data EvaluationSeriesData, _ ldreason.EvaluationDetail) EvaluationSeriesData {
 	return data
 }
