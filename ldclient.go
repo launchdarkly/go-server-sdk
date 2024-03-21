@@ -32,6 +32,20 @@ import (
 // Version is the SDK version.
 const Version = internal.SDKVersion
 
+const boolVarFuncName = "BoolVariation"
+const intVarFuncName = "IntVariation"
+const floatVarFuncName = "Float64Variation"
+const stringVarFuncName = "StringVariation"
+const jsonVarFuncName = "JSONVariation"
+
+const boolVarDetailFuncName = "BoolVariationDetail"
+const intVarDetailFuncName = "IntVariationDetail"
+const floatVarDetailFuncName = "Float64VariationDetail"
+const stringVarDetailFuncName = "StringVariationDetail"
+const jsonVarDetailFuncName = "JSONVariationDetail"
+
+const migrationVarFuncName = "MigrationVariation"
+
 // LDClient is the LaunchDarkly client.
 //
 // This object evaluates feature flags, generates analytics events, and communicates with
@@ -68,6 +82,7 @@ type LDClient struct {
 	withEventsDisabled               interfaces.LDClientInterface
 	logEvaluationErrors              bool
 	offline                          bool
+	hookRunner                       hookRunner
 }
 
 // Initialization errors
@@ -288,6 +303,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
+	client.hookRunner = newHookRunner(config.Hooks)
+
 	clientValid = true
 	client.dataSource.Start(closeWhenReady)
 	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
@@ -347,6 +364,8 @@ func (client *LDClient) MigrationVariation(
 func (client *LDClient) migrationVariation(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	hookExecution := client.hookRunner.prepareEvaluationSeries(key, context, defaultStage, migrationVarFuncName)
+	client.hookRunner.beforeEvaluation(hookExecution)
 	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
 	tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 
@@ -357,10 +376,12 @@ func (client *LDClient) migrationVariation(
 	stage, err := ldmigration.ParseStage(detail.Value.StringValue())
 	if err != nil {
 		detail = ldreason.NewEvaluationDetailForError(ldreason.EvalErrorWrongType, ldvalue.String(string(defaultStage)))
+		client.hookRunner.afterEvaluation(hookExecution, detail)
 		tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 		return defaultStage, tracker, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
 	}
 
+	client.hookRunner.afterEvaluation(hookExecution, detail)
 	return stage, tracker, nil
 }
 
@@ -665,7 +686,8 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) BoolVariation(key string, context ldcontext.Context, defaultVal bool) (bool, error) {
-	detail, err := client.variation(key, context, ldvalue.Bool(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(key, context, ldvalue.Bool(defaultVal), true,
+		client.eventsDefault, boolVarFuncName)
 	return detail.Value.BoolValue(), err
 }
 
@@ -678,7 +700,8 @@ func (client *LDClient) BoolVariationDetail(
 	context ldcontext.Context,
 	defaultVal bool,
 ) (bool, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.Bool(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(key, context, ldvalue.Bool(defaultVal), true,
+		client.eventsWithReasons, boolVarDetailFuncName)
 	return detail.Value.BoolValue(), detail, err
 }
 
@@ -692,7 +715,8 @@ func (client *LDClient) BoolVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) IntVariation(key string, context ldcontext.Context, defaultVal int) (int, error) {
-	detail, err := client.variation(key, context, ldvalue.Int(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(key, context, ldvalue.Int(defaultVal), true,
+		client.eventsDefault, intVarFuncName)
 	return detail.Value.IntValue(), err
 }
 
@@ -705,7 +729,8 @@ func (client *LDClient) IntVariationDetail(
 	context ldcontext.Context,
 	defaultVal int,
 ) (int, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.Int(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(key, context, ldvalue.Int(defaultVal), true,
+		client.eventsWithReasons, intVarDetailFuncName)
 	return detail.Value.IntValue(), detail, err
 }
 
@@ -717,7 +742,8 @@ func (client *LDClient) IntVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) Float64Variation(key string, context ldcontext.Context, defaultVal float64) (float64, error) {
-	detail, err := client.variation(key, context, ldvalue.Float64(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(key, context, ldvalue.Float64(defaultVal), true,
+		client.eventsDefault, floatVarFuncName)
 	return detail.Value.Float64Value(), err
 }
 
@@ -730,7 +756,8 @@ func (client *LDClient) Float64VariationDetail(
 	context ldcontext.Context,
 	defaultVal float64,
 ) (float64, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.Float64(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(key, context, ldvalue.Float64(defaultVal), true,
+		client.eventsWithReasons, floatVarDetailFuncName)
 	return detail.Value.Float64Value(), detail, err
 }
 
@@ -742,7 +769,8 @@ func (client *LDClient) Float64VariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) StringVariation(key string, context ldcontext.Context, defaultVal string) (string, error) {
-	detail, err := client.variation(key, context, ldvalue.String(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(key, context, ldvalue.String(defaultVal), true,
+		client.eventsDefault, stringVarFuncName)
 	return detail.Value.StringValue(), err
 }
 
@@ -755,7 +783,8 @@ func (client *LDClient) StringVariationDetail(
 	context ldcontext.Context,
 	defaultVal string,
 ) (string, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.String(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(key, context, ldvalue.String(defaultVal), true,
+		client.eventsWithReasons, stringVarDetailFuncName)
 	return detail.Value.StringValue(), detail, err
 }
 
@@ -787,7 +816,8 @@ func (client *LDClient) JSONVariation(
 	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, error) {
-	detail, err := client.variation(key, context, defaultVal, false, client.eventsDefault)
+	detail, err := client.variationWithHooks(key, context, defaultVal, false, client.eventsDefault,
+		jsonVarFuncName)
 	return detail.Value, err
 }
 
@@ -800,7 +830,8 @@ func (client *LDClient) JSONVariationDetail(
 	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, defaultVal, false, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(key, context, defaultVal, false, client.eventsWithReasons,
+		jsonVarDetailFuncName)
 	return detail.Value, detail, err
 }
 
@@ -877,6 +908,21 @@ func (client *LDClient) variation(
 	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
 	detail, _, err := client.variationAndFlag(key, context, defaultVal, checkType, eventsScope)
+	return detail, err
+}
+
+func (client *LDClient) variationWithHooks(
+	key string,
+	context ldcontext.Context,
+	defaultVal ldvalue.Value,
+	checkType bool,
+	eventsScope eventsScope,
+	method string,
+) (ldreason.EvaluationDetail, error) {
+	execution := client.hookRunner.prepareEvaluationSeries(key, context, defaultVal, method)
+	execution = client.hookRunner.beforeEvaluation(execution)
+	detail, err := client.variation(key, context, defaultVal, checkType, eventsScope)
+	client.hookRunner.afterEvaluation(execution, detail)
 	return detail, err
 }
 
