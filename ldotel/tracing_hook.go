@@ -34,7 +34,10 @@ func WithVariant() TracingHookOption {
 
 // A TracingHook adds OpenTelemetry support to the LaunchDarkly SDK.
 //
-// By default, span events will be added for each call to a "VariationEx" method.
+// By default, span events will be added for each call to a "Variation" method. Variation methods without "Ex" will not
+// be able to access a parent span, so no span events can be attached. If WithSpans is used, then root spans will be
+// created from the non-"Ex" methods.
+//
 // The span event will include the FullyQualifiedKey of the ldcontext, the provider of the evaluation (LaunchDarkly),
 // and the key of the flag being evaluated.
 type TracingHook struct {
