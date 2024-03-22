@@ -48,6 +48,11 @@ func (b EvaluationSeriesDataBuilder) SetFromMap(newValues map[string]any) Evalua
 	return b
 }
 
+func (b EvaluationSeriesData) Get(key string) (any, bool) {
+	val, ok := b.data[key]
+	return val, ok
+}
+
 func (b EvaluationSeriesDataBuilder) Build() EvaluationSeriesData {
 	newData := make(map[string]any, len(b.data))
 	for k, v := range b.data {
