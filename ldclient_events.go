@@ -1,6 +1,8 @@
 package ldclient
 
 import (
+	gocontext "context"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
@@ -164,7 +166,7 @@ func (c *clientEventsDisabledDecorator) StringVariationDetail(
 func (c *clientEventsDisabledDecorator) MigrationVariation(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	return c.client.migrationVariation(key, context, defaultStage, c.scope)
+	return c.client.migrationVariation(gocontext.TODO(), key, context, defaultStage, c.scope)
 }
 
 func (c *clientEventsDisabledDecorator) JSONVariation(key string, context ldcontext.Context, defaultVal ldvalue.Value) (
