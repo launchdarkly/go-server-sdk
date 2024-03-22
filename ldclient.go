@@ -26,6 +26,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 )
@@ -1240,6 +1241,10 @@ func (client *LDClient) evaluateInternal(
 		result.Detail.Value = defaultVal
 	}
 	return result, feature, nil
+}
+
+func (client *LDClient) AddHooks(hooks ...ldhooks.Hook) {
+	client.hookRunner.addHook(hooks...)
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {

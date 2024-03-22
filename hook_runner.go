@@ -35,11 +35,11 @@ func newHookRunner(hooks []ldhooks.Hook) hookRunner {
 	}
 }
 
-func (h hookRunner) addHook(hook ldhooks.Hook) {
+func (h hookRunner) addHook(hooks ...ldhooks.Hook) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	h.hooks = append(h.hooks, hook)
+	h.hooks = append(h.hooks, hooks...)
 }
 
 // getHooks returns a copy of the hooks. This copy is suitable for use when executing a series. This keeps the set
