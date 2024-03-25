@@ -15,6 +15,8 @@ require (
 	github.com/launchdarkly/go-test-helpers/v3 v3.0.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.8.4
+	go.opentelemetry.io/otel v1.22.0
+	go.opentelemetry.io/otel/trace v1.22.0
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	gopkg.in/ghodss/yaml.v1 v1.0.0
