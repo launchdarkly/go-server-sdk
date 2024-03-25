@@ -5,7 +5,6 @@ run:
 linters:
   enable:
     - bodyclose
-    - depguard
     - dupl
     - errcheck
     - exportloopref
@@ -52,4 +51,3 @@ linters-settings:
 issues:
   exclude-use-default: false
   max-same-issues: 1000
-  max-per-linter: 1000
