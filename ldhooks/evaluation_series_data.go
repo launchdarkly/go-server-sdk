@@ -19,6 +19,12 @@ func EmptyEvaluationSeriesData() EvaluationSeriesData {
 	}
 }
 
+// Get gets the value associated with the given key. If there is no value, then ok will be false.
+func (b EvaluationSeriesData) Get(key string) (value any, ok bool) {
+	val, ok := b.data[key]
+	return val, ok
+}
+
 // NewEvaluationSeriesBuilder creates an EvaluationSeriesDataBuilder based on the provided EvaluationSeriesData.
 //
 //	func(h MyHook) BeforeEvaluation(seriesContext EvaluationSeriesContext,
@@ -26,34 +32,32 @@ func EmptyEvaluationSeriesData() EvaluationSeriesData {
 //		// Some hook functionality.
 //		return NewEvaluationSeriesBuilder(data).Set("my-key", myValue).Build()
 //	}
-func NewEvaluationSeriesBuilder(data EvaluationSeriesData) EvaluationSeriesDataBuilder {
+func NewEvaluationSeriesBuilder(data EvaluationSeriesData) *EvaluationSeriesDataBuilder {
 	newData := make(map[string]any, len(data.data))
 	for k, v := range data.data {
 		newData[k] = v
 	}
-	return EvaluationSeriesDataBuilder{
+	return &EvaluationSeriesDataBuilder{
 		data: newData,
 	}
 }
 
-func (b EvaluationSeriesDataBuilder) Set(key string, value any) EvaluationSeriesDataBuilder {
+// Set sets the given key to the given value.
+func (b *EvaluationSeriesDataBuilder) Set(key string, value any) *EvaluationSeriesDataBuilder {
 	b.data[key] = value
 	return b
 }
 
-func (b EvaluationSeriesDataBuilder) SetFromMap(newValues map[string]any) EvaluationSeriesDataBuilder {
+// SetFromMap copies the keys and values from the given map to the builder.
+func (b *EvaluationSeriesDataBuilder) SetFromMap(newValues map[string]any) *EvaluationSeriesDataBuilder {
 	for k, v := range newValues {
 		b.data[k] = v
 	}
 	return b
 }
 
-func (b EvaluationSeriesData) Get(key string) (any, bool) {
-	val, ok := b.data[key]
-	return val, ok
-}
-
-func (b EvaluationSeriesDataBuilder) Build() EvaluationSeriesData {
+// Build builds an EvaluationSeriesData based on the contents of the builder.
+func (b *EvaluationSeriesDataBuilder) Build() EvaluationSeriesData {
 	newData := make(map[string]any, len(b.data))
 	for k, v := range b.data {
 		newData[k] = v

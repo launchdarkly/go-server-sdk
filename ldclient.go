@@ -97,7 +97,7 @@ type LDClient struct {
 	withEventsDisabled               interfaces.LDClientInterface
 	logEvaluationErrors              bool
 	offline                          bool
-	hookRunner                       hookRunner
+	hookRunner                       *hookRunner
 }
 
 // Initialization errors
@@ -318,7 +318,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
-	client.hookRunner = newHookRunner(config.Hooks)
+	client.hookRunner = newHookRunner(loggers, config.Hooks)
 
 	clientValid = true
 	client.dataSource.Start(closeWhenReady)
@@ -381,7 +381,10 @@ func (client *LDClient) MigrationVariation(
 //
 // Returns defaultStage if there is an error or if the flag doesn't exist.
 func (client *LDClient) MigrationVariationEx(
-	ctx gocontext.Context, key string, context ldcontext.Context, defaultStage ldmigration.Stage,
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultStage ldmigration.Stage,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	return client.migrationVariation(ctx, key, context, defaultStage, client.eventsDefault, migrationVarExFuncName)
 }
@@ -740,7 +743,12 @@ func (client *LDClient) BoolVariationDetail(
 // has no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) BoolVariationEx(ctx gocontext.Context, key string, context ldcontext.Context, defaultVal bool) (bool, error) {
+func (client *LDClient) BoolVariationEx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal bool,
+) (bool, error) {
 	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Bool(defaultVal), true,
 		client.eventsDefault, boolVarExFuncName)
 	return detail.Value.BoolValue(), err
@@ -799,7 +807,12 @@ func (client *LDClient) IntVariationDetail(
 // If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) IntVariationEx(ctx gocontext.Context, key string, context ldcontext.Context, defaultVal int) (int, error) {
+func (client *LDClient) IntVariationEx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal int,
+) (int, error) {
 	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Int(defaultVal), true,
 		client.eventsDefault, intVarExFuncName)
 	return detail.Value.IntValue(), err
@@ -854,7 +867,12 @@ func (client *LDClient) Float64VariationDetail(
 // has no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) Float64VariationEx(ctx gocontext.Context, key string, context ldcontext.Context, defaultVal float64) (float64, error) {
+func (client *LDClient) Float64VariationEx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal float64,
+) (float64, error) {
 	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Float64(defaultVal), true,
 		client.eventsDefault, floatVarExFuncName)
 	return detail.Value.Float64Value(), err
@@ -909,7 +927,12 @@ func (client *LDClient) StringVariationDetail(
 // no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) StringVariationEx(ctx gocontext.Context, key string, context ldcontext.Context, defaultVal string) (string, error) {
+func (client *LDClient) StringVariationEx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal string,
+) (string, error) {
 	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.String(defaultVal), true,
 		client.eventsDefault, stringVarExFuncName)
 	return detail.Value.StringValue(), err
@@ -1243,6 +1266,9 @@ func (client *LDClient) evaluateInternal(
 	return result, feature, nil
 }
 
+// AddHooks allows adding a hook after creating the LDClient.
+//
+// If a hook can be registered at LDClient initialization, then the Hooks field of Config can be used instead.
 func (client *LDClient) AddHooks(hooks ...ldhooks.Hook) {
 	client.hookRunner.addHook(hooks...)
 }

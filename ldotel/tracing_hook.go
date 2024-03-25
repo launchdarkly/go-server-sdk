@@ -3,12 +3,13 @@ package ldotel
 import (
 	"context"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
-	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 )
 
 const eventName = "feature_flag"
@@ -18,14 +19,14 @@ type TracingHookOption func(hook *TracingHook)
 
 var tracer = otel.Tracer("launchdarkly-client")
 
-// The WithSpans option enables generation of child spans for each variation call.
+// WithSpans option enables generation of child spans for each variation call.
 func WithSpans() TracingHookOption {
 	return func(h *TracingHook) {
 		h.spans = true
 	}
 }
 
-// The WithVariant option enables putting a stringified version of the flag value in the feature_flag span event.
+// WithVariant option enables putting a stringified version of the flag value in the feature_flag span event.
 func WithVariant() TracingHookOption {
 	return func(h *TracingHook) {
 		h.includeVariant = true
@@ -64,20 +65,20 @@ func (h TracingHook) GetMetaData() ldhooks.HookMetadata {
 }
 
 func (h TracingHook) BeforeEvaluation(ctx context.Context, seriesContext ldhooks.EvaluationSeriesContext,
-	data ldhooks.EvaluationSeriesData) ldhooks.EvaluationSeriesData {
+	data ldhooks.EvaluationSeriesData) (ldhooks.EvaluationSeriesData, error) {
 	if h.spans {
 		_, span := tracer.Start(ctx, seriesContext.Method())
 
 		span.SetAttributes(semconv.FeatureFlagKey(seriesContext.FlagKey()),
 			attribute.String(contextKeyAttributeName, seriesContext.Context().FullyQualifiedKey()))
 
-		return ldhooks.NewEvaluationSeriesBuilder(data).Set("variationSpan", span).Build()
+		return ldhooks.NewEvaluationSeriesBuilder(data).Set("variationSpan", span).Build(), nil
 	}
-	return data
+	return data, nil
 }
 
 func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.EvaluationSeriesContext,
-	data ldhooks.EvaluationSeriesData, detail ldreason.EvaluationDetail) ldhooks.EvaluationSeriesData {
+	data ldhooks.EvaluationSeriesData, detail ldreason.EvaluationDetail) (ldhooks.EvaluationSeriesData, error) {
 	variationSpan, present := data.Get("variationSpan")
 	if present {
 		asSpan, ok := variationSpan.(trace.Span)
@@ -97,7 +98,7 @@ func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.
 
 	span := trace.SpanFromContext(ctx)
 	span.AddEvent(eventName, trace.WithAttributes(attribs...))
-	return data
+	return data, nil
 }
 
 // Ensure that TracingHook conforms to the ldhooks.Hook interface.

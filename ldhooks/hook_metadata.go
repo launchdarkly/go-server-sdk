@@ -5,6 +5,7 @@ type HookMetadata struct {
 	name string
 }
 
+// HookMetadataOption represents a functional means of setting additional, optional, attributes of the HookMetadata.
 type HookMetadataOption func(hook *HookMetadata)
 
 // Implementation note: Currently the hook metadata only contains a name, but it may contain additional, and likely
@@ -26,6 +27,7 @@ func NewHookMetadata(name string, opts ...HookMetadataOption) HookMetadata {
 	return metadata
 }
 
+// Name gets the name of the hook implementation.
 func (m HookMetadata) Name() string {
 	return m.name
 }

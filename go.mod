@@ -21,10 +21,10 @@ require (
 )
 
 // TEMPORARY CHANGES TO TEST OTEL
-require (
-	go.opentelemetry.io/otel v1.22.0
-	go.opentelemetry.io/otel/trace v1.22.0
-)
+//require (
+//	go.opentelemetry.io/otel v1.22.0
+//	go.opentelemetry.io/otel/trace v1.22.0
+//)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

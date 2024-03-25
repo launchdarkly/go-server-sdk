@@ -195,10 +195,6 @@ type Config struct {
 	// Hooks provide entrypoints which allow for observation of SDK functions.
 	//
 	// LaunchDarkly provides integration packages, and most applications will not
-	// need to implement their own hooks. TODO: Link or name of package.
-	//
-	// Example:
-	// TODO: Demonstration using the tracing hook.
-	//
+	// need to implement their own hooks.
 	Hooks []ldhooks.Hook
 }

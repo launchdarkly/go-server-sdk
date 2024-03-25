@@ -25,23 +25,29 @@ type Hook interface {
 
 // The EvaluationSeries is composed of stages, methods that are called during the evaluation of flags.
 type EvaluationSeries interface {
-	// BeforeEvaluation is called during the execution of a variation method before the flag value has been determined.
-	// The method returns EvaluationSeriesData that will be passed to the next stage in the evaluation
+	// BeforeEvaluation is called during the execution of a variation Method before the flag value has been determined.
+	// The Method returns EvaluationSeriesData that will be passed to the next stage in the evaluation
 	// series.
 	//
 	// The EvaluationSeriesData returned should always contain the previous data as well as any new data which is
 	// required for subsequent stage execution.
-	BeforeEvaluation(ctx context.Context, seriesContext EvaluationSeriesContext,
-		data EvaluationSeriesData) EvaluationSeriesData
+	BeforeEvaluation(
+		ctx context.Context,
+		seriesContext EvaluationSeriesContext,
+		data EvaluationSeriesData,
+	) (EvaluationSeriesData, error)
 
-	// AfterEvaluation is called during the execution of the variation method after the flag value has been determined.
-	// The method returns EvaluationSeriesData that will be passed to the next stage in the evaluation
+	// AfterEvaluation is called during the execution of the variation Method after the flag value has been determined.
+	// The Method returns EvaluationSeriesData that will be passed to the next stage in the evaluation
 	// series.
 	//
 	// The EvaluationSeriesData returned should always contain the previous data as well as any new data which is
 	// required for subsequent stage execution.
-	AfterEvaluation(ctx context.Context, seriesContext EvaluationSeriesContext, data EvaluationSeriesData,
-		detail ldreason.EvaluationDetail) EvaluationSeriesData
+	AfterEvaluation(ctx context.Context,
+		seriesContext EvaluationSeriesContext,
+		data EvaluationSeriesData,
+		detail ldreason.EvaluationDetail,
+	) (EvaluationSeriesData, error)
 }
 
 // hookInterfaces is an interface for implementation by the UnimplementedHook
@@ -61,17 +67,27 @@ type hookInterfaces interface {
 type UnimplementedHook struct {
 }
 
-func (h UnimplementedHook) BeforeEvaluation(_ context.Context, _ EvaluationSeriesContext,
-	data EvaluationSeriesData) EvaluationSeriesData {
-	return data
+// BeforeEvaluation is a default implementation of the BeforeEvaluation stage.
+func (h UnimplementedHook) BeforeEvaluation(
+	_ context.Context,
+	_ EvaluationSeriesContext,
+	data EvaluationSeriesData,
+) (EvaluationSeriesData, error) {
+	return data, nil
 }
-func (h UnimplementedHook) AfterEvaluation(_ context.Context, _ EvaluationSeriesContext,
-	data EvaluationSeriesData, _ ldreason.EvaluationDetail) EvaluationSeriesData {
-	return data
+
+// AfterEvaluation is a default implementation of the AfterEvaluation stage.
+func (h UnimplementedHook) AfterEvaluation(
+	_ context.Context,
+	_ EvaluationSeriesContext,
+	data EvaluationSeriesData,
+	_ ldreason.EvaluationDetail,
+) (EvaluationSeriesData, error) {
+	return data, nil
 }
-func (h UnimplementedHook) GetMetadata() HookMetadata {
-	return HookMetadata{name: "unimplemented hook"}
-}
+
+// Implementation note: UnimplementedHook does not implement GetMetaData because that must be implemented by hook
+// implementors.
 
 // Ensure UnimplementedHook implements required interfaces.
 var _ hookInterfaces = UnimplementedHook{}

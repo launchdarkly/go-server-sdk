@@ -5,13 +5,15 @@ import (
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 )
 
 type hookRunner struct {
-	hooks []ldhooks.Hook
-	mutex *sync.RWMutex
+	hooks   []ldhooks.Hook
+	loggers ldlog.Loggers
+	mutex   *sync.RWMutex
 }
 
 type evaluationExecution struct {
@@ -28,14 +30,15 @@ func (e evaluationExecution) withData(data []ldhooks.EvaluationSeriesData) evalu
 	}
 }
 
-func newHookRunner(hooks []ldhooks.Hook) hookRunner {
-	return hookRunner{
-		hooks: hooks,
-		mutex: &sync.RWMutex{},
+func newHookRunner(loggers ldlog.Loggers, hooks []ldhooks.Hook) *hookRunner {
+	return &hookRunner{
+		loggers: loggers,
+		hooks:   hooks,
+		mutex:   &sync.RWMutex{},
 	}
 }
 
-func (h hookRunner) addHook(hooks ...ldhooks.Hook) {
+func (h *hookRunner) addHook(hooks ...ldhooks.Hook) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -45,7 +48,7 @@ func (h hookRunner) addHook(hooks ...ldhooks.Hook) {
 // getHooks returns a copy of the hooks. This copy is suitable for use when executing a series. This keeps the set
 // of hooks stable for the duration of the series. This prevents things like calling the afterEvaluation method for
 // a hook that didn't have the beforeEvaluation method called.
-func (h hookRunner) getHooks() []ldhooks.Hook {
+func (h *hookRunner) getHooks() []ldhooks.Hook {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 	copiedHooks := make([]ldhooks.Hook, len(h.hooks))
@@ -53,7 +56,12 @@ func (h hookRunner) getHooks() []ldhooks.Hook {
 	return copiedHooks
 }
 
-func (h hookRunner) prepareEvaluationSeries(flagKey string, evalContext ldcontext.Context, defaultVal any, method string) evaluationExecution {
+func (h *hookRunner) prepareEvaluationSeries(
+	flagKey string,
+	evalContext ldcontext.Context,
+	defaultVal any,
+	method string,
+) evaluationExecution {
 	hooksForEval := h.getHooks()
 	returnData := make([]ldhooks.EvaluationSeriesData, len(hooksForEval))
 	for i := range hooksForEval {
@@ -66,23 +74,46 @@ func (h hookRunner) prepareEvaluationSeries(flagKey string, evalContext ldcontex
 	}
 }
 
-func (h hookRunner) beforeEvaluation(ctx context.Context, execution evaluationExecution) evaluationExecution {
+func (h *hookRunner) beforeEvaluation(ctx context.Context, execution evaluationExecution) evaluationExecution {
 	returnData := make([]ldhooks.EvaluationSeriesData, len(execution.hooks))
 
 	for i, hook := range execution.hooks {
-		outData := hook.BeforeEvaluation(ctx, execution.context, execution.data[i])
+		outData, err := hook.BeforeEvaluation(ctx, execution.context, execution.data[i])
+		if err != nil {
+			returnData[i] = execution.data[i]
+			h.loggers.Errorf(
+				"During evaluation of flag \"%s\", an error was encountered in \"%s\" of the \"%s\" hook: %s",
+				execution.context.FlagKey,
+				"BeforeEvaluation",
+				hook.GetMetadata().Name(),
+				err.Error())
+			continue
+		}
 		returnData[i] = outData
 	}
 
 	return execution.withData(returnData)
 }
 
-func (h hookRunner) afterEvaluation(ctx context.Context, execution evaluationExecution, detail ldreason.EvaluationDetail) evaluationExecution {
-
+func (h *hookRunner) afterEvaluation(
+	ctx context.Context,
+	execution evaluationExecution,
+	detail ldreason.EvaluationDetail,
+) evaluationExecution { //nolint:golint,unparam
 	returnData := make([]ldhooks.EvaluationSeriesData, len(execution.hooks))
 	for i := len(execution.hooks) - 1; i >= 0; i-- {
 		hook := execution.hooks[i]
-		outData := hook.AfterEvaluation(ctx, execution.context, execution.data[i], detail)
+		outData, err := hook.AfterEvaluation(ctx, execution.context, execution.data[i], detail)
+		if err != nil {
+			returnData[i] = execution.data[i]
+			h.loggers.Errorf(
+				"During evaluation of flag \"%s\", an error was encountered in \"%s\" of the \"%s\" hook: %s",
+				execution.context.FlagKey,
+				"AfterEvaluation",
+				hook.GetMetadata().Name(),
+				err.Error())
+			continue
+		}
 		returnData[i] = outData
 	}
 	return execution.withData(returnData)
