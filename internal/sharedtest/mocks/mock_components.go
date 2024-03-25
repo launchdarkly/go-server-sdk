@@ -8,6 +8,7 @@ type SingleComponentConfigurer[T any] struct {
 	Instance T
 }
 
+// Build builds the component.
 func (c SingleComponentConfigurer[T]) Build(clientContext subsystems.ClientContext) (T, error) {
 	return c.Instance, nil
 }
@@ -18,6 +19,7 @@ type ComponentConfigurerThatReturnsError[T any] struct {
 	Err error
 }
 
+// Build builds the component.
 func (c ComponentConfigurerThatReturnsError[T]) Build(clientContext subsystems.ClientContext) (T, error) {
 	var empty T
 	return empty, c.Err
@@ -30,6 +32,7 @@ type ComponentConfigurerThatCapturesClientContext[T any] struct {
 	ReceivedClientContext subsystems.ClientContext
 }
 
+// Build builds the component.
 func (c *ComponentConfigurerThatCapturesClientContext[T]) Build(clientContext subsystems.ClientContext) (T, error) {
 	c.ReceivedClientContext = clientContext
 	return c.Configurer.Build(clientContext)
