@@ -83,7 +83,7 @@ func (h *hookRunner) beforeEvaluation(ctx context.Context, execution evaluationE
 			returnData[i] = execution.data[i]
 			h.loggers.Errorf(
 				"During evaluation of flag \"%s\", an error was encountered in \"%s\" of the \"%s\" hook: %s",
-				execution.context.FlagKey,
+				execution.context.FlagKey(),
 				"BeforeEvaluation",
 				hook.GetMetadata().Name(),
 				err.Error())
@@ -108,7 +108,7 @@ func (h *hookRunner) afterEvaluation(
 			returnData[i] = execution.data[i]
 			h.loggers.Errorf(
 				"During evaluation of flag \"%s\", an error was encountered in \"%s\" of the \"%s\" hook: %s",
-				execution.context.FlagKey,
+				execution.context.FlagKey(),
 				"AfterEvaluation",
 				hook.GetMetadata().Name(),
 				err.Error())
