@@ -3,13 +3,11 @@ package ldclient
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
-	"golang.org/x/exp/slices"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
@@ -17,117 +15,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/stretchr/testify/assert"
 )
-
-type hookStage int
-
-const (
-	hookStageBeforeEvaluation hookStage = iota
-	hookStageAfterEvaluation
-)
-
-type evalCapture struct {
-	evaluationSeriesContext ldhooks.EvaluationSeriesContext
-	evaluationSeriesData    ldhooks.EvaluationSeriesData
-	detail                  ldreason.EvaluationDetail
-}
-
-type testData struct {
-	captureBefore []evalCapture
-	captureAfter  []evalCapture
-}
-
-type expectedCall struct {
-	hookStage   hookStage
-	evalCapture evalCapture
-}
-
-type testHook struct {
-	testData     *testData
-	metadata     ldhooks.HookMetadata
-	beforeInject func(context.Context, ldhooks.EvaluationSeriesContext,
-		ldhooks.EvaluationSeriesData) (ldhooks.EvaluationSeriesData, error)
-
-	afterInject func(context.Context, ldhooks.EvaluationSeriesContext,
-		ldhooks.EvaluationSeriesData, ldreason.EvaluationDetail) (ldhooks.EvaluationSeriesData, error)
-}
-
-func newTestHook(name string) testHook {
-	return testHook{
-		testData: &testData{
-			captureBefore: make([]evalCapture, 0),
-			captureAfter:  make([]evalCapture, 0),
-		},
-		beforeInject: func(ctx context.Context, seriesContext ldhooks.EvaluationSeriesContext,
-			data ldhooks.EvaluationSeriesData) (ldhooks.EvaluationSeriesData, error) {
-			return data, nil
-		},
-		afterInject: func(ctx context.Context, seriesContext ldhooks.EvaluationSeriesContext,
-			data ldhooks.EvaluationSeriesData, detail ldreason.EvaluationDetail) (ldhooks.EvaluationSeriesData, error) {
-			return data, nil
-		},
-		metadata: ldhooks.NewHookMetadata(name),
-	}
-}
-
-func (h testHook) GetMetadata() ldhooks.HookMetadata {
-	return h.metadata
-}
-
-func (h testHook) BeforeEvaluation(
-	ctx context.Context,
-	seriesContext ldhooks.EvaluationSeriesContext,
-	data ldhooks.EvaluationSeriesData,
-) (ldhooks.EvaluationSeriesData, error) {
-	h.testData.captureBefore = append(h.testData.captureBefore, evalCapture{
-		evaluationSeriesContext: seriesContext,
-		evaluationSeriesData:    data,
-	})
-	return h.beforeInject(ctx, seriesContext, data)
-}
-
-func (h testHook) AfterEvaluation(
-	ctx context.Context,
-	seriesContext ldhooks.EvaluationSeriesContext,
-	data ldhooks.EvaluationSeriesData,
-	detail ldreason.EvaluationDetail,
-) (ldhooks.EvaluationSeriesData, error) {
-	h.testData.captureAfter = append(h.testData.captureBefore, evalCapture{
-		evaluationSeriesContext: seriesContext,
-		evaluationSeriesData:    data,
-		detail:                  detail,
-	})
-	return h.afterInject(ctx, seriesContext, data, detail)
-}
-
-func (h testHook) Expect(t *testing.T, calls ...expectedCall) {
-	localBeforeCalls := make([]evalCapture, len(h.testData.captureBefore))
-	localAfterCalls := make([]evalCapture, len(h.testData.captureAfter))
-
-	copy(localBeforeCalls, h.testData.captureBefore)
-	copy(localAfterCalls, h.testData.captureAfter)
-
-	for _, call := range calls {
-		if call.hookStage == hookStageBeforeEvaluation {
-			for i, beforeCall := range localBeforeCalls {
-				if reflect.DeepEqual(beforeCall, call.evalCapture) {
-					localBeforeCalls = slices.Delete(localBeforeCalls, i, i+1)
-					return
-				}
-			}
-			assert.FailNow(t, "Unable to find matching call: TODO")
-		} else if call.hookStage == hookStageAfterEvaluation {
-			for i, afterCall := range localAfterCalls {
-				if reflect.DeepEqual(afterCall, call.evalCapture) {
-					localAfterCalls = slices.Delete(localAfterCalls, i, i+1)
-					return
-				}
-			}
-			assert.FailNow(t, "Unable to find matching call: TODO")
-		} else {
-			assert.FailNow(t, "Unhandled hook stage: %s", call.hookStage)
-		}
-	}
-}
 
 func emptyExecutionAssertions(t *testing.T, res evaluationExecution, ldContext ldcontext.Context) {
 	assert.Empty(t, res.hooks)
@@ -169,8 +56,8 @@ func TestHookRunner(t *testing.T) {
 
 	t.Run("with hooks", func(t *testing.T) {
 		t.Run("prepare evaluation series", func(t *testing.T) {
-			hookA := newTestHook("a")
-			hookB := newTestHook("b")
+			hookA := sharedtest.NewTestHook("a")
+			hookB := sharedtest.NewTestHook("b")
 			runner := newHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 			ldContext := ldcontext.New("test-context")
@@ -188,8 +75,8 @@ func TestHookRunner(t *testing.T) {
 
 		t.Run("run before evaluation", func(t *testing.T) {
 			orderBefore := make([]string, 0)
-			hookA := newTestHook("a")
-			hookA.beforeInject = func(
+			hookA := sharedtest.NewTestHook("a")
+			hookA.BeforeInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -197,8 +84,8 @@ func TestHookRunner(t *testing.T) {
 				orderBefore = append(orderBefore, "a")
 				return data, nil
 			}
-			hookB := newTestHook("b")
-			hookB.beforeInject = func(ctx context.Context,
+			hookB := sharedtest.NewTestHook("b")
+			hookB.BeforeInject = func(ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
 			) (ldhooks.EvaluationSeriesData, error) {
@@ -212,17 +99,21 @@ func TestHookRunner(t *testing.T) {
 				"testMethod")
 			_ = runner.beforeEvaluation(context.Background(), execution)
 
-			hookA.Expect(t, expectedCall{hookStage: hookStageBeforeEvaluation, evalCapture: evalCapture{
-				evaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-					false, "testMethod"),
-				evaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
-			}})
+			hookA.Expect(t, sharedtest.HookExpectedCall{
+				HookStage: sharedtest.HookStageBeforeEvaluation,
+				EvalCapture: sharedtest.HookEvalCapture{
+					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
+						false, "testMethod"),
+					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
+				}})
 
-			hookB.Expect(t, expectedCall{hookStage: hookStageBeforeEvaluation, evalCapture: evalCapture{
-				evaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-					false, "testMethod"),
-				evaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
-			}})
+			hookB.Expect(t, sharedtest.HookExpectedCall{
+				HookStage: sharedtest.HookStageBeforeEvaluation,
+				EvalCapture: sharedtest.HookEvalCapture{
+					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
+						false, "testMethod"),
+					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
+				}})
 
 			// BeforeEvaluation should execute in registration order.
 			assert.Equal(t, []string{"a", "b"}, orderBefore)
@@ -230,8 +121,8 @@ func TestHookRunner(t *testing.T) {
 
 		t.Run("run after evaluation", func(t *testing.T) {
 			orderAfter := make([]string, 0)
-			hookA := newTestHook("a")
-			hookA.afterInject = func(
+			hookA := sharedtest.NewTestHook("a")
+			hookA.AfterInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -240,8 +131,8 @@ func TestHookRunner(t *testing.T) {
 				orderAfter = append(orderAfter, "a")
 				return data, nil
 			}
-			hookB := newTestHook("b")
-			hookB.afterInject = func(
+			hookB := sharedtest.NewTestHook("b")
+			hookB.AfterInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -259,19 +150,23 @@ func TestHookRunner(t *testing.T) {
 				ldreason.NewEvalReasonFallthrough())
 			_ = runner.afterEvaluation(context.Background(), execution, detail)
 
-			hookA.Expect(t, expectedCall{hookStage: hookStageAfterEvaluation, evalCapture: evalCapture{
-				evaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-					false, "testMethod"),
-				evaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
-				detail:               detail,
-			}})
+			hookA.Expect(t, sharedtest.HookExpectedCall{
+				HookStage: sharedtest.HookStageAfterEvaluation,
+				EvalCapture: sharedtest.HookEvalCapture{
+					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
+						false, "testMethod"),
+					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
+					Detail:               detail,
+				}})
 
-			hookB.Expect(t, expectedCall{hookStage: hookStageAfterEvaluation, evalCapture: evalCapture{
-				evaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-					false, "testMethod"),
-				evaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
-				detail:               detail,
-			}})
+			hookB.Expect(t, sharedtest.HookExpectedCall{
+				HookStage: sharedtest.HookStageAfterEvaluation,
+				EvalCapture: sharedtest.HookEvalCapture{
+					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
+						false, "testMethod"),
+					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
+					Detail:               detail,
+				}})
 
 			// AfterEvaluation should execute in reverse registration order.
 			assert.Equal(t, []string{"b", "a"}, orderAfter)
@@ -279,8 +174,8 @@ func TestHookRunner(t *testing.T) {
 
 		t.Run("run before evaluation with an error", func(t *testing.T) {
 			mockLog := ldlogtest.NewMockLog()
-			hookA := newTestHook("a")
-			hookA.beforeInject = func(
+			hookA := sharedtest.NewTestHook("a")
+			hookA.BeforeInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -289,8 +184,8 @@ func TestHookRunner(t *testing.T) {
 					Set("testA", "A").
 					Build(), errors.New("something bad")
 			}
-			hookB := newTestHook("b")
-			hookB.beforeInject = func(
+			hookB := sharedtest.NewTestHook("b")
+			hookB.BeforeInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -325,9 +220,9 @@ func TestHookRunner(t *testing.T) {
 
 		t.Run("run after evaluation with an error", func(t *testing.T) {
 			mockLog := ldlogtest.NewMockLog()
-			hookA := newTestHook("a")
+			hookA := sharedtest.NewTestHook("a")
 			// The hooks execute in reverse order, so we have an error in B and check that A still executes.
-			hookA.afterInject = func(
+			hookA.AfterInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -337,8 +232,8 @@ func TestHookRunner(t *testing.T) {
 					Set("testA", "testA").
 					Build(), nil
 			}
-			hookB := newTestHook("b")
-			hookB.afterInject = func(
+			hookB := sharedtest.NewTestHook("b")
+			hookB.AfterInject = func(
 				ctx context.Context,
 				seriesContext ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,

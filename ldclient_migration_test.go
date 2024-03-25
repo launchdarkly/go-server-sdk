@@ -15,18 +15,31 @@ import (
 
 var migrationTestUser = lduser.NewUser("userkey")
 
-type MigrationVariationMethod = func(client *LDClient, key string, context ldcontext.Context, stage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error)
+type MigrationVariationMethod = func(
+	client *LDClient,
+	key string,
+	context ldcontext.Context,
+	stage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error)
 
 func TestMigrationVariation(t *testing.T) {
 
 	t.Run("with MigrationVariation", func(t *testing.T) {
-		runMigrationTests(t, func(client *LDClient, key string, context ldcontext.Context, stage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+		runMigrationTests(t, func(client *LDClient,
+			key string,
+			context ldcontext.Context,
+			stage ldmigration.Stage,
+		) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 			return client.MigrationVariation(key, context, stage)
 		})
 	})
 
 	t.Run("with MigrationVariationEx", func(t *testing.T) {
-		runMigrationTests(t, func(client *LDClient, key string, context ldcontext.Context, stage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+		runMigrationTests(t, func(client *LDClient,
+			key string,
+			context ldcontext.Context,
+			stage ldmigration.Stage,
+		) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 			return client.MigrationVariationEx(gocontext.TODO(), key, context, stage)
 		})
 	})
