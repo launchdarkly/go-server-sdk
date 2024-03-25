@@ -11,9 +11,9 @@ import (
 type ServiceType int
 
 const (
-	StreamingService ServiceType = iota //nolint:revive // don't really need doc comments here
-	PollingService   ServiceType = iota
-	EventsService    ServiceType = iota
+	StreamingService ServiceType = iota //nolint:revive // internal constant
+	PollingService   ServiceType = iota //nolint:revive // internal constant
+	EventsService    ServiceType = iota //nolint:revive // internal constant
 )
 
 func (s ServiceType) String() string {
