@@ -1,0 +1,88 @@
+name: Check Supported Go Versions
+on:
+  schedule:
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-go-eol:
+    runs-on: ubuntu-latest
+    outputs:
+      latest: ${{ steps.parse.outputs.latest }}
+      penultimate: ${{ steps.parse.outputs.penultimate }}
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        # Perform a GET request to endoflife.date for the Go language. The response
+        # contains all Go releases; we're interested in the 0'th and 1'th (latest and penultimate.)
+      - name: Fetch officially supported Go versions
+        uses: JamesIves/fetch-api-data-action@396ebea7d13904824f85b892b1616985f847301c
+        with:
+          endpoint: https://endoflife.date/api/go.json
+          configuration: '{ "method": "GET" }'
+          debug: true
+        # Parse the response JSON and insert into environment variables for the next step.
+      - name: Parse officially supported Go versions
+        id: parse
+        run: |
+          echo "latest=${{ fromJSON(env.fetch-api-data)[0].latest }}" >> $GITHUB_OUTPUT
+          echo "penultimate=${{ fromJSON(env.fetch-api-data)[1].latest }}" >> $GITHUB_OUTPUT
+
+
+  create-prs:
+    permissions:
+      contents: write
+      pull-requests: write
+    needs: check-go-eol
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: ["v6", "v7"]
+      fail-fast: false
+    env:
+      officialLatestVersion: ${{ needs.check-go-eol.outputs.latest }}
+      officialPenultimateVersion: ${{ needs.check-go-eol.outputs.penultimate }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Get current Go versions
+        id: go-versions
+        run:  cat ./.github/variables/go-versions.env > $GITHUB_OUTPUT
+
+      - name: Update go-versions.env and README.md
+        if: steps.go-versions.outputs.latest != env.officialLatestVersion
+        id: update-go-versions
+        run: |
+          sed -e "s#latest=[^ ]*#latest=${{ env.officialLatestVersion }}#g"
+              -e "s#penultimate=[^ ]*#penultimate=${{ env.officialPenultimateVersion }}#g"
+              ./.github/variables/go-versions.env
+          sed -i "s/Go version {{ steps.go-versions.outputs.penultimate }}/Go version ${{ env.officialPenultimateVersion }}/g" README.md
+
+      - name: Update go.mod and testservice/go.mod
+        if: steps.update-go-versions.outcome == 'success'
+        id: update-go-mod
+        run: |
+          go mod edit -go=${{ env.officialPenultimateVersion }}
+          cd testservice
+          go mod edit -go=${{ env.officialPenultimateVersion }}
+
+      - name: Create pull request
+        if: steps.update-go-mod.outcome == 'success'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: |
+            .github/variables/go-versions.env
+            README.md
+            go.mod
+            testservice/go.mod
+          branch: "launchdarklyreleasebot/update-to-go${{ env.officialLatestVersion }}-${{ matrix.branch }}"
+          author: "LaunchDarklyReleaseBot <LaunchDarklyReleaseBot@launchdarkly.com>"
+          committer: "LaunchDarklyReleaseBot <LaunchDarklyReleaseBot@launchdarkly.com>"
+          labels: ${{ matrix.branch }}
+          title: "fix(deps): bump supported Go versions to ${{ env.officialLatestVersion }} and ${{ env.officialPenultimateVersion }}"
+          commit-message: "Bumps from Go ${{ steps.go-versions.outputs.latest }} -> ${{ env.officialLatestVersion }} and ${{ steps.go-versions.outputs.penultimate }} -> ${{ env.officialPenultimateVersion }}."
+          body: |
+            - [ ] I have triggered CI on this PR (either close & reopen this PR in Github UI, or `git commit -m "run ci" --allow-empty && git push`)
