@@ -146,6 +146,11 @@ func (h TestHook) Verify(t *testing.T, calls ...HookExpectedCall) {
 	}
 }
 
+func (h TestHook) VerifyNoCalls(t *testing.T) {
+	assert.Empty(t, h.testData.captureBefore)
+	assert.Empty(t, h.testData.captureAfter)
+}
+
 func logDebugData(t *testing.T, afterCall HookEvalCapture, call HookExpectedCall) {
 	// Log some information to help understand test failures.
 	if !reflect.DeepEqual(afterCall.GoContext, call.EvalCapture.GoContext) {

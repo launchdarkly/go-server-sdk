@@ -1,4 +1,4 @@
-package ldclient
+package hooks
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func emptyExecutionAssertions(t *testing.T, res evaluationExecution, ldContext ldcontext.Context) {
+func emptyExecutionAssertions(t *testing.T, res EvaluationExecution, ldContext ldcontext.Context) {
 	assert.Empty(t, res.hooks)
 	assert.Empty(t, res.data)
 	assert.Equal(t, ldContext, res.context.Context())
@@ -25,29 +25,39 @@ func emptyExecutionAssertions(t *testing.T, res evaluationExecution, ldContext l
 	assert.Equal(t, ldvalue.Bool(false), res.context.DefaultValue())
 }
 
+type orderTracker struct {
+	orderBefore []string
+	orderAfter  []string
+}
+
+func newOrderTracker() *orderTracker {
+	return &orderTracker{
+		orderBefore: make([]string, 0),
+		orderAfter:  make([]string, 0),
+	}
+}
+
 func TestHookRunner(t *testing.T) {
+	ldContext := ldcontext.New("test-context")
 	t.Run("with no hooks", func(t *testing.T) {
-		runner := newHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
+		runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
 
 		t.Run("prepare evaluation series", func(t *testing.T) {
-			ldContext := ldcontext.New("test-context")
-			res := runner.prepareEvaluationSeries("test-flag", ldContext, false, "testMethod")
+			res := runner.PrepareEvaluationSeries("test-flag", ldContext, false, "testMethod")
 			emptyExecutionAssertions(t, res, ldContext)
 		})
 
 		t.Run("run before evaluation", func(t *testing.T) {
-			ldContext := ldcontext.New("test-context")
-			execution := runner.prepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
 				"testMethod")
-			res := runner.beforeEvaluation(context.Background(), execution)
+			res := runner.BeforeEvaluation(context.Background(), execution)
 			emptyExecutionAssertions(t, res, ldContext)
 		})
 
 		t.Run("run after evaluation", func(t *testing.T) {
-			ldContext := ldcontext.New("test-context")
-			execution := runner.prepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
 				"testMethod")
-			res := runner.afterEvaluation(context.Background(), execution,
+			res := runner.AfterEvaluation(context.Background(), execution,
 				ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
 					ldreason.NewEvalReasonFallthrough()))
 			emptyExecutionAssertions(t, res, ldContext)
@@ -58,10 +68,10 @@ func TestHookRunner(t *testing.T) {
 		t.Run("prepare evaluation series", func(t *testing.T) {
 			hookA := sharedtest.NewTestHook("a")
 			hookB := sharedtest.NewTestHook("b")
-			runner := newHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 			ldContext := ldcontext.New("test-context")
-			res := runner.prepareEvaluationSeries("test-flag", ldContext, false, "testMethod")
+			res := runner.PrepareEvaluationSeries("test-flag", ldContext, false, "testMethod")
 
 			assert.Len(t, res.hooks, 2)
 			assert.Len(t, res.data, 2)
@@ -73,31 +83,78 @@ func TestHookRunner(t *testing.T) {
 			assert.Equal(t, res.data[1], ldhooks.EmptyEvaluationSeriesData())
 		})
 
-		t.Run("run before evaluation", func(t *testing.T) {
-			orderBefore := make([]string, 0)
-			hookA := sharedtest.NewTestHook("a")
-			hookA.BeforeInject = func(
-				ctx context.Context,
-				seriesContext ldhooks.EvaluationSeriesContext,
-				data ldhooks.EvaluationSeriesData,
-			) (ldhooks.EvaluationSeriesData, error) {
-				orderBefore = append(orderBefore, "a")
-				return data, nil
+		t.Run("verify execution order", func(t *testing.T) {
+			testCases := []struct {
+				name                string
+				method              func(runner *HookRunner, execution EvaluationExecution)
+				expectedBeforeOrder []string
+				expectedAfterOrder  []string
+			}{
+				{name: "BeforeEvaluation",
+					method: func(runner *HookRunner, execution EvaluationExecution) {
+						_ = runner.BeforeEvaluation(context.Background(), execution)
+					},
+					expectedBeforeOrder: []string{"a", "b"},
+					expectedAfterOrder:  make([]string, 0),
+				},
+				{name: "AfterEvaluation",
+					method: func(runner *HookRunner, execution EvaluationExecution) {
+						detail := ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
+							ldreason.NewEvalReasonFallthrough())
+						_ = runner.AfterEvaluation(context.Background(), execution, detail)
+					},
+					expectedBeforeOrder: make([]string, 0),
+					expectedAfterOrder:  []string{"b", "a"}},
 			}
-			hookB := sharedtest.NewTestHook("b")
-			hookB.BeforeInject = func(ctx context.Context,
-				seriesContext ldhooks.EvaluationSeriesContext,
-				data ldhooks.EvaluationSeriesData,
-			) (ldhooks.EvaluationSeriesData, error) {
-				orderBefore = append(orderBefore, "b")
-				return data, nil
-			}
-			runner := newHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
-			ldContext := ldcontext.New("test-context")
-			execution := runner.prepareEvaluationSeries("test-flag", ldContext, false,
+			t.Run("with hooks registered at config time", func(t *testing.T) {
+				for _, testCase := range testCases {
+					t.Run(testCase.name, func(t *testing.T) {
+						tracker := newOrderTracker()
+						hookA := createOrderTrackingHook("a", tracker)
+						hookB := createOrderTrackingHook("b", tracker)
+						runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+
+						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+							"testMethod")
+						testCase.method(runner, execution)
+
+						// BeforeEvaluation should execute in registration order.
+						assert.Equal(t, testCase.expectedBeforeOrder, tracker.orderBefore)
+						assert.Equal(t, testCase.expectedAfterOrder, tracker.orderAfter)
+					})
+				}
+			})
+
+			t.Run("with hooks registered at run time", func(t *testing.T) {
+				for _, testCase := range testCases {
+					t.Run(testCase.name, func(t *testing.T) {
+						tracker := newOrderTracker()
+						hookA := createOrderTrackingHook("a", tracker)
+						hookB := createOrderTrackingHook("b", tracker)
+						runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA})
+						runner.AddHooks(hookB)
+
+						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+							"testMethod")
+						testCase.method(runner, execution)
+
+						// BeforeEvaluation should execute in registration order.
+						assert.Equal(t, testCase.expectedBeforeOrder, tracker.orderBefore)
+						assert.Equal(t, testCase.expectedAfterOrder, tracker.orderAfter)
+					})
+				}
+			})
+		})
+
+		t.Run("run before evaluation", func(t *testing.T) {
+			hookA := sharedtest.NewTestHook("a")
+			hookB := sharedtest.NewTestHook("b")
+			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
 				"testMethod")
-			_ = runner.beforeEvaluation(context.Background(), execution)
+			_ = runner.BeforeEvaluation(context.Background(), execution)
 
 			hookA.Verify(t, sharedtest.HookExpectedCall{
 				HookStage: sharedtest.HookStageBeforeEvaluation,
@@ -116,41 +173,18 @@ func TestHookRunner(t *testing.T) {
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            context.Background(),
 				}})
-
-			// BeforeEvaluation should execute in registration order.
-			assert.Equal(t, []string{"a", "b"}, orderBefore)
 		})
 
 		t.Run("run after evaluation", func(t *testing.T) {
-			orderAfter := make([]string, 0)
 			hookA := sharedtest.NewTestHook("a")
-			hookA.AfterInject = func(
-				ctx context.Context,
-				seriesContext ldhooks.EvaluationSeriesContext,
-				data ldhooks.EvaluationSeriesData,
-				detail ldreason.EvaluationDetail,
-			) (ldhooks.EvaluationSeriesData, error) {
-				orderAfter = append(orderAfter, "a")
-				return data, nil
-			}
 			hookB := sharedtest.NewTestHook("b")
-			hookB.AfterInject = func(
-				ctx context.Context,
-				seriesContext ldhooks.EvaluationSeriesContext,
-				data ldhooks.EvaluationSeriesData,
-				detail ldreason.EvaluationDetail,
-			) (ldhooks.EvaluationSeriesData, error) {
-				orderAfter = append(orderAfter, "b")
-				return data, nil
-			}
-			runner := newHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
-			ldContext := ldcontext.New("test-context")
-			execution := runner.prepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
 				"testMethod")
 			detail := ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
 				ldreason.NewEvalReasonFallthrough())
-			_ = runner.afterEvaluation(context.Background(), execution, detail)
+			_ = runner.AfterEvaluation(context.Background(), execution, detail)
 
 			hookA.Verify(t, sharedtest.HookExpectedCall{
 				HookStage: sharedtest.HookStageAfterEvaluation,
@@ -171,9 +205,6 @@ func TestHookRunner(t *testing.T) {
 					Detail:               detail,
 					GoContext:            context.Background(),
 				}})
-
-			// AfterEvaluation should execute in reverse registration order.
-			assert.Equal(t, []string{"b", "a"}, orderAfter)
 		})
 
 		t.Run("run before evaluation with an error", func(t *testing.T) {
@@ -199,12 +230,11 @@ func TestHookRunner(t *testing.T) {
 					Build(), nil
 			}
 
-			runner := newHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
-			ldContext := ldcontext.New("test-context")
-			execution := runner.prepareEvaluationSeries("test-flag", ldContext, false,
+			runner := NewHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
 				"testMethod")
 
-			res := runner.beforeEvaluation(context.Background(), execution)
+			res := runner.BeforeEvaluation(context.Background(), execution)
 			assert.Len(t, res.hooks, 2)
 			assert.Len(t, res.data, 2)
 			assert.Equal(t, ldContext, res.context.Context())
@@ -249,14 +279,13 @@ func TestHookRunner(t *testing.T) {
 
 			}
 
-			runner := newHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
-			ldContext := ldcontext.New("test-context")
-			execution := runner.prepareEvaluationSeries("test-flag", ldContext, false,
+			runner := NewHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
 				"testMethod")
 			detail := ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
 				ldreason.NewEvalReasonFallthrough())
 
-			res := runner.afterEvaluation(context.Background(), execution, detail)
+			res := runner.AfterEvaluation(context.Background(), execution, detail)
 			assert.Len(t, res.hooks, 2)
 			assert.Len(t, res.data, 2)
 			assert.Equal(t, ldContext, res.context.Context())
@@ -273,4 +302,27 @@ func TestHookRunner(t *testing.T) {
 				mockLog.GetOutput(ldlog.Error))
 		})
 	})
+}
+
+func createOrderTrackingHook(name string, tracker *orderTracker) sharedtest.TestHook {
+	h := sharedtest.NewTestHook(name)
+	h.BeforeInject = func(
+		ctx context.Context,
+		seriesContext ldhooks.EvaluationSeriesContext,
+		data ldhooks.EvaluationSeriesData,
+	) (ldhooks.EvaluationSeriesData, error) {
+		tracker.orderBefore = append(tracker.orderBefore, name)
+		return data, nil
+	}
+	h.AfterInject = func(
+		ctx context.Context,
+		seriesContext ldhooks.EvaluationSeriesContext,
+		data ldhooks.EvaluationSeriesData,
+		detail ldreason.EvaluationDetail,
+	) (ldhooks.EvaluationSeriesData, error) {
+		tracker.orderAfter = append(tracker.orderAfter, name)
+		return data, nil
+	}
+
+	return h
 }

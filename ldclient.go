@@ -25,6 +25,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/hooks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -97,7 +98,7 @@ type LDClient struct {
 	withEventsDisabled               interfaces.LDClientInterface
 	logEvaluationErrors              bool
 	offline                          bool
-	hookRunner                       *hookRunner
+	hookRunner                       *hooks.HookRunner
 }
 
 // Initialization errors
@@ -318,7 +319,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
-	client.hookRunner = newHookRunner(loggers, config.Hooks)
+	client.hookRunner = hooks.NewHookRunner(loggers, config.Hooks)
 
 	clientValid = true
 	client.dataSource.Start(closeWhenReady)
@@ -393,8 +394,8 @@ func (client *LDClient) migrationVariation(
 	ctx gocontext.Context,
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope, method string,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	hookExecution := client.hookRunner.prepareEvaluationSeries(key, context, defaultStage, method)
-	hookExecution = client.hookRunner.beforeEvaluation(ctx, hookExecution)
+	hookExecution := client.hookRunner.PrepareEvaluationSeries(key, context, defaultStage, method)
+	hookExecution = client.hookRunner.BeforeEvaluation(ctx, hookExecution)
 	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true,
 		eventsScope)
 	tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
@@ -406,12 +407,12 @@ func (client *LDClient) migrationVariation(
 	stage, err := ldmigration.ParseStage(detail.Value.StringValue())
 	if err != nil {
 		detail = ldreason.NewEvaluationDetailForError(ldreason.EvalErrorWrongType, ldvalue.String(string(defaultStage)))
-		client.hookRunner.afterEvaluation(ctx, hookExecution, detail)
+		client.hookRunner.AfterEvaluation(ctx, hookExecution, detail)
 		tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 		return defaultStage, tracker, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
 	}
 
-	client.hookRunner.afterEvaluation(ctx, hookExecution, detail)
+	client.hookRunner.AfterEvaluation(ctx, hookExecution, detail)
 	return stage, tracker, nil
 }
 
@@ -1134,10 +1135,10 @@ func (client *LDClient) variationWithHooks(
 	eventsScope eventsScope,
 	method string,
 ) (ldreason.EvaluationDetail, error) {
-	execution := client.hookRunner.prepareEvaluationSeries(key, evalContext, defaultVal, method)
-	execution = client.hookRunner.beforeEvaluation(context, execution)
+	execution := client.hookRunner.PrepareEvaluationSeries(key, evalContext, defaultVal, method)
+	execution = client.hookRunner.BeforeEvaluation(context, execution)
 	detail, err := client.variation(key, evalContext, defaultVal, checkType, eventsScope)
-	client.hookRunner.afterEvaluation(context, execution, detail)
+	client.hookRunner.AfterEvaluation(context, execution, detail)
 	return detail, err
 }
 
@@ -1270,7 +1271,7 @@ func (client *LDClient) evaluateInternal(
 //
 // If a hook can be registered at LDClient initialization, then the Hooks field of Config can be used instead.
 func (client *LDClient) AddHooks(hooks ...ldhooks.Hook) {
-	client.hookRunner.addHook(hooks...)
+	client.hookRunner.AddHooks(hooks...)
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {
