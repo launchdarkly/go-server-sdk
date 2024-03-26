@@ -26,6 +26,7 @@ const (
 
 // HookEvalCapture is used to capture the information provided to a hook during execution.
 type HookEvalCapture struct {
+	GoContext               context.Context
 	EvaluationSeriesContext ldhooks.EvaluationSeriesContext
 	EvaluationSeriesData    ldhooks.EvaluationSeriesData
 	Detail                  ldreason.EvaluationDetail
@@ -86,6 +87,7 @@ func (h TestHook) BeforeEvaluation(
 	h.testData.captureBefore = append(h.testData.captureBefore, HookEvalCapture{
 		EvaluationSeriesContext: seriesContext,
 		EvaluationSeriesData:    data,
+		GoContext:               ctx,
 	})
 	return h.BeforeInject(ctx, seriesContext, data)
 }
@@ -101,12 +103,13 @@ func (h TestHook) AfterEvaluation(
 		EvaluationSeriesContext: seriesContext,
 		EvaluationSeriesData:    data,
 		Detail:                  detail,
+		GoContext:               ctx,
 	})
 	return h.AfterInject(ctx, seriesContext, data, detail)
 }
 
-// Expect is used to verify that the hook received calls it expected.
-func (h TestHook) Expect(t *testing.T, calls ...HookExpectedCall) {
+// Verify is used to verify that the hook received calls it expected.
+func (h TestHook) Verify(t *testing.T, calls ...HookExpectedCall) {
 	localBeforeCalls := make([]HookEvalCapture, len(h.testData.captureBefore))
 	localAfterCalls := make([]HookEvalCapture, len(h.testData.captureAfter))
 
@@ -121,6 +124,8 @@ func (h TestHook) Expect(t *testing.T, calls ...HookExpectedCall) {
 				if reflect.DeepEqual(beforeCall, call.EvalCapture) {
 					localBeforeCalls = slices.Delete(localBeforeCalls, i, i+1)
 					found = true
+				} else {
+					logDebugData(t, beforeCall, call)
 				}
 			}
 		case HookStageAfterEvaluation:
@@ -128,14 +133,31 @@ func (h TestHook) Expect(t *testing.T, calls ...HookExpectedCall) {
 				if reflect.DeepEqual(afterCall, call.EvalCapture) {
 					localAfterCalls = slices.Delete(localAfterCalls, i, i+1)
 					found = true
+				} else {
+					logDebugData(t, afterCall, call)
 				}
 			}
 		default:
 			assert.FailNow(t, fmt.Sprintf("Unhandled hook stage: %v", call.HookStage))
-
-			if !found {
-				assert.FailNow(t, fmt.Sprintf("Unable to find matching call: %+v", call))
-			}
 		}
+		if !found {
+			assert.FailNow(t, fmt.Sprintf("Unable to find matching call: %+v", call))
+		}
+	}
+}
+
+func logDebugData(t *testing.T, afterCall HookEvalCapture, call HookExpectedCall) {
+	// Log some information to help understand test failures.
+	if !reflect.DeepEqual(afterCall.GoContext, call.EvalCapture.GoContext) {
+		t.Log("Go context not equal")
+	}
+	if !reflect.DeepEqual(afterCall.Detail, call.EvalCapture.Detail) {
+		t.Log("Evaluation detail not equal")
+	}
+	if !reflect.DeepEqual(afterCall.EvaluationSeriesData, call.EvalCapture.EvaluationSeriesData) {
+		t.Log("Evaluation series data not equal")
+	}
+	if !reflect.DeepEqual(afterCall.EvaluationSeriesContext, call.EvalCapture.EvaluationSeriesContext) {
+		t.Log("Evaluation series context not equal")
 	}
 }

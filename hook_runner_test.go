@@ -99,20 +99,22 @@ func TestHookRunner(t *testing.T) {
 				"testMethod")
 			_ = runner.beforeEvaluation(context.Background(), execution)
 
-			hookA.Expect(t, sharedtest.HookExpectedCall{
+			hookA.Verify(t, sharedtest.HookExpectedCall{
 				HookStage: sharedtest.HookStageBeforeEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
 						false, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
+					GoContext:            context.Background(),
 				}})
 
-			hookB.Expect(t, sharedtest.HookExpectedCall{
+			hookB.Verify(t, sharedtest.HookExpectedCall{
 				HookStage: sharedtest.HookStageBeforeEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
 						false, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
+					GoContext:            context.Background(),
 				}})
 
 			// BeforeEvaluation should execute in registration order.
@@ -150,22 +152,24 @@ func TestHookRunner(t *testing.T) {
 				ldreason.NewEvalReasonFallthrough())
 			_ = runner.afterEvaluation(context.Background(), execution, detail)
 
-			hookA.Expect(t, sharedtest.HookExpectedCall{
+			hookA.Verify(t, sharedtest.HookExpectedCall{
 				HookStage: sharedtest.HookStageAfterEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
 						false, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					Detail:               detail,
+					GoContext:            context.Background(),
 				}})
 
-			hookB.Expect(t, sharedtest.HookExpectedCall{
+			hookB.Verify(t, sharedtest.HookExpectedCall{
 				HookStage: sharedtest.HookStageAfterEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
 						false, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					Detail:               detail,
+					GoContext:            context.Background(),
 				}})
 
 			// AfterEvaluation should execute in reverse registration order.
