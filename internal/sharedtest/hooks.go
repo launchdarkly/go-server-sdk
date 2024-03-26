@@ -146,6 +146,7 @@ func (h TestHook) Verify(t *testing.T, calls ...HookExpectedCall) {
 	}
 }
 
+// VerifyNoCalls will assert if the hook has received any calls.
 func (h TestHook) VerifyNoCalls(t *testing.T) {
 	assert.Empty(t, h.testData.captureBefore)
 	assert.Empty(t, h.testData.captureAfter)

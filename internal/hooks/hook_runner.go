@@ -99,8 +99,7 @@ func (h *HookRunner) AfterEvaluation(
 	ctx context.Context,
 	execution EvaluationExecution,
 	detail ldreason.EvaluationDetail,
-) EvaluationExecution { //nolint:golint,unparam
-	// Return value is not used yet, but may be in the future. The "unparam" suppression is for that.
+) EvaluationExecution {
 	return h.executeStage(
 		execution,
 		true,
