@@ -25,8 +25,8 @@ jobs:
       - name: Parse officially supported Go versions
         id: parse
         run: |
-          echo "latest=${{ fromJSON(env.fetch-api-data)[0].latest }}" >> $GITHUB_OUTPUT
-          echo "penultimate=${{ fromJSON(env.fetch-api-data)[1].latest }}" >> $GITHUB_OUTPUT
+          echo "latest=${{ fromJSON(env.fetch-api-data)[0].cycle }}" >> $GITHUB_OUTPUT
+          echo "penultimate=${{ fromJSON(env.fetch-api-data)[1].cycle }}" >> $GITHUB_OUTPUT
 
 
   create-prs:
