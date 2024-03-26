@@ -55,10 +55,11 @@ jobs:
         if: steps.go-versions.outputs.latest != env.officialLatestVersion
         id: update-go-versions
         run: |
-          sed -e "s#latest=[^ ]*#latest=${{ env.officialLatestVersion }}#g"
-              -e "s#penultimate=[^ ]*#penultimate=${{ env.officialPenultimateVersion }}#g"
-              ./.github/variables/go-versions.env
-          sed -i "s/Go version {{ steps.go-versions.outputs.penultimate }}/Go version ${{ env.officialPenultimateVersion }}/g" README.md
+          sed -i -e "s#latest=[^ ]*#latest=${{ env.officialLatestVersion }}#g" \
+                 -e "s#penultimate=[^ ]*#penultimate=${{ env.officialPenultimateVersion }}#g" \
+                  ./.github/variables/go-versions.env
+          sed -i "s/Go version {{ steps.go-versions.outputs.penultimate }}/Go version ${{ env.officialPenultimateVersion }}/g" \
+                  README.md
 
       - name: Update go.mod and testservice/go.mod
         if: steps.update-go-versions.outcome == 'success'
