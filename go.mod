@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/v6
 
-go 1.18
+go 1.21.8
 
 require (
 	github.com/fsnotify/fsnotify v1.4.7
