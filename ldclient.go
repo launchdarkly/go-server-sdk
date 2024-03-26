@@ -736,9 +736,7 @@ func (client *LDClient) BoolVariationDetail(
 	return detail.Value.BoolValue(), detail, err
 }
 
-// BoolVariationEx returns the value of a boolean feature flag for a given evaluation context.
-//
-// # Bool
+// BoolVariationEx is the same as [LDClient.BoolVariation], but accepts a context.Context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
@@ -799,8 +797,7 @@ func (client *LDClient) IntVariationDetail(
 	return detail.Value.IntValue(), detail, err
 }
 
-// IntVariationEx returns the value of a feature flag (whose variations are integers) for the given evaluation
-// context.
+// IntVariationEx is the same as [LDClient.IntVariation], but accepts a context.Context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
@@ -861,8 +858,7 @@ func (client *LDClient) Float64VariationDetail(
 	return detail.Value.Float64Value(), detail, err
 }
 
-// Float64VariationEx returns the value of a feature flag (whose variations are floats) for the given evaluation
-// context.
+// Float64VariationEx is the same as [LDClient.Float64Variation], but accepts a context.Context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
@@ -921,8 +917,7 @@ func (client *LDClient) StringVariationDetail(
 	return detail.Value.StringValue(), detail, err
 }
 
-// StringVariationEx returns the value of a feature flag (whose variations are strings) for the given evaluation
-// context.
+// StringVariationEx is the same as [LDClient.StringVariation], but accepts a context.Context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
 // no off variation.
@@ -1001,8 +996,7 @@ func (client *LDClient) JSONVariationDetail(
 	return detail.Value, detail, err
 }
 
-// JSONVariationEx returns the value of a feature flag for the given evaluation context, allowing the value to
-// be of any JSON type.
+// JSONVariationEx is the same as [LDClient.JSONVariation], but accepts a context.Context.
 //
 // The value is returned as an [ldvalue.Value], which can be inspected or converted to other types using
 // methods such as [ldvalue.Value.GetType] and [ldvalue.Value.BoolValue]. The defaultVal parameter also uses this
@@ -1012,7 +1006,7 @@ func (client *LDClient) JSONVariationDetail(
 //	    Add(ldvalue.String("defaultFirstItem")).
 //	    Add(ldvalue.String("defaultSecondItem")).
 //	    Build()
-//	result, err := client.JSONVariation(flagKey, context, defaultValAsArray)
+//	result, err := client.JSONVariationEx(ctx, flagKey, context, defaultValAsArray)
 //	firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
 //
 // You can also use unparsed json.RawMessage values:
