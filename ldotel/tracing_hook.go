@@ -15,6 +15,7 @@ import (
 const eventName = "feature_flag"
 const contextKeyAttributeName = "feature_flag.context.key"
 
+// TracingHookOption is used to implement functional options for the TracingHook.
 type TracingHookOption func(hook *TracingHook)
 
 var tracer = otel.Tracer("launchdarkly-client")
@@ -48,6 +49,7 @@ type TracingHook struct {
 	includeVariant bool
 }
 
+// GetMetadata returns meta-data about the tracing hook.
 func (h TracingHook) GetMetadata() ldhooks.HookMetadata {
 	return h.metadata
 }
@@ -64,6 +66,7 @@ func NewTracingHook(opts ...TracingHookOption) TracingHook {
 	return hook
 }
 
+// BeforeEvaluation implements the BeforeEvaluation evaluation stage.
 func (h TracingHook) BeforeEvaluation(ctx context.Context, seriesContext ldhooks.EvaluationSeriesContext,
 	data ldhooks.EvaluationSeriesData) (ldhooks.EvaluationSeriesData, error) {
 	if h.spans {
@@ -77,6 +80,7 @@ func (h TracingHook) BeforeEvaluation(ctx context.Context, seriesContext ldhooks
 	return data, nil
 }
 
+// AfterEvaluation implements the AfterEvaluation evaluation stage.
 func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.EvaluationSeriesContext,
 	data ldhooks.EvaluationSeriesData, detail ldreason.EvaluationDetail) (ldhooks.EvaluationSeriesData, error) {
 	variationSpan, present := data.Get("variationSpan")
