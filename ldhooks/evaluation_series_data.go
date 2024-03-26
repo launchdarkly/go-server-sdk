@@ -25,6 +25,15 @@ func (b EvaluationSeriesData) Get(key string) (value any, ok bool) {
 	return val, ok
 }
 
+// AsAnyMap returns a copy of the contents of the series data as a map.
+func (b EvaluationSeriesData) AsAnyMap() map[string]any {
+	ret := make(map[string]any)
+	for key, value := range b.data {
+		ret[key] = value
+	}
+	return ret
+}
+
 // NewEvaluationSeriesBuilder creates an EvaluationSeriesDataBuilder based on the provided EvaluationSeriesData.
 //
 //	func(h MyHook) BeforeEvaluation(seriesContext EvaluationSeriesContext,
