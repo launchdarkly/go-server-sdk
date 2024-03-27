@@ -19,9 +19,9 @@ type HookStage string
 
 const (
 	// HookStageBeforeEvaluation is the stage executed before evaluation.
-	HookStageBeforeEvaluation HookStage = "before"
+	HookStageBeforeEvaluation = HookStage("before")
 	// HookStageAfterEvaluation is the stage executed after evaluation.
-	HookStageAfterEvaluation = "after"
+	HookStageAfterEvaluation = HookStage("after")
 )
 
 // HookEvalCapture is used to capture the information provided to a hook during execution.
