@@ -31,7 +31,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 	falseValue := ldvalue.Bool(false)
 	fortyTwoValue := ldvalue.Int(42)
 	piValue := ldvalue.Float64(3.14)
-	stringValue := ldvalue.String("string-value")
+	stringValue := ldvalue.String("test-string")
 
 	beforeCapture := func(testCase parameterizedVariation) sharedtest.HookExpectedCall {
 		return sharedtest.HookExpectedCall{
