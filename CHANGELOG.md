@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.2.0](https://github.com/launchdarkly/go-server-sdk/compare/v6.1.1...v6.2.0) (2024-03-27)
+
+
+### Features
+
+* **deps:** bump supported Go versions to 1.22 and 1.21 ([d026f6a](https://github.com/launchdarkly/go-server-sdk/commit/d026f6a46b670808340c55c3d8d0d0b35fcae70e))
+
 ## [6.1.1] - 2023-10-11
 ### Fixed:
 - Event payloads receiving an HTTP 413 status code will no longer prevent subsequent event payloads from being attempted.
