@@ -16,11 +16,11 @@ type EvaluationSeriesContext struct {
 // NewEvaluationSeriesContext create a new EvaluationSeriesContext. Hook implementations do not need to use this
 // function.
 func NewEvaluationSeriesContext(flagKey string, evalContext ldcontext.Context,
-	defaultValue any, method string) EvaluationSeriesContext {
+	defaultValue ldvalue.Value, method string) EvaluationSeriesContext {
 	return EvaluationSeriesContext{
 		flagKey:      flagKey,
 		context:      evalContext,
-		defaultValue: ldvalue.CopyArbitraryValue(defaultValue),
+		defaultValue: defaultValue,
 		method:       method,
 	}
 }

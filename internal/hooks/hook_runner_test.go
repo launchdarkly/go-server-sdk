@@ -38,27 +38,29 @@ func newOrderTracker() *orderTracker {
 }
 
 func TestHookRunner(t *testing.T) {
+	falseValue := ldvalue.Bool(false)
 	ldContext := ldcontext.New("test-context")
+
 	t.Run("with no hooks", func(t *testing.T) {
 		runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
 
 		t.Run("prepare evaluation series", func(t *testing.T) {
-			res := runner.PrepareEvaluationSeries("test-flag", ldContext, false, "testMethod")
+			res := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue, "testMethod")
 			emptyExecutionAssertions(t, res, ldContext)
 		})
 
 		t.Run("run before evaluation", func(t *testing.T) {
-			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
 			res := runner.BeforeEvaluation(context.Background(), execution)
 			emptyExecutionAssertions(t, res, ldContext)
 		})
 
 		t.Run("run after evaluation", func(t *testing.T) {
-			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
 			res := runner.AfterEvaluation(context.Background(), execution,
-				ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
+				ldreason.NewEvaluationDetail(falseValue, 0,
 					ldreason.NewEvalReasonFallthrough()))
 			emptyExecutionAssertions(t, res, ldContext)
 		})
@@ -71,14 +73,14 @@ func TestHookRunner(t *testing.T) {
 			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 			ldContext := ldcontext.New("test-context")
-			res := runner.PrepareEvaluationSeries("test-flag", ldContext, false, "testMethod")
+			res := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue, "testMethod")
 
 			assert.Len(t, res.hooks, 2)
 			assert.Len(t, res.data, 2)
 			assert.Equal(t, ldContext, res.context.Context())
 			assert.Equal(t, "test-flag", res.context.FlagKey())
 			assert.Equal(t, "testMethod", res.context.Method())
-			assert.Equal(t, ldvalue.Bool(false), res.context.DefaultValue())
+			assert.Equal(t, falseValue, res.context.DefaultValue())
 			assert.Equal(t, res.data[0], ldhooks.EmptyEvaluationSeriesData())
 			assert.Equal(t, res.data[1], ldhooks.EmptyEvaluationSeriesData())
 		})
@@ -99,7 +101,7 @@ func TestHookRunner(t *testing.T) {
 				},
 				{name: "AfterEvaluation",
 					method: func(runner *HookRunner, execution EvaluationExecution) {
-						detail := ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
+						detail := ldreason.NewEvaluationDetail(falseValue, 0,
 							ldreason.NewEvalReasonFallthrough())
 						_ = runner.AfterEvaluation(context.Background(), execution, detail)
 					},
@@ -115,7 +117,7 @@ func TestHookRunner(t *testing.T) {
 						hookB := createOrderTrackingHook("b", tracker)
 						runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
-						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 							"testMethod")
 						testCase.method(runner, execution)
 
@@ -135,7 +137,7 @@ func TestHookRunner(t *testing.T) {
 						runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA})
 						runner.AddHooks(hookB)
 
-						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 							"testMethod")
 						testCase.method(runner, execution)
 
@@ -152,7 +154,7 @@ func TestHookRunner(t *testing.T) {
 			hookB := sharedtest.NewTestHook("b")
 			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
-			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
 			_ = runner.BeforeEvaluation(context.Background(), execution)
 
@@ -160,7 +162,7 @@ func TestHookRunner(t *testing.T) {
 				HookStage: sharedtest.HookStageBeforeEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-						false, "testMethod"),
+						falseValue, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            context.Background(),
 				}})
@@ -169,7 +171,7 @@ func TestHookRunner(t *testing.T) {
 				HookStage: sharedtest.HookStageBeforeEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-						false, "testMethod"),
+						falseValue, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            context.Background(),
 				}})
@@ -180,9 +182,9 @@ func TestHookRunner(t *testing.T) {
 			hookB := sharedtest.NewTestHook("b")
 			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
-			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
-			detail := ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
+			detail := ldreason.NewEvaluationDetail(falseValue, 0,
 				ldreason.NewEvalReasonFallthrough())
 			_ = runner.AfterEvaluation(context.Background(), execution, detail)
 
@@ -190,7 +192,7 @@ func TestHookRunner(t *testing.T) {
 				HookStage: sharedtest.HookStageAfterEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-						false, "testMethod"),
+						falseValue, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					Detail:               detail,
 					GoContext:            context.Background(),
@@ -200,7 +202,7 @@ func TestHookRunner(t *testing.T) {
 				HookStage: sharedtest.HookStageAfterEvaluation,
 				EvalCapture: sharedtest.HookEvalCapture{
 					EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-						false, "testMethod"),
+						falseValue, "testMethod"),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					Detail:               detail,
 					GoContext:            context.Background(),
@@ -231,7 +233,7 @@ func TestHookRunner(t *testing.T) {
 			}
 
 			runner := NewHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
-			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
 
 			res := runner.BeforeEvaluation(context.Background(), execution)
@@ -246,7 +248,7 @@ func TestHookRunner(t *testing.T) {
 					ldhooks.EmptyEvaluationSeriesData()).
 					Set("testB", "testB").
 					Build(), res.data[1])
-			assert.Equal(t, ldvalue.Bool(false), res.context.DefaultValue())
+			assert.Equal(t, falseValue, res.context.DefaultValue())
 
 			assert.Equal(t, []string{"During evaluation of flag \"test-flag\", an error was encountered in \"BeforeEvaluation\" of the \"a\" hook: something bad"},
 				mockLog.GetOutput(ldlog.Error))
@@ -280,9 +282,9 @@ func TestHookRunner(t *testing.T) {
 			}
 
 			runner := NewHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
-			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, false,
+			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
-			detail := ldreason.NewEvaluationDetail(ldvalue.Bool(false), 0,
+			detail := ldreason.NewEvaluationDetail(falseValue, 0,
 				ldreason.NewEvalReasonFallthrough())
 
 			res := runner.AfterEvaluation(context.Background(), execution, detail)
@@ -297,7 +299,7 @@ func TestHookRunner(t *testing.T) {
 					ldhooks.EmptyEvaluationSeriesData()).
 					Set("testA", "testA").
 					Build(), res.data[0])
-			assert.Equal(t, ldvalue.Bool(false), res.context.DefaultValue())
+			assert.Equal(t, falseValue, res.context.DefaultValue())
 			assert.Equal(t, []string{"During evaluation of flag \"test-flag\", an error was encountered in \"AfterEvaluation\" of the \"b\" hook: something bad"},
 				mockLog.GetOutput(ldlog.Error))
 		})
