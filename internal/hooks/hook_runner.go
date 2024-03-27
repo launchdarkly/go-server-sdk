@@ -7,6 +7,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 )
 
@@ -68,7 +69,7 @@ func (h *HookRunner) getHooks() []ldhooks.Hook {
 func (h *HookRunner) PrepareEvaluationSeries(
 	flagKey string,
 	evalContext ldcontext.Context,
-	defaultVal any,
+	defaultVal ldvalue.Value,
 	method string,
 ) EvaluationExecution {
 	hooksForEval := h.getHooks()
