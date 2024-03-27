@@ -394,9 +394,10 @@ func (client *LDClient) migrationVariation(
 	ctx gocontext.Context,
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope, method string,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	hookExecution := client.hookRunner.PrepareEvaluationSeries(key, context, defaultStage, method)
+	stageValue := ldvalue.String(string(defaultStage))
+	hookExecution := client.hookRunner.PrepareEvaluationSeries(key, context, stageValue, method)
 	hookExecution = client.hookRunner.BeforeEvaluation(ctx, hookExecution)
-	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true,
+	detail, flag, err := client.variationAndFlag(key, context, stageValue, true,
 		eventsScope)
 	tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 
