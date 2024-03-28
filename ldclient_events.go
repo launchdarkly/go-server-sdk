@@ -1,6 +1,8 @@
 package ldclient
 
 import (
+	gocontext "context"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
@@ -104,13 +106,38 @@ func (c *clientEventsDisabledDecorator) BoolVariation(
 	context ldcontext.Context,
 	defaultVal bool,
 ) (bool, error) {
-	detail, err := c.client.variation(key, context, ldvalue.Bool(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Bool(defaultVal),
+		true, c.scope, boolVarFuncName)
 	return detail.Value.BoolValue(), err
 }
 
 func (c *clientEventsDisabledDecorator) BoolVariationDetail(key string, context ldcontext.Context, defaultVal bool) (
 	bool, ldreason.EvaluationDetail, error) {
-	detail, err := c.client.variation(key, context, ldvalue.Bool(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Bool(defaultVal),
+		true, c.scope, boolVarDetailFuncName)
+	return detail.Value.BoolValue(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) BoolVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal bool,
+) (bool, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.Bool(defaultVal),
+		true, c.scope, boolVarExFuncName)
+	return detail.Value.BoolValue(), err
+}
+
+func (c *clientEventsDisabledDecorator) BoolVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal bool,
+) (
+	bool, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.Bool(defaultVal),
+		true, c.scope, boolVarDetailExFuncName)
 	return detail.Value.BoolValue(), detail, err
 }
 
@@ -119,19 +146,45 @@ func (c *clientEventsDisabledDecorator) IntVariation(
 	context ldcontext.Context,
 	defaultVal int,
 ) (int, error) {
-	detail, err := c.client.variation(key, context, ldvalue.Int(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Int(defaultVal),
+		true, c.scope, intVarFuncName)
 	return detail.Value.IntValue(), err
 }
 
 func (c *clientEventsDisabledDecorator) IntVariationDetail(key string, context ldcontext.Context, defaultVal int) (
 	int, ldreason.EvaluationDetail, error) {
-	detail, err := c.client.variation(key, context, ldvalue.Int(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Int(defaultVal),
+		true, c.scope, intVarDetailFuncName)
+	return detail.Value.IntValue(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) IntVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal int,
+) (int, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.Int(defaultVal),
+		true, c.scope, intVarExFuncName)
+	return detail.Value.IntValue(), err
+}
+
+func (c *clientEventsDisabledDecorator) IntVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal int,
+) (
+	int, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.Int(defaultVal),
+		true, c.scope, intVarDetailExFuncName)
 	return detail.Value.IntValue(), detail, err
 }
 
 func (c *clientEventsDisabledDecorator) Float64Variation(key string, context ldcontext.Context, defaultVal float64) (
 	float64, error) {
-	detail, err := c.client.variation(key, context, ldvalue.Float64(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Float64(defaultVal),
+		true, c.scope, floatVarFuncName)
 	return detail.Value.Float64Value(), err
 }
 
@@ -141,13 +194,39 @@ func (c *clientEventsDisabledDecorator) Float64VariationDetail(
 	defaultVal float64,
 ) (
 	float64, ldreason.EvaluationDetail, error) {
-	detail, err := c.client.variation(key, context, ldvalue.Float64(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Float64(defaultVal),
+		true, c.scope, floatVarDetailFuncName)
+	return detail.Value.Float64Value(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) Float64VariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal float64,
+) (
+	float64, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.Float64(defaultVal),
+		true, c.scope, floatVarExFuncName)
+	return detail.Value.Float64Value(), err
+}
+
+func (c *clientEventsDisabledDecorator) Float64VariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal float64,
+) (
+	float64, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.Float64(defaultVal),
+		true, c.scope, floatVarDetailExFuncName)
 	return detail.Value.Float64Value(), detail, err
 }
 
 func (c *clientEventsDisabledDecorator) StringVariation(key string, context ldcontext.Context, defaultVal string) (
 	string, error) {
-	detail, err := c.client.variation(key, context, ldvalue.String(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.String(defaultVal),
+		true, c.scope, stringVarExFuncName)
 	return detail.Value.StringValue(), err
 }
 
@@ -157,14 +236,48 @@ func (c *clientEventsDisabledDecorator) StringVariationDetail(
 	defaultVal string,
 ) (
 	string, ldreason.EvaluationDetail, error) {
-	detail, err := c.client.variation(key, context, ldvalue.String(defaultVal), true, c.scope)
+	detail, err := c.client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.String(defaultVal),
+		true, c.scope, stringVarDetailFuncName)
+	return detail.Value.StringValue(), detail, err
+}
+
+func (c *clientEventsDisabledDecorator) StringVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal string,
+) (
+	string, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.String(defaultVal), true, c.scope,
+		stringVarExFuncName)
+	return detail.Value.StringValue(), err
+}
+
+func (c *clientEventsDisabledDecorator) StringVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal string,
+) (
+	string, ldreason.EvaluationDetail, error) {
+	detail, err := c.client.variationWithHooks(ctx, key, context, ldvalue.String(defaultVal), true, c.scope,
+		stringVarDetailExFuncName)
 	return detail.Value.StringValue(), detail, err
 }
 
 func (c *clientEventsDisabledDecorator) MigrationVariation(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	return c.client.migrationVariation(key, context, defaultStage, c.scope)
+	return c.client.migrationVariation(gocontext.TODO(), key, context, defaultStage, c.scope, migrationVarFuncName)
+}
+
+func (c *clientEventsDisabledDecorator) MigrationVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultStage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	return c.client.migrationVariation(ctx, key, context, defaultStage, c.scope, migrationVarExFuncName)
 }
 
 func (c *clientEventsDisabledDecorator) JSONVariation(key string, context ldcontext.Context, defaultVal ldvalue.Value) (

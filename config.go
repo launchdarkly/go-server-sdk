@@ -3,6 +3,7 @@ package ldclient
 import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -188,4 +189,12 @@ type Config struct {
 	// Application metadata may be used in LaunchDarkly analytics or other product features, but does not
 	// affect feature flag evaluations.
 	ApplicationInfo interfaces.ApplicationInfo
+
+	// Initial set of hooks for the client.
+	//
+	// Hooks provide entrypoints which allow for observation of SDK functions.
+	//
+	// LaunchDarkly provides integration packages, and most applications will not
+	// need to implement their own hooks.
+	Hooks []ldhooks.Hook
 }
