@@ -16,7 +16,7 @@ import (
 // compose the `Unimplemented`.
 //
 //	type MyHook struct {
-//	  Unimplemented
+//	  ldhooks.Unimplemented
 //	}
 type Hook interface {
 	Metadata() Metadata
@@ -60,7 +60,7 @@ type hookInterfaces interface {
 // interface is extended.
 //
 //	type MyHook struct {
-//	  Unimplemented
+//	  ldhooks.Unimplemented
 //	}
 //
 // The hook should implement at least one stage/handler as well as the Metadata function.
