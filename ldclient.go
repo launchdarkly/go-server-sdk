@@ -35,32 +35,34 @@ import (
 // Version is the SDK version.
 const Version = internal.SDKVersion
 
-const boolVarFuncName = "LDClient.BoolVariation"
-const intVarFuncName = "LDClient.IntVariation"
-const floatVarFuncName = "LDClient.Float64Variation"
-const stringVarFuncName = "LDClient.StringVariation"
-const jsonVarFuncName = "LDClient.JSONVariation"
+const (
+	boolVarFuncName   = "LDClient.BoolVariation"
+	intVarFuncName    = "LDClient.IntVariation"
+	floatVarFuncName  = "LDClient.Float64Variation"
+	stringVarFuncName = "LDClient.StringVariation"
+	jsonVarFuncName   = "LDClient.JSONVariation"
 
-const boolVarExFuncName = "LDClient.BoolVariationEx"
-const intVarExFuncName = "LDClient.IntVariationEx"
-const floatVarExFuncName = "LDClient.Float64VariationEx"
-const stringVarExFuncName = "LDClient.StringVariationEx"
-const jsonVarExFuncName = "LDClient.JSONVariationEx"
+	boolVarExFuncName   = "LDClient.BoolVariationEx"
+	intVarExFuncName    = "LDClient.IntVariationEx"
+	floatVarExFuncName  = "LDClient.Float64VariationEx"
+	stringVarExFuncName = "LDClient.StringVariationEx"
+	jsonVarExFuncName   = "LDClient.JSONVariationEx"
 
-const boolVarDetailFuncName = "LDClient.BoolVariationDetail"
-const intVarDetailFuncName = "LDClient.IntVariationDetail"
-const floatVarDetailFuncName = "LDClient.Float64VariationDetail"
-const stringVarDetailFuncName = "LDClient.StringVariationDetail"
-const jsonVarDetailFuncName = "LDClient.JSONVariationDetail"
+	boolVarDetailFuncName   = "LDClient.BoolVariationDetail"
+	intVarDetailFuncName    = "LDClient.IntVariationDetail"
+	floatVarDetailFuncName  = "LDClient.Float64VariationDetail"
+	stringVarDetailFuncName = "LDClient.StringVariationDetail"
+	jsonVarDetailFuncName   = "LDClient.JSONVariationDetail"
 
-const boolVarDetailExFuncName = "LDClient.BoolVariationDetailEx"
-const intVarDetailExFuncName = "LDClient.IntVariationDetailEx"
-const floatVarDetailExFuncName = "LDClient.Float64VariationDetailEx"
-const stringVarDetailExFuncName = "LDClient.StringVariationDetailEx"
-const jsonVarDetailExFuncName = "LDClient.JSONVariationDetailEx"
+	boolVarDetailExFuncName   = "LDClient.BoolVariationDetailEx"
+	intVarDetailExFuncName    = "LDClient.IntVariationDetailEx"
+	floatVarDetailExFuncName  = "LDClient.Float64VariationDetailEx"
+	stringVarDetailExFuncName = "LDClient.StringVariationDetailEx"
+	jsonVarDetailExFuncName   = "LDClient.JSONVariationDetailEx"
 
-const migrationVarFuncName = "LDClient.MigrationVariation"
-const migrationVarExFuncName = "LDClient.MigrationVariationEx"
+	migrationVarFuncName   = "LDClient.MigrationVariation"
+	migrationVarExFuncName = "LDClient.MigrationVariationEx"
+)
 
 // LDClient is the LaunchDarkly client.
 //
