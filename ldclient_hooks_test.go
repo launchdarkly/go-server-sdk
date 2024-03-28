@@ -72,9 +72,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _ = client.BoolVariationEx(testGoContext, hookTestFlag, testContext, false)
+				_, _ = client.BoolVariationCtx(testGoContext, hookTestFlag, testContext, false)
 			},
-			methodName:   "LDClient.BoolVariationEx",
+			methodName:   "LDClient.BoolVariationCtx",
 			defaultValue: falseValue,
 			context:      testGoContext,
 		},
@@ -88,9 +88,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _, _ = client.BoolVariationDetailEx(testGoContext, hookTestFlag, testContext, false)
+				_, _, _ = client.BoolVariationDetailCtx(testGoContext, hookTestFlag, testContext, false)
 			},
-			methodName:   "LDClient.BoolVariationDetailEx",
+			methodName:   "LDClient.BoolVariationDetailCtx",
 			defaultValue: falseValue,
 			context:      testGoContext,
 		},
@@ -105,9 +105,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _ = client.IntVariationEx(testGoContext, hookTestFlag, testContext, 42)
+				_, _ = client.IntVariationCtx(testGoContext, hookTestFlag, testContext, 42)
 			},
-			methodName:   "LDClient.IntVariationEx",
+			methodName:   "LDClient.IntVariationCtx",
 			defaultValue: fortyTwoValue,
 			context:      testGoContext,
 		},
@@ -121,9 +121,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _, _ = client.IntVariationDetailEx(testGoContext, hookTestFlag, testContext, 42)
+				_, _, _ = client.IntVariationDetailCtx(testGoContext, hookTestFlag, testContext, 42)
 			},
-			methodName:   "LDClient.IntVariationDetailEx",
+			methodName:   "LDClient.IntVariationDetailCtx",
 			defaultValue: fortyTwoValue,
 			context:      testGoContext,
 		},
@@ -138,9 +138,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _ = client.Float64VariationEx(testGoContext, hookTestFlag, testContext, 3.14)
+				_, _ = client.Float64VariationCtx(testGoContext, hookTestFlag, testContext, 3.14)
 			},
-			methodName:   "LDClient.Float64VariationEx",
+			methodName:   "LDClient.Float64VariationCtx",
 			defaultValue: piValue,
 			context:      testGoContext,
 		},
@@ -154,9 +154,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _, _ = client.Float64VariationDetailEx(testGoContext, hookTestFlag, testContext, 3.14)
+				_, _, _ = client.Float64VariationDetailCtx(testGoContext, hookTestFlag, testContext, 3.14)
 			},
-			methodName:   "LDClient.Float64VariationDetailEx",
+			methodName:   "LDClient.Float64VariationDetailCtx",
 			defaultValue: piValue,
 			context:      testGoContext,
 		},
@@ -171,9 +171,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _ = client.StringVariationEx(testGoContext, hookTestFlag, testContext, "test-string")
+				_, _ = client.StringVariationCtx(testGoContext, hookTestFlag, testContext, "test-string")
 			},
-			methodName:   "LDClient.StringVariationEx",
+			methodName:   "LDClient.StringVariationCtx",
 			defaultValue: stringValue,
 			context:      testGoContext,
 		},
@@ -187,10 +187,10 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _, _ = client.StringVariationDetailEx(
+				_, _, _ = client.StringVariationDetailCtx(
 					testGoContext, hookTestFlag, testContext, "test-string")
 			},
-			methodName:   "LDClient.StringVariationDetailEx",
+			methodName:   "LDClient.StringVariationDetailCtx",
 			defaultValue: stringValue,
 			context:      testGoContext,
 		},
@@ -205,10 +205,10 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _ = client.JSONVariationEx(
+				_, _ = client.JSONVariationCtx(
 					testGoContext, hookTestFlag, testContext, ldvalue.String("test-string"))
 			},
-			methodName:   "LDClient.JSONVariationEx",
+			methodName:   "LDClient.JSONVariationCtx",
 			defaultValue: stringValue,
 			context:      testGoContext,
 		},
@@ -222,10 +222,10 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _, _ = client.JSONVariationDetailEx(
+				_, _, _ = client.JSONVariationDetailCtx(
 					testGoContext, hookTestFlag, testContext, ldvalue.String("test-string"))
 			},
-			methodName:   "LDClient.JSONVariationDetailEx",
+			methodName:   "LDClient.JSONVariationDetailCtx",
 			defaultValue: stringValue,
 			context:      testGoContext,
 		},
@@ -240,9 +240,9 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		},
 		{
 			variationCall: func(client *LDClient) {
-				_, _, _ = client.MigrationVariationEx(testGoContext, hookTestFlag, testContext, ldmigration.Off)
+				_, _, _ = client.MigrationVariationCtx(testGoContext, hookTestFlag, testContext, ldmigration.Off)
 			},
-			methodName:   "LDClient.MigrationVariationEx",
+			methodName:   "LDClient.MigrationVariationCtx",
 			defaultValue: ldvalue.String(string(ldmigration.Off)),
 			context:      testGoContext,
 		},

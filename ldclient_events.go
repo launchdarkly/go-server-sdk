@@ -118,7 +118,7 @@ func (c *clientEventsDisabledDecorator) BoolVariationDetail(key string, context 
 	return detail.Value.BoolValue(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) BoolVariationEx(
+func (c *clientEventsDisabledDecorator) BoolVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -129,7 +129,7 @@ func (c *clientEventsDisabledDecorator) BoolVariationEx(
 	return detail.Value.BoolValue(), err
 }
 
-func (c *clientEventsDisabledDecorator) BoolVariationDetailEx(
+func (c *clientEventsDisabledDecorator) BoolVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -158,7 +158,7 @@ func (c *clientEventsDisabledDecorator) IntVariationDetail(key string, context l
 	return detail.Value.IntValue(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) IntVariationEx(
+func (c *clientEventsDisabledDecorator) IntVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -169,7 +169,7 @@ func (c *clientEventsDisabledDecorator) IntVariationEx(
 	return detail.Value.IntValue(), err
 }
 
-func (c *clientEventsDisabledDecorator) IntVariationDetailEx(
+func (c *clientEventsDisabledDecorator) IntVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -199,7 +199,7 @@ func (c *clientEventsDisabledDecorator) Float64VariationDetail(
 	return detail.Value.Float64Value(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) Float64VariationEx(
+func (c *clientEventsDisabledDecorator) Float64VariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -211,7 +211,7 @@ func (c *clientEventsDisabledDecorator) Float64VariationEx(
 	return detail.Value.Float64Value(), err
 }
 
-func (c *clientEventsDisabledDecorator) Float64VariationDetailEx(
+func (c *clientEventsDisabledDecorator) Float64VariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -241,7 +241,7 @@ func (c *clientEventsDisabledDecorator) StringVariationDetail(
 	return detail.Value.StringValue(), detail, err
 }
 
-func (c *clientEventsDisabledDecorator) StringVariationEx(
+func (c *clientEventsDisabledDecorator) StringVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -253,7 +253,7 @@ func (c *clientEventsDisabledDecorator) StringVariationEx(
 	return detail.Value.StringValue(), err
 }
 
-func (c *clientEventsDisabledDecorator) StringVariationDetailEx(
+func (c *clientEventsDisabledDecorator) StringVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -271,7 +271,7 @@ func (c *clientEventsDisabledDecorator) MigrationVariation(
 	return c.client.migrationVariation(gocontext.TODO(), key, context, defaultStage, c.scope, migrationVarFuncName)
 }
 
-func (c *clientEventsDisabledDecorator) MigrationVariationEx(
+func (c *clientEventsDisabledDecorator) MigrationVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,

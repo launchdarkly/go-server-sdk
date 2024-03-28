@@ -34,13 +34,13 @@ func TestMigrationVariation(t *testing.T) {
 		})
 	})
 
-	t.Run("with MigrationVariationEx", func(t *testing.T) {
+	t.Run("with MigrationVariationCtx", func(t *testing.T) {
 		runMigrationTests(t, func(client *LDClient,
 			key string,
 			context ldcontext.Context,
 			stage ldmigration.Stage,
 		) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-			return client.MigrationVariationEx(gocontext.TODO(), key, context, stage)
+			return client.MigrationVariationCtx(gocontext.TODO(), key, context, stage)
 		})
 	})
 

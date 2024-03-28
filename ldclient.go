@@ -42,11 +42,11 @@ const (
 	stringVarFuncName = "LDClient.StringVariation"
 	jsonVarFuncName   = "LDClient.JSONVariation"
 
-	boolVarExFuncName   = "LDClient.BoolVariationEx"
-	intVarExFuncName    = "LDClient.IntVariationEx"
-	floatVarExFuncName  = "LDClient.Float64VariationEx"
-	stringVarExFuncName = "LDClient.StringVariationEx"
-	jsonVarExFuncName   = "LDClient.JSONVariationEx"
+	boolVarExFuncName   = "LDClient.BoolVariationCtx"
+	intVarExFuncName    = "LDClient.IntVariationCtx"
+	floatVarExFuncName  = "LDClient.Float64VariationCtx"
+	stringVarExFuncName = "LDClient.StringVariationCtx"
+	jsonVarExFuncName   = "LDClient.JSONVariationCtx"
 
 	boolVarDetailFuncName   = "LDClient.BoolVariationDetail"
 	intVarDetailFuncName    = "LDClient.IntVariationDetail"
@@ -54,14 +54,14 @@ const (
 	stringVarDetailFuncName = "LDClient.StringVariationDetail"
 	jsonVarDetailFuncName   = "LDClient.JSONVariationDetail"
 
-	boolVarDetailExFuncName   = "LDClient.BoolVariationDetailEx"
-	intVarDetailExFuncName    = "LDClient.IntVariationDetailEx"
-	floatVarDetailExFuncName  = "LDClient.Float64VariationDetailEx"
-	stringVarDetailExFuncName = "LDClient.StringVariationDetailEx"
-	jsonVarDetailExFuncName   = "LDClient.JSONVariationDetailEx"
+	boolVarDetailExFuncName   = "LDClient.BoolVariationDetailCtx"
+	intVarDetailExFuncName    = "LDClient.IntVariationDetailCtx"
+	floatVarDetailExFuncName  = "LDClient.Float64VariationDetailCtx"
+	stringVarDetailExFuncName = "LDClient.StringVariationDetailCtx"
+	jsonVarDetailExFuncName   = "LDClient.JSONVariationDetailCtx"
 
 	migrationVarFuncName   = "LDClient.MigrationVariation"
-	migrationVarExFuncName = "LDClient.MigrationVariationEx"
+	migrationVarExFuncName = "LDClient.MigrationVariationCtx"
 )
 
 // LDClient is the LaunchDarkly client.
@@ -380,10 +380,13 @@ func (client *LDClient) MigrationVariation(
 		migrationVarFuncName)
 }
 
-// MigrationVariationEx returns the migration stage of the migration feature flag for the given evaluation context.
+// MigrationVariationCtx returns the migration stage of the migration feature flag for the given evaluation context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // Returns defaultStage if there is an error or if the flag doesn't exist.
-func (client *LDClient) MigrationVariationEx(
+func (client *LDClient) MigrationVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -739,13 +742,16 @@ func (client *LDClient) BoolVariationDetail(
 	return detail.Value.BoolValue(), detail, err
 }
 
-// BoolVariationEx is the same as [LDClient.BoolVariation], but accepts a context.Context.
+// BoolVariationCtx is the same as [LDClient.BoolVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) BoolVariationEx(
+func (client *LDClient) BoolVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -756,11 +762,14 @@ func (client *LDClient) BoolVariationEx(
 	return detail.Value.BoolValue(), err
 }
 
-// BoolVariationDetailEx is the same as [LDClient.BoolVariationEx], but also returns further information about how
+// BoolVariationDetailCtx is the same as [LDClient.BoolVariationCtx], but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (client *LDClient) BoolVariationDetailEx(
+func (client *LDClient) BoolVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -800,7 +809,10 @@ func (client *LDClient) IntVariationDetail(
 	return detail.Value.IntValue(), detail, err
 }
 
-// IntVariationEx is the same as [LDClient.IntVariation], but accepts a context.Context.
+// IntVariationCtx is the same as [LDClient.IntVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
@@ -808,7 +820,7 @@ func (client *LDClient) IntVariationDetail(
 // If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) IntVariationEx(
+func (client *LDClient) IntVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -819,11 +831,14 @@ func (client *LDClient) IntVariationEx(
 	return detail.Value.IntValue(), err
 }
 
-// IntVariationDetailEx is the same as [LDClient.IntVariationEx], but also returns further information about how
+// IntVariationDetailCtx is the same as [LDClient.IntVariationCtx], but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (client *LDClient) IntVariationDetailEx(
+func (client *LDClient) IntVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -861,13 +876,16 @@ func (client *LDClient) Float64VariationDetail(
 	return detail.Value.Float64Value(), detail, err
 }
 
-// Float64VariationEx is the same as [LDClient.Float64Variation], but accepts a context.Context.
+// Float64VariationCtx is the same as [LDClient.Float64Variation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) Float64VariationEx(
+func (client *LDClient) Float64VariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -878,11 +896,14 @@ func (client *LDClient) Float64VariationEx(
 	return detail.Value.Float64Value(), err
 }
 
-// Float64VariationDetailEx is the same as [LDClient.Float64VariationEx], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// Float64VariationDetailCtx is the same as [LDClient.Float64VariationCtx], but also returns further information about
+// how the value was calculated. The "reason" data will also be included in analytics events.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (client *LDClient) Float64VariationDetailEx(
+func (client *LDClient) Float64VariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -920,13 +941,16 @@ func (client *LDClient) StringVariationDetail(
 	return detail.Value.StringValue(), detail, err
 }
 
-// StringVariationEx is the same as [LDClient.StringVariation], but accepts a context.Context.
+// StringVariationCtx is the same as [LDClient.StringVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
 // no off variation.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) StringVariationEx(
+func (client *LDClient) StringVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -937,11 +961,14 @@ func (client *LDClient) StringVariationEx(
 	return detail.Value.StringValue(), err
 }
 
-// StringVariationDetailEx is the same as [LDClient.StringVariationEx], but also returns further information about how
+// StringVariationDetailCtx is the same as [LDClient.StringVariationCtx], but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (client *LDClient) StringVariationDetailEx(
+func (client *LDClient) StringVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -999,7 +1026,10 @@ func (client *LDClient) JSONVariationDetail(
 	return detail.Value, detail, err
 }
 
-// JSONVariationEx is the same as [LDClient.JSONVariation], but accepts a context.Context.
+// JSONVariationCtx is the same as [LDClient.JSONVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
 //
 // The value is returned as an [ldvalue.Value], which can be inspected or converted to other types using
 // methods such as [ldvalue.Value.GetType] and [ldvalue.Value.BoolValue]. The defaultVal parameter also uses this
@@ -1009,7 +1039,7 @@ func (client *LDClient) JSONVariationDetail(
 //	    Add(ldvalue.String("defaultFirstItem")).
 //	    Add(ldvalue.String("defaultSecondItem")).
 //	    Build()
-//	result, err := client.JSONVariationEx(ctx, flagKey, context, defaultValAsArray)
+//	result, err := client.JSONVariationCtx(ctx, flagKey, context, defaultValAsArray)
 //	firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
 //
 // You can also use unparsed json.RawMessage values:
@@ -1021,7 +1051,7 @@ func (client *LDClient) JSONVariationDetail(
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
-func (client *LDClient) JSONVariationEx(
+func (client *LDClient) JSONVariationCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
@@ -1032,11 +1062,14 @@ func (client *LDClient) JSONVariationEx(
 	return detail.Value, err
 }
 
-// JSONVariationDetailEx is the same as [LDClient.JSONVariationEx], but also returns further information about how
+// JSONVariationDetailCtx is the same as [LDClient.JSONVariationCtx], but also returns further information about how
 // the value was calculated. The "reason" data will also be included in analytics events.
 //
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (client *LDClient) JSONVariationDetailEx(
+func (client *LDClient) JSONVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
 	context ldcontext.Context,
