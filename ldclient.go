@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	gocontext "context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -24,13 +25,44 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/hooks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 )
 
 // Version is the SDK version.
 const Version = internal.SDKVersion
+
+const (
+	boolVarFuncName   = "LDClient.BoolVariation"
+	intVarFuncName    = "LDClient.IntVariation"
+	floatVarFuncName  = "LDClient.Float64Variation"
+	stringVarFuncName = "LDClient.StringVariation"
+	jsonVarFuncName   = "LDClient.JSONVariation"
+
+	boolVarExFuncName   = "LDClient.BoolVariationCtx"
+	intVarExFuncName    = "LDClient.IntVariationCtx"
+	floatVarExFuncName  = "LDClient.Float64VariationCtx"
+	stringVarExFuncName = "LDClient.StringVariationCtx"
+	jsonVarExFuncName   = "LDClient.JSONVariationCtx"
+
+	boolVarDetailFuncName   = "LDClient.BoolVariationDetail"
+	intVarDetailFuncName    = "LDClient.IntVariationDetail"
+	floatVarDetailFuncName  = "LDClient.Float64VariationDetail"
+	stringVarDetailFuncName = "LDClient.StringVariationDetail"
+	jsonVarDetailFuncName   = "LDClient.JSONVariationDetail"
+
+	boolVarDetailExFuncName   = "LDClient.BoolVariationDetailCtx"
+	intVarDetailExFuncName    = "LDClient.IntVariationDetailCtx"
+	floatVarDetailExFuncName  = "LDClient.Float64VariationDetailCtx"
+	stringVarDetailExFuncName = "LDClient.StringVariationDetailCtx"
+	jsonVarDetailExFuncName   = "LDClient.JSONVariationDetailCtx"
+
+	migrationVarFuncName   = "LDClient.MigrationVariation"
+	migrationVarExFuncName = "LDClient.MigrationVariationCtx"
+)
 
 // LDClient is the LaunchDarkly client.
 //
@@ -68,6 +100,7 @@ type LDClient struct {
 	withEventsDisabled               interfaces.LDClientInterface
 	logEvaluationErrors              bool
 	offline                          bool
+	hookRunner                       *hooks.Runner
 }
 
 // Initialization errors
@@ -288,6 +321,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
+	client.hookRunner = hooks.NewRunner(loggers, config.Hooks)
+
 	clientValid = true
 	client.dataSource.Start(closeWhenReady)
 	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
@@ -341,13 +376,34 @@ func createDataSource(
 func (client *LDClient) MigrationVariation(
 	key string, context ldcontext.Context, defaultStage ldmigration.Stage,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	return client.migrationVariation(key, context, defaultStage, client.eventsDefault)
+	return client.migrationVariation(gocontext.TODO(), key, context, defaultStage, client.eventsDefault,
+		migrationVarFuncName)
+}
+
+// MigrationVariationCtx returns the migration stage of the migration feature flag for the given evaluation context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// Returns defaultStage if there is an error or if the flag doesn't exist.
+func (client *LDClient) MigrationVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultStage ldmigration.Stage,
+) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
+	return client.migrationVariation(ctx, key, context, defaultStage, client.eventsDefault, migrationVarExFuncName)
 }
 
 func (client *LDClient) migrationVariation(
-	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope,
+	ctx gocontext.Context,
+	key string, context ldcontext.Context, defaultStage ldmigration.Stage, eventsScope eventsScope, method string,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
-	detail, flag, err := client.variationAndFlag(key, context, ldvalue.String(string(defaultStage)), true, eventsScope)
+	stageValue := ldvalue.String(string(defaultStage))
+	hookExecution := client.hookRunner.PrepareEvaluationSeries(key, context, stageValue, method)
+	hookExecution = client.hookRunner.BeforeEvaluation(ctx, hookExecution)
+	detail, flag, err := client.variationAndFlag(key, context, stageValue, true,
+		eventsScope)
 	tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 
 	if err != nil {
@@ -357,10 +413,12 @@ func (client *LDClient) migrationVariation(
 	stage, err := ldmigration.ParseStage(detail.Value.StringValue())
 	if err != nil {
 		detail = ldreason.NewEvaluationDetailForError(ldreason.EvalErrorWrongType, ldvalue.String(string(defaultStage)))
+		client.hookRunner.AfterEvaluation(ctx, hookExecution, detail)
 		tracker := NewMigrationOpTracker(key, flag, context, detail, defaultStage)
 		return defaultStage, tracker, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
 	}
 
+	client.hookRunner.AfterEvaluation(ctx, hookExecution, detail)
 	return stage, tracker, nil
 }
 
@@ -665,7 +723,8 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) BoolVariation(key string, context ldcontext.Context, defaultVal bool) (bool, error) {
-	detail, err := client.variation(key, context, ldvalue.Bool(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Bool(defaultVal), true,
+		client.eventsDefault, boolVarFuncName)
 	return detail.Value.BoolValue(), err
 }
 
@@ -678,7 +737,46 @@ func (client *LDClient) BoolVariationDetail(
 	context ldcontext.Context,
 	defaultVal bool,
 ) (bool, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.Bool(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Bool(defaultVal), true,
+		client.eventsWithReasons, boolVarDetailFuncName)
+	return detail.Value.BoolValue(), detail, err
+}
+
+// BoolVariationCtx is the same as [LDClient.BoolVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
+// has no off variation.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+func (client *LDClient) BoolVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal bool,
+) (bool, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Bool(defaultVal), true,
+		client.eventsDefault, boolVarExFuncName)
+	return detail.Value.BoolValue(), err
+}
+
+// BoolVariationDetailCtx is the same as [LDClient.BoolVariationCtx], but also returns further information about how
+// the value was calculated. The "reason" data will also be included in analytics events.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+func (client *LDClient) BoolVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal bool,
+) (bool, ldreason.EvaluationDetail, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Bool(defaultVal), true,
+		client.eventsWithReasons, boolVarDetailExFuncName)
 	return detail.Value.BoolValue(), detail, err
 }
 
@@ -692,7 +790,8 @@ func (client *LDClient) BoolVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) IntVariation(key string, context ldcontext.Context, defaultVal int) (int, error) {
-	detail, err := client.variation(key, context, ldvalue.Int(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Int(defaultVal), true,
+		client.eventsDefault, intVarFuncName)
 	return detail.Value.IntValue(), err
 }
 
@@ -705,7 +804,48 @@ func (client *LDClient) IntVariationDetail(
 	context ldcontext.Context,
 	defaultVal int,
 ) (int, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.Int(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Int(defaultVal), true,
+		client.eventsWithReasons, intVarDetailFuncName)
+	return detail.Value.IntValue(), detail, err
+}
+
+// IntVariationCtx is the same as [LDClient.IntVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
+// has no off variation.
+//
+// If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+func (client *LDClient) IntVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal int,
+) (int, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Int(defaultVal), true,
+		client.eventsDefault, intVarExFuncName)
+	return detail.Value.IntValue(), err
+}
+
+// IntVariationDetailCtx is the same as [LDClient.IntVariationCtx], but also returns further information about how
+// the value was calculated. The "reason" data will also be included in analytics events.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+func (client *LDClient) IntVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal int,
+) (int, ldreason.EvaluationDetail, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Int(defaultVal), true,
+		client.eventsWithReasons, intVarDetailExFuncName)
 	return detail.Value.IntValue(), detail, err
 }
 
@@ -717,7 +857,8 @@ func (client *LDClient) IntVariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) Float64Variation(key string, context ldcontext.Context, defaultVal float64) (float64, error) {
-	detail, err := client.variation(key, context, ldvalue.Float64(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Float64(defaultVal),
+		true, client.eventsDefault, floatVarFuncName)
 	return detail.Value.Float64Value(), err
 }
 
@@ -730,7 +871,46 @@ func (client *LDClient) Float64VariationDetail(
 	context ldcontext.Context,
 	defaultVal float64,
 ) (float64, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.Float64(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.Float64(defaultVal),
+		true, client.eventsWithReasons, floatVarDetailFuncName)
+	return detail.Value.Float64Value(), detail, err
+}
+
+// Float64VariationCtx is the same as [LDClient.Float64Variation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
+// has no off variation.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+func (client *LDClient) Float64VariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal float64,
+) (float64, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Float64(defaultVal), true,
+		client.eventsDefault, floatVarExFuncName)
+	return detail.Value.Float64Value(), err
+}
+
+// Float64VariationDetailCtx is the same as [LDClient.Float64VariationCtx], but also returns further information about
+// how the value was calculated. The "reason" data will also be included in analytics events.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+func (client *LDClient) Float64VariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal float64,
+) (float64, ldreason.EvaluationDetail, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.Float64(defaultVal), true,
+		client.eventsWithReasons, floatVarDetailExFuncName)
 	return detail.Value.Float64Value(), detail, err
 }
 
@@ -742,7 +922,8 @@ func (client *LDClient) Float64VariationDetail(
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (client *LDClient) StringVariation(key string, context ldcontext.Context, defaultVal string) (string, error) {
-	detail, err := client.variation(key, context, ldvalue.String(defaultVal), true, client.eventsDefault)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.String(defaultVal), true,
+		client.eventsDefault, stringVarFuncName)
 	return detail.Value.StringValue(), err
 }
 
@@ -755,7 +936,46 @@ func (client *LDClient) StringVariationDetail(
 	context ldcontext.Context,
 	defaultVal string,
 ) (string, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, ldvalue.String(defaultVal), true, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, ldvalue.String(defaultVal), true,
+		client.eventsWithReasons, stringVarDetailFuncName)
+	return detail.Value.StringValue(), detail, err
+}
+
+// StringVariationCtx is the same as [LDClient.StringVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
+// no off variation.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+func (client *LDClient) StringVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal string,
+) (string, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.String(defaultVal), true,
+		client.eventsDefault, stringVarExFuncName)
+	return detail.Value.StringValue(), err
+}
+
+// StringVariationDetailCtx is the same as [LDClient.StringVariationCtx], but also returns further information about how
+// the value was calculated. The "reason" data will also be included in analytics events.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+func (client *LDClient) StringVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal string,
+) (string, ldreason.EvaluationDetail, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, ldvalue.String(defaultVal), true,
+		client.eventsWithReasons, stringVarDetailExFuncName)
 	return detail.Value.StringValue(), detail, err
 }
 
@@ -787,7 +1007,8 @@ func (client *LDClient) JSONVariation(
 	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, error) {
-	detail, err := client.variation(key, context, defaultVal, false, client.eventsDefault)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, defaultVal, false, client.eventsDefault,
+		jsonVarFuncName)
 	return detail.Value, err
 }
 
@@ -800,7 +1021,62 @@ func (client *LDClient) JSONVariationDetail(
 	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, ldreason.EvaluationDetail, error) {
-	detail, err := client.variation(key, context, defaultVal, false, client.eventsWithReasons)
+	detail, err := client.variationWithHooks(gocontext.TODO(), key, context, defaultVal, false, client.eventsWithReasons,
+		jsonVarDetailFuncName)
+	return detail.Value, detail, err
+}
+
+// JSONVariationCtx is the same as [LDClient.JSONVariation], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// The value is returned as an [ldvalue.Value], which can be inspected or converted to other types using
+// methods such as [ldvalue.Value.GetType] and [ldvalue.Value.BoolValue]. The defaultVal parameter also uses this
+// type. For instance, if the values for this flag are JSON arrays:
+//
+//	defaultValAsArray := ldvalue.BuildArray().
+//	    Add(ldvalue.String("defaultFirstItem")).
+//	    Add(ldvalue.String("defaultSecondItem")).
+//	    Build()
+//	result, err := client.JSONVariationCtx(ctx, flagKey, context, defaultValAsArray)
+//	firstItemAsString := result.GetByIndex(0).StringValue() // "defaultFirstItem", etc.
+//
+// You can also use unparsed json.RawMessage values:
+//
+//	defaultValAsRawJSON := ldvalue.Raw(json.RawMessage(`{"things":[1,2,3]}`))
+//	result, err := client.JSONVariation(flagKey, context, defaultValAsJSON
+//	resultAsRawJSON := result.AsRaw()
+//
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+func (client *LDClient) JSONVariationCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal ldvalue.Value,
+) (ldvalue.Value, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, defaultVal, false, client.eventsDefault,
+		jsonVarExFuncName)
+	return detail.Value, err
+}
+
+// JSONVariationDetailCtx is the same as [LDClient.JSONVariationCtx], but also returns further information about how
+// the value was calculated. The "reason" data will also be included in analytics events.
+//
+// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
+// by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+func (client *LDClient) JSONVariationDetailCtx(
+	ctx gocontext.Context,
+	key string,
+	context ldcontext.Context,
+	defaultVal ldvalue.Value,
+) (ldvalue.Value, ldreason.EvaluationDetail, error) {
+	detail, err := client.variationWithHooks(ctx, key, context, defaultVal, false, client.eventsWithReasons,
+		jsonVarDetailExFuncName)
 	return detail.Value, detail, err
 }
 
@@ -877,6 +1153,22 @@ func (client *LDClient) variation(
 	eventsScope eventsScope,
 ) (ldreason.EvaluationDetail, error) {
 	detail, _, err := client.variationAndFlag(key, context, defaultVal, checkType, eventsScope)
+	return detail, err
+}
+
+func (client *LDClient) variationWithHooks(
+	context gocontext.Context,
+	key string,
+	evalContext ldcontext.Context,
+	defaultVal ldvalue.Value,
+	checkType bool,
+	eventsScope eventsScope,
+	method string,
+) (ldreason.EvaluationDetail, error) {
+	execution := client.hookRunner.PrepareEvaluationSeries(key, evalContext, defaultVal, method)
+	execution = client.hookRunner.BeforeEvaluation(context, execution)
+	detail, err := client.variation(key, evalContext, defaultVal, checkType, eventsScope)
+	client.hookRunner.AfterEvaluation(context, execution, detail)
 	return detail, err
 }
 
@@ -1003,6 +1295,13 @@ func (client *LDClient) evaluateInternal(
 		result.Detail.Value = defaultVal
 	}
 	return result, feature, nil
+}
+
+// AddHooks allows adding a hook after creating the LDClient.
+//
+// If a hook can be registered at LDClient initialization, then the Hooks field of Config can be used instead.
+func (client *LDClient) AddHooks(hooks ...ldhooks.Hook) {
+	client.hookRunner.AddHooks(hooks...)
 }
 
 func newEvaluationError(jsonValue ldvalue.Value, errorKind ldreason.EvalErrorKind) ldreason.EvaluationDetail {
