@@ -98,7 +98,7 @@ type LDClient struct {
 	withEventsDisabled               interfaces.LDClientInterface
 	logEvaluationErrors              bool
 	offline                          bool
-	hookRunner                       *hooks.HookRunner
+	hookRunner                       *hooks.Runner
 }
 
 // Initialization errors
@@ -319,7 +319,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
-	client.hookRunner = hooks.NewHookRunner(loggers, config.Hooks)
+	client.hookRunner = hooks.NewRunner(loggers, config.Hooks)
 
 	clientValid = true
 	client.dataSource.Start(closeWhenReady)
