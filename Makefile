@@ -24,6 +24,7 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 
 build:
 	go build ./...
+	go build ./ldotel
 
 clean:
 	go clean
@@ -35,6 +36,7 @@ test:
 	@# build tags to isolate these tests from the main test run so that if you do "go test ./..." you won't
 	@# get unexpected errors.
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
+	go test ./ldotel
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
@@ -79,8 +81,14 @@ TEMP_TEST_OUTPUT=/tmp/sdk-contract-test-service.log
 # TEST_HARNESS_PARAMS can be set to add -skip parameters for any contract tests that cannot yet pass
 TEST_HARNESS_PARAMS=
 
+workspace:
+	rm -f go.work
+	go work init ./
+	go work use ./ldotel
+	go work use ./testservice
+
 build-contract-tests:
-	@cd testservice && go mod tidy && go build
+	@go build -o ./testservice/testservice ./testservice
 
 start-contract-test-service: build-contract-tests
 	@./testservice/testservice

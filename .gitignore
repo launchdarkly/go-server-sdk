@@ -4,3 +4,5 @@ go-server-sdk.test
 allocations.out
 .idea
 .vscode
+go.work
+go.work.sum

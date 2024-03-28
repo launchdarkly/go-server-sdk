@@ -9,6 +9,16 @@
       "extra-files" : [
         "internal/version.go"
       ]
+    },
+    "ldotel" : {
+      "release-type" : "go",
+      "bump-minor-pre-major" : true,
+      "tag-separator": "/",
+      "versioning" : "default",
+      "include-component-in-tag" : true,
+      "extra-files" : [
+        "internal/version.go"
+      ]
     }
   }
 }
