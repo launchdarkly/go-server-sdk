@@ -2,7 +2,6 @@ package sharedtest
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -19,9 +18,9 @@ type HookStage string
 
 const (
 	// HookStageBeforeEvaluation is the stage executed before evaluation.
-	HookStageBeforeEvaluation HookStage = "before"
+	HookStageBeforeEvaluation = HookStage("before")
 	// HookStageAfterEvaluation is the stage executed after evaluation.
-	HookStageAfterEvaluation = "after"
+	HookStageAfterEvaluation = HookStage("after")
 )
 
 // HookEvalCapture is used to capture the information provided to a hook during execution.
@@ -46,7 +45,7 @@ type hookTestData struct {
 // TestHook is a hook for testing to be used only by the SDK tests.
 type TestHook struct {
 	testData     *hookTestData
-	metadata     ldhooks.HookMetadata
+	metadata     ldhooks.Metadata
 	BeforeInject func(context.Context, ldhooks.EvaluationSeriesContext,
 		ldhooks.EvaluationSeriesData) (ldhooks.EvaluationSeriesData, error)
 
@@ -69,12 +68,12 @@ func NewTestHook(name string) TestHook {
 			data ldhooks.EvaluationSeriesData, detail ldreason.EvaluationDetail) (ldhooks.EvaluationSeriesData, error) {
 			return data, nil
 		},
-		metadata: ldhooks.NewHookMetadata(name),
+		metadata: ldhooks.NewMetadata(name),
 	}
 }
 
-// GetMetadata gets the meta-data for the hook.
-func (h TestHook) GetMetadata() ldhooks.HookMetadata {
+// Metadata gets the meta-data for the hook.
+func (h TestHook) Metadata() ldhooks.Metadata {
 	return h.metadata
 }
 
@@ -138,10 +137,10 @@ func (h TestHook) Verify(t *testing.T, calls ...HookExpectedCall) {
 				}
 			}
 		default:
-			assert.FailNow(t, fmt.Sprintf("Unhandled hook stage: %v", call.HookStage))
+			assert.FailNowf(t, "Unhandled hook stage", "stage: %v", call.HookStage)
 		}
 		if !found {
-			assert.FailNow(t, fmt.Sprintf("Unable to find matching call: %+v", call))
+			assert.FailNowf(t, "Unable to find matching call", "details: %+v", call)
 		}
 	}
 }

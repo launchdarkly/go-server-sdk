@@ -57,8 +57,8 @@ func (b *EvaluationSeriesDataBuilder) Set(key string, value any) *EvaluationSeri
 	return b
 }
 
-// SetFromMap copies the keys and values from the given map to the builder.
-func (b *EvaluationSeriesDataBuilder) SetFromMap(newValues map[string]any) *EvaluationSeriesDataBuilder {
+// Merge copies the keys and values from the given map to the builder.
+func (b *EvaluationSeriesDataBuilder) Merge(newValues map[string]any) *EvaluationSeriesDataBuilder {
 	for k, v := range newValues {
 		b.data[k] = v
 	}

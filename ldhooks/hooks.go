@@ -6,20 +6,20 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 )
 
-// Implementation Note: The UnimplementedHook struct is provided to simplify hook implementation. It should always
+// Implementation Note: The Unimplemented struct is provided to simplify hook implementation. It should always
 // contain an implementation of all series and handler interfaces. It should not contain the Hook interface directly
-// because the implementer should be required to implement GetMetadata.
+// because the implementer should be required to implement Metadata.
 
 // A Hook is used to extend the functionality of the SDK.
 //
 // In order to avoid implementing unused methods, as well as easing maintenance of compatibility, implementors should
-// compose the `UnimplementedHook`.
+// compose the `Unimplemented`.
 //
 //	type MyHook struct {
-//	  UnimplementedHook
+//	  Unimplemented
 //	}
 type Hook interface {
-	GetMetadata() HookMetadata
+	Metadata() Metadata
 	EvaluationSeries
 }
 
@@ -50,25 +50,25 @@ type EvaluationSeries interface {
 	) (EvaluationSeriesData, error)
 }
 
-// hookInterfaces is an interface for implementation by the UnimplementedHook
+// hookInterfaces is an interface for implementation by the Unimplemented
 type hookInterfaces interface {
 	EvaluationSeries
 }
 
-// UnimplementedHook implements all Hook methods with empty functions.
+// Unimplemented implements all Hook methods with empty functions.
 // Hook implementors should use this to avoid having to implement empty methods and to ease updates when the Hook
 // interface is extended.
 //
 //	type MyHook struct {
-//	  UnimplementedHook
+//	  Unimplemented
 //	}
 //
-// The hook should implement at least one stage/handler as well as the GetMetadata function.
-type UnimplementedHook struct {
+// The hook should implement at least one stage/handler as well as the Metadata function.
+type Unimplemented struct {
 }
 
 // BeforeEvaluation is a default implementation of the BeforeEvaluation stage.
-func (h UnimplementedHook) BeforeEvaluation(
+func (h Unimplemented) BeforeEvaluation(
 	_ context.Context,
 	_ EvaluationSeriesContext,
 	data EvaluationSeriesData,
@@ -77,7 +77,7 @@ func (h UnimplementedHook) BeforeEvaluation(
 }
 
 // AfterEvaluation is a default implementation of the AfterEvaluation stage.
-func (h UnimplementedHook) AfterEvaluation(
+func (h Unimplemented) AfterEvaluation(
 	_ context.Context,
 	_ EvaluationSeriesContext,
 	data EvaluationSeriesData,
@@ -86,8 +86,8 @@ func (h UnimplementedHook) AfterEvaluation(
 	return data, nil
 }
 
-// Implementation note: UnimplementedHook does not implement GetMetaData because that must be implemented by hook
+// Implementation note: Unimplemented does not implement GetMetaData because that must be implemented by hook
 // implementors.
 
-// Ensure UnimplementedHook implements required interfaces.
-var _ hookInterfaces = UnimplementedHook{}
+// Ensure Unimplemented implements required interfaces.
+var _ hookInterfaces = Unimplemented{}
