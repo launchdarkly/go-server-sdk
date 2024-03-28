@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	gocontext "context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -189,11 +190,39 @@ func TestBoolVariation(t *testing.T) {
 		})
 	})
 
+	t.Run("simpleEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
+
+			actual, err := p.client.BoolVariationEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Bool(expected), ldvalue.Bool(defaultVal), noReason)
+		})
+	})
+
 	t.Run("detail", func(t *testing.T) {
 		withClientEvalTestParams(func(p clientEvalTestParams) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
 
 			actual, detail, err := p.client.BoolVariationDetail(evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Bool(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Bool(expected), ldvalue.Bool(defaultVal), detail.Reason)
+		})
+	})
+
+	t.Run("detailEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
+
+			actual, detail, err := p.client.BoolVariationDetailEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
@@ -233,6 +262,34 @@ func TestIntVariation(t *testing.T) {
 				expectedReasonForSingleValueFlag), detail)
 
 			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Int(expected), ldvalue.Int(defaultVal), detail.Reason)
+		})
+
+		t.Run("simpleEx", func(t *testing.T) {
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.setupSingleValueFlag(evalFlagKey, ldvalue.Int(expected))
+
+				actual, err := p.client.IntVariationEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+				assert.NoError(t, err)
+				assert.Equal(t, expected, actual)
+
+				p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Int(expected), ldvalue.Int(defaultVal), noReason)
+			})
+		})
+
+		t.Run("detailEx", func(t *testing.T) {
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.setupSingleValueFlag(evalFlagKey, ldvalue.Int(expected))
+
+				actual, detail, err := p.client.IntVariationDetailEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+				assert.NoError(t, err)
+				assert.Equal(t, expected, actual)
+				assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Int(expected), expectedVariationForSingleValueFlag,
+					expectedReasonForSingleValueFlag), detail)
+
+				p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Int(expected), ldvalue.Int(defaultVal), detail.Reason)
+			})
 		})
 	})
 
@@ -293,6 +350,34 @@ func TestFloat64Variation(t *testing.T) {
 			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Float64(expected), ldvalue.Float64(defaultVal), detail.Reason)
 		})
 	})
+
+	t.Run("simpleEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.Float64(expected))
+
+			actual, err := p.client.Float64VariationEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Float64(expected), ldvalue.Float64(defaultVal), noReason)
+		})
+	})
+
+	t.Run("detailEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.Float64(expected))
+
+			actual, detail, err := p.client.Float64VariationDetailEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Float64(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.Float64(expected), ldvalue.Float64(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestStringVariation(t *testing.T) {
@@ -303,6 +388,19 @@ func TestStringVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
 
 			actual, err := p.client.StringVariation(evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.String(expected), ldvalue.String(defaultVal), noReason)
+		})
+	})
+
+	t.Run("simpleEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
+
+			actual, err := p.client.StringVariationEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
@@ -361,6 +459,21 @@ func TestStringVariation(t *testing.T) {
 			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.String(expected), ldvalue.String(defaultVal), detail.Reason)
 		})
 	})
+
+	t.Run("detailEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
+
+			actual, detail, err := p.client.StringVariationDetailEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.String(expected), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.String(expected), ldvalue.String(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestJSONRawVariation(t *testing.T) {
@@ -398,6 +511,36 @@ func TestJSONRawVariation(t *testing.T) {
 				ldvalue.CopyArbitraryValue(defaultVal), detail.Reason)
 		})
 	})
+
+	t.Run("simpleEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.CopyArbitraryValue(expectedValue))
+
+			actual, err := p.client.JSONVariationEx(gocontext.TODO(), evalFlagKey, evalTestUser, ldvalue.Raw(defaultVal))
+
+			assert.NoError(t, err)
+			assert.Equal(t, expectedRaw, actual.AsRaw())
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.CopyArbitraryValue(expectedValue),
+				ldvalue.CopyArbitraryValue(defaultVal), noReason)
+		})
+	})
+
+	t.Run("detailEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, ldvalue.CopyArbitraryValue(expectedValue))
+
+			actual, detail, err := p.client.JSONVariationDetailEx(gocontext.TODO(), evalFlagKey, evalTestUser, ldvalue.Raw(defaultVal))
+
+			assert.NoError(t, err)
+			assert.Equal(t, expectedRaw, actual.AsRaw())
+			assert.Equal(t, ldreason.NewEvaluationDetail(ldvalue.Parse(expectedRaw), expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, ldvalue.CopyArbitraryValue(expectedValue),
+				ldvalue.CopyArbitraryValue(defaultVal), detail.Reason)
+		})
+	})
 }
 
 func TestJSONVariation(t *testing.T) {
@@ -422,6 +565,34 @@ func TestJSONVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, expected)
 
 			actual, detail, err := p.client.JSONVariationDetail(evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, ldreason.NewEvaluationDetail(expected, expectedVariationForSingleValueFlag,
+				expectedReasonForSingleValueFlag), detail)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, expected, defaultVal, detail.Reason)
+		})
+	})
+
+	t.Run("simpleEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, expected)
+
+			actual, err := p.client.JSONVariationEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
+
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+
+			p.expectSingleEvaluationEvent(t, evalFlagKey, expected, defaultVal, noReason)
+		})
+	})
+
+	t.Run("detailEx", func(t *testing.T) {
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.setupSingleValueFlag(evalFlagKey, expected)
+
+			actual, detail, err := p.client.JSONVariationDetailEx(gocontext.TODO(), evalFlagKey, evalTestUser, defaultVal)
 
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
