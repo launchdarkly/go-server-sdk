@@ -42,7 +42,7 @@ func TestHookRunner(t *testing.T) {
 	ldContext := ldcontext.New("test-context")
 
 	t.Run("with no hooks", func(t *testing.T) {
-		runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
+		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
 
 		t.Run("prepare evaluation series", func(t *testing.T) {
 			res := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue, "testMethod")
@@ -70,7 +70,7 @@ func TestHookRunner(t *testing.T) {
 		t.Run("prepare evaluation series", func(t *testing.T) {
 			hookA := sharedtest.NewTestHook("a")
 			hookB := sharedtest.NewTestHook("b")
-			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+			runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 			ldContext := ldcontext.New("test-context")
 			res := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue, "testMethod")
@@ -88,19 +88,19 @@ func TestHookRunner(t *testing.T) {
 		t.Run("verify execution order", func(t *testing.T) {
 			testCases := []struct {
 				name                string
-				method              func(runner *HookRunner, execution EvaluationExecution)
+				method              func(runner *Runner, execution EvaluationExecution)
 				expectedBeforeOrder []string
 				expectedAfterOrder  []string
 			}{
 				{name: "BeforeEvaluation",
-					method: func(runner *HookRunner, execution EvaluationExecution) {
+					method: func(runner *Runner, execution EvaluationExecution) {
 						_ = runner.BeforeEvaluation(context.Background(), execution)
 					},
 					expectedBeforeOrder: []string{"a", "b"},
 					expectedAfterOrder:  make([]string, 0),
 				},
 				{name: "AfterEvaluation",
-					method: func(runner *HookRunner, execution EvaluationExecution) {
+					method: func(runner *Runner, execution EvaluationExecution) {
 						detail := ldreason.NewEvaluationDetail(falseValue, 0,
 							ldreason.NewEvalReasonFallthrough())
 						_ = runner.AfterEvaluation(context.Background(), execution, detail)
@@ -115,7 +115,7 @@ func TestHookRunner(t *testing.T) {
 						tracker := newOrderTracker()
 						hookA := createOrderTrackingHook("a", tracker)
 						hookB := createOrderTrackingHook("b", tracker)
-						runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+						runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 							"testMethod")
@@ -134,7 +134,7 @@ func TestHookRunner(t *testing.T) {
 						tracker := newOrderTracker()
 						hookA := createOrderTrackingHook("a", tracker)
 						hookB := createOrderTrackingHook("b", tracker)
-						runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA})
+						runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA})
 						runner.AddHooks(hookB)
 
 						execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
@@ -152,7 +152,7 @@ func TestHookRunner(t *testing.T) {
 		t.Run("run before evaluation", func(t *testing.T) {
 			hookA := sharedtest.NewTestHook("a")
 			hookB := sharedtest.NewTestHook("b")
-			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+			runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
@@ -180,7 +180,7 @@ func TestHookRunner(t *testing.T) {
 		t.Run("run after evaluation", func(t *testing.T) {
 			hookA := sharedtest.NewTestHook("a")
 			hookB := sharedtest.NewTestHook("b")
-			runner := NewHookRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+			runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
@@ -232,7 +232,7 @@ func TestHookRunner(t *testing.T) {
 					Build(), nil
 			}
 
-			runner := NewHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
+			runner := NewRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
 			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
 
@@ -281,7 +281,7 @@ func TestHookRunner(t *testing.T) {
 
 			}
 
-			runner := NewHookRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
+			runner := NewRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
 			execution := runner.PrepareEvaluationSeries("test-flag", ldContext, falseValue,
 				"testMethod")
 			detail := ldreason.NewEvaluationDetail(falseValue, 0,

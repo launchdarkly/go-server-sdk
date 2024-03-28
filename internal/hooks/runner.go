@@ -11,8 +11,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 )
 
-// HookRunner manages the registration and execution of hooks.
-type HookRunner struct {
+// Runner manages the registration and execution of hooks.
+type Runner struct {
 	hooks   []ldhooks.Hook
 	loggers ldlog.Loggers
 	mutex   *sync.RWMutex
@@ -33,9 +33,9 @@ func (e EvaluationExecution) withData(data []ldhooks.EvaluationSeriesData) Evalu
 	}
 }
 
-// NewHookRunner creates a new hook runner.
-func NewHookRunner(loggers ldlog.Loggers, hooks []ldhooks.Hook) *HookRunner {
-	return &HookRunner{
+// NewRunner creates a new hook runner.
+func NewRunner(loggers ldlog.Loggers, hooks []ldhooks.Hook) *Runner {
+	return &Runner{
 		loggers: loggers,
 		hooks:   hooks,
 		mutex:   &sync.RWMutex{},
@@ -43,7 +43,7 @@ func NewHookRunner(loggers ldlog.Loggers, hooks []ldhooks.Hook) *HookRunner {
 }
 
 // AddHooks adds hooks to the runner.
-func (h *HookRunner) AddHooks(hooks ...ldhooks.Hook) {
+func (h *Runner) AddHooks(hooks ...ldhooks.Hook) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -53,7 +53,7 @@ func (h *HookRunner) AddHooks(hooks ...ldhooks.Hook) {
 // getHooks returns a copy of the hooks. This copy is suitable for use when executing a series. This keeps the set
 // of hooks stable for the duration of the series. This prevents things like calling the AfterEvaluation method for
 // a hook that didn't have the BeforeEvaluation method called.
-func (h *HookRunner) getHooks() []ldhooks.Hook {
+func (h *Runner) getHooks() []ldhooks.Hook {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 	copiedHooks := make([]ldhooks.Hook, len(h.hooks))
@@ -66,13 +66,14 @@ func (h *HookRunner) getHooks() []ldhooks.Hook {
 //
 // For an invocation of a series the same set of hooks should be used. For instance a hook added mid-evaluation should
 // not be executed during the "AfterEvaluation" stage of that evaluation.
-func (h *HookRunner) PrepareEvaluationSeries(
+func (h *Runner) PrepareEvaluationSeries(
 	flagKey string,
 	evalContext ldcontext.Context,
 	defaultVal ldvalue.Value,
 	method string,
 ) EvaluationExecution {
 	hooksForEval := h.getHooks()
+
 	returnData := make([]ldhooks.EvaluationSeriesData, len(hooksForEval))
 	for i := range hooksForEval {
 		returnData[i] = ldhooks.EmptyEvaluationSeriesData()
@@ -85,7 +86,7 @@ func (h *HookRunner) PrepareEvaluationSeries(
 }
 
 // BeforeEvaluation executes the BeforeEvaluation stage of registered hooks.
-func (h *HookRunner) BeforeEvaluation(ctx context.Context, execution EvaluationExecution) EvaluationExecution {
+func (h *Runner) BeforeEvaluation(ctx context.Context, execution EvaluationExecution) EvaluationExecution {
 	return h.executeStage(
 		execution,
 		false,
@@ -96,7 +97,7 @@ func (h *HookRunner) BeforeEvaluation(ctx context.Context, execution EvaluationE
 }
 
 // AfterEvaluation executes the AfterEvaluation stage of registered hooks.
-func (h *HookRunner) AfterEvaluation(
+func (h *Runner) AfterEvaluation(
 	ctx context.Context,
 	execution EvaluationExecution,
 	detail ldreason.EvaluationDetail,
@@ -110,7 +111,7 @@ func (h *HookRunner) AfterEvaluation(
 		})
 }
 
-func (h *HookRunner) executeStage(
+func (h *Runner) executeStage(
 	execution EvaluationExecution,
 	reverse bool,
 	stageName string,
@@ -119,7 +120,7 @@ func (h *HookRunner) executeStage(
 		data ldhooks.EvaluationSeriesData,
 	) (ldhooks.EvaluationSeriesData, error)) EvaluationExecution {
 	returnData := make([]ldhooks.EvaluationSeriesData, len(execution.hooks))
-	iterator := newHookIterator(reverse, &execution.hooks)
+	iterator := newIterator(reverse, execution.hooks)
 	for iterator.hasNext() {
 		i, hook := iterator.getNext()
 
@@ -130,7 +131,7 @@ func (h *HookRunner) executeStage(
 				"During evaluation of flag \"%s\", an error was encountered in \"%s\" of the \"%s\" hook: %s",
 				execution.context.FlagKey(),
 				stageName,
-				hook.GetMetadata().Name(),
+				hook.Metadata().Name(),
 				err.Error())
 			continue
 		}
