@@ -37,17 +37,12 @@ func newOrderTracker() *orderTracker {
 	}
 }
 
-func TestHookRunner(t *testing.T) {
+func TestEvaluationExecution(t *testing.T) {
 	falseValue := ldvalue.Bool(false)
 	ldContext := ldcontext.New("test-context")
 
 	t.Run("with no hooks", func(t *testing.T) {
 		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
-
-		t.Run("prepare evaluation series", func(t *testing.T) {
-			res := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue, "testMethod")
-			emptyExecutionAssertions(t, res, ldContext)
-		})
 
 		t.Run("run before evaluation", func(t *testing.T) {
 			execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
