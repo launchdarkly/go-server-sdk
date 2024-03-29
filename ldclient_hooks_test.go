@@ -268,24 +268,3 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 		})
 	}
 }
-
-func TestUsesAStableSetOfHooksDuringEvaluation(t *testing.T) {
-	client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{}}, 0)
-
-	hook := sharedtest.NewTestHook("test-hook")
-	sneaky := sharedtest.NewTestHook("sneaky")
-	hook.BeforeInject = func(
-		ctx gocontext.Context,
-		context ldhooks.EvaluationSeriesContext,
-		data ldhooks.EvaluationSeriesData,
-	) (ldhooks.EvaluationSeriesData, error) {
-		client.AddHooks(sneaky)
-		return ldhooks.NewEvaluationSeriesBuilder(data).Set("test-key", "test-value").Build(), nil
-	}
-
-	client.AddHooks(hook)
-
-	_, _ = client.BoolVariation("flag-key", ldcontext.New("test-context"), false)
-
-	sneaky.VerifyNoCalls(t)
-}

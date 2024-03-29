@@ -16,6 +16,7 @@ type SDKConfigParams struct {
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	BigSegments         *SDKConfigBigSegmentsParams         `json:"bigSegments,omitempty"`
 	Tags                *SDKConfigTagsParams                `json:"tags,omitempty"`
+	Hooks               *SDKConfigHooksParams               `json:"hooks,omitempty"`
 }
 
 type SDKConfigServiceEndpointsParams struct {
@@ -60,4 +61,16 @@ type SDKConfigBigSegmentsParams struct {
 type SDKConfigTagsParams struct {
 	ApplicationID      ldvalue.OptionalString `json:"applicationId,omitempty"`
 	ApplicationVersion ldvalue.OptionalString `json:"applicationVersion,omitempty"`
+}
+
+type SDKConfigEvaluationHookData map[string]ldvalue.Value
+
+type SDKConfigHookInstance struct {
+	Name        string                                    `json:"name"`
+	CallbackURI string                                    `json:"callbackUri"`
+	Data        map[HookStage]SDKConfigEvaluationHookData `json:"data,omitempty"`
+}
+
+type SDKConfigHooksParams struct {
+	Hooks []SDKConfigHookInstance `json:"hooks"`
 }
