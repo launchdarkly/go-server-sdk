@@ -20,6 +20,7 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
+# When adding a module to the repository it should be added to this list.
 ALL_MODULES := "./..." ./ldotel
 
 .PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace
