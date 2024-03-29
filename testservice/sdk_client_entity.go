@@ -14,6 +14,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -429,6 +430,15 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 			ApplicationID:      config.Tags.ApplicationID.StringValue(),
 			ApplicationVersion: config.Tags.ApplicationVersion.StringValue(),
 		}
+	}
+
+	if config.Hooks != nil {
+		hooks := make([]ldhooks.Hook, 0)
+		for _, hookConfig := range config.Hooks.Hooks {
+			hookInstance := newTestHook(hookConfig.Name, hookConfig.CallbackURI, hookConfig.Data)
+			hooks = append(hooks, hookInstance)
+		}
+		ret.Hooks = hooks
 	}
 
 	return ret

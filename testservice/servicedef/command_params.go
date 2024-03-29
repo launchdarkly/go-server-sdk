@@ -146,3 +146,24 @@ type MigrationOperationParams struct {
 type MigrationOperationResponse struct {
 	Result interface{} `json:"result"`
 }
+
+type HookStage string
+
+const (
+	BeforeEvaluation HookStage = "beforeEvaluation"
+	AfterEvaluation  HookStage = "afterEvaluation"
+)
+
+type EvaluationSeriesContext struct {
+	FlagKey      string            `json:"flagKey"`
+	Context      ldcontext.Context `json:"context"`
+	DefaultValue ldvalue.Value     `json:"defaultValue"`
+	Method       string            `json:"method"`
+}
+
+type HookExecutionPayload struct {
+	EvaluationSeriesContext EvaluationSeriesContext  `json:"evaluationSeriesContext,omitempty"`
+	EvaluationSeriesData    map[string]ldvalue.Value `json:"evaluationSeriesData,omitempty"`
+	EvaluationDetail        EvaluateFlagResponse     `json:"evaluationDetail,omitempty"`
+	Stage                   HookStage                `json:"stage,omitempty"`
+}

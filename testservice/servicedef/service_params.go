@@ -20,6 +20,7 @@ const (
 	CapabilityEventSampling      = "event-sampling"
 	CapabilityInlineContext      = "inline-context"
 	CapabilityAnonymousRedaction = "anonymous-redaction"
+	CapabilityEvaluationHooks    = "evaluation-hooks"
 )
 
 type StatusRep struct {
