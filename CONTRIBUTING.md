@@ -18,26 +18,35 @@ This project should be built against the lowest supported Go version as describe
 
 ### Building
 
-To build the SDK without running any tests:
-```
+To build all modules without running any tests:
+```shell
 make
 ```
 
 If you wish to clean your working directory between builds, you can clean it by running:
-```
+```shell
 make clean
 ```
 
 To run the linter:
-```
+```shell
 make lint
 ```
 
 ### Testing
 
-To build the SDK and run all unit tests:
-```
+To build all modules and run all unit tests:
+```shell
 make test
+```
+
+### Working Cross Module
+
+If you have a change which affects more than a single module, then you can use a go workspace.
+
+You can create a workspace using:
+```shell
+make workspace
 ```
 
 ## Coding best practices
