@@ -18,7 +18,9 @@ const contextKeyAttributeName = "feature_flag.context.key"
 // TracingHookOption is used to implement functional options for the TracingHook.
 type TracingHookOption func(hook *TracingHook)
 
-// WithSpans option enables generation of child spans for each variation call.
+// WithSpans is an experimental option that enables creation of child spans for each variation call.
+//
+// This feature is experimental and the data in the spans, or nesting of spans, could change in future versions.
 func WithSpans() TracingHookOption {
 	return func(h *TracingHook) {
 		h.spans = true
