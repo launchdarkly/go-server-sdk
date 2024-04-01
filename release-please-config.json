@@ -1,5 +1,6 @@
 {
   "packages" : {
+    "separate-pull-requests": true,
     "." : {
       "release-type" : "go",
       "bump-minor-pre-major" : true,
