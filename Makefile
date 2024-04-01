@@ -24,7 +24,7 @@ ALL_BUILD_TARGETS=sdk ldotel
 ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
 ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
-.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace sdk sdk-test ldotel ldotel-test
+.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace $(ALL_BUILD_TARGETS) $(ALL_TEST_TARGETS) $(ALL_LINT_TARGETS)
 
 all: $(ALL_BUILD_TARGETS)
 
