@@ -48,7 +48,7 @@ type TracingHook struct {
 	tracer         trace.Tracer
 }
 
-// GetMetadata returns meta-data about the tracing hook.
+// Metadata returns meta-data about the tracing hook.
 func (h TracingHook) Metadata() ldhooks.Metadata {
 	return h.metadata
 }

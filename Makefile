@@ -20,39 +20,37 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
-# When adding a module to the repository it should be added to this list.
-ALL_MODULES := "./..." ./ldotel
+ALL_BUILD_TARGETS=sdk ldotel
+ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
+ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
-.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace
+.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace sdk sdk-test ldotel ldotel-test
 
-all:
-	@for module in $(ALL_MODULES); do \
-		echo "Building $$module"; \
-		go build "$$module"; \
-	done
+all: $(ALL_BUILD_TARGETS)
 
-clean:
-	@for module in $(ALL_MODULES); do \
-		if [ "$$module" = "./..." ]; then \
-			echo "Cleaning ./..."; \
-			go clean; \
-		else \
-			echo "Cleaning $$module"; \
-			cd $$module; \
-			go clean -v; \
-			cd -; \
-		fi \
-	done
+test: $(ALL_TEST_TARGETS)
 
-test:
-	@for module in $(ALL_MODULES); do \
-		echo "Testing $$module"; \
-		go test -v -race "$$module"; \
-	done
+sdk:
+	go build ./...
+
+sdk-test:
+	go test -v -race ./...
 	@# The proxy tests must be run separately because Go caches the global proxy environment variables. We use
 	@# build tags to isolate these tests from the main test run so that if you do "go test ./..." you won't
 	@# get unexpected errors.
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
+
+sdk-lint:
+	$(LINTER) run ./...
+
+ldotel:
+	go build ./ldotel
+
+ldotel-test:
+	go test -v -race ./ldotel
+
+ldotel-lint:
+	$(LINTER) run ./ldotel
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
@@ -88,9 +86,7 @@ $(LINTER_VERSION_FILE):
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s $(GOLANGCI_LINT_VERSION)
 	touch $(LINTER_VERSION_FILE)
 
-lint: $(LINTER_VERSION_FILE)
-	$(LINTER) run ./...
-
+lint: $(LINTER_VERSION_FILE) $(ALL_LINT_TARGETS)
 
 TEMP_TEST_OUTPUT=/tmp/sdk-contract-test-service.log
 

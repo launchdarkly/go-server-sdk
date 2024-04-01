@@ -23,11 +23,6 @@ To build all modules without running any tests:
 make
 ```
 
-If you wish to clean your working directory between builds, you can clean it by running:
-```shell
-make clean
-```
-
 To run the linter:
 ```shell
 make lint
