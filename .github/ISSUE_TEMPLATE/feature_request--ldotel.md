@@ -1,8 +1,8 @@
 ---
-name: SDK Feature request
+name: Feature request for the ldotel module
 about: Suggest an idea for this project
 title: ''
-labels: 'server-sdk, enhancement'
+labels: 'ldotel, enhancement'
 assignees: ''
 
 ---
