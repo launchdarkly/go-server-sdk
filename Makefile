@@ -4,6 +4,9 @@ GOLANGCI_LINT_VERSION=v1.57.1
 LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
+GO_WORK_FILE=go.work
+GO_WORK_SUM=go.work.sum
+
 TEST_BINARY=./go-server-sdk.test
 ALLOCATIONS_LOG=./build/allocations.out
 
@@ -24,11 +27,14 @@ ALL_BUILD_TARGETS=sdk ldotel
 ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
 ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
-.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace $(ALL_BUILD_TARGETS) $(ALL_TEST_TARGETS) $(ALL_LINT_TARGETS)
+.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace workspace-clean $(ALL_BUILD_TARGETS) $(ALL_TEST_TARGETS) $(ALL_LINT_TARGETS)
 
 all: $(ALL_BUILD_TARGETS)
 
 test: $(ALL_TEST_TARGETS)
+
+clean: workspace-clean
+	rm -rf ./bin/
 
 sdk:
 	go build ./...
@@ -93,11 +99,16 @@ TEMP_TEST_OUTPUT=/tmp/sdk-contract-test-service.log
 # TEST_HARNESS_PARAMS can be set to add -skip parameters for any contract tests that cannot yet pass
 TEST_HARNESS_PARAMS=
 
-workspace:
-	rm -f go.work
+workspace: go.work
+
+go.work:
 	go work init ./
 	go work use ./ldotel
 	go work use ./testservice
+
+workspace-clean:
+	rm -f $(GO_WORK_FILE) $(GO_WORK_SUM)
+
 
 build-contract-tests:
 	@go build -o ./testservice/testservice ./testservice

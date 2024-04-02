@@ -35,6 +35,13 @@ To build all modules and run all unit tests:
 make test
 ```
 
+### Clean
+
+To clean temporary files created by other targets:
+```shell
+make clean
+```
+
 ### Working Cross Module
 
 If you have a change which affects more than a single module, then you can use a go workspace.
