@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -13,6 +14,7 @@ type testHook struct {
 	ldhooks.Unimplemented
 	metadata        ldhooks.Metadata
 	dataPayloads    map[servicedef.HookStage]servicedef.SDKConfigEvaluationHookData
+	errors          map[servicedef.HookStage]string
 	callbackService callbackService
 }
 
@@ -20,11 +22,13 @@ func newTestHook(
 	name string,
 	endpoint string,
 	data map[servicedef.HookStage]servicedef.SDKConfigEvaluationHookData,
+	errors map[servicedef.HookStage]string,
 ) testHook {
 	return testHook{
 		metadata:        ldhooks.NewMetadata(name),
 		dataPayloads:    data,
 		callbackService: callbackService{baseURL: endpoint},
+		errors:          errors,
 	}
 }
 
@@ -37,6 +41,10 @@ func (t testHook) BeforeEvaluation(
 	seriesContext ldhooks.EvaluationSeriesContext,
 	data ldhooks.EvaluationSeriesData,
 ) (ldhooks.EvaluationSeriesData, error) {
+	errString, hasErr := t.errors[servicedef.BeforeEvaluation]
+	if hasErr {
+		return data, errors.New(errString)
+	}
 	err := t.callbackService.post("", servicedef.HookExecutionPayload{
 		EvaluationSeriesContext: evaluationSeriesContextToService(seriesContext),
 		EvaluationSeriesData:    evaluationSeriesDataToService(data),
@@ -59,6 +67,10 @@ func (t testHook) AfterEvaluation(
 	data ldhooks.EvaluationSeriesData,
 	detail ldreason.EvaluationDetail,
 ) (ldhooks.EvaluationSeriesData, error) {
+	errString, hasErr := t.errors[servicedef.AfterEvaluation]
+	if hasErr {
+		return data, errors.New(errString)
+	}
 	err := t.callbackService.post("", servicedef.HookExecutionPayload{
 		EvaluationSeriesContext: evaluationSeriesContextToService(seriesContext),
 		EvaluationSeriesData:    evaluationSeriesDataToService(data),
