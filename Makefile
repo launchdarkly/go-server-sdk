@@ -109,7 +109,6 @@ go.work:
 workspace-clean:
 	rm -f $(GO_WORK_FILE) $(GO_WORK_SUM)
 
-
 build-contract-tests:
 	@go build -o ./testservice/testservice ./testservice
 
