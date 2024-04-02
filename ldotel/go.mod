@@ -1,4 +1,4 @@
-module ldotel
+module github.com/launchdarkly/go-server-sdk/ldotel
 
 go 1.21
 
