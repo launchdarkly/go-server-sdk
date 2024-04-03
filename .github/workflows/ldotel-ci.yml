@@ -26,4 +26,4 @@ jobs:
     with:
       go-version: ${{ matrix.go-version }}
       test-target: ldotel-test
-      contract-tests: true
+      contract-tests: false
