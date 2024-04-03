@@ -50,13 +50,31 @@ sdk-lint:
 	$(LINTER) run ./...
 
 ldotel:
-	go build ./ldotel
+	@if [ -f go.work ]; then \
+  		echo "Building ldotel with workspace" \
+		go build ./ldotel; \
+	else \
+		echo "Building ldotel without workspace" \
+		cd ldotel && go build .; \
+	fi
 
 ldotel-test:
-	go test -v -race ./ldotel
+	@if [ -f go.work ]; then \
+		echo "Testing ldotel with workspace" \
+		go test -v -race ./ldotel; \
+	else \
+		echo "Testing ldotel without workspace" \
+		cd ldotel && go test -v -race .; \
+	fi
 
 ldotel-lint:
-	$(LINTER) run ./ldotel
+	@if [ -f go.work ]; then \
+		echo "Linting ldotel with workspace" \
+		$(LINTER) run ./ldotel; \
+	else \
+		echo "Linting ldotel without workspace" \
+		cd ldotel && 	$(LINTER) run .; \
+	fi
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
