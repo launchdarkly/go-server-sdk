@@ -2,6 +2,15 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.3.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.2.0...v7.3.0) (2024-04-03)
+
+This release introduces a Hooks API. Hooks are collections of user-defined callbacks that are executed by the SDK at various points of interest. You can use them to augment the SDK with metrics or tracing.
+
+### Features
+
+* Add support for hooks. ([#126](https://github.com/launchdarkly/go-server-sdk/issues/126)) ([929ef8b](https://github.com/launchdarkly/go-server-sdk/commit/929ef8b146dce99030a81033646f380a6b21fd98))
+* Implement supporting types for hooks. ([#125](https://github.com/launchdarkly/go-server-sdk/issues/125)) ([7f06147](https://github.com/launchdarkly/go-server-sdk/commit/7f061475333cb09e9d59defc4046840af999b472))
+
 ## [7.2.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.1.1...v7.2.0) (2024-03-25)
 
 
