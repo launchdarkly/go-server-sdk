@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/launchdarkly/go-sdk-common/v3 v3.1.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.2.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.3.0
 	github.com/stretchr/testify v1.8.4
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/sdk v1.24.0
