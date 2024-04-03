@@ -1,4 +1,4 @@
-name: Build and Test SDK
+name: Build and Test ldotel
 on:
   push:
     branches: [ 'v7', 'feat/**' ]
@@ -25,22 +25,5 @@ jobs:
     uses: ./.github/workflows/common_ci.yml
     with:
       go-version: ${{ matrix.go-version }}
-      test-target: sdk-test
+      test-target: ldotel-test
       contract-tests: true
-
-  test-windows:
-    name: ${{ format('Windows, Go {0}', matrix.go-version) }}
-    runs-on: windows-2022
-    needs: go-versions
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-      - name: Test
-        run: go test -race ./...

@@ -5,6 +5,9 @@ inputs:
     description: 'Whether to run linters.'
     required: false
     default: 'false'
+  test-target:
+    description: 'The test target to run.'
+    required: true
 
 runs:
   using: composite
