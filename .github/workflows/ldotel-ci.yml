@@ -1,4 +1,4 @@
-name: Build and Test SDK
+name: Build and Test ldotel
 on:
   push:
     branches: [ 'v7', 'feat/**' ]
