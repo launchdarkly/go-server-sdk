@@ -31,9 +31,7 @@ ld.Config{
 Learn more
 -----------
 
-Read our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly. You can also head straight to the [reference guide for the ruby SDK](http://docs.launchdarkly.com/docs/ruby-sdk-reference).
-
-Generated API documentation for all versions of the library is on [RubyDoc.info](https://www.rubydoc.info/gems/launchdarkly-server-sdk-otel). The API documentation for the latest version is also on [GitHub Pages](https://launchdarkly.github.io/ruby-server-sdk-otel).
+Read our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly.
 
 Contributing
 ------------
