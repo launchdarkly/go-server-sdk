@@ -1,4 +1,4 @@
-name: Build and Test ldotel
+name: Build and Test SDK
 on:
   push:
     branches: [ 'v7', 'feat/**' ]
@@ -22,8 +22,17 @@ jobs:
       fail-fast: false
       matrix:
         go-version: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
-    uses: ./.github/workflows/common_ci.yml
-    with:
-      go-version: ${{ matrix.go-version }}
-      test-target: ldotel-test
-      contract-tests: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ inputs.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+      - uses: ./.github/actions/unit-tests
+        with:
+          lint: 'true'
+          test-target: ldotel-test
+      - uses: ./.github/actions/coverage
+        with:
+          enforce: 'false'

@@ -6,14 +6,6 @@ on:
         description: "Go version to use for the jobs."
         required: true
         type: string
-      test-target:
-        type: string
-        description: 'The test target to run.'
-        required: true
-      contract-tests:
-        type: boolean
-        description: 'True to run the contract tests'
-        required: true
 
 jobs:
   unit-test-and-coverage:
@@ -28,7 +20,7 @@ jobs:
       - uses: ./.github/actions/unit-tests
         with:
           lint: 'true'
-          test-target: ${{ inputs.test-target }}
+          test-target: sdk-test
       - uses: ./.github/actions/coverage
         with:
           enforce: 'false'
@@ -36,7 +28,6 @@ jobs:
   contract-tests:
     runs-on: ubuntu-latest
     name: 'Contract Tests'
-    if: inputs.contract-tests
     env:
       TEST_SERVICE_PORT: 8000
     steps:
@@ -59,8 +50,6 @@ jobs:
         with:
           name: Contract-test-service-logs-${{ steps.go-version.outputs.version }}
           path: /tmp/sdk-contract-test-service.log
-
-
 
   benchmarks:
     name: 'Benchmarks'

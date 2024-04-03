@@ -26,7 +26,6 @@ jobs:
     with:
       go-version: ${{ matrix.go-version }}
       test-target: sdk-test
-      contract-tests: true
 
   test-windows:
     name: ${{ format('Windows, Go {0}', matrix.go-version) }}
