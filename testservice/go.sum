@@ -15,6 +15,7 @@ github.com/launchdarkly/ccache v1.1.0 h1:voD1M+ZJXR3MREOKtBwgTF9hYHl1jg+vFKS/+VA
 github.com/launchdarkly/ccache v1.1.0/go.mod h1:TlxzrlnzvYeXiLHmesMuvoZetu4Z97cV1SsdqqBJi1Q=
 github.com/launchdarkly/eventsource v1.6.2 h1:5SbcIqzUomn+/zmJDrkb4LYw7ryoKFzH/0TbR0/3Bdg=
 github.com/launchdarkly/eventsource v1.6.2/go.mod h1:LHxSeb4OnqznNZxCSXbFghxS/CjIQfzHovNoAqbO/Wk=
+github.com/launchdarkly/eventsource v1.7.2-0.20240403000720-045ae63041af/go.mod h1:LHxSeb4OnqznNZxCSXbFghxS/CjIQfzHovNoAqbO/Wk=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0 h1:qJF/WI09EUJ7kSpmP5d1Rhc81NQdYUhP17McKfUq17E=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0/go.mod h1:/1Gyml6fnD309JOvunOSfyysWbZ/ZzcA120gF/cQtC4=
 github.com/launchdarkly/go-sdk-common/v3 v3.0.1 h1:rVdLusAIViduNvyjNKy06RA+SPwk0Eq+NocNd1opDhk=

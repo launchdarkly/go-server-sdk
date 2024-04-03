@@ -6,7 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
 	github.com/launchdarkly/ccache v1.1.0
-	github.com/launchdarkly/eventsource v1.6.2
+	github.com/launchdarkly/eventsource v1.7.2-0.20240403000720-045ae63041af
 	github.com/launchdarkly/go-jsonstream/v3 v3.0.0
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
 	github.com/launchdarkly/go-sdk-common/v3 v3.0.1
