@@ -28,7 +28,7 @@ jobs:
       - name: Setup Go ${{ inputs.go-version }}
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ inputs.go-version }}
+          go-version: ${{ matrix.go-version }}
       - uses: ./.github/actions/unit-tests
         with:
           lint: 'true'
