@@ -435,7 +435,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 	if config.Hooks != nil {
 		hooks := make([]ldhooks.Hook, 0)
 		for _, hookConfig := range config.Hooks.Hooks {
-			hookInstance := newTestHook(hookConfig.Name, hookConfig.CallbackURI, hookConfig.Data)
+			hookInstance := newTestHook(hookConfig.Name, hookConfig.CallbackURI, hookConfig.Data, hookConfig.Errors)
 			hooks = append(hooks, hookInstance)
 		}
 		ret.Hooks = hooks
