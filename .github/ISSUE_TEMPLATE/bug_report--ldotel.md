@@ -1,8 +1,8 @@
 ---
-name: Bug report
+name: Bug report for the ldotel module
 about: Create a report to help us improve
 title: ''
-labels: 'server-sdk, bug'
+labels: 'ldotel, enhancement'
 assignees: ''
 
 ---
