@@ -34,5 +34,5 @@ runs:
       if: steps.process-test.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
-        name: Test-result-${{ steps.go-version.outputs.version }}
+        name: Test-result-${{ inputs.test-target }}${{ steps.go-version.outputs.version }}
         path: junit_report.xml
