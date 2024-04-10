@@ -19,7 +19,7 @@
       "versioning" : "default",
       "include-component-in-tag" : true,
       "extra-files" : [
-        "internal/version.go"
+        "package_info.go"
       ]
     }
   }
