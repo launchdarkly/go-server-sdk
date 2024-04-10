@@ -11,9 +11,14 @@
       "extra-files" : [
         "internal/version.go"
       ],
-      "exclude-paths": ["ldotel"]
+      "exclude-paths": [
+        ".github",
+        ".vscode",
+        "ldotel"
+      ]
     },
     "ldotel" : {
+      "package-name": "ldotel",
       "release-type" : "go",
       "tag-separator": "/",
       "versioning" : "default",
