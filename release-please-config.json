@@ -9,16 +9,16 @@
       "bootstrap-sha" : "25fcfa1ba34928c6dc6d1ee29f4504b7614fa55c",
       "extra-files" : [
         "internal/version.go"
-      ]
+      ],
+      "exclude-paths": ["ldotel"]
     },
     "ldotel" : {
       "release-type" : "go",
-      "bump-minor-pre-major" : true,
       "tag-separator": "/",
       "versioning" : "default",
       "include-component-in-tag" : true,
       "extra-files" : [
-        "internal/version.go"
+        "package_info.go"
       ]
     }
   }
