@@ -14,7 +14,6 @@
     },
     "ldotel" : {
       "release-type" : "go",
-      "bump-minor-pre-major" : true,
       "tag-separator": "/",
       "versioning" : "default",
       "include-component-in-tag" : true,
