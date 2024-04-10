@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "sdks": {
+    "go-server-sdk": {
+      "name": "Go Server SDK",
+      "type": "server-side",
+      "languages": [
+        "Go"
+      ]
+    }
+  }
+}
