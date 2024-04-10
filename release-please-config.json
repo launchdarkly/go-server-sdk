@@ -1,5 +1,6 @@
 {
   "separate-pull-requests": true,
+  "include-component-in-tag" : true,
   "packages" : {
     "." : {
       "release-type" : "go",
@@ -16,7 +17,6 @@
       "release-type" : "go",
       "tag-separator": "/",
       "versioning" : "default",
-      "include-component-in-tag" : true,
       "extra-files" : [
         "package_info.go"
       ]
