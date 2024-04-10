@@ -4,6 +4,9 @@ GOLANGCI_LINT_VERSION=v1.57.1
 LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
+GO_WORK_FILE=go.work
+GO_WORK_SUM=go.work.sum
+
 TEST_BINARY=./go-server-sdk.test
 ALLOCATIONS_LOG=./build/allocations.out
 
@@ -20,21 +23,58 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
-.PHONY: build clean test test-coverage benchmarks benchmark-allocs lint
+ALL_BUILD_TARGETS=sdk ldotel
+ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
+ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
-build:
+.PHONY: all build clean test test-coverage benchmarks benchmark-allocs lint workspace workspace-clean $(ALL_BUILD_TARGETS) $(ALL_TEST_TARGETS) $(ALL_LINT_TARGETS)
+
+all: $(ALL_BUILD_TARGETS)
+
+test: $(ALL_TEST_TARGETS)
+
+clean: workspace-clean
+	rm -rf ./bin/
+
+sdk:
 	go build ./...
 
-clean:
-	go clean
-
-test:
-	go test -run=not-a-real-test ./...  # just ensures that the tests compile
+sdk-test:
 	go test -v -race ./...
 	@# The proxy tests must be run separately because Go caches the global proxy environment variables. We use
 	@# build tags to isolate these tests from the main test run so that if you do "go test ./..." you won't
 	@# get unexpected errors.
 	for tag in proxytest1 proxytest2; do go test -race -v -tags=$$tag ./proxytest; done
+
+sdk-lint:
+	$(LINTER) run ./...
+
+ldotel:
+	@if [ -f go.work ]; then \
+  		echo "Building ldotel with workspace" \
+		go build ./ldotel; \
+	else \
+		echo "Building ldotel without workspace" \
+		cd ldotel && go build .; \
+	fi
+
+ldotel-test:
+	@if [ -f go.work ]; then \
+		echo "Testing ldotel with workspace" \
+		go test -v -race ./ldotel; \
+	else \
+		echo "Testing ldotel without workspace" \
+		cd ldotel && go test -v -race .; \
+	fi
+
+ldotel-lint:
+	@if [ -f go.work ]; then \
+		echo "Linting ldotel with workspace" \
+		$(LINTER) run ./ldotel; \
+	else \
+		echo "Linting ldotel without workspace" \
+		cd ldotel && 	$(LINTER) run .; \
+	fi
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
@@ -70,17 +110,25 @@ $(LINTER_VERSION_FILE):
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s $(GOLANGCI_LINT_VERSION)
 	touch $(LINTER_VERSION_FILE)
 
-lint: $(LINTER_VERSION_FILE)
-	$(LINTER) run ./...
-
+lint: $(LINTER_VERSION_FILE) $(ALL_LINT_TARGETS)
 
 TEMP_TEST_OUTPUT=/tmp/sdk-contract-test-service.log
 
 # TEST_HARNESS_PARAMS can be set to add -skip parameters for any contract tests that cannot yet pass
 TEST_HARNESS_PARAMS=
 
+workspace: go.work
+
+go.work:
+	go work init ./
+	go work use ./ldotel
+	go work use ./testservice
+
+workspace-clean:
+	rm -f $(GO_WORK_FILE) $(GO_WORK_SUM)
+
 build-contract-tests:
-	@cd testservice && go mod tidy && go build
+	@go build -o ./testservice/testservice ./testservice
 
 start-contract-test-service: build-contract-tests
 	@./testservice/testservice

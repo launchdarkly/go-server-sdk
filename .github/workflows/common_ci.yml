@@ -7,7 +7,6 @@ on:
         required: true
         type: string
 
-
 jobs:
   unit-test-and-coverage:
     runs-on: ubuntu-latest
@@ -21,6 +20,7 @@ jobs:
       - uses: ./.github/actions/unit-tests
         with:
           lint: 'true'
+          test-target: sdk-test
       - uses: ./.github/actions/coverage
         with:
           enforce: 'false'
@@ -50,8 +50,6 @@ jobs:
         with:
           name: Contract-test-service-logs-${{ steps.go-version.outputs.version }}
           path: /tmp/sdk-contract-test-service.log
-
-
 
   benchmarks:
     name: 'Benchmarks'

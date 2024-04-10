@@ -5,6 +5,9 @@ inputs:
     description: 'Whether to run linters.'
     required: false
     default: 'false'
+  test-target:
+    description: 'The test target to run.'
+    required: true
 
 runs:
   using: composite
@@ -19,7 +22,7 @@ runs:
     - name: Test
       shell: bash
       id: test
-      run: make test | tee raw_report.txt
+      run: make ${{ inputs.test-target }} | tee raw_report.txt
 
     - name: Process test results
       if: steps.test.outcome == 'success'
@@ -31,5 +34,5 @@ runs:
       if: steps.process-test.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
-        name: Test-result-${{ steps.go-version.outputs.version }}
+        name: Test-result-${{ inputs.test-target }}${{ steps.go-version.outputs.version }}
         path: junit_report.xml
