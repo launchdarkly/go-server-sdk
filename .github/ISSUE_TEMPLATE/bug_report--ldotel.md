@@ -31,7 +31,7 @@ The version of this SDK that you are using.
 For instance, Go 1.22. 
 
 **OS/platform**
-For instance, Ubuntu 16.04, Windows 10, or Android 4.0.3. If your code is running in a browser, please also include the browser type and version.
+For instance, Ubuntu 16.04, or Windows 10.
 
 **Additional context**
 Add any other context about the problem here.
