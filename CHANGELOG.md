@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.4.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.3.0...v7.4.0) (2024-04-10)
+
+This release contains no functional changes. It is a product of structural changes to the repository.
+
+### Features
+
+* Implement otel tracing hook. ([#130](https://github.com/launchdarkly/go-server-sdk/issues/130)) ([f5675c1](https://github.com/launchdarkly/go-server-sdk/commit/f5675c1d20976dc1f9dbb4064ab648abfd7765c2))
+
 ## [7.3.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.2.0...v7.3.0) (2024-04-03)
 
 This release introduces a Hooks API. Hooks are collections of user-defined callbacks that are executed by the SDK at various points of interest. You can use them to augment the SDK with metrics or tracing.
