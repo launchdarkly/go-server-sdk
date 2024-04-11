@@ -4,6 +4,7 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 
 ## [7.4.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.3.0...v7.4.0) (2024-04-10)
 
+This release contains no functional changes. It is a product of structural changes to the repository.
 
 ### Features
 
