@@ -38,6 +38,8 @@ jobs:
           go-version: ${{ inputs.go-version }}
       - uses: ./.github/actions/get-go-version
         id: go-version
+      - name: Make workspace
+        run: make workspace
       - name: Start test service in background
         run: make start-contract-test-service-bg
       - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.0.0
