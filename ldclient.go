@@ -34,6 +34,9 @@ import (
 // Version is the SDK version.
 const Version = internal.SDKVersion
 
+// HighWaitForSeconds is the initialization wait time threshold that we will log a warning message
+const HighWaitForSeconds = 60
+
 const (
 	boolVarFuncName   = "LDClient.BoolVariation"
 	intVarFuncName    = "LDClient.IntVariation"
@@ -327,6 +330,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
+
+		// If you use a long duration and wait for the timeout, then any network delays will cause
+		// your application to wait a long time before continuing execution.
+		if waitFor.Seconds() > HighWaitForSeconds {
+			loggers.Warnf("Make Client was called with a timeout greater than %d. "+
+				"We recommend a timeout of less than %d seconds", HighWaitForSeconds)
+		}
+
 		timeout := time.After(waitFor)
 		for {
 			select {
