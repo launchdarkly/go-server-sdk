@@ -335,7 +335,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		// your application to wait a long time before continuing execution.
 		if waitFor.Seconds() > highWaitForSeconds {
 			loggers.Warnf("Client was created was with a timeout greater than %d. "+
-				"We recommend a timeout of less than %d seconds", HighWaitForSeconds)
+				"We recommend a timeout of less than %d seconds", highWaitForSeconds, highWaitForSeconds)
 		}
 
 		timeout := time.After(waitFor)
