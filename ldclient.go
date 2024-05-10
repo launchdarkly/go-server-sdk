@@ -34,8 +34,8 @@ import (
 // Version is the SDK version.
 const Version = internal.SDKVersion
 
-// HighWaitForSeconds is the initialization wait time threshold that we will log a warning message
-const HighWaitForSeconds = 60
+// highWaitForSeconds is the initialization wait time threshold that we will log a warning message
+const highWaitForSeconds = 60
 
 const (
 	boolVarFuncName   = "LDClient.BoolVariation"
@@ -333,8 +333,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 		// If you use a long duration and wait for the timeout, then any network delays will cause
 		// your application to wait a long time before continuing execution.
-		if waitFor.Seconds() > HighWaitForSeconds {
-			loggers.Warnf("Make Client was called with a timeout greater than %d. "+
+		if waitFor.Seconds() > highWaitForSeconds {
+			loggers.Warnf("Client was created was with a timeout greater than %d. "+
 				"We recommend a timeout of less than %d seconds", HighWaitForSeconds)
 		}
 
