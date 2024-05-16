@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,4 +81,32 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 			assert.False(t, b.HasListeners())
 		})
 	})
+}
+
+func TestBroadcasterDataRace(t *testing.T) {
+	t.Parallel()
+	b := NewBroadcaster[string]()
+	t.Cleanup(b.Close)
+
+	var waitGroup sync.WaitGroup
+	for _, fn := range []func(){
+		// run every method that uses b.subscribers concurrently to detect data races
+		func() { b.AddListener() },
+		func() { b.Broadcast("foo") },
+		func() { b.Close() },
+		func() { b.HasListeners() },
+		func() { b.RemoveListener(nil) },
+	} {
+		const concurrentRoutinesWithSelf = 2
+		// run a method concurrently with itself to detect data races
+		for i := 0; i < concurrentRoutinesWithSelf; i++ {
+			waitGroup.Add(1)
+			fn := fn // make fn a loop-local variable
+			go func() {
+				defer waitGroup.Done()
+				fn()
+			}()
+		}
+	}
+	waitGroup.Wait()
 }
