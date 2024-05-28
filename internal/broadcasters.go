@@ -2,8 +2,6 @@ package internal
 
 import (
 	"sync"
-
-	"golang.org/x/exp/slices"
 )
 
 // This file defines the publish-subscribe model we use for various status/event types in the SDK.
@@ -19,7 +17,7 @@ const subscriberChannelBufferLength = 10
 // Broadcaster is our generalized implementation of broadcasters.
 type Broadcaster[V any] struct {
 	subscribers []channelPair[V]
-	lock        sync.Mutex
+	lock        sync.RWMutex
 }
 
 // We need to keep track of both the channel we use for sending (stored as a reflect.Value, because Value
@@ -67,18 +65,18 @@ func (b *Broadcaster[V]) RemoveListener(ch <-chan V) {
 
 // HasListeners returns true if there are any current subscribers.
 func (b *Broadcaster[V]) HasListeners() bool {
-	return len(b.subscribers) > 0
+	b.lock.RLock()
+	hasListeners := len(b.subscribers) > 0
+	b.lock.RUnlock()
+	return hasListeners
 }
 
 // Broadcast broadcasts a value to all current subscribers.
 func (b *Broadcaster[V]) Broadcast(value V) {
-	b.lock.Lock()
-	ss := slices.Clone(b.subscribers)
-	b.lock.Unlock()
-	if len(ss) > 0 {
-		for _, ch := range ss {
-			ch.sendCh <- value
-		}
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+	for _, ch := range b.subscribers {
+		ch.sendCh <- value
 	}
 }
 
