@@ -97,7 +97,7 @@ func TestBroadcasterDataRace(t *testing.T) {
 		func() { b.HasListeners() },
 		func() { b.RemoveListener(nil) },
 	} {
-		const concurrentRoutinesWithSelf = 2
+		const concurrentRoutinesWithSelf = 10
 		// run a method concurrently with itself to detect data races
 		for i := 0; i < concurrentRoutinesWithSelf; i++ {
 			waitGroup.Add(1)
