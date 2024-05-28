@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"slices"
 	"sync"
 )
 
@@ -21,7 +22,7 @@ type Broadcaster[V any] struct {
 }
 
 // We need to keep track of both the channel we use for sending (stored as a reflect.Value, because Value
-// has methods for sending and closing), and also the
+// has methods for sending and closing), and also the channel for receiving.
 type channelPair[V any] struct {
 	sendCh    chan<- V
 	receiveCh <-chan V
@@ -48,27 +49,23 @@ func (b *Broadcaster[V]) AddListener() <-chan V {
 func (b *Broadcaster[V]) RemoveListener(ch <-chan V) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	ss := b.subscribers
-	for i, s := range ss {
+	b.subscribers = slices.DeleteFunc(b.subscribers, func(pair channelPair[V]) bool {
 		// The following equality test is the reason why we have to store both the sendCh (chan X) and
 		// the receiveCh (<-chan X) for each subscriber; "s.sendCh == ch" would not be true because
 		// they're of two different types.
-		if s.receiveCh == ch {
-			copy(ss[i:], ss[i+1:])
-			ss[len(ss)-1] = channelPair[V]{}
-			b.subscribers = ss[:len(ss)-1]
-			close(s.sendCh)
-			break
+		if pair.receiveCh == ch {
+			close(pair.sendCh)
+			return true
 		}
-	}
+		return false
+	})
 }
 
 // HasListeners returns true if there are any current subscribers.
 func (b *Broadcaster[V]) HasListeners() bool {
 	b.lock.RLock()
-	hasListeners := len(b.subscribers) > 0
-	b.lock.RUnlock()
-	return hasListeners
+	defer b.lock.RUnlock()
+	return len(b.subscribers) > 0
 }
 
 // Broadcast broadcasts a value to all current subscribers.
