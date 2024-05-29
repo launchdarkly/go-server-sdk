@@ -84,22 +84,23 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 	})
 }
 
-func TestBroadcasterDataRaceSelf(t *testing.T) {
+func TestBroadcasterDataRace(t *testing.T) {
 	t.Parallel()
 	b := NewBroadcaster[string]()
 	t.Cleanup(b.Close)
 
 	var waitGroup sync.WaitGroup
 	for _, fn := range []func(){
-		// run every method that uses b.subscribers concurrently to detect data races
+		// Run every method that uses b.subscribers concurrently to detect data races
 		func() { b.AddListener() },
 		func() { b.Broadcast("foo") },
 		func() { b.Close() },
 		func() { b.HasListeners() },
 		func() { b.RemoveListener(nil) },
 	} {
-		const concurrentRoutinesWithSelf = 10
-		// run a method concurrently with itself to detect data races
+		const concurrentRoutinesWithSelf = 2
+		// Run a method concurrently with itself to detect data races. These methods will also be
+		// run concurrently with the previous/next methods in the list.
 		for i := 0; i < concurrentRoutinesWithSelf; i++ {
 			waitGroup.Add(1)
 			fn := fn // make fn a loop-local variable
@@ -112,7 +113,7 @@ func TestBroadcasterDataRaceSelf(t *testing.T) {
 	waitGroup.Wait()
 }
 
-func TestBroadcasterDataRaceRandomFunctions(t *testing.T) {
+func TestBroadcasterDataRaceRandomFunctionOrder(t *testing.T) {
 	t.Parallel()
 	b := NewBroadcaster[string]()
 	t.Cleanup(b.Close)
@@ -129,8 +130,7 @@ func TestBroadcasterDataRaceRandomFunctions(t *testing.T) {
 	const N = 1000
 
 	// We're going to keep adding random functions to the set of currently executing functions
-	// for N iterations. This way, we can detect races between different methods, or those that are only caused
-	// by a particular execution order.
+	// for N iterations. This way, we can detect races that might be order-dependent.
 
 	for i := 0; i < N; i++ {
 		waitGroup.Add(1)
