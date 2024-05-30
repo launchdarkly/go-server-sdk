@@ -23,7 +23,7 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
-ALL_BUILD_TARGETS=sdk ldotel
+ALL_BUILD_TARGETS=sdk ldotel ldevents
 ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
 ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
@@ -76,6 +76,33 @@ ldotel-lint:
 		cd ldotel && 	$(LINTER) run .; \
 	fi
 
+ldevents:
+	@if [ -f go.work ]; then \
+  		echo "Building ldevents with workspace" \
+		go build ./ldevents; \
+	else \
+		echo "Building ldevents without workspace" \
+		cd ldevents && go build .; \
+	fi
+
+ldevents-test:
+	@if [ -f go.work ]; then \
+		echo "Testing ldevents with workspace" \
+		go test -v -race ./ldevents; \
+	else \
+		echo "Testing ldevents without workspace" \
+		cd ldevents && go test -v -race .; \
+	fi
+
+ldevents-lint:
+	@if [ -f go.work ]; then \
+		echo "Linting ldevents with workspace" \
+		$(LINTER) run ./ldevents; \
+	else \
+		echo "Linting ldevents without workspace" \
+		cd ldevents && 	$(LINTER) run .; \
+	fi
+
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
 	go tool cover -html $(COVERAGE_PROFILE_FILTERED) -o $(COVERAGE_PROFILE_FILTERED_HTML)
@@ -122,6 +149,7 @@ workspace: go.work
 go.work:
 	go work init ./
 	go work use ./ldotel
+	go work use ./ldevents
 	go work use ./testservice
 
 workspace-clean:
