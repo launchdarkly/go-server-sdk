@@ -1,7 +1,7 @@
 package internal
 
 import (
-	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	ldevents "github.com/launchdarkly/go-server-sdk/ldevents/v4"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 

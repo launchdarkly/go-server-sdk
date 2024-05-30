@@ -1,4 +1,4 @@
-module github.com/launchdarkly/go-server-sdk/ldevents/v3
+module github.com/launchdarkly/go-server-sdk/ldevents/v4
 
 go 1.21
 

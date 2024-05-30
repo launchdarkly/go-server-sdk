@@ -12,8 +12,8 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	ldevents "github.com/launchdarkly/go-server-sdk/ldevents/v4"
 )
 
 // MigrationOpTracker is used to collect migration related measurements. These measurements will be
