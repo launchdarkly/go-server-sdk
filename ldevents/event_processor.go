@@ -83,7 +83,6 @@ func (ep *defaultEventProcessor) RecordEvaluation(ed EvaluationData) {
 }
 
 func (ep *defaultEventProcessor) RecordIdentifyEvent(e IdentifyEventData) {
-	if ep.
 	ep.postNonBlockingMessageToInbox(sendEventMessage{event: e})
 }
 

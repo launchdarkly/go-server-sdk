@@ -11,8 +11,8 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
-	ldevents "github.com/launchdarkly/go-server-sdk/ldevents/v4"
 	"github.com/stretchr/testify/assert"
 )
 

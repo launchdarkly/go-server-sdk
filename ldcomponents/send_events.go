@@ -6,7 +6,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-server-sdk/ldevents/v4"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"

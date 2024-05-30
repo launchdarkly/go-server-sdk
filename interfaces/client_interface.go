@@ -7,7 +7,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	ldevents "github.com/launchdarkly/go-server-sdk/ldevents/v4"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 )
 
