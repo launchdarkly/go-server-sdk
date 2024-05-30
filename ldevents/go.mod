@@ -1,6 +1,6 @@
-module github.com/launchdarkly/go-sdk-events/v3
+module github.com/launchdarkly/go-server-sdk/ldevents/v3
 
-go 1.18
+go 1.21
 
 require (
 	github.com/google/uuid v1.1.1
