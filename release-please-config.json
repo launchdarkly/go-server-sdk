@@ -14,11 +14,21 @@
       "exclude-paths": [
         ".github",
         ".vscode",
-        "ldotel"
+        "ldotel",
+        "ldevents"
       ]
     },
     "ldotel" : {
       "package-name": "ldotel",
+      "release-type" : "go",
+      "tag-separator": "/",
+      "versioning" : "default",
+      "extra-files" : [
+        "package_info.go"
+      ]
+    },
+    "ldevents" : {
+      "package-name": "ldevents",
       "release-type" : "go",
       "tag-separator": "/",
       "versioning" : "default",
