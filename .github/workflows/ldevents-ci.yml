@@ -1,0 +1,38 @@
+name: Build and Test ldevents
+on:
+  push:
+    branches: [ 'v7', 'feat/**' ]
+    paths-ignore:
+      - '**.md' # Don't run CI on markdown changes.
+  pull_request:
+    branches: [ 'v7', 'feat/**'  ]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  go-versions:
+    uses: ./.github/workflows/go-versions.yml
+
+  # Runs the common tasks (unit tests, lint, contract tests) for each Go version.
+  test-linux:
+    name: ${{ format('ldevents Linux, Go {0}', matrix.go-version) }}
+    needs: go-versions
+    strategy:
+      # Let jobs fail independently, in case it's a single version that's broken.
+      fail-fast: false
+      matrix:
+        go-version: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ inputs.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - uses: ./.github/actions/unit-tests
+        with:
+          lint: 'true'
+          test-target: ldevents-test
+      - uses: ./.github/actions/coverage
+        with:
+          enforce: 'false'
