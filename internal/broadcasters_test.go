@@ -119,7 +119,10 @@ func TestBroadcasterDataRaceRandomFunctionOrder(t *testing.T) {
 	t.Cleanup(b.Close)
 
 	funcs := []func(){
-		func() { b.AddListener() },
+		func() {
+			for range b.AddListener() {
+			}
+		},
 		func() { b.Broadcast("foo") },
 		func() { b.Close() },
 		func() { b.HasListeners() },
