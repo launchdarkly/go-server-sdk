@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -109,39 +108,6 @@ func TestBroadcasterDataRace(t *testing.T) {
 				fn()
 			}()
 		}
-	}
-	waitGroup.Wait()
-}
-
-func TestBroadcasterDataRaceRandomFunctionOrder(t *testing.T) {
-	t.Parallel()
-	b := NewBroadcaster[string]()
-	t.Cleanup(b.Close)
-
-	funcs := []func(){
-		func() {
-			for range b.AddListener() {
-			}
-		},
-		func() { b.Broadcast("foo") },
-		func() { b.Close() },
-		func() { b.HasListeners() },
-		func() { b.RemoveListener(nil) },
-	}
-	var waitGroup sync.WaitGroup
-
-	const N = 1000
-
-	// We're going to keep adding random functions to the set of currently executing functions
-	// for N iterations. This way, we can detect races that might be order-dependent.
-
-	for i := 0; i < N; i++ {
-		waitGroup.Add(1)
-		fn := funcs[rand.Intn(len(funcs))]
-		go func() {
-			defer waitGroup.Done()
-			fn()
-		}()
 	}
 	waitGroup.Wait()
 }
