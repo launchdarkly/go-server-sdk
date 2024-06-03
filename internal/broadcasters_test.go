@@ -111,3 +111,35 @@ func TestBroadcasterDataRace(t *testing.T) {
 	}
 	waitGroup.Wait()
 }
+
+func TestBroadcastWhileAddingListener(t *testing.T) {
+	// The purpose of this test is to ensure that the Broadcast method doesn't block adding a listener concurrently.
+	// This would be the case if the Broadcaster held a write lock while broadcasting, since the channel sends
+	// could take an arbitrary amount of time. Instead, it clones the list of subscribers locally.
+	t.Parallel()
+	b := NewBroadcaster[string]()
+	t.Cleanup(b.Close)
+
+	// This returns a buffered channel. Fill the buffer entirely.
+	listener1 := b.AddListener()
+	for i := 0; i < subscriberChannelBufferLength; i++ {
+		b.Broadcast("foo")
+	}
+
+	isUnblocked := make(chan struct{})
+	go func() {
+		// This should block until we either pop something from the channel, or close it.
+		b.Broadcast("blocked!")
+		close(isUnblocked)
+	}()
+
+	th.AssertNoMoreValues(t, isUnblocked, 100*time.Millisecond, "Expected Broadcast to remain blocked")
+
+	// Now, we should be able to add a listener while Broadcast is still blocked.
+	b.AddListener()
+
+	th.AssertNoMoreValues(t, isUnblocked, 100*time.Millisecond, "Expected Broadcast to remain blocked")
+
+	<-listener1 // Allow Broadcast to push the final value to the listener.
+	th.AssertChannelClosed(t, isUnblocked, 100*time.Millisecond)
+}
