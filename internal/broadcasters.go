@@ -71,9 +71,8 @@ func (b *Broadcaster[V]) HasListeners() bool {
 // Broadcast broadcasts a value to all current subscribers.
 func (b *Broadcaster[V]) Broadcast(value V) {
 	b.lock.RLock()
-	subs := slices.Clone(b.subscribers)
-	b.lock.RUnlock()
-	for _, ch := range subs {
+	defer b.lock.RUnlock()
+	for _, ch := range b.subscribers {
 		ch.sendCh <- value
 	}
 }
