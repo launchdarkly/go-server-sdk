@@ -2,6 +2,15 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.4.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.4.0...v7.4.1) (2024-06-04)
+
+
+### Bug Fixes
+
+* add warning log message if client init duration is longer than recommended (60s) ([68e3440](https://github.com/launchdarkly/go-server-sdk/commit/68e3440f5368aa23e72345abc56cb77d7fe90914))
+* align high timeout log msg with spec ([#150](https://github.com/launchdarkly/go-server-sdk/issues/150)) ([606d224](https://github.com/launchdarkly/go-server-sdk/commit/606d224c155833de2f2b38d5bea60de92e1765ea))
+* resolve data race in Broadcasters system ([#153](https://github.com/launchdarkly/go-server-sdk/issues/153)) ([68cb1a4](https://github.com/launchdarkly/go-server-sdk/commit/68cb1a48724a9b739eca801e5ff9b64a8c6f6b14))
+
 ## [7.4.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.3.0...v7.4.0) (2024-04-10)
 
 This release contains no functional changes. It is a product of structural changes to the repository.
