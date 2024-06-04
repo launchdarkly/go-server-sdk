@@ -1,9 +1,8 @@
 package internal
 
 import (
+	"slices"
 	"sync"
-
-	"golang.org/x/exp/slices"
 )
 
 // This file defines the publish-subscribe model we use for various status/event types in the SDK.
@@ -19,11 +18,11 @@ const subscriberChannelBufferLength = 10
 // Broadcaster is our generalized implementation of broadcasters.
 type Broadcaster[V any] struct {
 	subscribers []channelPair[V]
-	lock        sync.Mutex
+	lock        sync.RWMutex
 }
 
 // We need to keep track of both the channel we use for sending (stored as a reflect.Value, because Value
-// has methods for sending and closing), and also the
+// has methods for sending and closing), and also the channel for receiving.
 type channelPair[V any] struct {
 	sendCh    chan<- V
 	receiveCh <-chan V
@@ -50,35 +49,31 @@ func (b *Broadcaster[V]) AddListener() <-chan V {
 func (b *Broadcaster[V]) RemoveListener(ch <-chan V) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	ss := b.subscribers
-	for i, s := range ss {
+	b.subscribers = slices.DeleteFunc(b.subscribers, func(pair channelPair[V]) bool {
 		// The following equality test is the reason why we have to store both the sendCh (chan X) and
 		// the receiveCh (<-chan X) for each subscriber; "s.sendCh == ch" would not be true because
 		// they're of two different types.
-		if s.receiveCh == ch {
-			copy(ss[i:], ss[i+1:])
-			ss[len(ss)-1] = channelPair[V]{}
-			b.subscribers = ss[:len(ss)-1]
-			close(s.sendCh)
-			break
+		if pair.receiveCh == ch {
+			close(pair.sendCh)
+			return true
 		}
-	}
+		return false
+	})
 }
 
 // HasListeners returns true if there are any current subscribers.
 func (b *Broadcaster[V]) HasListeners() bool {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
 	return len(b.subscribers) > 0
 }
 
 // Broadcast broadcasts a value to all current subscribers.
 func (b *Broadcaster[V]) Broadcast(value V) {
-	b.lock.Lock()
-	ss := slices.Clone(b.subscribers)
-	b.lock.Unlock()
-	if len(ss) > 0 {
-		for _, ch := range ss {
-			ch.sendCh <- value
-		}
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+	for _, ch := range b.subscribers {
+		ch.sendCh <- value
 	}
 }
 
