@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"github.com/google/uuid"
 	"net/http"
 	"net/url"
 	"sync"
@@ -62,6 +63,7 @@ const (
 type StreamConfig struct {
 	URI                   string
 	FilterKey             string
+	CacheBust             bool
 	InitialReconnectDelay time.Duration
 }
 
@@ -275,10 +277,15 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		close(closeWhenReady)
 		return
 	}
+	queryParams := url.Values{}
 	if sp.cfg.FilterKey != "" {
-		req.URL.RawQuery = url.Values{
-			"filter": {sp.cfg.FilterKey},
-		}.Encode()
+		queryParams["filter"] = []string{sp.cfg.FilterKey}
+	}
+	if sp.cfg.CacheBust {
+		queryParams["cacheBust"] = []string{uuid.New().String()}
+	}
+	if len(queryParams) > 0 {
+		req.URL.RawQuery = queryParams.Encode()
 	}
 	if sp.headers != nil {
 		req.Header = maps.Clone(sp.headers)
@@ -344,6 +351,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		es.StreamOptionErrorHandler(errorHandler),
 		es.StreamOptionCanRetryFirstConnection(-1),
 		es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info)),
+		es.StreamOptionCacheBust(sp.cfg.CacheBust),
 	)
 
 	if err != nil {

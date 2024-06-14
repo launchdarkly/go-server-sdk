@@ -23,6 +23,7 @@ type StreamingDataSourceBuilder struct {
 	baseURI               string
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
+	cacheBust             ldvalue.OptionalBool
 }
 
 // StreamingDataSource returns a configurable factory for using streaming mode to get feature flag data.
@@ -72,12 +73,21 @@ func (b *StreamingDataSourceBuilder) PayloadFilter(filterKey string) *StreamingD
 	return b
 }
 
+// CacheBust turns on cache busting behavior for the streaming endpoint. In this mode, the SDK will
+// append a query parameter with a random UUID for every streaming request. This can be useful if a
+// proxy is interfering with requests.
+func (b *StreamingDataSourceBuilder) CacheBust(cacheBust bool) *StreamingDataSourceBuilder {
+	b.cacheBust = ldvalue.NewOptionalBool(cacheBust)
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
 	}
+
 	configuredBaseURI := endpoints.SelectBaseURI(
 		context.GetServiceEndpoints(),
 		endpoints.StreamingService,
@@ -88,6 +98,7 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 		URI:                   configuredBaseURI,
 		InitialReconnectDelay: b.initialReconnectDelay,
 		FilterKey:             filterKey,
+		CacheBust:             b.cacheBust.OrElse(false),
 	}
 	return datasource.NewStreamProcessor(
 		context,
