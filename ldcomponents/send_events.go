@@ -41,6 +41,7 @@ type EventProcessorBuilder struct {
 	privateAttributes           []ldattr.Ref
 	contextKeysCapacity         int
 	contextKeysFlushInterval    time.Duration
+	omitAnonymousContexts       bool
 }
 
 // SendEvents returns a configuration builder for analytics event delivery.
@@ -196,6 +197,11 @@ func (b *EventProcessorBuilder) ContextKeysCapacity(contextKeysCapacity int) *Ev
 // The default value is [DefaultContextKeysFlushInterval].
 func (b *EventProcessorBuilder) ContextKeysFlushInterval(interval time.Duration) *EventProcessorBuilder {
 	b.contextKeysFlushInterval = interval
+	return b
+}
+
+func (b *EventProcessorBuilder) OmitAnonymousContexts(omitAnonymousContexts bool) *EventProcessorBuilder {
+	b.omitAnonymousContexts = omitAnonymousContexts
 	return b
 }
 
