@@ -98,6 +98,7 @@ func (b *EventProcessorBuilder) Build(
 		PrivateAttributes:           b.privateAttributes,
 		UserKeysCapacity:            b.contextKeysCapacity,
 		UserKeysFlushInterval:       b.contextKeysFlushInterval,
+		OmitAnonymousContexts:       b.omitAnonymousContexts,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		eventsConfig.DiagnosticsManager = cci.DiagnosticsManager
@@ -219,6 +220,7 @@ func (b *EventProcessorBuilder) DescribeConfiguration(context subsystems.ClientC
 		Set("eventsFlushIntervalMillis", durationToMillisValue(b.flushInterval)).
 		Set("userKeysCapacity", ldvalue.Int(b.contextKeysCapacity)).
 		Set("userKeysFlushIntervalMillis", durationToMillisValue(b.contextKeysFlushInterval)).
+		Set("omitAnonymousContexts", ldvalue.Bool(b.omitAnonymousContexts)).
 		Build()
 }
 
