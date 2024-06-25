@@ -200,6 +200,9 @@ func (b *EventProcessorBuilder) ContextKeysFlushInterval(interval time.Duration)
 	return b
 }
 
+// OmitAnonymousContexts sets whether anonymous contexts should be omitted from index and identify events.
+//
+// The default value is false. Anonymous contexts will be included in index and identify events.
 func (b *EventProcessorBuilder) OmitAnonymousContexts(omitAnonymousContexts bool) *EventProcessorBuilder {
 	b.omitAnonymousContexts = omitAnonymousContexts
 	return b
