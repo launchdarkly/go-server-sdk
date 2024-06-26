@@ -401,6 +401,9 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		if config.Events.FlushIntervalMS.IsDefined() {
 			builder.FlushInterval(time.Millisecond * time.Duration(config.Events.FlushIntervalMS))
 		}
+		if config.Events.OmitAnonymousContexts {
+			builder.OmitAnonymousContexts(true)
+		}
 		ret.Events = builder
 		ret.DiagnosticOptOut = !config.Events.EnableDiagnostics
 	} else {

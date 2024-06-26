@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
@@ -84,6 +85,14 @@ func TestEventProcessorBuilder(t *testing.T) {
 
 		b.ContextKeysFlushInterval(time.Hour)
 		assert.Equal(t, time.Hour, b.contextKeysFlushInterval)
+	})
+
+	t.Run("OmitAnonymousContexts", func(t *testing.T) {
+		b := SendEvents()
+		assert.Equal(t, false, b.omitAnonymousContexts)
+		b.OmitAnonymousContexts(true)
+
+		assert.Equal(t, true, b.omitAnonymousContexts)
 	})
 }
 
@@ -206,6 +215,37 @@ func TestEventsSomeAttributesPrivate(t *testing.T) {
 				m.JSONProperty("email").Should(m.Equal("user-email")),
 				m.JSONOptProperty("name").Should(m.BeNil()),
 				m.JSONProperty("_meta").Should(m.JSONProperty("redactedAttributes").Should(m.JSONStrEqual(`["name"]`))),
+			)),
+		))
+	})
+}
+
+func TestEventsOmitAnonymousContexts(t *testing.T) {
+	eventsHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
+	httphelpers.WithServer(eventsHandler, func(server *httptest.Server) {
+		ep, err := SendEvents().
+			OmitAnonymousContexts(true).
+			Build(makeTestContextWithBaseURIs(server.URL))
+		require.NoError(t, err)
+
+		ef := ldevents.NewEventFactory(false, nil)
+		nonAnon := ldcontext.NewBuilder("user-key").Build()
+		anon := ldcontext.NewBuilder("anon").Kind("other").Anonymous(true).Build()
+		multi := ldcontext.NewMulti(nonAnon, anon)
+		ie := ef.NewIdentifyEventData(ldevents.Context(multi), ldvalue.OptionalInt{})
+		ep.RecordIdentifyEvent(ie)
+		ep.Flush()
+
+		r := <-requestsCh
+		var jsonData ldvalue.Value
+		_ = json.Unmarshal(r.Body, &jsonData)
+		assert.Equal(t, 1, jsonData.Count())
+		event := jsonData.GetByIndex(0)
+		m.In(t).Assert(event, m.AllOf(
+			m.JSONProperty("kind").Should(m.Equal("identify")),
+			// After omitting the anonymous part of the context only the user should remain.
+			m.JSONProperty("context").Should(m.AllOf(
+				m.JSONProperty("key").Should(m.Equal("user-key")),
 			)),
 		))
 	})

@@ -40,6 +40,7 @@ var capabilities = []string{
 	servicedef.CapabilityInlineContext,
 	servicedef.CapabilityAnonymousRedaction,
 	servicedef.CapabilityEvaluationHooks,
+	servicedef.CapabilityOmitAnonymousContexts,
 }
 
 // gets the specified environment variable, or the default if not set
