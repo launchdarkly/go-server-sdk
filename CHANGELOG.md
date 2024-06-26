@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.5.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.4.1...v7.5.0) (2024-06-26)
+
+
+### Features
+
+* Optionally omit anonymous contexts from index and identify events. ([#158](https://github.com/launchdarkly/go-server-sdk/issues/158)) ([b2d304a](https://github.com/launchdarkly/go-server-sdk/commit/b2d304ab108da6499121477c99bd4e33e4d37b92))
+
 ## [7.4.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.4.0...v7.4.1) (2024-06-04)
 
 
