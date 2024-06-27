@@ -421,7 +421,6 @@ func (client *LDClient) migrationVariation(
 		func() (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 			detail, flag, err := client.variationAndFlag(key, context, defaultStageAsValue, true,
 				eventsScope)
-
 			if err != nil {
 				// Detail will already contain the default.
 				// We do not have an error on the flag-not-found case.
@@ -1287,7 +1286,10 @@ func (client *LDClient) evaluateInternal(
 		}
 	}
 
-	itemDesc, storeErr := client.store.Get(datakinds.Features, key)
+	// Get audiences
+	itemDesc, storeErr := client.store.Get(datakinds.AudienceVariations, key)
+
+	// itemDesc, storeErr := client.store.Get(datakinds.Features, key)
 
 	if storeErr != nil {
 		client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)

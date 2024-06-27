@@ -202,7 +202,7 @@ func parseProtobufData(data io.Reader) []st.Collection {
 					Key: flagKey,
 					Item: ldstoretypes.ItemDescriptor{
 						Version: 1, // TODO: Decide if this still applies.
-						Item:    audiencesByFlagKey,
+						Item:    audiencesByFlagKey[flagKey],
 					},
 				}},
 			}
