@@ -88,7 +88,7 @@ type LDClient struct {
 	eventProcessor                   ldevents.EventProcessor
 	dataSource                       subsystems.DataSource
 	store                            subsystems.DataStore
-	evaluator                        ldeval.Evaluator
+	evaluator                        *ldeval.NextGenEval
 	dataSourceStatusBroadcaster      *internal.Broadcaster[interfaces.DataSourceStatus]
 	dataSourceStatusProvider         interfaces.DataSourceStatusProvider
 	dataStoreStatusBroadcaster       *internal.Broadcaster[interfaces.DataStoreStatus]
@@ -269,14 +269,16 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		)
 	}
 
-	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
 	evalOptions := []ldeval.EvaluatorOption{
 		ldeval.EvaluatorOptionErrorLogger(client.loggers.ForLevel(ldlog.Error)),
 	}
 	if client.bigSegmentStoreWrapper != nil {
 		evalOptions = append(evalOptions, ldeval.EvaluatorOptionBigSegmentProvider(client.bigSegmentStoreWrapper))
 	}
-	client.evaluator = ldeval.NewEvaluatorWithOptions(dataProvider, evalOptions...)
+
+	nextGenStore := datastore.NewNextGenDataStoreEvaluatorDataProviderImpl(store, loggers)
+	client.evaluator = ldeval.NewNextGenEval(nextGenStore)
+	// client.evaluator = ldeval.NewEvaluatorWithOptions(dataProvider, evalOptions...)
 
 	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdateSink)
 
