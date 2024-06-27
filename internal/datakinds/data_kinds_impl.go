@@ -25,18 +25,29 @@ var modelSerialization = ldmodel.NewJSONDataModelSerialization()
 const deletedItemPlaceholderKey = "$deleted"
 
 // Type aliases for our two implementations of StoreDataKind
-type featureFlagStoreDataKind struct{}
-type segmentStoreDataKind struct{}
+type (
+	featureFlagStoreDataKind        struct{}
+	segmentStoreDataKind            struct{}
+	audienceStoreDataKind           struct{}
+	audienceVariationsStoreDataKind struct{}
+	variationsStoreDataKind         struct{}
+)
 
 // Features is the global StoreDataKind instance for feature flags.
 var Features DataKindInternal = featureFlagStoreDataKind{} //nolint:gochecknoglobals
+
+var Audiences DataKindInternal = audienceStoreDataKind{}
+
+var AudienceVariations DataKindInternal = audienceVariationsStoreDataKind{}
+
+var Variations DataKindInternal = variationsStoreDataKind{}
 
 // Segments is the global StoreDataKind instance for segments.
 var Segments DataKindInternal = segmentStoreDataKind{} //nolint:gochecknoglobals
 
 // AllDataKinds returns all the supported data StoreDataKinds.
 func AllDataKinds() []ldstoretypes.DataKind {
-	return []ldstoretypes.DataKind{Features, Segments}
+	return []ldstoretypes.DataKind{Features, Segments, Audiences, Variations}
 }
 
 // GetName returns the unique namespace identifier for feature flag objects.
@@ -59,6 +70,18 @@ func (fk featureFlagStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) [
 	return nil
 }
 
+func (fk variationsStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
+	return nil
+}
+
+func (fk audienceStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
+	return nil
+}
+
+func (fk audienceVariationsStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
+	return nil
+}
+
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (fk featureFlagStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	flag, err := modelSerialization.UnmarshalFeatureFlag(data)
@@ -67,7 +90,8 @@ func (fk featureFlagStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDe
 
 // DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
 func (fk featureFlagStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
-	ldstoretypes.ItemDescriptor, error) {
+	ldstoretypes.ItemDescriptor, error,
+) {
 	flag := ldmodel.UnmarshalFeatureFlagFromJSONReader(reader)
 	return maybeFlag(flag, reader.Error())
 }
@@ -92,6 +116,21 @@ func (sk segmentStoreDataKind) GetName() string {
 	return "segments"
 }
 
+// GetName returns the unique namespace identifier for segment objects.
+func (sk audienceStoreDataKind) GetName() string {
+	return "audiences"
+}
+
+// GetName returns the unique namespace identifier for audienceVariationStore objects.
+func (fk audienceVariationsStoreDataKind) GetName() string {
+	return "audienceVariations"
+}
+
+// GetName returns the unique namespace identifier for variation objects.
+func (sk variationsStoreDataKind) GetName() string {
+	return "variations"
+}
+
 // Serialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (sk segmentStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
 	if item.Item == nil {
@@ -111,6 +150,42 @@ func (sk segmentStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byt
 func (sk segmentStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
 	segment, err := modelSerialization.UnmarshalSegment(data)
 	return maybeSegment(segment, err)
+}
+
+// Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk audienceStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	return ldstoretypes.ItemDescriptor{}, nil
+}
+
+// Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk audienceVariationsStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	return ldstoretypes.ItemDescriptor{}, nil
+}
+
+// Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
+func (fk variationsStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	return ldstoretypes.ItemDescriptor{}, nil
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (fk audienceStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
+	ldstoretypes.ItemDescriptor, error,
+) {
+	return ldstoretypes.ItemDescriptor{}, nil
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (fk variationsStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
+	ldstoretypes.ItemDescriptor, error,
+) {
+	return ldstoretypes.ItemDescriptor{}, nil
+}
+
+// DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
+func (fk audienceVariationsStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
+	ldstoretypes.ItemDescriptor, error,
+) {
+	return ldstoretypes.ItemDescriptor{}, nil
 }
 
 // DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.

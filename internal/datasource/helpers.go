@@ -1,12 +1,18 @@
 package datasource
 
 import (
+	"encoding/base64"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel/flag_response"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 )
@@ -66,19 +72,22 @@ func checkForHTTPError(statusCode int, url string) error {
 	if statusCode == http.StatusUnauthorized {
 		return httpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
-			Code:    statusCode}
+			Code:    statusCode,
+		}
 	}
 
 	if statusCode == http.StatusNotFound {
 		return httpStatusError{
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
-			Code:    statusCode}
+			Code:    statusCode,
+		}
 	}
 
 	if statusCode/100 != 2 {
 		return httpStatusError{
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
-			Code:    statusCode}
+			Code:    statusCode,
+		}
 	}
 	return nil
 }
@@ -122,6 +131,99 @@ func parseAllStoreDataFromJSONReader(r *jreader.Reader) []st.Collection {
 			}
 		}
 		ret = append(ret, coll)
+	}
+	return ret
+}
+
+func parseProtobufData(data io.Reader) []st.Collection {
+	pbData := new(flag_response.FlagModelResponse)
+	payload, err := io.ReadAll(data)
+	if err != nil {
+		return nil
+	}
+	decoded, _ := base64.StdEncoding.DecodeString(string(payload))
+	if err := proto.Unmarshal(decoded, pbData); err != nil {
+		log.Println("Failed to unmarshal protobuf message")
+		return nil
+	}
+	var ret []st.Collection
+
+	if getAll := pbData.GetLoadAllFlags(); getAll != nil {
+		flagKeysById := make(map[string]string)
+		coll := st.Collection{Kind: datakinds.Features}
+		for _, flag := range getAll.GetFlags() {
+			coll.Items = append(coll.Items, st.KeyedItemDescriptor{
+				Key: flag.Key,
+				Item: ldstoretypes.ItemDescriptor{
+					Version: 1, // TODO: Decide if this still applies.
+					Item:    flag,
+				},
+			})
+			flagKeysById[flag.Id] = flag.Key
+		}
+		ret = append(ret, coll)
+
+		audienceCol := st.Collection{Kind: datakinds.Audiences}
+		for _, aud := range getAll.GetAudiences() {
+			audienceCol.Items = append(audienceCol.Items, st.KeyedItemDescriptor{
+				Key: aud.Id,
+				Item: ldstoretypes.ItemDescriptor{
+					Version: 1, // TODO: Decide if this still applies.
+					Item:    aud,
+				},
+			})
+		}
+		ret = append(ret, audienceCol)
+
+		varsCol := st.Collection{Kind: datakinds.Variations}
+		for _, variation := range getAll.GetVariations() {
+			varsCol.Items = append(varsCol.Items, st.KeyedItemDescriptor{
+				Key: variation.Id,
+				Item: ldstoretypes.ItemDescriptor{
+					Version: 1, // TODO: Decide if this still applies.
+					Item:    variation,
+				},
+			})
+		}
+		ret = append(ret, varsCol)
+		audVars := getAll.GetAudienceVariations()
+		audiencesByFlagKey := make(map[string][]string)
+
+		for flagId, flagKey := range flagKeysById {
+			for _, av := range audVars {
+				if _, ok := audiencesByFlagKey[flagId]; ok {
+					audiencesByFlagKey[flagId] = []string{}
+				}
+				audiencesByFlagKey[flagId] = append(audiencesByFlagKey[flagId], av.AudienceId)
+			}
+			audColl := st.Collection{
+				Kind: datakinds.AudienceVariations,
+				Items: []st.KeyedItemDescriptor{{
+					Key: flagKey,
+					Item: ldstoretypes.ItemDescriptor{
+						Version: 1, // TODO: Decide if this still applies.
+						Item:    audiencesByFlagKey,
+					},
+				}},
+			}
+			ret = append(ret, audColl)
+		}
+	} else if update := pbData.GetUpdateFlags(); update != nil {
+		// TODO: implement
+
+		// coll := st.Collection{Kind: datakinds.AudienceVariations}
+		// additions := update.GetAdditions()
+		// if additions != nil {
+		// 	for _, av := range additions.AudienceVariations {
+		// 		coll.Items = append(coll.Items, st.KeyedItemDescriptor{
+		// 			Key: flag.Key,
+		// 			Item: ldstoretypes.ItemDescriptor{
+		// 				Version: 1, // TODO: Decide if this still applies.
+		// 				Item:    flag,
+		// 			},
+		// 		})
+		// 	}
+		// }
 	}
 	return ret
 }

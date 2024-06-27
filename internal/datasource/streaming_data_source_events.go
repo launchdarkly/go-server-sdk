@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 
@@ -86,7 +87,8 @@ func parsePutData(data []byte) (putData, error) {
 		case "path": //nolint:goconst // linter wants us to define constants, but that makes code like this less clear
 			ret.Path = r.String()
 		case "data": //nolint:goconst
-			ret.Data = parseAllStoreDataFromJSONReader(&r)
+			ret.Data = parseProtobufData(bytes.NewReader(data))
+			// ret.Data = parseAllStoreDataFromJSONReader(&r)
 		}
 	}
 	return ret, r.Error()
