@@ -45,6 +45,7 @@ type SDKConfigEventParams struct {
 	GlobalPrivateAttributes []string                   `json:"globalPrivateAttributes,omitempty"`
 	FlushIntervalMS         ldtime.UnixMillisecondTime `json:"flushIntervalMs,omitempty"`
 	OmitAnonymousContexts   bool                       `json:"omitAnonymousContexts,omitempty"`
+	EnableGzip              ldvalue.OptionalBool       `json:"enableGzip,omitempty"`
 }
 
 type SDKConfigPersistentDataStoreParams struct {
