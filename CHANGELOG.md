@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.6.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.5.0...v7.6.0) (2024-07-25)
+
+This release introduces the ability to enable compression of event payloads. When enabled, the SDK will compress events before sending them to the LaunchDarkly servers. This can reduce the bandwidth required to send events, which can be useful in high-traffic environments to reduce egress traffic costs.
+
+> [!IMPORTANT]
+> Relay Proxy users **MUST** upgrade to version 8.9 or higher prior to enabling this option to prevent loss of event data.
+>
+> However, enabling this feature is **NOT** required when using the Relay Proxy as it will manage compression automatically.
+
+
+### Features
+
+* Add option to enable compression for event payloads ([#161](https://github.com/launchdarkly/go-server-sdk/issues/161)) ([4301a12](https://github.com/launchdarkly/go-server-sdk/commit/4301a1249974a79db6a00660e9f636d428c0b345))
+
 ## [7.5.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.4.1...v7.5.0) (2024-06-26)
 
 
