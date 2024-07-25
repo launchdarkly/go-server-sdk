@@ -22,6 +22,8 @@ const (
 	CapabilityAnonymousRedaction    = "anonymous-redaction"
 	CapabilityEvaluationHooks       = "evaluation-hooks"
 	CapabilityOmitAnonymousContexts = "omit-anonymous-contexts"
+	CapabilityEventGzip             = "event-gzip"
+	CapabilityOptionalEventGzip     = "optional-event-gzip"
 )
 
 type StatusRep struct {

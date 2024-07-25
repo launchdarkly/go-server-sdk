@@ -42,6 +42,7 @@ type EventProcessorBuilder struct {
 	contextKeysCapacity         int
 	contextKeysFlushInterval    time.Duration
 	omitAnonymousContexts       bool
+	enableGzip                  bool
 }
 
 // SendEvents returns a configuration builder for analytics event delivery.
@@ -80,10 +81,11 @@ func (b *EventProcessorBuilder) Build(
 	headers := context.GetHTTP().DefaultHeaders
 	eventSender := ldevents.NewServerSideEventSender(
 		ldevents.EventSenderConfiguration{
-			Client:      context.GetHTTP().CreateHTTPClient(),
-			BaseURI:     configuredBaseURI,
-			BaseHeaders: func() http.Header { return headers },
-			Loggers:     loggers,
+			Client:            context.GetHTTP().CreateHTTPClient(),
+			BaseURI:           configuredBaseURI,
+			BaseHeaders:       func() http.Header { return headers },
+			Loggers:           loggers,
+			EnableCompression: b.enableGzip,
 		},
 		context.GetSDKKey(),
 	)
@@ -209,6 +211,14 @@ func (b *EventProcessorBuilder) OmitAnonymousContexts(omitAnonymousContexts bool
 	return b
 }
 
+// EnableGzip sets whether event payloads should be compressed prior to being sent to LaunchDarkly.
+//
+// The default value is false.
+func (b *EventProcessorBuilder) EnableGzip(enableGzip bool) *EventProcessorBuilder {
+	b.enableGzip = enableGzip
+	return b
+}
+
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *EventProcessorBuilder) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
@@ -221,6 +231,7 @@ func (b *EventProcessorBuilder) DescribeConfiguration(context subsystems.ClientC
 		Set("userKeysCapacity", ldvalue.Int(b.contextKeysCapacity)).
 		Set("userKeysFlushIntervalMillis", durationToMillisValue(b.contextKeysFlushInterval)).
 		Set("omitAnonymousContexts", ldvalue.Bool(b.omitAnonymousContexts)).
+		Set("enableGzip", ldvalue.Bool(b.enableGzip)).
 		Build()
 }
 
