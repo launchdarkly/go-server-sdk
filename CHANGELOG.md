@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.6.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.5.0...v7.6.0) (2024-07-25)
+
+
+### Features
+
+* Add option to enable compression for event payloads ([#161](https://github.com/launchdarkly/go-server-sdk/issues/161)) ([4301a12](https://github.com/launchdarkly/go-server-sdk/commit/4301a1249974a79db6a00660e9f636d428c0b345))
+
 ## [7.5.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.4.1...v7.5.0) (2024-06-26)
 
 
