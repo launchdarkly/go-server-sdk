@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/v7/testservice
 
-go 1.19
+go 1.20
 
 require (
 	github.com/gorilla/mux v1.8.0
