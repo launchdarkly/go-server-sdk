@@ -15,8 +15,8 @@ period of roughly 1 year. This policy is intended to match Go's official [Releas
 each major Go release is supported until there are two newer major releases.
 
 Additionally, a 'minimum' version is tested in CI but not officially supported. This minimum version is found in [go.mod](./go.mod).
-This version may be bumped from time to time as new Go features become available that are useful to the SDK.
-
+This version may be [bumped](./CONTRIBUTING.md#bumping-the-minimum-go-version) from time to time as new Go features 
+become available that are useful to the SDK.
 
 ## Getting started
 
