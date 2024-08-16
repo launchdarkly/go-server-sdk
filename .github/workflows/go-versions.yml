@@ -27,6 +27,9 @@ on:
       penultimate:
         description: 'The second most recent Go version to test'
         value: ${{ jobs.go-versions.outputs.penultimate }}
+      min:
+        description: 'The minimum Go version to test'
+        value: ${{ jobs.go-versions.outputs.min }}
       matrix:
         description: 'All Go versions to test as a matrix'
         value: ${{ jobs.go-versions.outputs.all }}
@@ -46,4 +49,4 @@ jobs:
       - name: Set Go Version Matrices
         id: set-matrix
         run: |
-          echo "all=[\"${{ steps.set-env.outputs.latest }}\",\"${{ steps.set-env.outputs.penultimate }}\"]" >> $GITHUB_OUTPUT
+          echo "all=[\"${{ steps.set-env.outputs.latest }}\",\"${{ steps.set-env.outputs.penultimate }}\",\"${{ steps.set-env.outputs.min }}\"]" >> $GITHUB_OUTPUT
