@@ -8,7 +8,7 @@
 
 ## Supported Go versions
 
-This version of the LaunchDarkly SDK supports Go version 1.21 or higher. 
+This version of the LaunchDarkly SDK supports Go version 1.22 or higher. 
 
 The policy for this SDK follows that of the official Go [Release Policy](https://go.dev/doc/devel/release): each major Go release is supported until there
 are two newer major releases.
