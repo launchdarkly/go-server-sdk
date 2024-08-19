@@ -14,7 +14,20 @@ We encourage pull requests and other contributions from the community. Before su
 
 ### Prerequisites
 
-This project should be built against the lowest supported Go version as described in [README.md](./README.md).
+This project should be built against the lowest supported Go version as described below.
+
+### Bumping the Minimum Go Version
+
+The SDK is tested against three Go versions: the latest, penultimate, and a minimum based on the SDKs usage of Go features.
+
+Whereas the latest and penultimate are updates on a regular cadence to track upstream Go releases, the minimum version
+may be bumped at the discretion of the SDK maintainers to take advantage of new features.
+
+Invoke the following make command, which will update `go.mod`, `ldotel/go.mod`, `testservice/go.mod`, and
+`.github/variables/go-versions.env` (pass the desired Go version):
+```shell
+make bump-min-go-version MIN_GO_VERSION=1.18
+```
 
 ### Building
 
