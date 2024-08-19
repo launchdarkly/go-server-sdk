@@ -58,27 +58,14 @@ jobs:
           sed -i -e "s#latest=[^ ]*#latest=${{ env.officialLatestVersion }}#g" \
                  -e "s#penultimate=[^ ]*#penultimate=${{ env.officialPenultimateVersion }}#g" \
                   ./.github/variables/go-versions.env
-          sed -i "s/Go version ${{ steps.go-versions.outputs.penultimate }}/Go version ${{ env.officialPenultimateVersion }}/g" \
-                  README.md
-
-      - name: Update go.mod and testservice/go.mod
-        if: steps.update-go-versions.outcome == 'success'
-        id: update-go-mod
-        run: |
-          go mod edit -go=${{ env.officialPenultimateVersion }}
-          cd testservice
-          go mod edit -go=${{ env.officialPenultimateVersion }}
 
       - name: Create pull request
-        if: steps.update-go-mod.outcome == 'success'
+        if: steps.update-go-versions.outcome == 'success'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           add-paths: |
             .github/variables/go-versions.env
-            README.md
-            go.mod
-            testservice/go.mod
           branch: "launchdarklyreleasebot/update-to-go${{ env.officialLatestVersion }}-${{ matrix.branch }}"
           author: "LaunchDarklyReleaseBot <LaunchDarklyReleaseBot@launchdarkly.com>"
           committer: "LaunchDarklyReleaseBot <LaunchDarklyReleaseBot@launchdarkly.com>"
