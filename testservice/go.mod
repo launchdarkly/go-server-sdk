@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/v7/testservice
 
-go 1.21
+go 1.18
 
 require (
 	github.com/gorilla/mux v1.8.0
@@ -15,14 +15,14 @@ require (
 	github.com/launchdarkly/ccache v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.6.2 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.0.0 // indirect
-	github.com/launchdarkly/go-sdk-events/v3 v3.2.0 // indirect
+	github.com/launchdarkly/go-sdk-events/v3 v3.4.0 // indirect
 	github.com/launchdarkly/go-semver v1.0.2 // indirect
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.0 // indirect
 	github.com/launchdarkly/go-test-helpers/v2 v2.3.1 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	golang.org/x/exp v0.0.0-20220823124025-807a23277127 // indirect
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
+	golang.org/x/sync v0.8.0 // indirect
 )
 
 replace github.com/launchdarkly/go-server-sdk/v7 => ../

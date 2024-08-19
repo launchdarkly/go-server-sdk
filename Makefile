@@ -1,5 +1,5 @@
 
-GOLANGCI_LINT_VERSION=v1.57.1
+GOLANGCI_LINT_VERSION=v1.60.1
 
 LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
@@ -32,6 +32,12 @@ ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 all: $(ALL_BUILD_TARGETS)
 
 test: $(ALL_TEST_TARGETS)
+
+bump-min-go-version:
+	go mod edit -go=$(MIN_GO_VERSION) go.mod
+	cd ldotel && go mod edit -go=$(MIN_GO_VERSION) go.mod
+	cd testservice && go mod edit -go=$(MIN_GO_VERSION) go.mod
+	cd ./.github/variables && sed -i.bak "s#min=[^ ]*#min=$(MIN_GO_VERSION)#g" go-versions.env && rm go-versions.env.bak
 
 clean: workspace-clean
 	rm -rf ./bin/
@@ -143,4 +149,4 @@ run-contract-tests:
 
 contract-tests: build-contract-tests start-contract-test-service-bg run-contract-tests
 
-.PHONY: build-contract-tests start-contract-test-service start-contract-test-service-bg run-contract-tests contract-tests
+.PHONY: build-contract-tests start-contract-test-service start-contract-test-service-bg run-contract-tests contract-tests bump-min-go-version

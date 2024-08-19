@@ -1,8 +1,9 @@
 package internal
 
 import (
-	"slices"
 	"sync"
+
+	"golang.org/x/exp/slices"
 )
 
 // This file defines the publish-subscribe model we use for various status/event types in the SDK.

@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
-import "go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 func configureMemoryExporter() *tracetest.InMemoryExporter {
 	exporter := tracetest.NewInMemoryExporter()
