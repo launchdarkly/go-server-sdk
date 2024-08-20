@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [6.2.1](https://github.com/launchdarkly/go-server-sdk/compare/v6.2.0...v6.2.1) (2024-08-20)
+
+
+### Bug Fixes
+
+* add support for testing minimum Go version ([#172](https://github.com/launchdarkly/go-server-sdk/issues/172)) ([37483bc](https://github.com/launchdarkly/go-server-sdk/commit/37483bc5495929e00ce794cc8b08fcefd487edf0))
+
 ## [6.2.0](https://github.com/launchdarkly/go-server-sdk/compare/v6.1.1...v6.2.0) (2024-03-27)
 
 
