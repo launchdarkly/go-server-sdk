@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.0.0...ldotel/v1.0.1) (2024-08-20)
+
+
+### Bug Fixes
+
+* add support for testing minimum Go version ([c0707a3](https://github.com/launchdarkly/go-server-sdk/commit/c0707a3c9eaab854815062f0d817b97b2b654edd))
+
 ## 1.0.0 (2024-04-11)
 
 
