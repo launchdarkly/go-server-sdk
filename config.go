@@ -197,4 +197,24 @@ type Config struct {
 	// LaunchDarkly provides integration packages, and most applications will not
 	// need to implement their own hooks.
 	Hooks []ldhooks.Hook
+
+	// This field is not stable, and not subject to any backwards compatability guarantees or semantic versioning.
+	// It is not suitable for production usage. Do not use it. You have been warned.
+	//
+	// DataSystem configures how data (e.g. flags, segments) are retrieved by the SDK.
+	//
+	// Set this field only if you want to specify non-default values for any of the data system configuration,
+	// such as defining an alternate data source or setting up a persistent store.
+	//
+	// Below, the default configuration is described with the relevant config item in parentheses:
+	// 1. The SDK will first attempt to fetch all data from LaunchDarkly's global Content Delivery Network (Initializer)
+	// 2. It will then establish a streaming connection with LaunchDarkly's realtime Flag Delivery Network (Primary
+	//    Synchronizer.)
+	// 3. If at any point the connection to the realtime network is interrupted for a short period of time,
+	//    the connection will be automatically re-established.
+	// 4. If the connection cannot be re-established over a sustained period, the SDK will begin to make periodic
+	//    requests to LaunchDarkly's global CDN (Secondary Synchronizer)
+	// 5. After a period of time, the SDK will swap back to the realtime Flag Delivery Network if it becomes
+	//    available again.
+	DataSystem subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration]
 }
