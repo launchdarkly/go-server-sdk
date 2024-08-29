@@ -216,5 +216,22 @@ type Config struct {
 	//    requests to LaunchDarkly's global CDN (Secondary Synchronizer)
 	// 5. After a period of time, the SDK will swap back to the realtime Flag Delivery Network if it becomes
 	//    available again.
+	//
+	// The default streaming mode configuration is preferred for most use-cases (DataSystem().StreamingPreferred()).
+	// Sometimes streaming connections are blocked by firewalls or proxies. If this is the case, a polling-only mode
+	// can be configured:
+	//
+	//    config := ld.Config{
+	//        DataSystem: ldcomponents.DataSystem().PollingOnly(),
+	//    }
+	//
+	// If you'd like to load data from a local source to provide redundancy if there is a problem
+	// connecting to LaunchDarkly, you can add a custom initializer:
+	//
+	//    config := ld.Config {
+	// 	  		DataSystem: ldcomponents.DataSystem().PrependInitializers(myCustomInitializer),
+	//    }
+	//
+	// The initializer(s) will run before LaunchDarkly's default initializer.
 	DataSystem subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration]
 }

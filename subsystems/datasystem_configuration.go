@@ -21,17 +21,3 @@ type DataSystemConfiguration struct {
 	Initializers  []Initializer
 	Synchronizers SynchronizersConfiguration
 }
-
-/**
-
-DataSystemConfiguration {
-   Store: ldcomponents.Empty(), || ldcomponents.PersistentStore(
-   Initializers: []ldcomponents.Initializer{
-		ldcomponents.PollFDv2()
-   },
-   Synchronizers: ldcomponents.SynchronizersConfiguration{
-		Primary: ldcomponents.StreamingFDv2(),
-		Secondary: ldcomponents.PollFDv2()
-	}
-}
-*/
