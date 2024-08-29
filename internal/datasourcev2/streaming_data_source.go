@@ -67,58 +67,6 @@ const (
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
-type changeSet struct {
-	intent *serverIntent
-	events []es.Event
-}
-
-type serverIntent struct {
-	Payloads []payload `json:"payloads"`
-}
-
-type payload struct {
-	// The id here doesn't seem to match the state that is included in the
-	// payload transferred object.
-
-	// It would be nice if we had the same value available in both so we could
-	// use that as the key consistently throughout the the process.
-	ID     string `json:"id"`
-	Target int    `json:"target"`
-	Code   string `json:"code"`
-	Reason string `json:"reason"`
-}
-
-// This is the general shape of a put-object event. The delete-object is the same, with the object field being nil.
-// type baseObject struct {
-// 	Version int             `json:"version"`
-// 	Kind    string          `json:"kind"`
-// 	Key     string          `json:"key"`
-// 	Object  json.RawMessage `json:"object"`
-// }
-
-// type payloadTransferred struct {
-// 	State   string `json:"state"`
-// 	Version int    `json:"version"`
-// }
-
-// TODO: Todd doesn't have this in his spec. What are we going to do here?
-//
-//nolint:godox
-type errorEvent struct {
-	PayloadID string `json:"payloadId"`
-	Reason    string `json:"reason"`
-}
-
-// type heartBeat struct{}
-
-type goodbye struct {
-	Reason      string `json:"reason"`
-	Silent      bool   `json:"silent"`
-	Catastrophe bool   `json:"catastrophe"`
-	//nolint:godox
-	// TODO: Might later include some advice or backoff information
-}
-
 // StreamProcessor is the internal implementation of the streaming data source.
 //
 // This type is exported from internal so that the StreamingDataSourceBuilder tests can verify its

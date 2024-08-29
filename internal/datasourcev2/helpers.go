@@ -7,9 +7,19 @@ package datasourcev2
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
+
+type httpStatusError struct {
+	Message string
+	Code    int
+}
+
+func (e httpStatusError) Error() string {
+	return e.Message
+}
 
 // Tests whether an HTTP error status represents a condition that might resolve on its own if we retry,
 // or at least should not make us permanently stop sending requests.
@@ -51,4 +61,25 @@ func checkIfErrorIsRecoverableAndLog(
 	}
 	loggers.Warnf("Error %s (%s): %s", errorContext, recoverableMessage, errorDesc)
 	return true
+}
+
+func checkForHTTPError(statusCode int, url string) error {
+	if statusCode == http.StatusUnauthorized {
+		return httpStatusError{
+			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
+			Code:    statusCode}
+	}
+
+	if statusCode == http.StatusNotFound {
+		return httpStatusError{
+			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
+			Code:    statusCode}
+	}
+
+	if statusCode/100 != 2 {
+		return httpStatusError{
+			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
+			Code:    statusCode}
+	}
+	return nil
 }
