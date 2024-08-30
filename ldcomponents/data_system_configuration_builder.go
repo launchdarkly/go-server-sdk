@@ -9,6 +9,7 @@ import (
 
 type DataSystemConfigurationBuilder struct {
 	storeBuilder         subsystems.ComponentConfigurer[subsystems.DataStore]
+	storeMode            subsystems.StoreMode
 	initializerBuilders  []subsystems.ComponentConfigurer[subsystems.Initializer]
 	primarySyncBuilder   subsystems.ComponentConfigurer[subsystems.Synchronizer]
 	secondarySyncBuilder subsystems.ComponentConfigurer[subsystems.Synchronizer]
@@ -16,12 +17,28 @@ type DataSystemConfigurationBuilder struct {
 }
 
 func DataSystem() *DataSystemConfigurationBuilder {
-	d := &DataSystemConfigurationBuilder{}
-	return d.StreamingPreferred()
+	return &DataSystemConfigurationBuilder{}
 }
 
-func (d *DataSystemConfigurationBuilder) Store(store subsystems.ComponentConfigurer[subsystems.DataStore]) *DataSystemConfigurationBuilder {
+func DaemonModeV2(store subsystems.ComponentConfigurer[subsystems.DataStore]) *DataSystemConfigurationBuilder {
+	return DataSystem().DataStore(store, subsystems.StoreModeRead)
+}
+
+func PersistentStoreV2(store subsystems.ComponentConfigurer[subsystems.DataStore]) *DataSystemConfigurationBuilder {
+	return StreamingDataSourceV2().DataStore(store, subsystems.StoreModeReadWrite)
+}
+
+func PollingDataSourceV2() *DataSystemConfigurationBuilder {
+	return DataSystem().Synchronizers(ldcomponents.PollingDataSource(), nil)
+}
+
+func StreamingDataSourceV2() *DataSystemConfigurationBuilder {
+	return DataSystem().Initializers(ldcomponents.PollingInitializer()).Synchronizers(ldcomponents.StreamingDataSource(), ldcomponents.PollingDataSource())
+}
+
+func (d *DataSystemConfigurationBuilder) DataStore(store subsystems.ComponentConfigurer[subsystems.DataStore], storeMode subsystems.StoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
+	d.storeMode = storeMode
 	return d
 }
 
@@ -30,27 +47,10 @@ func (d *DataSystemConfigurationBuilder) Initializers(initializers ...subsystems
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) PrependInitializers(initializers ...subsystems.ComponentConfigurer[subsystems.Initializer]) *DataSystemConfigurationBuilder {
-	d.initializerBuilders = append(initializers, d.initializerBuilders...)
-	return d
-}
-
 func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary subsystems.ComponentConfigurer[subsystems.Synchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
 	d.secondarySyncBuilder = secondary
 	return d
-}
-
-func (d *DataSystemConfigurationBuilder) PollingOnly() *DataSystemConfigurationBuilder {
-	return d.Synchronizer(ldcomponents.PollingDataSource())
-}
-
-func (d *DataSystemConfigurationBuilder) StreamingPreferred() *DataSystemConfigurationBuilder {
-	return d.Initializers(ldcomponents.PollingInitializer()).Synchronizer(ldcomponents.StreamingDataSource(), ldcomponents.PollingDataSource())
-}
-
-func (d *DataSystemConfigurationBuilder) Synchronizer(sync subsystems.ComponentConfigurer[subsystems.Synchronizer]) *DataSystemConfigurationBuilder {
-	return d.Synchronizers(sync, nil)
 }
 
 func (d *DataSystemConfigurationBuilder) Build(
