@@ -3,16 +3,16 @@ package ldcomponents
 import (
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+
 	ss "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 type DataSystemConfigurationBuilder struct {
 	storeBuilder         ss.ComponentConfigurer[ss.DataStore]
 	storeMode            ss.StoreMode
-	initializerBuilders  []ss.ComponentConfigurer[ss.Initializer]
-	primarySyncBuilder   ss.ComponentConfigurer[ss.Synchronizer]
-	secondarySyncBuilder ss.ComponentConfigurer[ss.Synchronizer]
+	initializerBuilders  []ss.ComponentConfigurer[ss.DataInitializer]
+	primarySyncBuilder   ss.ComponentConfigurer[ss.DataSynchronizer]
+	secondarySyncBuilder ss.ComponentConfigurer[ss.DataSynchronizer]
 	config               ss.DataSystemConfiguration
 }
 
@@ -29,11 +29,11 @@ func PersistentStoreV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemCo
 }
 
 func PollingDataSourceV2() *DataSystemConfigurationBuilder {
-	return DataSystem().Synchronizers(ldcomponents.PollingDataSourceV2(), nil)
+	return DataSystem().Synchronizers(PollingDataSource().V2(), nil)
 }
 
 func StreamingDataSourceV2() *DataSystemConfigurationBuilder {
-	return DataSystem().Initializers(ldcomponents.PollingInitializer()).Synchronizers(ldcomponents.StreamingDataSourceV2(), ldcomponents.PollingDataSourceV2())
+	return DataSystem().Initializers(PollingDataSource().V2()).Synchronizers(StreamingDataSource().V2(), PollingDataSource().V2())
 }
 
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.StoreMode) *DataSystemConfigurationBuilder {
@@ -42,12 +42,12 @@ func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) Initializers(initializers ...ss.ComponentConfigurer[ss.Initializer]) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) Initializers(initializers ...ss.ComponentConfigurer[ss.DataInitializer]) *DataSystemConfigurationBuilder {
 	d.initializerBuilders = initializers
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary ss.ComponentConfigurer[ss.Synchronizer]) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
 	d.secondarySyncBuilder = secondary
 	return d

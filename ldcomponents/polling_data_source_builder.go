@@ -2,6 +2,7 @@ package ldcomponents
 
 import (
 	"errors"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -20,8 +21,9 @@ const DefaultPollInterval = 30 * time.Second
 //
 // See [PollingDataSource] for usage.
 type PollingDataSourceBuilder struct {
-	pollInterval time.Duration
-	filterKey    ldvalue.OptionalString
+	pollInterval    time.Duration
+	filterKey       ldvalue.OptionalString
+	protocolVersion int
 }
 
 // PollingDataSource returns a configurable factory for using polling mode to get feature flag data.
@@ -40,7 +42,8 @@ type PollingDataSourceBuilder struct {
 //	}
 func PollingDataSource() *PollingDataSourceBuilder {
 	return &PollingDataSourceBuilder{
-		pollInterval: DefaultPollInterval,
+		pollInterval:    DefaultPollInterval,
+		protocolVersion: 1,
 	}
 }
 
@@ -78,6 +81,16 @@ func (b *PollingDataSourceBuilder) PayloadFilter(filterKey string) *PollingDataS
 	return b
 }
 
+// V2 uses the next generation polling protocol. This method is not stable, and not subject to any backwards
+// compatability guarantees or semantic versioning.
+// It is not suitable for production usage.
+// Do not use it.
+// You have been warned.
+func (b *PollingDataSourceBuilder) V2() *PollingDataSourceBuilder {
+	b.protocolVersion = 2
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	context.GetLogging().Loggers.Warn(
@@ -96,8 +109,11 @@ func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subs
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
 	}
-	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg)
-	return pp, nil
+	if b.protocolVersion == 1 {
+		return datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg), nil
+	} else {
+		return datasourcev2.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg), nil
+	}
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

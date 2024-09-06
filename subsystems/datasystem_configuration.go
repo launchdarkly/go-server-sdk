@@ -1,17 +1,8 @@
 package subsystems
 
-type Initializer interface {
-	Fetch() error
-}
-
-type Synchronizer interface {
-	Start()
-	Stop()
-}
-
 type SynchronizersConfiguration struct {
-	Primary   Synchronizer
-	Secondary Synchronizer
+	Primary   DataSource
+	Secondary DataSource
 }
 
 type StoreMode int
@@ -26,6 +17,6 @@ type DataSystemConfiguration struct {
 	StoreMode StoreMode
 	// Initializers obtain data for the SDK in a one-shot manner at startup. Their job is to get the SDK
 	// into a state where it is serving somewhat fresh values as fast as possible.
-	Initializers  []Initializer
+	Initializers  []DataInitializer
 	Synchronizers SynchronizersConfiguration
 }

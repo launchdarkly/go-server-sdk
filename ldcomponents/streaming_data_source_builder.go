@@ -2,6 +2,7 @@ package ldcomponents
 
 import (
 	"errors"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -22,6 +23,7 @@ const DefaultInitialReconnectDelay = time.Second
 type StreamingDataSourceBuilder struct {
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
+	protocolVersion       int
 }
 
 // StreamingDataSource returns a configurable factory for using streaming mode to get feature flag data.
@@ -37,6 +39,7 @@ type StreamingDataSourceBuilder struct {
 func StreamingDataSource() *StreamingDataSourceBuilder {
 	return &StreamingDataSourceBuilder{
 		initialReconnectDelay: DefaultInitialReconnectDelay,
+		protocolVersion:       1,
 	}
 }
 
@@ -71,6 +74,16 @@ func (b *StreamingDataSourceBuilder) PayloadFilter(filterKey string) *StreamingD
 	return b
 }
 
+// V2 uses the next generation streaming protocol. This method is not stable, and not subject to any backwards
+// compatability guarantees or semantic versioning.
+// It is not suitable for production usage.
+// Do not use it.
+// You have been warned.
+func (b *StreamingDataSourceBuilder) V2() *StreamingDataSourceBuilder {
+	b.protocolVersion = 2
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
 	filterKey, wasSet := b.filterKey.Get()
@@ -87,11 +100,19 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 		InitialReconnectDelay: b.initialReconnectDelay,
 		FilterKey:             filterKey,
 	}
-	return datasource.NewStreamProcessor(
-		context,
-		context.GetDataSourceUpdateSink(),
-		cfg,
-	), nil
+	if b.protocolVersion == 1 {
+		return datasource.NewStreamProcessor(
+			context,
+			context.GetDataSourceUpdateSink(),
+			cfg,
+		), nil
+	} else {
+		return datasourcev2.NewStreamProcessor(
+			context,
+			context.GetDataSourceUpdateSink(),
+			cfg,
+		), nil
+	}
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

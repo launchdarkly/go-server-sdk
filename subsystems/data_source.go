@@ -18,3 +18,12 @@ type DataSource interface {
 	// initialized for the first time, or determined that initialization cannot ever succeed.
 	Start(closeWhenReady chan<- struct{})
 }
+
+type DataInitializer interface {
+	Fetch() error
+}
+
+type DataSynchronizer interface {
+	Start()
+	io.Closer
+}
