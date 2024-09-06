@@ -1,8 +1,8 @@
 package subsystems
 
 type SynchronizersConfiguration struct {
-	Primary   DataSource
-	Secondary DataSource
+	Primary   DataSynchronizer
+	Secondary DataSynchronizer
 }
 
 type StoreMode int

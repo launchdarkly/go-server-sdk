@@ -24,17 +24,17 @@ func DaemonModeV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigu
 	return DataSystem().DataStore(store, ss.StoreModeRead)
 }
 
-func PersistentStoreV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-	return StreamingDataSourceV2().DataStore(store, ss.StoreModeReadWrite)
-}
+//func PersistentStoreV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+//	return StreamingDataSourceV2().DataStore(store, ss.StoreModeReadWrite)
+//}
 
-func PollingDataSourceV2() *DataSystemConfigurationBuilder {
-	return DataSystem().Synchronizers(PollingDataSource().V2(), nil)
-}
-
-func StreamingDataSourceV2() *DataSystemConfigurationBuilder {
-	return DataSystem().Initializers(PollingDataSource().V2()).Synchronizers(StreamingDataSource().V2(), PollingDataSource().V2())
-}
+//func PollingDataSourceV2() *DataSystemConfigurationBuilder {
+//	return DataSystem().Synchronizers(PollingDataSource().V2(), nil)
+//}
+//
+//func StreamingDataSourceV2() *DataSystemConfigurationBuilder {
+//	return DataSystem().Initializers(PollingDataSource().V2()).Synchronizers(StreamingDataSource().V2(), PollingDataSource().V2())
+//}
 
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.StoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
