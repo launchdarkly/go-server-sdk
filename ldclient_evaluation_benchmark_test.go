@@ -46,7 +46,7 @@ func newEvalBenchmarkEnv() *evalBenchmarkEnv {
 
 func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCase, variations []ldvalue.Value) {
 	// Set up the client.
-	env.client = makeTestClientWithConfig(func(c *Config) {
+	env.client = makeTestClientWithConfigAndStore(func(c *Config) {
 		if withEventGeneration {
 			// In this mode, we use a stub EventProcessor implementation that immediately discards
 			// every event, but the SDK will still generate the events before passing them to the stub,
@@ -58,14 +58,14 @@ func (env *evalBenchmarkEnv) setUp(withEventGeneration bool, bc evalBenchmarkCas
 			// Events is set to the specific factory returned by NoEvents().
 			c.Events = ldcomponents.NoEvents()
 		}
+	}, func(store subsystems.DataStore) {
+		// Set up the feature flag store. Note that we're using a regular in-memory data store, so the
+		// benchmarks will include the overhead of calling Get on the store.
+		testFlags := makeEvalBenchmarkFlags(bc, variations)
+		for _, ff := range testFlags {
+			_, _ = store.Upsert(datakinds.Features, ff.Key, sharedtest.FlagDescriptor(*ff))
+		}
 	})
-
-	// Set up the feature flag store. Note that we're using a regular in-memory data store, so the
-	// benchmarks will include the overhead of calling Get on the store.
-	testFlags := makeEvalBenchmarkFlags(bc, variations)
-	for _, ff := range testFlags {
-		env.client.store.Upsert(datakinds.Features, ff.Key, sharedtest.FlagDescriptor(*ff))
-	}
 
 	env.evalUser = makeEvalBenchmarkUser(bc)
 

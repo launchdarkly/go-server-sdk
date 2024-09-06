@@ -23,6 +23,7 @@ type FDv1 struct {
 func NewFDv1(loggers ldlog.Loggers, dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore], dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource], clientContext *internal.ClientContextImpl) (*FDv1, error) {
 	system := &FDv1{
 		dataSourceStatusBroadcaster: internal.NewBroadcaster[interfaces.DataSourceStatus](),
+		dataStoreStatusBroadcaster:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
 		flagChangeEventBroadcaster:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
 	}
 
@@ -137,4 +138,8 @@ func (f *FDv1) Initialized() bool {
 
 func (f *FDv1) Store() subsystems.ReadOnlyStore {
 	return f.dataStore
+}
+
+func (f *FDv1) DataSource() subsystems.DataSource {
+	return f.dataSource
 }
