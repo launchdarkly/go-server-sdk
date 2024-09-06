@@ -15,6 +15,8 @@ import (
 type DataStore interface {
 	io.Closer
 
+	ReadOnlyStore
+
 	// Init overwrites the store's contents with a set of items for each collection.
 	//
 	// All previous data should be discarded, regardless of versioning.
@@ -23,21 +25,6 @@ type DataStore interface {
 	// must first add or update each item in the same order that they are given in the input
 	// data, and then delete any previously stored items that were not in the input data.
 	Init(allData []ldstoretypes.Collection) error
-
-	// Get retrieves an item from the specified collection, if available.
-	//
-	// If the specified key does not exist in the collection, it should return an ItemDescriptor
-	// whose Version is -1.
-	//
-	// If the item has been deleted and the store contains a placeholder, it should return an
-	// ItemDescriptor whose Version is the version of the placeholder, and whose Item is nil.
-	Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error)
-
-	// GetAll retrieves all items from the specified collection.
-	//
-	// If the store contains placeholders for deleted items, it should include them in the results,
-	// not filter them out.
-	GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error)
 
 	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
 	// updated if the existing version is less than the new version.
