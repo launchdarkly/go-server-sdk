@@ -4,90 +4,90 @@ import (
 	"errors"
 	"fmt"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	ss "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 type DataSystemConfigurationBuilder struct {
-	storeBuilder         subsystems.ComponentConfigurer[subsystems.DataStore]
-	storeMode            subsystems.StoreMode
-	initializerBuilders  []subsystems.ComponentConfigurer[subsystems.Initializer]
-	primarySyncBuilder   subsystems.ComponentConfigurer[subsystems.Synchronizer]
-	secondarySyncBuilder subsystems.ComponentConfigurer[subsystems.Synchronizer]
-	config               subsystems.DataSystemConfiguration
+	storeBuilder         ss.ComponentConfigurer[ss.DataStore]
+	storeMode            ss.StoreMode
+	initializerBuilders  []ss.ComponentConfigurer[ss.Initializer]
+	primarySyncBuilder   ss.ComponentConfigurer[ss.Synchronizer]
+	secondarySyncBuilder ss.ComponentConfigurer[ss.Synchronizer]
+	config               ss.DataSystemConfiguration
 }
 
 func DataSystem() *DataSystemConfigurationBuilder {
 	return &DataSystemConfigurationBuilder{}
 }
 
-func DaemonModeV2(store subsystems.ComponentConfigurer[subsystems.DataStore]) *DataSystemConfigurationBuilder {
-	return DataSystem().DataStore(store, subsystems.StoreModeRead)
+func DaemonModeV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+	return DataSystem().DataStore(store, ss.StoreModeRead)
 }
 
-func PersistentStoreV2(store subsystems.ComponentConfigurer[subsystems.DataStore]) *DataSystemConfigurationBuilder {
-	return StreamingDataSourceV2().DataStore(store, subsystems.StoreModeReadWrite)
+func PersistentStoreV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+	return StreamingDataSourceV2().DataStore(store, ss.StoreModeReadWrite)
 }
 
 func PollingDataSourceV2() *DataSystemConfigurationBuilder {
-	return DataSystem().Synchronizers(ldcomponents.PollingDataSource(), nil)
+	return DataSystem().Synchronizers(ldcomponents.PollingDataSourceV2(), nil)
 }
 
 func StreamingDataSourceV2() *DataSystemConfigurationBuilder {
-	return DataSystem().Initializers(ldcomponents.PollingInitializer()).Synchronizers(ldcomponents.StreamingDataSource(), ldcomponents.PollingDataSource())
+	return DataSystem().Initializers(ldcomponents.PollingInitializer()).Synchronizers(ldcomponents.StreamingDataSourceV2(), ldcomponents.PollingDataSourceV2())
 }
 
-func (d *DataSystemConfigurationBuilder) DataStore(store subsystems.ComponentConfigurer[subsystems.DataStore], storeMode subsystems.StoreMode) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.StoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
 	d.storeMode = storeMode
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) Initializers(initializers ...subsystems.ComponentConfigurer[subsystems.Initializer]) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) Initializers(initializers ...ss.ComponentConfigurer[ss.Initializer]) *DataSystemConfigurationBuilder {
 	d.initializerBuilders = initializers
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary subsystems.ComponentConfigurer[subsystems.Synchronizer]) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary ss.ComponentConfigurer[ss.Synchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
 	d.secondarySyncBuilder = secondary
 	return d
 }
 
 func (d *DataSystemConfigurationBuilder) Build(
-	context subsystems.ClientContext,
-) (subsystems.DataSystemConfiguration, error) {
+	context ss.ClientContext,
+) (ss.DataSystemConfiguration, error) {
 	conf := d.config
 	if d.secondarySyncBuilder != nil && d.primarySyncBuilder == nil {
-		return subsystems.DataSystemConfiguration{}, errors.New("cannot have a secondary synchronizer without a primary synchronizer")
+		return ss.DataSystemConfiguration{}, errors.New("cannot have a secondary synchronizer without a primary synchronizer")
 	}
 	if d.storeBuilder != nil {
 		store, err := d.storeBuilder.Build(context)
 		if err != nil {
-			return subsystems.DataSystemConfiguration{}, err
+			return ss.DataSystemConfiguration{}, err
 		}
 		conf.Store = store
 	}
 	for i, initializerBuilder := range d.initializerBuilders {
 		if initializerBuilder == nil {
-			return subsystems.DataSystemConfiguration{}, fmt.Errorf("initializer %d is nil", i)
+			return ss.DataSystemConfiguration{}, fmt.Errorf("initializer %d is nil", i)
 		}
 		initializer, err := initializerBuilder.Build(context)
 		if err != nil {
-			return subsystems.DataSystemConfiguration{}, err
+			return ss.DataSystemConfiguration{}, err
 		}
 		conf.Initializers = append(conf.Initializers, initializer)
 	}
 	if d.primarySyncBuilder != nil {
 		primarySync, err := d.primarySyncBuilder.Build(context)
 		if err != nil {
-			return subsystems.DataSystemConfiguration{}, err
+			return ss.DataSystemConfiguration{}, err
 		}
 		conf.Synchronizers.Primary = primarySync
 	}
 	if d.secondarySyncBuilder != nil {
 		secondarySync, err := d.secondarySyncBuilder.Build(context)
 		if err != nil {
-			return subsystems.DataSystemConfiguration{}, err
+			return ss.DataSystemConfiguration{}, err
 		}
 		conf.Synchronizers.Secondary = secondarySync
 	}
