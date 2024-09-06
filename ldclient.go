@@ -89,7 +89,10 @@ type dataSystem interface {
 	DataStatus() datasystem.DataStatus
 }
 
-var _ dataSystem = &datasystem.FDv1{}
+var (
+	_ dataSystem = &datasystem.FDv1{}
+	_ dataSystem = &datasystem.FDv2{}
+)
 
 // LDClient is the LaunchDarkly client.
 //
@@ -240,12 +243,19 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.offline = config.Offline
 
-	fdv1DataSystem, err := datasystem.NewFDv1(loggers, config.DataStore, config.DataSource, clientContext)
-	if err != nil {
-		return nil, err
+	if config.DataSystem == nil {
+		system, err := datasystem.NewFDv1(loggers, config.DataStore, config.DataSource, clientContext)
+		if err != nil {
+			return nil, err
+		}
+		client.dataSystem = system
+	} else {
+		system, err := datasystem.NewFDv2(loggers, config.DataSystem)
+		if err != nil {
+			return nil, err
+		}
+		client.dataSystem = system
 	}
-
-	client.dataSystem = fdv1DataSystem
 
 	bigSegments := config.BigSegments
 	if bigSegments == nil {
@@ -305,7 +315,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.withEventsDisabled = newClientEventsDisabledDecorator(client)
 
 	client.flagTracker = internal.NewFlagTrackerImpl(
-		fdv1DataSystem.FlagChangeEventBroadcaster(),
+		client.dataSystem.FlagChangeEventBroadcaster(),
 		func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
 			value, _ := client.JSONVariation(flagKey, context, defaultValue)
 			return value
