@@ -67,11 +67,14 @@ const (
 	migrationVarExFuncName = "LDClient.MigrationVariationCtx"
 )
 
-// type dataSystem represents the internal connections between the SDK's data sources, data store,
-// and various status broadcasters. This is hidden behind an interface so that the data system can be
-// swapped out with a new implementation for FDv2.
+// The dataSystem interface represents the requirements for the client to retrieve data necessary
+// for evaluations, as well as the related status updates related to the data.
 type dataSystem interface {
-	v1Methods
+	DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus]
+	DataSourceStatusProvider() interfaces.DataSourceStatusProvider
+	DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus]
+	DataStoreStatusProvider() interfaces.DataStoreStatusProvider
+	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
 	// Offline indicates whether the SDK is configured to be offline, either because the offline config item was
 	// explicitly set, or because a NullDataSource was used.
 	Offline() bool
@@ -82,16 +85,8 @@ type dataSystem interface {
 	Stop() error
 
 	Store() subsystems.ReadOnlyStore
-}
 
-// type v1Methods includes the public facing
-type v1Methods interface {
-	DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus]
-	DataSourceStatusProvider() interfaces.DataSourceStatusProvider
-	DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus]
-	DataStoreStatusProvider() interfaces.DataStoreStatusProvider
-	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
-	DataSource() subsystems.DataSource
+	DataStatus() datasystem.DataStatus
 }
 
 var _ dataSystem = &datasystem.FDv1{}
@@ -245,12 +240,12 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.offline = config.Offline
 
-	fdv1, err := datasystem.NewFDv1(loggers, config.DataStore, config.DataSource, clientContext)
+	fdv1DataSystem, err := datasystem.NewFDv1(loggers, config.DataStore, config.DataSource, clientContext)
 	if err != nil {
 		return nil, err
 	}
 
-	client.dataSystem = fdv1
+	client.dataSystem = fdv1DataSystem
 
 	bigSegments := config.BigSegments
 	if bigSegments == nil {
@@ -310,7 +305,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.withEventsDisabled = newClientEventsDisabledDecorator(client)
 
 	client.flagTracker = internal.NewFlagTrackerImpl(
-		fdv1.FlagChangeEventBroadcaster(),
+		fdv1DataSystem.FlagChangeEventBroadcaster(),
 		func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
 			value, _ := client.JSONVariation(flagKey, context, defaultValue)
 			return value
@@ -337,7 +332,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		for {
 			select {
 			case <-closeWhenReady:
-				if !client.dataSystem.DataSource().IsInitialized() {
+				if client.dataSystem.DataStatus() != datasystem.Refreshed {
 					loggers.Warn("LaunchDarkly client initialization failed")
 					return client, ErrInitializationFailed
 				}
@@ -563,7 +558,7 @@ func (client *LDClient) SecureModeHash(context ldcontext.Context) string {
 // already been stored in the database by a successfully connected SDK in the past. You can use
 // [LDClient.GetDataSourceStatusProvider] to get information on errors, or to wait for a successful retry.
 func (client *LDClient) Initialized() bool {
-	return client.dataSystem.DataSource().IsInitialized()
+	return client.dataSystem.DataStatus() == datasystem.Refreshed
 }
 
 // Close shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
@@ -648,7 +643,7 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
 	} else if !client.Initialized() {
-		if client.dataSystem.Store().IsInitialized() {
+		if client.dataSystem.DataStatus() == datasystem.Cached {
 			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
 			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
@@ -1244,7 +1239,7 @@ func (client *LDClient) evaluateInternal(
 	}
 
 	if !client.Initialized() {
-		if client.dataSystem.Store().IsInitialized() {
+		if client.dataSystem.DataStatus() == datasystem.Cached {
 			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store") //nolint:lll
 		} else {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
