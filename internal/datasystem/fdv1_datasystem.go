@@ -132,14 +132,16 @@ func (f *FDv1) Offline() bool {
 	return f.dataSource == datasource.NewNullDataSource()
 }
 
-func (f *FDv1) Initialized() bool {
-	return f.dataSource.IsInitialized()
+func (f *FDv1) DataStatus() DataStatus {
+	if f.dataSource.IsInitialized() {
+		return Refreshed
+	} else if f.dataStore.IsInitialized() {
+		return Cached
+	} else {
+		return Defaults
+	}
 }
 
 func (f *FDv1) Store() subsystems.ReadOnlyStore {
 	return f.dataStore
-}
-
-func (f *FDv1) DataSource() subsystems.DataSource {
-	return f.dataSource
 }
