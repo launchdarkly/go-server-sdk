@@ -18,16 +18,13 @@ type ReadOnlyStore interface {
 	// not filter them out.
 	GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error)
 
-	// IsStatusMonitoringEnabled returns true if this data store implementation supports status
-	// monitoring.
+	// IsInitialized returns true if the data store contains a data set, meaning that Init has been
+	// called at least once.
 	//
-	// This is normally only true for persistent data stores created with ldcomponents.PersistentDataStore(),
-	// but it could also be true for any custom DataStore implementation that makes use of the
-	// statusUpdater parameter provided to the DataStoreFactory. Returning true means that the store
-	// guarantees that if it ever enters an invalid state (that is, an operation has failed or it knows
-	// that operations cannot succeed at the moment), it will publish a status update, and will then
-	// publish another status update once it has returned to a valid state.
-	//
-	// The same value will be returned from DataStoreStatusProvider.IsStatusMonitoringEnabled().
-	IsStatusMonitoringEnabled() bool
+	// In a shared data store, it should be able to detect this even if Init was called in a
+	// different process: that is, the test should be based on looking at what is in the data store.
+	// Once this has been determined to be true, it can continue to return true without having to
+	// check the store again; this method should be as fast as possible since it may be called during
+	// feature flag evaluations.
+	IsInitialized() bool
 }

@@ -37,16 +37,6 @@ type DataStore interface {
 	// contains an equal or greater version.
 	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) (bool, error)
 
-	// IsInitialized returns true if the data store contains a data set, meaning that Init has been
-	// called at least once.
-	//
-	// In a shared data store, it should be able to detect this even if Init was called in a
-	// different process: that is, the test should be based on looking at what is in the data store.
-	// Once this has been determined to be true, it can continue to return true without having to
-	// check the store again; this method should be as fast as possible since it may be called during
-	// feature flag evaluations.
-	IsInitialized() bool
-
 	// IsStatusMonitoringEnabled returns true if this data store implementation supports status
 	// monitoring.
 	//
