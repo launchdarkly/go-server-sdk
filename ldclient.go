@@ -7,10 +7,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasystem"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"reflect"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasystem"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"

@@ -2,8 +2,9 @@ package ldcomponents
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -82,7 +83,7 @@ func (b *PollingDataSourceBuilder) PayloadFilter(filterKey string) *PollingDataS
 }
 
 // V2 uses the next generation polling protocol. This method is not stable, and not subject to any backwards
-// compatability guarantees or semantic versioning.
+// compatibility guarantees or semantic versioning.
 // It is not suitable for production usage.
 // Do not use it.
 // You have been warned.

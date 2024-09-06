@@ -2,9 +2,10 @@ package ldclient
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
