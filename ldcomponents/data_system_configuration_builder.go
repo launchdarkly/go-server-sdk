@@ -24,6 +24,10 @@ func DaemonModeV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigu
 	return DataSystem().DataStore(store, ss.StoreModeRead)
 }
 
+func Offline() *DataSystemConfigurationBuilder {
+	return DataSystem().Offline(true)
+}
+
 // func PersistentStoreV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
 //	return StreamingDataSourceV2().DataStore(store, ss.StoreModeReadWrite)
 // }
@@ -51,6 +55,11 @@ func (d *DataSystemConfigurationBuilder) Initializers(initializers ...ss.Compone
 func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
 	d.secondarySyncBuilder = secondary
+	return d
+}
+
+func (d *DataSystemConfigurationBuilder) Offline(offline bool) *DataSystemConfigurationBuilder {
+	d.config.Offline = offline
 	return d
 }
 
