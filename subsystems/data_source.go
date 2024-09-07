@@ -1,6 +1,10 @@
 package subsystems
 
-import "io"
+import (
+	"context"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+	"io"
+)
 
 // DataSource describes the interface for an object that receives feature flag data.
 type DataSource interface {
@@ -19,11 +23,18 @@ type DataSource interface {
 	Start(closeWhenReady chan<- struct{})
 }
 
+type InitialPayload struct {
+	Data    []ldstoretypes.Collection
+	Version *int
+	Fresh   bool
+}
+
 type DataInitializer interface {
-	Fetch() error
+	Name() string
+	Fetch(ctx context.Context) (*InitialPayload, error)
 }
 
 type DataSynchronizer interface {
-	Start()
+	Start(closeWhenReady chan struct{}, dataStore DataStore, payloadVersion *int)
 	io.Closer
 }

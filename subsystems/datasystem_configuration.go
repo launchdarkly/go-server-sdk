@@ -19,4 +19,5 @@ type DataSystemConfiguration struct {
 	// into a state where it is serving somewhat fresh values as fast as possible.
 	Initializers  []DataInitializer
 	Synchronizers SynchronizersConfiguration
+	Offline       bool
 }

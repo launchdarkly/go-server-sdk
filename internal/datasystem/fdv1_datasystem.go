@@ -1,7 +1,6 @@
 package datasystem
 
 import (
-	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -20,7 +19,7 @@ type FDv1 struct {
 	dataSource                  subsystems.DataSource
 }
 
-func NewFDv1(loggers ldlog.Loggers, dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore], dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource], clientContext *internal.ClientContextImpl) (*FDv1, error) {
+func NewFDv1(dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore], dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource], clientContext *internal.ClientContextImpl) (*FDv1, error) {
 	system := &FDv1{
 		dataSourceStatusBroadcaster: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatusBroadcaster:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
@@ -48,7 +47,7 @@ func NewFDv1(loggers ldlog.Loggers, dataStoreFactory subsystems.ComponentConfigu
 		system.dataSourceStatusBroadcaster,
 		system.flagChangeEventBroadcaster,
 		clientContext.GetLogging().LogDataSourceOutageAsErrorAfter,
-		loggers,
+		clientContext.GetLogging().Loggers,
 	)
 
 	dataSource, err := createDataSource(clientContext, dataSourceFactory, dataSourceUpdateSink)
