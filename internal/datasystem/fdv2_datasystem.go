@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-var _ subsystems.DataSourceUpdateSink = (*store)(nil)
+var _ subsystems.DataSourceUpdateSink = (*Store)(nil)
 
 type broadcasters struct {
 	dataSourceStatus *internal.Broadcaster[interfaces.DataSourceStatus]
@@ -21,7 +21,7 @@ type broadcasters struct {
 
 type FDv2 struct {
 	// Operates the in-memory and optional persistent store that backs data queries.
-	store *store
+	store *Store
 
 	// List of initializers that are capable of obtaining an initial payload of data.
 	initializers []subsystems.DataInitializer
@@ -62,7 +62,7 @@ type FDv2 struct {
 
 func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
 
-	store := newStore(clientContext.GetLogging().Loggers)
+	store := NewStore(clientContext.GetLogging().Loggers)
 
 	bcasters := &broadcasters{
 		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
@@ -91,12 +91,12 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 	}
 
 	if cfg.Store != nil {
-		// If there's a persistent store, we should provide a status monitor and inform store that it's present.
+		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
 		store.SetPersistent(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
 	} else {
-		// If there's no persistent store, we still need to satisfy the SDK's public interface of having
-		// a data store status provider. So we create one that just says "I don't know what's going on".
+		// If there's no persistent Store, we still need to satisfy the SDK's public interface of having
+		// a data Store status provider. So we create one that just says "I don't know what's going on".
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(noStatusMonitoring{}, dataStoreUpdateSink)
 	}
 
@@ -145,11 +145,11 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 		select {
 		case newStoreStatus := <-statuses:
 			if newStoreStatus.Available {
-				// The store has just transitioned from unavailable to available
+				// The Store has just transitioned from unavailable to available
 				if newStoreStatus.NeedsRefresh {
-					f.loggers.Warn("Reinitializing data store from in-memory cache after after data store outage")
+					f.loggers.Warn("Reinitializing data Store from in-memory cache after after data Store outage")
 					if err := f.store.Commit(); err != nil {
-						f.loggers.Error("Failed to reinitialize data store: %v", err)
+						f.loggers.Error("Failed to reinitialize data Store: %v", err)
 					}
 				}
 			}
@@ -166,6 +166,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			return nil
 		}
 		if err != nil {
+			// TODO: log that this initializer failed
 			continue
 		}
 		f.store.Init(payload.Data)
@@ -204,7 +205,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			// TODO: this is an incorrect hack. The responsibility of this loop should be limited to
 			// calling readyOnce/close.
-			// To trigger the swapping to the in-memory store, we need to be independently monitoring the Data Source status
+			// To trigger the swapping to the in-memory Store, we need to be independently monitoring the Data Source status
 			// for "valid" status. This hack will currently swap even if the data source has failed.
 			f.store.SwapToMemory(true)
 			f.readyOnce.Do(func() {
