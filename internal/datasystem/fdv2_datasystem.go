@@ -172,7 +172,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.store.Init(payload.Data)
-		f.store.SwapToMemory(payload.Fresh)
+		f.store.SwapToMemory(payload.Authoritative)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
