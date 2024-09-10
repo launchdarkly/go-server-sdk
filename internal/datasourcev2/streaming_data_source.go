@@ -125,6 +125,8 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	go sp.subscribe(closeWhenReady)
 }
 
+// Sync satisfies the new Synchronizer interface, which is similar to the old DataSource interface, but
+// can take a payload version. For now, just ignore the payload version.
 func (sp *StreamProcessor) Sync(closeWhenReady chan struct{}, payloadVersion *int) {
 	sp.Start(closeWhenReady)
 }
