@@ -1,11 +1,12 @@
 package datasystem
 
 import (
+	"testing"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestStore_New(t *testing.T) {

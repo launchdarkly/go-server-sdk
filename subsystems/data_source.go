@@ -2,8 +2,9 @@ package subsystems
 
 import (
 	"context"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	"io"
+
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 // DataSource describes the interface for an object that receives feature flag data.

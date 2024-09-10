@@ -3,12 +3,13 @@ package datasystem
 import (
 	"context"
 	"errors"
+	"sync"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"sync"
 )
 
 var _ subsystems.DataSourceUpdateSink = (*Store)(nil)
