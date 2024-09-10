@@ -15,32 +15,53 @@ type DataSystemConfigurationBuilder struct {
 	config               ss.DataSystemConfiguration
 }
 
+// DataSystem returns a configuration builder that is pre-configured with LaunchDarkly's recommended
+// data acquisition strategy. It is equivalent to StreamingMode().
+//
+// In this mode, the SDK efficiently streams flag/segment data in the background,
+// allowing evaluations to operate on the latest data with no additional latency.
 func DataSystem() *DataSystemConfigurationBuilder {
-	return &DataSystemConfigurationBuilder{
-		primarySyncBuilder: StreamingDataSourceV2(),
-	}
+	return StreamingMode()
 }
 
-func DaemonModeV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-	return DataSystem().Initializers().Synchronizers(nil, nil).DataStore(store, ss.StoreModeRead)
+// UnconfiguredDataSystem returns a configuration builder with no options set. It is suitable for
+// building custom use-cases.
+func UnconfiguredDataSystem() *DataSystemConfigurationBuilder {
+	return &DataSystemConfigurationBuilder{}
 }
 
+// StreamingMode configures the SDK to efficiently streams flag/segment data in the background,
+// allowing evaluations to operate on the latest data with no additional latency.
+func StreamingMode() *DataSystemConfigurationBuilder {
+	return UnconfiguredDataSystem().
+		Initializers(PollingDataSourceV2().AsInitializer()).Synchronizers(StreamingDataSourceV2(), PollingDataSourceV2())
+}
+
+// PollingMode configures the SDK to regularly poll an endpoint for flag/segment data in the background.
+// This is less efficient than streaming, but may be necessary in some network environments.
+func PollingMode() *DataSystemConfigurationBuilder {
+	return UnconfiguredDataSystem().Synchronizers(PollingDataSourceV2(), nil)
+}
+
+// DaemonMode configures the SDK to read from a persistent store integration that is populated by Relay Proxy
+// or other SDKs. The SDK will not connect to LaunchDarkly. In this mode, the SDK never writes to the data store.
+func DaemonMode(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+	return UnconfiguredDataSystem().DataStore(store, ss.StoreModeRead)
+}
+
+// PersistentStoreMode is similar to the default DataSystem configuration, with the addition of a
+// persistent store integration. Before data has arrived from the streaming connection, the SDK is able to
+// evaluate flags using data from the persistent store. Once data has arrived from the streaming connection, the SDK
+// will no longer read from the persistent store, although it will keep it up-to-date.
+func PersistentStoreMode(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+	return StreamingMode().DataStore(store, ss.StoreModeReadWrite)
+}
+
+// Offline configures the SDK to evaluate flags using only the default values defined in the application code. No
+// outbound connections will be made by the SDK.
 func Offline() *DataSystemConfigurationBuilder {
-	return DataSystem().Initializers().Synchronizers(nil, nil).Offline(true)
+	return UnconfiguredDataSystem().Offline(true)
 }
-
-// func PersistentStoreV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-//	return StreamingDataSourceV2().DataStore(store, ss.StoreModeReadWrite)
-// }
-//
-// func PollingDataSourceV2() *DataSystemConfigurationBuilder {
-//	return DataSystem().Synchronizers(PollingDataSource().V2(), nil)
-// }
-//
-// func StreamingDataSourceV2() *DataSystemConfigurationBuilder {
-//	return DataSystem().Initializers(PollingDataSource().V2()).Synchronizers(StreamingDataSource().V2(),
-//	PollingDataSource().V2())
-// }
 
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.StoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store

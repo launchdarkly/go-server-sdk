@@ -2,12 +2,13 @@ package datasystem
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"github.com/stretchr/testify/require"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"

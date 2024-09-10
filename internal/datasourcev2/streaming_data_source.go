@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -114,21 +115,26 @@ func NewStreamProcessor(
 	return sp
 }
 
+//nolint:revive // DataInitializer method.
+func (sp *StreamProcessor) Name() string {
+	return "StreamingDataSourceV2"
+}
+
+func (sp *StreamProcessor) Fetch(ctx context.Context) (*subsystems.InitialPayload, error) {
+	// TODO: there's no point in implementing this, as it would be highly inefficient to open a streaming
+	// connection just to get a PUT and then close it again.
+	return nil, errors.New("fetch capability not implemented")
+}
+
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) IsInitialized() bool {
 	return sp.isInitialized.Get()
 }
 
-//nolint:revive // no doc comment for standard method
-func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
+//nolint:revive // DataSynchronizer method.
+func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, payloadVersion *int) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
 	go sp.subscribe(closeWhenReady)
-}
-
-// Sync satisfies the new Synchronizer interface, which is similar to the old DataSource interface, but
-// can take a payload version. For now, just ignore the payload version.
-func (sp *StreamProcessor) Sync(closeWhenReady chan struct{}, payloadVersion *int) {
-	sp.Start(closeWhenReady)
 }
 
 // TODO: Remove this nolint once we have a better implementation.

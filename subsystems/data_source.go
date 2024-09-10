@@ -25,9 +25,9 @@ type DataSource interface {
 }
 
 type InitialPayload struct {
-	Data    []ldstoretypes.Collection
-	Version *int
-	Fresh   bool
+	Data          []ldstoretypes.Collection
+	Version       *int
+	Authoritative bool
 }
 
 type DataInitializer interface {
@@ -36,6 +36,27 @@ type DataInitializer interface {
 }
 
 type DataSynchronizer interface {
-	Sync(closeWhenReady chan struct{}, payloadVersion *int)
+	DataInitializer
+	Sync(closeWhenReady chan<- struct{}, payloadVersion *int)
+	// IsInitialized returns true if the data source has successfully initialized at some point.
+	//
+	// Once this is true, it should remain true even if a problem occurs later.
+	IsInitialized() bool
 	io.Closer
+}
+
+type toInitializer struct {
+	cc ComponentConfigurer[DataSynchronizer]
+}
+
+func (t toInitializer) Build(context ClientContext) (DataInitializer, error) {
+	sync, err := t.cc.Build(context)
+	if err != nil {
+		return nil, err
+	}
+	return sync, nil
+}
+
+func AsInitializer(cc ComponentConfigurer[DataSynchronizer]) ComponentConfigurer[DataInitializer] {
+	return toInitializer{cc: cc}
 }

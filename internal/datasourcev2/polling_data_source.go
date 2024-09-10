@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -68,8 +69,23 @@ func newPollingProcessor(
 	return pp
 }
 
-//nolint:revive // no doc comment for standard method
-func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
+//nolint:revive // DataInitializer method.
+func (pp *PollingProcessor) Name() string {
+	return "PollingDataSourceV2"
+}
+
+//nolint:revive // DataInitializer method.
+func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.InitialPayload, error) {
+	// TODO: ideally, the Request method would take a context so it could be interrupted.
+	allData, _, err := pp.requester.Request()
+	if err != nil {
+		return nil, err
+	}
+	return &subsystems.InitialPayload{Data: allData, Authoritative: true, Version: nil}, nil
+}
+
+//nolint:revive // DataSynchronizer method.
+func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, payloadVersion *int) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)

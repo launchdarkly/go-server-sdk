@@ -12,7 +12,7 @@ import (
 
 // StreamingDataSourceBuilderV2 provides methods for configuring the streaming data source in v2 mode.
 //
-// V2 uses the next generation streaming protocol. This method is not stable, and not subject to any backwards
+// V2 uses the next generation streaming protocol. This struct is not stable, and not subject to any backwards
 // compatibility guarantees or semantic versioning. It is not suitable for production usage.
 //
 // Do not use it.
