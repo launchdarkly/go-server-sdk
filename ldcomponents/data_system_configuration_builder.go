@@ -3,8 +3,6 @@ package ldcomponents
 import (
 	"errors"
 	"fmt"
-	"reflect"
-
 	ss "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -19,29 +17,8 @@ type DataSystemConfigurationBuilder struct {
 
 func DataSystem() *DataSystemConfigurationBuilder {
 	return &DataSystemConfigurationBuilder{
-		primarySyncBuilder: toSynchronizer{StreamingDataSourceV2()},
+		primarySyncBuilder: StreamingDataSourceV2(),
 	}
-}
-
-type toSynchronizer struct {
-	configurer ss.ComponentConfigurer[ss.DataSource]
-}
-
-func ToSynchronizer(configurer ss.ComponentConfigurer[ss.DataSource]) ss.ComponentConfigurer[ss.DataSynchronizer] {
-	return toSynchronizer{configurer}
-}
-
-func (t toSynchronizer) Build(ctx ss.ClientContext) (ss.DataSynchronizer, error) {
-	datasource, err := t.configurer.Build(ctx)
-	if err != nil {
-		return nil, err
-	}
-	synchronizer, ok := datasource.(ss.DataSynchronizer)
-	if !ok {
-		panic("programmer error: " + reflect.TypeOf(datasource).Elem().Name() + " cannot be upgraded to subsystems.DataSynchronizer")
-	}
-	return synchronizer, nil
-
 }
 
 func DaemonModeV2(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
