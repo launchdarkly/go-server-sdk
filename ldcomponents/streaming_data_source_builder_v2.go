@@ -70,7 +70,7 @@ func (b *StreamingDataSourceBuilderV2) PayloadFilter(filterKey string) *Streamin
 }
 
 // Build is called internally by the SDK.
-func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
