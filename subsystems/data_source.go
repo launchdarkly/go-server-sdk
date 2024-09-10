@@ -35,6 +35,6 @@ type DataInitializer interface {
 }
 
 type DataSynchronizer interface {
-	Start(closeWhenReady chan struct{}, dataStore DataStore, payloadVersion *int)
+	Sync(closeWhenReady chan struct{}, payloadVersion *int)
 	io.Closer
 }

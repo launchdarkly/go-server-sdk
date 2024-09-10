@@ -11,117 +11,146 @@ import (
 	"sync"
 )
 
-type store struct {
-	persistentStore     subsystems.DataStore
-	persistentStoreMode subsystems.StoreMode
+var _ subsystems.DataSourceUpdateSink = (*store)(nil)
 
-	memoryStore subsystems.DataStore
-	memory      bool
-	refreshed   bool
-	mu          sync.RWMutex
-}
-
-func newStore(persistent subsystems.DataStore, mode subsystems.StoreMode, loggers ldlog.Loggers) *store {
-	return &store{
-		persistentStore:     persistent,
-		persistentStoreMode: mode,
-		memoryStore:         datastore.NewInMemoryDataStore(loggers),
-	}
-}
-
-func (s *store) Close() error {
-	if s.persistentStore != nil {
-		return s.persistentStore.Close()
-	}
-	return nil
-}
-
-func (s *store) GetActive() subsystems.DataStore {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.memory {
-		return s.memoryStore
-	}
-	return s.persistentStore
-}
-
-func (s *store) Status() DataStatus {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	// The logic here is:
-	// 1. If the memory store is active, we either got that data from an (initializer|synchronizer) that indicated
-	// the data is the latest known (Refreshed) or that it is potentially stale (Cached). This is set when SwapToMemory
-	// is called.
-	// 2. Otherwise, the persistent store - if any - is active. If there is none configured, the status is Defaults.
-	//   If there is, we need to query the database availability to determine if we actually have access to the data
-	//   or not.
-	if s.memory {
-		if s.refreshed {
-			return Refreshed
-		}
-		return Cached
-	}
-	if s.persistentStore != nil {
-		if s.persistentStore.IsInitialized() {
-			return Cached
-		}
-	}
-	return Defaults
-
-}
-
-func (s *store) GetMemory() subsystems.DataStore {
-	return s.memoryStore
-}
-
-func (s *store) SwapToMemory(isRefreshed bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.memory = true
-	s.refreshed = isRefreshed
+type broadcasters struct {
+	dataSourceStatus *internal.Broadcaster[interfaces.DataSourceStatus]
+	dataStoreStatus  *internal.Broadcaster[interfaces.DataStoreStatus]
+	flagChangeEvent  *internal.Broadcaster[interfaces.FlagChangeEvent]
 }
 
 type FDv2 struct {
+	// Operates the in-memory and optional persistent store that backs data queries.
 	store *store
 
-	initializers  []subsystems.DataInitializer
-	primarySync   subsystems.DataSynchronizer
+	// List of initializers that are capable of obtaining an initial payload of data.
+	initializers []subsystems.DataInitializer
+
+	// The primary synchronizer responsible for keeping data up-to-date.
+	primarySync subsystems.DataSynchronizer
+
+	// The secondary synchronizer, in case the primary is unavailable.
 	secondarySync subsystems.DataSynchronizer
 
+	// Whether the SDK should make use of persistent store/initializers/synchronizers or not.
 	offline bool
 
 	loggers ldlog.Loggers
 
+	// Cancel and wg are used to track and stop the goroutines used by the system.
 	cancel context.CancelFunc
-	done   chan struct{}
+	wg     sync.WaitGroup
 
+	// The SDK client, via MakeClient, expects to pass a channel down into a data source which will then be
+	// closed when the source is considered to be ready or in a terminal state. This is what allows the initialization
+	// timeout logic to work correctly and return early - otherwise, users would have to wait the full init timeout
+	// before receiving a status update. The following are true:
+	// 1. Initializers may close the channel (because an initializer's job is to initialize the SDK!)
+	// 2. Synchronizers may close the channel (because an initializer might not be configured, or have failed)
+	// To ensure the channel is closed only once, we use a sync.Once wrapping the close() call.
 	readyOnce sync.Once
+
+	// These broadcasters are mainly to satisfy the existing SDK contract with users to provide status updates for
+	// the data source, data store, and flag change events. These may be different in fdv2, but we attempt to implement
+	// them for now.
+	broadcasters *broadcasters
+
+	// We hold a reference to the dataStoreStatusProvider because it's required for the public interface of the
+	// SDK client.
+	dataStoreStatusProvider interfaces.DataStoreStatusProvider
 }
 
 func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
-	cfg, err := cfgBuilder.Build(*clientContext)
+
+	store := newStore(clientContext.GetLogging().Loggers)
+
+	bcasters := &broadcasters{
+		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
+		dataStoreStatus:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
+		flagChangeEvent:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
+	}
+
+	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
+	clientContextCopy := *clientContext
+	clientContextCopy.DataStoreUpdateSink = dataStoreUpdateSink
+	clientContextCopy.DataSourceUpdateSink = store
+
+	cfg, err := cfgBuilder.Build(clientContextCopy)
 	if err != nil {
 		return nil, err
 	}
-	return &FDv2{
-		store:         newStore(cfg.Store, cfg.StoreMode, clientContext.GetLogging().Loggers),
+
+	fdv2 := &FDv2{
+		store:         store,
 		initializers:  cfg.Initializers,
 		primarySync:   cfg.Synchronizers.Primary,
 		secondarySync: cfg.Synchronizers.Secondary,
 		offline:       cfg.Offline,
 		loggers:       clientContext.GetLogging().Loggers,
-		done:          make(chan struct{}),
-	}, nil
+		broadcasters:  bcasters,
+	}
+
+	if cfg.Store != nil {
+		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
+		store.SetPersistent(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
+	} else {
+		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(noStatusMonitoring{}, dataStoreUpdateSink)
+	}
+
+	return fdv2, nil
+}
+
+type noStatusMonitoring struct{}
+
+func (n noStatusMonitoring) IsStatusMonitoringEnabled() bool {
+	return false
+}
+
+func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {
+	for {
+		select {
+		case newStoreStatus := <-statuses:
+			if newStoreStatus.Available {
+				// The store has just transitioned from unavailable to available (scenario 2a above)
+				if newStoreStatus.NeedsRefresh {
+					f.loggers.Warn("Reinitializing data store from in-memory cache after after data store outage")
+					if err := f.store.Commit(); err != nil {
+						f.loggers.Error("Failed to reinitialize data store: %v", err)
+					}
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (f *FDv2) Start(closeWhenReady chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f.cancel = cancel
+	f.launchTask(func() {
+		f.run(ctx, closeWhenReady)
+	})
+}
+
+func (f *FDv2) launchTask(task func()) {
+	f.wg.Add(1)
 	go func() {
-		defer close(f.done)
-		payloadVersion := f.runInitializers(ctx, closeWhenReady)
-		f.runSynchronizers(ctx, closeWhenReady, payloadVersion)
+		defer f.wg.Done()
+		task()
 	}()
+}
+
+func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
+	payloadVersion := f.runInitializers(ctx, closeWhenReady)
+
+	if f.store.Mirroring() {
+		f.launchTask(func() {
+			f.runPersistentStoreOutageRecovery(ctx, f.dataStoreStatusProvider.AddStatusListener())
+		})
+	}
+
+	f.runSynchronizers(ctx, closeWhenReady, payloadVersion)
 }
 
 func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *int {
@@ -133,7 +162,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 		if err != nil {
 			continue
 		}
-		_ = f.store.GetMemory().Init(payload.Data)
+		f.store.Init(payload.Data)
 		f.store.SwapToMemory(payload.Fresh)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
@@ -154,7 +183,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	}
 
 	ready := make(chan struct{})
-	f.primarySync.Start(ready, f.store.GetMemory(), payloadVersion)
+	f.primarySync.Sync(ready, payloadVersion)
 
 	for {
 		select {
@@ -175,7 +204,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 func (f *FDv2) Stop() error {
 	if f.cancel != nil {
 		f.cancel()
-		<-f.done
+		f.wg.Wait()
 	}
 	_ = f.store.Close()
 	if f.primarySync != nil {
@@ -199,8 +228,7 @@ func (f *FDv2) DataStatus() DataStatus {
 }
 
 func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
-	//TODO implement me
-	panic("implement me")
+	return f.broadcasters.dataSourceStatus
 }
 
 func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
@@ -209,18 +237,15 @@ func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 }
 
 func (f *FDv2) DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
-	//TODO implement me
-	panic("implement me")
+	return f.broadcasters.dataStoreStatus
 }
 
 func (f *FDv2) DataStoreStatusProvider() interfaces.DataStoreStatusProvider {
-	//TODO implement me
-	panic("implement me")
+	return f.dataStoreStatusProvider
 }
 
 func (f *FDv2) FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent] {
-	//TODO implement me
-	panic("implement me")
+	return f.broadcasters.flagChangeEvent
 }
 
 func (f *FDv2) Offline() bool {

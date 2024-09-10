@@ -81,7 +81,6 @@ type StreamProcessor struct {
 	loggers                    ldlog.Loggers
 	isInitialized              internal.AtomicBoolean
 	halt                       chan struct{}
-	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
@@ -123,10 +122,11 @@ func (sp *StreamProcessor) IsInitialized() bool {
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	if sp.dataSourceUpdates.GetDataStoreStatusProvider().IsStatusMonitoringEnabled() {
-		sp.storeStatusCh = sp.dataSourceUpdates.GetDataStoreStatusProvider().AddStatusListener()
-	}
 	go sp.subscribe(closeWhenReady)
+}
+
+func (sp *StreamProcessor) Sync(closeWhenReady chan struct{}, payloadVersion *int) {
+	sp.Start(closeWhenReady)
 }
 
 // TODO: Remove this nolint once we have a better implementation.
@@ -161,6 +161,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			sp.logConnectionResult(true)
 
+			// TODO(cwaldren/mkeeler): Should this actually be true by default? It means if we receive an event
+			// we don't understand then we go to the Valid state.
 			processedEvent := true
 			shouldRestart := false
 
@@ -190,14 +192,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			}
 
 			storeUpdateFailed := func(updateDesc string) {
-				if sp.storeStatusCh != nil {
-					sp.loggers.Errorf("Failed to store %s in data store; will try again once data store is working", updateDesc)
-					// scenario 2a in error handling comments at top of file
-				} else {
-					sp.loggers.Errorf("Failed to store %s in data store; will restart stream until successful", updateDesc)
-					shouldRestart = true // scenario 2b
-					processedEvent = false
-				}
+				// TODO: the data source previously had the responsibility of figuring out if storing an update failed,
+				// and then potentially restarting the streaming connection to get a new PUT so that it could init
+				// the database if updates got lost. This is no longer the responsibility of the data source (now the
+				// data system will handle it.) Ideally, the update sink's methods should not be fallible.
+				sp.loggers.Errorf("Failed to store %s in data store; will try again once data store is working", updateDesc)
 			}
 
 			switch event.Event() {
@@ -267,17 +266,21 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					switch u := update.(type) {
 					case datasource.PatchData:
 						if !sp.dataSourceUpdates.Upsert(u.Kind, u.Key, u.Data) {
+							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 							storeUpdateFailed("streaming update of " + u.Key)
 						}
 					case datasource.PutData:
 						if sp.dataSourceUpdates.Init(u.Data) {
 							sp.setInitializedAndNotifyClient(true, closeWhenReady)
 						} else {
+							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
+
 							storeUpdateFailed("initial streaming data")
 						}
 					case datasource.DeleteData:
 						deletedItem := ldstoretypes.ItemDescriptor{Version: u.Version, Item: nil}
 						if !sp.dataSourceUpdates.Upsert(u.Kind, u.Key, deletedItem) {
+							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 							storeUpdateFailed("streaming deletion of " + u.Key)
 						}
 
@@ -295,24 +298,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			}
 			if shouldRestart {
 				stream.Restart()
-			}
-
-		case newStoreStatus := <-sp.storeStatusCh:
-			if sp.loggers.IsDebugEnabled() {
-				sp.loggers.Debugf("StreamProcessorV2 received store status update: %+v", newStoreStatus)
-			}
-			if newStoreStatus.Available {
-				// The store has just transitioned from unavailable to available (scenario 2a above)
-				if newStoreStatus.NeedsRefresh {
-					// The store is telling us that it can't guarantee that all of the latest data was cached.
-					// So we'll restart the stream to ensure a full refresh.
-					sp.loggers.Warn("Restarting stream to refresh data after data store outage")
-					stream.Restart()
-				}
-				// All of the updates were cached and have been written to the store, so we don't need to
-				// restart the stream. We just need to make sure the client knows we're initialized now
-				// (in case the initial "put" was not stored).
-				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 			}
 
 		case <-sp.halt:
@@ -453,9 +438,6 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		close(sp.halt)
-		if sp.storeStatusCh != nil {
-			sp.dataSourceUpdates.GetDataStoreStatusProvider().RemoveStatusListener(sp.storeStatusCh)
-		}
 		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	})
 	return nil
