@@ -133,7 +133,7 @@ func (f *FDv2) launchTask(task func()) {
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	payloadVersion := f.runInitializers(ctx, closeWhenReady)
 
-	if f.store.Mirroring() {
+	if f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
 			f.runPersistentStoreOutageRecovery(ctx, f.dataStoreStatusProvider.AddStatusListener())
 		})

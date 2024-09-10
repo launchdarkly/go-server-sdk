@@ -71,7 +71,7 @@ type Store struct {
 	// if it was the latest".
 	refreshed bool
 
-	// Protects the memory and refreshed fields.
+	// Protects the refreshed, persistentStore, persistentStoreMode, and active fields.
 	mu sync.RWMutex
 
 	loggers ldlog.Loggers
@@ -93,6 +93,8 @@ func NewStore(loggers ldlog.Loggers) *Store {
 
 // Close closes the store. If there is a persistent store configured, it will be closed.
 func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.persistentStore != nil {
 		return s.persistentStore.Close()
 	}
@@ -122,17 +124,20 @@ func (s *Store) DataStatus() DataStatus {
 }
 
 // Mirroring returns true data is being mirrored to a persistent store.
-func (s *Store) Mirroring() bool {
+func (s *Store) mirroring() bool {
 	return s.persistentStore != nil && s.persistentStoreMode == subsystems.StoreModeReadWrite
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
 func (s *Store) Init(allData []ldstoretypes.Collection) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent Store.
 	// TODO: handle errors from initializing the memory or persistent stores.
 	_ = s.memoryStore.Init(allData)
 
-	if s.Mirroring() {
+	if s.mirroring() {
 		_ = s.persistentStore.Init(allData) // TODO: insert in topo-sort order
 	}
 	return true
@@ -140,6 +145,9 @@ func (s *Store) Init(allData []ldstoretypes.Collection) bool {
 
 // nolint:revive // Standard DataSourceUpdateSink method
 func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var (
 		memErr  error
 		persErr error
@@ -148,7 +156,7 @@ func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent store.
 	_, memErr = s.memoryStore.Upsert(kind, key, item)
 
-	if s.Mirroring() {
+	if s.mirroring() {
 		_, persErr = s.persistentStore.Upsert(kind, key, item)
 	}
 	return memErr == nil && persErr == nil
@@ -166,6 +174,8 @@ func (s *Store) UpdateStatus(newState interfaces.DataSourceState, newError inter
 
 // nolint:revive // Standard DataSourceUpdateSink method
 func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.persistentStoreStatusProvider
 }
 
@@ -179,7 +189,6 @@ func (s *Store) SwapToPersistent(persistent subsystems.DataStore, mode subsystem
 	s.persistentStoreMode = mode
 	s.persistentStoreStatusProvider = statusProvider
 	s.active = s.persistentStore
-	s.refreshed = false
 }
 
 func (s *Store) SwapToMemory(isRefreshed bool) {
@@ -190,7 +199,11 @@ func (s *Store) SwapToMemory(isRefreshed bool) {
 }
 
 func (s *Store) Commit() error {
-	if s.DataStatus() == Refreshed && s.Mirroring() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Note: DataStatus() will also take a read lock.
+	if s.DataStatus() == Refreshed && s.mirroring() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
 			return err
