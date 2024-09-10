@@ -10,6 +10,28 @@ import (
 	"sync"
 )
 
+// store is a hybrid persistent/in-memory store that serves queries for data from the evaluation
+// algorithm.
+
+// At any given moment, 1 of 2 stores is active: in-memory, or persistent. This doesn't preclude a caller
+// from holding on to a reference to the persistent store even when we swap to the in-memory store.
+//
+// Once the in-memory store has data (either from initializers running, or from a synchronizer), the persistent
+// store is no longer regarded as active. From that point forward, GetActive() will return the in-memory store.
+//
+// The idea is that persistent stores can offer a way to immediately start evaluating flags before a connection
+// is made to LD (or even in a very brief moment before an initializer has run.) The persistent store has caching
+// logic which can result in inconsistent/stale date being used. Therefore, once we have fresh data, we don't
+// want to use the persistent store at all.
+//
+// A complication is that persistent stores have historically operated in multiple regimes. The first is "daemon mode",
+// where the SDK is effectively using the store in read-only mode, with the store being populated by Relay or another SDK.
+// The second is just plain persistent store mode, where it is both read and written to. In the FDv2 system, we explicitly
+// differentiate these cases using a read/read-write mode. In all cases, the in-memory store is used once it has data available.
+// This contrasts from FDv1 where even if data from LD is available, that data may fall out of memory due to the persistent
+// store's caching logic ("sparse mode", when the TTL is non-infinite).
+
+// We have found this to almost always be undesirable for users.
 type store struct {
 	// Represents a remote store, like Redis. This is optional; if present, it's only used
 	// before the in-memory store is initialized.
@@ -53,6 +75,8 @@ type store struct {
 	loggers ldlog.Loggers
 }
 
+// Creates a new store. By default the store is in-memory. To add a persistent store, call SetPersistent. Ensure this is
+// called at configuration time, only once and before the store is ever accessed.
 func newStore(loggers ldlog.Loggers) *store {
 	return &store{
 		persistentStore:     nil,
@@ -63,8 +87,8 @@ func newStore(loggers ldlog.Loggers) *store {
 	}
 }
 
-// This method exists only because of the weird way the Go SDK is configured - we need a ClientContext
-// before we can call Build to actually get ther persistent store. That ClientContext requires the
+// SetPersistent exists only because of the weird way the Go SDK is configured - we need a ClientContext
+// before we can call Build to actually get the persistent store. That ClientContext requires the
 // DataStoreUpdateSink, which is what this store struct implements.
 func (s *store) SetPersistent(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) {
 	s.persistentStore = persistent
@@ -72,6 +96,7 @@ func (s *store) SetPersistent(persistent subsystems.DataStore, mode subsystems.S
 	s.memory = false
 }
 
+// Close closes the store. If there is a persistent store configured, it will be closed.
 func (s *store) Close() error {
 	if s.persistentStore != nil {
 		return s.persistentStore.Close()
@@ -79,25 +104,22 @@ func (s *store) Close() error {
 	return nil
 }
 
+// GetActive returns the active store, either persistent or in-memory. If there is no persistent store configured,
+// the in-memory store is always active.
 func (s *store) GetActive() subsystems.DataStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.memory {
+	if s.memory || s.persistentStore == nil {
 		return s.memoryStore
 	}
 	return s.persistentStore
 }
 
-func (s *store) Status() DataStatus {
+// DataStatus returns the status of the store's data. Defaults means there is no data, Cached means there is
+// data, but it's not guaranteed to be recent, and Refreshed means the data has been refreshed from the server.
+func (s *store) DataStatus() DataStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// The logic here is:
-	// 1. If the memory store is active, we either got that data from an (initializer|synchronizer) that indicated
-	// the data is the latest known (Refreshed) or that it is potentially stale (Cached). This is set when SwapToMemory
-	// is called.
-	// 2. Otherwise, the persistent store - if any - is active. If there is none configured, the status is Defaults.
-	//   If there is, we need to query the database availability to determine if we actually have access to the data
-	//   or not.
 	if s.memory {
 		if s.refreshed {
 			return Refreshed
@@ -113,10 +135,12 @@ func (s *store) Status() DataStatus {
 
 }
 
+// Mirroring returns true data is being mirrored to a persistent store.
 func (s *store) Mirroring() bool {
 	return s.persistentStore != nil && s.persistentStoreMode == subsystems.StoreModeReadWrite
 }
 
+// nolint:revive // Standard DataSourceUpdateSink method
 func (s *store) Init(allData []ldstoretypes.Collection) bool {
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent store.
 	// TODO: handle errors from initializing the memory or persistent stores.
@@ -128,6 +152,7 @@ func (s *store) Init(allData []ldstoretypes.Collection) bool {
 	return true
 }
 
+// nolint:revive // Standard DataSourceUpdateSink method
 func (s *store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool {
 	var (
 		memErr  error
@@ -143,13 +168,17 @@ func (s *store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 	return memErr == nil && persErr == nil
 }
 
+// nolint:revive // Standard DataSourceUpdateSink method
 func (s *store) UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo) {
-	//TODO: In the FDv2 world, instead of having users check the state, we instead have them monitor the
-	// DataStatus(), because that's actually what they care about.
-	// For now, discard any status updates coming from the data sources.
+	//TODO: although DataSourceUpdateSink is where data is pushed to the store by the data source, it doesn't really
+	// make sense to have it also be the place that status updates are received. It only cares whether data has
+	// *ever* been received, and that is already known by the store.
+	// This should probably be refactored so that the data source takes a separate injected dependency for the
+	// status updates.
 	s.loggers.Info("fdv2_store: swallowing status update (", newState, ", ", newError, ")")
 }
 
+// nolint:revive // Standard DataSourceUpdateSink method
 func (s *store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return s.persistentStoreStatusProvider
 }
@@ -162,7 +191,7 @@ func (s *store) SwapToMemory(isRefreshed bool) {
 }
 
 func (s *store) Commit() error {
-	if s.Status() == Refreshed && s.Mirroring() {
+	if s.DataStatus() == Refreshed && s.Mirroring() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
 			return err

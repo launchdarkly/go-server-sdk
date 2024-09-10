@@ -145,7 +145,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 		select {
 		case newStoreStatus := <-statuses:
 			if newStoreStatus.Available {
-				// The store has just transitioned from unavailable to available (scenario 2a above)
+				// The store has just transitioned from unavailable to available
 				if newStoreStatus.NeedsRefresh {
 					f.loggers.Warn("Reinitializing data store from in-memory cache after after data store outage")
 					if err := f.store.Commit(); err != nil {
@@ -188,7 +188,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		return
 	}
 
-	// We can't simply pass closeWhenReady to the data source, because it might have already been closed.
+	// We can't pass closeWhenReady to the data source, because it might have already been closed.
 	// Instead, create a "proxy" channel just for the data source; if that is closed, we close the real one
 	// using the sync.Once.
 	ready := make(chan struct{})
@@ -202,9 +202,10 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			// is fresh (since we currently control all the synchronizer implementations.) Theoretically it could be
 			// not fresh though, like polling some database.
 
-			// TODO: this is an incorrect hack. What we should be doing is calling readyOnce - that's it.
-			// To trigger the swapping to the in-memory store, we need to be monitoring the Data Source status
-			// for "valid". This will currently swap even if the data source has failed.
+			// TODO: this is an incorrect hack. The responsibility of this loop should be limited to
+			// calling readyOnce/close.
+			// To trigger the swapping to the in-memory store, we need to be independently monitoring the Data Source status
+			// for "valid" status. This hack will currently swap even if the data source has failed.
 			f.store.SwapToMemory(true)
 			f.readyOnce.Do(func() {
 				close(closeWhenReady)
@@ -238,7 +239,7 @@ func (f *FDv2) DataStatus() DataStatus {
 	if f.offline {
 		return Defaults
 	}
-	return f.store.Status()
+	return f.store.DataStatus()
 }
 
 func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
