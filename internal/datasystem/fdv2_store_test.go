@@ -21,6 +21,13 @@ func TestStore_NoPersistence_NewStore_DataStatus(t *testing.T) {
 	assert.Equal(t, store.DataStatus(), Defaults)
 }
 
+func TestStore_NoPersistence_NewStore_IsInitialized(t *testing.T) {
+	logCapture := ldlogtest.NewMockLog()
+	store := NewStore(logCapture.Loggers)
+	defer store.Close()
+	assert.False(t, store.IsInitialized())
+}
+
 func TestStore_NoPersistence_MemoryStoreInitialized_DataStatus(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -37,6 +44,7 @@ func TestStore_NoPersistence_MemoryStoreInitialized_DataStatus(t *testing.T) {
 			defer store.Close()
 			store.Init([]ldstoretypes.Collection{})
 			assert.Equal(t, store.DataStatus(), Cached)
+			assert.True(t, store.IsInitialized())
 			store.SwapToMemory(tt.refreshed)
 			assert.Equal(t, store.DataStatus(), tt.expected)
 		})
@@ -55,7 +63,7 @@ func TestStore_GetActive(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 		store := NewStore(logCapture.Loggers)
 		defer store.Close()
-		foo, err := store.GetActive().Get(ldstoreimpl.Features(), "foo")
+		foo, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
@@ -65,7 +73,7 @@ func TestStore_GetActive(t *testing.T) {
 			}},
 		}))
 
-		foo, err = store.GetActive().Get(ldstoreimpl.Features(), "foo")
+		foo, err = store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
 		assert.Equal(t, 1, foo.Version)
 	})
