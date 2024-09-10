@@ -12,6 +12,7 @@ import (
 )
 
 var _ subsystems.DataSourceUpdateSink = (*Store)(nil)
+var _ subsystems.ReadOnlyStore = (*Store)(nil)
 
 type broadcasters struct {
 	dataSourceStatus *internal.Broadcaster[interfaces.DataSourceStatus]
@@ -93,7 +94,7 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 	if cfg.Store != nil {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
-		store.SetPersistent(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
+		store.SwapToPersistent(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
 	} else {
 		// If there's no persistent Store, we still need to satisfy the SDK's public interface of having
 		// a data Store status provider. So we create one that just says "I don't know what's going on".
@@ -233,7 +234,7 @@ func (f *FDv2) Stop() error {
 }
 
 func (f *FDv2) Store() subsystems.ReadOnlyStore {
-	return f.store.GetActive()
+	return f.store
 }
 
 func (f *FDv2) DataStatus() DataStatus {

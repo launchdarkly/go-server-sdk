@@ -60,8 +60,7 @@ type Store struct {
 	// persistentStore (if configured).
 	memoryStore subsystems.DataStore
 
-	// Whether the memoryStore is active or not. This should go from false -> true and never back.
-	memory bool
+	active subsystems.DataStore
 
 	// Whether the memoryStore's data should be considered authoritative, or fresh - that is, if it is known
 	// to be the latest data. Data from a baked in file for example would not be considered refreshed. The purpose
@@ -77,27 +76,18 @@ type Store struct {
 	loggers ldlog.Loggers
 }
 
-// NewStore creates a new store. By default the store is in-memory. To add a persistent store, call SetPersistent. Ensure this is
+// NewStore creates a new store. By default the store is in-memory. To add a persistent store, call SwapToPersistent. Ensure this is
 // called at configuration time, only once and before the store is ever accessed.
 func NewStore(loggers ldlog.Loggers) *Store {
-	return &Store{
+	s := &Store{
 		persistentStore:     nil,
 		persistentStoreMode: subsystems.StoreModeRead,
 		memoryStore:         datastore.NewInMemoryDataStore(loggers),
-		memory:              true,
 		refreshed:           false,
 		loggers:             loggers,
 	}
-}
-
-// SetPersistent exists only because of the weird way the Go SDK is configured - we need a ClientContext
-// before we can call Build to actually get the persistent store. That ClientContext requires the
-// DataStoreUpdateSink, which is what this store struct implements.
-func (s *Store) SetPersistent(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) {
-	s.persistentStore = persistent
-	s.persistentStoreMode = mode
-	s.persistentStoreStatusProvider = statusProvider
-	s.memory = false
+	s.SwapToMemory(false)
+	return s
 }
 
 // Close closes the store. If there is a persistent store configured, it will be closed.
@@ -110,13 +100,10 @@ func (s *Store) Close() error {
 
 // GetActive returns the active store, either persistent or in-memory. If there is no persistent store configured,
 // the in-memory store is always active.
-func (s *Store) GetActive() subsystems.DataStore {
+func (s *Store) getActive() subsystems.DataStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.memory || s.persistentStore == nil {
-		return s.memoryStore
-	}
-	return s.persistentStore
+	return s.active
 }
 
 // DataStatus returns the status of the store's data. Defaults means there is no data, Cached means there is
@@ -124,19 +111,13 @@ func (s *Store) GetActive() subsystems.DataStore {
 func (s *Store) DataStatus() DataStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.memory {
-		if s.memoryStore.IsInitialized() {
-			if s.refreshed {
-				return Refreshed
-			}
-			return Cached
+	if s.active.IsInitialized() {
+		if s.refreshed {
+			return Refreshed
 		}
-	}
-	if s.persistentStore != nil && s.persistentStore.IsInitialized() {
 		return Cached
 	}
 	return Defaults
-
 }
 
 // Mirroring returns true data is being mirrored to a persistent store.
@@ -187,11 +168,24 @@ func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider 
 	return s.persistentStoreStatusProvider
 }
 
+// SwapToPersistent exists only because of the weird way the Go SDK is configured - we need a ClientContext
+// before we can call Build to actually get the persistent store. That ClientContext requires the
+// DataStoreUpdateSink, which is what this store struct implements.
+func (s *Store) SwapToPersistent(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.persistentStore = persistent
+	s.persistentStoreMode = mode
+	s.persistentStoreStatusProvider = statusProvider
+	s.active = s.persistentStore
+	s.refreshed = false
+}
+
 func (s *Store) SwapToMemory(isRefreshed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.memory = true
 	s.refreshed = isRefreshed
+	s.active = s.memoryStore
 }
 
 func (s *Store) Commit() error {
@@ -210,4 +204,16 @@ func (s *Store) Commit() error {
 		})
 	}
 	return nil
+}
+
+func (s *Store) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
+	return s.getActive().GetAll(kind)
+}
+
+func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
+	return s.getActive().Get(kind, key)
+}
+
+func (s *Store) IsInitialized() bool {
+	return s.getActive().IsInitialized()
 }
