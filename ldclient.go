@@ -75,6 +75,7 @@ type dataSystem interface {
 	DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus]
 	DataStoreStatusProvider() interfaces.DataStoreStatusProvider
 	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
+
 	// Offline indicates whether the SDK is configured to be offline, either because the offline config item was
 	// explicitly set, or because a NullDataSource was used.
 	Offline() bool
@@ -290,6 +291,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		)
 	}
 
+	// TODO: We can't actually pass STore() here because it wont' swap between the active ones.
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(client.dataSystem.Store(), loggers)
 	evalOptions := []ldeval.EvaluatorOption{
 		ldeval.EvaluatorOptionErrorLogger(client.loggers.ForLevel(ldlog.Error)),

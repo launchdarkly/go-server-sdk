@@ -10,9 +10,9 @@ import (
 	"sync"
 )
 
-// store is a hybrid persistent/in-memory store that serves queries for data from the evaluation
+// Store is a hybrid persistent/in-memory store that serves queries for data from the evaluation
 // algorithm.
-
+//
 // At any given moment, 1 of 2 stores is active: in-memory, or persistent. This doesn't preclude a caller
 // from holding on to a reference to the persistent store even when we swap to the in-memory store.
 //
@@ -30,9 +30,9 @@ import (
 // differentiate these cases using a read/read-write mode. In all cases, the in-memory store is used once it has data available.
 // This contrasts from FDv1 where even if data from LD is available, that data may fall out of memory due to the persistent
 // store's caching logic ("sparse mode", when the TTL is non-infinite).
-
+//
 // We have found this to almost always be undesirable for users.
-type store struct {
+type Store struct {
 	// Represents a remote store, like Redis. This is optional; if present, it's only used
 	// before the in-memory store is initialized.
 	persistentStore subsystems.DataStore
@@ -67,6 +67,8 @@ type store struct {
 	// to be the latest data. Data from a baked in file for example would not be considered refreshed. The purpose
 	// of this is to know if we should commit data to the persistentStore. For example, if we initialize with "stale"
 	// data from a local file (refreshed=false), we may not want to pollute a connected Redis database with it.
+	// TODO: this could also be called "Authoritative". "It was the latest at some point.. that point being when we asked
+	// if it was the latest".
 	refreshed bool
 
 	// Protects the memory and refreshed fields.
@@ -75,14 +77,15 @@ type store struct {
 	loggers ldlog.Loggers
 }
 
-// Creates a new store. By default the store is in-memory. To add a persistent store, call SetPersistent. Ensure this is
+// NewStore creates a new store. By default the store is in-memory. To add a persistent store, call SetPersistent. Ensure this is
 // called at configuration time, only once and before the store is ever accessed.
-func newStore(loggers ldlog.Loggers) *store {
-	return &store{
+func NewStore(loggers ldlog.Loggers) *Store {
+	return &Store{
 		persistentStore:     nil,
 		persistentStoreMode: subsystems.StoreModeRead,
 		memoryStore:         datastore.NewInMemoryDataStore(loggers),
 		memory:              true,
+		refreshed:           false,
 		loggers:             loggers,
 	}
 }
@@ -90,14 +93,15 @@ func newStore(loggers ldlog.Loggers) *store {
 // SetPersistent exists only because of the weird way the Go SDK is configured - we need a ClientContext
 // before we can call Build to actually get the persistent store. That ClientContext requires the
 // DataStoreUpdateSink, which is what this store struct implements.
-func (s *store) SetPersistent(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) {
+func (s *Store) SetPersistent(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) {
 	s.persistentStore = persistent
 	s.persistentStoreMode = mode
+	s.persistentStoreStatusProvider = statusProvider
 	s.memory = false
 }
 
 // Close closes the store. If there is a persistent store configured, it will be closed.
-func (s *store) Close() error {
+func (s *Store) Close() error {
 	if s.persistentStore != nil {
 		return s.persistentStore.Close()
 	}
@@ -106,7 +110,7 @@ func (s *store) Close() error {
 
 // GetActive returns the active store, either persistent or in-memory. If there is no persistent store configured,
 // the in-memory store is always active.
-func (s *store) GetActive() subsystems.DataStore {
+func (s *Store) GetActive() subsystems.DataStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.memory || s.persistentStore == nil {
@@ -117,32 +121,32 @@ func (s *store) GetActive() subsystems.DataStore {
 
 // DataStatus returns the status of the store's data. Defaults means there is no data, Cached means there is
 // data, but it's not guaranteed to be recent, and Refreshed means the data has been refreshed from the server.
-func (s *store) DataStatus() DataStatus {
+func (s *Store) DataStatus() DataStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.memory {
-		if s.refreshed {
-			return Refreshed
-		}
-		return Cached
-	}
-	if s.persistentStore != nil {
-		if s.persistentStore.IsInitialized() {
+		if s.memoryStore.IsInitialized() {
+			if s.refreshed {
+				return Refreshed
+			}
 			return Cached
 		}
+	}
+	if s.persistentStore != nil && s.persistentStore.IsInitialized() {
+		return Cached
 	}
 	return Defaults
 
 }
 
 // Mirroring returns true data is being mirrored to a persistent store.
-func (s *store) Mirroring() bool {
+func (s *Store) Mirroring() bool {
 	return s.persistentStore != nil && s.persistentStoreMode == subsystems.StoreModeReadWrite
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
-func (s *store) Init(allData []ldstoretypes.Collection) bool {
-	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent store.
+func (s *Store) Init(allData []ldstoretypes.Collection) bool {
+	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent Store.
 	// TODO: handle errors from initializing the memory or persistent stores.
 	_ = s.memoryStore.Init(allData)
 
@@ -153,7 +157,7 @@ func (s *store) Init(allData []ldstoretypes.Collection) bool {
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
-func (s *store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool {
+func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool {
 	var (
 		memErr  error
 		persErr error
@@ -169,7 +173,7 @@ func (s *store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
-func (s *store) UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo) {
+func (s *Store) UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo) {
 	//TODO: although DataSourceUpdateSink is where data is pushed to the store by the data source, it doesn't really
 	// make sense to have it also be the place that status updates are received. It only cares whether data has
 	// *ever* been received, and that is already known by the store.
@@ -179,18 +183,18 @@ func (s *store) UpdateStatus(newState interfaces.DataSourceState, newError inter
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
-func (s *store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
+func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return s.persistentStoreStatusProvider
 }
 
-func (s *store) SwapToMemory(isRefreshed bool) {
+func (s *Store) SwapToMemory(isRefreshed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.memory = true
 	s.refreshed = isRefreshed
 }
 
-func (s *store) Commit() error {
+func (s *Store) Commit() error {
 	if s.DataStatus() == Refreshed && s.Mirroring() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
