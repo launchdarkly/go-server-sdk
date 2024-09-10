@@ -19,7 +19,7 @@ type DataSystemConfigurationBuilder struct {
 
 func DataSystem() *DataSystemConfigurationBuilder {
 	return &DataSystemConfigurationBuilder{
-		primarySyncBuilder: toSynchronizer{StreamingDataSource().V2()},
+		primarySyncBuilder: toSynchronizer{StreamingDataSourceV2()},
 	}
 }
 
