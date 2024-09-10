@@ -44,26 +44,53 @@ func assertNoMoreRequests(t *testing.T, requestsCh <-chan httphelpers.HTTPReques
 }
 
 func TestDefaultDataSourceIsStreaming(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
-	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-		logCapture := ldlogtest.NewMockLog()
-		defer logCapture.DumpIfTestFailed(t)
+	t.Run("fdv1", func(t *testing.T) {
+		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
+		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+			defer logCapture.DumpIfTestFailed(t)
 
-		config := Config{
-			Events:           ldcomponents.NoEvents(),
-			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
-			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-		}
+			config := Config{
+				Events:           ldcomponents.NoEvents(),
+				Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
+			}
 
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-		require.NoError(t, err)
-		defer client.Close()
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
 
-		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+			assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
-		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
-		assert.True(t, value)
+			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+			assert.True(t, value)
+		})
+	})
+
+	t.Run("fdv2", func(t *testing.T) {
+		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
+		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+			defer logCapture.DumpIfTestFailed(t)
+
+			config := Config{
+				Events:           ldcomponents.NoEvents(),
+				Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
+				DataSystem:       ldcomponents.DataSystem(),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
+			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+			assert.True(t, value)
+		})
 	})
 }
 
