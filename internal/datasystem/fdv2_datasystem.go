@@ -91,9 +91,12 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 	}
 
 	if cfg.Store != nil {
+		// If there's a persistent store, we should provide a status monitor and inform store that it's present.
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
 		store.SetPersistent(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
 	} else {
+		// If there's no persistent store, we still need to satisfy the SDK's public interface of having
+		// a data store status provider. So we create one that just says "I don't know what's going on".
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(noStatusMonitoring{}, dataStoreUpdateSink)
 	}
 
@@ -106,26 +109,10 @@ func (n noStatusMonitoring) IsStatusMonitoringEnabled() bool {
 	return false
 }
 
-func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {
-	for {
-		select {
-		case newStoreStatus := <-statuses:
-			if newStoreStatus.Available {
-				// The store has just transitioned from unavailable to available (scenario 2a above)
-				if newStoreStatus.NeedsRefresh {
-					f.loggers.Warn("Reinitializing data store from in-memory cache after after data store outage")
-					if err := f.store.Commit(); err != nil {
-						f.loggers.Error("Failed to reinitialize data store: %v", err)
-					}
-				}
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (f *FDv2) Start(closeWhenReady chan struct{}) {
+	if f.offline {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	f.cancel = cancel
 	f.launchTask(func() {
@@ -151,6 +138,25 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	}
 
 	f.runSynchronizers(ctx, closeWhenReady, payloadVersion)
+}
+
+func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {
+	for {
+		select {
+		case newStoreStatus := <-statuses:
+			if newStoreStatus.Available {
+				// The store has just transitioned from unavailable to available (scenario 2a above)
+				if newStoreStatus.NeedsRefresh {
+					f.loggers.Warn("Reinitializing data store from in-memory cache after after data store outage")
+					if err := f.store.Commit(); err != nil {
+						f.loggers.Error("Failed to reinitialize data store: %v", err)
+					}
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *int {
@@ -182,15 +188,23 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		return
 	}
 
+	// We can't simply pass closeWhenReady to the data source, because it might have already been closed.
+	// Instead, create a "proxy" channel just for the data source; if that is closed, we close the real one
+	// using the sync.Once.
 	ready := make(chan struct{})
 	f.primarySync.Sync(ready, payloadVersion)
 
 	for {
 		select {
 		case <-ready:
-			// We may have synchronizers that don't actually validate that a payload is fresh. In this case,
-			// we'd need a mechanism to propagate the status to this method, just like for the initializers.
-			// For now, we assume that the only synchronizers are LaunchDarkly-provided and do receive fresh payloads.
+			// SwapToMemory takes a bool representing if the data is "fresh" or not. Fresh meaning we think it's from
+			// LaunchDarkly and represents the latest available. Here, we're assuming that any data from a synchronizer
+			// is fresh (since we currently control all the synchronizer implementations.) Theoretically it could be
+			// not fresh though, like polling some database.
+
+			// TODO: this is an incorrect hack. What we should be doing is calling readyOnce - that's it.
+			// To trigger the swapping to the in-memory store, we need to be monitoring the Data Source status
+			// for "valid". This will currently swap even if the data source has failed.
 			f.store.SwapToMemory(true)
 			f.readyOnce.Do(func() {
 				close(closeWhenReady)
@@ -232,7 +246,6 @@ func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.Da
 }
 
 func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
-	//TODO implement me
 	panic("implement me")
 }
 
