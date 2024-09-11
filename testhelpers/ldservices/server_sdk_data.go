@@ -3,7 +3,6 @@ package ldservices
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	"github.com/launchdarkly/go-test-helpers/v3/jsonhelpers"
@@ -81,4 +80,42 @@ func (s *ServerSDKData) ToPutEvent() httphelpers.SSEEvent {
 		Event: "put",
 		Data:  fmt.Sprintf(`{"path": "/", "data": %s}`, s),
 	}
+}
+
+// TODO: Refactor into dedicated FDv2 testing support package.
+func (s *ServerSDKData) ToPutObjects() []httphelpers.SSEEvent {
+	type baseObject struct {
+		Version int             `json:"version"`
+		Kind    string          `json:"kind"`
+		Key     string          `json:"key"`
+		Object  json.RawMessage `json:"object"`
+	}
+	var puts []httphelpers.SSEEvent
+	for _, flag := range s.FlagsMap {
+		base := baseObject{
+			Version: 1,
+			Kind:    "flag",
+			Key:     getKeyFromJSON(flag),
+			Object:  jsonhelpers.ToJSON(flag),
+		}
+		data, _ := json.Marshal(base)
+		puts = append(puts, httphelpers.SSEEvent{
+			Event: "put-object",
+			Data:  string(data),
+		})
+	}
+	for _, segment := range s.SegmentsMap {
+		base := baseObject{
+			Version: 1,
+			Kind:    "segment",
+			Key:     getKeyFromJSON(segment),
+			Object:  jsonhelpers.ToJSON(segment),
+		}
+		data, _ := json.Marshal(base)
+		puts = append(puts, httphelpers.SSEEvent{
+			Event: "put-object",
+			Data:  string(data),
+		})
+	}
+	return puts
 }

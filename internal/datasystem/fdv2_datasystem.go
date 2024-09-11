@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -60,6 +61,8 @@ type FDv2 struct {
 	// We hold a reference to the dataStoreStatusProvider because it's required for the public interface of the
 	// SDK client.
 	dataStoreStatusProvider interfaces.DataStoreStatusProvider
+
+	dataSourceStatusProvider *dataStatusProvider
 }
 
 func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
@@ -83,14 +86,18 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 	}
 
 	fdv2 := &FDv2{
-		store:         store,
-		initializers:  cfg.Initializers,
-		primarySync:   cfg.Synchronizers.Primary,
-		secondarySync: cfg.Synchronizers.Secondary,
-		offline:       cfg.Offline,
-		loggers:       clientContext.GetLogging().Loggers,
-		broadcasters:  bcasters,
+		store:                    store,
+		initializers:             cfg.Initializers,
+		primarySync:              cfg.Synchronizers.Primary,
+		secondarySync:            cfg.Synchronizers.Secondary,
+		offline:                  cfg.Offline,
+		loggers:                  clientContext.GetLogging().Loggers,
+		broadcasters:             bcasters,
+		dataSourceStatusProvider: &dataStatusProvider{},
 	}
+
+	// Yay circular reference.
+	fdv2.dataSourceStatusProvider.system = fdv2
 
 	if cfg.Store != nil {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
@@ -251,7 +258,7 @@ func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.Da
 }
 
 func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
-	panic("implement me")
+	return f.dataSourceStatusProvider
 }
 
 func (f *FDv2) DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
@@ -269,3 +276,40 @@ func (f *FDv2) FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.Fla
 func (f *FDv2) Offline() bool {
 	return f.offline
 }
+
+type dataStatusProvider struct {
+	system *FDv2
+}
+
+func (d *dataStatusProvider) GetStatus() interfaces.DataSourceStatus {
+	var state interfaces.DataSourceState
+	if d.system.primarySync != nil {
+		if d.system.primarySync.IsInitialized() {
+			state = interfaces.DataSourceStateValid
+		} else {
+			state = interfaces.DataSourceStateInitializing
+		}
+	} else {
+		state = interfaces.DataSourceStateOff
+	}
+	return interfaces.DataSourceStatus{
+		State:      state,
+		StateSince: time.Now(),
+		LastError:  interfaces.DataSourceErrorInfo{},
+	}
+}
+
+func (d *dataStatusProvider) AddStatusListener() <-chan interfaces.DataSourceStatus {
+	return d.system.broadcasters.dataSourceStatus.AddListener()
+}
+
+func (d *dataStatusProvider) RemoveStatusListener(listener <-chan interfaces.DataSourceStatus) {
+	d.system.broadcasters.dataSourceStatus.RemoveListener(listener)
+}
+
+func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, timeout time.Duration) bool {
+	//TODO implement me
+	panic("implement me")
+}
+
+var _ interfaces.DataSourceStatusProvider = (*dataStatusProvider)(nil)
