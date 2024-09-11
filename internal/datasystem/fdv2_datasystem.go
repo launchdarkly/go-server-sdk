@@ -13,7 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
-var _ subsystems.DataSourceUpdateSink = (*Store)(nil)
+var _ subsystems.DataDestination = (*Store)(nil)
 var _ subsystems.ReadOnlyStore = (*Store)(nil)
 
 type broadcasters struct {
@@ -65,6 +65,13 @@ type FDv2 struct {
 	dataSourceStatusProvider *dataStatusProvider
 }
 
+type nullStatusReporter struct {
+}
+
+func (n *nullStatusReporter) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
+	// no-op
+}
+
 func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
 
 	store := NewStore(clientContext.GetLogging().Loggers)
@@ -78,7 +85,8 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
 	clientContextCopy := *clientContext
 	clientContextCopy.DataStoreUpdateSink = dataStoreUpdateSink
-	clientContextCopy.DataSourceUpdateSink = store
+	clientContextCopy.DataDestination = store
+	clientContextCopy.DataSourceStatusReporter = &nullStatusReporter{}
 
 	cfg, err := cfgBuilder.Build(clientContextCopy)
 	if err != nil {

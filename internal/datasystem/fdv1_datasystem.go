@@ -17,13 +17,15 @@ type FDv1 struct {
 	flagChangeEventBroadcaster  *internal.Broadcaster[interfaces.FlagChangeEvent]
 	dataStore                   subsystems.DataStore
 	dataSource                  subsystems.DataSource
+	offline                     bool
 }
 
-func NewFDv1(dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore], dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource], clientContext *internal.ClientContextImpl) (*FDv1, error) {
+func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore], dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource], clientContext *internal.ClientContextImpl) (*FDv1, error) {
 	system := &FDv1{
 		dataSourceStatusBroadcaster: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatusBroadcaster:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
 		flagChangeEventBroadcaster:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
+		offline:                     offline,
 	}
 
 	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(system.dataStoreStatusBroadcaster)
@@ -128,17 +130,20 @@ func (f *FDv1) Stop() error {
 }
 
 func (f *FDv1) Offline() bool {
-	return f.dataSource == datasource.NewNullDataSource()
+	return f.offline || f.dataSource == datasource.NewNullDataSource()
 }
 
 func (f *FDv1) DataStatus() DataStatus {
-	if f.dataSource.IsInitialized() {
-		return Refreshed
-	} else if f.dataStore.IsInitialized() {
-		return Cached
-	} else {
+	if f.Offline() {
 		return Defaults
 	}
+	if f.dataSource.IsInitialized() {
+		return Refreshed
+	}
+	if f.dataStore.IsInitialized() {
+		return Cached
+	}
+	return Defaults
 }
 
 func (f *FDv1) Store() subsystems.ReadOnlyStore {

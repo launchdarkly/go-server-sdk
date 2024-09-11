@@ -245,7 +245,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.offline = config.Offline
 
 	if config.DataSystem == nil {
-		system, err := datasystem.NewFDv1(config.DataStore, config.DataSource, clientContext)
+		system, err := datasystem.NewFDv1(config.Offline, config.DataStore, config.DataSource, clientContext)
 		if err != nil {
 			return nil, err
 		}

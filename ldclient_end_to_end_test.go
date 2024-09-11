@@ -125,6 +125,8 @@ func TestDefaultDataSourceIsStreaming(t *testing.T) {
 
 			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 			assert.True(t, value)
+
+			assert.True(t, client.Initialized())
 		})
 	})
 }
