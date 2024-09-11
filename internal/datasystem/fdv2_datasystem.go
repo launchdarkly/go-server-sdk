@@ -113,6 +113,7 @@ func (n noStatusMonitoring) IsStatusMonitoringEnabled() bool {
 
 func (f *FDv2) Start(closeWhenReady chan struct{}) {
 	if f.offline {
+		close(closeWhenReady)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
