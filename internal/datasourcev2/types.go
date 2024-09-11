@@ -35,15 +35,15 @@ func (e event) Data() string {
 // En es.Event interface implementation
 
 type changeSet struct {
-	intent *serverIntent
+	intent *ServerIntent
 	events []es.Event
 }
 
-type serverIntent struct {
-	Payloads []payload `json:"payloads"`
+type ServerIntent struct {
+	Payloads []Payload `json:"payloads"`
 }
 
-type payload struct {
+type Payload struct {
 	// The id here doesn't seem to match the state that is included in the
 	// payload transferred object.
 
@@ -51,7 +51,7 @@ type payload struct {
 	// use that as the key consistently throughout the the process.
 	ID     string `json:"id"`
 	Target int    `json:"target"`
-	Code   string `json:"code"`
+	Code   string `json:"intentCode"`
 	Reason string `json:"reason"`
 }
 

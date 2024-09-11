@@ -213,7 +213,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			case "server-intent":
 				//nolint: godox
 				// TODO: Replace all this json unmarshalling with a nicer jreader implementation.
-				var serverIntent serverIntent
+				var serverIntent ServerIntent
 				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
 				if err != nil {
 					gotMalformedEvent(event, err)
