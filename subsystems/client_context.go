@@ -45,19 +45,27 @@ type ClientContext interface {
 	// This component is only available when the SDK is creating a DataStore. Otherwise the method
 	// returns nil.
 	GetDataStoreUpdateSink() DataStoreUpdateSink
+
+	// FDV2 method
+	GetDataDestination() DataDestination
+
+	// FDV2 method
+	GetDataSourceStatusReporter() DataSourceStatusReporter
 }
 
 // BasicClientContext is the basic implementation of the ClientContext interface, not including any
 // private fields that the SDK may use for implementation details.
 type BasicClientContext struct {
-	SDKKey               string
-	ApplicationInfo      interfaces.ApplicationInfo
-	HTTP                 HTTPConfiguration
-	Logging              LoggingConfiguration
-	Offline              bool
-	ServiceEndpoints     interfaces.ServiceEndpoints
-	DataSourceUpdateSink DataSourceUpdateSink
-	DataStoreUpdateSink  DataStoreUpdateSink
+	SDKKey                   string
+	ApplicationInfo          interfaces.ApplicationInfo
+	HTTP                     HTTPConfiguration
+	Logging                  LoggingConfiguration
+	Offline                  bool
+	ServiceEndpoints         interfaces.ServiceEndpoints
+	DataSourceUpdateSink     DataSourceUpdateSink
+	DataStoreUpdateSink      DataStoreUpdateSink
+	DataDestination          DataDestination
+	DataSourceStatusReporter DataSourceStatusReporter
 }
 
 func (b BasicClientContext) GetSDKKey() string { return b.SDKKey } //nolint:revive
@@ -89,4 +97,18 @@ func (b BasicClientContext) GetDataSourceUpdateSink() DataSourceUpdateSink { //n
 
 func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdateSink { //nolint:revive
 	return b.DataStoreUpdateSink
+}
+
+func (b BasicClientContext) GetDataDestination() DataDestination {
+	if b.DataDestination != nil {
+		return b.DataDestination
+	}
+	return b.DataSourceUpdateSink
+}
+
+func (b BasicClientContext) GetDataSourceStatusReporter() DataSourceStatusReporter {
+	if b.DataSourceStatusReporter != nil {
+		return b.DataSourceStatusReporter
+	}
+	return b.DataSourceUpdateSink
 }

@@ -75,7 +75,8 @@ const (
 // DataSource interface.
 type StreamProcessor struct {
 	cfg                        datasource.StreamConfig
-	dataSourceUpdates          subsystems.DataSourceUpdateSink
+	dataDestination            subsystems.DataDestination
+	statusReporter             subsystems.DataSourceStatusReporter
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
@@ -91,15 +92,17 @@ type StreamProcessor struct {
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdateSink,
+	dataDestination subsystems.DataDestination,
+	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.StreamConfig,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
-		dataSourceUpdates: dataSourceUpdates,
-		headers:           context.GetHTTP().DefaultHeaders,
-		loggers:           context.GetLogging().Loggers,
-		halt:              make(chan struct{}),
-		cfg:               cfg,
+		dataDestination: dataDestination,
+		statusReporter:  statusReporter,
+		headers:         context.GetHTTP().DefaultHeaders,
+		loggers:         context.GetLogging().Loggers,
+		halt:            make(chan struct{}),
+		cfg:             cfg,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -193,7 +196,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					Message: err.Error(),
 					Time:    time.Now(),
 				}
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 
 				shouldRestart = true // scenario 1 in error handling comments at top of file
 				processedEvent = false
@@ -273,12 +276,12 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				for _, update := range updates {
 					switch u := update.(type) {
 					case datasource.PatchData:
-						if !sp.dataSourceUpdates.Upsert(u.Kind, u.Key, u.Data) {
+						if !sp.dataDestination.Upsert(u.Kind, u.Key, u.Data) {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 							storeUpdateFailed("streaming update of " + u.Key)
 						}
 					case datasource.PutData:
-						if sp.dataSourceUpdates.Init(u.Data) {
+						if sp.dataDestination.Init(u.Data) {
 							sp.setInitializedAndNotifyClient(true, closeWhenReady)
 						} else {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
@@ -287,7 +290,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 						}
 					case datasource.DeleteData:
 						deletedItem := ldstoretypes.ItemDescriptor{Version: u.Version, Item: nil}
-						if !sp.dataSourceUpdates.Upsert(u.Kind, u.Key, deletedItem) {
+						if !sp.dataDestination.Upsert(u.Kind, u.Key, deletedItem) {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 							storeUpdateFailed("streaming deletion of " + u.Key)
 						}
@@ -302,7 +305,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			}
 
 			if processedEvent {
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 			}
 			if shouldRestart {
 				stream.Restart()
@@ -322,7 +325,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
 			reqErr,
 		)
-		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{
+		sp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{
 			Kind:    interfaces.DataSourceErrorKindUnknown,
 			Message: reqErr.Error(),
 			Time:    time.Now(),
@@ -366,10 +369,10 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			)
 			if recoverable {
 				sp.logConnectionStarted()
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
-			sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
+			sp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
 
@@ -385,7 +388,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			Message: err.Error(),
 			Time:    time.Now(),
 		}
-		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+		sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		sp.logConnectionStarted()
 		return es.StreamErrorHandlerResult{CloseNow: false}
 	}
@@ -446,7 +449,7 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		close(sp.halt)
-		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
+		sp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	})
 	return nil
 }

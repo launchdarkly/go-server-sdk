@@ -163,16 +163,6 @@ func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
-func (s *Store) UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo) {
-	//TODO: although DataSourceUpdateSink is where data is pushed to the store by the data source, it doesn't really
-	// make sense to have it also be the place that status updates are received. It only cares whether data has
-	// *ever* been received, and that is already known by the store.
-	// This should probably be refactored so that the data source takes a separate injected dependency for the
-	// status updates.
-	s.loggers.Info("fdv2_store: swallowing status update (", newState, ", ", newError, ")")
-}
-
-// nolint:revive // Standard DataSourceUpdateSink method
 func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
