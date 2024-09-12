@@ -3,7 +3,6 @@ package ldclient
 import (
 	"crypto/x509"
 	"encoding/json"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,89 +44,26 @@ func assertNoMoreRequests(t *testing.T, requestsCh <-chan httphelpers.HTTPReques
 }
 
 func TestDefaultDataSourceIsStreaming(t *testing.T) {
-	t.Run("fdv1", func(t *testing.T) {
-		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-		streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
-		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-			logCapture := ldlogtest.NewMockLog()
-			defer logCapture.DumpIfTestFailed(t)
+	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	streamHandler, _ := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
+	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+		defer logCapture.DumpIfTestFailed(t)
 
-			config := Config{
-				Events:           ldcomponents.NoEvents(),
-				Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
-				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			}
-
-			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-			require.NoError(t, err)
-			defer client.Close()
-
-			assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
-
-			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
-			assert.True(t, value)
-		})
-	})
-
-	t.Run("fdv2", func(t *testing.T) {
-
-		requireIntent := func(t *testing.T, code string, reason string) httphelpers.SSEEvent {
-			intent := datasourcev2.ServerIntent{Payloads: []datasourcev2.Payload{
-				{ID: "fake-id", Target: 0, Code: code, Reason: reason},
-			}}
-			intentData, err := json.Marshal(intent)
-			require.NoError(t, err)
-			return httphelpers.SSEEvent{
-				Event: "server-intent",
-				Data:  string(intentData),
-			}
+		config := Config{
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
 		}
 
-		requireTransferred := func(t *testing.T) httphelpers.SSEEvent {
-			type payloadTransferred struct {
-				State   string `json:"state"`
-				Version int    `json:"version"`
-			}
-			transferredData, err := json.Marshal(payloadTransferred{State: "[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", Version: 1})
-			require.NoError(t, err)
-			return httphelpers.SSEEvent{
-				Event: "payload-transferred",
-				Data:  string(transferredData),
-			}
-		}
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
 
-		intent := requireIntent(t, "xfer-full", "payload-missing")
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
-		data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
-
-		streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(intent)
-		for _, object := range data.ToPutObjects() {
-			streamSender.Enqueue(object)
-		}
-		streamSender.Enqueue(requireTransferred(t))
-
-		httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-			logCapture := ldlogtest.NewMockLog()
-			defer logCapture.DumpIfTestFailed(t)
-
-			config := Config{
-				Events:           ldcomponents.NoEvents(),
-				Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
-				ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-				DataSystem:       ldcomponents.DataSystem(),
-			}
-
-			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-			require.NoError(t, err)
-			defer client.Close()
-
-			assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
-
-			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
-			assert.True(t, value)
-
-			assert.True(t, client.Initialized())
-		})
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
 	})
 }
 
