@@ -179,14 +179,16 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 
 func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *int {
 	for _, initializer := range f.initializers {
+		f.loggers.Infof("Attempting initialization via %s", initializer.Name())
 		payload, err := initializer.Fetch(ctx)
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
 		if err != nil {
-			// TODO: log that this initializer failed
+			f.loggers.Warnf("Initializer %s failed: %v", initializer, err)
 			continue
 		}
+		f.loggers.Info("Initialized via %s", initializer.Name())
 		f.store.Init(payload.Data)
 		f.store.SwapToMemory(payload.Authoritative)
 		f.readyOnce.Do(func() {
