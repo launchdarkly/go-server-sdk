@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"net/http"
 	"net/url"
 	"strings"
@@ -281,7 +282,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 							storeUpdateFailed("streaming update of " + u.Key)
 						}
 					case datasource.PutData:
-						if sp.dataDestination.Init(u.Data) {
+						if sp.dataDestination.Init(u.Data, datastatus.Authoritative) {
 							sp.setInitializedAndNotifyClient(true, closeWhenReady)
 						} else {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source

@@ -36,7 +36,7 @@ type FDv2 struct {
 	secondarySync subsystems.DataSynchronizer
 
 	// Whether the SDK should make use of persistent store/initializers/synchronizers or not.
-	offline bool
+	disabled bool
 
 	loggers ldlog.Loggers
 
@@ -65,14 +65,7 @@ type FDv2 struct {
 	dataSourceStatusProvider *dataStatusProvider
 }
 
-type nullStatusReporter struct {
-}
-
-func (n *nullStatusReporter) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
-	// no-op
-}
-
-func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
+func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
 
 	store := NewStore(clientContext.GetLogging().Loggers)
 
@@ -82,23 +75,8 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 		flagChangeEvent:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
 	}
 
-	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
-	clientContextCopy := *clientContext
-	clientContextCopy.DataStoreUpdateSink = dataStoreUpdateSink
-	clientContextCopy.DataDestination = store
-	clientContextCopy.DataSourceStatusReporter = &nullStatusReporter{}
-
-	cfg, err := cfgBuilder.Build(clientContextCopy)
-	if err != nil {
-		return nil, err
-	}
-
 	fdv2 := &FDv2{
 		store:                    store,
-		initializers:             cfg.Initializers,
-		primarySync:              cfg.Synchronizers.Primary,
-		secondarySync:            cfg.Synchronizers.Secondary,
-		offline:                  cfg.Offline,
 		loggers:                  clientContext.GetLogging().Loggers,
 		broadcasters:             bcasters,
 		dataSourceStatusProvider: &dataStatusProvider{},
@@ -107,10 +85,26 @@ func NewFDv2(cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConf
 	// Yay circular reference.
 	fdv2.dataSourceStatusProvider.system = fdv2
 
-	if cfg.Store != nil {
+	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
+	clientContextCopy := *clientContext
+	clientContextCopy.DataStoreUpdateSink = dataStoreUpdateSink
+	clientContextCopy.DataDestination = store
+	clientContextCopy.DataSourceStatusReporter = fdv2
+
+	cfg, err := cfgBuilder.Build(clientContextCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	fdv2.initializers = cfg.Initializers
+	fdv2.primarySync = cfg.Synchronizers.Primary
+	fdv2.secondarySync = cfg.Synchronizers.Secondary
+	fdv2.disabled = disabled
+
+	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
-		store.SwapToPersistent(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
+		store.WithPersistence(cfg.Store, cfg.StoreMode, fdv2.dataStoreStatusProvider)
 	} else {
 		// If there's no persistent Store, we still need to satisfy the SDK's public interface of having
 		// a data Store status provider. So we create one that just says "I don't know what's going on".
@@ -127,7 +121,8 @@ func (n noStatusMonitoring) IsStatusMonitoringEnabled() bool {
 }
 
 func (f *FDv2) Start(closeWhenReady chan struct{}) {
-	if f.offline {
+	if f.disabled {
+		f.loggers.Infof("Data system is disabled, SDK will return application-defined default values")
 		close(closeWhenReady)
 		return
 	}
@@ -188,9 +183,8 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			f.loggers.Warnf("Initializer %s failed: %v", initializer, err)
 			continue
 		}
-		f.loggers.Info("Initialized via %s", initializer.Name())
-		f.store.Init(payload.Data)
-		f.store.SwapToMemory(payload.Authoritative)
+		f.loggers.Infof("Initialized via %s", initializer.Name())
+		f.store.Init(payload.Data, payload.Status)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -218,16 +212,6 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	for {
 		select {
 		case <-ready:
-			// SwapToMemory takes a bool representing if the data is "fresh" or not. Fresh meaning we think it's from
-			// LaunchDarkly and represents the latest available. Here, we're assuming that any data from a synchronizer
-			// is fresh (since we currently control all the synchronizer implementations.) Theoretically it could be
-			// not fresh though, like polling some database.
-
-			// TODO: this is an incorrect hack. The responsibility of this loop should be limited to
-			// calling readyOnce/close.
-			// To trigger the swapping to the in-memory Store, we need to be independently monitoring the Data Source status
-			// for "valid" status. This hack will currently swap even if the data source has failed.
-			f.store.SwapToMemory(true)
 			f.readyOnce.Do(func() {
 				close(closeWhenReady)
 			})
@@ -256,11 +240,8 @@ func (f *FDv2) Store() subsystems.ReadOnlyStore {
 	return f.store
 }
 
-func (f *FDv2) DataStatus() DataStatus {
-	if f.offline {
-		return Defaults
-	}
-	return f.store.DataStatus()
+func (f *FDv2) DataAvailability() DataAvailability {
+	return f.store.DataAvailability()
 }
 
 func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
@@ -284,7 +265,11 @@ func (f *FDv2) FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.Fla
 }
 
 func (f *FDv2) Offline() bool {
-	return f.offline
+	return f.disabled
+}
+
+func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
+
 }
 
 type dataStatusProvider struct {

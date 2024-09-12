@@ -2,6 +2,7 @@ package datasourcev2
 
 import (
 	"context"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"sync"
 	"time"
 
@@ -81,7 +82,7 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.InitialPaylo
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.InitialPayload{Data: allData, Authoritative: true, Version: nil}, nil
+	return &subsystems.InitialPayload{Data: allData, Status: datastatus.Authoritative, Version: nil}, nil
 }
 
 //nolint:revive // DataSynchronizer method.

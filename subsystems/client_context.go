@@ -100,10 +100,7 @@ func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdateSink { //nol
 }
 
 func (b BasicClientContext) GetDataDestination() DataDestination {
-	if b.DataDestination != nil {
-		return b.DataDestination
-	}
-	return b.DataSourceUpdateSink
+	return b.DataDestination
 }
 
 func (b BasicClientContext) GetDataSourceStatusReporter() DataSourceStatusReporter {

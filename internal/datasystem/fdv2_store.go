@@ -1,6 +1,7 @@
 package datasystem
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -69,7 +70,7 @@ type Store struct {
 	// data from a local file (refreshed=false), we may not want to pollute a connected Redis database with it.
 	// TODO: this could also be called "Authoritative". "It was the latest at some point.. that point being when we asked
 	// if it was the latest".
-	refreshed bool
+	availability DataAvailability
 
 	// Protects the refreshed, persistentStore, persistentStoreMode, and active fields.
 	mu sync.RWMutex
@@ -84,10 +85,10 @@ func NewStore(loggers ldlog.Loggers) *Store {
 		persistentStore:     nil,
 		persistentStoreMode: subsystems.StoreModeRead,
 		memoryStore:         datastore.NewInMemoryDataStore(loggers),
-		refreshed:           false,
+		availability:        Defaults,
 		loggers:             loggers,
 	}
-	s.SwapToMemory(false)
+	s.active = s.memoryStore
 	return s
 }
 
@@ -109,18 +110,12 @@ func (s *Store) getActive() subsystems.DataStore {
 	return s.active
 }
 
-// DataStatus returns the status of the store's data. Defaults means there is no data, Cached means there is
+// DataAvailability returns the status of the store's data. Defaults means there is no data, Cached means there is
 // data, but it's not guaranteed to be recent, and Refreshed means the data has been refreshed from the server.
-func (s *Store) DataStatus() DataStatus {
+func (s *Store) DataAvailability() DataAvailability {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.active.IsInitialized() {
-		if s.refreshed {
-			return Refreshed
-		}
-		return Cached
-	}
-	return Defaults
+	return s.availability
 }
 
 // Mirroring returns true data is being mirrored to a persistent store.
@@ -129,13 +124,20 @@ func (s *Store) mirroring() bool {
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
-func (s *Store) Init(allData []ldstoretypes.Collection) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *Store) Init(allData []ldstoretypes.Collection, dataStatus datastatus.DataStatus) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent Store.
 	// TODO: handle errors from initializing the memory or persistent stores.
-	_ = s.memoryStore.Init(allData)
+	if err := s.memoryStore.Init(allData); err == nil {
+		s.active = s.memoryStore
+		if dataStatus == datastatus.Authoritative {
+			s.availability = Refreshed
+		} else {
+			s.availability = Cached
+		}
+	}
 
 	if s.mirroring() {
 		_ = s.persistentStore.Init(allData) // TODO: insert in topo-sort order
@@ -169,31 +171,31 @@ func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider 
 	return s.persistentStoreStatusProvider
 }
 
-// SwapToPersistent exists only because of the weird way the Go SDK is configured - we need a ClientContext
+// WithPersistence exists only because of the way the SDK's configuration builders work - we need a ClientContext
 // before we can call Build to actually get the persistent store. That ClientContext requires the
 // DataStoreUpdateSink, which is what this store struct implements.
-func (s *Store) SwapToPersistent(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) {
+func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.StoreMode, statusProvider interfaces.DataStoreStatusProvider) *Store {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.persistentStore = persistent
 	s.persistentStoreMode = mode
 	s.persistentStoreStatusProvider = statusProvider
 	s.active = s.persistentStore
-}
 
-func (s *Store) SwapToMemory(isRefreshed bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.refreshed = isRefreshed
-	s.active = s.memoryStore
+	if s.persistentStore.IsInitialized() {
+		s.availability = Cached
+	} else {
+		s.availability = Defaults
+	}
+	return s
 }
 
 func (s *Store) Commit() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Note: DataStatus() will also take a read lock.
-	if s.DataStatus() == Refreshed && s.mirroring() {
+	// Note: DataAvailability() will also take a read lock.
+	if s.availability == Refreshed && s.mirroring() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
 			return err
