@@ -133,7 +133,7 @@ func (f *FDv1) Offline() bool {
 	return f.offline || f.dataSource == datasource.NewNullDataSource()
 }
 
-func (f *FDv1) DataStatus() DataStatus {
+func (f *FDv1) DataAvailability() DataAvailability {
 	if f.Offline() {
 		return Defaults
 	}

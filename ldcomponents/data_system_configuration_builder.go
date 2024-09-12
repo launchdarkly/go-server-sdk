@@ -57,12 +57,6 @@ func PersistentStoreMode(store ss.ComponentConfigurer[ss.DataStore]) *DataSystem
 	return StreamingMode().DataStore(store, ss.StoreModeReadWrite)
 }
 
-// Offline configures the SDK to evaluate flags using only the default values defined in the application code. No
-// outbound connections will be made by the SDK.
-func Offline() *DataSystemConfigurationBuilder {
-	return UnconfiguredDataSystem().Offline(true)
-}
-
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.StoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
 	d.storeMode = storeMode
@@ -77,11 +71,6 @@ func (d *DataSystemConfigurationBuilder) Initializers(initializers ...ss.Compone
 func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
 	d.secondarySyncBuilder = secondary
-	return d
-}
-
-func (d *DataSystemConfigurationBuilder) Offline(offline bool) *DataSystemConfigurationBuilder {
-	d.config.Offline = offline
 	return d
 }
 

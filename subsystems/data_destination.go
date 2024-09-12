@@ -1,6 +1,7 @@
 package subsystems
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -11,7 +12,7 @@ type DataDestination interface {
 	// and set the data source state to DataSourceStateInterrupted with an error of
 	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
 	// return false to indicate that the operation failed.
-	Init(allData []ldstoretypes.Collection) bool
+	Init(allData []ldstoretypes.Collection, status datastatus.DataStatus) bool
 
 	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
 	// updated if the existing version is less than the new version.
