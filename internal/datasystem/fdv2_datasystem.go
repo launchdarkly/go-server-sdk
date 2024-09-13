@@ -174,13 +174,13 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 
 func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *int {
 	for _, initializer := range f.initializers {
-		f.loggers.Infof("Attempting initialization via %s", initializer.Name())
+		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		payload, err := initializer.Fetch(ctx)
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
 		if err != nil {
-			f.loggers.Warnf("Initializer %s failed: %v", initializer, err)
+			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
