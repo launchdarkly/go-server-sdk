@@ -34,7 +34,8 @@ type Requester interface {
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataSourceUpdates  subsystems.DataSourceUpdateSink
+	dataDestination    subsystems.DataDestination
+	statusReporter     subsystems.DataSourceStatusReporter
 	requester          Requester
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
@@ -47,25 +48,28 @@ type PollingProcessor struct {
 // NewPollingProcessor creates the internal implementation of the polling data source.
 func NewPollingProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdateSink,
+	dataDestination subsystems.DataDestination,
+	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
 	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
-	return newPollingProcessor(context, dataSourceUpdates, httpRequester, cfg.PollInterval)
+	return newPollingProcessor(context, dataDestination, statusReporter, httpRequester, cfg.PollInterval)
 }
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdateSink,
+	dataDestination subsystems.DataDestination,
+	statusReporter subsystems.DataSourceStatusReporter,
 	requester Requester,
 	pollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
-		dataSourceUpdates: dataSourceUpdates,
-		requester:         requester,
-		pollInterval:      pollInterval,
-		loggers:           context.GetLogging().Loggers,
-		quit:              make(chan struct{}),
+		dataDestination: dataDestination,
+		statusReporter:  statusReporter,
+		requester:       requester,
+		pollInterval:    pollInterval,
+		loggers:         context.GetLogging().Loggers,
+		quit:            make(chan struct{}),
 	}
 	return pp
 }
@@ -123,9 +127,9 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, payloadVersion 
 							pollingWillRetryMessage,
 						)
 						if recoverable {
-							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+							pp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 						} else {
-							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
+							pp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 							notifyReady()
 							return
 						}
@@ -139,11 +143,11 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, payloadVersion 
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
 						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
-						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+						pp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					}
 					continue
 				}
-				pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+				pp.statusReporter.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 				pp.setInitializedOnce.Do(func() {
 					pp.isInitialized.Set(true)
 					pp.loggers.Info("First polling request successful")
@@ -163,7 +167,7 @@ func (pp *PollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		pp.dataSourceUpdates.Init(allData)
+		pp.dataDestination.Init(allData, datastatus.Authoritative)
 	}
 	return nil
 }
