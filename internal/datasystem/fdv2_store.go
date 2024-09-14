@@ -1,8 +1,9 @@
 package datasystem
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"sync"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
