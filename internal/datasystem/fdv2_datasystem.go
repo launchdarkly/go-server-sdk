@@ -63,6 +63,8 @@ type FDv2 struct {
 	dataStoreStatusProvider interfaces.DataStoreStatusProvider
 
 	dataSourceStatusProvider *dataStatusProvider
+
+	status interfaces.DataSourceStatus
 }
 
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
@@ -269,7 +271,11 @@ func (f *FDv2) Offline() bool {
 }
 
 func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
-
+	f.status = interfaces.DataSourceStatus{
+		State:      status,
+		LastError:  err,
+		StateSince: time.Now(),
+	}
 }
 
 type dataStatusProvider struct {
@@ -277,21 +283,7 @@ type dataStatusProvider struct {
 }
 
 func (d *dataStatusProvider) GetStatus() interfaces.DataSourceStatus {
-	var state interfaces.DataSourceState
-	if d.system.primarySync != nil {
-		if d.system.primarySync.IsInitialized() {
-			state = interfaces.DataSourceStateValid
-		} else {
-			state = interfaces.DataSourceStateInitializing
-		}
-	} else {
-		state = interfaces.DataSourceStateOff
-	}
-	return interfaces.DataSourceStatus{
-		State:      state,
-		StateSince: time.Now(),
-		LastError:  interfaces.DataSourceErrorInfo{},
-	}
+	return d.system.status
 }
 
 func (d *dataStatusProvider) AddStatusListener() <-chan interfaces.DataSourceStatus {

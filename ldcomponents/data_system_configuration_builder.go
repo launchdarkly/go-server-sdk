@@ -17,50 +17,50 @@ type DataSystemConfigurationBuilder struct {
 
 type DataSystemModes struct{}
 
-// DefaultMode is LaunchDarkly's recommended flag data acquisition strategy. Currently, it operates a
+// Default is LaunchDarkly's recommended flag data acquisition strategy. Currently, it operates a
 // two-phase method for obtaining data: first, it requests data from LaunchDarkly's global CDN. Then, it initiates
 // a streaming connection to LaunchDarkly's Flag Delivery services to receive real-time updates. If
 // the streaming connection is interrupted for an extended period of time, the SDK will automatically fall back
 // to polling the global CDN for updates.
-func (d *DataSystemModes) DefaultMode() *DataSystemConfigurationBuilder {
-	return d.CustomMode().
+func (d *DataSystemModes) Default() *DataSystemConfigurationBuilder {
+	return d.Custom().
 		Initializers(PollingDataSourceV2().AsInitializer()).Synchronizers(StreamingDataSourceV2(), PollingDataSourceV2())
 }
 
-// StreamingMode configures the SDK to efficiently streams flag/segment data in the background,
+// Streaming configures the SDK to efficiently streams flag/segment data in the background,
 // allowing evaluations to operate on the latest data with no additional latency.
-func (d *DataSystemModes) StreamingMode() *DataSystemConfigurationBuilder {
-	return d.CustomMode().Synchronizers(StreamingDataSourceV2(), nil)
+func (d *DataSystemModes) Streaming() *DataSystemConfigurationBuilder {
+	return d.Custom().Synchronizers(StreamingDataSourceV2(), nil)
 }
 
-// PollingMode configures the SDK to regularly poll an endpoint for flag/segment data in the background.
+// Polling configures the SDK to regularly poll an endpoint for flag/segment data in the background.
 // This is less efficient than streaming, but may be necessary in some network environments.
-func (d *DataSystemModes) PollingMode() *DataSystemConfigurationBuilder {
-	return d.CustomMode().Synchronizers(PollingDataSourceV2(), nil)
+func (d *DataSystemModes) Polling() *DataSystemConfigurationBuilder {
+	return d.Custom().Synchronizers(PollingDataSourceV2(), nil)
 }
 
-// DaemonMode configures the SDK to read from a persistent store integration that is populated by Relay Proxy
+// Daemon configures the SDK to read from a persistent store integration that is populated by Relay Proxy
 // or other SDKs. The SDK will not connect to LaunchDarkly. In this mode, the SDK never writes to the data store.
-func (d *DataSystemModes) DaemonMode(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-	return d.CustomMode().DataStore(store, ss.StoreModeRead)
+func (d *DataSystemModes) Daemon(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+	return d.Custom().DataStore(store, ss.StoreModeRead)
 }
 
-// PersistentStoreMode is similar to DefaultMode, with the addition of a
+// PersistentStore is similar to Default, with the addition of a
 // persistent store integration. Before data has arrived from LaunchDarkly, the SDK is able to
 // evaluate flags using data from the persistent store. Once fresh data is available, the SDK
 // will no longer read from the persistent store, although it will keep it up-to-date.
-func (d *DataSystemModes) PersistentStoreMode(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-	return d.DefaultMode().DataStore(store, ss.StoreModeReadWrite)
+func (d *DataSystemModes) PersistentStore(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
+	return d.Default().DataStore(store, ss.StoreModeReadWrite)
 }
 
-// CustomMode returns a builder suitable for creating a custom data acquisition strategy. You may configure
+// Custom returns a builder suitable for creating a custom data acquisition strategy. You may configure
 // how the SDK uses a Persistent Store, how the SDK obtains an initial set of data, and how the SDK keeps data up-to-date.
-func (d *DataSystemModes) CustomMode() *DataSystemConfigurationBuilder {
+func (d *DataSystemModes) Custom() *DataSystemConfigurationBuilder {
 	return &DataSystemConfigurationBuilder{}
 }
 
 // DataSystem provides a high-level selection of the SDK's data acquisition strategy. Use the returned builder to select
-// a mode, or to create a custom data acquisition strategy. To use LaunchDarkly's recommended mode, use DefaultMode.
+// a mode, or to create a custom data acquisition strategy. To use LaunchDarkly's recommended mode, use Default.
 func DataSystem() *DataSystemModes {
 	return &DataSystemModes{}
 }
