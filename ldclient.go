@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasystem"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
@@ -23,11 +26,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/bigsegments"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/hooks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 )
 
@@ -67,6 +67,30 @@ const (
 	migrationVarExFuncName = "LDClient.MigrationVariationCtx"
 )
 
+// The dataSystem interface represents the requirements for the client to retrieve data necessary
+// for evaluations, as well as the related status updates related to the data.
+type dataSystem interface {
+	DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus]
+	DataSourceStatusProvider() interfaces.DataSourceStatusProvider
+	DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus]
+	DataStoreStatusProvider() interfaces.DataStoreStatusProvider
+	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
+
+	// Start starts the data system; the given channel will be closed when the system has reached an initial state
+	// (either permanently failed, e.g. due to bad auth, or succeeded, where Initialized() == true).
+	Start(closeWhenReady chan struct{})
+	// Stop halts the data system. Should be called when the client is closed to stop any long running operations.
+	Stop() error
+
+	Store() subsystems.ReadOnlyStore
+
+	DataAvailability() datasystem.DataAvailability
+}
+
+var (
+	_ dataSystem = &datasystem.FDv1{}
+)
+
 // LDClient is the LaunchDarkly client.
 //
 // This object evaluates feature flags, generates analytics events, and communicates with
@@ -86,14 +110,8 @@ type LDClient struct {
 	sdkKey                           string
 	loggers                          ldlog.Loggers
 	eventProcessor                   ldevents.EventProcessor
-	dataSource                       subsystems.DataSource
-	store                            subsystems.DataStore
 	evaluator                        ldeval.Evaluator
-	dataSourceStatusBroadcaster      *internal.Broadcaster[interfaces.DataSourceStatus]
-	dataSourceStatusProvider         interfaces.DataSourceStatusProvider
-	dataStoreStatusBroadcaster       *internal.Broadcaster[interfaces.DataStoreStatus]
-	dataStoreStatusProvider          interfaces.DataStoreStatusProvider
-	flagChangeEventBroadcaster       *internal.Broadcaster[interfaces.FlagChangeEvent]
+	dataSystem                       dataSystem
 	flagTracker                      interfaces.FlagTracker
 	bigSegmentStoreStatusBroadcaster *internal.Broadcaster[interfaces.BigSegmentStoreStatus]
 	bigSegmentStoreStatusProvider    interfaces.BigSegmentStoreStatusProvider
@@ -222,19 +240,11 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.offline = config.Offline
 
-	client.dataStoreStatusBroadcaster = internal.NewBroadcaster[interfaces.DataStoreStatus]()
-	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(client.dataStoreStatusBroadcaster)
-	storeFactory := config.DataStore
-	if storeFactory == nil {
-		storeFactory = ldcomponents.InMemoryDataStore()
-	}
-	clientContextWithDataStoreUpdateSink := clientContext
-	clientContextWithDataStoreUpdateSink.DataStoreUpdateSink = dataStoreUpdateSink
-	store, err := storeFactory.Build(clientContextWithDataStoreUpdateSink)
+	system, err := datasystem.NewFDv1(config.Offline, config.DataStore, config.DataSource, clientContext)
 	if err != nil {
 		return nil, err
 	}
-	client.store = store
+	client.dataSystem = system
 
 	bigSegments := config.BigSegments
 	if bigSegments == nil {
@@ -269,7 +279,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		)
 	}
 
-	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(store, loggers)
+	// TODO: We can't actually pass STore() here because it wont' swap between the active ones.
+	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(client.dataSystem.Store(), loggers)
 	evalOptions := []ldeval.EvaluatorOption{
 		ldeval.EvaluatorOptionErrorLogger(client.loggers.ForLevel(ldlog.Error)),
 	}
@@ -277,19 +288,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		evalOptions = append(evalOptions, ldeval.EvaluatorOptionBigSegmentProvider(client.bigSegmentStoreWrapper))
 	}
 	client.evaluator = ldeval.NewEvaluatorWithOptions(dataProvider, evalOptions...)
-
-	client.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(store, dataStoreUpdateSink)
-
-	client.dataSourceStatusBroadcaster = internal.NewBroadcaster[interfaces.DataSourceStatus]()
-	client.flagChangeEventBroadcaster = internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-	dataSourceUpdateSink := datasource.NewDataSourceUpdateSinkImpl(
-		store,
-		client.dataStoreStatusProvider,
-		client.dataSourceStatusBroadcaster,
-		client.flagChangeEventBroadcaster,
-		clientContext.GetLogging().LogDataSourceOutageAsErrorAfter,
-		loggers,
-	)
 
 	client.eventProcessor, err = eventProcessorFactory.Build(clientContext)
 	if err != nil {
@@ -306,18 +304,8 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	// frequently, it won't be causing an allocation each time.
 	client.withEventsDisabled = newClientEventsDisabledDecorator(client)
 
-	dataSource, err := createDataSource(config, clientContext, dataSourceUpdateSink)
-	client.dataSource = dataSource
-	if err != nil {
-		return nil, err
-	}
-	client.dataSourceStatusProvider = datasource.NewDataSourceStatusProviderImpl(
-		client.dataSourceStatusBroadcaster,
-		dataSourceUpdateSink,
-	)
-
 	client.flagTracker = internal.NewFlagTrackerImpl(
-		client.flagChangeEventBroadcaster,
+		client.dataSystem.FlagChangeEventBroadcaster(),
 		func(flagKey string, context ldcontext.Context, defaultValue ldvalue.Value) ldvalue.Value {
 			value, _ := client.JSONVariation(flagKey, context, defaultValue)
 			return value
@@ -327,8 +315,9 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	client.hookRunner = hooks.NewRunner(loggers, config.Hooks)
 
 	clientValid = true
-	client.dataSource.Start(closeWhenReady)
-	if waitFor > 0 && client.dataSource != datasource.NewNullDataSource() {
+
+	client.dataSystem.Start(closeWhenReady)
+	if waitFor > 0 && !client.offline {
 		loggers.Infof("Waiting up to %d milliseconds for LaunchDarkly client to start...",
 			waitFor/time.Millisecond)
 
@@ -343,7 +332,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		for {
 			select {
 			case <-closeWhenReady:
-				if !client.dataSource.IsInitialized() {
+				if client.dataSystem.DataAvailability() != datasystem.Refreshed {
 					loggers.Warn("LaunchDarkly client initialization failed")
 					return client, ErrInitializationFailed
 				}
@@ -359,26 +348,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	}
 	go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
 	return client, nil
-}
-
-func createDataSource(
-	config Config,
-	context *internal.ClientContextImpl,
-	dataSourceUpdateSink subsystems.DataSourceUpdateSink,
-) (subsystems.DataSource, error) {
-	if config.Offline {
-		context.GetLogging().Loggers.Info("Starting LaunchDarkly client in offline mode")
-		dataSourceUpdateSink.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-		return datasource.NewNullDataSource(), nil
-	}
-	factory := config.DataSource
-	if factory == nil {
-		// COVERAGE: can't cause this condition in unit tests because it would try to connect to production LD
-		factory = ldcomponents.StreamingDataSource()
-	}
-	contextCopy := *context
-	contextCopy.BasicClientContext.DataSourceUpdateSink = dataSourceUpdateSink
-	return factory.Build(&contextCopy)
 }
 
 // MigrationVariation returns the migration stage of the migration feature flag for the given evaluation context.
@@ -583,13 +552,18 @@ func (client *LDClient) SecureModeHash(context ldcontext.Context) string {
 // this does not guarantee that the flags are up to date; if you need to know its status in more detail, use
 // [LDClient.GetDataSourceStatusProvider].
 //
+// Additionally, if the client was configured to be offline, this will always return true.
+//
 // If this value is false, it means the client has not yet connected to LaunchDarkly, or has permanently
 // failed. See [MakeClient] for the reasons that this could happen. In this state, feature flag evaluations
 // will always return default values-- unless you are using a database integration and feature flags had
 // already been stored in the database by a successfully connected SDK in the past. You can use
 // [LDClient.GetDataSourceStatusProvider] to get information on errors, or to wait for a successful retry.
 func (client *LDClient) Initialized() bool {
-	return client.dataSource.IsInitialized()
+	if client.offline {
+		return true
+	}
+	return client.dataSystem.DataAvailability() != datasystem.Defaults
 }
 
 // Close shuts down the LaunchDarkly client. After calling this, the LaunchDarkly client
@@ -604,21 +578,11 @@ func (client *LDClient) Close() error {
 	if client.eventProcessor != nil {
 		_ = client.eventProcessor.Close()
 	}
-	if client.dataSource != nil {
-		_ = client.dataSource.Close()
+
+	if client.dataSystem != nil {
+		_ = client.dataSystem.Stop()
 	}
-	if client.store != nil {
-		_ = client.store.Close()
-	}
-	if client.dataSourceStatusBroadcaster != nil {
-		client.dataSourceStatusBroadcaster.Close()
-	}
-	if client.dataStoreStatusBroadcaster != nil {
-		client.dataStoreStatusBroadcaster.Close()
-	}
-	if client.flagChangeEventBroadcaster != nil {
-		client.flagChangeEventBroadcaster.Close()
-	}
+
 	if client.bigSegmentStoreStatusBroadcaster != nil {
 		client.bigSegmentStoreStatusBroadcaster.Close()
 	}
@@ -683,8 +647,8 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	if client.IsOffline() {
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
-	} else if !client.Initialized() {
-		if client.store.IsInitialized() {
+	} else if client.dataSystem.DataAvailability() != datasystem.Refreshed {
+		if client.dataSystem.DataAvailability() == datasystem.Cached {
 			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
 		} else {
 			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
@@ -696,7 +660,7 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		return flagstate.AllFlags{}
 	}
 
-	items, err := client.store.GetAll(datakinds.Features)
+	items, err := client.dataSystem.Store().GetAll(datakinds.Features)
 	if err != nil {
 		client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return flagstate.AllFlags{}
@@ -1119,7 +1083,7 @@ func (client *LDClient) JSONVariationDetailCtx(
 //
 // See the DataSourceStatusProvider interface for more about this functionality.
 func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatusProvider {
-	return client.dataSourceStatusProvider
+	return client.dataSystem.DataSourceStatusProvider()
 }
 
 // GetDataStoreStatusProvider returns an interface for tracking the status of a persistent data store.
@@ -1131,7 +1095,7 @@ func (client *LDClient) GetDataSourceStatusProvider() interfaces.DataSourceStatu
 //
 // See the DataStoreStatusProvider interface for more about this functionality.
 func (client *LDClient) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
-	return client.dataStoreStatusProvider
+	return client.dataSystem.DataStoreStatusProvider()
 }
 
 // GetFlagTracker returns an interface for tracking changes in feature flag configurations.
@@ -1279,15 +1243,15 @@ func (client *LDClient) evaluateInternal(
 		return ldeval.Result{Detail: detail}, flag, err
 	}
 
-	if !client.Initialized() {
-		if client.store.IsInitialized() {
+	if client.dataSystem.DataAvailability() != datasystem.Refreshed {
+		if client.dataSystem.DataAvailability() == datasystem.Cached {
 			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store") //nolint:lll
 		} else {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
 	}
 
-	itemDesc, storeErr := client.store.Get(datakinds.Features, key)
+	itemDesc, storeErr := client.dataSystem.Store().Get(datakinds.Features, key)
 
 	if storeErr != nil {
 		client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)
