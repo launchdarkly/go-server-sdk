@@ -67,8 +67,8 @@ const (
 	migrationVarExFuncName = "LDClient.MigrationVariationCtx"
 )
 
-// The dataSystem interface represents the requirements for the client to retrieve data necessary
-// for evaluations, as well as the related status updates related to the data.
+// dataSystem represents the requirements the client has for storing/retrieving/detecting changes related
+// to the SDK's data model.
 type dataSystem interface {
 	DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus]
 	DataSourceStatusProvider() interfaces.DataSourceStatusProvider
@@ -79,11 +79,14 @@ type dataSystem interface {
 	// Start starts the data system; the given channel will be closed when the system has reached an initial state
 	// (either permanently failed, e.g. due to bad auth, or succeeded, where Initialized() == true).
 	Start(closeWhenReady chan struct{})
-	// Stop halts the data system. Should be called when the client is closed to stop any long running operations.
+
+	// Stop halts the data system. Should be called when the client is closed to stop any long-running operations.
 	Stop() error
 
+	// Store returns a read-only accessor for the data model.
 	Store() subsystems.ReadOnlyStore
 
+	// DataAvailability indicates what form of data is available.
 	DataAvailability() datasystem.DataAvailability
 }
 
@@ -279,7 +282,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		)
 	}
 
-	// TODO: We can't actually pass STore() here because it wont' swap between the active ones.
 	dataProvider := ldstoreimpl.NewDataStoreEvaluatorDataProvider(client.dataSystem.Store(), loggers)
 	evalOptions := []ldeval.EvaluatorOption{
 		ldeval.EvaluatorOptionErrorLogger(client.loggers.ForLevel(ldlog.Error)),

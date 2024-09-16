@@ -2,6 +2,8 @@ package subsystems
 
 import "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
+// ReadOnlyStore represents a read-only data store that can be used to retrieve
+// any of the SDK's supported DataKinds.
 type ReadOnlyStore interface {
 	// Get retrieves an item from the specified collection, if available.
 	//

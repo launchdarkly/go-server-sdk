@@ -100,8 +100,8 @@ func makeTestClientWithConfigAndStore(modConfig func(*Config), populate func(sto
 	return client
 }
 
-// populateStore (which is a function) is defined here a type so that we can implement the ComponentConfigurer interface
-// on it. That way, when the SDK configures the data store, we can hook in additional logic to populate the store
+// The populateStore type exist so that we can implement the ComponentConfigurer interface
+// on it. When the SDK configures the data store, we can hook in additional logic to populate the store
 // via the callback provided in makeTestClientWithConfigAndStore.
 type populateStore func(store subsystems.DataStore)
 
