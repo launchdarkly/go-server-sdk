@@ -9,6 +9,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
+// FDv1 implements the configuration and interactions between the SDK's data store, data source, and
+// other related components.
 type FDv1 struct {
 	dataSourceStatusBroadcaster *internal.Broadcaster[interfaces.DataSourceStatus]
 	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
@@ -20,7 +22,11 @@ type FDv1 struct {
 	offline                     bool
 }
 
-func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore], dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource], clientContext *internal.ClientContextImpl) (*FDv1, error) {
+// NewFDv1 creates a new FDv1 instance from data store and data source configurers. Offline determines if the
+// client is in offline mode. If configuration is invalid, an error will be returned.
+func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore],
+	dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource],
+	clientContext *internal.ClientContextImpl) (*FDv1, error) {
 	system := &FDv1{
 		dataSourceStatusBroadcaster: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatusBroadcaster:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
@@ -63,7 +69,6 @@ func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsy
 	)
 
 	return system, nil
-
 }
 
 func createDataSource(
@@ -86,30 +91,37 @@ func createDataSource(
 	return factory.Build(&contextCopy)
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
 	return f.dataSourceStatusBroadcaster
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 	return f.dataSourceStatusProvider
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
 	return f.dataStoreStatusBroadcaster
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) DataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return f.dataStoreStatusProvider
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent] {
 	return f.flagChangeEventBroadcaster
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) Start(closeWhenReady chan struct{}) {
 	f.dataSource.Start(closeWhenReady)
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) Stop() error {
 	if f.dataSource != nil {
 		_ = f.dataSource.Close()
@@ -129,12 +141,9 @@ func (f *FDv1) Stop() error {
 	return nil
 }
 
-func (f *FDv1) Offline() bool {
-	return f.offline || f.dataSource == datasource.NewNullDataSource()
-}
-
+//nolint:revive // Data system implementation.
 func (f *FDv1) DataAvailability() DataAvailability {
-	if f.Offline() {
+	if f.offline {
 		return Defaults
 	}
 	if f.dataSource.IsInitialized() {
@@ -146,6 +155,7 @@ func (f *FDv1) DataAvailability() DataAvailability {
 	return Defaults
 }
 
+//nolint:revive // Data system implementation.
 func (f *FDv1) Store() subsystems.ReadOnlyStore {
 	return f.dataStore
 }

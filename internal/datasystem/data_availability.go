@@ -1,5 +1,6 @@
 package datasystem
 
+// DataAvailability represents the availability of data in the SDK.
 type DataAvailability string
 
 const (
