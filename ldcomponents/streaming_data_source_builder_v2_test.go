@@ -60,9 +60,11 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 
 		s := StreamingDataSourceV2()
 
-		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dsu := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		clientContext.BasicClientContext.DataDestination = dsu
+		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
@@ -81,9 +83,11 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 
 		s := StreamingDataSourceV2().InitialReconnectDelay(delay).PayloadFilter(filter)
 
-		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dsu := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		clientContext.BasicClientContext.DataDestination = dsu
+		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
