@@ -2,17 +2,18 @@ package ldcomponents
 
 import (
 	"errors"
+	"time"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"time"
 )
 
 // StreamingDataSourceBuilderV2 provides methods for configuring the streaming data source in v2 mode.
 //
-// V2 uses the next generation streaming protocol. This struct is not stable, and not subject to any backwards
+// This builder is not stable, and not subject to any backwards
 // compatibility guarantees or semantic versioning. It is not suitable for production usage.
 //
 // Do not use it.
@@ -24,14 +25,14 @@ type StreamingDataSourceBuilderV2 struct {
 
 // StreamingDataSourceV2 returns a configurable factory for using streaming mode to get feature flag data.
 //
-// By default, the SDK uses a streaming connection to receive feature flag data from LaunchDarkly. To use the
-// default behavior, you do not need to call this method. However, if you want to customize the behavior of
-// the connection, call this method to obtain a builder, set its properties with the [StreamingDataSourceBuilderV2]
-// methods, and then store it in the DataSource field of [github.com/launchdarkly/go-server-sdk/v7.Config]:
+// This builder is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
 //
-//	config := ld.Config{
-//	    DataSource: ldcomponents.StreamingDataSourceV2().InitialReconnectDelay(500 * time.Millisecond),
-//	}
+// Do not use it.
+// You have been warned.
+//
+// By default, the SDK uses a streaming connection to receive feature flag data from LaunchDarkly. To use the
+// default behavior, you do not need to call this method.
 func StreamingDataSourceV2() *StreamingDataSourceBuilderV2 {
 	return &StreamingDataSourceBuilderV2{
 		initialReconnectDelay: DefaultInitialReconnectDelay,

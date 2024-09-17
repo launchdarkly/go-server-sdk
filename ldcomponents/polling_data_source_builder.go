@@ -96,7 +96,8 @@ func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subs
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
 	}
-	return datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg), nil
+	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg)
+	return pp, nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
