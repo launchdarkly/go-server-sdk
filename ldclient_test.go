@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
@@ -77,9 +79,16 @@ func makeTestClient() *LDClient {
 }
 
 func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
+	return makeTestClientWithConfigAndStore(modConfig, func(store subsystems.DataStore) {})
+}
+
+// makeTestClientWithConfigAndStore is a variant of makeTestClientWithConfig, which allows you to also pre-populate the
+// client's in-memory data store with some test data. The second argument is a callback that provides you access to the
+// store; then you can call Upsert/Init to inject data.
+func makeTestClientWithConfigAndStore(modConfig func(*Config), populate func(store subsystems.DataStore)) *LDClient {
 	config := Config{
 		Offline:    false,
-		DataStore:  ldcomponents.InMemoryDataStore(),
+		DataStore:  populateStore(populate),
 		DataSource: mocks.DataSourceThatIsAlwaysInitialized(),
 		Events:     mocks.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: &mocks.CapturingEventProcessor{}},
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
@@ -89,4 +98,15 @@ func makeTestClientWithConfig(modConfig func(*Config)) *LDClient {
 	}
 	client, _ := MakeCustomClient(testSdkKey, config, time.Duration(0))
 	return client
+}
+
+// The populateStore type exist so that we can implement the ComponentConfigurer interface
+// on it. When the SDK configures the data store, we can hook in additional logic to populate the store
+// via the callback provided in makeTestClientWithConfigAndStore.
+type populateStore func(store subsystems.DataStore)
+
+func (populate populateStore) Build(context subsystems.ClientContext) (subsystems.DataStore, error) {
+	inMemory := datastore.NewInMemoryDataStore(context.GetLogging().Loggers)
+	populate(inMemory)
+	return inMemory, nil
 }

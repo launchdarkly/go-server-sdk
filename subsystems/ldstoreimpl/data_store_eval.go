@@ -16,6 +16,6 @@ import (
 //
 // Normal use of the SDK does not require this type. It is provided for use by other LaunchDarkly
 // components that use DataStore and Evaluator separately from the SDK.
-func NewDataStoreEvaluatorDataProvider(store subsystems.DataStore, loggers ldlog.Loggers) ldeval.DataProvider {
+func NewDataStoreEvaluatorDataProvider(store subsystems.ReadOnlyStore, loggers ldlog.Loggers) ldeval.DataProvider {
 	return datastore.NewDataStoreEvaluatorDataProviderImpl(store, loggers)
 }
