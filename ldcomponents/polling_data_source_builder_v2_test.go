@@ -15,31 +15,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStreamingDataSourceV2Builder(t *testing.T) {
-	t.Run("InitialReconnectDelay", func(t *testing.T) {
-		s := StreamingDataSourceV2()
-		assert.Equal(t, DefaultInitialReconnectDelay, s.initialReconnectDelay)
+func TestPollingDataSourceV2Builder(t *testing.T) {
+	t.Run("PollInterval", func(t *testing.T) {
+		p := PollingDataSourceV2()
+		assert.Equal(t, DefaultPollInterval, p.pollInterval)
 
-		s.InitialReconnectDelay(time.Minute)
-		assert.Equal(t, time.Minute, s.initialReconnectDelay)
+		p.PollInterval(time.Hour)
+		assert.Equal(t, time.Hour, p.pollInterval)
 
-		s.InitialReconnectDelay(0)
-		assert.Equal(t, DefaultInitialReconnectDelay, s.initialReconnectDelay)
+		p.PollInterval(time.Second)
+		assert.Equal(t, DefaultPollInterval, p.pollInterval)
 
-		s.InitialReconnectDelay(-1 * time.Millisecond)
-		assert.Equal(t, DefaultInitialReconnectDelay, s.initialReconnectDelay)
+		p.forcePollInterval(time.Second)
+		assert.Equal(t, time.Second, p.pollInterval)
 	})
 
 	t.Run("PayloadFilter", func(t *testing.T) {
 		t.Run("build succeeds with no payload filter", func(t *testing.T) {
-			s := StreamingDataSourceV2()
+			s := PollingDataSourceV2()
 			clientContext := makeTestContextWithBaseURIs("base")
 			_, err := s.Build(clientContext)
 			assert.NoError(t, err)
 		})
 
 		t.Run("build succeeds with non-empty payload filter", func(t *testing.T) {
-			s := StreamingDataSourceV2()
+			s := PollingDataSourceV2()
 			clientContext := makeTestContextWithBaseURIs("base")
 			s.PayloadFilter("microservice-1")
 			_, err := s.Build(clientContext)
@@ -47,51 +47,49 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 		})
 
 		t.Run("build fails with empty payload filter", func(t *testing.T) {
-			s := StreamingDataSourceV2()
+			s := PollingDataSourceV2()
 			clientContext := makeTestContextWithBaseURIs("base")
 			s.PayloadFilter("")
 			_, err := s.Build(clientContext)
 			assert.Error(t, err)
 		})
 	})
-
 	t.Run("CreateDefaultDataSource", func(t *testing.T) {
 		baseURI := "base"
 
-		s := StreamingDataSourceV2()
+		p := PollingDataSourceV2()
 
 		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
 		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
-		ds, err := s.Build(clientContext)
+		ds, err := p.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()
 
-		sp := ds.(*datasourcev2.StreamProcessor)
-		assert.Equal(t, baseURI, sp.GetBaseURI())
-		assert.Equal(t, DefaultInitialReconnectDelay, sp.GetInitialReconnectDelay())
-		assert.Equal(t, "", sp.GetFilterKey())
+		pp := ds.(*datasourcev2.PollingProcessor)
+		assert.Equal(t, baseURI, pp.GetBaseURI())
+		assert.Equal(t, DefaultPollInterval, pp.GetPollInterval())
 	})
 
 	t.Run("CreateCustomizedDataSource", func(t *testing.T) {
 		baseURI := "base"
-		delay := time.Hour
+		interval := time.Hour
 		filter := "microservice-1"
 
-		s := StreamingDataSourceV2().InitialReconnectDelay(delay).PayloadFilter(filter)
+		p := PollingDataSourceV2().PollInterval(interval).PayloadFilter(filter)
 
 		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		clientContext := makeTestContextWithBaseURIs(baseURI)
 		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
-		ds, err := s.Build(clientContext)
+		ds, err := p.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()
 
-		sp := ds.(*datasourcev2.StreamProcessor)
-		assert.Equal(t, baseURI, sp.GetBaseURI())
-		assert.Equal(t, delay, sp.GetInitialReconnectDelay())
-		assert.Equal(t, filter, sp.GetFilterKey())
+		pp := ds.(*datasourcev2.PollingProcessor)
+		assert.Equal(t, baseURI, pp.GetBaseURI())
+		assert.Equal(t, interval, pp.GetPollInterval())
+		assert.Equal(t, filter, pp.GetFilterKey())
 	})
 }
