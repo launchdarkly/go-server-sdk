@@ -74,14 +74,14 @@ const (
 // DataSource interface.
 type StreamProcessor struct {
 	cfg                        datasource.StreamConfig
-	dataSourceUpdates          subsystems.DataSourceUpdateSink
+	dataDestination            subsystems.DataDestination
+	statusReporter             subsystems.DataSourceStatusReporter
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
 	isInitialized              internal.AtomicBoolean
 	halt                       chan struct{}
-	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
@@ -91,15 +91,17 @@ type StreamProcessor struct {
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
 	context subsystems.ClientContext,
-	dataSourceUpdates subsystems.DataSourceUpdateSink,
+	dataDestination subsystems.DataDestination,
+	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.StreamConfig,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
-		dataSourceUpdates: dataSourceUpdates,
-		headers:           context.GetHTTP().DefaultHeaders,
-		loggers:           context.GetLogging().Loggers,
-		halt:              make(chan struct{}),
-		cfg:               cfg,
+		dataDestination: dataDestination,
+		statusReporter:  statusReporter,
+		headers:         context.GetHTTP().DefaultHeaders,
+		loggers:         context.GetLogging().Loggers,
+		halt:            make(chan struct{}),
+		cfg:             cfg,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -123,9 +125,6 @@ func (sp *StreamProcessor) IsInitialized() bool {
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	if sp.dataSourceUpdates.GetDataStoreStatusProvider().IsStatusMonitoringEnabled() {
-		sp.storeStatusCh = sp.dataSourceUpdates.GetDataStoreStatusProvider().AddStatusListener()
-	}
 	go sp.subscribe(closeWhenReady)
 }
 
@@ -183,21 +182,16 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					Message: err.Error(),
 					Time:    time.Now(),
 				}
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 
 				shouldRestart = true // scenario 1 in error handling comments at top of file
 				processedEvent = false
 			}
 
 			storeUpdateFailed := func(updateDesc string) {
-				if sp.storeStatusCh != nil {
-					sp.loggers.Errorf("Failed to store %s in data store; will try again once data store is working", updateDesc)
-					// scenario 2a in error handling comments at top of file
-				} else {
-					sp.loggers.Errorf("Failed to store %s in data store; will restart stream until successful", updateDesc)
-					shouldRestart = true // scenario 2b
-					processedEvent = false
-				}
+				sp.loggers.Errorf("Failed to store %s in data store; will restart stream until successful", updateDesc)
+				shouldRestart = true // scenario 2b
+				processedEvent = false
 			}
 
 			switch event.Event() {
@@ -266,18 +260,18 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				for _, update := range updates {
 					switch u := update.(type) {
 					case datasource.PatchData:
-						if !sp.dataSourceUpdates.Upsert(u.Kind, u.Key, u.Data) {
+						if !sp.dataDestination.Upsert(u.Kind, u.Key, u.Data) {
 							storeUpdateFailed("streaming update of " + u.Key)
 						}
 					case datasource.PutData:
-						if sp.dataSourceUpdates.Init(u.Data) {
+						if sp.dataDestination.Init(u.Data, nil) {
 							sp.setInitializedAndNotifyClient(true, closeWhenReady)
 						} else {
 							storeUpdateFailed("initial streaming data")
 						}
 					case datasource.DeleteData:
 						deletedItem := ldstoretypes.ItemDescriptor{Version: u.Version, Item: nil}
-						if !sp.dataSourceUpdates.Upsert(u.Kind, u.Key, deletedItem) {
+						if !sp.dataDestination.Upsert(u.Kind, u.Key, deletedItem) {
 							storeUpdateFailed("streaming deletion of " + u.Key)
 						}
 
@@ -291,28 +285,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			}
 
 			if processedEvent {
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 			}
 			if shouldRestart {
 				stream.Restart()
-			}
-
-		case newStoreStatus := <-sp.storeStatusCh:
-			if sp.loggers.IsDebugEnabled() {
-				sp.loggers.Debugf("StreamProcessorV2 received store status update: %+v", newStoreStatus)
-			}
-			if newStoreStatus.Available {
-				// The store has just transitioned from unavailable to available (scenario 2a above)
-				if newStoreStatus.NeedsRefresh {
-					// The store is telling us that it can't guarantee that all of the latest data was cached.
-					// So we'll restart the stream to ensure a full refresh.
-					sp.loggers.Warn("Restarting stream to refresh data after data store outage")
-					stream.Restart()
-				}
-				// All of the updates were cached and have been written to the store, so we don't need to
-				// restart the stream. We just need to make sure the client knows we're initialized now
-				// (in case the initial "put" was not stored).
-				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 			}
 
 		case <-sp.halt:
@@ -329,7 +305,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
 			reqErr,
 		)
-		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{
+		sp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{
 			Kind:    interfaces.DataSourceErrorKindUnknown,
 			Message: reqErr.Error(),
 			Time:    time.Now(),
@@ -373,10 +349,10 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			)
 			if recoverable {
 				sp.logConnectionStarted()
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
-			sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
+			sp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
 
@@ -392,7 +368,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 			Message: err.Error(),
 			Time:    time.Now(),
 		}
-		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+		sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		sp.logConnectionStarted()
 		return es.StreamErrorHandlerResult{CloseNow: false}
 	}
@@ -453,10 +429,7 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
 		close(sp.halt)
-		if sp.storeStatusCh != nil {
-			sp.dataSourceUpdates.GetDataStoreStatusProvider().RemoveStatusListener(sp.storeStatusCh)
-		}
-		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
+		sp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	})
 	return nil
 }
