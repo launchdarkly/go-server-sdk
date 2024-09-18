@@ -59,9 +59,11 @@ func TestPollingDataSourceV2Builder(t *testing.T) {
 
 		p := PollingDataSourceV2()
 
-		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		clientContext.BasicClientContext.DataDestination = dd
+		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := p.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
@@ -79,9 +81,11 @@ func TestPollingDataSourceV2Builder(t *testing.T) {
 
 		p := PollingDataSourceV2().PollInterval(interval).PayloadFilter(filter)
 
-		dsu := mocks.NewMockDataSourceUpdates(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataSourceUpdateSink = dsu
+		clientContext.BasicClientContext.DataDestination = dd
+		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := p.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)

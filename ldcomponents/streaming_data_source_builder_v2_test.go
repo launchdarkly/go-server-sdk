@@ -60,10 +60,10 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 
 		s := StreamingDataSourceV2()
 
-		dsu := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataDestination = dsu
+		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
@@ -83,10 +83,10 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 
 		s := StreamingDataSourceV2().InitialReconnectDelay(delay).PayloadFilter(filter)
 
-		dsu := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataDestination = dsu
+		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
