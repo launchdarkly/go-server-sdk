@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// MockDataDestination is a mock implementation of a data destination used tests involving FDv2 data sources.
+// MockDataDestination is a mock implementation of a data destination used by tests involving FDv2 data sources.
 type MockDataDestination struct {
 	DataStore               *CapturingDataStore
 	Statuses                chan interfaces.DataSourceStatus
