@@ -193,7 +193,6 @@ func (s *Store) Commit() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Note: DataAvailability() will also take a read lock.
 	if s.availability == Refreshed && s.mirroring() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
