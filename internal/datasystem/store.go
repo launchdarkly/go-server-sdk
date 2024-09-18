@@ -34,10 +34,27 @@ import (
 //
 // We have found this to almost always be undesirable for users.
 type Store struct {
-	// Represents a remote store, like Redis. This is optional; if present, it's only used
-	// before the in-memory store is initialized.
-	persistentStore subsystems.DataStore
+	// Represents the SDK's source of truth for flag evals before initialization, or permanently if there are
+	// no initializers/synchronizers configured. This is option; if not defined, only the memoryStore is used.
+	persistentStore *persistentStore
 
+	// Represents the SDK's source of truth for flag evaluations (once initialized). Before initialization,
+	// the persistentStore may be used if configured.
+	memoryStore subsystems.DataStore
+
+	// Points to the active store. Swapped upon initialization.
+	active subsystems.DataStore
+
+	quality DataQuality
+
+	// Protects the availability, persistentStore, quality, and active fields.
+	mu sync.RWMutex
+
+	loggers ldlog.Loggers
+}
+
+type persistentStore struct {
+	impl subsystems.DataStore
 	// The persistentStore is read-only, or read-write. In read-only mode, the store
 	// is *never* written to, and only read before the in-memory store is initialized.
 	// This is equivalent to the concept of "daemon mode".
@@ -45,8 +62,7 @@ type Store struct {
 	// In read-write mode, data from initializers/synchronizers is written to the store
 	// as it is received. This is equivalent to the normal "persistent store" configuration
 	// that an SDK can use to collaborate with zero or more other SDKs with a (possibly shared) database.
-	persistentStoreMode subsystems.DataStoreMode
-
+	mode subsystems.DataStoreMode
 	// This exists as a quirk of the DataSourceUpdateSink interface, which store implements. The DataSourceUpdateSink
 	// has a method to return a DataStoreStatusProvider so that a DataSource can monitor the state of the store. This
 	// was originally used in fdv1 to know when the store went offline/online, so that data could be committed back
@@ -54,38 +70,17 @@ type Store struct {
 	// data source doesn't need any knowledge of it. We can delete this piece of infrastructure when we no longer
 	// need to support fdv1 (or we could refactor the fdv2 data sources to use a different set of interfaces that don't
 	// require this.)
-	persistentStoreStatusProvider interfaces.DataStoreStatusProvider
-
-	// Represents the store that all flag/segment data queries are served from after data is received from
-	// initializers/synchronizers. Before the in-memory store is initialized, queries are served from the
-	// persistentStore (if configured).
-	memoryStore subsystems.DataStore
-
-	active subsystems.DataStore
-
-	// Whether the memoryStore's data should be considered authoritative, or fresh - that is, if it is known
-	// to be the latest data. Data from a baked in file for example would not be considered refreshed. The purpose
-	// of this is to know if we should commit data to the persistentStore. For example, if we initialize with "stale"
-	// data from a local file (refreshed=false), we may not want to pollute a connected Redis database with it.
-	// TODO: this could also be called "Authoritative". "It was the latest at some point.. that point being when we asked
-	// if it was the latest".
-	availability DataAvailability
-
-	// Protects the refreshed, persistentStore, persistentStoreMode, and active fields.
-	mu sync.RWMutex
-
-	loggers ldlog.Loggers
+	statusProvider interfaces.DataStoreStatusProvider
 }
 
 // NewStore creates a new store. By default the store is in-memory. To add a persistent store, call SwapToPersistent. Ensure this is
 // called at configuration time, only once and before the store is ever accessed.
 func NewStore(loggers ldlog.Loggers) *Store {
 	s := &Store{
-		persistentStore:     nil,
-		persistentStoreMode: subsystems.DataStoreModeRead,
-		memoryStore:         datastore.NewInMemoryDataStore(loggers),
-		availability:        Defaults,
-		loggers:             loggers,
+		persistentStore: nil,
+		memoryStore:     datastore.NewInMemoryDataStore(loggers),
+		quality:         QualityNone,
+		loggers:         loggers,
 	}
 	s.active = s.memoryStore
 	return s
@@ -96,7 +91,7 @@ func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.persistentStore != nil {
-		return s.persistentStore.Close()
+		return s.persistentStore.impl.Close()
 	}
 	return nil
 }
@@ -109,17 +104,10 @@ func (s *Store) getActive() subsystems.DataStore {
 	return s.active
 }
 
-// DataAvailability returns the status of the store's data. Defaults means there is no data, Cached means there is
-// data, but it's not guaranteed to be recent, and Refreshed means the data has been refreshed from the server.
-func (s *Store) DataAvailability() DataAvailability {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.availability
-}
-
 // Mirroring returns true data is being mirrored to a persistent store.
 func (s *Store) mirroring() bool {
-	return s.persistentStore != nil && s.persistentStoreMode == subsystems.DataStoreModeReadWrite
+	return s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite &&
+		s.quality == QualityTrusted
 }
 
 // nolint:revive // Standard DataSourceUpdateSink method
@@ -131,15 +119,11 @@ func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int) boo
 	// TODO: handle errors from initializing the memory or persistent stores.
 	if err := s.memoryStore.Init(allData); err == nil {
 		s.active = s.memoryStore
-		if payloadVersion != nil {
-			s.availability = Refreshed
-		} else {
-			s.availability = Cached
-		}
+		s.quality = QualityTrusted
 	}
 
 	if s.mirroring() {
-		_ = s.persistentStore.Init(allData) // TODO: insert in topo-sort order
+		_ = s.persistentStore.impl.Init(allData) // TODO: insert in topo-sort order
 	}
 	return true
 }
@@ -158,7 +142,7 @@ func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 	_, memErr = s.memoryStore.Upsert(kind, key, item)
 
 	if s.mirroring() {
-		_, persErr = s.persistentStore.Upsert(kind, key, item)
+		_, persErr = s.persistentStore.impl.Upsert(kind, key, item)
 	}
 	return memErr == nil && persErr == nil
 }
@@ -167,7 +151,10 @@ func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.persistentStoreStatusProvider
+	if s.persistentStore == nil {
+		return nil
+	}
+	return s.persistentStore.statusProvider
 }
 
 // WithPersistence exists only because of the way the SDK's configuration builders work - we need a ClientContext
@@ -176,16 +163,15 @@ func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider 
 func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode, statusProvider interfaces.DataStoreStatusProvider) *Store {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.persistentStore = persistent
-	s.persistentStoreMode = mode
-	s.persistentStoreStatusProvider = statusProvider
-	s.active = s.persistentStore
 
-	if s.persistentStore.IsInitialized() {
-		s.availability = Cached
-	} else {
-		s.availability = Defaults
+	s.persistentStore = &persistentStore{
+		impl:           persistent,
+		mode:           mode,
+		statusProvider: statusProvider,
 	}
+
+	s.active = s.persistentStore.impl
+	s.quality = QualityUntrusted
 	return s
 }
 
@@ -193,7 +179,7 @@ func (s *Store) Commit() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.availability == Refreshed && s.mirroring() {
+	if s.mirroring() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
 			return err
@@ -202,7 +188,7 @@ func (s *Store) Commit() error {
 		if err != nil {
 			return err
 		}
-		return s.persistentStore.Init([]ldstoretypes.Collection{
+		return s.persistentStore.impl.Init([]ldstoretypes.Collection{
 			{Kind: datakinds.Features, Items: flags},
 			{Kind: datakinds.Segments, Items: segments},
 		})
@@ -220,4 +206,18 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 
 func (s *Store) IsInitialized() bool {
 	return s.getActive().IsInitialized()
+}
+
+type DataQuality int
+
+const (
+	QualityNone      = DataQuality(0)
+	QualityUntrusted = DataQuality(1)
+	QualityTrusted   = DataQuality(2)
+)
+
+func (s *Store) DataQuality() DataQuality {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.quality
 }
