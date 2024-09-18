@@ -23,7 +23,7 @@ type DataSourceStatusReporter interface {
 	// registered listeners.
 	//
 	// A special case is that if newState is DataSourceStateInterrupted, but the previous state was
-	// but the previous state was DataSourceStateInitializing, the state will remain at Initializing
-	// because Interrupted is only meaningful after a successful startup.
+	// DataSourceStateInitializing, the state will remain at Initializing because Interrupted is
+	// only meaningful after a successful startup.
 	UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo)
 }
