@@ -1,8 +1,6 @@
 package datasourcev2
 
 import (
-	"context"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"sync"
 	"time"
 
@@ -167,7 +165,7 @@ func (pp *PollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		pp.dataDestination.Init(allData, datastatus.Authoritative)
+		pp.dataDestination.Init(allData, nil)
 	}
 	return nil
 }

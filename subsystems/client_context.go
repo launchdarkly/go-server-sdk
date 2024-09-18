@@ -46,10 +46,12 @@ type ClientContext interface {
 	// returns nil.
 	GetDataStoreUpdateSink() DataStoreUpdateSink
 
-	// FDV2 method
+	// GetDataDestination is a FDV2 method, do not use. Not subject to semantic versioning.
+	// This method is a replacement for GetDataSourceUpdateSink when the SDK is in FDv2 mode.
 	GetDataDestination() DataDestination
 
-	// FDV2 method
+	// GetDataSourceStatusReporter is a FDV2 method, do not use. Not subject to semantic versioning.
+	// This method is a replacement for GetDataSourceUpdateSink when the SDK is in FDv2 mode.
 	GetDataSourceStatusReporter() DataSourceStatusReporter
 }
 
@@ -99,13 +101,10 @@ func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdateSink { //nol
 	return b.DataStoreUpdateSink
 }
 
-func (b BasicClientContext) GetDataDestination() DataDestination {
+func (b BasicClientContext) GetDataDestination() DataDestination { //nolint:revive
 	return b.DataDestination
 }
 
-func (b BasicClientContext) GetDataSourceStatusReporter() DataSourceStatusReporter {
-	if b.DataSourceStatusReporter != nil {
-		return b.DataSourceStatusReporter
-	}
-	return b.DataSourceUpdateSink
+func (b BasicClientContext) GetDataSourceStatusReporter() DataSourceStatusReporter { //nolint:revive
+	return b.DataSourceStatusReporter
 }
