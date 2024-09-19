@@ -5,16 +5,9 @@ type SynchronizersConfiguration struct {
 	Secondary DataSynchronizer
 }
 
-type StoreMode int
-
-const (
-	StoreModeRead      = 0
-	StoreModeReadWrite = 1
-)
-
 type DataSystemConfiguration struct {
 	Store     DataStore
-	StoreMode StoreMode
+	StoreMode DataStoreMode
 	// Initializers obtain data for the SDK in a one-shot manner at startup. Their job is to get the SDK
 	// into a state where it is serving somewhat fresh values as fast as possible.
 	Initializers  []DataInitializer

@@ -143,10 +143,14 @@ func (f *FDv2) launchTask(task func()) {
 	}()
 }
 
+func (f *FDv2) hasDataSources() bool {
+	return len(f.initializers) > 0 || f.primarySync != nil
+}
+
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	payloadVersion := f.runInitializers(ctx, closeWhenReady)
 
-	if f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
+	if f.hasDataSources() && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
 			f.runPersistentStoreOutageRecovery(ctx, f.dataStoreStatusProvider.AddStatusListener())
 		})
@@ -186,7 +190,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		f.store.Init(payload.Data, payload.Status)
+		f.store.Init(payload.Data, payload.Version, payload.Persist)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})

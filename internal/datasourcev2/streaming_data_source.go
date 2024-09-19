@@ -87,6 +87,7 @@ type StreamProcessor struct {
 	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
 	closeOnce                  sync.Once
+	persist                    bool
 }
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
@@ -103,6 +104,7 @@ func NewStreamProcessor(
 		loggers:         context.GetLogging().Loggers,
 		halt:            make(chan struct{}),
 		cfg:             cfg,
+		persist:         true,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -276,12 +278,12 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				for _, update := range updates {
 					switch u := update.(type) {
 					case datasource.PatchData:
-						if !sp.dataDestination.Upsert(u.Kind, u.Key, u.Data) {
+						if !sp.dataDestination.Upsert(u.Kind, u.Key, u.Data, sp.persist) {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 							storeUpdateFailed("streaming update of " + u.Key)
 						}
 					case datasource.PutData:
-						if sp.dataDestination.Init(u.Data, nil) {
+						if sp.dataDestination.Init(u.Data, nil, sp.persist) {
 							sp.setInitializedAndNotifyClient(true, closeWhenReady)
 						} else {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
@@ -290,7 +292,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 						}
 					case datasource.DeleteData:
 						deletedItem := ldstoretypes.ItemDescriptor{Version: u.Version, Item: nil}
-						if !sp.dataDestination.Upsert(u.Kind, u.Key, deletedItem) {
+						if !sp.dataDestination.Upsert(u.Kind, u.Key, deletedItem, sp.persist) {
 							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 							storeUpdateFailed("streaming deletion of " + u.Key)
 						}

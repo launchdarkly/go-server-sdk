@@ -8,7 +8,7 @@ import (
 
 type DataSystemConfigurationBuilder struct {
 	storeBuilder         ss.ComponentConfigurer[ss.DataStore]
-	storeMode            ss.StoreMode
+	storeMode            ss.DataStoreMode
 	initializerBuilders  []ss.ComponentConfigurer[ss.DataInitializer]
 	primarySyncBuilder   ss.ComponentConfigurer[ss.DataSynchronizer]
 	secondarySyncBuilder ss.ComponentConfigurer[ss.DataSynchronizer]
@@ -42,7 +42,7 @@ func (d *DataSystemModes) Polling() *DataSystemConfigurationBuilder {
 // Daemon configures the SDK to read from a persistent store integration that is populated by Relay Proxy
 // or other SDKs. The SDK will not connect to LaunchDarkly. In this mode, the SDK never writes to the data store.
 func (d *DataSystemModes) Daemon(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-	return d.Custom().DataStore(store, ss.StoreModeRead)
+	return d.Custom().DataStore(store, ss.DataStoreModeRead)
 }
 
 // PersistentStore is similar to Default, with the addition of a
@@ -50,7 +50,7 @@ func (d *DataSystemModes) Daemon(store ss.ComponentConfigurer[ss.DataStore]) *Da
 // evaluate flags using data from the persistent store. Once fresh data is available, the SDK
 // will no longer read from the persistent store, although it will keep it up-to-date.
 func (d *DataSystemModes) PersistentStore(store ss.ComponentConfigurer[ss.DataStore]) *DataSystemConfigurationBuilder {
-	return d.Default().DataStore(store, ss.StoreModeReadWrite)
+	return d.Default().DataStore(store, ss.DataStoreModeReadWrite)
 }
 
 // Custom returns a builder suitable for creating a custom data acquisition strategy. You may configure
@@ -65,7 +65,7 @@ func DataSystem() *DataSystemModes {
 	return &DataSystemModes{}
 }
 
-func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.StoreMode) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.DataStoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
 	d.storeMode = storeMode
 	return d

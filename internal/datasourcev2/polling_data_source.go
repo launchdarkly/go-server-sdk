@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -41,6 +42,7 @@ type PollingProcessor struct {
 	isInitialized      internal.AtomicBoolean
 	quit               chan struct{}
 	closeOnce          sync.Once
+	persist            bool
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -68,6 +70,7 @@ func newPollingProcessor(
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
 		quit:            make(chan struct{}),
+		persist:         true,
 	}
 	return pp
 }
@@ -84,7 +87,7 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.InitialPaylo
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.InitialPayload{Data: allData, Status: datastatus.Authoritative, Version: nil}, nil
+	return &subsystems.InitialPayload{Data: allData, Persist: true, Version: nil}, nil
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -165,7 +168,7 @@ func (pp *PollingProcessor) poll() error {
 
 	// We initialize the store only if the request wasn't cached
 	if !cached {
-		pp.dataDestination.Init(allData, nil)
+		pp.dataDestination.Init(allData, nil, pp.persist)
 	}
 	return nil
 }

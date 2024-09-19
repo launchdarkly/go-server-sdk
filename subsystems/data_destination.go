@@ -18,7 +18,7 @@ type DataDestination interface {
 	// and set the data source state to DataSourceStateInterrupted with an error of
 	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
 	// return false to indicate that the operation failed.
-	Init(allData []ldstoretypes.Collection, payloadVersion *int) bool
+	Init(allData []ldstoretypes.Collection, payloadVersion *int, persist bool) bool
 
 	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
 	// updated if the existing version is less than the new version.
@@ -31,5 +31,5 @@ type DataDestination interface {
 	// and set the data source state to DataSourceStateInterrupted with an error of
 	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
 	// return false to indicate that the operation failed.
-	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool
+	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor, persist bool) bool
 }

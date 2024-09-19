@@ -2,7 +2,6 @@ package subsystems
 
 import (
 	"context"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastatus"
 	"io"
 
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
@@ -27,8 +26,8 @@ type DataSource interface {
 
 type InitialPayload struct {
 	Data    []ldstoretypes.Collection
+	Persist bool
 	Version *int
-	Status  datastatus.DataStatus
 }
 
 type DataInitializer interface {
