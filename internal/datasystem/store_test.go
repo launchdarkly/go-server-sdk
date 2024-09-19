@@ -35,16 +35,19 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 	tests := []struct {
 		name           string
 		payloadVersion *int
+		persist        bool
 	}{
-		{"versioned data", &version1},
-		{"unversioned data", nil},
+		{"versioned data, persist", &version1, true},
+		{"versioned data, do not persist", &version1, false},
+		{"unversioned data, persist", nil, true},
+		{"unversioned data, do not persist", nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
 			store := NewStore(logCapture.Loggers)
 			defer store.Close()
-			store.Init([]ldstoretypes.Collection{}, tt.payloadVersion)
+			store.Init([]ldstoretypes.Collection{}, tt.payloadVersion, tt.persist)
 			assert.True(t, store.IsInitialized())
 		})
 	}
@@ -58,7 +61,7 @@ func TestStore_Commit(t *testing.T) {
 		assert.NoError(t, store.Commit())
 	})
 
-	t.Run("refreshed memory items are copied to persistent store in r/w mode", func(t *testing.T) {
+	t.Run("persist memory items are copied to persistent store in r/w mode", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		spy := &fakeStore{isDown: true}
@@ -76,20 +79,18 @@ func TestStore_Commit(t *testing.T) {
 		}
 
 		version := 1
-		assert.True(t, store.Init(initPayload, &version))
+		assert.True(t, store.Init(initPayload, &version, true))
 
 		require.Empty(t, spy.initPayload)
 
 		spy.isDown = false
-
-		store.SetPersist(true)
 
 		require.NoError(t, store.Commit())
 
 		assert.Equal(t, initPayload, spy.initPayload)
 	})
 
-	t.Run("stale memory items are not copied to persistent store in r/w mode", func(t *testing.T) {
+	t.Run("non-persist memory items are not copied to persistent store in r/w mode", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 		spy := &fakeStore{}
 		store := NewStore(logCapture.Loggers).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
@@ -104,18 +105,16 @@ func TestStore_Commit(t *testing.T) {
 			}},
 		}
 
-		assert.True(t, store.Init(initPayload, nil))
+		assert.True(t, store.Init(initPayload, nil, false))
 
 		require.Empty(t, spy.initPayload)
-
-		store.SetPersist(true)
 
 		require.NoError(t, store.Commit())
 
 		assert.Empty(t, spy.initPayload)
 	})
 
-	t.Run("refreshed memory items are not copied to persistent store in r-only mode", func(t *testing.T) {
+	t.Run("persist memory items are not copied to persistent store in r-only mode", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 		spy := &fakeStore{}
 		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
@@ -131,11 +130,9 @@ func TestStore_Commit(t *testing.T) {
 		}
 
 		version := 1
-		assert.True(t, store.Init(initPayload, &version))
+		assert.True(t, store.Init(initPayload, &version, true))
 
 		require.Empty(t, spy.initPayload)
-
-		store.SetPersist(true)
 
 		require.NoError(t, store.Commit())
 
@@ -157,7 +154,7 @@ func TestStore_GetActive(t *testing.T) {
 			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
 				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
 			}},
-		}, &version))
+		}, &version, false))
 
 		foo, err = store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -186,7 +183,7 @@ func TestStore_GetActive(t *testing.T) {
 			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
 				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
 			}},
-		}, &version))
+		}, &version, false))
 
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -201,14 +198,6 @@ func TestStore_Concurrency(t *testing.T) {
 		defer store.Close()
 
 		var wg sync.WaitGroup
-		go func() {
-			wg.Add(1)
-			defer wg.Done()
-			for i := 0; i < 100; i++ {
-				store.SetPersist(true)
-				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
-			}
-		}()
 		go func() {
 			wg.Add(1)
 			defer wg.Done()
@@ -239,7 +228,7 @@ func TestStore_Concurrency(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 100; i++ {
 				version := 1
-				_ = store.Init([]ldstoretypes.Collection{}, &version)
+				_ = store.Init([]ldstoretypes.Collection{}, &version, true)
 				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
 			}
 		}()

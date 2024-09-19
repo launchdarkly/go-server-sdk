@@ -42,10 +42,10 @@ type Store struct {
 	// the persistentStore may be used if configured.
 	memoryStore subsystems.DataStore
 
+	persist bool
+
 	// Points to the active store. Swapped upon initialization.
 	active subsystems.DataStore
-
-	persist bool
 
 	// Protects the availability, persistentStore, quality, and active fields.
 	mu sync.RWMutex
@@ -79,17 +79,11 @@ func NewStore(loggers ldlog.Loggers) *Store {
 	s := &Store{
 		persistentStore: nil,
 		memoryStore:     datastore.NewInMemoryDataStore(loggers),
-		persist:         false,
 		loggers:         loggers,
+		persist:         false,
 	}
 	s.active = s.memoryStore
 	return s
-}
-
-func (s *Store) SetPersist(persist bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.persist = persist
 }
 
 // Close closes the store. If there is a persistent store configured, it will be closed.
@@ -116,15 +110,17 @@ func (s *Store) shouldPersist() bool {
 }
 
 // nolint:revive // Standard DataDestination method
-func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int) bool {
+func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int, persist bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent Store.
 	// TODO: handle errors from initializing the memory or persistent stores.
-	if err := s.memoryStore.Init(allData); err == nil {
-		s.active = s.memoryStore
-	}
+	_ = s.memoryStore.Init(allData)
+
+	s.persist = persist
+
+	s.active = s.memoryStore
 
 	if s.shouldPersist() {
 		_ = s.persistentStore.impl.Init(allData) // TODO: insert in topo-sort order
@@ -133,22 +129,23 @@ func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int) boo
 }
 
 // nolint:revive // Standard DataDestination method
-func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool {
+func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor, persist bool) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var (
-		memErr  error
-		persErr error
-	)
-
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent store.
-	_, memErr = s.memoryStore.Upsert(kind, key, item)
+	_, _ = s.memoryStore.Upsert(kind, key, item)
+
+	s.persist = persist
 
 	if s.shouldPersist() {
-		_, persErr = s.persistentStore.impl.Upsert(kind, key, item)
+		_, err := s.persistentStore.impl.Upsert(kind, key, item)
+		if err != nil {
+			return false
+		}
 	}
-	return memErr == nil && persErr == nil
+
+	return true
 }
 
 // GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise
