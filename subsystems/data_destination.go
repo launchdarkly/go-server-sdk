@@ -11,6 +11,7 @@ import (
 // Do not use it.
 // You have been warned.
 type DataDestination interface {
+
 	// Init overwrites the current contents of the data store with a set of items for each collection.
 	//
 	// If the underlying data store returns an error during this operation, the SDK will log it,

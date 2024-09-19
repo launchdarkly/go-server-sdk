@@ -45,7 +45,7 @@ type Store struct {
 	// Points to the active store. Swapped upon initialization.
 	active subsystems.DataStore
 
-	quality DataQuality
+	persist bool
 
 	// Protects the availability, persistentStore, quality, and active fields.
 	mu sync.RWMutex
@@ -79,11 +79,17 @@ func NewStore(loggers ldlog.Loggers) *Store {
 	s := &Store{
 		persistentStore: nil,
 		memoryStore:     datastore.NewInMemoryDataStore(loggers),
-		quality:         QualityNone,
+		persist:         false,
 		loggers:         loggers,
 	}
 	s.active = s.memoryStore
 	return s
+}
+
+func (s *Store) SetPersist(persist bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.persist = persist
 }
 
 // Close closes the store. If there is a persistent store configured, it will be closed.
@@ -105,12 +111,11 @@ func (s *Store) getActive() subsystems.DataStore {
 }
 
 // Mirroring returns true data is being mirrored to a persistent store.
-func (s *Store) mirroring() bool {
-	return s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite &&
-		s.quality == QualityTrusted
+func (s *Store) shouldPersist() bool {
+	return s.persist && s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite
 }
 
-// nolint:revive // Standard DataSourceUpdateSink method
+// nolint:revive // Standard DataDestination method
 func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -119,16 +124,15 @@ func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int) boo
 	// TODO: handle errors from initializing the memory or persistent stores.
 	if err := s.memoryStore.Init(allData); err == nil {
 		s.active = s.memoryStore
-		s.quality = QualityTrusted
 	}
 
-	if s.mirroring() {
+	if s.shouldPersist() {
 		_ = s.persistentStore.impl.Init(allData) // TODO: insert in topo-sort order
 	}
 	return true
 }
 
-// nolint:revive // Standard DataSourceUpdateSink method
+// nolint:revive // Standard DataDestination method
 func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -141,13 +145,14 @@ func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent store.
 	_, memErr = s.memoryStore.Upsert(kind, key, item)
 
-	if s.mirroring() {
+	if s.shouldPersist() {
 		_, persErr = s.persistentStore.impl.Upsert(kind, key, item)
 	}
 	return memErr == nil && persErr == nil
 }
 
-// nolint:revive // Standard DataSourceUpdateSink method
+// GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise
+// nil.
 func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -171,7 +176,6 @@ func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems
 	}
 
 	s.active = s.persistentStore.impl
-	s.quality = QualityUntrusted
 	return s
 }
 
@@ -179,7 +183,7 @@ func (s *Store) Commit() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.mirroring() {
+	if s.shouldPersist() {
 		flags, err := s.memoryStore.GetAll(datakinds.Features)
 		if err != nil {
 			return err
@@ -206,18 +210,4 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 
 func (s *Store) IsInitialized() bool {
 	return s.getActive().IsInitialized()
-}
-
-type DataQuality int
-
-const (
-	QualityNone      = DataQuality(0)
-	QualityUntrusted = DataQuality(1)
-	QualityTrusted   = DataQuality(2)
-)
-
-func (s *Store) DataQuality() DataQuality {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.quality
 }

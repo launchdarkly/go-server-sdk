@@ -22,13 +22,6 @@ func TestStore_New(t *testing.T) {
 	assert.NoError(t, store.Close())
 }
 
-func TestStore_NoPersistence_NewStore_DataQuality(t *testing.T) {
-	logCapture := ldlogtest.NewMockLog()
-	store := NewStore(logCapture.Loggers)
-	defer store.Close()
-	assert.Equal(t, store.DataQuality(), QualityNone)
-}
-
 func TestStore_NoPersistence_NewStore_IsInitialized(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
 	store := NewStore(logCapture.Loggers)
@@ -36,20 +29,15 @@ func TestStore_NoPersistence_NewStore_IsInitialized(t *testing.T) {
 	assert.False(t, store.IsInitialized())
 }
 
-func TestStore_NoPersistence_MemoryStoreInitialized_DataQualityIsTrusted(t *testing.T) {
-	// It doesn't matter if the data has a payload version or not: the data quality should be
-	// trusted if it came from an initializer or synchronizer.
-	// This isn't necessarily what we want going forward, the quality should vary depending on the
-	// initializer/synchronizer implementation.
+func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 
 	version1 := 1
 	tests := []struct {
 		name           string
 		payloadVersion *int
-		quality        DataQuality
 	}{
-		{"fresh data", &version1, QualityTrusted},
-		{"stale data", nil, QualityTrusted},
+		{"versioned data", &version1},
+		{"unversioned data", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -57,7 +45,6 @@ func TestStore_NoPersistence_MemoryStoreInitialized_DataQualityIsTrusted(t *test
 			store := NewStore(logCapture.Loggers)
 			defer store.Close()
 			store.Init([]ldstoretypes.Collection{}, tt.payloadVersion)
-			assert.Equal(t, store.DataQuality(), tt.quality)
 			assert.True(t, store.IsInitialized())
 		})
 	}
@@ -95,6 +82,8 @@ func TestStore_Commit(t *testing.T) {
 
 		spy.isDown = false
 
+		store.SetPersist(true)
+
 		require.NoError(t, store.Commit())
 
 		assert.Equal(t, initPayload, spy.initPayload)
@@ -118,6 +107,8 @@ func TestStore_Commit(t *testing.T) {
 		assert.True(t, store.Init(initPayload, nil))
 
 		require.Empty(t, spy.initPayload)
+
+		store.SetPersist(true)
 
 		require.NoError(t, store.Commit())
 
@@ -143,6 +134,8 @@ func TestStore_Commit(t *testing.T) {
 		assert.True(t, store.Init(initPayload, &version))
 
 		require.Empty(t, spy.initPayload)
+
+		store.SetPersist(true)
 
 		require.NoError(t, store.Commit())
 
@@ -212,7 +205,7 @@ func TestStore_Concurrency(t *testing.T) {
 			wg.Add(1)
 			defer wg.Done()
 			for i := 0; i < 100; i++ {
-				_ = store.DataQuality()
+				store.SetPersist(true)
 				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
 			}
 		}()
