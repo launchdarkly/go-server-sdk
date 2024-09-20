@@ -1,9 +1,10 @@
 package datasourcev2
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"sync"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -68,7 +69,7 @@ type PollingRequester interface {
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataDestination    subsystems.DataDestination2
+	dataDestination    subsystems.DataDestination
 	statusReporter     subsystems.DataSourceStatusReporter
 	requester          PollingRequester
 	pollInterval       time.Duration
@@ -82,7 +83,7 @@ type PollingProcessor struct {
 // NewPollingProcessor creates the internal implementation of the polling data source.
 func NewPollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination2,
+	dataDestination subsystems.DataDestination,
 	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
@@ -92,7 +93,7 @@ func NewPollingProcessor(
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination2,
+	dataDestination subsystems.DataDestination,
 	statusReporter subsystems.DataSourceStatusReporter,
 	requester PollingRequester,
 	pollInterval time.Duration,

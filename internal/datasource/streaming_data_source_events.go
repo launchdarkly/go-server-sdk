@@ -2,8 +2,9 @@ package datasource
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"strings"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"

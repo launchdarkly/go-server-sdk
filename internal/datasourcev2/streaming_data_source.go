@@ -3,12 +3,13 @@ package datasourcev2
 import (
 	"encoding/json"
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -75,7 +76,7 @@ const (
 // DataSource interface.
 type StreamProcessor struct {
 	cfg                        datasource.StreamConfig
-	dataDestination            subsystems.DataDestination2
+	dataDestination            subsystems.DataDestination
 	statusReporter             subsystems.DataSourceStatusReporter
 	client                     *http.Client
 	headers                    http.Header
@@ -92,7 +93,7 @@ type StreamProcessor struct {
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination2,
+	dataDestination subsystems.DataDestination,
 	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.StreamConfig,
 ) *StreamProcessor {

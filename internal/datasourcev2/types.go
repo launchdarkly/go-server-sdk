@@ -2,6 +2,7 @@ package datasourcev2
 
 import (
 	"encoding/json"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	es "github.com/launchdarkly/eventsource"

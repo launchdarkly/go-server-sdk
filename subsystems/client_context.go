@@ -48,7 +48,7 @@ type ClientContext interface {
 
 	// GetDataDestination is a FDV2 method, do not use. Not subject to semantic versioning.
 	// This method is a replacement for GetDataSourceUpdateSink when the SDK is in FDv2 mode.
-	GetDataDestination() DataDestination2
+	GetDataDestination() DataDestination
 
 	// GetDataSourceStatusReporter is a FDV2 method, do not use. Not subject to semantic versioning.
 	// This method is a replacement for GetDataSourceUpdateSink when the SDK is in FDv2 mode.
@@ -66,7 +66,7 @@ type BasicClientContext struct {
 	ServiceEndpoints         interfaces.ServiceEndpoints
 	DataSourceUpdateSink     DataSourceUpdateSink
 	DataStoreUpdateSink      DataStoreUpdateSink
-	DataDestination          DataDestination2
+	DataDestination          DataDestination
 	DataSourceStatusReporter DataSourceStatusReporter
 }
 
@@ -101,7 +101,7 @@ func (b BasicClientContext) GetDataStoreUpdateSink() DataStoreUpdateSink { //nol
 	return b.DataStoreUpdateSink
 }
 
-func (b BasicClientContext) GetDataDestination() DataDestination2 { //nolint:revive
+func (b BasicClientContext) GetDataDestination() DataDestination { //nolint:revive
 	return b.DataDestination
 }
 

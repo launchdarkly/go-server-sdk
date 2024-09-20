@@ -2,12 +2,13 @@ package datasystem
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/stretchr/testify/require"

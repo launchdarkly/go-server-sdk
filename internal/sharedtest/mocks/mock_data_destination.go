@@ -1,10 +1,11 @@
 package mocks
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"

@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
