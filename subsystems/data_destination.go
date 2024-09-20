@@ -1,6 +1,7 @@
 package subsystems
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -32,4 +33,9 @@ type DataDestination interface {
 	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
 	// return false to indicate that the operation failed.
 	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool
+}
+
+type DataDestination2 interface {
+	SetBasis(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error
+	ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error
 }

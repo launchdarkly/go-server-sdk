@@ -1,6 +1,7 @@
 package datasystem
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -40,7 +41,7 @@ type Store struct {
 
 	// Represents the SDK's source of truth for flag evaluations (once initialized). Before initialization,
 	// the persistentStore may be used if configured.
-	memoryStore subsystems.DataStore
+	memoryStore *datastore.MemoryStore
 
 	persist bool
 
@@ -109,43 +110,62 @@ func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite
 }
 
-// nolint:revive // Standard DataDestination method
-func (s *Store) Init(allData []ldstoretypes.Collection, payloadVersion *int, persist bool) bool {
+func (s *Store) init(allData []ldstoretypes.Collection, selector fdv2proto.Selector, persist bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent Store.
 	// TODO: handle errors from initializing the memory or persistent stores.
-	_ = s.memoryStore.Init(allData)
+	s.memoryStore.SetBasis(allData)
 
 	s.persist = persist
 
 	s.active = s.memoryStore
 
 	if s.shouldPersist() {
-		_ = s.persistentStore.impl.Init(allData) // TODO: insert in topo-sort order
+		return s.persistentStore.impl.Init(allData) // TODO: insert in topo-sort order
 	}
-	return true
+
+	return nil
 }
 
-// nolint:revive // Standard DataDestination method
-func (s *Store) Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor, persist bool) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *Store) SetBasis(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+	collections := fdv2proto.ToStorableItems(events)
+	return s.init(collections, selector, persist)
+}
 
-	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent store.
-	_, _ = s.memoryStore.Upsert(kind, key, item)
+func (s *Store) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+	collections := fdv2proto.ToStorableItems(events)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.memoryStore.ApplyDelta(collections)
 
 	s.persist = persist
 
+	// The process for applying the delta to the memory store is different than the persistent store
+	// because persistent stores are not yet transactional in regards to payload version. This means
+	// we still need to apply a series of upserts, so the state of the store may be inconsistent when that
+	// is happening. In practice, we often don't receive more than one event at a time, but this may change
+	// in the future.
 	if s.shouldPersist() {
-		_, err := s.persistentStore.impl.Upsert(kind, key, item)
-		if err != nil {
-			return false
+		for _, event := range events {
+			var err error
+			switch e := event.(type) {
+			case fdv2proto.PutObject:
+				_, err = s.persistentStore.impl.Upsert(e.Kind, e.Key, ldstoretypes.ItemDescriptor{Version: e.Version, Item: e.Object})
+			case fdv2proto.DeleteObject:
+				_, err = s.persistentStore.impl.Upsert(e.Kind, e.Key, ldstoretypes.ItemDescriptor{Version: e.Version, Item: nil})
+			}
+			// TODO: return error?
+			if err != nil {
+				s.loggers.Errorf("Error applying %s to persistent store: %s", event.Name(), err)
+			}
 		}
 	}
 
-	return true
+	return nil
 }
 
 // GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise

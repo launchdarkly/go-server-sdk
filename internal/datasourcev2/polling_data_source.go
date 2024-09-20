@@ -1,15 +1,14 @@
 package datasourcev2
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"sync"
 	"time"
-
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -18,10 +17,47 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
-// Requester allows PollingProcessor to delegate fetching data to another component.
+type PollingResponse struct {
+	events   []fdv2proto.Event
+	cached   bool
+	intent   fdv2proto.IntentCode
+	selector fdv2proto.Selector
+}
+
+func (p *PollingResponse) Events() []fdv2proto.Event {
+	return p.events
+}
+
+func (p *PollingResponse) Cached() bool {
+	return p.cached
+}
+
+func (p *PollingResponse) Intent() fdv2proto.IntentCode {
+	return p.intent
+}
+
+func (p *PollingResponse) Selector() fdv2proto.Selector {
+	return p.selector
+}
+
+func NewCachedPollingResponse() *PollingResponse {
+	return &PollingResponse{
+		cached: true,
+	}
+}
+
+func NewPollingResponse(intent fdv2proto.IntentCode, events []fdv2proto.Event, selector fdv2proto.Selector) *PollingResponse {
+	return &PollingResponse{
+		events:   events,
+		intent:   intent,
+		selector: selector,
+	}
+}
+
+// PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
-type Requester interface {
-	Request() (data []ldstoretypes.Collection, cached bool, err error)
+type PollingRequester interface {
+	Request() (*PollingResponse, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -32,9 +68,9 @@ type Requester interface {
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataDestination    subsystems.DataDestination
+	dataDestination    subsystems.DataDestination2
 	statusReporter     subsystems.DataSourceStatusReporter
-	requester          Requester
+	requester          PollingRequester
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
@@ -46,7 +82,7 @@ type PollingProcessor struct {
 // NewPollingProcessor creates the internal implementation of the polling data source.
 func NewPollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination,
+	dataDestination subsystems.DataDestination2,
 	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
@@ -56,9 +92,9 @@ func NewPollingProcessor(
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination,
+	dataDestination subsystems.DataDestination2,
 	statusReporter subsystems.DataSourceStatusReporter,
-	requester Requester,
+	requester PollingRequester,
 	pollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
@@ -142,16 +178,23 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 }
 
 func (pp *PollingProcessor) poll() error {
-	allData, cached, err := pp.requester.Request()
+	response, err := pp.requester.Request()
 
 	if err != nil {
 		return err
 	}
 
-	// We initialize the store only if the request wasn't cached
-	if !cached {
-		pp.dataDestination.Init(allData, nil)
+	if response.Cached() {
+		return nil
 	}
+
+	switch response.Intent() {
+	case fdv2proto.IntentTransferFull:
+		pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)
+	case fdv2proto.IntentTransferChanges:
+		pp.dataDestination.ApplyDelta(response.Events(), response.Selector(), true)
+	}
+
 	return nil
 }
 

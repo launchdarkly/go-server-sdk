@@ -2,6 +2,8 @@ package datasystem
 
 import (
 	"errors"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"math/rand"
 	"sync"
 	"testing"
@@ -31,23 +33,24 @@ func TestStore_NoPersistence_NewStore_IsInitialized(t *testing.T) {
 
 func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 
-	version1 := 1
+	v1 := fdv2proto.NewSelector("", 1)
+	none := fdv2proto.NoSelector()
 	tests := []struct {
-		name           string
-		payloadVersion *int
-		persist        bool
+		name     string
+		selector fdv2proto.Selector
+		persist  bool
 	}{
-		{"versioned data, persist", &version1, true},
-		{"versioned data, do not persist", &version1, false},
-		{"unversioned data, persist", nil, true},
-		{"unversioned data, do not persist", nil, false},
+		{"versioned data, persist", v1, true},
+		{"versioned data, do not persist", v1, false},
+		{"unversioned data, persist", none, true},
+		{"unversioned data, do not persist", none, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
 			store := NewStore(logCapture.Loggers)
 			defer store.Close()
-			store.Init([]ldstoretypes.Collection{}, tt.payloadVersion, tt.persist)
+			store.SetBasis([]fdv2proto.Event{}, tt.selector, tt.persist)
 			assert.True(t, store.IsInitialized())
 		})
 	}
@@ -61,7 +64,7 @@ func TestStore_Commit(t *testing.T) {
 		assert.NoError(t, store.Commit())
 	})
 
-	t.Run("persist memory items are copied to persistent store in r/w mode", func(t *testing.T) {
+	t.Run("persist-marked memory items are copied to persistent store in r/w mode", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		spy := &fakeStore{isDown: true}
@@ -69,17 +72,27 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		initPayload := []ldstoretypes.Collection{
-			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
-			}},
-			{Kind: ldstoreimpl.Segments(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2}},
-			}},
+		input := []fdv2proto.Event{
+			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: datakinds.Segments, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
-		version := 1
-		assert.True(t, store.Init(initPayload, &version, true))
+		output := []ldstoretypes.Collection{
+			{
+				Kind: ldstoreimpl.Features(),
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
+				},
+			},
+			{
+				Kind: ldstoreimpl.Segments(),
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2}},
+				},
+			}}
+
+		// There should be an error since writing to the store will fail.
+		assert.Error(t, store.SetBasis(input, fdv2proto.NoSelector(), true))
 
 		require.Empty(t, spy.initPayload)
 
@@ -87,7 +100,7 @@ func TestStore_Commit(t *testing.T) {
 
 		require.NoError(t, store.Commit())
 
-		assert.Equal(t, initPayload, spy.initPayload)
+		assert.Equal(t, output, spy.initPayload)
 	})
 
 	t.Run("non-persist memory items are not copied to persistent store in r/w mode", func(t *testing.T) {
@@ -96,16 +109,12 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		initPayload := []ldstoretypes.Collection{
-			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
-			}},
-			{Kind: ldstoreimpl.Segments(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2}},
-			}},
+		input := []fdv2proto.Event{
+			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: datakinds.Segments, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
-		assert.True(t, store.Init(initPayload, nil, false))
+		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
 
 		require.Empty(t, spy.initPayload)
 
@@ -114,23 +123,18 @@ func TestStore_Commit(t *testing.T) {
 		assert.Empty(t, spy.initPayload)
 	})
 
-	t.Run("persist memory items are not copied to persistent store in r-only mode", func(t *testing.T) {
+	t.Run("persist-marked memory items are not copied to persistent store in r-only mode", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 		spy := &fakeStore{}
 		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
 		defer store.Close()
 
-		initPayload := []ldstoretypes.Collection{
-			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
-			}},
-			{Kind: ldstoreimpl.Segments(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2}},
-			}},
+		input := []fdv2proto.Event{
+			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: datakinds.Segments, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
-		version := 1
-		assert.True(t, store.Init(initPayload, &version, true))
+		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), true))
 
 		require.Empty(t, spy.initPayload)
 
@@ -149,12 +153,11 @@ func TestStore_GetActive(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
-		version := 1
-		assert.True(t, store.Init([]ldstoretypes.Collection{
-			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
-			}},
-		}, &version, false))
+		input := []fdv2proto.Event{
+			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+		}
+
+		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
 
 		foo, err = store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -178,12 +181,10 @@ func TestStore_GetActive(t *testing.T) {
 		_, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.Equal(t, errImAPersistentStore, err)
 
-		version := 1
-		assert.True(t, store.Init([]ldstoretypes.Collection{
-			{Kind: ldstoreimpl.Features(), Items: []ldstoretypes.KeyedItemDescriptor{
-				{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
-			}},
-		}, &version, false))
+		input := []fdv2proto.Event{
+			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+		}
+		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
 
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -227,8 +228,15 @@ func TestStore_Concurrency(t *testing.T) {
 			wg.Add(1)
 			defer wg.Done()
 			for i := 0; i < 100; i++ {
-				version := 1
-				_ = store.Init([]ldstoretypes.Collection{}, &version, true)
+				_ = store.SetBasis([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
+				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+			}
+		}()
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				store.ApplyDelta([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
 				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
 			}
 		}()

@@ -2,6 +2,7 @@ package datasourcev2
 
 import (
 	"encoding/json"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	es "github.com/launchdarkly/eventsource"
 )
@@ -11,8 +12,8 @@ type pollingPayload struct {
 }
 
 type event struct {
-	Name      string          `json:"name"`
-	EventData json.RawMessage `json:"data"`
+	Name      fdv2proto.EventName `json:"name"`
+	EventData json.RawMessage     `json:"data"`
 }
 
 // Begin es.Event interface implementation
@@ -23,7 +24,7 @@ func (e event) Id() string { //nolint:stylecheck // The interface requires this 
 }
 
 // Event returns the name of the event.
-func (e event) Event() string {
+func (e event) Event() fdv2proto.EventName {
 	return e.Name
 }
 
@@ -49,10 +50,10 @@ type payload struct {
 
 	// It would be nice if we had the same value available in both so we could
 	// use that as the key consistently throughout the the process.
-	ID     string `json:"id"`
-	Target int    `json:"target"`
-	Code   string `json:"code"`
-	Reason string `json:"reason"`
+	ID     string               `json:"id"`
+	Target int                  `json:"target"`
+	Code   fdv2proto.IntentCode `json:"code"`
+	Reason string               `json:"reason"`
 }
 
 // This is the general shape of a put-object event. The delete-object is the same, with the object field being nil.

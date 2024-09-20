@@ -4,11 +4,10 @@ import (
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// inMemoryDataStore is a memory based DataStore implementation, backed by a lock-striped map.
+// MemoryStore is a memory based DataStore implementation, backed by a lock-striped map.
 //
 // Implementation notes:
 //
@@ -17,24 +16,23 @@ import (
 // Get and IsInitialized). To make it safe to hold a lock without deferring the unlock, we must ensure that
 // there is only one return point from each method, and that there is no operation that could possibly cause a
 // panic after the lock has been acquired. See notes on performance in CONTRIBUTING.md.
-type inMemoryDataStore struct {
+type MemoryStore struct {
 	allData       map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	isInitialized bool
 	sync.RWMutex
 	loggers ldlog.Loggers
 }
 
-// NewInMemoryDataStore creates an instance of the in-memory data store. This is not part of the public API; it is
-// always called through ldcomponents.inMemoryDataStore().
-func NewInMemoryDataStore(loggers ldlog.Loggers) subsystems.DataStore {
-	return &inMemoryDataStore{
+// NewInMemoryDataStore creates an instance of the in-memory data store. This is not part of the public API.
+func NewInMemoryDataStore(loggers ldlog.Loggers) *MemoryStore {
+	return &MemoryStore{
 		allData:       make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor),
 		isInitialized: false,
 		loggers:       loggers,
 	}
 }
 
-func (store *inMemoryDataStore) Init(allData []ldstoretypes.Collection) error {
+func (store *MemoryStore) Init(allData []ldstoretypes.Collection) error {
 	store.Lock()
 
 	store.allData = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
@@ -54,7 +52,23 @@ func (store *inMemoryDataStore) Init(allData []ldstoretypes.Collection) error {
 	return nil
 }
 
-func (store *inMemoryDataStore) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
+func (store *MemoryStore) SetBasis(allData []ldstoretypes.Collection) {
+	_ = store.Init(allData)
+}
+
+func (store *MemoryStore) ApplyDelta(allData []ldstoretypes.Collection) {
+	store.Lock()
+
+	for _, coll := range allData {
+		for _, item := range coll.Items {
+			store.upsert(coll.Kind, item.Key, item.Item)
+		}
+	}
+
+	store.Unlock()
+}
+
+func (store *MemoryStore) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
 	store.RLock()
 
 	var coll map[string]ldstoretypes.ItemDescriptor
@@ -76,7 +90,7 @@ func (store *inMemoryDataStore) Get(kind ldstoretypes.DataKind, key string) (lds
 	return ldstoretypes.ItemDescriptor{}.NotFound(), nil
 }
 
-func (store *inMemoryDataStore) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
+func (store *MemoryStore) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	store.RLock()
 
 	var itemsOut []ldstoretypes.KeyedItemDescriptor
@@ -94,13 +108,10 @@ func (store *inMemoryDataStore) GetAll(kind ldstoretypes.DataKind) ([]ldstoretyp
 	return itemsOut, nil
 }
 
-func (store *inMemoryDataStore) Upsert(
+func (store *MemoryStore) upsert(
 	kind ldstoretypes.DataKind,
 	key string,
-	newItem ldstoretypes.ItemDescriptor,
-) (bool, error) {
-	store.Lock()
-
+	newItem ldstoretypes.ItemDescriptor) bool {
 	var coll map[string]ldstoretypes.ItemDescriptor
 	var ok bool
 	shouldUpdate := true
@@ -120,23 +131,32 @@ func (store *inMemoryDataStore) Upsert(
 		coll[key] = newItem
 		updated = true
 	}
+	return updated
+}
 
+func (store *MemoryStore) Upsert(
+	kind ldstoretypes.DataKind,
+	key string,
+	newItem ldstoretypes.ItemDescriptor,
+) (bool, error) {
+	store.Lock()
+	updated := store.upsert(kind, key, newItem)
 	store.Unlock()
 
 	return updated, nil
 }
 
-func (store *inMemoryDataStore) IsInitialized() bool {
+func (store *MemoryStore) IsInitialized() bool {
 	store.RLock()
 	ret := store.isInitialized
 	store.RUnlock()
 	return ret
 }
 
-func (store *inMemoryDataStore) IsStatusMonitoringEnabled() bool {
+func (store *MemoryStore) IsStatusMonitoringEnabled() bool {
 	return false
 }
 
-func (store *inMemoryDataStore) Close() error {
+func (store *MemoryStore) Close() error {
 	return nil
 }
