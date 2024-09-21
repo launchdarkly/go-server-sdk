@@ -44,12 +44,15 @@ type Store struct {
 	// the persistentStore may be used if configured.
 	memoryStore *datastore.MemoryStore
 
+	// True if the data in the memory store may be persisted to the persistent store.
 	persist bool
 
 	// Points to the active store. Swapped upon initialization.
 	active subsystems.DataStore
 
-	// Protects the availability, persistentStore, quality, and active fields.
+	// Identifies the current data set.
+	selector fdv2proto.Selector
+
 	mu sync.RWMutex
 
 	loggers ldlog.Loggers
@@ -82,10 +85,17 @@ func NewStore(loggers ldlog.Loggers) *Store {
 		persistentStore: nil,
 		memoryStore:     datastore.NewInMemoryDataStore(loggers),
 		loggers:         loggers,
+		selector:        fdv2proto.NoSelector(),
 		persist:         false,
 	}
 	s.active = s.memoryStore
 	return s
+}
+
+func (s *Store) Selector() fdv2proto.Selector {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.selector
 }
 
 // Close closes the store. If there is a persistent store configured, it will be closed.
@@ -106,7 +116,6 @@ func (s *Store) getActive() subsystems.DataStore {
 	return s.active
 }
 
-// Mirroring returns true data is being mirrored to a persistent store.
 func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite
 }
@@ -115,16 +124,15 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector fdv2proto.Selec
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// TXNS-PS: Requirement 1.3.3, must apply updates to in-memory before the persistent Store.
-	// TODO: handle errors from initializing the memory or persistent stores.
 	s.memoryStore.SetBasis(allData)
 
 	s.persist = persist
+	s.selector = selector
 
 	s.active = s.memoryStore
 
 	if s.shouldPersist() {
-		return s.persistentStore.impl.Init(allData) // TODO: insert in topo-sort order
+		return s.persistentStore.impl.Init(allData) // TODO: insert in dependency order
 	}
 
 	return nil
@@ -144,6 +152,7 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector
 	s.memoryStore.ApplyDelta(collections)
 
 	s.persist = persist
+	s.selector = selector
 
 	// The process for applying the delta to the memory store is different than the persistent store
 	// because persistent stores are not yet transactional in regards to payload version. This means
