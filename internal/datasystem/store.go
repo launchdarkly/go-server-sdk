@@ -20,37 +20,43 @@ import (
 // from holding on to a reference to the persistent store even when we swap to the in-memory store.
 //
 // Once the in-memory store has data (either from initializers running, or from a synchronizer), the persistent
-// store is no longer regarded as active. From that point forward, GetActive() will return the in-memory store.
+// store is no longer regarded as active. From that point forward, calls to Get will serve data from the memory
+// store.
 //
-// The idea is that persistent stores can offer a way to immediately start evaluating flags before a connection
-// is made to LD (or even in a very brief moment before an initializer has run.) The persistent store has caching
-// logic which can result in inconsistent/stale date being used. Therefore, once we have fresh data, we don't
-// want to use the persistent store at all.
+// One motivation behind using persistent stores in this way is to offer a way to immediately start evaluating
+// flags before a connection is made to LD (or even in a very brief moment before an initializer has run.)
+// The persistent store has caching logic which can result in inconsistent/stale date being used. Therefore, once we
+// have fresh data, we don't want to use the persistent store at all for reads.
 //
-// A complication is that persistent stores have historically operated in multiple regimes. The first is "daemon mode",
-// where the SDK is effectively using the store in read-only mode, with the store being populated by Relay or another SDK.
-// The second is just plain persistent store mode, where it is both read and written to. In the FDv2 system, we explicitly
-// differentiate these cases using a read/read-write mode. In all cases, the in-memory store is used once it has data available.
+// One complication is that persistent stores have historically operated in multiple regimes. The first: "daemon mode",
+// where the SDK is effectively using the store in read-only mode, with the store being populated by Relay/another SDK.
+//
+// The second is plain persistent store mode, where it is both read and written to. In the FDv2 system, we explicitly
+// differentiate these cases using a read/read-write mode. In all cases, the in-memory store is used once it has data
+// available.
+//
 // This contrasts from FDv1 where even if data from LD is available, that data may fall out of memory due to the persistent
 // store's caching logic ("sparse mode", when the TTL is non-infinite).
 //
 // We have found this to almost always be undesirable for users.
 type Store struct {
-	// Represents the SDK's source of truth for flag evals before initialization, or permanently if there are
-	// no initializers/synchronizers configured. This is option; if not defined, only the memoryStore is used.
+	// Source of truth for flag evals (before initialization), or permanently if there are
+	// no initializers/synchronizers configured. Optional; if not defined, only memoryStore is used.
 	persistentStore *persistentStore
 
-	// Represents the SDK's source of truth for flag evaluations (once initialized). Before initialization,
+	// Source of truth for flag evaluations (once initialized). Before initialization,
 	// the persistentStore may be used if configured.
 	memoryStore *datastore.MemoryStore
 
-	// True if the data in the memory store may be persisted to the persistent store.
+	// True if the data in the memory store may be persisted to the persistent store. This may be false
+	// in the case of an initializer/synchronizer that doesn't want to propagate memory to the persistent store,
+	// such as another database or untrusted file. Generally only LD data sources should request persisting data.
 	persist bool
 
 	// Points to the active store. Swapped upon initialization.
 	active subsystems.DataStore
 
-	// Identifies the current data set.
+	// Identifies the current data.
 	selector fdv2proto.Selector
 
 	mu sync.RWMutex
@@ -59,6 +65,7 @@ type Store struct {
 }
 
 type persistentStore struct {
+	// Contains the actual store implementation.
 	impl subsystems.DataStore
 	// The persistentStore is read-only, or read-write. In read-only mode, the store
 	// is *never* written to, and only read before the in-memory store is initialized.
@@ -78,8 +85,8 @@ type persistentStore struct {
 	statusProvider interfaces.DataStoreStatusProvider
 }
 
-// NewStore creates a new store. By default the store is in-memory. To add a persistent store, call SwapToPersistent. Ensure this is
-// called at configuration time, only once and before the store is ever accessed.
+// NewStore creates a new store. If a persistent store needs to be configured, call WithPersistence before any other
+// method is called.
 func NewStore(loggers ldlog.Loggers) *Store {
 	s := &Store{
 		persistentStore: nil,
@@ -92,6 +99,25 @@ func NewStore(loggers ldlog.Loggers) *Store {
 	return s
 }
 
+// WithPersistence exists to accommodate the SDK's configuration builders. We need a ClientContext
+// before we can call Build to actually get the persistent store. That ClientContext requires the
+// DataDestination, which is what this store struct implements. Therefore, the call to NewStore and
+// WithPersistence will be separated.
+func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode, statusProvider interfaces.DataStoreStatusProvider) *Store {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.persistentStore = &persistentStore{
+		impl:           persistent,
+		mode:           mode,
+		statusProvider: statusProvider,
+	}
+
+	s.active = s.persistentStore.impl
+	return s
+}
+
+// Selector returns the current selector.
 func (s *Store) Selector() fdv2proto.Selector {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -108,16 +134,9 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// GetActive returns the active store, either persistent or in-memory. If there is no persistent store configured,
-// the in-memory store is always active.
-func (s *Store) getActive() subsystems.DataStore {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.active
-}
-
-func (s *Store) shouldPersist() bool {
-	return s.persist && s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite
+func (s *Store) SetBasis(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+	collections := fdv2proto.ToStorableItems(events)
+	return s.init(collections, selector, persist)
 }
 
 func (s *Store) init(allData []ldstoretypes.Collection, selector fdv2proto.Selector, persist bool) error {
@@ -138,9 +157,8 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector fdv2proto.Selec
 	return nil
 }
 
-func (s *Store) SetBasis(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
-	collections := fdv2proto.ToStorableItems(events)
-	return s.init(collections, selector, persist)
+func (s *Store) shouldPersist() bool {
+	return s.persist && s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite
 }
 
 func (s *Store) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
@@ -189,23 +207,8 @@ func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider 
 	return s.persistentStore.statusProvider
 }
 
-// WithPersistence exists only because of the way the SDK's configuration builders work - we need a ClientContext
-// before we can call Build to actually get the persistent store. That ClientContext requires the
-// DataStoreUpdateSink, which is what this store struct implements.
-func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode, statusProvider interfaces.DataStoreStatusProvider) *Store {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.persistentStore = &persistentStore{
-		impl:           persistent,
-		mode:           mode,
-		statusProvider: statusProvider,
-	}
-
-	s.active = s.persistentStore.impl
-	return s
-}
-
+// Commit persists the data in the memory store to the persistent store, if configured. The persistent store
+// must also be in write mode, and the last call to SetBasis or ApplyDelta must have had persist set to true.
 func (s *Store) Commit() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -227,14 +230,23 @@ func (s *Store) Commit() error {
 	return nil
 }
 
+func (s *Store) getActive() subsystems.DataStore {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.active
+}
+
+//nolint:revive // Implementation for ReadOnlyStore.
 func (s *Store) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	return s.getActive().GetAll(kind)
 }
 
+//nolint:revive // Implementation for ReadOnlyStore.
 func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
 	return s.getActive().Get(kind, key)
 }
 
+//nolint:revive // Implementation for ReadOnlyStore.
 func (s *Store) IsInitialized() bool {
 	return s.getActive().IsInitialized()
 }
