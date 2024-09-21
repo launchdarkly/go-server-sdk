@@ -7,13 +7,12 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// Store is a hybrid persistent/in-memory store that serves queries for data from the evaluation
+// Store is a dual-mode persistent/in-memory store that serves queries for data from the evaluation
 // algorithm.
 //
 // At any given moment, 1 of 2 stores is active: in-memory, or persistent. This doesn't preclude a caller
@@ -83,6 +82,10 @@ type persistentStore struct {
 	// need to support fdv1 (or we could refactor the fdv2 data sources to use a different set of interfaces that don't
 	// require this.)
 	statusProvider interfaces.DataStoreStatusProvider
+}
+
+func (p *persistentStore) writable() bool {
+	return p != nil && p.mode == subsystems.DataStoreModeReadWrite
 }
 
 // NewStore creates a new store. If a persistent store needs to be configured, call WithPersistence before any other
@@ -158,7 +161,7 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector fdv2proto.Selec
 }
 
 func (s *Store) shouldPersist() bool {
-	return s.persist && s.persistentStore != nil && s.persistentStore.mode == subsystems.DataStoreModeReadWrite
+	return s.persist && s.persistentStore.writable()
 }
 
 func (s *Store) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
@@ -214,18 +217,7 @@ func (s *Store) Commit() error {
 	defer s.mu.RUnlock()
 
 	if s.shouldPersist() {
-		flags, err := s.memoryStore.GetAll(datakinds.Features)
-		if err != nil {
-			return err
-		}
-		segments, err := s.memoryStore.GetAll(datakinds.Segments)
-		if err != nil {
-			return err
-		}
-		return s.persistentStore.impl.Init([]ldstoretypes.Collection{
-			{Kind: datakinds.Features, Items: flags},
-			{Kind: datakinds.Segments, Items: segments},
-		})
+		return s.persistentStore.impl.Init(s.memoryStore.Dump())
 	}
 	return nil
 }

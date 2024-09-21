@@ -93,6 +93,14 @@ func (store *MemoryStore) Get(kind ldstoretypes.DataKind, key string) (ldstorety
 func (store *MemoryStore) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	store.RLock()
 
+	itemsOut := store.getAll(kind)
+
+	store.RUnlock()
+
+	return itemsOut, nil
+}
+
+func (store *MemoryStore) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor {
 	var itemsOut []ldstoretypes.KeyedItemDescriptor
 	if itemsMap, ok := store.allData[kind]; ok {
 		if len(itemsMap) > 0 {
@@ -102,10 +110,21 @@ func (store *MemoryStore) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.Key
 			}
 		}
 	}
+	return itemsOut
+}
+
+func (store *MemoryStore) Dump() []ldstoretypes.Collection {
+	store.RLock()
+
+	var allData []ldstoretypes.Collection
+	for kind := range store.allData {
+		itemsOut := store.getAll(kind)
+		allData = append(allData, ldstoretypes.Collection{Kind: kind, Items: itemsOut})
+	}
 
 	store.RUnlock()
 
-	return itemsOut, nil
+	return allData
 }
 
 func (store *MemoryStore) upsert(
