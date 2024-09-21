@@ -190,10 +190,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				processedEvent = false
 			}
 
-			switch event.Event() {
-			case "heart-beat":
+			switch fdv2proto.EventName(event.Event()) {
+			case fdv2proto.EventHeartbeat:
 				// Swallow the event and move on.
-			case "server-intent":
+			case fdv2proto.EventServerIntent:
 				//nolint: godox
 				// TODO: Replace all this json unmarshalling with a nicer jreader implementation.
 				var serverIntent serverIntent
@@ -213,11 +213,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0), intent: &serverIntent}
 
-			case putEventName:
+			case fdv2proto.EventPutObject:
 				currentChangeSet.events = append(currentChangeSet.events, event)
-			case deleteEventName:
+			case fdv2proto.EventDeleteObject:
 				currentChangeSet.events = append(currentChangeSet.events, event)
-			case "goodbye":
+			case fdv2proto.EventGoodbye:
 				var goodbye goodbye
 				err := json.Unmarshal([]byte(event.Data()), &goodbye)
 				if err != nil {
@@ -228,7 +228,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				if !goodbye.Silent {
 					sp.loggers.Errorf("SSE server received error: %s (%s)", goodbye.Reason, goodbye.Catastrophe)
 				}
-			case "error":
+			case fdv2proto.EventError:
 				var errorData errorEvent
 				err := json.Unmarshal([]byte(event.Data()), &errorData)
 				if err != nil {
@@ -245,7 +245,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
 				//nolint: godox
 				// TODO: Do we need to restart here?
-			case "payload-transferred":
+			case fdv2proto.EventPayloadTransferred:
 				currentChangeSet.events = append(currentChangeSet.events, event)
 				updates, err := deserializeEvents(currentChangeSet.events)
 				if err != nil {
