@@ -10,7 +10,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +22,9 @@ func TestInMemoryDataStore(t *testing.T) {
 	t.Run("GetAll", testInMemoryDataStoreGetAll)
 	t.Run("Upsert", testInMemoryDataStoreUpsert)
 	t.Run("Delete", testInMemoryDataStoreDelete)
+	t.Run("SetBasis", testInMemoryDataStoreSetBasis)
+	t.Run("ApplyDelta", testInMemoryDataStoreApplyDelta)
+	t.Run("Dump", testInMemoryDataStoreDump)
 
 	t.Run("IsStatusMonitoringEnabled", func(t *testing.T) {
 		assert.False(t, makeInMemoryStore().IsStatusMonitoringEnabled())
@@ -33,7 +35,7 @@ func TestInMemoryDataStore(t *testing.T) {
 	})
 }
 
-func makeInMemoryStore() subsystems.DataStore {
+func makeInMemoryStore() *MemoryStore {
 	return NewInMemoryDataStore(sharedtest.NewTestLoggers())
 }
 
@@ -47,6 +49,8 @@ func extractCollections(allData []ldstoretypes.Collection) [][]ldstoretypes.Keye
 
 type dataItemCreator func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor
 
+type collectionCreator func(key string, version int, otherProperty bool) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection)
+
 func forAllDataKinds(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, dataItemCreator)) {
 	test(t, datakinds.Features, func(key string, version int, otherProperty bool) ldstoretypes.ItemDescriptor {
 		flag := ldbuilders.NewFlagBuilder(key).Version(version).On(otherProperty).Build()
@@ -58,6 +62,42 @@ func forAllDataKinds(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, 
 			segment.Included = []string{"arbitrary value"}
 		}
 		return sharedtest.SegmentDescriptor(segment)
+	})
+}
+
+func forAllDataKindsCollection(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, collectionCreator)) {
+	test(t, datakinds.Features, func(key string, version int, otherProperty bool) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection) {
+		flag := ldbuilders.NewFlagBuilder(key).Version(version).On(otherProperty).Build()
+		descriptor := sharedtest.FlagDescriptor(flag)
+		return descriptor, []ldstoretypes.Collection{
+			{
+				Kind: datakinds.Features,
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{
+						Key:  flag.Key,
+						Item: descriptor,
+					},
+				},
+			},
+		}
+	})
+	test(t, datakinds.Segments, func(key string, version int, otherProperty bool) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection) {
+		segment := ldbuilders.NewSegmentBuilder(key).Version(version).Build()
+		if otherProperty {
+			segment.Included = []string{"arbitrary value"}
+		}
+		descriptor := sharedtest.SegmentDescriptor(segment)
+		return descriptor, []ldstoretypes.Collection{
+			{
+				Kind: datakinds.Segments,
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{
+						Key:  segment.Key,
+						Item: descriptor,
+					},
+				},
+			},
+		}
 	})
 }
 
@@ -91,6 +131,48 @@ func testInMemoryDataStoreInit(t *testing.T) {
 		allData2 := sharedtest.NewDataSetBuilder().Flags(flag2).Segments(segment2).Build()
 
 		require.NoError(t, store.Init(allData2))
+
+		flags, err = store.GetAll(datakinds.Features)
+		require.NoError(t, err)
+		segments, err = store.GetAll(datakinds.Segments)
+		require.NoError(t, err)
+		assert.Equal(t, extractCollections(allData2), [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
+	})
+}
+
+func testInMemoryDataStoreSetBasis(t *testing.T) {
+	// SetBasis is currently an alias for Init, so the tests should be the same. Once there is no longer a use-case
+	// for Init (when fdv1 data system is removed, the Init tests can be deleted.)
+
+	t.Run("makes store initialized", func(t *testing.T) {
+		store := makeInMemoryStore()
+		allData := sharedtest.NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("key").Build()).Build()
+
+		store.SetBasis(allData)
+
+		assert.True(t, store.IsInitialized())
+	})
+
+	t.Run("completely replaces previous data", func(t *testing.T) {
+		store := makeInMemoryStore()
+		flag1 := ldbuilders.NewFlagBuilder("key1").Build()
+		segment1 := ldbuilders.NewSegmentBuilder("key1").Build()
+		allData1 := sharedtest.NewDataSetBuilder().Flags(flag1).Segments(segment1).Build()
+
+		store.SetBasis(allData1)
+
+		flags, err := store.GetAll(datakinds.Features)
+		require.NoError(t, err)
+		segments, err := store.GetAll(datakinds.Segments)
+		require.NoError(t, err)
+		sort.Slice(flags, func(i, j int) bool { return flags[i].Key < flags[j].Key })
+		assert.Equal(t, extractCollections(allData1), [][]ldstoretypes.KeyedItemDescriptor{flags, segments})
+
+		flag2 := ldbuilders.NewFlagBuilder("key2").Build()
+		segment2 := ldbuilders.NewSegmentBuilder("key2").Build()
+		allData2 := sharedtest.NewDataSetBuilder().Flags(flag2).Segments(segment2).Build()
+
+		store.SetBasis(allData2)
 
 		flags, err = store.GetAll(datakinds.Features)
 		require.NoError(t, err)
@@ -303,4 +385,72 @@ func testInMemoryDataStoreDelete(t *testing.T) {
 			assert.Equal(t, item1, result)
 		})
 	})
+}
+
+func testInMemoryDataStoreApplyDelta(t *testing.T) {
+
+	// These are the equivalent of the existing upsert tests.
+	forAllDataKindsCollection(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionCreator) {
+		t.Run("newer version", func(t *testing.T) {
+			store := makeInMemoryStore()
+			store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+			_, collection1 := makeItem("key", 10, false)
+
+			updates := store.ApplyDelta(collection1)
+			assert.True(t, updates[kind]["key"])
+
+			item1a, collection1a := makeItem("key", 11, true)
+
+			updates = store.ApplyDelta(collection1a)
+			assert.True(t, updates[kind]["key"])
+
+			result, err := store.Get(kind, "key")
+			require.NoError(t, err)
+			assert.Equal(t, item1a, result)
+
+		})
+
+		t.Run("older version", func(t *testing.T) {
+			store := makeInMemoryStore()
+			store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+			item1Version := 10
+			item1, collection1 := makeItem("key", item1Version, false)
+
+			updates := store.ApplyDelta(collection1)
+			assert.True(t, updates[kind]["key"])
+
+			_, collection1a := makeItem("key", item1Version-1, true)
+
+			updates = store.ApplyDelta(collection1a)
+			assert.False(t, updates[kind]["key"])
+
+			result, err := store.Get(kind, "key")
+			require.NoError(t, err)
+			assert.Equal(t, item1, result)
+		})
+
+		t.Run("same version", func(t *testing.T) {
+			store := makeInMemoryStore()
+			store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+			item1Version := 10
+			item1, collection1 := makeItem("key", item1Version, false)
+			updated := store.ApplyDelta(collection1)
+			assert.True(t, updated[kind]["key"])
+
+			_, collection1a := makeItem("key", item1Version, true)
+			updated = store.ApplyDelta(collection1a)
+			assert.False(t, updated[kind]["key"])
+
+			result, err := store.Get(kind, "key")
+			require.NoError(t, err)
+			assert.Equal(t, item1, result)
+		})
+	})
+}
+
+func testInMemoryDataStoreDump(t *testing.T) {
+
 }

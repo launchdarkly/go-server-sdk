@@ -56,16 +56,25 @@ func (store *MemoryStore) SetBasis(allData []ldstoretypes.Collection) {
 	_ = store.Init(allData)
 }
 
-func (store *MemoryStore) ApplyDelta(allData []ldstoretypes.Collection) {
+func (store *MemoryStore) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.DataKind]map[string]bool {
+
+	updatedMap := make(map[ldstoretypes.DataKind]map[string]bool)
+
 	store.Lock()
 
 	for _, coll := range allData {
 		for _, item := range coll.Items {
-			store.upsert(coll.Kind, item.Key, item.Item)
+			updated := store.upsert(coll.Kind, item.Key, item.Item)
+			if updatedMap[coll.Kind] == nil {
+				updatedMap[coll.Kind] = make(map[string]bool)
+			}
+			updatedMap[coll.Kind][item.Key] = updated
 		}
 	}
 
 	store.Unlock()
+
+	return updatedMap
 }
 
 func (store *MemoryStore) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {

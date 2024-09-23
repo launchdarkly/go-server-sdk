@@ -51,7 +51,6 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 				})
 			}
 		}
-
 	}
 
 	return []ldstoretypes.Collection{flagCollection, segmentCollection}
