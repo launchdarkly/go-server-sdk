@@ -1,13 +1,13 @@
 package datasystem
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 	"sync"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
@@ -45,7 +45,7 @@ type Store struct {
 
 	// Source of truth for flag evaluations (once initialized). Before initialization,
 	// the persistentStore may be used if configured.
-	memoryStore *datastore.MemoryStore
+	memoryStore *memorystorev2.Store
 
 	// True if the data in the memory store may be persisted to the persistent store. This may be false
 	// in the case of an initializer/synchronizer that doesn't want to propagate memory to the persistent store,
@@ -53,7 +53,7 @@ type Store struct {
 	persist bool
 
 	// Points to the active store. Swapped upon initialization.
-	active subsystems.DataStore
+	active subsystems.ReadOnlyStore
 
 	// Identifies the current data.
 	selector fdv2proto.Selector
@@ -93,7 +93,7 @@ func (p *persistentStore) writable() bool {
 func NewStore(loggers ldlog.Loggers) *Store {
 	s := &Store{
 		persistentStore: nil,
-		memoryStore:     datastore.NewInMemoryDataStore(loggers),
+		memoryStore:     memorystorev2.New(loggers),
 		loggers:         loggers,
 		selector:        fdv2proto.NoSelector(),
 		persist:         false,
@@ -222,7 +222,7 @@ func (s *Store) Commit() error {
 	return nil
 }
 
-func (s *Store) getActive() subsystems.DataStore {
+func (s *Store) getActive() subsystems.ReadOnlyStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.active
