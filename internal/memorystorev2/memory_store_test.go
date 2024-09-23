@@ -18,52 +18,53 @@ import (
 )
 
 func TestInMemoryDataStore(t *testing.T) {
-	t.Run("Get", testInMemoryDataStoreGet)
-	t.Run("GetAll", testInMemoryDataStoreGetAll)
-	t.Run("SetBasis", testInMemoryDataStoreSetBasis)
-	t.Run("ApplyDelta", testInMemoryDataStoreApplyDelta)
-	t.Run("Dump", testInMemoryDataStoreDump)
+	t.Run("Get", testGet)
+	t.Run("GetAll", testGetAll)
+	t.Run("GetAllKinds", testGetAllKinds)
+	t.Run("SetBasis", testSetBasis)
+	t.Run("ApplyDelta", testApplyDelta)
 }
 
 func makeMemoryStore() *Store {
 	return New(sharedtest.NewTestLoggers())
 }
 
-// The dataItemCreator/forAllDataKinds helpers work for testing the FDv1-style of interacting with the memory store,
-// e.g. Upsert/Init. With FDv2, the store is initialized with SetBasis and updates are applied atomically in batches
-// with ApplyDelta. In order to easily inject data into the store, and then make assertions based on the result of
-// calling Get, we need a slightly more involved pattern.
-// The main difference is that forAllDataKindsCollection now returns the ItemDescriptor, along with a collection
-// containing only that item. That way, the collection can be passed to ApplyDelta, and the ItemDescriptor can be
-// used when making assertions using the result of Get.
+// Used to create a segment/flag. Returns the individual item, and a collection slice
+// containing only that item.
 type collectionItemCreator func(key string, version int, otherProperty bool) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection)
 
+// Used to delete a segment/flag. Returns the individual item, and a collection slice
+// containing only that item.
 type collectionItemDeleter func(key string, version int) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection)
 
-func makeCollection(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) []ldstoretypes.Collection {
+func makeCollections(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) []ldstoretypes.Collection {
 	return []ldstoretypes.Collection{
-		{
-			Kind: kind,
-			Items: []ldstoretypes.KeyedItemDescriptor{
-				{
-					Key:  key,
-					Item: item,
-				},
+		makeCollection(kind, key, item),
+	}
+}
+
+func makeCollection(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) ldstoretypes.Collection {
+	return ldstoretypes.Collection{
+		Kind: kind,
+		Items: []ldstoretypes.KeyedItemDescriptor{
+			{
+				Key:  key,
+				Item: item,
 			},
 		},
 	}
 }
 
-func forAllDataKindsCollection(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, collectionItemCreator, collectionItemDeleter)) {
+func forAllDataKinds(t *testing.T, test func(*testing.T, ldstoretypes.DataKind, collectionItemCreator, collectionItemDeleter)) {
 	test(t, datakinds.Features, func(key string, version int, otherProperty bool) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection) {
 		flag := ldbuilders.NewFlagBuilder(key).Version(version).On(otherProperty).Build()
 		descriptor := sharedtest.FlagDescriptor(flag)
 
-		return descriptor, makeCollection(datakinds.Features, flag.Key, descriptor)
+		return descriptor, makeCollections(datakinds.Features, flag.Key, descriptor)
 	}, func(key string, version int) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection) {
 		descriptor := ldstoretypes.ItemDescriptor{Version: version, Item: nil}
 
-		return descriptor, makeCollection(datakinds.Features, key, descriptor)
+		return descriptor, makeCollections(datakinds.Features, key, descriptor)
 	})
 	test(t, datakinds.Segments, func(key string, version int, otherProperty bool) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection) {
 		segment := ldbuilders.NewSegmentBuilder(key).Version(version).Build()
@@ -72,18 +73,15 @@ func forAllDataKindsCollection(t *testing.T, test func(*testing.T, ldstoretypes.
 		}
 		descriptor := sharedtest.SegmentDescriptor(segment)
 
-		return descriptor, makeCollection(datakinds.Segments, segment.Key, descriptor)
+		return descriptor, makeCollections(datakinds.Segments, segment.Key, descriptor)
 	}, func(key string, version int) (ldstoretypes.ItemDescriptor, []ldstoretypes.Collection) {
 		descriptor := ldstoretypes.ItemDescriptor{Version: version, Item: nil}
 
-		return descriptor, makeCollection(datakinds.Segments, key, descriptor)
+		return descriptor, makeCollections(datakinds.Segments, key, descriptor)
 	})
 }
 
-func testInMemoryDataStoreSetBasis(t *testing.T) {
-	// SetBasis is currently an alias for Init, so the tests should be the same. Once there is no longer a use-case
-	// for Init (when fdv1 data system is removed, the Init tests can be deleted.)
-
+func testSetBasis(t *testing.T) {
 	t.Run("makes store initialized", func(t *testing.T) {
 		store := makeMemoryStore()
 		allData := sharedtest.NewDataSetBuilder().Flags(ldbuilders.NewFlagBuilder("key").Build()).Build()
@@ -122,10 +120,10 @@ func testInMemoryDataStoreSetBasis(t *testing.T) {
 	})
 }
 
-func testInMemoryDataStoreGet(t *testing.T) {
+func testGet(t *testing.T) {
 	const unknownKey = "unknown-key"
 
-	forAllDataKindsCollection(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, _ collectionItemDeleter) {
+	forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, _ collectionItemDeleter) {
 		t.Run("found", func(t *testing.T) {
 			store := makeMemoryStore()
 			store.SetBasis(sharedtest.NewDataSetBuilder().Build())
@@ -173,7 +171,7 @@ func testInMemoryDataStoreGet(t *testing.T) {
 	})
 }
 
-func testInMemoryDataStoreGetAll(t *testing.T) {
+func testGetAll(t *testing.T) {
 	store := makeMemoryStore()
 	store.SetBasis(sharedtest.NewDataSetBuilder().Build())
 
@@ -248,12 +246,9 @@ func (k unknownDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, 
 	return ldstoretypes.ItemDescriptor{}, errors.New("not implemented")
 }
 
-func testInMemoryDataStoreApplyDelta(t *testing.T) {
-
-	forAllDataKindsCollection(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, deleteItem collectionItemDeleter) {
-
+func testApplyDelta(t *testing.T) {
+	forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, deleteItem collectionItemDeleter) {
 		t.Run("upserts", func(t *testing.T) {
-
 			t.Run("newer version", func(t *testing.T) {
 				store := makeMemoryStore()
 				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
@@ -368,6 +363,163 @@ func testInMemoryDataStoreApplyDelta(t *testing.T) {
 	})
 }
 
-func testInMemoryDataStoreDump(t *testing.T) {
+func testGetAllKinds(t *testing.T) {
+	t.Run("uninitialized store", func(t *testing.T) {
+		store := makeMemoryStore()
+		collections := store.GetAllKinds()
+		assert.Empty(t, collections)
+	})
 
+	t.Run("initialized but empty store", func(t *testing.T) {
+		store := makeMemoryStore()
+		store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+		collections := store.GetAllKinds()
+		assert.Len(t, collections, 2)
+		assert.Empty(t, collections[0].Items)
+		assert.Empty(t, collections[1].Items)
+	})
+
+	t.Run("initialized store with data of a single kind", func(t *testing.T) {
+		forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, _ collectionItemDeleter) {
+			store := makeMemoryStore()
+			store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+			item1, collection1 := makeItem("key1", 1, false)
+
+			store.ApplyDelta(collection1)
+
+			collections := store.GetAllKinds()
+
+			assert.Len(t, collections, 2)
+
+			for _, coll := range collections {
+				if coll.Kind == kind {
+					assert.Len(t, coll.Items, 1)
+					assert.Equal(t, item1, coll.Items[0].Item)
+				} else {
+					assert.Empty(t, coll.Items)
+				}
+			}
+		})
+	})
+
+	t.Run("initialized store with data of multiple kinds", func(t *testing.T) {
+		store := makeMemoryStore()
+		store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+		flag1 := ldbuilders.NewFlagBuilder("flag1").Build()
+		segment1 := ldbuilders.NewSegmentBuilder("segment1").Build()
+
+		expectedCollection := []ldstoretypes.Collection{
+			makeCollection(datakinds.Features, flag1.Key, sharedtest.FlagDescriptor(flag1)),
+			makeCollection(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1)),
+		}
+
+		store.ApplyDelta(expectedCollection)
+
+		gotCollections := store.GetAllKinds()
+
+		assert.ElementsMatch(t, expectedCollection, gotCollections)
+	})
+
+	t.Run("multiple deltas applies", func(t *testing.T) {
+		forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, deleteItem collectionItemDeleter) {
+			store := makeMemoryStore()
+
+			store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+			_, collection1 := makeItem("key1", 1, false)
+			store.ApplyDelta(collection1)
+
+			// The collection slice we get from GetAllKinds is going to contain the specific segment or flag
+			// collection we're creating here in the test, but also an empty collection for the other kind.
+			expected := []ldstoretypes.Collection{collection1[0]}
+			if kind == datakinds.Features {
+				expected = append(expected, ldstoretypes.Collection{Kind: datakinds.Segments, Items: nil})
+			} else {
+				expected = append(expected, ldstoretypes.Collection{Kind: datakinds.Features, Items: nil})
+			}
+
+			assert.ElementsMatch(t, expected, store.GetAllKinds())
+
+			_, collection1a := makeItem("key1", 2, false)
+			store.ApplyDelta(collection1a)
+			expected[0] = collection1a[0]
+			assert.ElementsMatch(t, expected, store.GetAllKinds())
+
+			_, collection1b := deleteItem("key1", 3)
+			store.ApplyDelta(collection1b)
+			expected[0] = collection1b[0]
+			assert.ElementsMatch(t, expected, store.GetAllKinds())
+		})
+	})
+
+	t.Run("deltas containing multiple item kinds", func(t *testing.T) {
+
+		store := makeMemoryStore()
+
+		store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+
+		// Flag1 will be deleted.
+		flag1 := ldbuilders.NewFlagBuilder("flag1").Build()
+
+		// Flag2 is a control and won't be changed.
+		flag2 := ldbuilders.NewFlagBuilder("flag2").Build()
+
+		// Segment1 will be upserted.
+		segment1 := ldbuilders.NewSegmentBuilder("segment1").Build()
+
+		collection1 := []ldstoretypes.Collection{
+			{
+				Kind: datakinds.Features,
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{
+						Key:  flag1.Key,
+						Item: sharedtest.FlagDescriptor(flag1),
+					},
+					{
+						Key:  flag2.Key,
+						Item: sharedtest.FlagDescriptor(flag2),
+					},
+				},
+			},
+			makeCollection(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1)),
+		}
+
+		store.ApplyDelta(collection1)
+
+		assert.ElementsMatch(t, collection1, store.GetAllKinds())
+
+		// Bumping the segment version is sufficient for an upsert.
+		// To indicate that there's no change to flag2, we simply don't pass it in the collection.
+		segment1.Version += 1
+		collection2 := []ldstoretypes.Collection{
+			// Delete flag1
+			makeCollection(datakinds.Features, flag1.Key, ldstoretypes.ItemDescriptor{Version: flag1.Version + 1, Item: nil}),
+			// Upsert segment1
+			makeCollection(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1)),
+		}
+
+		store.ApplyDelta(collection2)
+
+		expected := []ldstoretypes.Collection{
+			{
+				Kind: datakinds.Features,
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{
+						Key:  flag1.Key,
+						Item: ldstoretypes.ItemDescriptor{Version: flag1.Version + 1, Item: nil},
+					},
+					{
+						Key:  flag2.Key,
+						Item: sharedtest.FlagDescriptor(flag2),
+					},
+				},
+			},
+			makeCollection(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1)),
+		}
+
+		assert.ElementsMatch(t, expected, store.GetAllKinds())
+	})
 }

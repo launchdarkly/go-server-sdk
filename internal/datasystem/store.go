@@ -217,7 +217,7 @@ func (s *Store) Commit() error {
 	defer s.mu.RUnlock()
 
 	if s.shouldPersist() {
-		return s.persistentStore.impl.Init(s.memoryStore.Dump())
+		return s.persistentStore.impl.Init(s.memoryStore.GetAllKinds())
 	}
 	return nil
 }

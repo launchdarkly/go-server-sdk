@@ -116,7 +116,7 @@ func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescr
 	return itemsOut
 }
 
-func (s *Store) Dump() []ldstoretypes.Collection {
+func (s *Store) GetAllKinds() []ldstoretypes.Collection {
 	s.RLock()
 
 	var allData []ldstoretypes.Collection
