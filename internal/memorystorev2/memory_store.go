@@ -71,7 +71,6 @@ func (s *Store) SetBasis(allData []ldstoretypes.Collection) {
 // An item is updated only if the version of the item in the delta is greater than the version
 // in the store, or it wasn't already present.
 func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.DataKind]map[string]bool {
-
 	updatedMap := make(map[ldstoretypes.DataKind]map[string]bool)
 
 	s.Lock()
@@ -91,8 +90,8 @@ func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.D
 	return updatedMap
 }
 
-// Get retrieves an item of the specified kind from the store. If the item is not found, then ItemDescriptor{}.NotFound()
-// is returned with a nil error.
+// Get retrieves an item of the specified kind from the store. If the item is not found, then
+// ItemDescriptor{}.NotFound() is returned with a nil error.
 func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
 	s.RLock()
 
@@ -144,7 +143,7 @@ func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescr
 func (s *Store) GetAllKinds() []ldstoretypes.Collection {
 	s.RLock()
 
-	var allData []ldstoretypes.Collection
+	allData := make([]ldstoretypes.Collection, 0, len(s.allData))
 	for kind := range s.allData {
 		itemsOut := s.getAll(kind)
 		allData = append(allData, ldstoretypes.Collection{Kind: kind, Items: itemsOut})
