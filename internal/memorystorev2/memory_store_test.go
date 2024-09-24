@@ -524,12 +524,8 @@ func testGetAllKinds(t *testing.T) {
 	})
 }
 
-// Make a custom Matcher that will match the result of store.GetAllKinds() with a collection that was passed in via
-// ApplyDelta or SetBasis. We need this because:
-// 1) The collections (segments, features) might be in random order in the top-level slice. That is, it might be
-// {segments, features} or it might be {features, segments}/
-// 2) The items within each of those collections might be in random order.
-// This should make use of normal assert functions where possible, and should accept a testing.T
+// This matcher is required instead of calling ElementsMatch directly on two slices of collections because
+// the order of the collections, or the order within each collection, is not defined.
 func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, actual []ldstoretypes.Collection) {
 	require.Equal(t, len(expected), len(actual))
 	for _, expectedCollection := range expected {

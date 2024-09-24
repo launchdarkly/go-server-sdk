@@ -21,8 +21,8 @@ import (
 // atomically. The idea is that there's never a moment when the state of the store could be inconsistent
 // with regard to the authoritative LaunchDarkly SaaS.
 type Store struct {
-	allData       map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
-	isInitialized bool
+	data        map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
+	initialized bool
 	sync.RWMutex
 	loggers ldlog.Loggers
 }
@@ -30,9 +30,9 @@ type Store struct {
 // New creates a new Store. The Store is uninitialized until SetBasis is called.
 func New(loggers ldlog.Loggers) *Store {
 	return &Store{
-		allData:       make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor),
-		isInitialized: false,
-		loggers:       loggers,
+		data:        make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor),
+		initialized: false,
+		loggers:     loggers,
 	}
 }
 
@@ -42,17 +42,17 @@ func (s *Store) SetBasis(allData []ldstoretypes.Collection) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.allData = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
+	s.data = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
 
 	for _, coll := range allData {
 		items := make(map[string]ldstoretypes.ItemDescriptor)
 		for _, item := range coll.Items {
 			items[item.Key] = item.Item
 		}
-		s.allData[coll.Kind] = items
+		s.data[coll.Kind] = items
 	}
 
-	s.isInitialized = true
+	s.initialized = true
 }
 
 // ApplyDelta applies a delta update to the store. ApplyDelta should not be called until
@@ -86,7 +86,7 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 	s.RLock()
 
 	var item ldstoretypes.ItemDescriptor
-	coll, ok := s.allData[kind]
+	coll, ok := s.data[kind]
 	if ok {
 		item, ok = coll[key]
 	}
@@ -111,7 +111,7 @@ func (s *Store) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDesc
 
 func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor {
 	var itemsOut []ldstoretypes.KeyedItemDescriptor
-	if itemsMap, ok := s.allData[kind]; ok {
+	if itemsMap, ok := s.data[kind]; ok {
 		if len(itemsMap) > 0 {
 			itemsOut = make([]ldstoretypes.KeyedItemDescriptor, 0, len(itemsMap))
 			for key, item := range itemsMap {
@@ -123,13 +123,13 @@ func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescr
 }
 
 // GetAllKinds retrieves all items of all kinds from the store. This is different from calling
-// GetAll for each kind because it provides a consistent view at a single point in time.
+// GetAll for each kind because it provides a consistent view of the entire store at a single point in time.
 func (s *Store) GetAllKinds() []ldstoretypes.Collection {
 	s.RLock()
 	defer s.RUnlock()
 
-	allData := make([]ldstoretypes.Collection, 0, len(s.allData))
-	for kind := range s.allData {
+	allData := make([]ldstoretypes.Collection, 0, len(s.data))
+	for kind := range s.data {
 		itemsOut := s.getAll(kind)
 		allData = append(allData, ldstoretypes.Collection{Kind: kind, Items: itemsOut})
 	}
@@ -145,14 +145,14 @@ func (s *Store) upsert(
 	var ok bool
 	shouldUpdate := true
 	updated := false
-	if coll, ok = s.allData[kind]; ok {
+	if coll, ok = s.data[kind]; ok {
 		if item, ok := coll[key]; ok {
 			if item.Version >= newItem.Version {
 				shouldUpdate = false
 			}
 		}
 	} else {
-		s.allData[kind] = map[string]ldstoretypes.ItemDescriptor{key: newItem}
+		s.data[kind] = map[string]ldstoretypes.ItemDescriptor{key: newItem}
 		shouldUpdate = false // because we already initialized the map with the new item
 		updated = true
 	}
@@ -163,9 +163,9 @@ func (s *Store) upsert(
 	return updated
 }
 
-// IsInitialized returns true if the store has been initialized with a basis.
+// IsInitialized returns true if the store has ever been initialized with a basis.
 func (s *Store) IsInitialized() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.isInitialized
+	return s.initialized
 }
