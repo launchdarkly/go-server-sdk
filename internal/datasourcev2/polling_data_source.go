@@ -189,11 +189,13 @@ func (pp *PollingProcessor) poll() error {
 		return nil
 	}
 
+	// TODO(cwaldren): If the destination fails to apply the updates should it affect the processor?
+	// This would only happen in the case of a persistent store.
 	switch response.Intent() {
 	case fdv2proto.IntentTransferFull:
-		pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)
+		_ = pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)
 	case fdv2proto.IntentTransferChanges:
-		pp.dataDestination.ApplyDelta(response.Events(), response.Selector(), true)
+		_ = pp.dataDestination.ApplyDelta(response.Events(), response.Selector(), true)
 	}
 
 	return nil

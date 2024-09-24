@@ -254,14 +254,17 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
+				// TODO(cwaldren): If the destination fails to apply the updates should it affect the processor?
+				// This would only happen in the case of a persistent store.
+
 				switch currentChangeSet.intent.Payloads[0].Code {
 				case fdv2proto.IntentTransferFull:
 					{
-						sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
+						_ = sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
 						sp.setInitializedAndNotifyClient(true, closeWhenReady)
 					}
 				case fdv2proto.IntentTransferChanges:
-					sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
+					_ = sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
 				}
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}

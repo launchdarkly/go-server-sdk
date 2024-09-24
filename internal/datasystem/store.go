@@ -1,8 +1,9 @@
 package datasystem
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 	"sync"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
