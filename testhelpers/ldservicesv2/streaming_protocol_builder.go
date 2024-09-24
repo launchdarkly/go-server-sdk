@@ -2,7 +2,7 @@ package ldservicesv2
 
 import (
 	"encoding/json"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )
 
@@ -14,31 +14,6 @@ func (p ProtocolEvents) Enqueue(control httphelpers.SSEStreamControl) {
 	}
 }
 
-type protoState string
-
-const (
-	start       = protoState("start")
-	intentSent  = protoState("intent-sent")
-	transferred = protoState("transferred")
-)
-
-type BaseObject struct {
-	Version int             `json:"version"`
-	Kind    string          `json:"kind"`
-	Key     string          `json:"key"`
-	Object  json.RawMessage `json:"object"`
-}
-
-type event struct {
-	name string
-	data BaseObject
-}
-
-type payloadTransferred struct {
-	State   string `json:"state"`
-	Version int    `json:"version"`
-}
-
 type StreamingProtocol struct {
 	events []httphelpers.SSEEvent
 }
@@ -47,31 +22,31 @@ func NewStreamingProtocol() *StreamingProtocol {
 	return &StreamingProtocol{}
 }
 
-func (f *StreamingProtocol) WithIntent(intent datasourcev2.ServerIntent) *StreamingProtocol {
-	return f.pushEvent("server-intent", intent)
+func (f *StreamingProtocol) WithIntent(intent fdv2proto.ServerIntent) *StreamingProtocol {
+	return f.pushEvent(intent)
 }
 
-func (f *StreamingProtocol) WithPutObject(object BaseObject) *StreamingProtocol {
-	return f.pushEvent("put-object", object)
+func (f *StreamingProtocol) WithPutObject(object fdv2proto.PutObject) *StreamingProtocol {
+	return f.pushEvent(object)
 }
 
 func (f *StreamingProtocol) WithTransferred() *StreamingProtocol {
-	return f.pushEvent("payload-transferred", payloadTransferred{State: "[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", Version: 1})
+	return f.pushEvent(fdv2proto.PayloadTransferred{State: "[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", Version: 1})
 }
 
-func (f *StreamingProtocol) WithPutObjects(objects []BaseObject) *StreamingProtocol {
+func (f *StreamingProtocol) WithPutObjects(objects []fdv2proto.PutObject) *StreamingProtocol {
 	for _, object := range objects {
 		f.WithPutObject(object)
 	}
 	return f
 }
 
-func (f *StreamingProtocol) pushEvent(event string, data any) *StreamingProtocol {
+func (f *StreamingProtocol) pushEvent(data fdv2proto.Event) *StreamingProtocol {
 	marshalled, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
 	}
-	f.events = append(f.events, httphelpers.SSEEvent{Event: event, Data: string(marshalled)})
+	f.events = append(f.events, httphelpers.SSEEvent{Event: string(data.Name()), Data: string(marshalled)})
 	return f
 }
 

@@ -4,14 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
-
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
@@ -85,13 +82,17 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 		return NewCachedPollingResponse(), nil
 	}
 
-	var payload pollingPayload
+	var payload fdv2proto.PollingPayload
 	if err = json.Unmarshal(body, &payload); err != nil {
 		return nil, malformedJSONError{err}
 	}
 
-	parseItem := func(r jreader.Reader, kind datakinds.DataKindInternal) (ldstoretypes.ItemDescriptor, error) {
-		item, err := kind.DeserializeFromJSONReader(&r)
+	parseItem := func(r jreader.Reader, kind fdv2proto.ObjectKind) (ldstoretypes.ItemDescriptor, error) {
+		dataKind, err := kind.ToFDV1()
+		if err != nil {
+			return ldstoretypes.ItemDescriptor{}, err
+		}
+		item, err := dataKind.DeserializeFromJSONReader(&r)
 		return item, err
 	}
 
@@ -100,10 +101,10 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 	var intent fdv2proto.IntentCode
 
 	for _, event := range payload.Events {
-		switch event.Event() {
+		switch fdv2proto.EventName(event.Event()) {
 		case fdv2proto.EventServerIntent:
 			{
-				var serverIntent serverIntent
+				var serverIntent fdv2proto.ServerIntent
 				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
 				if err != nil {
 					return nil, err
@@ -119,53 +120,55 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 		case fdv2proto.EventPutObject:
 			{
 				r := jreader.NewReader([]byte(event.Data()))
-				var kind, key string
-				var item ldstoretypes.ItemDescriptor
-				var err error
-				var dataKind datakinds.DataKindInternal
+
+				var (
+					key     string
+					kind    fdv2proto.ObjectKind
+					item    ldstoretypes.ItemDescriptor
+					err     error
+					version int
+				)
 
 				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, "key", "object"}); obj.Next(); {
 					switch string(obj.Name()) {
 					case versionField:
-						// version = r.Int()
+						version = r.Int()
 					case kindField:
-						kind = strings.TrimRight(r.String(), "s")
-						dataKind = dataKindFromKind(kind)
+						kind = fdv2proto.ObjectKind(r.String())
 					case "key":
 						key = r.String()
 					case "object":
-						item, err = parseItem(r, dataKind)
+						item, err = parseItem(r, kind)
 						if err != nil {
 							return nil, err
 						}
 					}
 				}
-				updates = append(updates, fdv2proto.PutObject{Kind: dataKind, Key: key, Object: item})
+				updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item, Version: version})
 			}
 		case fdv2proto.EventDeleteObject:
 			{
 				r := jreader.NewReader([]byte(event.Data()))
-				var version int
-				var dataKind datakinds.DataKindInternal
-				var kind, key string
+
+				var (
+					version int
+					kind    fdv2proto.ObjectKind
+					key     string
+				)
 
 				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField}); obj.Next(); {
 					switch string(obj.Name()) {
 					case versionField:
 						version = r.Int()
 					case kindField:
-						kind = strings.TrimRight(r.String(), "s")
-						dataKind = dataKindFromKind(kind)
-						if dataKind == nil {
-							//nolint: godox
-							// TODO: We are skipping here without showing a warning. Need to address that later.
-							continue
-						}
+						kind = fdv2proto.ObjectKind(r.String())
+						// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
+						// do we throw out the DeleteObject here, or let the SDK's store handle it?
 					case keyField:
 						key = r.String()
 					}
 				}
-				updates = append(updates, fdv2proto.DeleteObject{Kind: dataKind, Key: key, Version: version})
+				updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
 
 			}
 		case fdv2proto.EventPayloadTransferred:

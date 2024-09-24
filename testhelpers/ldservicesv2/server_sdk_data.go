@@ -1,11 +1,10 @@
-package ldservices
+package ldservicesv2
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
-	"github.com/launchdarkly/go-test-helpers/v3/jsonhelpers"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 type fakeVersionedKind struct {
@@ -26,15 +25,15 @@ func KeyAndVersionItem(key string, version int) interface{} {
 //	data := NewServerSDKData().Flags(flag1, flag2)
 //	handler := PollingServiceHandler(data)
 type ServerSDKData struct {
-	FlagsMap    map[string]interface{} `json:"flags"`
-	SegmentsMap map[string]interface{} `json:"segments"`
+	FlagsMap    map[string]ldmodel.FeatureFlag `json:"flags"`
+	SegmentsMap map[string]ldmodel.Segment     `json:"segments"`
 }
 
 // NewServerSDKData creates a ServerSDKData instance.
 func NewServerSDKData() *ServerSDKData {
 	return &ServerSDKData{
-		make(map[string]interface{}),
-		make(map[string]interface{}),
+		make(map[string]ldmodel.FeatureFlag),
+		make(map[string]ldmodel.Segment),
 	}
 }
 
@@ -48,11 +47,9 @@ func (s *ServerSDKData) String() string {
 //
 // Each item may be either a object produced by KeyAndVersionItem or a real data model object from the ldmodel
 // package. The minimum requirement is that when converted to JSON, it has a "key" property.
-func (s *ServerSDKData) Flags(flags ...interface{}) *ServerSDKData {
+func (s *ServerSDKData) Flags(flags ...ldmodel.FeatureFlag) *ServerSDKData {
 	for _, flag := range flags {
-		if key := getKeyFromJSON(flag); key != "" {
-			s.FlagsMap[key] = flag
-		}
+		s.FlagsMap[flag.Key] = flag
 	}
 	return s
 }
@@ -61,23 +58,32 @@ func (s *ServerSDKData) Flags(flags ...interface{}) *ServerSDKData {
 //
 // Each item may be either a object produced by KeyAndVersionItem or a real data model object from the ldmodel
 // package. The minimum requirement is that when converted to JSON, it has a "key" property.
-func (s *ServerSDKData) Segments(segments ...interface{}) *ServerSDKData {
+func (s *ServerSDKData) Segments(segments ...ldmodel.Segment) *ServerSDKData {
 	for _, segment := range segments {
-		if key := getKeyFromJSON(segment); key != "" {
-			s.SegmentsMap[key] = segment
-		}
+		s.SegmentsMap[segment.Key] = segment
 	}
 	return s
 }
 
-func getKeyFromJSON(item interface{}) string {
-	return ldvalue.Parse(jsonhelpers.ToJSON(item)).GetByKey("key").StringValue()
-}
-
-// ToPutEvent creates an SSE event in the format that is used by the server-side SDK streaming endpoint.
-func (s *ServerSDKData) ToPutEvent() httphelpers.SSEEvent {
-	return httphelpers.SSEEvent{
-		Event: "put",
-		Data:  fmt.Sprintf(`{"path": "/", "data": %s}`, s),
+func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
+	var objs []fdv2proto.PutObject
+	for _, flag := range s.FlagsMap {
+		base := fdv2proto.PutObject{
+			Version: 1,
+			Kind:    fdv2proto.FlagKind,
+			Key:     flag.Key,
+			Object:  ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag},
+		}
+		objs = append(objs, base)
 	}
+	for _, segment := range s.SegmentsMap {
+		base := fdv2proto.PutObject{
+			Version: 1,
+			Kind:    fdv2proto.SegmentKind,
+			Key:     segment.Key,
+			Object:  ldstoretypes.ItemDescriptor{Version: segment.Version, Item: segment},
+		}
+		objs = append(objs, base)
+	}
+	return objs
 }

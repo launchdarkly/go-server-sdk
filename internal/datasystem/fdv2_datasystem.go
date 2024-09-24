@@ -3,6 +3,7 @@ package datasystem
 import (
 	"context"
 	"errors"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"sync"
 	"time"
 
@@ -178,28 +179,31 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *int {
+func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) fdv2proto.Selector {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
-		payload, err := initializer.Fetch(ctx)
+		basis, err := initializer.Fetch(ctx)
 		if errors.Is(err, context.Canceled) {
-			return nil
+			return fdv2proto.NoSelector()
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		f.store.Init(payload.Data, payload.Version, payload.Persist)
+		if err := f.store.SetBasis(basis.Data, basis.Selector, basis.Persist); err != nil {
+			f.loggers.Errorf("Failed to set basis: %v", err)
+			continue
+		}
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
-		return payload.Version
+		return basis.Selector
 	}
-	return nil
+	return fdv2proto.NoSelector()
 }
 
-func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, payloadVersion *int) {
+func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector fdv2proto.Selector) {
 	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded), we should
 	// trigger the ready signal to let the call to MakeClient unblock immediately.
 	if f.primarySync == nil {
@@ -213,7 +217,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	// Instead, create a "proxy" channel just for the data source; if that is closed, we close the real one
 	// using the sync.Once.
 	ready := make(chan struct{})
-	f.primarySync.Sync(ready, payloadVersion)
+	f.primarySync.Sync(ready, selector)
 
 	for {
 		select {
@@ -247,7 +251,13 @@ func (f *FDv2) Store() subsystems.ReadOnlyStore {
 }
 
 func (f *FDv2) DataAvailability() DataAvailability {
-	return f.store.DataAvailability()
+	if f.store.Selector().IsSet() {
+		return Refreshed
+	}
+	if f.store.IsInitialized() {
+		return Cached
+	}
+	return Defaults
 }
 
 func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {

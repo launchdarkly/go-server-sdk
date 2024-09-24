@@ -20,12 +20,12 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 		switch e := event.(type) {
 		case PutObject:
 			switch e.Kind {
-			case datakinds.Features:
+			case FlagKind:
 				flagCollection.Items = append(flagCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key:  e.Key,
 					Item: e.Object,
 				})
-			case datakinds.Segments:
+			case SegmentKind:
 				segmentCollection.Items = append(segmentCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key:  e.Key,
 					Item: e.Object,
@@ -33,7 +33,7 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 			}
 		case DeleteObject:
 			switch e.Kind {
-			case datakinds.Features:
+			case FlagKind:
 				flagCollection.Items = append(flagCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key: e.Key,
 					Item: ldstoretypes.ItemDescriptor{
@@ -41,7 +41,7 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 						Item:    nil,
 					},
 				})
-			case datakinds.Segments:
+			case SegmentKind:
 				segmentCollection.Items = append(segmentCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key: e.Key,
 					Item: ldstoretypes.ItemDescriptor{

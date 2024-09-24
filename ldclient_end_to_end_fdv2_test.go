@@ -3,7 +3,7 @@ package ldclient
 import (
 	"crypto/x509"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 	"net/http"
@@ -23,13 +23,13 @@ import (
 )
 
 func TestFDV2DefaultDataSourceIsStreaming(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(datasourcev2.ServerIntent{Payloads: []datasourcev2.Payload{
+		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
-		WithPutObjects(data.ToBaseObjects()).
+		WithPutObjects(data.ToPutObjects()).
 		WithTransferred()
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
@@ -61,13 +61,13 @@ func TestFDV2DefaultDataSourceIsStreaming(t *testing.T) {
 }
 
 func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(datasourcev2.ServerIntent{Payloads: []datasourcev2.Payload{
+		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
-		WithPutObjects(data.ToBaseObjects()).
+		WithPutObjects(data.ToPutObjects()).
 		WithTransferred()
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
@@ -104,13 +104,13 @@ func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
 }
 
 func TestFDV2ClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(datasourcev2.ServerIntent{Payloads: []datasourcev2.Payload{
+		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
-		WithPutObjects(data.ToBaseObjects()).
+		WithPutObjects(data.ToPutObjects()).
 		WithTransferred()
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
@@ -184,13 +184,13 @@ func TestFDV2ClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 }
 
 func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(datasourcev2.ServerIntent{Payloads: []datasourcev2.Payload{
+		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
-		WithPutObjects(data.ToBaseObjects()).
+		WithPutObjects(data.ToPutObjects()).
 		WithTransferred()
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
@@ -215,13 +215,13 @@ func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
 }
 
 func TestFDV2ClientStartupTimesOut(t *testing.T) {
-	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(datasourcev2.ServerIntent{Payloads: []datasourcev2.Payload{
+		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
-		WithPutObjects(data.ToBaseObjects()).
+		WithPutObjects(data.ToPutObjects()).
 		WithTransferred()
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())

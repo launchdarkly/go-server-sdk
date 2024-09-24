@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -83,8 +82,8 @@ func TestStore_Commit(t *testing.T) {
 		// The store receives data as a list of events, but the persistent store receives them as an
 		// []ldstoretypes.Collection.
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
-			fdv2proto.PutObject{Kind: datakinds.Segments, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
 		output := []ldstoretypes.Collection{
@@ -124,8 +123,8 @@ func TestStore_Commit(t *testing.T) {
 		defer store.Close()
 
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
-			fdv2proto.PutObject{Kind: datakinds.Segments, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
 		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
@@ -148,8 +147,8 @@ func TestStore_Commit(t *testing.T) {
 		defer store.Close()
 
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
-			fdv2proto.PutObject{Kind: datakinds.Segments, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
 		// Even though persist is true, the store was marked as read-only, so it shouldn't be written to.
@@ -174,7 +173,7 @@ func TestStore_GetActive(t *testing.T) {
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
 		}
 
 		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
@@ -206,7 +205,7 @@ func TestStore_GetActive(t *testing.T) {
 		assert.Equal(t, errImAPersistentStore, err)
 
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: datakinds.Features, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
 		}
 
 		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))

@@ -181,17 +181,12 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector
 	// is happening. In practice, we often don't receive more than one event at a time, but this may change
 	// in the future.
 	if s.shouldPersist() {
-		for _, event := range events {
-			var err error
-			switch e := event.(type) {
-			case fdv2proto.PutObject:
-				_, err = s.persistentStore.impl.Upsert(e.Kind, e.Key, ldstoretypes.ItemDescriptor{Version: e.Version, Item: e.Object})
-			case fdv2proto.DeleteObject:
-				_, err = s.persistentStore.impl.Upsert(e.Kind, e.Key, ldstoretypes.ItemDescriptor{Version: e.Version, Item: nil})
-			}
-			// TODO: return error?
-			if err != nil {
-				s.loggers.Errorf("Error applying %s to persistent store: %s", event.Name(), err)
+		for _, coll := range collections {
+			for _, item := range coll.Items {
+				_, err := s.persistentStore.impl.Upsert(coll.Kind, item.Key, item.Item)
+				if err != nil {
+					s.loggers.Errorf("Failed to apply delta to persistent store: %s", err)
+				}
 			}
 		}
 	}

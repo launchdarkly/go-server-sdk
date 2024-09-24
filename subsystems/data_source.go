@@ -2,9 +2,8 @@ package subsystems
 
 import (
 	"context"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"io"
-
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 // DataSource describes the interface for an object that receives feature flag data.
@@ -24,20 +23,20 @@ type DataSource interface {
 	Start(closeWhenReady chan<- struct{})
 }
 
-type InitialPayload struct {
-	Data    []ldstoretypes.Collection
-	Persist bool
-	Version *int
+type Basis struct {
+	Data     []fdv2proto.Event
+	Selector fdv2proto.Selector
+	Persist  bool
 }
 
 type DataInitializer interface {
 	Name() string
-	Fetch(ctx context.Context) (*InitialPayload, error)
+	Fetch(ctx context.Context) (*Basis, error)
 }
 
 type DataSynchronizer interface {
 	DataInitializer
-	Sync(closeWhenReady chan<- struct{}, payloadVersion *int)
+	Sync(closeWhenReady chan<- struct{}, selector fdv2proto.Selector)
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
 	// Once this is true, it should remain true even if a problem occurs later.

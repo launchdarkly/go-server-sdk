@@ -1,6 +1,10 @@
 package fdv2proto
 
-import "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+import (
+	"fmt"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+)
 
 type IntentCode string
 
@@ -25,10 +29,45 @@ const (
 	EventError              = EventName("error")
 )
 
+type ObjectKind string
+
+const (
+	FlagKind    = ObjectKind("flag")
+	SegmentKind = ObjectKind("segment")
+)
+
+func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, error) {
+	switch o {
+	case FlagKind:
+		return datakinds.Features, nil
+	case SegmentKind:
+		return datakinds.Segments, nil
+	default:
+		return nil, fmt.Errorf("no FDv1 equivalent for object kind (%s)", string(o))
+	}
+}
+
+type ServerIntent struct {
+	Payloads []Payload `json:"payloads"`
+}
+
+func (ServerIntent) Name() EventName {
+	return EventServerIntent
+}
+
+type PayloadTransferred struct {
+	State   string `json:"state"`
+	Version int    `json:"version"`
+}
+
+func (p PayloadTransferred) Name() EventName {
+	return EventPayloadTransferred
+}
+
 type DeleteObject struct {
-	Version int
-	Kind    ldstoretypes.DataKind
-	Key     string
+	Version int        `json:"version"`
+	Kind    ObjectKind `json:"kind"`
+	Key     string     `json:"key"`
 }
 
 func (d DeleteObject) Name() EventName {
@@ -36,12 +75,31 @@ func (d DeleteObject) Name() EventName {
 }
 
 type PutObject struct {
-	Version int
-	Kind    ldstoretypes.DataKind
-	Key     string
-	Object  ldstoretypes.ItemDescriptor
+	Version int                         `json:"version"`
+	Kind    ObjectKind                  `json:"kind"`
+	Key     string                      `json:"key"`
+	Object  ldstoretypes.ItemDescriptor `json:"object"`
 }
 
 func (p PutObject) Name() EventName {
 	return EventPutObject
+}
+
+type Error struct {
+	PayloadID string `json:"payloadId"`
+	Reason    string `json:"reason"`
+}
+
+func (e Error) Name() EventName {
+	return EventError
+}
+
+type Goodbye struct {
+	Reason      string `json:"reason"`
+	Silent      bool   `json:"silent"`
+	Catastrophe bool   `json:"catastrophe"`
+}
+
+func (g Goodbye) Name() EventName {
+	return EventGoodbye
 }

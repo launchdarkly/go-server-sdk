@@ -118,17 +118,17 @@ func (pp *PollingProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.InitialPayload, error) {
+func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error) {
 	// TODO: ideally, the Request method would take a context so it could be interrupted.
-	allData, _, err := pp.requester.Request()
+	basis, err := pp.requester.Request()
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.InitialPayload{Data: allData, Persist: true, Version: nil}, nil
+	return &subsystems.Basis{Data: basis.Events(), Selector: basis.Selector(), Persist: true}, nil
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, payloadVersion *int) {
+func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)
