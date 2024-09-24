@@ -83,21 +83,21 @@ func TestStore_Commit(t *testing.T) {
 		// The store receives data as a list of events, but the persistent store receives them as an
 		// []ldstoretypes.Collection.
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldmodel.FeatureFlag{Version: 1}},
-			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldmodel.Segment{Version: 2}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldmodel.FeatureFlag{}},
+			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: ldmodel.Segment{}},
 		}
 
 		output := []ldstoretypes.Collection{
 			{
 				Kind: ldstoreimpl.Features(),
 				Items: []ldstoretypes.KeyedItemDescriptor{
-					{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1}},
+					{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1, Item: ldmodel.FeatureFlag{}}},
 				},
 			},
 			{
 				Kind: ldstoreimpl.Segments(),
 				Items: []ldstoretypes.KeyedItemDescriptor{
-					{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2}},
+					{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2, Item: ldmodel.Segment{}}},
 				},
 			}}
 
@@ -112,7 +112,7 @@ func TestStore_Commit(t *testing.T) {
 		// This time, the data should be stored properly.
 		require.NoError(t, store.Commit())
 
-		assert.ElementsMatch(t, output, spy.initPayload)
+		requireCollectionsMatch(t, output, spy.initPayload)
 	})
 
 	t.Run("non-persist memory items are not copied to persistent store in r/w mode", func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestStore_GetActive(t *testing.T) {
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldstoretypes.ItemDescriptor{}},
 		}
 
 		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
@@ -206,7 +206,7 @@ func TestStore_GetActive(t *testing.T) {
 		assert.Equal(t, errImAPersistentStore, err)
 
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldstoretypes.ItemDescriptor{}},
 		}
 
 		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
@@ -325,4 +325,18 @@ func (f *fakeStore) IsStatusMonitoringEnabled() bool {
 
 func (f *fakeStore) Close() error {
 	return nil
+}
+
+// This matcher is required instead of calling ElementsMatch directly on two slices of collections because
+// the order of the collections, or the order within each collection, is not defined.
+func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, actual []ldstoretypes.Collection) {
+	require.Equal(t, len(expected), len(actual))
+	for _, expectedCollection := range expected {
+		for _, actualCollection := range actual {
+			if expectedCollection.Kind == actualCollection.Kind {
+				require.ElementsMatch(t, expectedCollection.Items, actualCollection.Items)
+				break
+			}
+		}
+	}
 }
