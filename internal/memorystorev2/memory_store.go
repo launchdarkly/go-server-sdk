@@ -1,3 +1,5 @@
+// Package memorystorev2 contains an implementation for a transactional memory store suitable
+// for the FDv2 architecture.
 package memorystorev2
 
 import (
@@ -7,54 +9,63 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// Store contains flag and segment data, protected by a lock-striped map.
+// Store provides an abstraction that makes flag and segment data available to other components.
+// It accepts updates in batches - for instance, flag A was upserted while segment B was deleted -
+// such that the contents of the store are consistent with a single payload version at any given time.
 //
-// Implementation notes:
+// The terminology used is "basis" and "deltas". First, the store's basis is set. This is this initial
+// data, upon which subsequent deltas will be applied. Whenever the basis is set, any existing data
+// is discarded.
 //
-// We deliberately do not use a defer pattern to manage the lock in these methods. Using defer adds a small but
-// consistent overhead, and these store methods may be called with very high frequency (at least in the case of
-// Get and IsInitialized). To make it safe to hold a lock without deferring the unlock, we must ensure that
-// there is only one return point from each method, and that there is no operation that could possibly cause a
-// panic after the lock has been acquired. See notes on performance in CONTRIBUTING.md.
+// Deltas are then applied to the store. A single delta update transforms the contents of the store
+// atomically. The idea is that there's never a moment when the state of the store could be inconsistent
+// with regard to the authoritative LaunchDarkly SaaS.
 type Store struct {
-	allData       map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
-	isInitialized bool
+	data        map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
+	initialized bool
 	sync.RWMutex
 	loggers ldlog.Loggers
 }
 
-// New creates an instance of the in-memory data s. This is not part of the public API.
+// New creates a new Store. The Store is uninitialized until SetBasis is called.
 func New(loggers ldlog.Loggers) *Store {
 	return &Store{
-		allData:       make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor),
-		isInitialized: false,
-		loggers:       loggers,
+		data:        make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor),
+		initialized: false,
+		loggers:     loggers,
 	}
 }
 
+// SetBasis sets the basis of the Store. Any existing data is discarded.
+// When the basis is set, the store becomes initialized.
 func (s *Store) SetBasis(allData []ldstoretypes.Collection) {
 	s.Lock()
+	defer s.Unlock()
 
-	s.allData = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
+	s.data = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
 
 	for _, coll := range allData {
 		items := make(map[string]ldstoretypes.ItemDescriptor)
 		for _, item := range coll.Items {
 			items[item.Key] = item.Item
 		}
-		s.allData[coll.Kind] = items
+		s.data[coll.Kind] = items
 	}
 
-	s.isInitialized = true
-
-	s.Unlock()
+	s.initialized = true
 }
 
+// ApplyDelta applies a delta update to the store. ApplyDelta should not be called until
+// SetBasis has been called at least once. The return value indicates, for each DataKind
+// present in the delta, whether the item in the delta was actually updated or not.
+//
+// An item is updated only if the version of the item in the delta is greater than the version
+// in the store, or it wasn't already present.
 func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.DataKind]map[string]bool {
-
 	updatedMap := make(map[ldstoretypes.DataKind]map[string]bool)
 
 	s.Lock()
+	defer s.Unlock()
 
 	for _, coll := range allData {
 		for _, item := range coll.Items {
@@ -66,18 +77,16 @@ func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.D
 		}
 	}
 
-	s.Unlock()
-
 	return updatedMap
 }
 
+// Get retrieves an item of the specified kind from the store. If the item is not found, then
+// ItemDescriptor{}.NotFound() is returned with a nil error.
 func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
 	s.RLock()
 
-	var coll map[string]ldstoretypes.ItemDescriptor
 	var item ldstoretypes.ItemDescriptor
-	var ok bool
-	coll, ok = s.allData[kind]
+	coll, ok := s.data[kind]
 	if ok {
 		item, ok = coll[key]
 	}
@@ -93,19 +102,16 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 	return ldstoretypes.ItemDescriptor{}.NotFound(), nil
 }
 
+// GetAll retrieves all items of the specified kind from the store.
 func (s *Store) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	s.RLock()
-
-	itemsOut := s.getAll(kind)
-
-	s.RUnlock()
-
-	return itemsOut, nil
+	defer s.RUnlock()
+	return s.getAll(kind), nil
 }
 
 func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor {
 	var itemsOut []ldstoretypes.KeyedItemDescriptor
-	if itemsMap, ok := s.allData[kind]; ok {
+	if itemsMap, ok := s.data[kind]; ok {
 		if len(itemsMap) > 0 {
 			itemsOut = make([]ldstoretypes.KeyedItemDescriptor, 0, len(itemsMap))
 			for key, item := range itemsMap {
@@ -116,16 +122,17 @@ func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescr
 	return itemsOut
 }
 
+// GetAllKinds retrieves all items of all kinds from the store. This is different from calling
+// GetAll for each kind because it provides a consistent view of the entire store at a single point in time.
 func (s *Store) GetAllKinds() []ldstoretypes.Collection {
 	s.RLock()
+	defer s.RUnlock()
 
-	var allData []ldstoretypes.Collection
-	for kind := range s.allData {
+	allData := make([]ldstoretypes.Collection, 0, len(s.data))
+	for kind := range s.data {
 		itemsOut := s.getAll(kind)
 		allData = append(allData, ldstoretypes.Collection{Kind: kind, Items: itemsOut})
 	}
-
-	s.RUnlock()
 
 	return allData
 }
@@ -138,14 +145,14 @@ func (s *Store) upsert(
 	var ok bool
 	shouldUpdate := true
 	updated := false
-	if coll, ok = s.allData[kind]; ok {
+	if coll, ok = s.data[kind]; ok {
 		if item, ok := coll[key]; ok {
 			if item.Version >= newItem.Version {
 				shouldUpdate = false
 			}
 		}
 	} else {
-		s.allData[kind] = map[string]ldstoretypes.ItemDescriptor{key: newItem}
+		s.data[kind] = map[string]ldstoretypes.ItemDescriptor{key: newItem}
 		shouldUpdate = false // because we already initialized the map with the new item
 		updated = true
 	}
@@ -156,9 +163,9 @@ func (s *Store) upsert(
 	return updated
 }
 
+// IsInitialized returns true if the store has ever been initialized with a basis.
 func (s *Store) IsInitialized() bool {
 	s.RLock()
-	ret := s.isInitialized
-	s.RUnlock()
-	return ret
+	defer s.RUnlock()
+	return s.initialized
 }

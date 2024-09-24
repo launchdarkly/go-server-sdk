@@ -420,7 +420,7 @@ func testGetAllKinds(t *testing.T) {
 
 		gotCollections := store.GetAllKinds()
 
-		assert.ElementsMatch(t, expectedCollection, gotCollections)
+		requireCollectionsMatch(t, expectedCollection, gotCollections)
 	})
 
 	t.Run("multiple deltas applies", func(t *testing.T) {
@@ -441,17 +441,17 @@ func testGetAllKinds(t *testing.T) {
 				expected = append(expected, ldstoretypes.Collection{Kind: datakinds.Features, Items: nil})
 			}
 
-			assert.ElementsMatch(t, expected, store.GetAllKinds())
+			requireCollectionsMatch(t, expected, store.GetAllKinds())
 
 			_, collection1a := makeItem("key1", 2, false)
 			store.ApplyDelta(collection1a)
 			expected[0] = collection1a[0]
-			assert.ElementsMatch(t, expected, store.GetAllKinds())
+			requireCollectionsMatch(t, expected, store.GetAllKinds())
 
 			_, collection1b := deleteItem("key1", 3)
 			store.ApplyDelta(collection1b)
 			expected[0] = collection1b[0]
-			assert.ElementsMatch(t, expected, store.GetAllKinds())
+			requireCollectionsMatch(t, expected, store.GetAllKinds())
 		})
 	})
 
@@ -489,7 +489,7 @@ func testGetAllKinds(t *testing.T) {
 
 		store.ApplyDelta(collection1)
 
-		assert.ElementsMatch(t, collection1, store.GetAllKinds())
+		requireCollectionsMatch(t, collection1, store.GetAllKinds())
 
 		// Bumping the segment version is sufficient for an upsert.
 		// To indicate that there's no change to flag2, we simply don't pass it in the collection.
@@ -520,6 +520,20 @@ func testGetAllKinds(t *testing.T) {
 			makeCollection(datakinds.Segments, segment1.Key, sharedtest.SegmentDescriptor(segment1)),
 		}
 
-		assert.ElementsMatch(t, expected, store.GetAllKinds())
+		requireCollectionsMatch(t, expected, store.GetAllKinds())
 	})
+}
+
+// This matcher is required instead of calling ElementsMatch directly on two slices of collections because
+// the order of the collections, or the order within each collection, is not defined.
+func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, actual []ldstoretypes.Collection) {
+	require.Equal(t, len(expected), len(actual))
+	for _, expectedCollection := range expected {
+		for _, actualCollection := range actual {
+			if expectedCollection.Kind == actualCollection.Kind {
+				require.ElementsMatch(t, expectedCollection.Items, actualCollection.Items)
+				break
+			}
+		}
+	}
 }
