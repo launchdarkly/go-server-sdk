@@ -23,7 +23,7 @@ type PollingResponse struct {
 	events   []fdv2proto.Event
 	cached   bool
 	intent   fdv2proto.IntentCode
-	selector fdv2proto.Selector
+	selector *fdv2proto.Selector
 }
 
 func (p *PollingResponse) Events() []fdv2proto.Event {
@@ -38,7 +38,7 @@ func (p *PollingResponse) Intent() fdv2proto.IntentCode {
 	return p.intent
 }
 
-func (p *PollingResponse) Selector() fdv2proto.Selector {
+func (p *PollingResponse) Selector() *fdv2proto.Selector {
 	return p.selector
 }
 
@@ -48,7 +48,7 @@ func NewCachedPollingResponse() *PollingResponse {
 	}
 }
 
-func NewPollingResponse(intent fdv2proto.IntentCode, events []fdv2proto.Event, selector fdv2proto.Selector) *PollingResponse {
+func NewPollingResponse(intent fdv2proto.IntentCode, events []fdv2proto.Event, selector *fdv2proto.Selector) *PollingResponse {
 	return &PollingResponse{
 		events:   events,
 		intent:   intent,
@@ -128,7 +128,7 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
+func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ *fdv2proto.Selector) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)

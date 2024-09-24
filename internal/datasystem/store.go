@@ -56,7 +56,7 @@ type Store struct {
 	active subsystems.ReadOnlyStore
 
 	// Identifies the current data.
-	selector fdv2proto.Selector
+	selector *fdv2proto.Selector
 
 	mu sync.RWMutex
 
@@ -121,7 +121,7 @@ func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems
 }
 
 // Selector returns the current selector.
-func (s *Store) Selector() fdv2proto.Selector {
+func (s *Store) Selector() *fdv2proto.Selector {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.selector
@@ -137,12 +137,12 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) SetBasis(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
 	collections := fdv2proto.ToStorableItems(events)
 	return s.init(collections, selector, persist)
 }
 
-func (s *Store) init(allData []ldstoretypes.Collection, selector fdv2proto.Selector, persist bool) error {
+func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Selector, persist bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -164,7 +164,7 @@ func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
-func (s *Store) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
 	collections := fdv2proto.ToStorableItems(events)
 
 	s.mu.Lock()

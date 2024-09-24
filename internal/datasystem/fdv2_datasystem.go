@@ -179,7 +179,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) fdv2proto.Selector {
+func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *fdv2proto.Selector {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, err := initializer.Fetch(ctx)
@@ -203,7 +203,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 	return fdv2proto.NoSelector()
 }
 
-func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector fdv2proto.Selector) {
+func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector *fdv2proto.Selector) {
 	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded), we should
 	// trigger the ready signal to let the call to MakeClient unblock immediately.
 	if f.primarySync == nil {

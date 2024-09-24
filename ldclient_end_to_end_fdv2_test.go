@@ -30,7 +30,7 @@ func TestFDV2DefaultDataSourceIsStreaming(t *testing.T) {
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred()
+		WithTransferred(1)
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
 
@@ -68,7 +68,7 @@ func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred()
+		WithTransferred(1)
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
@@ -111,7 +111,7 @@ func TestFDV2ClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred()
+		WithTransferred(1)
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
@@ -191,7 +191,7 @@ func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred()
+		WithTransferred(1)
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
@@ -205,7 +205,7 @@ func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
 			DataSystem:       ldcomponents.DataSystem().Streaming(),
 		}
 
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*50000)
 		require.NoError(t, err)
 		defer client.Close()
 
@@ -222,7 +222,7 @@ func TestFDV2ClientStartupTimesOut(t *testing.T) {
 			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred()
+		WithTransferred(1)
 
 	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)

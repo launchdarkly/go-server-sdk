@@ -2,6 +2,7 @@ package datasystem
 
 import (
 	"errors"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"math/rand"
 	"sync"
 	"testing"
@@ -43,7 +44,7 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 	none := fdv2proto.NoSelector()
 	tests := []struct {
 		name     string
-		selector fdv2proto.Selector
+		selector *fdv2proto.Selector
 		persist  bool
 	}{
 		{"with selector, persist", v1, true},
@@ -82,8 +83,8 @@ func TestStore_Commit(t *testing.T) {
 		// The store receives data as a list of events, but the persistent store receives them as an
 		// []ldstoretypes.Collection.
 		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
-			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
+			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldmodel.FeatureFlag{Version: 1}},
+			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldmodel.Segment{Version: 2}},
 		}
 
 		output := []ldstoretypes.Collection{
@@ -111,7 +112,7 @@ func TestStore_Commit(t *testing.T) {
 		// This time, the data should be stored properly.
 		require.NoError(t, store.Commit())
 
-		assert.Equal(t, output, spy.initPayload)
+		assert.ElementsMatch(t, output, spy.initPayload)
 	})
 
 	t.Run("non-persist memory items are not copied to persistent store in r/w mode", func(t *testing.T) {

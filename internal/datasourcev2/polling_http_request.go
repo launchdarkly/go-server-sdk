@@ -129,15 +129,15 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					version int
 				)
 
-				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, "key", "object"}); obj.Next(); {
+				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField, objectField}); obj.Next(); {
 					switch string(obj.Name()) {
 					case versionField:
 						version = r.Int()
 					case kindField:
 						kind = fdv2proto.ObjectKind(r.String())
-					case "key":
+					case keyField:
 						key = r.String()
-					case "object":
+					case objectField:
 						item, err = parseItem(r, kind)
 						if err != nil {
 							return nil, err

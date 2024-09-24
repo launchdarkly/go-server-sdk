@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 type fakeVersionedKind struct {
@@ -69,19 +68,19 @@ func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 	var objs []fdv2proto.PutObject
 	for _, flag := range s.FlagsMap {
 		base := fdv2proto.PutObject{
-			Version: 1,
+			Version: flag.Version,
 			Kind:    fdv2proto.FlagKind,
 			Key:     flag.Key,
-			Object:  ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag},
+			Object:  flag,
 		}
 		objs = append(objs, base)
 	}
 	for _, segment := range s.SegmentsMap {
 		base := fdv2proto.PutObject{
-			Version: 1,
+			Version: segment.Version,
 			Kind:    fdv2proto.SegmentKind,
 			Key:     segment.Key,
-			Object:  ldstoretypes.ItemDescriptor{Version: segment.Version, Item: segment},
+			Object:  segment,
 		}
 		objs = append(objs, base)
 	}

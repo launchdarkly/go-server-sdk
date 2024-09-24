@@ -3,7 +3,6 @@ package fdv2proto
 import (
 	"fmt"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 type IntentCode string
@@ -75,10 +74,10 @@ func (d DeleteObject) Name() EventName {
 }
 
 type PutObject struct {
-	Version int                         `json:"version"`
-	Kind    ObjectKind                  `json:"kind"`
-	Key     string                      `json:"key"`
-	Object  ldstoretypes.ItemDescriptor `json:"object"`
+	Version int        `json:"version"`
+	Kind    ObjectKind `json:"kind"`
+	Key     string     `json:"key"`
+	Object  any        `json:"object"`
 }
 
 func (p PutObject) Name() EventName {

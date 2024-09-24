@@ -23,12 +23,12 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 			case FlagKind:
 				flagCollection.Items = append(flagCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key:  e.Key,
-					Item: e.Object,
+					Item: ldstoretypes.ItemDescriptor{Version: e.Version, Item: e.Object},
 				})
 			case SegmentKind:
 				segmentCollection.Items = append(segmentCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key:  e.Key,
-					Item: e.Object,
+					Item: ldstoretypes.ItemDescriptor{Version: e.Version, Item: e.Object},
 				})
 			}
 		case DeleteObject:

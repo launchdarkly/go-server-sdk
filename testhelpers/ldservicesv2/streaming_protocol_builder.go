@@ -30,8 +30,8 @@ func (f *StreamingProtocol) WithPutObject(object fdv2proto.PutObject) *Streaming
 	return f.pushEvent(object)
 }
 
-func (f *StreamingProtocol) WithTransferred() *StreamingProtocol {
-	return f.pushEvent(fdv2proto.PayloadTransferred{State: "[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", Version: 1})
+func (f *StreamingProtocol) WithTransferred(version int) *StreamingProtocol {
+	return f.pushEvent(fdv2proto.PayloadTransferred{State: "[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", Version: version})
 }
 
 func (f *StreamingProtocol) WithPutObjects(objects []fdv2proto.PutObject) *StreamingProtocol {

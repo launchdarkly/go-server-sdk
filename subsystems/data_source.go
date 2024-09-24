@@ -25,7 +25,7 @@ type DataSource interface {
 
 type Basis struct {
 	Data     []fdv2proto.Event
-	Selector fdv2proto.Selector
+	Selector *fdv2proto.Selector
 	Persist  bool
 }
 
@@ -36,7 +36,7 @@ type DataInitializer interface {
 
 type DataSynchronizer interface {
 	DataInitializer
-	Sync(closeWhenReady chan<- struct{}, selector fdv2proto.Selector)
+	Sync(closeWhenReady chan<- struct{}, selector *fdv2proto.Selector)
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
 	// Once this is true, it should remain true even if a problem occurs later.

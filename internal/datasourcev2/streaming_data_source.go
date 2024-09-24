@@ -143,7 +143,7 @@ func (sp *StreamProcessor) IsInitialized() bool {
 }
 
 //nolint:revive // DataSynchronizer method.
-func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
+func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, _ *fdv2proto.Selector) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
 	go sp.subscribe(closeWhenReady)
 }
@@ -266,6 +266,15 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				//nolint: godox
 				// TODO: Do we need to restart here?
 			case fdv2proto.EventPayloadTransferred:
+
+				selector := &fdv2proto.Selector{}
+
+				err := json.Unmarshal([]byte(event.Data()), selector)
+				if err != nil {
+					gotMalformedEvent(event, err)
+					break
+				}
+
 				currentChangeSet.events = append(currentChangeSet.events, event)
 				updates, err := deserializeEvents(currentChangeSet.events)
 				if err != nil {
@@ -277,11 +286,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				switch currentChangeSet.intent.Payloads[0].Code {
 				case fdv2proto.IntentTransferFull:
 					{
-						sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
+						sp.dataDestination.SetBasis(updates, selector, true)
 						sp.setInitializedAndNotifyClient(true, closeWhenReady)
 					}
 				case fdv2proto.IntentTransferChanges:
-					sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
+					sp.dataDestination.ApplyDelta(updates, selector, true)
 				}
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
@@ -496,7 +505,7 @@ func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
 					}
 				}
 			}
-			updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item, Version: version})
+			updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item.Item, Version: version})
 		case fdv2proto.EventDeleteObject:
 			r := jreader.NewReader([]byte(event.Data()))
 
