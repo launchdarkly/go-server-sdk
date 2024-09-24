@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
+
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
@@ -204,18 +206,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				processedEvent = false
 			}
 
-			storeUpdateFailed := func(updateDesc string) {
-				// TODO: the data source previously had the responsibility of figuring out if storing an update failed,
-				// and then potentially restarting the streaming connection to get a new PUT so that it could init
-				// the database if updates got lost. This is no longer the responsibility of the data source (now the
-				// data system will handle it.) Ideally, the update sink's methods should not be fallible.
-				sp.loggers.Errorf("Failed to store %s in data store; will try again once data store is working", updateDesc)
-			}
-
-			switch event.Event() {
-			case "heart-beat":
+			switch fdv2proto.EventName(event.Event()) {
+			case fdv2proto.EventHeartbeat:
 				// Swallow the event and move on.
-			case "server-intent":
+			case fdv2proto.EventServerIntent:
 				//nolint: godox
 				// TODO: Replace all this json unmarshalling with a nicer jreader implementation.
 				var serverIntent ServerIntent
@@ -235,11 +229,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0), intent: &serverIntent}
 
-			case putEventName:
+			case fdv2proto.EventPutObject:
 				currentChangeSet.events = append(currentChangeSet.events, event)
-			case deleteEventName:
+			case fdv2proto.EventDeleteObject:
 				currentChangeSet.events = append(currentChangeSet.events, event)
-			case "goodbye":
+			case fdv2proto.EventGoodbye:
 				var goodbye goodbye
 				err := json.Unmarshal([]byte(event.Data()), &goodbye)
 				if err != nil {
@@ -250,7 +244,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				if !goodbye.Silent {
 					sp.loggers.Errorf("SSE server received error: %s (%s)", goodbye.Reason, goodbye.Catastrophe)
 				}
-			case "error":
+			case fdv2proto.EventError:
 				var errorData errorEvent
 				err := json.Unmarshal([]byte(event.Data()), &errorData)
 				if err != nil {
@@ -267,40 +261,25 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
 				//nolint: godox
 				// TODO: Do we need to restart here?
-			case "payload-transferred":
+			case fdv2proto.EventPayloadTransferred:
 				currentChangeSet.events = append(currentChangeSet.events, event)
-				updates, err := processChangeset(currentChangeSet)
+				updates, err := deserializeEvents(currentChangeSet.events)
 				if err != nil {
 					sp.loggers.Errorf("Error processing changeset: %s", err)
 					gotMalformedEvent(nil, err)
 					break
 				}
-				for _, update := range updates {
-					switch u := update.(type) {
-					case datasource.PatchData:
-						if !sp.dataDestination.Upsert(u.Kind, u.Key, u.Data, sp.persist) {
-							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
-							storeUpdateFailed("streaming update of " + u.Key)
-						}
-					case datasource.PutData:
-						if sp.dataDestination.Init(u.Data, nil, sp.persist) {
-							sp.setInitializedAndNotifyClient(true, closeWhenReady)
-						} else {
-							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
 
-							storeUpdateFailed("initial streaming data")
-						}
-					case datasource.DeleteData:
-						deletedItem := ldstoretypes.ItemDescriptor{Version: u.Version, Item: nil}
-						if !sp.dataDestination.Upsert(u.Kind, u.Key, deletedItem, sp.persist) {
-							//TODO: indicate that this can't actually fail anymore from the perspective of the data source
-							storeUpdateFailed("streaming deletion of " + u.Key)
-						}
-
-					default:
-						sp.loggers.Infof("Unexpected update found in changeset: %s", update)
+				switch currentChangeSet.intent.Payloads[0].Code {
+				case fdv2proto.IntentTransferFull:
+					{
+						sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
+						sp.setInitializedAndNotifyClient(true, closeWhenReady)
 					}
+				case fdv2proto.IntentTransferChanges:
+					sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
 				}
+
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
@@ -471,16 +450,8 @@ func (sp *StreamProcessor) GetFilterKey() string {
 	return sp.cfg.FilterKey
 }
 
-func processChangeset(changeSet changeSet) ([]any, error) {
-	if changeSet.intent == nil || changeSet.intent.Payloads[0].Code != "xfer-full" {
-		return convertChangesetEventsToPatchData(changeSet.events)
-	}
-
-	return convertChangesetEventsToPutData(changeSet.events)
-}
-
-func convertChangesetEventsToPatchData(events []es.Event) ([]any, error) {
-	updates := make([]interface{}, 0, len(events))
+func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
+	updates := make([]fdv2proto.Event, 0, len(events))
 
 	parseItem := func(r jreader.Reader, kind datakinds.DataKindInternal) (ldstoretypes.ItemDescriptor, error) {
 		item, err := kind.DeserializeFromJSONReader(&r)
@@ -488,8 +459,8 @@ func convertChangesetEventsToPatchData(events []es.Event) ([]any, error) {
 	}
 
 	for _, event := range events {
-		switch event.Event() {
-		case putEventName:
+		switch fdv2proto.EventName(event.Event()) {
+		case fdv2proto.EventPutObject:
 			r := jreader.NewReader([]byte(event.Data()))
 			// var version int
 			var dataKind datakinds.DataKindInternal
@@ -518,10 +489,8 @@ func convertChangesetEventsToPatchData(events []es.Event) ([]any, error) {
 					}
 				}
 			}
-
-			patchData := datasource.PatchData{Kind: dataKind, Key: key, Data: item}
-			updates = append(updates, patchData)
-		case deleteEventName:
+			updates = append(updates, fdv2proto.PutObject{Kind: dataKind, Key: key, Object: item})
+		case fdv2proto.EventDeleteObject:
 			r := jreader.NewReader([]byte(event.Data()))
 			var version int
 			var dataKind datakinds.DataKindInternal
@@ -543,71 +512,11 @@ func convertChangesetEventsToPatchData(events []es.Event) ([]any, error) {
 					key = r.String()
 				}
 			}
-			patchData := datasource.DeleteData{Kind: dataKind, Key: key, Version: version}
-			updates = append(updates, patchData)
+			updates = append(updates, fdv2proto.DeleteObject{Kind: dataKind, Key: key, Version: version})
 		}
 	}
 
 	return updates, nil
-}
-
-func convertChangesetEventsToPutData(events []es.Event) ([]any, error) {
-	segmentCollection := ldstoretypes.Collection{
-		Kind:  datakinds.Segments,
-		Items: make([]ldstoretypes.KeyedItemDescriptor, 0)}
-	flagCollection := ldstoretypes.Collection{
-		Kind:  datakinds.Features,
-		Items: make([]ldstoretypes.KeyedItemDescriptor, 0)}
-
-	parseItem := func(r jreader.Reader, kind datakinds.DataKindInternal) (ldstoretypes.ItemDescriptor, error) {
-		item, err := kind.DeserializeFromJSONReader(&r)
-		return item, err
-	}
-
-	for _, event := range events {
-		switch event.Event() {
-		case putEventName:
-			r := jreader.NewReader([]byte(event.Data()))
-			// var version int
-			var kind, key string
-			var item ldstoretypes.ItemDescriptor
-			var err error
-			var dataKind datakinds.DataKindInternal
-
-			for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, "key", "object"}); obj.Next(); {
-				switch string(obj.Name()) {
-				case versionField:
-					// version = r.Int()
-				case kindField:
-					kind = strings.TrimRight(r.String(), "s")
-					dataKind = dataKindFromKind(kind)
-				case "key":
-					key = r.String()
-				case "object":
-					item, err = parseItem(r, dataKind)
-					if err != nil {
-						return []any{}, err
-					}
-				}
-			}
-
-			//nolint: godox
-			// TODO: What is the actual name we should use here?
-			if kind == "flag" {
-				flagCollection.Items = append(flagCollection.Items, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
-			} else if kind == "segment" {
-				segmentCollection.Items = append(segmentCollection.Items, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
-			}
-		case deleteEventName:
-			// NOTE: We can skip this. We are replacing everything in the
-			// store so who cares if something was deleted. This shouldn't
-			// even occur really.
-		}
-	}
-
-	putData := datasource.PutData{Path: "/", Data: []ldstoretypes.Collection{flagCollection, segmentCollection}}
-
-	return []any{putData}, nil
 }
 
 func dataKindFromKind(kind string) datakinds.DataKindInternal {
