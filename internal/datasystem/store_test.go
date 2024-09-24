@@ -112,7 +112,7 @@ func TestStore_Commit(t *testing.T) {
 		// This time, the data should be stored properly.
 		require.NoError(t, store.Commit())
 
-		assert.Equal(t, output, spy.initPayload)
+		requireCollectionsMatch(t, output, spy.initPayload)
 	})
 
 	t.Run("non-persist memory items are not copied to persistent store in r/w mode", func(t *testing.T) {
@@ -325,4 +325,18 @@ func (f *fakeStore) IsStatusMonitoringEnabled() bool {
 
 func (f *fakeStore) Close() error {
 	return nil
+}
+
+// This matcher is required instead of calling ElementsMatch directly on two slices of collections because
+// the order of the collections, or the order within each collection, is not defined.
+func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, actual []ldstoretypes.Collection) {
+	require.Equal(t, len(expected), len(actual))
+	for _, expectedCollection := range expected {
+		for _, actualCollection := range actual {
+			if expectedCollection.Kind == actualCollection.Kind {
+				require.ElementsMatch(t, expectedCollection.Items, actualCollection.Items)
+				break
+			}
+		}
+	}
 }
