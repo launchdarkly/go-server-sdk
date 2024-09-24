@@ -101,11 +101,11 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 	var intent fdv2proto.IntentCode
 
 	for _, event := range payload.Events {
-		switch fdv2proto.EventName(event.Event()) {
+		switch event.Name {
 		case fdv2proto.EventServerIntent:
 			{
 				var serverIntent fdv2proto.ServerIntent
-				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
+				err := json.Unmarshal(event.Data, &serverIntent)
 				if err != nil {
 					return nil, err
 				} else if len(serverIntent.Payloads) == 0 {
@@ -119,7 +119,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 			}
 		case fdv2proto.EventPutObject:
 			{
-				r := jreader.NewReader([]byte(event.Data()))
+				r := jreader.NewReader(event.Data)
 
 				var (
 					key     string
@@ -148,7 +148,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 			}
 		case fdv2proto.EventDeleteObject:
 			{
-				r := jreader.NewReader([]byte(event.Data()))
+				r := jreader.NewReader(event.Data)
 
 				var (
 					version int
