@@ -42,7 +42,7 @@ func NewMockDataDestination(realStore subsystems.DataStore) *MockDataDestination
 }
 
 // SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) error {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
@@ -54,7 +54,7 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, selector fdv2pr
 	return d.DataStore.Init(collections)
 }
 
-func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, selector fdv2proto.Selector, persist bool) error {
+func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) error {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 

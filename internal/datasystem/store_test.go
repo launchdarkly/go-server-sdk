@@ -44,7 +44,7 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 	none := fdv2proto.NoSelector()
 	tests := []struct {
 		name     string
-		selector fdv2proto.Selector
+		selector *fdv2proto.Selector
 		persist  bool
 	}{
 		{"with selector, persist", v1, true},
