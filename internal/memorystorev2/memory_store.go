@@ -85,10 +85,8 @@ func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.D
 func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, error) {
 	s.RLock()
 
-	var coll map[string]ldstoretypes.ItemDescriptor
 	var item ldstoretypes.ItemDescriptor
-	var ok bool
-	coll, ok = s.allData[kind]
+	coll, ok := s.allData[kind]
 	if ok {
 		item, ok = coll[key]
 	}
