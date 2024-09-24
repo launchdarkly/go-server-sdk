@@ -20,14 +20,6 @@ import (
 // Deltas are then applied to the store. A single delta update transforms the contents of the store
 // atomically. The idea is that there's never a moment when the state of the store could be inconsistent
 // with regard to the authoritative LaunchDarkly SaaS.
-//
-// Implementation notes:
-//
-// We deliberately do not use a defer pattern to manage the lock in these methods. Using defer adds a small but
-// consistent overhead, and these store methods may be called with very high frequency (at least in the case of
-// Get and IsInitialized). To make it safe to hold a lock without deferring the unlock, we must ensure that
-// there is only one return point from each method, and that there is no operation that could possibly cause a
-// panic after the lock has been acquired. See notes on performance in CONTRIBUTING.md.
 type Store struct {
 	allData       map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	isInitialized bool
@@ -48,6 +40,7 @@ func New(loggers ldlog.Loggers) *Store {
 // When the basis is set, the store becomes initialized.
 func (s *Store) SetBasis(allData []ldstoretypes.Collection) {
 	s.Lock()
+	defer s.Unlock()
 
 	s.allData = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
 
@@ -60,8 +53,6 @@ func (s *Store) SetBasis(allData []ldstoretypes.Collection) {
 	}
 
 	s.isInitialized = true
-
-	s.Unlock()
 }
 
 // ApplyDelta applies a delta update to the store. ApplyDelta should not be called until
@@ -74,6 +65,7 @@ func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.D
 	updatedMap := make(map[ldstoretypes.DataKind]map[string]bool)
 
 	s.Lock()
+	defer s.Unlock()
 
 	for _, coll := range allData {
 		for _, item := range coll.Items {
@@ -84,8 +76,6 @@ func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.D
 			updatedMap[coll.Kind][item.Key] = updated
 		}
 	}
-
-	s.Unlock()
 
 	return updatedMap
 }
@@ -117,12 +107,8 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 // GetAll retrieves all items of the specified kind from the store.
 func (s *Store) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	s.RLock()
-
-	itemsOut := s.getAll(kind)
-
-	s.RUnlock()
-
-	return itemsOut, nil
+	defer s.RUnlock()
+	return s.getAll(kind), nil
 }
 
 func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor {
@@ -142,14 +128,13 @@ func (s *Store) getAll(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescr
 // GetAll for each kind because it provides a consistent view at a single point in time.
 func (s *Store) GetAllKinds() []ldstoretypes.Collection {
 	s.RLock()
+	defer s.RUnlock()
 
 	allData := make([]ldstoretypes.Collection, 0, len(s.allData))
 	for kind := range s.allData {
 		itemsOut := s.getAll(kind)
 		allData = append(allData, ldstoretypes.Collection{Kind: kind, Items: itemsOut})
 	}
-
-	s.RUnlock()
 
 	return allData
 }
@@ -183,7 +168,6 @@ func (s *Store) upsert(
 // IsInitialized returns true if the store has been initialized with a basis.
 func (s *Store) IsInitialized() bool {
 	s.RLock()
-	ret := s.isInitialized
-	s.RUnlock()
-	return ret
+	defer s.RUnlock()
+	return s.isInitialized
 }
