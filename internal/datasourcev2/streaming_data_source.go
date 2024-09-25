@@ -129,7 +129,7 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 
 // TODO(SDK-713): Refactor the implementation of this function to lower the complexity.
 //
-//nolint:gocyclo,godox // this function is a stepping stone. It will get better over time.
+//nolint:godox
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -251,6 +251,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
+				//nolint:godox
 				// TODO(SDK-712): If the destination fails to apply the updates should it affect the processor?
 				// This would only happen in the case of a persistent store.
 

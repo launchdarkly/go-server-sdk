@@ -167,6 +167,7 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Sele
 	s.active = s.memoryStore
 
 	if s.shouldPersist() {
+		//nolint:godox
 		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
 		return s.persistentStore.impl.Init(allData)
 	}
@@ -197,6 +198,7 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 	// is happening. In practice, we often don't receive more than one event at a time, but this may change
 	// in the future.
 	if s.shouldPersist() {
+		//nolint:godox
 		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
 		for _, coll := range collections {
 			for _, item := range coll.Items {

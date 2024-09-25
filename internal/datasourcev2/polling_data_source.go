@@ -152,6 +152,7 @@ func (pp *PollingProcessor) poll() error {
 		return nil
 	}
 
+	//nolint:godox
 	// TODO(SDK-712): If the destination fails to apply the updates should it affect the processor?
 	// This would only happen in the case of a persistent store.
 	switch response.Intent() {
