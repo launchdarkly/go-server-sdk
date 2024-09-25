@@ -54,6 +54,7 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Se
 	return d.DataStore.Init(collections)
 }
 
+// ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
 func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) error {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.

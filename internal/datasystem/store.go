@@ -116,7 +116,8 @@ func NewStore(loggers ldlog.Loggers) *Store {
 // before we can call Build to actually get the persistent store. That ClientContext requires the
 // DataDestination, which is what this store struct implements. Therefore, the call to NewStore and
 // WithPersistence need to be separate.
-func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode, statusProvider interfaces.DataStoreStatusProvider) *Store {
+func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode,
+	statusProvider interfaces.DataStoreStatusProvider) *Store {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -147,6 +148,8 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// SetBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
+// set persist to true.
 func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
 	collections := fdv2proto.ToStorableItems(events)
 	return s.init(collections, selector, persist)
@@ -164,7 +167,8 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Sele
 	s.active = s.memoryStore
 
 	if s.shouldPersist() {
-		return s.persistentStore.impl.Init(allData) // TODO: insert in dependency order
+		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
+		return s.persistentStore.impl.Init(allData)
 	}
 
 	return nil
@@ -174,6 +178,8 @@ func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
+// ApplyDelta applies a delta update to the store. ApplyDelta should not be called until SetBasis has been called.
+// To request data persistence, set persist to true.
 func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
 	collections := fdv2proto.ToStorableItems(events)
 
@@ -191,6 +197,7 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 	// is happening. In practice, we often don't receive more than one event at a time, but this may change
 	// in the future.
 	if s.shouldPersist() {
+		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
 		for _, coll := range collections {
 			for _, item := range coll.Items {
 				_, err := s.persistentStore.impl.Upsert(coll.Kind, item.Key, item.Item)

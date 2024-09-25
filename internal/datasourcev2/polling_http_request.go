@@ -71,8 +71,8 @@ func (r *pollingRequester) BaseURI() string {
 func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
-func (r *pollingRequester) Request() (*PollingResponse, error) {
 
+func (r *pollingRequester) Request() (*PollingResponse, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -166,10 +166,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					}
 				}
 				updates = append(updates, fdv2proto.DeleteObject{Kind: dataKind, Key: key, Version: version})
-
 			}
-		case fdv2proto.EventPayloadTransferred:
-			// TODO: deserialize the state and create a fdv2proto.Selector.
 		}
 	}
 

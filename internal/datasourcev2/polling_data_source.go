@@ -18,43 +18,6 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
-type PollingResponse struct {
-	events   []fdv2proto.Event
-	cached   bool
-	intent   fdv2proto.IntentCode
-	selector *fdv2proto.Selector
-}
-
-func (p *PollingResponse) Events() []fdv2proto.Event {
-	return p.events
-}
-
-func (p *PollingResponse) Cached() bool {
-	return p.cached
-}
-
-func (p *PollingResponse) Intent() fdv2proto.IntentCode {
-	return p.intent
-}
-
-func (p *PollingResponse) Selector() *fdv2proto.Selector {
-	return p.selector
-}
-
-func NewCachedPollingResponse() *PollingResponse {
-	return &PollingResponse{
-		cached: true,
-	}
-}
-
-func NewPollingResponse(intent fdv2proto.IntentCode, events []fdv2proto.Event, selector *fdv2proto.Selector) *PollingResponse {
-	return &PollingResponse{
-		events:   events,
-		intent:   intent,
-		selector: selector,
-	}
-}
-
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
@@ -189,7 +152,7 @@ func (pp *PollingProcessor) poll() error {
 		return nil
 	}
 
-	// TODO(cwaldren): If the destination fails to apply the updates should it affect the processor?
+	// TODO(SDK-712): If the destination fails to apply the updates should it affect the processor?
 	// This would only happen in the case of a persistent store.
 	switch response.Intent() {
 	case fdv2proto.IntentTransferFull:

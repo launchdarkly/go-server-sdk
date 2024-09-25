@@ -5,6 +5,8 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
+// ToStorableItems converts a list of FDv2 events into a slice of collections, which is suitable for
+// passing into a store.
 func ToStorableItems(events []Event) []ldstoretypes.Collection {
 	flagCollection := ldstoretypes.Collection{
 		Kind:  datakinds.Features,

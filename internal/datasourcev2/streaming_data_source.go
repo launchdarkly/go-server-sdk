@@ -33,9 +33,6 @@ const (
 	kindField    = "kind"
 	versionField = "version"
 
-	putEventName    = "put-object"
-	deleteEventName = "delete-object"
-
 	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
 	streamMaxRetryDelay      = 30 * time.Second
 	streamRetryResetInterval = 60 * time.Second
@@ -130,7 +127,7 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	go sp.subscribe(closeWhenReady)
 }
 
-// TODO: Remove this nolint once we have a better implementation.
+// TODO(SDK-713): Refactor the implementation of this function to lower the complexity.
 //
 //nolint:gocyclo,godox // this function is a stepping stone. It will get better over time.
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
@@ -254,7 +251,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
-				// TODO(cwaldren): If the destination fails to apply the updates should it affect the processor?
+				// TODO(SDK-712): If the destination fails to apply the updates should it affect the processor?
 				// This would only happen in the case of a persistent store.
 
 				switch currentChangeSet.intent.Payloads[0].Code {
