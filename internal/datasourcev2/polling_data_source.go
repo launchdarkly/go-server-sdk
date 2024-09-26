@@ -41,6 +41,7 @@ type PollingProcessor struct {
 	isInitialized      internal.AtomicBoolean
 	quit               chan struct{}
 	closeOnce          sync.Once
+	persist            bool
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -68,6 +69,7 @@ func newPollingProcessor(
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
 		quit:            make(chan struct{}),
+		persist:         true,
 	}
 	return pp
 }
@@ -152,9 +154,6 @@ func (pp *PollingProcessor) poll() error {
 		return nil
 	}
 
-	//nolint:godox
-	// TODO(SDK-712): If the destination fails to apply the updates should it affect the processor?
-	// This would only happen in the case of a persistent store.
 	switch response.Intent() {
 	case fdv2proto.IntentTransferFull:
 		pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)

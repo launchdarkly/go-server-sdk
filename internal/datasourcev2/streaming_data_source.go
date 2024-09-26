@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -32,6 +30,10 @@ const (
 	keyField     = "key"
 	kindField    = "kind"
 	versionField = "version"
+	objectField  = "object"
+
+	putEventName    = "put-object"
+	deleteEventName = "delete-object"
 
 	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
 	streamMaxRetryDelay      = 30 * time.Second
@@ -42,6 +44,11 @@ const (
 	streamingErrorContext     = "in stream connection"
 	streamingWillRetryMessage = "will retry"
 )
+
+type changeSet struct {
+	intent *fdv2proto.ServerIntent
+	events []es.Event
+}
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in
 // the eventsource package.
@@ -62,7 +69,7 @@ const (
 // 3. If we receive an unrecoverable error like HTTP 401, we close the stream and don't retry, and set the state
 // to OFF. Any other HTTP error or network error causes a retry with backoff, with a state of INTERRUPTED.
 // 4. We set the Future returned by start() to tell the client initialization logic that initialization has either
-// succeeded (we got an initial payload and successfully stored it) or permanently failed (we got a 401, etc.).
+// succeeded (we got an initial Payload and successfully stored it) or permanently failed (we got a 401, etc.).
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
@@ -85,6 +92,7 @@ type StreamProcessor struct {
 	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
 	closeOnce                  sync.Once
+	persist                    bool
 }
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
@@ -101,6 +109,7 @@ func NewStreamProcessor(
 		loggers:         context.GetLogging().Loggers,
 		halt:            make(chan struct{}),
 		cfg:             cfg,
+		persist:         true,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -127,9 +136,9 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	go sp.subscribe(closeWhenReady)
 }
 
-// TODO(SDK-713): Refactor the implementation of this function to lower the complexity.
+// TODO: Remove this nolint once we have a better implementation.
 //
-//nolint:godox
+//nolint:gocyclo,godox // this function is a stepping stone. It will get better over time.
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -159,6 +168,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			sp.logConnectionResult(true)
 
+			// TODO(cwaldren/mkeeler): Should this actually be true by default? It means if we receive an event
+			// we don't understand then we go to the Valid state.
 			processedEvent := true
 			shouldRestart := false
 
@@ -193,7 +204,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			case fdv2proto.EventServerIntent:
 				//nolint: godox
 				// TODO: Replace all this json unmarshalling with a nicer jreader implementation.
-				var serverIntent serverIntent
+				var serverIntent fdv2proto.ServerIntent
 				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -215,7 +226,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			case fdv2proto.EventDeleteObject:
 				currentChangeSet.events = append(currentChangeSet.events, event)
 			case fdv2proto.EventGoodbye:
-				var goodbye goodbye
+				var goodbye fdv2proto.Goodbye
 				err := json.Unmarshal([]byte(event.Data()), &goodbye)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -223,10 +234,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				}
 
 				if !goodbye.Silent {
-					sp.loggers.Errorf("SSE server received error: %s (%s)", goodbye.Reason, goodbye.Catastrophe)
+					sp.loggers.Errorf("SSE server received error: %s (%v)", goodbye.Reason, goodbye.Catastrophe)
 				}
 			case fdv2proto.EventError:
-				var errorData errorEvent
+				var errorData fdv2proto.Error
 				err := json.Unmarshal([]byte(event.Data()), &errorData)
 				if err != nil {
 					//nolint: godox
@@ -243,6 +254,15 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				//nolint: godox
 				// TODO: Do we need to restart here?
 			case fdv2proto.EventPayloadTransferred:
+
+				selector := &fdv2proto.Selector{}
+
+				err := json.Unmarshal([]byte(event.Data()), selector)
+				if err != nil {
+					gotMalformedEvent(event, err)
+					break
+				}
+
 				currentChangeSet.events = append(currentChangeSet.events, event)
 				updates, err := deserializeEvents(currentChangeSet.events)
 				if err != nil {
@@ -251,18 +271,14 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
-				//nolint:godox
-				// TODO(SDK-712): If the destination fails to apply the updates should it affect the processor?
-				// This would only happen in the case of a persistent store.
-
 				switch currentChangeSet.intent.Payloads[0].Code {
 				case fdv2proto.IntentTransferFull:
 					{
-						sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
+						sp.dataDestination.SetBasis(updates, selector, true)
 						sp.setInitializedAndNotifyClient(true, closeWhenReady)
 					}
 				case fdv2proto.IntentTransferChanges:
-					sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
+					sp.dataDestination.ApplyDelta(updates, selector, true)
 				}
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
@@ -438,8 +454,12 @@ func (sp *StreamProcessor) GetFilterKey() string {
 func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
 	updates := make([]fdv2proto.Event, 0, len(events))
 
-	parseItem := func(r jreader.Reader, kind datakinds.DataKindInternal) (ldstoretypes.ItemDescriptor, error) {
-		item, err := kind.DeserializeFromJSONReader(&r)
+	parseItem := func(r jreader.Reader, kind fdv2proto.ObjectKind) (ldstoretypes.ItemDescriptor, error) {
+		dataKind, err := kind.ToFDV1()
+		if err != nil {
+			return ldstoretypes.ItemDescriptor{}, err
+		}
+		item, err := dataKind.DeserializeFromJSONReader(&r)
 		return item, err
 	}
 
@@ -447,72 +467,59 @@ func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
 		switch fdv2proto.EventName(event.Event()) {
 		case fdv2proto.EventPutObject:
 			r := jreader.NewReader([]byte(event.Data()))
-			// var version int
-			var dataKind datakinds.DataKindInternal
-			var key string
-			var item ldstoretypes.ItemDescriptor
-			var err error
 
-			for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField, "object"}); obj.Next(); {
+			var (
+				kind    fdv2proto.ObjectKind
+				key     string
+				version int
+				item    ldstoretypes.ItemDescriptor
+				err     error
+			)
+
+			for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField, objectField}); obj.Next(); {
 				switch string(obj.Name()) {
 				case versionField:
-					// version = r.Int()
+					version = r.Int()
 				case kindField:
-					kind := r.String()
-					dataKind = dataKindFromKind(kind)
-					if dataKind == nil {
-						//nolint: godox
-						// TODO: We are skipping here without showing a warning. Need to address that later.
-						continue
-					}
+					kind = fdv2proto.ObjectKind(r.String())
+					// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
+					// do we throw out the DeleteObject here, or let the SDK's store handle it?
 				case keyField:
 					key = r.String()
-				case "object":
-					item, err = parseItem(r, dataKind)
+				case objectField:
+					item, err = parseItem(r, kind)
 					if err != nil {
 						return updates, err
 					}
 				}
 			}
-			updates = append(updates, fdv2proto.PutObject{Kind: dataKind, Key: key, Object: item})
+			updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item.Item, Version: version})
 		case fdv2proto.EventDeleteObject:
 			r := jreader.NewReader([]byte(event.Data()))
-			var version int
-			var dataKind datakinds.DataKindInternal
-			var kind, key string
+
+			var (
+				version int
+				kind    fdv2proto.ObjectKind
+				key     string
+			)
 
 			for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField}); obj.Next(); {
 				switch string(obj.Name()) {
 				case versionField:
 					version = r.Int()
 				case kindField:
-					kind = strings.TrimRight(r.String(), "s")
-					dataKind = dataKindFromKind(kind)
-					if dataKind == nil {
-						//nolint: godox
-						// TODO: We are skipping here without showing a warning. Need to address that later.
-						continue
-					}
+					kind = fdv2proto.ObjectKind(r.String())
+					// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
+					// do we throw out the DeleteObject here, or let the SDK's store handle it?
 				case keyField:
 					key = r.String()
 				}
 			}
-			updates = append(updates, fdv2proto.DeleteObject{Kind: dataKind, Key: key, Version: version})
+			updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
 		}
 	}
 
 	return updates, nil
-}
-
-func dataKindFromKind(kind string) datakinds.DataKindInternal {
-	switch kind {
-	case "flag":
-		return datakinds.Features
-	case "segment":
-		return datakinds.Segments
-	default:
-		return nil
-	}
 }
 
 // vim: foldmethod=marker foldlevel=0

@@ -1,6 +1,9 @@
 package fdv2proto
 
-import "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+import (
+	"fmt"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+)
 
 // IntentCode represents the various intents that can be sent by the server.
 type IntentCode string
@@ -46,11 +49,55 @@ const (
 	EventError = EventName("error")
 )
 
+// ObjectKind represents the kind of object.
+type ObjectKind string
+
+const (
+	// FlagKind is a flag.
+	FlagKind = ObjectKind("flag")
+	// SegmentKind is a segment.
+	SegmentKind = ObjectKind("segment")
+)
+
+// ToFDV1 converts the object kind to an FDv1 data kind.
+func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, error) {
+	switch o {
+	case FlagKind:
+		return datakinds.Features, nil
+	case SegmentKind:
+		return datakinds.Segments, nil
+	default:
+		return nil, fmt.Errorf("no FDv1 equivalent for object kind (%s)", string(o))
+	}
+}
+
+// ServerIntent represents the server's intent.
+type ServerIntent struct {
+	// Payloads is a list of payloads, defined to be at least length 1.
+	Payloads []Payload `json:"payloads"`
+}
+
+//nolint:revive // Event method.
+func (ServerIntent) Name() EventName {
+	return EventServerIntent
+}
+
+// PayloadTransferred represents the fact that all payload objects have been sent.
+type PayloadTransferred struct {
+	State   string `json:"state"`
+	Version int    `json:"version"`
+}
+
+//nolint:revive // Event method.
+func (p PayloadTransferred) Name() EventName {
+	return EventPayloadTransferred
+}
+
 // DeleteObject specifies the deletion of a particular object.
 type DeleteObject struct {
-	Version int
-	Kind    ldstoretypes.DataKind
-	Key     string
+	Version int        `json:"version"`
+	Kind    ObjectKind `json:"kind"`
+	Key     string     `json:"key"`
 }
 
 //nolint:revive // Event method.
@@ -60,13 +107,36 @@ func (d DeleteObject) Name() EventName {
 
 // PutObject specifies the addition of a particular object with upsert semantics.
 type PutObject struct {
-	Version int
-	Kind    ldstoretypes.DataKind
-	Key     string
-	Object  ldstoretypes.ItemDescriptor
+	Version int        `json:"version"`
+	Kind    ObjectKind `json:"kind"`
+	Key     string     `json:"key"`
+	Object  any        `json:"object"`
 }
 
 //nolint:revive // Event method.
 func (p PutObject) Name() EventName {
 	return EventPutObject
+}
+
+// Error represents an error event.
+type Error struct {
+	PayloadID string `json:"payloadId"`
+	Reason    string `json:"reason"`
+}
+
+//nolint:revive // Event method.
+func (e Error) Name() EventName {
+	return EventError
+}
+
+// Goodbye represents a goodbye event.
+type Goodbye struct {
+	Reason      string `json:"reason"`
+	Silent      bool   `json:"silent"`
+	Catastrophe bool   `json:"catastrophe"`
+}
+
+//nolint:revive // Event method.
+func (g Goodbye) Name() EventName {
+	return EventGoodbye
 }
