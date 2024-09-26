@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
@@ -162,6 +163,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 						version = r.Int()
 					case kindField:
 						kind = fdv2proto.ObjectKind(r.String())
+						//nolint:godox
 						// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
 						// do we throw out the DeleteObject here, or let the SDK's store handle it?
 					case keyField:
@@ -172,6 +174,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 
 			}
 		case fdv2proto.EventPayloadTransferred:
+			//nolint:godox
 			// TODO: deserialize the state and create a fdv2proto.Selector.
 		}
 	}

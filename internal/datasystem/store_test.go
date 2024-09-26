@@ -2,11 +2,12 @@ package datasystem
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 

@@ -2,6 +2,7 @@ package fdv2proto
 
 import (
 	"fmt"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 )
 

@@ -69,7 +69,7 @@ type changeSet struct {
 // 3. If we receive an unrecoverable error like HTTP 401, we close the stream and don't retry, and set the state
 // to OFF. Any other HTTP error or network error causes a retry with backoff, with a state of INTERRUPTED.
 // 4. We set the Future returned by start() to tell the client initialization logic that initialization has either
-// succeeded (we got an initial Payload and successfully stored it) or permanently failed (we got a 401, etc.).
+// succeeded (we got an initial payload and successfully stored it) or permanently failed (we got a 401, etc.).
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
@@ -136,8 +136,6 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	go sp.subscribe(closeWhenReady)
 }
 
-// TODO: Remove this nolint once we have a better implementation.
-//
 //nolint:gocyclo,godox // this function is a stepping stone. It will get better over time.
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
@@ -168,6 +166,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			sp.logConnectionResult(true)
 
+			//nolint:godox
 			// TODO(cwaldren/mkeeler): Should this actually be true by default? It means if we receive an event
 			// we don't understand then we go to the Valid state.
 			processedEvent := true
@@ -482,6 +481,7 @@ func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
 					version = r.Int()
 				case kindField:
 					kind = fdv2proto.ObjectKind(r.String())
+					//nolint:godox
 					// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
 					// do we throw out the DeleteObject here, or let the SDK's store handle it?
 				case keyField:
@@ -509,6 +509,7 @@ func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
 					version = r.Int()
 				case kindField:
 					kind = fdv2proto.ObjectKind(r.String())
+					//nolint:godox
 					// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
 					// do we throw out the DeleteObject here, or let the SDK's store handle it?
 				case keyField:

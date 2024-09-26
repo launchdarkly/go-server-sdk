@@ -41,7 +41,6 @@ type PollingProcessor struct {
 	isInitialized      internal.AtomicBoolean
 	quit               chan struct{}
 	closeOnce          sync.Once
-	persist            bool
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -69,7 +68,6 @@ func newPollingProcessor(
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
 		quit:            make(chan struct{}),
-		persist:         true,
 	}
 	return pp
 }
