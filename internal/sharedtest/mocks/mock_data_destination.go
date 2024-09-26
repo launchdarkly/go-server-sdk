@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	"sync"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Se
 	for _, coll := range collections {
 		AssertNotNil(coll.Kind)
 	}
-	_ = d.DataStore.Init(collections)
+	_ = d.DataStore.Init(toposort.Sort(collections))
 }
 
 // ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
@@ -65,7 +66,7 @@ func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.
 		AssertNotNil(coll.Kind)
 	}
 
-	for _, coll := range collections {
+	for _, coll := range toposort.Sort(collections) {
 		for _, item := range coll.Items {
 			if _, err := d.DataStore.Upsert(coll.Kind, item.Key, item.Item); err != nil {
 				return
