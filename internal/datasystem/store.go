@@ -152,14 +152,10 @@ func (s *Store) Close() error {
 // set persist to true.
 func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
 	collections := fdv2proto.ToStorableItems(events)
-	return s.init(collections, selector, persist)
-}
-
-func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Selector, persist bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.memoryStore.SetBasis(allData)
+	s.memoryStore.SetBasis(collections)
 
 	s.persist = persist
 	s.selector = selector
@@ -169,10 +165,9 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Sele
 	if s.shouldPersist() {
 		//nolint:godox
 		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
-		return s.persistentStore.impl.Init(allData)
+		return s.persistentStore.impl.Init(collections)
 	}
 
-	return nil
 }
 
 func (s *Store) shouldPersist() bool {
