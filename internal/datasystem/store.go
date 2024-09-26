@@ -150,7 +150,7 @@ func (s *Store) Close() error {
 
 // SetBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
 // set persist to true.
-func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
+func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) {
 	collections := fdv2proto.ToStorableItems(events)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -165,9 +165,9 @@ func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector,
 	if s.shouldPersist() {
 		//nolint:godox
 		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
-		return s.persistentStore.impl.Init(collections)
+		// Also handle the error.
+		_ = s.persistentStore.impl.Init(collections)
 	}
-
 }
 
 func (s *Store) shouldPersist() bool {
@@ -176,7 +176,7 @@ func (s *Store) shouldPersist() bool {
 
 // ApplyDelta applies a delta update to the store. ApplyDelta should not be called until SetBasis has been called.
 // To request data persistence, set persist to true.
-func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
+func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) {
 	collections := fdv2proto.ToStorableItems(events)
 
 	s.mu.Lock()
@@ -195,6 +195,7 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 	if s.shouldPersist() {
 		//nolint:godox
 		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
+		// Also handle any upsert error.
 		for _, coll := range collections {
 			for _, item := range coll.Items {
 				_, err := s.persistentStore.impl.Upsert(coll.Kind, item.Key, item.Item)
@@ -204,8 +205,6 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 			}
 		}
 	}
-
-	return nil
 }
 
 // GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise

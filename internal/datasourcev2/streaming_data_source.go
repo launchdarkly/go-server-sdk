@@ -258,11 +258,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				switch currentChangeSet.intent.Payloads[0].Code {
 				case fdv2proto.IntentTransferFull:
 					{
-						_ = sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
+						sp.dataDestination.SetBasis(updates, fdv2proto.NoSelector(), true)
 						sp.setInitializedAndNotifyClient(true, closeWhenReady)
 					}
 				case fdv2proto.IntentTransferChanges:
-					_ = sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
+					sp.dataDestination.ApplyDelta(updates, fdv2proto.NoSelector(), true)
 				}
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}

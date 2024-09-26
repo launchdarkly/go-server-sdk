@@ -157,9 +157,9 @@ func (pp *PollingProcessor) poll() error {
 	// This would only happen in the case of a persistent store.
 	switch response.Intent() {
 	case fdv2proto.IntentTransferFull:
-		_ = pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)
+		pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)
 	case fdv2proto.IntentTransferChanges:
-		_ = pp.dataDestination.ApplyDelta(response.Events(), response.Selector(), true)
+		pp.dataDestination.ApplyDelta(response.Events(), response.Selector(), true)
 	}
 
 	return nil
