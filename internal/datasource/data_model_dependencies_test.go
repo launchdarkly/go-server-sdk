@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -20,7 +22,7 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 	flag1 := ldbuilders.NewFlagBuilder("key").Build()
 	assert.Len(
 		t,
-		computeDependenciesFrom(datakinds.Features, sharedtest.FlagDescriptor(flag1)),
+		toposort.GetNeighbors(datakinds.Features, sharedtest.FlagDescriptor(flag1)),
 		0,
 	)
 
@@ -41,14 +43,14 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 		Build()
 	assert.Equal(
 		t,
-		kindAndKeySet{
-			{datakinds.Features, "flag2"}:    true,
-			{datakinds.Features, "flag3"}:    true,
-			{datakinds.Segments, "segment1"}: true,
-			{datakinds.Segments, "segment2"}: true,
-			{datakinds.Segments, "segment3"}: true,
+		toposort.Neighbors{
+			toposort.NewVertex(datakinds.Features, "flag2"):    struct{}{},
+			toposort.NewVertex(datakinds.Features, "flag3"):    struct{}{},
+			toposort.NewVertex(datakinds.Segments, "segment1"): struct{}{},
+			toposort.NewVertex(datakinds.Segments, "segment2"): struct{}{},
+			toposort.NewVertex(datakinds.Segments, "segment3"): struct{}{},
 		},
-		computeDependenciesFrom(datakinds.Features, sharedtest.FlagDescriptor(flag2)),
+		toposort.GetNeighbors(datakinds.Features, sharedtest.FlagDescriptor(flag2)),
 	)
 
 	flag3 := ldbuilders.NewFlagBuilder("key").
@@ -61,11 +63,11 @@ func TestComputeDependenciesFromFlag(t *testing.T) {
 		Build()
 	assert.Equal(
 		t,
-		kindAndKeySet{
-			{datakinds.Segments, "segment1"}: true,
-			{datakinds.Segments, "segment2"}: true,
+		toposort.Neighbors{
+			toposort.NewVertex(datakinds.Segments, "segment1"): struct{}{},
+			toposort.NewVertex(datakinds.Segments, "segment2"): struct{}{},
 		},
-		computeDependenciesFrom(datakinds.Features, sharedtest.FlagDescriptor(flag3)),
+		toposort.GetNeighbors(datakinds.Features, sharedtest.FlagDescriptor(flag3)),
 	)
 }
 
@@ -73,7 +75,7 @@ func TestComputeDependenciesFromSegment(t *testing.T) {
 	segment := ldbuilders.NewSegmentBuilder("segment").Build()
 	assert.Len(
 		t,
-		computeDependenciesFrom(datakinds.Segments, st.ItemDescriptor{Version: segment.Version, Item: &segment}),
+		toposort.GetNeighbors(datakinds.Segments, st.ItemDescriptor{Version: segment.Version, Item: &segment}),
 		0,
 	)
 }
@@ -86,18 +88,18 @@ func TestComputeDependenciesFromSegmentWithSegmentReferences(t *testing.T) {
 		Build()
 	assert.Equal(
 		t,
-		kindAndKeySet{
-			{datakinds.Segments, "segment2"}: true,
-			{datakinds.Segments, "segment3"}: true,
+		toposort.Neighbors{
+			toposort.NewVertex(datakinds.Segments, "segment2"): struct{}{},
+			toposort.NewVertex(datakinds.Segments, "segment3"): struct{}{},
 		},
-		computeDependenciesFrom(datakinds.Segments, st.ItemDescriptor{Version: segment1.Version, Item: &segment1}),
+		toposort.GetNeighbors(datakinds.Segments, st.ItemDescriptor{Version: segment1.Version, Item: &segment1}),
 	)
 }
 
 func TestComputeDependenciesFromUnknownDataKind(t *testing.T) {
 	assert.Len(
 		t,
-		computeDependenciesFrom(mocks.MockData, st.ItemDescriptor{Version: 1, Item: "x"}),
+		toposort.GetNeighbors(mocks.MockData, st.ItemDescriptor{Version: 1, Item: "x"}),
 		0,
 	)
 }
@@ -105,14 +107,14 @@ func TestComputeDependenciesFromUnknownDataKind(t *testing.T) {
 func TestComputeDependenciesFromNullItem(t *testing.T) {
 	assert.Len(
 		t,
-		computeDependenciesFrom(datakinds.Features, st.ItemDescriptor{Version: 1, Item: nil}),
+		toposort.GetNeighbors(datakinds.Features, st.ItemDescriptor{Version: 1, Item: nil}),
 		0,
 	)
 }
 
 func TestSortCollectionsForDataStoreInit(t *testing.T) {
 	inputData := makeDependencyOrderingDataSourceTestData()
-	sortedData := sortCollectionsForDataStoreInit(inputData)
+	sortedData := toposort.Sort(inputData)
 	verifySortedData(t, sortedData, inputData)
 }
 
@@ -132,7 +134,7 @@ func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
 			}},
 		{Kind: datakinds.Segments, Items: nil},
 	}
-	sortedData := sortCollectionsForDataStoreInit(inputData)
+	sortedData := toposort.Sort(inputData)
 
 	// the unknown data kind appears last, and the ordering of its items is unchanged
 	assert.Len(t, sortedData, 3)
@@ -146,7 +148,7 @@ func TestDependencyTrackerReturnsSingleValueResultForUnknownItem(t *testing.T) {
 	dt := newDependencyTracker()
 
 	// a change to any item with no known depenencies affects only itself
-	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1", kindAndKey{datakinds.Features, "flag1"})
+	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1", toposort.NewVertex(datakinds.Features, "flag1"))
 }
 
 func TestDependencyTrackerBuildsGraph(t *testing.T) {
@@ -188,40 +190,40 @@ func TestDependencyTrackerBuildsGraph(t *testing.T) {
 
 	// a change to flag1 affects only flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1",
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
 	// a change to flag2 affects flag2 and flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag2",
-		kindAndKey{datakinds.Features, "flag2"},
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Features, "flag2"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
 	// a change to flag3 affects flag3 and flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
-		kindAndKey{datakinds.Features, "flag3"},
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Features, "flag3"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
 	// a change to segment1 affects segment1 and flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment1",
-		kindAndKey{datakinds.Segments, "segment1"},
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Segments, "segment1"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
 	// a change to segment2 affects segment2, flag1, and flag2
 	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment2",
-		kindAndKey{datakinds.Segments, "segment2"},
-		kindAndKey{datakinds.Features, "flag1"},
-		kindAndKey{datakinds.Features, "flag2"},
+		toposort.NewVertex(datakinds.Segments, "segment2"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
+		toposort.NewVertex(datakinds.Features, "flag2"),
 	)
 
 	// a change to segment3 affects segment2, which affects flag1 and flag2
 	verifyDependencyAffectedItems(t, dt, datakinds.Segments, "segment3",
-		kindAndKey{datakinds.Segments, "segment3"},
-		kindAndKey{datakinds.Segments, "segment2"},
-		kindAndKey{datakinds.Features, "flag1"},
-		kindAndKey{datakinds.Features, "flag2"},
+		toposort.NewVertex(datakinds.Segments, "segment3"),
+		toposort.NewVertex(datakinds.Segments, "segment2"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
+		toposort.NewVertex(datakinds.Features, "flag2"),
 	)
 }
 
@@ -240,9 +242,9 @@ func TestDependencyTrackerUpdatesGraph(t *testing.T) {
 
 	// at this point, a change to flag3 affects flag3, flag2, and flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
-		kindAndKey{datakinds.Features, "flag3"},
-		kindAndKey{datakinds.Features, "flag2"},
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Features, "flag3"),
+		toposort.NewVertex(datakinds.Features, "flag2"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
 	// now make it so flag1 now depends on flag4 instead of flag2
@@ -253,14 +255,14 @@ func TestDependencyTrackerUpdatesGraph(t *testing.T) {
 
 	// now, a change to flag3 affects flag3 and flag2
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
-		kindAndKey{datakinds.Features, "flag3"},
-		kindAndKey{datakinds.Features, "flag2"},
+		toposort.NewVertex(datakinds.Features, "flag3"),
+		toposort.NewVertex(datakinds.Features, "flag2"),
 	)
 
 	// and a change to flag4 affects flag4 and flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag4",
-		kindAndKey{datakinds.Features, "flag4"},
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Features, "flag4"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 }
 
@@ -273,14 +275,14 @@ func TestDependencyTrackerResetsGraph(t *testing.T) {
 	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
-		kindAndKey{datakinds.Features, "flag3"},
-		kindAndKey{datakinds.Features, "flag1"},
+		toposort.NewVertex(datakinds.Features, "flag3"),
+		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
 	dt.reset()
 
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
-		kindAndKey{datakinds.Features, "flag3"},
+		toposort.NewVertex(datakinds.Features, "flag3"),
 	)
 }
 
@@ -289,14 +291,14 @@ func verifyDependencyAffectedItems(
 	dt *dependencyTracker,
 	kind st.DataKind,
 	key string,
-	expected ...kindAndKey,
+	expected ...toposort.Vertex,
 ) {
-	expectedSet := make(kindAndKeySet)
+	expectedSet := make(toposort.Neighbors)
 	for _, value := range expected {
-		expectedSet.add(value)
+		expectedSet.Add(value)
 	}
-	result := make(kindAndKeySet)
-	dt.addAffectedItems(result, kindAndKey{kind, key})
+	result := make(toposort.Neighbors)
+	dt.addAffectedItems(result, toposort.NewVertex(kind, key))
 	assert.Equal(t, expectedSet, result)
 }
 

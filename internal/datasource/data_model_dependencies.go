@@ -1,153 +1,21 @@
 package datasource
 
 import (
-	"sort"
-
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-type kindAndKey struct {
-	kind st.DataKind
-	key  string
-}
-
-// This set type is implemented as a map, but the values do not matter, just the keys.
-type kindAndKeySet map[kindAndKey]bool
-
-func (s kindAndKeySet) add(value kindAndKey) {
-	s[value] = true
-}
-
-func (s kindAndKeySet) contains(value kindAndKey) bool {
-	_, ok := s[value]
-	return ok
-}
-
-func computeDependenciesFrom(kind st.DataKind, fromItem st.ItemDescriptor) kindAndKeySet {
-	// For any given flag or segment, find all the flags/segments that it directly references.
-	// Transitive references are handled by recursive logic at a higher level.
-	var ret kindAndKeySet
-	checkClauses := func(clauses []ldmodel.Clause) {
-		for _, c := range clauses {
-			if c.Op == ldmodel.OperatorSegmentMatch {
-				for _, v := range c.Values {
-					if v.Type() == ldvalue.StringType {
-						if ret == nil {
-							ret = make(kindAndKeySet)
-						}
-						ret.add(kindAndKey{datakinds.Segments, v.StringValue()})
-					}
-				}
-			}
-		}
-	}
-	switch kind {
-	case ldstoreimpl.Features():
-		if flag, ok := fromItem.Item.(*ldmodel.FeatureFlag); ok {
-			if len(flag.Prerequisites) > 0 {
-				ret = make(kindAndKeySet, len(flag.Prerequisites))
-				for _, p := range flag.Prerequisites {
-					ret.add(kindAndKey{ldstoreimpl.Features(), p.Key})
-				}
-			}
-			for _, r := range flag.Rules {
-				checkClauses(r.Clauses)
-			}
-			return ret
-		}
-
-	case ldstoreimpl.Segments():
-		if segment, ok := fromItem.Item.(*ldmodel.Segment); ok {
-			for _, r := range segment.Rules {
-				checkClauses(r.Clauses)
-			}
-		}
-	}
-	return ret
-}
-
-func sortCollectionsForDataStoreInit(allData []st.Collection) []st.Collection {
-	colls := make([]st.Collection, 0, len(allData))
-	for _, coll := range allData {
-		if doesDataKindSupportDependencies(coll.Kind) {
-			itemsOut := make([]st.KeyedItemDescriptor, 0, len(coll.Items))
-			addItemsInDependencyOrder(coll.Kind, coll.Items, &itemsOut)
-			colls = append(colls, st.Collection{Kind: coll.Kind, Items: itemsOut})
-		} else {
-			colls = append(colls, coll)
-		}
-	}
-	sort.Slice(colls, func(i, j int) bool {
-		return dataKindPriority(colls[i].Kind) < dataKindPriority(colls[j].Kind)
-	})
-	return colls
-}
-
-func doesDataKindSupportDependencies(kind st.DataKind) bool {
-	return kind == datakinds.Features //nolint:megacheck
-}
-
-func addItemsInDependencyOrder(
-	kind st.DataKind,
-	itemsIn []st.KeyedItemDescriptor,
-	out *[]st.KeyedItemDescriptor,
-) {
-	remainingItems := make(map[string]st.ItemDescriptor, len(itemsIn))
-	for _, item := range itemsIn {
-		remainingItems[item.Key] = item.Item
-	}
-	for len(remainingItems) > 0 {
-		// pick a random item that hasn't been visited yet
-		for firstKey := range remainingItems {
-			addWithDependenciesFirst(kind, firstKey, remainingItems, out)
-			break
-		}
-	}
-}
-
-func addWithDependenciesFirst(
-	kind st.DataKind,
-	startingKey string,
-	remainingItems map[string]st.ItemDescriptor,
-	out *[]st.KeyedItemDescriptor,
-) {
-	startItem := remainingItems[startingKey]
-	delete(remainingItems, startingKey) // we won't need to visit this item again
-	for dep := range computeDependenciesFrom(kind, startItem) {
-		if dep.kind == kind {
-			if _, ok := remainingItems[dep.key]; ok {
-				addWithDependenciesFirst(kind, dep.key, remainingItems, out)
-			}
-		}
-	}
-	*out = append(*out, st.KeyedItemDescriptor{Key: startingKey, Item: startItem})
-}
-
-// Logic for ensuring that segments are processed before features; if we get any other data types that
-// haven't been accounted for here, they'll come after those two in an arbitrary order.
-func dataKindPriority(kind st.DataKind) int {
-	switch kind.GetName() {
-	case "segments":
-		return 0
-	case "features":
-		return 1
-	default:
-		return len(kind.GetName()) + 2
-	}
-}
-
 // Maintains a bidirectional dependency graph that can be updated whenever an item has changed.
 type dependencyTracker struct {
-	dependenciesFrom map[kindAndKey]kindAndKeySet
-	dependenciesTo   map[kindAndKey]kindAndKeySet
+	dependenciesFrom toposort.AdjacencyList
+	dependenciesTo   toposort.AdjacencyList
 }
 
 func newDependencyTracker() *dependencyTracker {
-	return &dependencyTracker{make(map[kindAndKey]kindAndKeySet), make(map[kindAndKey]kindAndKeySet)}
+	return &dependencyTracker{
+		make(toposort.AdjacencyList),
+		make(toposort.AdjacencyList),
+	}
 }
 
 // Updates the dependency graph when an item has changed.
@@ -156,8 +24,8 @@ func (d *dependencyTracker) updateDependenciesFrom(
 	fromKey string,
 	fromItem st.ItemDescriptor,
 ) {
-	fromWhat := kindAndKey{kind, fromKey}
-	updatedDependencies := computeDependenciesFrom(kind, fromItem)
+	fromWhat := toposort.NewVertex(kind, fromKey)
+	updatedDependencies := toposort.GetNeighbors(kind, fromItem)
 
 	oldDependencySet := d.dependenciesFrom[fromWhat]
 	for oldDep := range oldDependencySet {
@@ -171,23 +39,23 @@ func (d *dependencyTracker) updateDependenciesFrom(
 	for newDep := range updatedDependencies {
 		depsToThisNewDep := d.dependenciesTo[newDep]
 		if depsToThisNewDep == nil {
-			depsToThisNewDep = make(kindAndKeySet)
+			depsToThisNewDep = make(toposort.Neighbors)
 			d.dependenciesTo[newDep] = depsToThisNewDep
 		}
-		depsToThisNewDep.add(fromWhat)
+		depsToThisNewDep.Add(fromWhat)
 	}
 }
 
 func (d *dependencyTracker) reset() {
-	d.dependenciesFrom = make(map[kindAndKey]kindAndKeySet)
-	d.dependenciesTo = make(map[kindAndKey]kindAndKeySet)
+	d.dependenciesFrom = make(toposort.AdjacencyList)
+	d.dependenciesTo = make(toposort.AdjacencyList)
 }
 
 // Populates the given set with the union of the initial item and all items that directly or indirectly
 // depend on it (based on the current state of the dependency graph).
-func (d *dependencyTracker) addAffectedItems(itemsOut kindAndKeySet, initialModifiedItem kindAndKey) {
-	if !itemsOut.contains(initialModifiedItem) {
-		itemsOut.add(initialModifiedItem)
+func (d *dependencyTracker) addAffectedItems(itemsOut toposort.Neighbors, initialModifiedItem toposort.Vertex) {
+	if !itemsOut.Contains(initialModifiedItem) {
+		itemsOut.Add(initialModifiedItem)
 		affectedItems := d.dependenciesTo[initialModifiedItem]
 		for affectedItem := range affectedItems {
 			d.addAffectedItems(itemsOut, affectedItem)
