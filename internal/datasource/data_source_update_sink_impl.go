@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	intf "github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
@@ -71,7 +73,7 @@ func (d *DataSourceUpdateSinkImpl) Init(allData []st.Collection) bool {
 		}
 	}
 
-	err := d.store.Init(sortCollectionsForDataStoreInit(allData))
+	err := d.store.Init(toposort.Sort(allData))
 	updated := d.maybeUpdateError(err)
 
 	if updated {
@@ -101,8 +103,8 @@ func (d *DataSourceUpdateSinkImpl) Upsert(
 	if updated {
 		d.dependencyTracker.updateDependenciesFrom(kind, key, item)
 		if d.flagChangeEventBroadcaster.HasListeners() {
-			affectedItems := make(kindAndKeySet)
-			d.dependencyTracker.addAffectedItems(affectedItems, kindAndKey{kind, key})
+			affectedItems := make(toposort.Neighbors)
+			d.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
 			d.sendChangeEvents(affectedItems)
 		}
 	}
@@ -235,10 +237,10 @@ func (d *DataSourceUpdateSinkImpl) waitFor(desiredState intf.DataSourceState, ti
 	}
 }
 
-func (d *DataSourceUpdateSinkImpl) sendChangeEvents(affectedItems kindAndKeySet) {
+func (d *DataSourceUpdateSinkImpl) sendChangeEvents(affectedItems toposort.Neighbors) {
 	for item := range affectedItems {
-		if item.kind == datakinds.Features {
-			d.flagChangeEventBroadcaster.Broadcast(intf.FlagChangeEvent{Key: item.key})
+		if item.Kind() == datakinds.Features {
+			d.flagChangeEventBroadcaster.Broadcast(intf.FlagChangeEvent{Key: item.Key()})
 		}
 	}
 }
@@ -267,8 +269,8 @@ func fullDataSetToMap(allData []st.Collection) map[st.DataKind]map[string]st.Ite
 func (d *DataSourceUpdateSinkImpl) computeChangedItemsForFullDataSet(
 	oldDataMap map[st.DataKind]map[string]st.ItemDescriptor,
 	newDataMap map[st.DataKind]map[string]st.ItemDescriptor,
-) kindAndKeySet {
-	affectedItems := make(kindAndKeySet)
+) toposort.Neighbors {
+	affectedItems := make(toposort.Neighbors)
 	for _, kind := range datakinds.AllDataKinds() {
 		oldItems := oldDataMap[kind]
 		newItems := newDataMap[kind]
@@ -286,7 +288,7 @@ func (d *DataSourceUpdateSinkImpl) computeChangedItemsForFullDataSet(
 			newItem, haveNew := newItems[key]
 			if haveOld || haveNew {
 				if !haveOld || !haveNew || oldItem.Version < newItem.Version {
-					d.dependencyTracker.addAffectedItems(affectedItems, kindAndKey{kind, key})
+					d.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
 				}
 			}
 		}
