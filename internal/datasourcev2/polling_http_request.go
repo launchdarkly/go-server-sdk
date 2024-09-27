@@ -114,7 +114,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 				}
 
 				intent = serverIntent.Payloads[0].Code
-				if intent == "none" {
+				if intent == fdv2proto.IntentNone {
 					return NewCachedPollingResponse(), nil
 				}
 			}

@@ -1,6 +1,7 @@
 package fdv2proto
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
@@ -15,6 +16,8 @@ const (
 	// IntentTransferChanges means the server intends to send only the necessary changes to bring
 	// an existing data set up-to-date.
 	IntentTransferChanges = IntentCode("xfer-changes")
+	//IntentNone means the server intends to send no data (payload is up to date).
+	IntentNone = IntentCode("none")
 )
 
 // Event represents an event that can be sent by the server.
@@ -60,7 +63,26 @@ const (
 	SegmentKind = ObjectKind("segment")
 )
 
-// ToFDV1 converts the object kind to an FDv1 data kind.
+// ErrUnknownKind represents that a given ObjectKind had no FDv1 equivalent
+// DataKind.
+type ErrUnknownKind struct {
+	kind ObjectKind
+}
+
+//nolint:revive // Error method.
+func (e *ErrUnknownKind) Is(err error) bool {
+	var errUnknownKind *ErrUnknownKind
+	ok := errors.As(err, &errUnknownKind)
+	return ok
+}
+
+//nolint:revive // Error method.
+func (e *ErrUnknownKind) Error() string {
+	return fmt.Sprintf("unknown object kind: %s", e.kind)
+}
+
+// ToFDV1 converts the object kind to an FDv1 data kind. If there is no equivalent, it returns
+// an ErrUnknownKind.
 func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, error) {
 	switch o {
 	case FlagKind:
@@ -68,7 +90,7 @@ func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, error) {
 	case SegmentKind:
 		return datakinds.Segments, nil
 	default:
-		return nil, fmt.Errorf("no FDv1 equivalent for object kind (%s)", string(o))
+		return nil, &ErrUnknownKind{o}
 	}
 }
 
