@@ -5,8 +5,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// ToStorableItems converts a list of FDv2 events into a slice of collections, which is suitable for
-// passing into a store.
 func ToStorableItems(events []Event) []ldstoretypes.Collection {
 	flagCollection := ldstoretypes.Collection{
 		Kind:  datakinds.Features,
@@ -22,20 +20,20 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 		switch e := event.(type) {
 		case PutObject:
 			switch e.Kind {
-			case datakinds.Features:
+			case FlagKind:
 				flagCollection.Items = append(flagCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key:  e.Key,
-					Item: e.Object,
+					Item: ldstoretypes.ItemDescriptor{Version: e.Version, Item: e.Object},
 				})
-			case datakinds.Segments:
+			case SegmentKind:
 				segmentCollection.Items = append(segmentCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key:  e.Key,
-					Item: e.Object,
+					Item: ldstoretypes.ItemDescriptor{Version: e.Version, Item: e.Object},
 				})
 			}
 		case DeleteObject:
 			switch e.Kind {
-			case datakinds.Features:
+			case FlagKind:
 				flagCollection.Items = append(flagCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key: e.Key,
 					Item: ldstoretypes.ItemDescriptor{
@@ -43,7 +41,7 @@ func ToStorableItems(events []Event) []ldstoretypes.Collection {
 						Item:    nil,
 					},
 				})
-			case datakinds.Segments:
+			case SegmentKind:
 				segmentCollection.Items = append(segmentCollection.Items, ldstoretypes.KeyedItemDescriptor{
 					Key: e.Key,
 					Item: ldstoretypes.ItemDescriptor{

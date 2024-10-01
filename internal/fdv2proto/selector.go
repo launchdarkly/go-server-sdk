@@ -1,5 +1,10 @@
 package fdv2proto
 
+import (
+	"encoding/json"
+	"errors"
+)
+
 // Selector represents a particular snapshot of data.
 type Selector struct {
 	state   string
@@ -30,4 +35,24 @@ func (s *Selector) State() string {
 // Version returns the version of the Selector. This cannot be called if the Selector is nil.
 func (s *Selector) Version() int {
 	return s.version
+}
+
+// UnmarshalJSON unmarshals a Selector from JSON.
+func (s *Selector) UnmarshalJSON(data []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	if state, ok := raw["state"].(string); ok {
+		s.state = state
+	} else {
+		return errors.New("unmarshal selector: missing state field")
+	}
+	if version, ok := raw["version"].(float64); ok {
+		s.version = int(version)
+	} else {
+		return errors.New("unmarshal selector: missing version field")
+	}
+	return nil
 }
