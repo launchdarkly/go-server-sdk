@@ -13,10 +13,10 @@ type SDKConfigParams struct {
 	Streaming           *SDKConfigStreamingParams           `json:"streaming,omitempty"`
 	Polling             *SDKConfigPollingParams             `json:"polling,omitempty"`
 	Events              *SDKConfigEventParams               `json:"events,omitempty"`
-	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	BigSegments         *SDKConfigBigSegmentsParams         `json:"bigSegments,omitempty"`
 	Tags                *SDKConfigTagsParams                `json:"tags,omitempty"`
 	Hooks               *SDKConfigHooksParams               `json:"hooks,omitempty"`
+	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 }
 
 type SDKConfigServiceEndpointsParams struct {
@@ -48,10 +48,6 @@ type SDKConfigEventParams struct {
 	EnableGzip              ldvalue.OptionalBool       `json:"enableGzip,omitempty"`
 }
 
-type SDKConfigPersistentDataStoreParams struct {
-	CallbackURI string `json:"callbackURI"`
-}
-
 type SDKConfigBigSegmentsParams struct {
 	CallbackURI          string                     `json:"callbackUri"`
 	UserCacheSize        ldvalue.OptionalInt        `json:"userCacheSize,omitempty"`
@@ -76,4 +72,38 @@ type SDKConfigHookInstance struct {
 
 type SDKConfigHooksParams struct {
 	Hooks []SDKConfigHookInstance `json:"hooks"`
+}
+
+type SDKConfigPersistentDataStoreParams struct {
+	Store SDKConfigPersistentStore `json:"store"`
+	Cache SDKConfigPersistentCache `json:"cache"`
+}
+
+type SDKConfigPersistentType string
+
+const (
+	Redis    = SDKConfigPersistentType("redis")
+	DynamoDB = SDKConfigPersistentType("dynamodb")
+	Consul   = SDKConfigPersistentType("consul")
+)
+
+type SDKConfigPersistentStore struct {
+	Type   SDKConfigPersistentType `json:"type"`
+	Prefix string                  `json:"prefix"`
+	DSN    string                  `json:"dsn"`
+}
+
+type SDKConfigPersistentMode string
+
+const (
+	Off      = SDKConfigPersistentMode("off")
+	TTL      = SDKConfigPersistentMode("ttl")
+	Infinite = SDKConfigPersistentMode("infinite")
+)
+
+type SDKConfigPersistentCache struct {
+	Mode SDKConfigPersistentMode `json:"mode"`
+
+	// This value is only valid when the Mode is set to TTL. It must be a positive integer.
+	TTL *int `json:"ttl,omitempty"`
 }
