@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -72,8 +73,24 @@ func newPollingProcessor(
 	return pp
 }
 
-//nolint:revive // no doc comment for standard method
-func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
+//nolint:revive // DataInitializer method.
+func (pp *PollingProcessor) Name() string {
+	return "PollingDataSourceV2"
+}
+
+//nolint:revive // DataInitializer method.
+func (pp *PollingProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
+	//nolint:godox
+	// TODO(SDK-752): Plumb the context into the request method.
+	basis, err := pp.requester.Request()
+	if err != nil {
+		return nil, err
+	}
+	return &subsystems.Basis{Events: basis.Events(), Selector: basis.Selector(), Persist: true}, nil
+}
+
+//nolint:revive // DataSynchronizer method.
+func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ *fdv2proto.Selector) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)

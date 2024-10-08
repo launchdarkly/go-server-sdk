@@ -76,7 +76,7 @@ func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDat
 }
 
 // Build is called internally by the SDK.
-func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	filterKey, wasSet := b.filterKey.Get()
@@ -95,6 +95,10 @@ func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (su
 	}
 	return datasourcev2.NewPollingProcessor(context, context.GetDataDestination(),
 		context.GetDataSourceStatusReporter(), cfg), nil
+}
+
+func (b *PollingDataSourceBuilderV2) AsInitializer() subsystems.ComponentConfigurer[subsystems.DataInitializer] {
+	return subsystems.AsInitializer(b)
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
