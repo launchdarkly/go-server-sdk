@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
+
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
-
 	th "github.com/launchdarkly/go-test-helpers/v3"
 
 	"github.com/stretchr/testify/assert"
@@ -41,26 +43,37 @@ func NewMockDataDestination(realStore subsystems.DataStore) *MockDataDestination
 	}
 }
 
-// Init in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) Init(allData []ldstoretypes.Collection, _ *int) bool {
-	// For now, the payloadVersion is ignored. When the data sources start making use of it, it should be
+// SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
+func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) {
+	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
-	for _, coll := range allData {
+
+	collections := fdv2proto.ToStorableItems(events)
+
+	for _, coll := range collections {
 		AssertNotNil(coll.Kind)
 	}
-	err := d.DataStore.Init(allData)
-	return err == nil
+	_ = d.DataStore.Init(toposort.Sort(collections))
 }
 
-// Upsert in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) Upsert(
-	kind ldstoretypes.DataKind,
-	key string,
-	newItem ldstoretypes.ItemDescriptor,
-) bool {
-	AssertNotNil(kind)
-	_, err := d.DataStore.Upsert(kind, key, newItem)
-	return err == nil
+// ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
+func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) {
+	// For now, the selector is ignored. When the data sources start making use of it, it should be
+	// stored so that assertions can be made.
+
+	collections := fdv2proto.ToStorableItems(events)
+
+	for _, coll := range collections {
+		AssertNotNil(coll.Kind)
+	}
+
+	for _, coll := range toposort.Sort(collections) {
+		for _, item := range coll.Items {
+			if _, err := d.DataStore.Upsert(coll.Kind, item.Key, item.Item); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // UpdateStatus in this test implementation, pushes a value onto the Statuses channel.

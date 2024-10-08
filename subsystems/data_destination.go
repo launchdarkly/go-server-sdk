@@ -1,7 +1,7 @@
 package subsystems
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
 // DataDestination represents a sink for data obtained from a data source.
@@ -11,24 +11,22 @@ import (
 // Do not use it.
 // You have been warned.
 type DataDestination interface {
-	// Init overwrites the current contents of the data store with a set of items for each collection.
+	// SetBasis defines a new basis for the data store. This means the store must
+	// be emptied of any existing data before applying the events. This operation should be
+	// atomic with respect to any other operations that modify the store.
 	//
-	// If the underlying data store returns an error during this operation, the SDK will log it,
-	// and set the data source state to DataSourceStateInterrupted with an error of
-	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
-	// return false to indicate that the operation failed.
-	Init(allData []ldstoretypes.Collection, payloadVersion *int) bool
+	// The selector defines the version of the basis.
+	//
+	// If persist is true, it indicates that the data should be propagated to any connected persistent
+	// store.
+	SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool)
 
-	// Upsert updates or inserts an item in the specified collection. For updates, the object will only be
-	// updated if the existing version is less than the new version.
+	// ApplyDelta applies a set of changes to an existing basis. This operation should be atomic with
+	// respect to any other operations that modify the store.
 	//
-	// To mark an item as deleted, pass an ItemDescriptor with a nil Item and a nonzero version
-	// number. Deletions must be versioned so that they do not overwrite a later update in case updates
-	// are received out of order.
+	// The selector defines the new version of the basis.
 	//
-	// If the underlying data store returns an error during this operation, the SDK will log it,
-	// and set the data source state to DataSourceStateInterrupted with an error of
-	// DataSourceErrorKindStoreError. It will not return the error to the data source, but will
-	// return false to indicate that the operation failed.
-	Upsert(kind ldstoretypes.DataKind, key string, item ldstoretypes.ItemDescriptor) bool
+	// If persist is true, it indicates that the changes should be propagated to any connected persistent
+	// store.
+	ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool)
 }
