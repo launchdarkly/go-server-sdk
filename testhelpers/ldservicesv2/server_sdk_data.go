@@ -12,12 +12,6 @@ type fakeVersionedKind struct {
 	Version int    `json:"version"`
 }
 
-// KeyAndVersionItem provides a simple object that has only "key" and "version" properties.
-// This may be enough for some testing purposes that don't require full flag or segment data.
-func KeyAndVersionItem(key string, version int) interface{} {
-	return fakeVersionedKind{Key: key, Version: version}
-}
-
 // ServerSDKData is a convenience type for constructing a test server-side SDK data payload for
 // PollingServiceHandler or StreamingServiceHandler. Its String() method returns a JSON object with
 // the expected "flags" and "segments" properties.
@@ -65,6 +59,7 @@ func (s *ServerSDKData) Segments(segments ...ldmodel.Segment) *ServerSDKData {
 	return s
 }
 
+// ToPutObjects converts the data to a list of PutObject objects that can be fed to a mock streaming data source.
 func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 	var objs []fdv2proto.PutObject
 	for _, flag := range s.FlagsMap {
