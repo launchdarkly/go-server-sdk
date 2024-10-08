@@ -1,6 +1,7 @@
 package datasystem
 
 import (
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	"sync"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
@@ -164,9 +165,8 @@ func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector,
 
 	if s.shouldPersist() {
 		//nolint:godox
-		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
-		// Also handle the error.
-		_ = s.persistentStore.impl.Init(collections)
+		// TODO: figure out where to handle/report the error.
+		_ = s.persistentStore.impl.Init(toposort.Sort(collections))
 	}
 }
 
@@ -194,9 +194,8 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 	// in the future.
 	if s.shouldPersist() {
 		//nolint:godox
-		// TODO(SDK-711): We need to sort the data in dependency order before inserting it.
-		// Also handle any upsert error.
-		for _, coll := range collections {
+		// TODO: figure out where to handle/report the error.
+		for _, coll := range toposort.Sort(collections) {
 			for _, item := range coll.Items {
 				_, err := s.persistentStore.impl.Upsert(coll.Kind, item.Key, item.Item)
 				if err != nil {
