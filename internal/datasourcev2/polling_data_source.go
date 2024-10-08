@@ -79,13 +79,14 @@ func (pp *PollingProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error) {
-	// TODO: ideally, the Request method would take a context so it could be interrupted.
+func (pp *PollingProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
+	//nolint:godox
+	// TODO(SDK-752): Plumb the context into the request method.
 	basis, err := pp.requester.Request()
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.Basis{Data: basis.Events(), Selector: basis.Selector(), Persist: true}, nil
+	return &subsystems.Basis{Events: basis.Events(), Selector: basis.Selector(), Persist: true}, nil
 }
 
 //nolint:revive // DataSynchronizer method.

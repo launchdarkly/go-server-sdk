@@ -24,19 +24,32 @@ type DataSource interface {
 	Start(closeWhenReady chan<- struct{})
 }
 
+// Basis represents the initial payload of data that a data source can provide. Initializers provide this
+// via Fetch, whereas Synchronizers provide it asynchronously via the injected DataDestination.
 type Basis struct {
-	Data     []fdv2proto.Event
+	// Events is a series of events representing actions applied to data items.
+	Events []fdv2proto.Event
+	// Selector identifies this basis.
 	Selector *fdv2proto.Selector
-	Persist  bool
+	// Persist is true if the data source requests that the data store persist the items to any connected
+	// Persistent Stores.
+	Persist bool
 }
 
+// DataInitializer represents a component capable of obtaining a Basis via a synchronous call.
 type DataInitializer interface {
+	// Name returns the name of the data initializer.
 	Name() string
+	// Fetch returns a Basis, or an error if the Basis could not be retrieved. If the context has expired,
+	// return the context's error.
 	Fetch(ctx context.Context) (*Basis, error)
 }
 
+// DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.
 type DataSynchronizer interface {
 	DataInitializer
+	// Sync tells the data synchronizer to begin synchronizing data, starting from an optional fdv2proto.Selector.
+	// The selector may be nil indicating that a full Basis should be fetched.
 	Sync(closeWhenReady chan<- struct{}, selector *fdv2proto.Selector)
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
@@ -57,6 +70,9 @@ func (t toInitializer) Build(context ClientContext) (DataInitializer, error) {
 	return sync, nil
 }
 
+// AsInitializer is a helper method that converts a DataSynchronizer to a DataInitializer. This is useful because
+// DataSynchronizers are generally also DataInitializers, so it's possible to use one for that purpose if the
+// situation calls for it. The primary example is using a Polling synchronizer as an initializer.
 func AsInitializer(cc ComponentConfigurer[DataSynchronizer]) ComponentConfigurer[DataInitializer] {
 	return toInitializer{cc: cc}
 }

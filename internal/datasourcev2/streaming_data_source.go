@@ -127,10 +127,8 @@ func (sp *StreamProcessor) Name() string {
 	return "StreamingDataSourceV2"
 }
 
-func (sp *StreamProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error) {
-	// TODO: there's no point in implementing this, as it would be highly inefficient to open a streaming
-	// connection just to get a PUT and then close it again.
-	return nil, errors.New("fetch capability not implemented")
+func (sp *StreamProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
+	return nil, errors.New("StreamProcessor does not implement Fetch capability")
 }
 
 //nolint:revive // no doc comment for standard method

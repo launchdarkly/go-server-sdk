@@ -192,7 +192,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		f.store.SetBasis(basis.Data, basis.Selector, basis.Persist)
+		f.store.SetBasis(basis.Events, basis.Selector, basis.Persist)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -307,7 +307,8 @@ func (d *dataStatusProvider) RemoveStatusListener(listener <-chan interfaces.Dat
 }
 
 func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, timeout time.Duration) bool {
-	//TODO implement me
+	//nolint:godox
+	// TODO: Implement dataStatusProvider for this data system.
 	panic("implement me")
 }
 

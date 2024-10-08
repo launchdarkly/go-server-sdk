@@ -55,29 +55,33 @@ func (d *DataSystemModes) PersistentStore(store ss.ComponentConfigurer[ss.DataSt
 }
 
 // Custom returns a builder suitable for creating a custom data acquisition strategy. You may configure
-// how the SDK uses a Persistent Store, how the SDK obtains an initial set of data, and how the SDK keeps data up-to-date.
+// how the SDK uses a Persistent Store, how the SDK obtains an initial set of data, and how the SDK keeps data
+// up-to-date.
 func (d *DataSystemModes) Custom() *DataSystemConfigurationBuilder {
 	return &DataSystemConfigurationBuilder{}
 }
 
-// DataSystem provides a high-level selection of the SDK's data acquisition strategy. Use the returned builder to select
-// a mode, or to create a custom data acquisition strategy. To use LaunchDarkly's recommended mode, use Default.
+// DataSystem provides a high-level selection of the SDK's data acquisition strategy. Use the returned builder to
+// select a mode, or to create a custom data acquisition strategy. To use LaunchDarkly's recommended mode, use Default.
 func DataSystem() *DataSystemModes {
 	return &DataSystemModes{}
 }
 
-func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore], storeMode ss.DataStoreMode) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore],
+	storeMode ss.DataStoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
 	d.storeMode = storeMode
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) Initializers(initializers ...ss.ComponentConfigurer[ss.DataInitializer]) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) Initializers(
+	initializers ...ss.ComponentConfigurer[ss.DataInitializer]) *DataSystemConfigurationBuilder {
 	d.initializerBuilders = initializers
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) Synchronizers(primary, secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
+func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
+	secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
 	d.secondarySyncBuilder = secondary
 	return d
@@ -88,7 +92,8 @@ func (d *DataSystemConfigurationBuilder) Build(
 ) (ss.DataSystemConfiguration, error) {
 	conf := d.config
 	if d.secondarySyncBuilder != nil && d.primarySyncBuilder == nil {
-		return ss.DataSystemConfiguration{}, errors.New("cannot have a secondary synchronizer without a primary synchronizer")
+		return ss.DataSystemConfiguration{}, errors.New("cannot have a secondary synchronizer without " +
+			"a primary synchronizer")
 	}
 	if d.storeBuilder != nil {
 		store, err := d.storeBuilder.Build(context)
@@ -99,7 +104,8 @@ func (d *DataSystemConfigurationBuilder) Build(
 	}
 	for i, initializerBuilder := range d.initializerBuilders {
 		if initializerBuilder == nil {
-			return ss.DataSystemConfiguration{}, fmt.Errorf("initializer %d is nil", i)
+			return ss.DataSystemConfiguration{},
+				fmt.Errorf("initializer %d is nil", i)
 		}
 		initializer, err := initializerBuilder.Build(context)
 		if err != nil {
