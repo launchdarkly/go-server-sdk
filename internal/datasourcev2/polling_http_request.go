@@ -69,8 +69,8 @@ func (r *pollingRequester) BaseURI() string {
 func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
-func (r *pollingRequester) Request() (*PollingResponse, error) {
 
+func (r *pollingRequester) Request() (*PollingResponse, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -99,7 +99,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 
 	updates := make([]fdv2proto.Event, 0, len(payload.Events))
 
-	var intent fdv2proto.IntentCode
+	var intentCode fdv2proto.IntentCode
 
 	for _, event := range payload.Events {
 		switch event.Name {
@@ -113,8 +113,8 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					return nil, errors.New("server-intent event has no payloads")
 				}
 
-				intent = serverIntent.Payloads[0].Code
-				if intent == fdv2proto.IntentNone {
+				intentCode = serverIntent.Payloads[0].Code
+				if intentCode == fdv2proto.IntentNone {
 					return NewCachedPollingResponse(), nil
 				}
 			}
@@ -179,11 +179,11 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 		}
 	}
 
-	if intent == "" {
+	if intentCode == "" {
 		return nil, errors.New("no server-intent event found in polling response")
 	}
 
-	return NewPollingResponse(intent, updates, fdv2proto.NoSelector()), nil
+	return NewPollingResponse(intentCode, updates, fdv2proto.NoSelector()), nil
 }
 
 func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {

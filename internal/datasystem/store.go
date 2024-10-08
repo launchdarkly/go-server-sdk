@@ -14,7 +14,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// Store is a dual-mode persistent/in-memory store that data queries from the evaluation
+// Store is a dual-mode persistent/in-memory store that serves requests for data from the evaluation
 // algorithm.
 //
 // At any given moment one of two stores is active: in-memory, or persistent. This doesn't preclude a caller
@@ -25,7 +25,7 @@ import (
 // store.
 //
 // One motivation behind using persistent stores is to offer a way to immediately start evaluating
-// flags before a connection is made to LD (or even in the moment before an initializer has run.)
+// flags before a connection is made to LD (or even in the moment before an initializer has run).
 //
 // The persistent store has TTL caching logic which can result in inconsistent/stale date being returned. Therefore,
 // once we have fresh data from LD, we don't want to use the persistent store for reads any longer.
