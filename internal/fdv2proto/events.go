@@ -16,7 +16,7 @@ const (
 	// IntentTransferChanges means the server intends to send only the necessary changes to bring
 	// an existing data set up-to-date.
 	IntentTransferChanges = IntentCode("xfer-changes")
-	//IntentNone means the server intends to send no data (payload is up to date).
+	// IntentNone means the server intends to send no data (payload is up to date).
 	IntentNone = IntentCode("none")
 )
 
@@ -69,14 +69,13 @@ type ErrUnknownKind struct {
 	kind ObjectKind
 }
 
-//nolint:revive // Error method.
+// Is returns true if the error is an ErrUnknownKind.
 func (e *ErrUnknownKind) Is(err error) bool {
 	var errUnknownKind *ErrUnknownKind
 	ok := errors.As(err, &errUnknownKind)
 	return ok
 }
 
-//nolint:revive // Error method.
 func (e *ErrUnknownKind) Error() string {
 	return fmt.Sprintf("unknown object kind: %s", e.kind)
 }

@@ -1,10 +1,11 @@
 package mocks
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 

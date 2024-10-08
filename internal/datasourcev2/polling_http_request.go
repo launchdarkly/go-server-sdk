@@ -130,7 +130,8 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					version int
 				)
 
-				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField, objectField}); obj.Next(); {
+				for obj := r.Object().WithRequiredProperties([]string{
+					versionField, kindField, keyField, objectField}); obj.Next(); {
 					switch string(obj.Name()) {
 					case versionField:
 						version = r.Int()
@@ -171,7 +172,6 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					}
 				}
 				updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
-
 			}
 		case fdv2proto.EventPayloadTransferred:
 			//nolint:godox

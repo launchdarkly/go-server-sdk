@@ -32,9 +32,6 @@ const (
 	versionField = "version"
 	objectField  = "object"
 
-	putEventName    = "put-object"
-	deleteEventName = "delete-object"
-
 	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
 	streamMaxRetryDelay      = 30 * time.Second
 	streamRetryResetInterval = 60 * time.Second
@@ -136,7 +133,6 @@ func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
 	go sp.subscribe(closeWhenReady)
 }
 
-//nolint:gocyclo,godox // this function is a stepping stone. It will get better over time.
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
