@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -42,7 +44,7 @@ func NewMockDataDestination(realStore subsystems.DataStore) *MockDataDestination
 }
 
 // SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Selector, persist bool) error {
+func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
@@ -51,10 +53,11 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Se
 	for _, coll := range collections {
 		AssertNotNil(coll.Kind)
 	}
-	return d.DataStore.Init(collections)
+	_ = d.DataStore.Init(toposort.Sort(collections))
 }
 
-func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.Selector, persist bool) error {
+// ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
+func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
@@ -64,15 +67,13 @@ func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.
 		AssertNotNil(coll.Kind)
 	}
 
-	for _, coll := range collections {
+	for _, coll := range toposort.Sort(collections) {
 		for _, item := range coll.Items {
 			if _, err := d.DataStore.Upsert(coll.Kind, item.Key, item.Item); err != nil {
-				return err
+				return
 			}
 		}
 	}
-
-	return nil
 }
 
 // UpdateStatus in this test implementation, pushes a value onto the Statuses channel.

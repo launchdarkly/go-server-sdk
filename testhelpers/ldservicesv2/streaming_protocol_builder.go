@@ -2,6 +2,7 @@ package ldservicesv2
 
 import (
 	"encoding/json"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )

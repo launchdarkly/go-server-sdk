@@ -2,14 +2,15 @@ package ldclient
 
 import (
 	"crypto/x509"
-	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
-	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"

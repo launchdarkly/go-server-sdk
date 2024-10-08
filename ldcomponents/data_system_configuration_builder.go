@@ -3,6 +3,7 @@ package ldcomponents
 import (
 	"errors"
 	"fmt"
+
 	ss "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 

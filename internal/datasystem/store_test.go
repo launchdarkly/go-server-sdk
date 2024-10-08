@@ -2,11 +2,12 @@ package datasystem
 
 import (
 	"errors"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
@@ -57,7 +58,7 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
 			store := NewStore(logCapture.Loggers)
 			defer store.Close()
-			assert.NoError(t, store.SetBasis([]fdv2proto.Event{}, tt.selector, tt.persist))
+			store.SetBasis([]fdv2proto.Event{}, tt.selector, tt.persist)
 			assert.True(t, store.IsInitialized())
 		})
 	}
@@ -102,7 +103,7 @@ func TestStore_Commit(t *testing.T) {
 			}}
 
 		// There should be an error since writing to the store will fail.
-		assert.Error(t, store.SetBasis(input, fdv2proto.NoSelector(), true))
+		store.SetBasis(input, fdv2proto.NoSelector(), true)
 
 		// Since writing should have failed, there should be no data in the persistent store.
 		require.Empty(t, spy.initPayload)
@@ -128,7 +129,7 @@ func TestStore_Commit(t *testing.T) {
 			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
 		}
 
-		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
+		store.SetBasis(input, fdv2proto.NoSelector(), false)
 
 		// Since SetBasis will immediately mirror the data if persist == true, we can check this is empty now.
 		require.Empty(t, spy.initPayload)
@@ -153,7 +154,7 @@ func TestStore_Commit(t *testing.T) {
 		}
 
 		// Even though persist is true, the store was marked as read-only, so it shouldn't be written to.
-		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), true))
+		store.SetBasis(input, fdv2proto.NoSelector(), true)
 
 		require.Empty(t, spy.initPayload)
 
@@ -177,7 +178,7 @@ func TestStore_GetActive(t *testing.T) {
 			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldstoretypes.ItemDescriptor{}},
 		}
 
-		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
+		store.SetBasis(input, fdv2proto.NoSelector(), false)
 
 		foo, err = store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -209,7 +210,7 @@ func TestStore_GetActive(t *testing.T) {
 			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldstoretypes.ItemDescriptor{}},
 		}
 
-		assert.NoError(t, store.SetBasis(input, fdv2proto.NoSelector(), false))
+		store.SetBasis(input, fdv2proto.NoSelector(), false)
 
 		// Now that there's memory data, the persistent store should no longer be accessed.
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
@@ -229,22 +230,22 @@ func TestStore_SelectorIsRemembered(t *testing.T) {
 	selector4 := fdv2proto.NewSelector("qux", 4)
 	selector5 := fdv2proto.NewSelector("this better be the last one", 5)
 
-	assert.NoError(t, store.SetBasis([]fdv2proto.Event{}, selector1, false))
+	store.SetBasis([]fdv2proto.Event{}, selector1, false)
 	assert.Equal(t, selector1, store.Selector())
 
-	assert.NoError(t, store.SetBasis([]fdv2proto.Event{}, selector2, false))
+	store.SetBasis([]fdv2proto.Event{}, selector2, false)
 	assert.Equal(t, selector2, store.Selector())
 
-	assert.NoError(t, store.ApplyDelta([]fdv2proto.Event{}, selector3, false))
+	store.ApplyDelta([]fdv2proto.Event{}, selector3, false)
 	assert.Equal(t, selector3, store.Selector())
 
-	assert.NoError(t, store.ApplyDelta([]fdv2proto.Event{}, selector4, false))
+	store.ApplyDelta([]fdv2proto.Event{}, selector4, false)
 	assert.Equal(t, selector4, store.Selector())
 
 	assert.NoError(t, store.Commit())
 	assert.Equal(t, selector4, store.Selector())
 
-	assert.NoError(t, store.SetBasis([]fdv2proto.Event{}, selector5, false))
+	store.SetBasis([]fdv2proto.Event{}, selector5, false)
 }
 
 func TestStore_Concurrency(t *testing.T) {
@@ -277,10 +278,10 @@ func TestStore_Concurrency(t *testing.T) {
 			_ = store.IsInitialized()
 		})
 		go run(func() {
-			_ = store.SetBasis([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
+			store.SetBasis([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
 		})
 		go run(func() {
-			_ = store.ApplyDelta([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
+			store.ApplyDelta([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
 		})
 		go run(func() {
 			_ = store.Selector()

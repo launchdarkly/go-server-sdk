@@ -18,8 +18,7 @@ import (
 // is discarded.
 //
 // Deltas are then applied to the store. A single delta update transforms the contents of the store
-// atomically. The idea is that there's never a moment when the state of the store could be inconsistent
-// with regard to the authoritative LaunchDarkly SaaS.
+// atomically.
 type Store struct {
 	data        map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	initialized bool

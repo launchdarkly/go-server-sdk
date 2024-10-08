@@ -91,46 +91,6 @@ For a much (MUCH) more detailed breakdown of this behavior, you may use the opti
 BENCHMARK=BenchmarkMySampleOperation make benchmark-allocs
 ```
 
-### Avoid `defer` in simple cases
-
-It's common to use `defer` to guarantee cleanup of some kind of temporary state when a method exits, such as releasing a lock. As convenient as this feature is, it should be avoided in high-traffic code paths _if it is safe to do so_, due to its small but consistent [runtime overhead](https://medium.com/i0exception/runtime-overhead-of-using-defer-in-go-7140d5c40e32).
-
-It is safe to avoid `defer` if:
-
-1. there is only one possible return point from the function, _and_:
-2. there is no possibility of a panic at any point where a premature exit would leave things in an unwanted state.
-
-Therefore, this optimization should be used only in small methods where the flow is simple and it is possible to prove that no panic can occur within the critical path.
-
-Less preferable:
-
-```go
-func (t *thing) getNumber() int {
-    t.lock.Lock()
-    defer t.lock.Unlock()
-    if t.isTwo {
-        return 2
-    }
-    return 1
-}
-```
-
-More preferable:
-
-```go
-func (t *thing) getNumber() int {
-    t.lock.Lock()
-    answer := 1
-    if t.isTwo {
-        answer = 2
-    }
-    t.lock.Unlock()
-    return answer
-}
-```
-
-Note that in this example, a panic _is_ possible on the first line if `t` is nil; but since the lock would not get locked in that scenario, things would still be left in a safe state even in that case.
-
 ### Minimize overhead when logging at debug level
 
 The `Debug` logging level can be a useful diagnostic tool, and it is OK to log very verbosely at this level. However, to avoid slowing things down in the usual case where this log level is disabled, keep in mind:

@@ -1,8 +1,11 @@
 package datasystem
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 	"sync"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
@@ -12,32 +15,38 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// Store is a dual-mode persistent/in-memory store that serves queries for data from the evaluation
+// Store is a dual-mode persistent/in-memory store that serves requests for data from the evaluation
 // algorithm.
 //
-// At any given moment, 1 of 2 stores is active: in-memory, or persistent. This doesn't preclude a caller
+// At any given moment one of two stores is active: in-memory, or persistent. This doesn't preclude a caller
 // from holding on to a reference to the persistent store even when we swap to the in-memory store.
 //
-// Once the in-memory store has data (either from initializers running, or from a synchronizer), the persistent
-// store is no longer regarded as active. From that point forward, calls to Get will serve data from the memory
+// Once the in-memory store has data (either from initializers or a synchronizer), the persistent
+// store is no longer read from. From that point forward, calls to Get will serve data from the memory
 // store.
 //
-// One motivation behind using persistent stores in this way is to offer a way to immediately start evaluating
-// flags before a connection is made to LD (or even in a very brief moment before an initializer has run.)
-// The persistent store has caching logic which can result in inconsistent/stale date being used. Therefore, once we
-// have fresh data, we don't want to use the persistent store at all for reads.
+// One motivation behind using persistent stores is to offer a way to immediately start evaluating
+// flags before a connection is made to LD (or even in the moment before an initializer has run).
 //
-// One complication is that persistent stores have historically operated in multiple regimes. The first: "daemon mode",
-// where the SDK is effectively using the store in read-only mode, with the store being populated by Relay/another SDK.
+// The persistent store has TTL caching logic which can result in inconsistent/stale date being returned. Therefore,
+// once we have fresh data from LD, we don't want to use the persistent store for reads any longer.
 //
-// The second is plain persistent store mode, where it is both read and written to. In the FDv2 system, we explicitly
-// differentiate these cases using a read/read-write mode. In all cases, the in-memory store is used once it has data
-// available.
+// One complication is that persistent stores have historically operated in multiple regimes. The first, "daemon mode",
+// is when the SDK is effectively using the store in read-only mode, with the store being populated by Relay
+// or another SDK.
 //
-// This contrasts from FDv1 where even if data from LD is available, that data may fall out of memory due to the persistent
-// store's caching logic ("sparse mode", when the TTL is non-infinite).
+// The second is normal persistent store mode, where it is both read and written to. In the FDv2 system, we explicitly
+// differentiate these cases using a read/read-write mode switch. In all cases, the in-memory store is used once it
+// has data available, although in read-write mode the persistent store may still be written to when data updates
+// arrive, even though the memory store is serving reads.
 //
-// We have found this to almost always be undesirable for users.
+// This contrasts from FDv1 where even if data from LD is available, that data may fall out of memory due to the
+// persistent store's caching logic ("sparse mode", when the TTL is non-infinite). This was because the SDK's main Store
+// implementation was a wrapper around the persistent store, rather than entirely independent.
+//
+// We have found the previous behavior to almost always be undesirable for users. By keeping the persistent and memory
+// stores distinct, it should be much clearer where exactly data is coming from and the behavior should be more
+// predictable at runtime.
 type Store struct {
 	// Source of truth for flag evals (before initialization), or permanently if there are
 	// no initializers/synchronizers configured. Optional; if not defined, only memoryStore is used.
@@ -47,9 +56,12 @@ type Store struct {
 	// the persistentStore may be used if configured.
 	memoryStore *memorystorev2.Store
 
-	// True if the data in the memory store may be persisted to the persistent store. This may be false
-	// in the case of an initializer/synchronizer that doesn't want to propagate memory to the persistent store,
-	// such as another database or untrusted file. Generally only LD data sources should request persisting data.
+	// True if the data in the memory store may be persisted to the persistent store.
+	//
+	// This may be false if an initializer/synchronizer has received data that shouldn't propagate memory to the
+	// persistent store, such as another database or untrusted file.
+	//
+	// Generally only LD data sources should request data persistence.
 	persist bool
 
 	// Points to the active store. Swapped upon initialization.
@@ -105,8 +117,9 @@ func NewStore(loggers ldlog.Loggers) *Store {
 // WithPersistence exists to accommodate the SDK's configuration builders. We need a ClientContext
 // before we can call Build to actually get the persistent store. That ClientContext requires the
 // DataDestination, which is what this store struct implements. Therefore, the call to NewStore and
-// WithPersistence will be separated.
-func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode, statusProvider interfaces.DataStoreStatusProvider) *Store {
+// WithPersistence need to be separate.
+func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode,
+	statusProvider interfaces.DataStoreStatusProvider) *Store {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -137,16 +150,14 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
+// SetBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
+// set persist to true.
+func (s *Store) SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) {
 	collections := fdv2proto.ToStorableItems(events)
-	return s.init(collections, selector, persist)
-}
-
-func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Selector, persist bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.memoryStore.SetBasis(allData)
+	s.memoryStore.SetBasis(collections)
 
 	s.persist = persist
 	s.selector = selector
@@ -154,17 +165,19 @@ func (s *Store) init(allData []ldstoretypes.Collection, selector *fdv2proto.Sele
 	s.active = s.memoryStore
 
 	if s.shouldPersist() {
-		return s.persistentStore.impl.Init(allData) // TODO: insert in dependency order
+		//nolint:godox
+		// TODO: figure out where to handle/report the error.
+		_ = s.persistentStore.impl.Init(toposort.Sort(collections))
 	}
-
-	return nil
 }
 
 func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
-func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) error {
+// ApplyDelta applies a delta update to the store. ApplyDelta should not be called until SetBasis has been called.
+// To request data persistence, set persist to true.
+func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool) {
 	collections := fdv2proto.ToStorableItems(events)
 
 	s.mu.Lock()
@@ -181,7 +194,9 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 	// is happening. In practice, we often don't receive more than one event at a time, but this may change
 	// in the future.
 	if s.shouldPersist() {
-		for _, coll := range collections {
+		//nolint:godox
+		// TODO: figure out where to handle/report the error.
+		for _, coll := range toposort.Sort(collections) {
 			for _, item := range coll.Items {
 				_, err := s.persistentStore.impl.Upsert(coll.Kind, item.Key, item.Item)
 				if err != nil {
@@ -190,8 +205,6 @@ func (s *Store) ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selecto
 			}
 		}
 	}
-
-	return nil
 }
 
 // GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise

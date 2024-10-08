@@ -19,43 +19,6 @@ const (
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 )
 
-type PollingResponse struct {
-	events   []fdv2proto.Event
-	cached   bool
-	intent   fdv2proto.IntentCode
-	selector *fdv2proto.Selector
-}
-
-func (p *PollingResponse) Events() []fdv2proto.Event {
-	return p.events
-}
-
-func (p *PollingResponse) Cached() bool {
-	return p.cached
-}
-
-func (p *PollingResponse) Intent() fdv2proto.IntentCode {
-	return p.intent
-}
-
-func (p *PollingResponse) Selector() *fdv2proto.Selector {
-	return p.selector
-}
-
-func NewCachedPollingResponse() *PollingResponse {
-	return &PollingResponse{
-		cached: true,
-	}
-}
-
-func NewPollingResponse(intent fdv2proto.IntentCode, events []fdv2proto.Event, selector *fdv2proto.Selector) *PollingResponse {
-	return &PollingResponse{
-		events:   events,
-		intent:   intent,
-		selector: selector,
-	}
-}
-
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
@@ -79,7 +42,6 @@ type PollingProcessor struct {
 	isInitialized      internal.AtomicBoolean
 	quit               chan struct{}
 	closeOnce          sync.Once
-	persist            bool
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -107,7 +69,6 @@ func newPollingProcessor(
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
 		quit:            make(chan struct{}),
-		persist:         true,
 	}
 	return pp
 }

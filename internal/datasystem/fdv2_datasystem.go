@@ -3,9 +3,10 @@ package datasystem
 import (
 	"context"
 	"errors"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"sync"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -191,10 +192,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		if err := f.store.SetBasis(basis.Data, basis.Selector, basis.Persist); err != nil {
-			f.loggers.Errorf("Failed to set basis: %v", err)
-			continue
-		}
+		f.store.SetBasis(basis.Data, basis.Selector, basis.Persist)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})

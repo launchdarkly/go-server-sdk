@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
@@ -68,8 +69,8 @@ func (r *pollingRequester) BaseURI() string {
 func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
-func (r *pollingRequester) Request() (*PollingResponse, error) {
 
+func (r *pollingRequester) Request() (*PollingResponse, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -98,7 +99,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 
 	updates := make([]fdv2proto.Event, 0, len(payload.Events))
 
-	var intent fdv2proto.IntentCode
+	var intentCode fdv2proto.IntentCode
 
 	for _, event := range payload.Events {
 		switch event.Name {
@@ -112,8 +113,8 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					return nil, errors.New("server-intent event has no payloads")
 				}
 
-				intent = serverIntent.Payloads[0].Code
-				if intent == "none" {
+				intentCode = serverIntent.Payloads[0].Code
+				if intentCode == fdv2proto.IntentNone {
 					return NewCachedPollingResponse(), nil
 				}
 			}
@@ -129,7 +130,8 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					version int
 				)
 
-				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField, objectField}); obj.Next(); {
+				for obj := r.Object().WithRequiredProperties([]string{
+					versionField, kindField, keyField, objectField}); obj.Next(); {
 					switch string(obj.Name()) {
 					case versionField:
 						version = r.Int()
@@ -162,6 +164,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 						version = r.Int()
 					case kindField:
 						kind = fdv2proto.ObjectKind(r.String())
+						//nolint:godox
 						// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
 						// do we throw out the DeleteObject here, or let the SDK's store handle it?
 					case keyField:
@@ -169,18 +172,18 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 					}
 				}
 				updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
-
 			}
 		case fdv2proto.EventPayloadTransferred:
+			//nolint:godox
 			// TODO: deserialize the state and create a fdv2proto.Selector.
 		}
 	}
 
-	if intent == "" {
+	if intentCode == "" {
 		return nil, errors.New("no server-intent event found in polling response")
 	}
 
-	return NewPollingResponse(intent, updates, fdv2proto.NoSelector()), nil
+	return NewPollingResponse(intentCode, updates, fdv2proto.NoSelector()), nil
 }
 
 func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
