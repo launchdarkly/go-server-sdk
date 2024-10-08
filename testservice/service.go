@@ -44,6 +44,9 @@ var capabilities = []string{
 	servicedef.CapabilityEventGzip,
 	servicedef.CapabilityOptionalEventGzip,
 	servicedef.CapabilityClientPrereqEvents,
+	servicedef.CapabilityPersistentDataStoreRedis,
+	servicedef.CapabilityPersistentDataStoreConsul,
+	servicedef.CapabilityPersistentDataStoreDynamoDB,
 }
 
 // gets the specified environment variable, or the default if not set
@@ -246,7 +249,7 @@ func main() {
 	loggers := ldlog.NewDefaultLoggers()
 	loggers.SetMinLevel(logLevelFromName(os.Getenv("LD_LOG_LEVEL")))
 
-	port := "8000"
+	port := "10000"
 	service := NewTestService(loggers, "go-server-sdk")
 	server := &http.Server{Handler: service.Handler, Addr: ":" + port}
 	fmt.Printf("Listening on port %s\n", port)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,15 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	ldconsul "github.com/launchdarkly/go-server-sdk-consul/v3"
+	lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb/v4"
+	ldredis "github.com/launchdarkly/go-server-sdk-redis-go-redis"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 
 	ld "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -384,6 +394,59 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 			builder.PayloadFilter(config.Polling.Filter.String())
 		}
 		ret.DataSource = builder
+	} else if config.ServiceEndpoints == nil {
+		ret.DataSource = ldcomponents.ExternalUpdatesOnly()
+	}
+
+	if config.PersistentDataStore != nil {
+		var builder *ldcomponents.PersistentDataStoreBuilder
+		switch config.PersistentDataStore.Store.Type {
+		case servicedef.Redis:
+			dsBuilder := ldredis.DataStore().URL(config.PersistentDataStore.Store.DSN)
+			if config.PersistentDataStore.Store.Prefix != nil {
+				dsBuilder.Prefix(*config.PersistentDataStore.Store.Prefix)
+			}
+			builder = ldcomponents.PersistentDataStore(dsBuilder)
+		case servicedef.Consul:
+			dsBuilder := ldconsul.DataStore().Address(config.PersistentDataStore.Store.DSN)
+			if config.PersistentDataStore.Store.Prefix != nil {
+				dsBuilder.Prefix(*config.PersistentDataStore.Store.Prefix)
+			}
+			builder = ldcomponents.PersistentDataStore(dsBuilder)
+		case servicedef.DynamoDB:
+			cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+				awsconfig.WithRegion("us-east-1"),
+				awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")),
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			svc := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+				o.EndpointResolver = dynamodb.EndpointResolverFromURL(config.PersistentDataStore.Store.DSN)
+			})
+
+			dsBuilder := lddynamodb.DataStore("sdk-contract-tests").DynamoClient(svc)
+			if config.PersistentDataStore.Store.Prefix != nil {
+				dsBuilder.Prefix(*config.PersistentDataStore.Store.Prefix)
+			}
+
+			builder = ldcomponents.PersistentDataStore(dsBuilder)
+		default: // TODO: We should probably fail here.
+		}
+
+		if builder != nil {
+			switch config.PersistentDataStore.Cache.Mode {
+			case servicedef.TTL:
+				builder.CacheSeconds(*config.PersistentDataStore.Cache.TTL)
+			case servicedef.Infinite:
+				builder.CacheForever()
+			case servicedef.Off:
+				builder.NoCaching()
+			}
+
+			ret.DataStore = builder
+		}
 	}
 
 	if config.Events != nil {
