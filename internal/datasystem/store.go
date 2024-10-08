@@ -1,8 +1,9 @@
 package datasystem
 
 import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	"sync"
+
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 

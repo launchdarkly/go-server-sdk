@@ -7,7 +7,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -122,12 +121,12 @@ func GetNeighbors(kind st.DataKind, fromItem st.ItemDescriptor) Neighbors {
 		}
 	}
 	switch kind {
-	case ldstoreimpl.Features():
+	case datakinds.Features:
 		if flag, ok := fromItem.Item.(*ldmodel.FeatureFlag); ok {
 			if len(flag.Prerequisites) > 0 {
 				ret = make(Neighbors, len(flag.Prerequisites))
 				for _, p := range flag.Prerequisites {
-					ret.Add(Vertex{ldstoreimpl.Features(), p.Key})
+					ret.Add(Vertex{datakinds.Features, p.Key})
 				}
 			}
 			for _, r := range flag.Rules {
@@ -136,7 +135,7 @@ func GetNeighbors(kind st.DataKind, fromItem st.ItemDescriptor) Neighbors {
 			return ret
 		}
 
-	case ldstoreimpl.Segments():
+	case datakinds.Segments:
 		if segment, ok := fromItem.Item.(*ldmodel.Segment); ok {
 			for _, r := range segment.Rules {
 				checkClauses(r.Clauses)
@@ -149,18 +148,18 @@ func GetNeighbors(kind st.DataKind, fromItem st.ItemDescriptor) Neighbors {
 // Sort performs a topological sort on the given data collections, so that the items can be inserted into a
 // persistent store to minimize the risk of evaluating a flag before its prerequisites/segments have been stored.
 func Sort(allData []st.Collection) []st.Collection {
-	colls := make([]st.Collection, 0, len(allData))
+	collections := make([]st.Collection, 0, len(allData))
 	for _, coll := range allData {
 		if doesDataKindSupportDependencies(coll.Kind) {
 			itemsOut := make([]st.KeyedItemDescriptor, 0, len(coll.Items))
 			addItemsInDependencyOrder(coll.Kind, coll.Items, &itemsOut)
-			colls = append(colls, st.Collection{Kind: coll.Kind, Items: itemsOut})
+			collections = append(collections, st.Collection{Kind: coll.Kind, Items: itemsOut})
 		} else {
-			colls = append(colls, coll)
+			collections = append(collections, coll)
 		}
 	}
-	sort.Slice(colls, func(i, j int) bool {
-		return dataKindPriority(colls[i].Kind) < dataKindPriority(colls[j].Kind)
+	sort.Slice(collections, func(i, j int) bool {
+		return dataKindPriority(collections[i].Kind) < dataKindPriority(collections[j].Kind)
 	})
-	return colls
+	return collections
 }
