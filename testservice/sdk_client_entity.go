@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	ldredis "github.com/launchdarkly/go-server-sdk-redis-go-redis"
 	ld "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
@@ -384,6 +385,34 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 			builder.PayloadFilter(config.Polling.Filter.String())
 		}
 		ret.DataSource = builder
+	} else {
+		ret.DataSource = ldcomponents.ExternalUpdatesOnly()
+	}
+
+	if config.PersistentDataStore != nil {
+		var builder *ldcomponents.PersistentDataStoreBuilder
+		switch config.PersistentDataStore.Store.Type {
+		case servicedef.Redis:
+			builder = ldcomponents.PersistentDataStore(
+				ldredis.DataStore().
+					URL(config.PersistentDataStore.Store.DSN).
+					Prefix(config.PersistentDataStore.Store.Prefix),
+			)
+		default: // TODO: We should probably fail here.
+		}
+
+		if builder != nil {
+			switch config.PersistentDataStore.Cache.Mode {
+			case servicedef.TTL:
+				builder.CacheSeconds(*config.PersistentDataStore.Cache.TTL)
+			case servicedef.Infinite:
+				builder.CacheForever()
+			case servicedef.Off:
+				builder.NoCaching()
+			}
+
+			ret.DataStore = builder
+		}
 	}
 
 	if config.Events != nil {

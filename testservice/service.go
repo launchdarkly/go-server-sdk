@@ -43,6 +43,8 @@ var capabilities = []string{
 	servicedef.CapabilityOmitAnonymousContexts,
 	servicedef.CapabilityEventGzip,
 	servicedef.CapabilityOptionalEventGzip,
+	servicedef.CapabilityPersistentDataStore,
+	servicedef.CapabilityPersistentDataStoreRedis,
 }
 
 // gets the specified environment variable, or the default if not set
