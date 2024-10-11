@@ -1,9 +1,8 @@
 package fdv2proto
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
-
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 )
 
@@ -63,56 +62,44 @@ const (
 	SegmentKind = ObjectKind("segment")
 )
 
-// ErrUnknownKind represents that a given ObjectKind had no FDv1 equivalent
-// DataKind.
-type ErrUnknownKind struct {
-	kind ObjectKind
-}
-
-// Is returns true if the error is an ErrUnknownKind.
-func (e *ErrUnknownKind) Is(err error) bool {
-	var errUnknownKind *ErrUnknownKind
-	ok := errors.As(err, &errUnknownKind)
-	return ok
-}
-
-func (e *ErrUnknownKind) Error() string {
-	return fmt.Sprintf("unknown object kind: %s", e.kind)
-}
-
 // ToFDV1 converts the object kind to an FDv1 data kind. If there is no equivalent, it returns
 // an ErrUnknownKind.
-func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, error) {
+func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, bool) {
 	switch o {
 	case FlagKind:
-		return datakinds.Features, nil
+		return datakinds.Features, true
 	case SegmentKind:
-		return datakinds.Segments, nil
+		return datakinds.Segments, true
 	default:
-		return nil, &ErrUnknownKind{o}
+		return nil, false
 	}
 }
 
 // ServerIntent represents the server's intent.
 type ServerIntent struct {
-	// Payloads is a list of payloads, defined to be at least length 1.
-	Payloads []Payload `json:"payloads"`
+	Payload Payload
+}
+
+func (s *ServerIntent) UnmarshalJSON(data []byte) error {
+	// Actual protocol object contains a list of payloads, but currently SDKs only support 1. It is a protocol
+	// error for this list to be empty.
+	type serverIntent struct {
+		Payloads []Payload `json:"payloads"`
+	}
+	var intent serverIntent
+	if err := json.Unmarshal(data, &intent); err != nil {
+		return err
+	}
+	if len(intent.Payloads) == 0 {
+		return errors.New("changeset: server-intent event has no payloads")
+	}
+	s.Payload = intent.Payloads[0]
+	return nil
 }
 
 //nolint:revive // Event method.
 func (ServerIntent) Name() EventName {
 	return EventServerIntent
-}
-
-// PayloadTransferred represents the fact that all payload objects have been sent.
-type PayloadTransferred struct {
-	State   string `json:"state"`
-	Version int    `json:"version"`
-}
-
-//nolint:revive // Event method.
-func (p PayloadTransferred) Name() EventName {
-	return EventPayloadTransferred
 }
 
 // DeleteObject specifies the deletion of a particular object.
@@ -122,6 +109,10 @@ type DeleteObject struct {
 	Key     string     `json:"key"`
 }
 
+func (d DeleteObject) Delta() json.RawMessage {
+	return nil
+}
+
 //nolint:revive // Event method.
 func (d DeleteObject) Name() EventName {
 	return EventDeleteObject
@@ -129,10 +120,10 @@ func (d DeleteObject) Name() EventName {
 
 // PutObject specifies the addition of a particular object with upsert semantics.
 type PutObject struct {
-	Version int        `json:"version"`
-	Kind    ObjectKind `json:"kind"`
-	Key     string     `json:"key"`
-	Object  any        `json:"object"`
+	Version int             `json:"version"`
+	Kind    ObjectKind      `json:"kind"`
+	Key     string          `json:"key"`
+	Object  json.RawMessage `json:"object"`
 }
 
 //nolint:revive // Event method.

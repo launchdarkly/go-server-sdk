@@ -21,7 +21,7 @@ const (
 //	handler, stream := ldservices.ServerSideStreamingHandler(initialData.ToPutEvent())
 //	server := httptest.NewServer(handler)
 //	stream.Enqueue(httphelpers.SSEEvent{Event: "patch", Data: myPatchData}) // push an update
-//	stream.Close() // force any current stream connections to be closed
+//	stream.Finish() // force any current stream connections to be closed
 func ServerSideStreamingServiceHandler(
 	initialEvent httphelpers.SSEEvent,
 ) (http.Handler, httphelpers.SSEStreamControl) {

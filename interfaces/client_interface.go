@@ -195,7 +195,7 @@ type LDClientEvents interface {
 // LDClientInterface defines the basic SDK client operations implemented by LDClient.
 //
 // This includes all methods for evaluating a feature flag or generating analytics events, as defined by
-// LDEvaluations and LDEvents. It does not include general control operations like Flush(), Close(), or
+// LDEvaluations and LDEvents. It does not include general control operations like Flush(), Finish(), or
 // GetDataSourceStatusProvider().
 type LDClientInterface interface {
 	LDClientEvaluations

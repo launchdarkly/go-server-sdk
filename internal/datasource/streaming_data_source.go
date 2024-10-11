@@ -144,7 +144,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			if !ok {
 				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
 				// only happens when we have received from sp.halt, in which case we return immediately
-				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
+				// after calling stream.Finish(), terminating the for loop-- so we should not actually reach
 				// this point. Still, in case the channel is somehow closed unexpectedly, we do want to
 				// terminate the loop.
 				return

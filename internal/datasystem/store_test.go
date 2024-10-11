@@ -1,13 +1,15 @@
 package datasystem
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
@@ -45,7 +47,7 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 	none := fdv2proto.NoSelector()
 	tests := []struct {
 		name     string
-		selector *fdv2proto.Selector
+		selector fdv2proto.Selector
 		persist  bool
 	}{
 		{"with selector, persist", v1, true},
@@ -58,10 +60,26 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
 			store := NewStore(logCapture.Loggers)
 			defer store.Close()
-			store.SetBasis([]fdv2proto.Event{}, tt.selector, tt.persist)
+			store.SetBasis([]fdv2proto.Change{}, tt.selector, tt.persist)
 			assert.True(t, store.IsInitialized())
 		})
 	}
+}
+
+func MustMarshal(model any) json.RawMessage {
+	data, err := json.Marshal(model)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+func MinimalFlag(key string, version int) json.RawMessage {
+	return []byte(fmt.Sprintf(`{"key":"`+key+`","version": %v}`, version))
+}
+
+func MinimalSegment(key string, version int) json.RawMessage {
+	return []byte(fmt.Sprintf(`{"key":"`+key+`","version": %v}`, version))
 }
 
 func TestStore_Commit(t *testing.T) {
@@ -81,24 +99,26 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		// The store receives data as a list of events, but the persistent store receives them as an
+		// The store receives data as a list of changes, but the persistent store receives them as an
 		// []ldstoretypes.Collection.
-		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldmodel.FeatureFlag{}},
-			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: ldmodel.Segment{}},
+		input := []fdv2proto.Change{
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
 		}
 
+		// OK: basically we need to match up the JSON with the FlagBuilder stuff for this to work, a naive marshal won't work.
+		// The original data system PR has some infra for this. Maybe bring it in in this pr.
 		output := []ldstoretypes.Collection{
 			{
 				Kind: ldstoreimpl.Features(),
 				Items: []ldstoretypes.KeyedItemDescriptor{
-					{Key: "foo", Item: ldstoretypes.ItemDescriptor{Version: 1, Item: ldmodel.FeatureFlag{}}},
+					{Key: "foo", Item: sharedtest.FlagDescriptor(ldbuilders.NewFlagBuilder("foo").Version(1).Build())},
 				},
 			},
 			{
 				Kind: ldstoreimpl.Segments(),
 				Items: []ldstoretypes.KeyedItemDescriptor{
-					{Key: "bar", Item: ldstoretypes.ItemDescriptor{Version: 2, Item: ldmodel.Segment{}}},
+					{Key: "bar", Item: sharedtest.SegmentDescriptor(ldbuilders.NewSegmentBuilder("bar").Version(2).Build())},
 				},
 			}}
 
@@ -124,9 +144,9 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
-			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
+		input := []fdv2proto.Change{
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
 		}
 
 		store.SetBasis(input, fdv2proto.NoSelector(), false)
@@ -148,9 +168,9 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
 		defer store.Close()
 
-		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Object: ldstoretypes.ItemDescriptor{Version: 1}},
-			fdv2proto.PutObject{Kind: fdv2proto.SegmentKind, Key: "bar", Object: ldstoretypes.ItemDescriptor{Version: 2}},
+		input := []fdv2proto.Change{
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("key", 1)},
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
 		}
 
 		// Even though persist is true, the store was marked as read-only, so it shouldn't be written to.
@@ -174,8 +194,8 @@ func TestStore_GetActive(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
-		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldstoretypes.ItemDescriptor{}},
+		input := []fdv2proto.Change{
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
 		}
 
 		store.SetBasis(input, fdv2proto.NoSelector(), false)
@@ -206,8 +226,8 @@ func TestStore_GetActive(t *testing.T) {
 		_, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.Equal(t, errImAPersistentStore, err)
 
-		input := []fdv2proto.Event{
-			fdv2proto.PutObject{Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: ldstoretypes.ItemDescriptor{}},
+		input := []fdv2proto.Change{
+			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
 		}
 
 		store.SetBasis(input, fdv2proto.NoSelector(), false)
@@ -230,22 +250,22 @@ func TestStore_SelectorIsRemembered(t *testing.T) {
 	selector4 := fdv2proto.NewSelector("qux", 4)
 	selector5 := fdv2proto.NewSelector("this better be the last one", 5)
 
-	store.SetBasis([]fdv2proto.Event{}, selector1, false)
+	store.SetBasis([]fdv2proto.Change{}, selector1, false)
 	assert.Equal(t, selector1, store.Selector())
 
-	store.SetBasis([]fdv2proto.Event{}, selector2, false)
+	store.SetBasis([]fdv2proto.Change{}, selector2, false)
 	assert.Equal(t, selector2, store.Selector())
 
-	store.ApplyDelta([]fdv2proto.Event{}, selector3, false)
+	store.ApplyDelta([]fdv2proto.Change{}, selector3, false)
 	assert.Equal(t, selector3, store.Selector())
 
-	store.ApplyDelta([]fdv2proto.Event{}, selector4, false)
+	store.ApplyDelta([]fdv2proto.Change{}, selector4, false)
 	assert.Equal(t, selector4, store.Selector())
 
 	assert.NoError(t, store.Commit())
 	assert.Equal(t, selector4, store.Selector())
 
-	store.SetBasis([]fdv2proto.Event{}, selector5, false)
+	store.SetBasis([]fdv2proto.Change{}, selector5, false)
 }
 
 func TestStore_Concurrency(t *testing.T) {
@@ -278,10 +298,10 @@ func TestStore_Concurrency(t *testing.T) {
 			_ = store.IsInitialized()
 		})
 		go run(func() {
-			store.SetBasis([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
+			store.SetBasis([]fdv2proto.Change{}, fdv2proto.NoSelector(), true)
 		})
 		go run(func() {
-			store.ApplyDelta([]fdv2proto.Event{}, fdv2proto.NoSelector(), true)
+			store.ApplyDelta([]fdv2proto.Change{}, fdv2proto.NoSelector(), true)
 		})
 		go run(func() {
 			_ = store.Selector()
@@ -331,6 +351,7 @@ func (f *fakeStore) Close() error {
 // This matcher is required instead of calling ElementsMatch directly on two slices of collections because
 // the order of the collections, or the order within each collection, is not defined.
 func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, actual []ldstoretypes.Collection) {
+	t.Helper()
 	require.Equal(t, len(expected), len(actual))
 	for _, expectedCollection := range expected {
 		for _, actualCollection := range actual {
