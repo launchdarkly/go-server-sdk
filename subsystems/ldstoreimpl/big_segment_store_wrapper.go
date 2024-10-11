@@ -53,7 +53,7 @@ type BigSegmentStoreWrapper struct {
 // is true.
 //
 // The BigSegmentStoreWrapper takes ownership of the BigSegmentStore's lifecycle at this point, so
-// calling Close on the BigSegmentStoreWrapper will also close the store.
+// calling Finish on the BigSegmentStoreWrapper will also close the store.
 //
 // If not nil, statusUpdateFn will be called whenever the store status has changed.
 func NewBigSegmentStoreWrapperWithConfig(

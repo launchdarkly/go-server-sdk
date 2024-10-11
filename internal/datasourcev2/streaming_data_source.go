@@ -2,7 +2,6 @@ package datasourcev2
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"sync"
@@ -10,7 +9,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	es "github.com/launchdarkly/eventsource"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
@@ -19,9 +18,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
-
-	es "github.com/launchdarkly/eventsource"
 
 	"golang.org/x/exp/maps"
 )
@@ -41,11 +37,6 @@ const (
 	streamingErrorContext     = "in stream connection"
 	streamingWillRetryMessage = "will retry"
 )
-
-type changeSet struct {
-	intent *fdv2proto.ServerIntent
-	events []es.Event
-}
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in
 // the eventsource package.
@@ -144,9 +135,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 		}
 	}()
 
-	currentChangeSet := changeSet{
-		events: make([]es.Event, 0),
-	}
+	changeSetBuilder := fdv2proto.NewChangeSetBuilder()
 
 	for {
 		select {
@@ -154,7 +143,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			if !ok {
 				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
 				// only happens when we have received from sp.halt, in which case we return immediately
-				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
+				// after calling stream.Finish(), terminating the for loop-- so we should not actually reach
 				// this point. Still, in case the channel is somehow closed unexpectedly, we do want to
 				// terminate the loop.
 				return
@@ -169,6 +158,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			shouldRestart := false
 
 			gotMalformedEvent := func(event es.Event, err error) {
+
+				// The protocol should "forget" anything that happens upon receiving an error.
+				changeSetBuilder = fdv2proto.NewChangeSetBuilder()
+
 				if event == nil {
 					sp.loggers.Errorf(
 						"Received streaming events with malformed JSON data (%s); will restart stream",
@@ -197,29 +190,35 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			case fdv2proto.EventHeartbeat:
 				// Swallow the event and move on.
 			case fdv2proto.EventServerIntent:
-				//nolint: godox
-				// TODO: Replace all this json unmarshalling with a nicer jreader implementation.
+
 				var serverIntent fdv2proto.ServerIntent
 				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
-				} else if len(serverIntent.Payloads) == 0 {
-					gotMalformedEvent(event, errors.New("server-intent event has no payloads"))
+				}
+
+				if err := changeSetBuilder.Start(serverIntent); err != nil {
+					gotMalformedEvent(event, err)
 					break
 				}
 
-				if serverIntent.Payloads[0].Code == "none" {
-					sp.loggers.Info("Server intent is none, skipping")
-					continue
-				}
-
-				currentChangeSet = changeSet{events: make([]es.Event, 0), intent: &serverIntent}
-
 			case fdv2proto.EventPutObject:
-				currentChangeSet.events = append(currentChangeSet.events, event)
+				var p fdv2proto.PutObject
+				err := json.Unmarshal([]byte(event.Data()), &p)
+				if err != nil {
+					gotMalformedEvent(event, err)
+					break
+				}
+				changeSetBuilder.AddPut(p.Kind, p.Key, p.Version, p.Object)
 			case fdv2proto.EventDeleteObject:
-				currentChangeSet.events = append(currentChangeSet.events, event)
+				var d fdv2proto.DeleteObject
+				err := json.Unmarshal([]byte(event.Data()), &d)
+				if err != nil {
+					gotMalformedEvent(event, err)
+					break
+				}
+				changeSetBuilder.AddDelete(d.Kind, d.Key, d.Version)
 			case fdv2proto.EventGoodbye:
 				var goodbye fdv2proto.Goodbye
 				err := json.Unmarshal([]byte(event.Data()), &goodbye)
@@ -235,48 +234,42 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				var errorData fdv2proto.Error
 				err := json.Unmarshal([]byte(event.Data()), &errorData)
 				if err != nil {
-					//nolint: godox
-					// TODO: Confirm that an error means we have to discard
-					// everything that has come before.
-					currentChangeSet = changeSet{events: make([]es.Event, 0)}
 					gotMalformedEvent(event, err)
 					break
 				}
 
 				sp.loggers.Errorf("Error on %s: %s", errorData.PayloadID, errorData.Reason)
 
-				currentChangeSet = changeSet{events: make([]es.Event, 0)}
-				//nolint: godox
-				// TODO: Do we need to restart here?
+				// The protocol should "forget" anything that has happened, and expect that we will receive
+				// more messages in the future (starting with a server intent.)
+				changeSetBuilder = fdv2proto.NewChangeSetBuilder()
 			case fdv2proto.EventPayloadTransferred:
-
-				selector := &fdv2proto.Selector{}
-
-				err := json.Unmarshal([]byte(event.Data()), selector)
+				var selector fdv2proto.Selector
+				err := json.Unmarshal([]byte(event.Data()), &selector)
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
 
-				currentChangeSet.events = append(currentChangeSet.events, event)
-				updates, err := deserializeEvents(currentChangeSet.events)
+				// After calling Finish, the builder is ready to receive a new changeset.
+				changeSet, err := changeSetBuilder.Finish(selector)
 				if err != nil {
-					sp.loggers.Errorf("Error processing changeset: %s", err)
 					gotMalformedEvent(nil, err)
 					break
 				}
 
-				switch currentChangeSet.intent.Payloads[0].Code {
+				// The Finish method guarantees that at least one payload is present.
+				payload := changeSet.Intent().Payloads[0]
+				switch payload.Code {
 				case fdv2proto.IntentTransferFull:
-					{
-						sp.dataDestination.SetBasis(updates, selector, true)
-						sp.setInitializedAndNotifyClient(true, closeWhenReady)
-					}
+					sp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
+					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				case fdv2proto.IntentTransferChanges:
-					sp.dataDestination.ApplyDelta(updates, selector, true)
+					sp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
+				case fdv2proto.IntentNone:
+					// No changes, our existing data is up-to-date for the moment.
 				}
 
-				currentChangeSet = changeSet{events: make([]es.Event, 0)}
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
 			}
@@ -444,79 +437,6 @@ func (sp *StreamProcessor) GetInitialReconnectDelay() time.Duration {
 // GetFilterKey returns the configured key, for testing.
 func (sp *StreamProcessor) GetFilterKey() string {
 	return sp.cfg.FilterKey
-}
-
-func deserializeEvents(events []es.Event) ([]fdv2proto.Event, error) {
-	updates := make([]fdv2proto.Event, 0, len(events))
-
-	parseItem := func(r jreader.Reader, kind fdv2proto.ObjectKind) (ldstoretypes.ItemDescriptor, error) {
-		dataKind, err := kind.ToFDV1()
-		if err != nil {
-			return ldstoretypes.ItemDescriptor{}, err
-		}
-		item, err := dataKind.DeserializeFromJSONReader(&r)
-		return item, err
-	}
-
-	for _, event := range events {
-		switch fdv2proto.EventName(event.Event()) {
-		case fdv2proto.EventPutObject:
-			r := jreader.NewReader([]byte(event.Data()))
-
-			var (
-				kind    fdv2proto.ObjectKind
-				key     string
-				version int
-				item    ldstoretypes.ItemDescriptor
-				err     error
-			)
-
-			for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField, objectField}); obj.Next(); {
-				switch string(obj.Name()) {
-				case versionField:
-					version = r.Int()
-				case kindField:
-					kind = fdv2proto.ObjectKind(r.String())
-					//nolint:godox
-					// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
-					// do we throw out the DeleteObject here, or let the SDK's store handle it?
-				case keyField:
-					key = r.String()
-				case objectField:
-					item, err = parseItem(r, kind)
-					if err != nil {
-						return updates, err
-					}
-				}
-			}
-			updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item.Item, Version: version})
-		case fdv2proto.EventDeleteObject:
-			r := jreader.NewReader([]byte(event.Data()))
-
-			var (
-				version int
-				kind    fdv2proto.ObjectKind
-				key     string
-			)
-
-			for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField}); obj.Next(); {
-				switch string(obj.Name()) {
-				case versionField:
-					version = r.Int()
-				case kindField:
-					kind = fdv2proto.ObjectKind(r.String())
-					//nolint:godox
-					// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
-					// do we throw out the DeleteObject here, or let the SDK's store handle it?
-				case keyField:
-					key = r.String()
-				}
-			}
-			updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
-		}
-	}
-
-	return updates, nil
 }
 
 // vim: foldmethod=marker foldlevel=0

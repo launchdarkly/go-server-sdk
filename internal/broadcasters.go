@@ -10,7 +10,7 @@ import (
 //
 // The standard pattern is that AddListener returns a new receive-only channel; RemoveListener unsubscribes
 // that channel, and closes the sending end of it; Broadcast sends a value to all of the subscribed channels
-// (if any); and Close unsubscribes and closes all existing channels.
+// (if any); and Finish unsubscribes and closes all existing channels.
 
 // Arbitrary buffer size to make it less likely that we'll block when broadcasting to channels. It is still
 // the consumer's responsibility to make sure they're reading the channel.

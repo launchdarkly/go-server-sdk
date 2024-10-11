@@ -2,21 +2,17 @@ package datasourcev2
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
+	"github.com/gregjones/httpcache"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
-
-	"github.com/gregjones/httpcache"
 	"golang.org/x/exp/maps"
 )
 
@@ -70,7 +66,7 @@ func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
 
-func (r *pollingRequester) Request() (*PollingResponse, error) {
+func (r *pollingRequester) Request() (*fdv2proto.ChangeSet, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -80,7 +76,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 		return nil, err
 	}
 	if cached {
-		return NewCachedPollingResponse(), nil
+		return fdv2proto.NewChangeSetBuilder().NoChanges(), nil
 	}
 
 	var payload fdv2proto.PollingPayload
@@ -88,102 +84,41 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 		return nil, malformedJSONError{err}
 	}
 
-	parseItem := func(r jreader.Reader, kind fdv2proto.ObjectKind) (ldstoretypes.ItemDescriptor, error) {
-		dataKind, err := kind.ToFDV1()
-		if err != nil {
-			return ldstoretypes.ItemDescriptor{}, err
-		}
-		item, err := dataKind.DeserializeFromJSONReader(&r)
-		return item, err
-	}
-
-	updates := make([]fdv2proto.Event, 0, len(payload.Events))
-
-	var intentCode fdv2proto.IntentCode
+	changeSet := fdv2proto.NewChangeSetBuilder()
 
 	for _, event := range payload.Events {
 		switch event.Name {
 		case fdv2proto.EventServerIntent:
-			{
-				var serverIntent fdv2proto.ServerIntent
-				err := json.Unmarshal(event.Data, &serverIntent)
-				if err != nil {
-					return nil, err
-				} else if len(serverIntent.Payloads) == 0 {
-					return nil, errors.New("server-intent event has no payloads")
-				}
-
-				intentCode = serverIntent.Payloads[0].Code
-				if intentCode == fdv2proto.IntentNone {
-					return NewCachedPollingResponse(), nil
-				}
+			var serverIntent fdv2proto.ServerIntent
+			err := json.Unmarshal(event.Data, &serverIntent)
+			if err != nil {
+				return nil, err
+			}
+			if err := changeSet.Start(serverIntent); err != nil {
+				return nil, err
 			}
 		case fdv2proto.EventPutObject:
-			{
-				r := jreader.NewReader(event.Data)
-
-				var (
-					key     string
-					kind    fdv2proto.ObjectKind
-					item    ldstoretypes.ItemDescriptor
-					err     error
-					version int
-				)
-
-				for obj := r.Object().WithRequiredProperties([]string{
-					versionField, kindField, keyField, objectField}); obj.Next(); {
-					switch string(obj.Name()) {
-					case versionField:
-						version = r.Int()
-					case kindField:
-						kind = fdv2proto.ObjectKind(r.String())
-					case keyField:
-						key = r.String()
-					case objectField:
-						item, err = parseItem(r, kind)
-						if err != nil {
-							return nil, err
-						}
-					}
-				}
-				updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item, Version: version})
+			var put fdv2proto.PutObject
+			if err := json.Unmarshal(event.Data, &put); err != nil {
+				return nil, err
 			}
+			changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
 		case fdv2proto.EventDeleteObject:
-			{
-				r := jreader.NewReader(event.Data)
-
-				var (
-					version int
-					kind    fdv2proto.ObjectKind
-					key     string
-				)
-
-				for obj := r.Object().WithRequiredProperties([]string{versionField, kindField, keyField}); obj.Next(); {
-					switch string(obj.Name()) {
-					case versionField:
-						version = r.Int()
-					case kindField:
-						kind = fdv2proto.ObjectKind(r.String())
-						//nolint:godox
-						// TODO: An unrecognized kind should be ignored for forwards compat; the question is,
-						// do we throw out the DeleteObject here, or let the SDK's store handle it?
-					case keyField:
-						key = r.String()
-					}
-				}
-				updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
+			var deleteObject fdv2proto.DeleteObject
+			if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
+				return nil, err
 			}
+			changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
 		case fdv2proto.EventPayloadTransferred:
-			//nolint:godox
-			// TODO: deserialize the state and create a fdv2proto.Selector.
+			var selector fdv2proto.Selector
+			if err := json.Unmarshal(event.Data, &selector); err != nil {
+				return nil, err
+			}
+			return changeSet.Finish(selector)
 		}
 	}
 
-	if intentCode == "" {
-		return nil, errors.New("no server-intent event found in polling response")
-	}
-
-	return NewPollingResponse(intentCode, updates, fdv2proto.NoSelector()), nil
+	return nil, fmt.Errorf("malformed protocol")
 }
 
 func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
