@@ -128,7 +128,7 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	futureTime := ldtime.UnixMillisNow() + 100000
 
-	// flag1 does not get full detials because neither event tracking nor debugging is on and there's no experiment
+	// flag1 does not get full details because neither event tracking nor debugging is on and there's no experiment
 	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
 
 	// flag2 gets full details because event tracking is on
@@ -245,4 +245,219 @@ func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 
 	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
 	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "Unable to fetch flags")
+}
+
+type test struct {
+	name    string
+	options []flagstate.Option
+}
+
+func optionPermutations() []test {
+	type option struct {
+		name   string
+		option flagstate.Option
+	}
+	options := []option{
+		{name: "with reasons", option: flagstate.OptionWithReasons()},
+		{name: "client-side only", option: flagstate.OptionClientSideOnly()},
+		{name: "details only for tracked flags", option: flagstate.OptionDetailsOnlyForTrackedFlags()},
+	}
+	tests := []test{
+		{name: "no options", options: []flagstate.Option{}},
+	}
+	for i, opt := range options {
+		tests = append(tests, test{name: opt.name, options: []flagstate.Option{opt.option}})
+		for j := i + 1; j < len(options); j++ {
+			tests = append(tests, test{name: opt.name + " and " + options[j].name, options: []flagstate.Option{opt.option, options[j].option}})
+			for k := j + 1; k < len(options); k++ {
+				tests = append(tests, test{name: opt.name + " and " + options[j].name + " and " + options[k].name,
+					options: []flagstate.Option{opt.option, options[j].option, options[k].option}})
+			}
+		}
+	}
+
+	return tests
+}
+
+func TestAllFlagsStateReturnsPrerequisites(t *testing.T) {
+
+	t.Run("when flag is visible to clients", func(t *testing.T) {
+		flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).On(true).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key2", 0).ClientSideUsingEnvironmentID(true).Build()
+
+		flag2 := ldbuilders.NewFlagBuilder("key2").Version(100).OffVariation(0).
+			Variations(ldvalue.String("value1")).ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		for _, test := range optionPermutations() {
+			t.Run(test.name, func(t *testing.T) {
+				withClientEvalTestParams(func(p clientEvalTestParams) {
+					p.data.UsePreconfiguredFlag(flag1)
+					p.data.UsePreconfiguredFlag(flag2)
+
+					state := p.client.AllFlagsState(lduser.NewUser("userkey"), test.options...)
+					assert.True(t, state.IsValid())
+
+					flag1state, ok := state.GetFlag("key1")
+					assert.True(t, ok)
+					assert.Equal(t, []string{"key2"}, flag1state.Prerequisites)
+				})
+			})
+		}
+	})
+
+	t.Run("when flag is not visible to clients", func(t *testing.T) {
+		flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).On(true).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key2", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		flag2 := ldbuilders.NewFlagBuilder("key2").Version(100).OffVariation(0).
+			Variations(ldvalue.String("value1")).ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		for _, test := range optionPermutations() {
+			t.Run(test.name, func(t *testing.T) {
+				withClientEvalTestParams(func(p clientEvalTestParams) {
+					p.data.UsePreconfiguredFlag(flag1)
+					p.data.UsePreconfiguredFlag(flag2)
+
+					state := p.client.AllFlagsState(lduser.NewUser("userkey"), test.options...)
+					assert.True(t, state.IsValid())
+
+					// If the flag was visible, then we should see its prerequisites.
+					fs1, ok := state.GetFlag("key1")
+					if ok {
+						assert.Equal(t, []string{"key2"}, fs1.Prerequisites)
+					}
+				})
+			})
+		}
+	})
+
+	t.Run("when flag is off, no prerequisites are returned", func(t *testing.T) {
+		flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).On(false).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key2", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		flag2 := ldbuilders.NewFlagBuilder("key2").Version(100).OffVariation(0).
+			Variations(ldvalue.String("value1")).ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		for _, test := range optionPermutations() {
+			t.Run(test.name, func(t *testing.T) {
+				withClientEvalTestParams(func(p clientEvalTestParams) {
+					p.data.UsePreconfiguredFlag(flag1)
+					p.data.UsePreconfiguredFlag(flag2)
+
+					state := p.client.AllFlagsState(lduser.NewUser("userkey"), test.options...)
+					assert.True(t, state.IsValid())
+
+					// If the flag was visible, then we should see that it had no prerequisites evaluated
+					// since the flag was off.
+					fs1, ok := state.GetFlag("key1")
+					if ok {
+						assert.Empty(t, fs1.Prerequisites)
+					}
+				})
+			})
+		}
+	})
+
+	t.Run("only returns top-level prerequisites", func(t *testing.T) {
+		flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).On(true).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key2", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		flag2 := ldbuilders.NewFlagBuilder("key2").Version(100).On(true).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key3", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		flag3 := ldbuilders.NewFlagBuilder("key3").Version(100).On(false).OffVariation(0).
+			Variations(ldvalue.String("value1")).ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		for _, test := range optionPermutations() {
+			t.Run(test.name, func(t *testing.T) {
+				withClientEvalTestParams(func(p clientEvalTestParams) {
+					p.data.UsePreconfiguredFlag(flag1)
+					p.data.UsePreconfiguredFlag(flag2)
+					p.data.UsePreconfiguredFlag(flag3)
+
+					state := p.client.AllFlagsState(lduser.NewUser("userkey"), test.options...)
+					assert.True(t, state.IsValid())
+
+					// If the flag was visible, then we should see that it had no prerequisites evaluated
+					// since the flag was off.
+					fs1, ok := state.GetFlag("key1")
+					if ok {
+						assert.Equal(t, []string{"key2"}, fs1.Prerequisites)
+					}
+
+					fs2, ok := state.GetFlag("key2")
+					if ok {
+						assert.Equal(t, []string{"key3"}, fs2.Prerequisites)
+					}
+
+					fs3, ok := state.GetFlag("key3")
+					if ok {
+						assert.Empty(t, fs3.Prerequisites)
+					}
+				})
+			})
+		}
+	})
+
+	t.Run("prerequisites are in evaluation order", func(t *testing.T) {
+		ascending := ldbuilders.NewFlagBuilder("key1").Version(100).On(true).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key2", 0).AddPrerequisite("key3", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		descending := ldbuilders.NewFlagBuilder("key1").Version(100).On(true).OffVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key3", 0).AddPrerequisite("key2", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		flag2 := ldbuilders.NewFlagBuilder("key2").Version(100).On(true).OffVariation(0).FallthroughVariation(0).
+			Variations(ldvalue.String("value1")).AddPrerequisite("key3", 0).
+			ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		flag3 := ldbuilders.NewFlagBuilder("key3").Version(100).On(true).OffVariation(0).FallthroughVariation(0).
+			Variations(ldvalue.String("value1")).ClientSideUsingEnvironmentID(false).ClientSideUsingMobileKey(false).Build()
+
+		t.Run("ascending", func(t *testing.T) {
+			for _, test := range optionPermutations() {
+				t.Run(test.name, func(t *testing.T) {
+					withClientEvalTestParams(func(p clientEvalTestParams) {
+						p.data.UsePreconfiguredFlag(ascending)
+						p.data.UsePreconfiguredFlag(flag2)
+						p.data.UsePreconfiguredFlag(flag3)
+
+						state := p.client.AllFlagsState(lduser.NewUser("userkey"), test.options...)
+						assert.True(t, state.IsValid())
+
+						fs1, ok := state.GetFlag("key1")
+						if ok {
+							assert.Equal(t, []string{"key2", "key3"}, fs1.Prerequisites)
+						}
+					})
+				})
+			}
+		})
+
+		t.Run("descending", func(t *testing.T) {
+			for _, test := range optionPermutations() {
+				t.Run(test.name, func(t *testing.T) {
+					withClientEvalTestParams(func(p clientEvalTestParams) {
+						p.data.UsePreconfiguredFlag(descending)
+						p.data.UsePreconfiguredFlag(flag2)
+						p.data.UsePreconfiguredFlag(flag3)
+
+						state := p.client.AllFlagsState(lduser.NewUser("userkey"), test.options...)
+						assert.True(t, state.IsValid())
+
+						fs1, ok := state.GetFlag("key1")
+						if ok {
+							assert.Equal(t, []string{"key3", "key2"}, fs1.Prerequisites)
+						}
+					})
+				})
+			}
+		})
+	})
+
 }
