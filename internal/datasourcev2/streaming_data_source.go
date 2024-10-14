@@ -258,8 +258,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
-				// The Finish method guarantees that at least one payload is present.
-				payload := changeSet.Intent().Payloads[0]
+				payload := changeSet.IntentCode().Payload
 				switch payload.Code {
 				case fdv2proto.IntentTransferFull:
 					sp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)

@@ -148,7 +148,7 @@ func (pp *PollingProcessor) poll() error {
 		return err
 	}
 
-	payload := changeSet.Intent().Payloads[0]
+	payload := changeSet.IntentCode().Payload
 	switch payload.Code {
 	case fdv2proto.IntentTransferFull:
 		pp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)

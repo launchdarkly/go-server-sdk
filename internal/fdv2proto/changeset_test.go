@@ -16,27 +16,15 @@ func TestChangeSetBuilder_MustStartToFinish(t *testing.T) {
 	_, err := builder.Finish(selector)
 	assert.Error(t, err)
 
-	assert.NoError(t, builder.Start(ServerIntent{Payloads: []Payload{{Code: IntentNone}}}))
+	assert.NoError(t, builder.Start(ServerIntent{Payload: Payload{Code: IntentNone}}))
 
 	_, err = builder.Finish(selector)
 	assert.NoError(t, err)
 }
 
-func TestChangeSetBuilder_MustHaveAtLeastOnePayload(t *testing.T) {
-	builder := NewChangeSetBuilder()
-	err := builder.Start(ServerIntent{})
-	assert.Error(t, err)
-
-	err = builder.Start(ServerIntent{Payloads: []Payload{{Code: IntentNone}}})
-	assert.NoError(t, err)
-
-	err = builder.Start(ServerIntent{Payloads: []Payload{{Code: IntentNone}, {Code: IntentNone}, {Code: IntentNone}}})
-	assert.NoError(t, err)
-}
-
 func TestChangeSetBuilder_Changes(t *testing.T) {
 	builder := NewChangeSetBuilder()
-	err := builder.Start(ServerIntent{Payloads: []Payload{{Code: IntentTransferChanges}}})
+	err := builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferChanges}})
 	assert.NoError(t, err)
 
 	builder.AddPut("foo", "bar", 1, []byte("baz"))
@@ -52,12 +40,17 @@ func TestChangeSetBuilder_Changes(t *testing.T) {
 	assert.Equal(t, Change{Action: ChangeTypePut, Kind: "foo", Key: "bar", Version: 1, Object: []byte("baz")}, changes[0])
 	assert.Equal(t, Change{Action: ChangeTypeDelete, Kind: "foo", Key: "bar", Version: 1}, changes[1])
 
-	assert.Equal(t, IntentTransferChanges, changeSet.Intent().Payloads[0].Code)
+	assert.Equal(t, IntentTransferChanges, changeSet.IntentCode().Payload.Code)
 	assert.Equal(t, selector, changeSet.Selector())
 
 }
 
-func TestChangeSetBuilder_ImplicitXferChanges(t *testing.T) {
+// After receiving an intent, the SDK may receive 1 or more objects before receiving a payload-transferred.
+// At that point, LaunchDarkly may send more objects followed by another payload-transferred. These objects
+// should be regarded as part of an implicit "xfer-changes" intent, even though the server doesn't actually send one.
+// If the server intends to use an xfer-full instead (for efficiency or other reasons), it will need to explicitly
+// send one.
+func TestChangeSetBuilder_ImplicitIntentXferChanges(t *testing.T) {
 
 }
 
@@ -66,11 +59,10 @@ func TestChangeSetBuilder_NoChanges(t *testing.T) {
 	changeSet := builder.NoChanges()
 	assert.NotNil(t, changeSet)
 
-	intent := changeSet.Intent()
+	intent := changeSet.IntentCode()
 	assert.NotNil(t, intent)
 
-	assert.NotEmpty(t, intent.Payloads)
-	assert.Equal(t, IntentNone, intent.Payloads[0].Code)
+	assert.Equal(t, IntentNone, intent.Payload.Code)
 
 	assert.False(t, changeSet.Selector().IsDefined())
 	assert.Equal(t, NoSelector(), changeSet.Selector())

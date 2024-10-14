@@ -21,13 +21,13 @@ type Change struct {
 }
 
 type ChangeSet struct {
-	intent   ServerIntent
+	intentCode IntentCode
 	changes  []Change
 	selector Selector
 }
 
-func (c *ChangeSet) Intent() ServerIntent {
-	return c.intent
+func (c *ChangeSet) IntentCode() IntentCode{
+	return c.intentCode
 }
 
 func (c *ChangeSet) Changes() []Change {
@@ -49,16 +49,13 @@ func NewChangeSetBuilder() *ChangeSetBuilder {
 
 func (c *ChangeSetBuilder) NoChanges() *ChangeSet {
 	return &ChangeSet{
-		intent:   ServerIntent{Payloads: []Payload{{Code: IntentNone}}},
+		intentCode: IntentNone,
 		selector: NoSelector(),
 		changes:  nil,
 	}
 }
 
 func (c *ChangeSetBuilder) Start(intent ServerIntent) error {
-	if len(intent.Payloads) == 0 {
-		return errors.New("changeset: server-intent event has no payloads")
-	}
 	c.intent = &intent
 	c.changes = nil
 	return nil
@@ -71,11 +68,12 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 		return nil, errors.New("changeset: cannot complete without a server-intent")
 	}
 	changes := &ChangeSet{
-		intent:   *c.intent,
+		intentCode: c.intent.Payload.Code,
 		selector: selector,
 		changes:  c.changes,
 	}
 	c.changes = nil
+	c.intent.Payload.Code =
 	return changes, nil
 }
 
