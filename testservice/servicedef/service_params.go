@@ -24,6 +24,7 @@ const (
 	CapabilityOmitAnonymousContexts = "omit-anonymous-contexts"
 	CapabilityEventGzip             = "event-gzip"
 	CapabilityOptionalEventGzip     = "optional-event-gzip"
+	CapabilityClientPrereqEvents    = "client-prereq-events"
 )
 
 type StatusRep struct {

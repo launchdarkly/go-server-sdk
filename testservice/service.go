@@ -43,6 +43,7 @@ var capabilities = []string{
 	servicedef.CapabilityOmitAnonymousContexts,
 	servicedef.CapabilityEventGzip,
 	servicedef.CapabilityOptionalEventGzip,
+	servicedef.CapabilityClientPrereqEvents,
 }
 
 // gets the specified environment variable, or the default if not set
