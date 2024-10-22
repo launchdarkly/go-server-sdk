@@ -67,6 +67,10 @@ type FlagState struct {
 	// OmitDetails is true if, based on the options passed to AllFlagsState and the flag state, some of the
 	// metadata can be left out of the JSON representation.
 	OmitDetails bool
+
+	// Prerequisites is an ordered list of direct prerequisites that were evaluated in the process of evaluating this
+	// flag.
+	Prerequisites []string
 }
 
 // Option is the interface for optional parameters that can be passed to LDClient.AllFlagsState.
@@ -156,6 +160,13 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 		flagObj.Maybe("trackEvents", flag.TrackEvents).Bool(flag.TrackEvents)
 		flagObj.Maybe("trackReason", flag.TrackReason).Bool(flag.TrackReason)
 		flagObj.Maybe("debugEventsUntilDate", flag.DebugEventsUntilDate > 0).Float64(float64(flag.DebugEventsUntilDate))
+		if len(flag.Prerequisites) > 0 {
+			prerequisites := flagObj.Name("prerequisites").Array()
+			for _, p := range flag.Prerequisites {
+				prerequisites.String(p)
+			}
+			prerequisites.End()
+		}
 		flagObj.End()
 	}
 	stateObj.End()

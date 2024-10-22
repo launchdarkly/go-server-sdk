@@ -684,7 +684,12 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 					continue
 				}
 
-				result := client.evaluator.Evaluate(flag, context, nil)
+				var prerequisites []string
+				result := client.evaluator.Evaluate(flag, context, func(event ldeval.PrerequisiteFlagEvent) {
+					if event.TargetFlagKey == flag.Key {
+						prerequisites = append(prerequisites, event.PrerequisiteFlag.Key)
+					}
+				})
 
 				state.AddFlag(
 					item.Key,
@@ -696,6 +701,7 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 						TrackEvents:          flag.TrackEvents || result.IsExperiment,
 						TrackReason:          result.IsExperiment,
 						DebugEventsUntilDate: flag.DebugEventsUntilDate,
+						Prerequisites:        prerequisites,
 					},
 				)
 			}
