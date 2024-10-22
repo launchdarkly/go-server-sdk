@@ -9,7 +9,7 @@ require (
 	github.com/launchdarkly/eventsource v1.6.2
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.0
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
-	github.com/launchdarkly/go-sdk-common/v3 v3.1.0
+	github.com/launchdarkly/go-sdk-common/v3 v3.2.0
 	github.com/launchdarkly/go-sdk-events/v3 v3.4.0
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1
 	github.com/launchdarkly/go-test-helpers/v3 v3.0.2
