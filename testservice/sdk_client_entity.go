@@ -52,7 +52,10 @@ func NewSDKClientEntity(params servicedef.CreateInstanceParams) (*SDKClientEntit
 	sdkLog.SetPrefix("[sdklog]")
 	sdkLog.SetMinLevel(ldlog.Debug)
 
-	ldConfig := makeSDKConfig(params.Configuration, sdkLog)
+	ldConfig, err := makeSDKConfig(params.Configuration, sdkLog)
+	if err != nil {
+		return nil, err
+	}
 
 	startWaitTime := defaultStartWaitTime
 	if params.Configuration.StartWaitTimeMS > 0 {
@@ -360,7 +363,7 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 	return &servicedef.MigrationOperationResponse{Result: result.GetAuthoritativeResult().GetResult()}, nil
 }
 
-func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.Config {
+func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.Config, error) {
 	ret := ld.Config{}
 	ret.Logging = ldcomponents.Logging().Loggers(sdkLog)
 
@@ -419,7 +422,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 				awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")),
 			)
 			if err != nil {
-				panic(err)
+				return ret, err
 			}
 
 			svc := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
@@ -510,7 +513,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) ld.C
 		ret.Hooks = hooks
 	}
 
-	return ret
+	return ret, nil
 }
 
 func asJSON(value interface{}) string {
