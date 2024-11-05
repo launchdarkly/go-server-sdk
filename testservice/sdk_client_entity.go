@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -435,7 +436,8 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			}
 
 			builder = ldcomponents.PersistentDataStore(dsBuilder)
-		default: // TODO: We should probably fail here.
+		default:
+			return ret, errors.New(fmt.Sprintf("unsupported data store type (%s) requested", config.PersistentDataStore.Store.Type))
 		}
 
 		if builder != nil {
