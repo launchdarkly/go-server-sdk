@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.7.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.6.2...v7.7.0) (2024-10-22)
+
+
+### Features
+
+* add support for client-side prerequisite events ([#201](https://github.com/launchdarkly/go-server-sdk/issues/201)) ([d9804ec](https://github.com/launchdarkly/go-server-sdk/commit/d9804ec15caa93b5d7612402f4b80496aa57f1bf))
+
 ## [7.6.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.6.1...v7.6.2) (2024-08-28)
 
 

@@ -99,6 +99,7 @@ func TestAllFlagsJSON(t *testing.T) {
 					Reason:               ldreason.NewEvalReasonFallthrough(),
 					TrackEvents:          true,
 					DebugEventsUntilDate: ldtime.UnixMillisecondTime(100000),
+					Prerequisites:        []string{"flag2", "flag3", "flag4"},
 				},
 			},
 		}
@@ -109,7 +110,8 @@ func TestAllFlagsJSON(t *testing.T) {
   "$valid":true,
   "flag1": "value1",
   "$flagsState":{
-    "flag1": {"variation":1,"version":1000,"reason":{"kind":"FALLTHROUGH"},"trackEvents":true,"debugEventsUntilDate":100000}
+    "flag1": {"variation":1,"version":1000,"reason":{"kind":"FALLTHROUGH"},"trackEvents":true,"debugEventsUntilDate":100000,
+	"prerequisites": ["flag2","flag3","flag4"]}
   }
 }`, string(bytes))
 	})
@@ -140,7 +142,7 @@ func TestAllFlagsJSON(t *testing.T) {
 }`, string(bytes))
 	})
 
-	t.Run("omitting details", func(t *testing.T) {
+	t.Run("omitting details, no prerequisites present", func(t *testing.T) {
 		a := AllFlags{
 			valid: true,
 			flags: map[string]FlagState{
@@ -161,6 +163,32 @@ func TestAllFlagsJSON(t *testing.T) {
   "flag1": "value1",
   "$flagsState":{
     "flag1": {"variation":1}
+  }
+}`, string(bytes))
+	})
+
+	t.Run("omitting details, prerequisites present", func(t *testing.T) {
+		a := AllFlags{
+			valid: true,
+			flags: map[string]FlagState{
+				"flag1": {
+					Value:         ldvalue.String("value1"),
+					Variation:     ldvalue.NewOptionalInt(1),
+					Version:       1000,
+					Reason:        ldreason.NewEvalReasonFallthrough(),
+					OmitDetails:   true,
+					Prerequisites: []string{"flag2", "flag3", "flag4"},
+				},
+			},
+		}
+		bytes, err := a.MarshalJSON()
+		assert.NoError(t, err)
+		assert.JSONEq(t,
+			`{
+  "$valid":true,
+  "flag1": "value1",
+  "$flagsState":{
+    "flag1": {"variation":1, "prerequisites": ["flag2","flag3","flag4"]}
   }
 }`, string(bytes))
 	})
@@ -293,6 +321,37 @@ func TestAllFlagsBuilder(t *testing.T) {
 			"flag3": flag3,
 			"flag4": flag4,
 			"flag5": flag5,
+		}, a.flags)
+	})
+
+	t.Run("add flags with prerequisites", func(t *testing.T) {
+		b := NewAllFlagsBuilder()
+
+		flag1 := FlagState{
+			Value:         ldvalue.String("value1"),
+			Variation:     ldvalue.NewOptionalInt(1),
+			Version:       1000,
+			Prerequisites: []string{"flag2"},
+		}
+		flag2 := FlagState{
+			Value:         ldvalue.String("value2"),
+			Version:       2000,
+			Prerequisites: []string{"flag3"},
+		}
+		flag3 := FlagState{
+			Value:   ldvalue.String("value3"),
+			Version: 3000,
+		}
+
+		b.AddFlag("flag1", flag1)
+		b.AddFlag("flag2", flag2)
+		b.AddFlag("flag3", flag3)
+
+		a := b.Build()
+		assert.Equal(t, map[string]FlagState{
+			"flag1": flag1,
+			"flag2": flag2,
+			"flag3": flag3,
 		}, a.flags)
 	})
 }

@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"errors"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
@@ -128,7 +129,7 @@ func TestAllFlagsStateCanFilterForOnlyClientSideFlags(t *testing.T) {
 func TestAllFlagsStateCanOmitDetailForUntrackedFlags(t *testing.T) {
 	futureTime := ldtime.UnixMillisNow() + 100000
 
-	// flag1 does not get full detials because neither event tracking nor debugging is on and there's no experiment
+	// flag1 does not get full details because neither event tracking nor debugging is on and there's no experiment
 	flag1 := ldbuilders.NewFlagBuilder("key1").Version(100).OffVariation(0).Variations(ldvalue.String("value1")).Build()
 
 	// flag2 gets full details because event tracking is on
@@ -245,4 +246,286 @@ func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 
 	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
 	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "Unable to fetch flags")
+}
+
+func TestAllFlagsStateReturnsPrerequisites(t *testing.T) {
+
+	// Creates a boolean flag that is on (true).
+	booleanFlag := func(key string) *ldbuilders.FlagBuilder {
+		return ldbuilders.NewFlagBuilder(key).
+			Version(100).
+			On(true).
+			OffVariation(0).
+			FallthroughVariation(1).
+			Variations(ldvalue.Bool(false), ldvalue.Bool(true))
+	}
+
+	t.Run("only top-level (direct) prerequisites are included in the prerequisites field", func(t *testing.T) {
+
+		// Toplevel has one direct prerequisite.
+		toplevel := booleanFlag("toplevel").
+			AddPrerequisite("prereq1", 1).Build()
+
+		// Prereq1 also has one direct prerequisite.
+		prereq1 := booleanFlag("prereq1").
+			AddPrerequisite("prereq2", 1).Build()
+
+		// Prereq2 has no prerequisites itself.
+		prereq2 := booleanFlag("prereq2").Build()
+
+		// We expect that toplevel and prereq1 should list only their direct prerequisites. That is,
+		// toplevel should not list [prereq1, prereq2], but only [prereq1].
+
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(toplevel)
+			p.data.UsePreconfiguredFlag(prereq1)
+			p.data.UsePreconfiguredFlag(prereq2)
+
+			state := p.client.AllFlagsState(lduser.NewUser("userkey"))
+			require.True(t, state.IsValid())
+
+			toplevelState, ok := state.GetFlag("toplevel")
+			if assert.True(t, ok) {
+				assert.Equal(t, []string{"prereq1"}, toplevelState.Prerequisites)
+			}
+
+			prereq1State, ok := state.GetFlag("prereq1")
+			if assert.True(t, ok) {
+				assert.Equal(t, []string{"prereq2"}, prereq1State.Prerequisites)
+			}
+
+			prereq2State, ok := state.GetFlag("prereq2")
+			if assert.True(t, ok) {
+				assert.Empty(t, prereq2State.Prerequisites)
+			}
+		})
+	})
+
+	t.Run("the prerequisites field should hold prerequisites in evaluation order", func(t *testing.T) {
+
+		// These tests ensure all direct prerequisites of a flag (that is on) are included in the
+		// prerequisites field. The sub-tests are a sanity check to make sure we're not sorting the array
+		// accidentally - the array should follow eval order.
+		t.Run("depth one, all on", func(t *testing.T) {
+			t.Run("ascending alphabetic", func(t *testing.T) {
+				toplevel := booleanFlag("toplevel").
+					AddPrerequisite("prereq1", 1).
+					AddPrerequisite("prereq2", 1).
+					AddPrerequisite("prereq3", 1).Build()
+
+				prereq1 := booleanFlag("prereq1").Build()
+				prereq2 := booleanFlag("prereq2").Build()
+				prereq3 := booleanFlag("prereq3").Build()
+
+				withClientEvalTestParams(func(p clientEvalTestParams) {
+					p.data.UsePreconfiguredFlag(toplevel)
+					p.data.UsePreconfiguredFlag(prereq1)
+					p.data.UsePreconfiguredFlag(prereq2)
+					p.data.UsePreconfiguredFlag(prereq3)
+
+					state := p.client.AllFlagsState(lduser.NewUser("userkey"))
+					require.True(t, state.IsValid())
+
+					toplevelState, ok := state.GetFlag("toplevel")
+					if assert.True(t, ok) {
+						assert.Equal(t, []string{"prereq1", "prereq2", "prereq3"}, toplevelState.Prerequisites)
+					}
+				})
+			})
+
+			t.Run("descending alphabetic", func(t *testing.T) {
+				toplevel := booleanFlag("toplevel").
+					AddPrerequisite("prereq3", 1).
+					AddPrerequisite("prereq2", 1).
+					AddPrerequisite("prereq1", 1).Build()
+
+				prereq1 := booleanFlag("prereq1").Build()
+				prereq2 := booleanFlag("prereq2").Build()
+				prereq3 := booleanFlag("prereq3").Build()
+
+				withClientEvalTestParams(func(p clientEvalTestParams) {
+					p.data.UsePreconfiguredFlag(toplevel)
+					p.data.UsePreconfiguredFlag(prereq1)
+					p.data.UsePreconfiguredFlag(prereq2)
+					p.data.UsePreconfiguredFlag(prereq3)
+
+					state := p.client.AllFlagsState(lduser.NewUser("userkey"))
+					require.True(t, state.IsValid())
+
+					toplevelState, ok := state.GetFlag("toplevel")
+					if assert.True(t, ok) {
+						assert.Equal(t, []string{"prereq3", "prereq2", "prereq1"}, toplevelState.Prerequisites)
+					}
+				})
+			})
+		})
+
+		t.Run("depth three, toplevel flag is off", func(t *testing.T) {
+			toplevel := booleanFlag("toplevel").
+				AddPrerequisite("prereq1", 1).On(false).Build()
+
+			prereq1 := booleanFlag("prereq1").
+				AddPrerequisite("prereq2", 1).Build()
+
+			prereq2 := booleanFlag("prereq2").
+				AddPrerequisite("prereq3", 1).Build()
+
+			prereq3 := booleanFlag("prereq3").Build()
+
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.data.UsePreconfiguredFlag(toplevel)
+				p.data.UsePreconfiguredFlag(prereq1)
+				p.data.UsePreconfiguredFlag(prereq2)
+				p.data.UsePreconfiguredFlag(prereq3)
+
+				state := p.client.AllFlagsState(lduser.NewUser("userkey"))
+				require.True(t, state.IsValid())
+
+				// If toplevel were on, then we'd expect to see the single prerequisite. Since it's not, we shouldn't
+				// see any.
+				toplevelState, ok := state.GetFlag("toplevel")
+				if assert.True(t, ok) {
+					assert.Empty(t, toplevelState.Prerequisites)
+				}
+
+				// The other prerequisites are themselves top-level flags when evaluated, so they should have their
+				// own prerequisites included since they're all on.
+				prereq1State, ok := state.GetFlag("prereq1")
+				if assert.True(t, ok) {
+					assert.Equal(t, []string{"prereq2"}, prereq1State.Prerequisites)
+				}
+
+				prereq2State, ok := state.GetFlag("prereq2")
+				if assert.True(t, ok) {
+					assert.Equal(t, []string{"prereq3"}, prereq2State.Prerequisites)
+				}
+
+				// Prereq1 had no prereqs.
+				prereq3State, ok := state.GetFlag("prereq3")
+				if assert.True(t, ok) {
+					assert.Empty(t, prereq3State.Prerequisites)
+				}
+			})
+		})
+
+		t.Run("depth three, first prerequisite is off", func(t *testing.T) {
+			toplevel := booleanFlag("toplevel").
+				AddPrerequisite("prereq1", 1).Build()
+
+			prereq1 := booleanFlag("prereq1").
+				AddPrerequisite("prereq2", 1).On(false).Build()
+
+			prereq2 := booleanFlag("prereq2").
+				AddPrerequisite("prereq3", 1).Build()
+
+			prereq3 := booleanFlag("prereq3").Build()
+
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.data.UsePreconfiguredFlag(toplevel)
+				p.data.UsePreconfiguredFlag(prereq1)
+				p.data.UsePreconfiguredFlag(prereq2)
+				p.data.UsePreconfiguredFlag(prereq3)
+
+				state := p.client.AllFlagsState(lduser.NewUser("userkey"))
+				require.True(t, state.IsValid())
+
+				toplevelState, ok := state.GetFlag("toplevel")
+				if assert.True(t, ok) {
+					assert.Equal(t, []string{"prereq1"}, toplevelState.Prerequisites)
+				}
+
+				prereq1State, ok := state.GetFlag("prereq1")
+				if assert.True(t, ok) {
+					assert.Empty(t, prereq1State.Prerequisites)
+				}
+
+				prereq2State, ok := state.GetFlag("prereq2")
+				if assert.True(t, ok) {
+					assert.Equal(t, []string{"prereq3"}, prereq2State.Prerequisites)
+				}
+
+				prereq3State, ok := state.GetFlag("prereq3")
+				if assert.True(t, ok) {
+					assert.Empty(t, prereq3State.Prerequisites)
+				}
+			})
+		})
+
+		t.Run("depth three, second  prerequisite is off", func(t *testing.T) {
+			toplevel := booleanFlag("toplevel").
+				AddPrerequisite("prereq1", 1).Build()
+
+			prereq1 := booleanFlag("prereq1").
+				AddPrerequisite("prereq2", 1).Build()
+
+			prereq2 := booleanFlag("prereq2").
+				AddPrerequisite("prereq3", 1).On(false).Build()
+
+			prereq3 := booleanFlag("prereq3").Build()
+
+			withClientEvalTestParams(func(p clientEvalTestParams) {
+				p.data.UsePreconfiguredFlag(toplevel)
+				p.data.UsePreconfiguredFlag(prereq1)
+				p.data.UsePreconfiguredFlag(prereq2)
+				p.data.UsePreconfiguredFlag(prereq3)
+
+				state := p.client.AllFlagsState(lduser.NewUser("userkey"))
+				require.True(t, state.IsValid())
+
+				toplevelState, ok := state.GetFlag("toplevel")
+				if assert.True(t, ok) {
+					assert.Equal(t, []string{"prereq1"}, toplevelState.Prerequisites)
+				}
+
+				prereq1State, ok := state.GetFlag("prereq1")
+				if assert.True(t, ok) {
+					assert.Equal(t, []string{"prereq2"}, prereq1State.Prerequisites)
+				}
+
+				prereq2State, ok := state.GetFlag("prereq2")
+				if assert.True(t, ok) {
+					assert.Empty(t, prereq2State.Prerequisites)
+				}
+
+				prereq3State, ok := state.GetFlag("prereq3")
+				if assert.True(t, ok) {
+					assert.Empty(t, prereq3State.Prerequisites)
+				}
+			})
+		})
+
+	})
+
+	t.Run("prerequisite flags not visible to client SDKs should still be referenced in visible flags", func(t *testing.T) {
+		toplevel := booleanFlag("toplevel").
+			ClientSideUsingEnvironmentID(true).
+			AddPrerequisite("prereq1", 1).
+			AddPrerequisite("prereq2", 1).Build()
+
+		prereq1 := booleanFlag("prereq1").
+			ClientSideUsingEnvironmentID(false).Build()
+
+		prereq2 := booleanFlag("prereq2").
+			ClientSideUsingEnvironmentID(false).Build()
+
+		withClientEvalTestParams(func(p clientEvalTestParams) {
+			p.data.UsePreconfiguredFlag(toplevel)
+			p.data.UsePreconfiguredFlag(prereq1)
+			p.data.UsePreconfiguredFlag(prereq2)
+
+			state := p.client.AllFlagsState(lduser.NewUser("userkey"), flagstate.OptionClientSideOnly())
+			require.True(t, state.IsValid())
+
+			toplevelState, ok := state.GetFlag("toplevel")
+			if assert.True(t, ok) {
+				assert.Equal(t, []string{"prereq1", "prereq2"}, toplevelState.Prerequisites)
+			}
+
+			_, ok = state.GetFlag("prereq1")
+			assert.False(t, ok)
+
+			_, ok = state.GetFlag("prereq2")
+			assert.False(t, ok)
+		})
+	})
 }
