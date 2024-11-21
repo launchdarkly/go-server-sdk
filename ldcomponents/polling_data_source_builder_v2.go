@@ -21,6 +21,7 @@ import (
 type PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
+	baseURI      string
 }
 
 // PollingDataSourceV2 returns a configurable factory for using polling mode to get feature flag data.
@@ -50,6 +51,12 @@ func (b *PollingDataSourceBuilderV2) PollInterval(pollInterval time.Duration) *P
 	} else {
 		b.pollInterval = pollInterval
 	}
+	return b
+}
+
+// BaseURI sets the base URI for the polling connection.
+func (b *PollingDataSourceBuilderV2) BaseURI(baseURI string) *PollingDataSourceBuilderV2 {
+	b.baseURI = baseURI
 	return b
 }
 
@@ -83,13 +90,8 @@ func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (su
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
 	}
-	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetServiceEndpoints(),
-		endpoints.PollingService,
-		context.GetLogging().Loggers,
-	)
 	cfg := datasource.PollingConfig{
-		BaseURI:      configuredBaseURI,
+		BaseURI:      b.baseURI,
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
 	}

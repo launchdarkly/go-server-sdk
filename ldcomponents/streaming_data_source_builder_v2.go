@@ -21,6 +21,7 @@ import (
 type StreamingDataSourceBuilderV2 struct {
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
+	baseURI               string
 }
 
 // StreamingDataSourceV2 returns a configurable factory for using streaming mode to get feature flag data.
@@ -57,6 +58,12 @@ func (b *StreamingDataSourceBuilderV2) InitialReconnectDelay(
 	return b
 }
 
+// BaseURI sets the base URI for the streaming connection.
+func (b *StreamingDataSourceBuilderV2) BaseURI(baseURI string) *StreamingDataSourceBuilderV2 {
+	b.baseURI = baseURI
+	return b
+}
+
 // PayloadFilter sets the payload filter key for this streaming connection. The filter key
 // cannot be an empty string.
 //
@@ -76,13 +83,8 @@ func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
 	}
-	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetServiceEndpoints(),
-		endpoints.StreamingService,
-		context.GetLogging().Loggers,
-	)
 	cfg := datasource.StreamConfig{
-		URI:                   configuredBaseURI,
+		URI:                   b.baseURI,
 		InitialReconnectDelay: b.initialReconnectDelay,
 		FilterKey:             filterKey,
 	}
