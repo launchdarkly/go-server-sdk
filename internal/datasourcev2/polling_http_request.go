@@ -147,7 +147,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 						}
 					}
 				}
-				updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item, Version: version})
+				updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item.Item, Version: version})
 			}
 		case fdv2proto.EventDeleteObject:
 			{
