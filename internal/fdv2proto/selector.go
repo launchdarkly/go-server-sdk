@@ -20,6 +20,10 @@ func (s Selector) IsDefined() bool {
 	return s != NoSelector()
 }
 
+func (s Selector) Name() EventName {
+	return EventPayloadTransferred
+}
+
 // NewSelector creates a new Selector from a state string and version.
 func NewSelector(state string, version int) Selector {
 	return Selector{state: state, version: version}

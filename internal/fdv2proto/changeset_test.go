@@ -1,8 +1,9 @@
 package fdv2proto
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestChangeSetBuilder_New(t *testing.T) {

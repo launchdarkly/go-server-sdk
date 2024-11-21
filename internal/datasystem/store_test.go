@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 

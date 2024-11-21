@@ -11,6 +11,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"context"
+
 	es "github.com/launchdarkly/eventsource"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"

@@ -3,6 +3,7 @@ package fdv2proto
 import (
 	"encoding/json"
 	"errors"
+
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 )
 

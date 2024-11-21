@@ -59,6 +59,14 @@ func (s *ServerSDKData) Segments(segments ...ldmodel.Segment) *ServerSDKData {
 	return s
 }
 
+func MustMarshal(model any) json.RawMessage {
+	data, err := json.Marshal(model)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
 // ToPutObjects converts the data to a list of PutObject objects that can be fed to a mock streaming data source.
 func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 	var objs []fdv2proto.PutObject
@@ -67,7 +75,7 @@ func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 			Version: flag.Version,
 			Kind:    fdv2proto.FlagKind,
 			Key:     flag.Key,
-			Object:  flag,
+			Object:  MustMarshal(flag),
 		}
 		objs = append(objs, base)
 	}
@@ -76,7 +84,7 @@ func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 			Version: segment.Version,
 			Kind:    fdv2proto.SegmentKind,
 			Key:     segment.Key,
-			Object:  segment,
+			Object:  MustMarshal(segment),
 		}
 		objs = append(objs, base)
 	}

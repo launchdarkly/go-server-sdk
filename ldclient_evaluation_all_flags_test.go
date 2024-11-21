@@ -2,8 +2,9 @@ package ldclient
 
 import (
 	"errors"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
