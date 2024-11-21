@@ -260,7 +260,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				//nolint: godox
 				// TODO: Do we need to restart here?
 			case fdv2proto.EventPayloadTransferred:
-
 				selector := &fdv2proto.Selector{}
 
 				err := json.Unmarshal([]byte(event.Data()), selector)
@@ -277,14 +276,18 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
-				switch currentChangeSet.intent.Payloads[0].Code {
-				case fdv2proto.IntentTransferFull:
-					{
-						sp.dataDestination.SetBasis(updates, selector, true)
-						sp.setInitializedAndNotifyClient(true, closeWhenReady)
-					}
-				case fdv2proto.IntentTransferChanges:
+				if currentChangeSet.intent == nil {
 					sp.dataDestination.ApplyDelta(updates, selector, true)
+				} else {
+					switch currentChangeSet.intent.Payloads[0].Code {
+					case fdv2proto.IntentTransferFull:
+						{
+							sp.dataDestination.SetBasis(updates, selector, true)
+							sp.setInitializedAndNotifyClient(true, closeWhenReady)
+						}
+					case fdv2proto.IntentTransferChanges:
+						sp.dataDestination.ApplyDelta(updates, selector, true)
+					}
 				}
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
