@@ -129,9 +129,9 @@ func (sp *StreamProcessor) IsInitialized() bool {
 }
 
 //nolint:revive // DataSynchronizer method.
-func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
+func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, selector fdv2proto.Selector) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	go sp.subscribe(closeWhenReady)
+	go sp.subscribe(closeWhenReady, selector)
 }
 
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
@@ -297,8 +297,12 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 	}
 }
 
-func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
+func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, selector fdv2proto.Selector) {
+	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath)
+	if selector.IsDefined() {
+		path = path + "?basis=" + selector.State()
+	}
+	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
