@@ -34,6 +34,8 @@ const (
 	versionField = "version"
 	objectField  = "object"
 
+	stateField = "state"
+
 	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
 	streamMaxRetryDelay      = 30 * time.Second
 	streamRetryResetInterval = 60 * time.Second
@@ -137,9 +139,9 @@ func (sp *StreamProcessor) IsInitialized() bool {
 }
 
 //nolint:revive // DataSynchronizer method.
-func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, _ *fdv2proto.Selector) {
+func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, selector *fdv2proto.Selector) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	go sp.subscribe(closeWhenReady)
+	go sp.subscribe(closeWhenReady, selector)
 }
 
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
@@ -258,7 +260,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				//nolint: godox
 				// TODO: Do we need to restart here?
 			case fdv2proto.EventPayloadTransferred:
-
 				selector := &fdv2proto.Selector{}
 
 				err := json.Unmarshal([]byte(event.Data()), selector)
@@ -275,14 +276,18 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
-				switch currentChangeSet.intent.Payloads[0].Code {
-				case fdv2proto.IntentTransferFull:
-					{
-						sp.dataDestination.SetBasis(updates, selector, true)
-						sp.setInitializedAndNotifyClient(true, closeWhenReady)
-					}
-				case fdv2proto.IntentTransferChanges:
+				if currentChangeSet.intent == nil {
 					sp.dataDestination.ApplyDelta(updates, selector, true)
+				} else {
+					switch currentChangeSet.intent.Payloads[0].Code {
+					case fdv2proto.IntentTransferFull:
+						{
+							sp.dataDestination.SetBasis(updates, selector, true)
+							sp.setInitializedAndNotifyClient(true, closeWhenReady)
+						}
+					case fdv2proto.IntentTransferChanges:
+						sp.dataDestination.ApplyDelta(updates, selector, true)
+					}
 				}
 
 				currentChangeSet = changeSet{events: make([]es.Event, 0)}
@@ -304,8 +309,12 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 	}
 }
 
-func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
+func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, selector *fdv2proto.Selector) {
+	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath)
+	if selector.IsSet() {
+		path = path + "?basis=" + selector.State()
+	}
+	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",

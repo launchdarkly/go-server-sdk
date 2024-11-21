@@ -26,6 +26,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -368,90 +369,101 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 	ret := ld.Config{}
 	ret.Logging = ldcomponents.Logging().Loggers(sdkLog)
 
-	if config.ServiceEndpoints != nil {
-		ret.ServiceEndpoints.Streaming = config.ServiceEndpoints.Streaming
-		ret.ServiceEndpoints.Polling = config.ServiceEndpoints.Polling
-		ret.ServiceEndpoints.Events = config.ServiceEndpoints.Events
-	}
+	if config.DataSystem != nil {
+		dataSystemBuilder := ldcomponents.DataSystem().Custom()
 
-	if config.Streaming != nil {
-		if config.Streaming.BaseURI != "" {
-			ret.ServiceEndpoints.Streaming = config.Streaming.BaseURI
-		}
-		builder := ldcomponents.StreamingDataSource()
-		if config.Streaming.InitialRetryDelayMS != nil {
-			builder.InitialReconnectDelay(time.Millisecond * time.Duration(*config.Streaming.InitialRetryDelayMS))
-		}
-		if config.Streaming.Filter.IsDefined() {
-			builder.PayloadFilter(config.Streaming.Filter.String())
-		}
-		ret.DataSource = builder
-	} else if config.Polling != nil {
-		if config.Polling.BaseURI != "" {
-			ret.ServiceEndpoints.Polling = config.Polling.BaseURI
-		}
-		builder := ldcomponents.PollingDataSource()
-		if config.Polling.PollIntervalMS != nil {
-			builder.PollInterval(time.Millisecond * time.Duration(*config.Polling.PollIntervalMS))
-		}
-		if config.Polling.Filter.IsDefined() {
-			builder.PayloadFilter(config.Polling.Filter.String())
-		}
-		ret.DataSource = builder
-	} else if config.ServiceEndpoints == nil {
-		ret.DataSource = ldcomponents.ExternalUpdatesOnly()
-	}
+		if len(config.DataSystem.Initializers) > 0 {
+			initializers := make([]subsystems.ComponentConfigurer[subsystems.DataInitializer], len(config.DataSystem.Initializers))
+			for idx, initializer := range config.DataSystem.Initializers {
+				if initializer.Polling != nil {
+					builder := ldcomponents.PollingDataSourceV2()
+					if initializer.Polling.PollIntervalMS != nil {
+						builder.PollInterval(time.Millisecond * time.Duration(*initializer.Polling.PollIntervalMS))
+					}
 
-	if config.PersistentDataStore != nil {
-		var builder *ldcomponents.PersistentDataStoreBuilder
-		switch config.PersistentDataStore.Store.Type {
-		case servicedef.Redis:
-			dsBuilder := ldredis.DataStore().URL(config.PersistentDataStore.Store.DSN)
-			if config.PersistentDataStore.Store.Prefix != nil {
-				dsBuilder.Prefix(*config.PersistentDataStore.Store.Prefix)
+					if initializer.Polling.BaseURI != "" {
+						builder.BaseURI(initializer.Polling.BaseURI)
+					}
+
+					if config.DataSystem.PayloadFilter != nil {
+						builder.PayloadFilter(*config.DataSystem.PayloadFilter)
+					}
+
+					initializers[idx] = builder.AsInitializer()
+				}
 			}
-			builder = ldcomponents.PersistentDataStore(dsBuilder)
-		case servicedef.Consul:
-			dsBuilder := ldconsul.DataStore().Address(config.PersistentDataStore.Store.DSN)
-			if config.PersistentDataStore.Store.Prefix != nil {
-				dsBuilder.Prefix(*config.PersistentDataStore.Store.Prefix)
-			}
-			builder = ldcomponents.PersistentDataStore(dsBuilder)
-		case servicedef.DynamoDB:
-			cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-				awsconfig.WithRegion("us-east-1"),
-				awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")),
-			)
+			dataSystemBuilder.Initializers(initializers...)
+		}
+
+		if config.DataSystem.Synchronizers != nil {
+			primary, err := makeSynchronizerConfig(config.DataSystem.Synchronizers.Primary, config, &ret)
 			if err != nil {
 				return ret, err
 			}
 
-			svc := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-				o.EndpointResolver = dynamodb.EndpointResolverFromURL(config.PersistentDataStore.Store.DSN)
-			})
-
-			dsBuilder := lddynamodb.DataStore("sdk-contract-tests").DynamoClient(svc)
-			if config.PersistentDataStore.Store.Prefix != nil {
-				dsBuilder.Prefix(*config.PersistentDataStore.Store.Prefix)
+			var secondary subsystems.ComponentConfigurer[subsystems.DataSynchronizer]
+			if config.DataSystem.Synchronizers.Secondary != nil {
+				secondary, err = makeSynchronizerConfig(*config.DataSystem.Synchronizers.Secondary, config, &ret)
+				if err != nil {
+					return ret, err
+				}
 			}
 
-			builder = ldcomponents.PersistentDataStore(dsBuilder)
-		default:
-			return ret, errors.New(fmt.Sprintf("unsupported data store type (%s) requested", config.PersistentDataStore.Store.Type))
+			dataSystemBuilder.Synchronizers(primary, secondary)
 		}
 
-		if builder != nil {
-			switch config.PersistentDataStore.Cache.Mode {
+		if config.DataSystem.Store != nil && config.DataSystem.Store.PersistentDataStore != nil {
+			var builder *ldcomponents.PersistentDataStoreBuilder
+			switch config.DataSystem.Store.PersistentDataStore.Store.Type {
+			case servicedef.Redis:
+				dsBuilder := ldredis.DataStore().URL(config.DataSystem.Store.PersistentDataStore.Store.DSN)
+				if config.DataSystem.Store.PersistentDataStore.Store.Prefix != nil {
+					dsBuilder.Prefix(*config.DataSystem.Store.PersistentDataStore.Store.Prefix)
+				}
+				builder = ldcomponents.PersistentDataStore(dsBuilder)
+			case servicedef.Consul:
+				dsBuilder := ldconsul.DataStore().Address(config.DataSystem.Store.PersistentDataStore.Store.DSN)
+				if config.DataSystem.Store.PersistentDataStore.Store.Prefix != nil {
+					dsBuilder.Prefix(*config.DataSystem.Store.PersistentDataStore.Store.Prefix)
+				}
+				builder = ldcomponents.PersistentDataStore(dsBuilder)
+			case servicedef.DynamoDB:
+				cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+					awsconfig.WithRegion("us-east-1"),
+					awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")),
+				)
+				if err != nil {
+					return ret, err
+				}
+
+				svc := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+					o.EndpointResolver = dynamodb.EndpointResolverFromURL(config.DataSystem.Store.PersistentDataStore.Store.DSN)
+				})
+
+				dsBuilder := lddynamodb.DataStore("sdk-contract-tests").DynamoClient(svc)
+				if config.DataSystem.Store.PersistentDataStore.Store.Prefix != nil {
+					dsBuilder.Prefix(*config.DataSystem.Store.PersistentDataStore.Store.Prefix)
+				}
+
+				builder = ldcomponents.PersistentDataStore(dsBuilder)
+			default:
+				return ret, errors.New(fmt.Sprintf("unsupported data store type (%s) requested", config.DataSystem.Store.PersistentDataStore.Store.Type))
+			}
+
+			switch config.DataSystem.Store.PersistentDataStore.Cache.Mode {
 			case servicedef.TTL:
-				builder.CacheSeconds(*config.PersistentDataStore.Cache.TTL)
+				builder.CacheSeconds(*config.DataSystem.Store.PersistentDataStore.Cache.TTL)
 			case servicedef.Infinite:
 				builder.CacheForever()
 			case servicedef.Off:
 				builder.NoCaching()
 			}
 
-			ret.DataStore = builder
+			dataSystemBuilder.DataStore(builder, subsystems.DataStoreMode(config.DataSystem.StoreMode))
 		}
+
+		sdkLog.Debugf("Data system configuration: %+v", dataSystemBuilder)
+		ret.DataSystem = dataSystemBuilder
 	}
 
 	if config.Events != nil {
@@ -521,4 +533,43 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 func asJSON(value interface{}) string {
 	ret, _ := json.Marshal(value)
 	return string(ret)
+}
+
+func makeSynchronizerConfig(synchronizer servicedef.Synchronizer, configParams servicedef.SDKConfigParams, config *ld.Config) (subsystems.ComponentConfigurer[subsystems.DataSynchronizer], error) {
+	if synchronizer.Polling != nil {
+		if config.ServiceEndpoints.Polling == "" {
+			config.ServiceEndpoints.Polling = synchronizer.Polling.BaseURI
+		}
+
+		builder := ldcomponents.PollingDataSourceV2()
+		if synchronizer.Polling.PollIntervalMS != nil {
+			builder.PollInterval(time.Millisecond * time.Duration(*synchronizer.Polling.PollIntervalMS))
+		}
+		if synchronizer.Polling.BaseURI != "" {
+			builder.BaseURI(synchronizer.Polling.BaseURI)
+		}
+		if configParams.DataSystem.PayloadFilter != nil {
+			builder.PayloadFilter(*configParams.DataSystem.PayloadFilter)
+		}
+
+		return builder, nil
+	} else if synchronizer.Streaming != nil {
+		if config.ServiceEndpoints.Streaming == "" {
+			config.ServiceEndpoints.Streaming = synchronizer.Streaming.BaseURI
+		}
+
+		builder := ldcomponents.StreamingDataSourceV2()
+		if synchronizer.Streaming.InitialRetryDelayMS != nil {
+			builder.InitialReconnectDelay(time.Millisecond * time.Duration(*synchronizer.Streaming.InitialRetryDelayMS))
+		}
+		if synchronizer.Streaming.BaseURI != "" {
+			builder.BaseURI(synchronizer.Streaming.BaseURI)
+		}
+		if configParams.DataSystem.PayloadFilter != nil {
+			builder.PayloadFilter(*configParams.DataSystem.PayloadFilter)
+		}
+		return builder, nil
+	}
+
+	return nil, fmt.Errorf("no valid synchronizer configuration found")
 }

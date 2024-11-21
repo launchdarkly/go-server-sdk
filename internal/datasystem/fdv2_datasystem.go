@@ -150,7 +150,7 @@ func (f *FDv2) hasDataSources() bool {
 }
 
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
-	payloadVersion := f.runInitializers(ctx, closeWhenReady)
+	selector := f.runInitializers(ctx, closeWhenReady)
 
 	if f.hasDataSources() && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
@@ -158,7 +158,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 		})
 	}
 
-	f.runSynchronizers(ctx, closeWhenReady, payloadVersion)
+	f.runSynchronizers(ctx, closeWhenReady, selector)
 }
 
 func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {

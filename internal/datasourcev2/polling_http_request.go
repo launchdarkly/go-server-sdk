@@ -84,6 +84,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 	}
 
 	var payload fdv2proto.PollingPayload
+	payloadSelector := fdv2proto.NoSelector()
 	if err = json.Unmarshal(body, &payload); err != nil {
 		return nil, malformedJSONError{err}
 	}
@@ -146,7 +147,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 						}
 					}
 				}
-				updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item, Version: version})
+				updates = append(updates, fdv2proto.PutObject{Kind: kind, Key: key, Object: item.Item, Version: version})
 			}
 		case fdv2proto.EventDeleteObject:
 			{
@@ -174,8 +175,22 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 				updates = append(updates, fdv2proto.DeleteObject{Kind: kind, Key: key, Version: version})
 			}
 		case fdv2proto.EventPayloadTransferred:
-			//nolint:godox
-			// TODO: deserialize the state and create a fdv2proto.Selector.
+			r := jreader.NewReader(event.Data)
+
+			var (
+				state   string
+				version int
+			)
+
+			for obj := r.Object().WithRequiredProperties([]string{stateField, versionField}); obj.Next(); {
+				switch string(obj.Name()) {
+				case versionField:
+					version = r.Int()
+				case stateField:
+					state = r.String()
+				}
+			}
+			payloadSelector = fdv2proto.NewSelector(state, version)
 		}
 	}
 
@@ -183,7 +198,7 @@ func (r *pollingRequester) Request() (*PollingResponse, error) {
 		return nil, errors.New("no server-intent event found in polling response")
 	}
 
-	return NewPollingResponse(intentCode, updates, fdv2proto.NoSelector()), nil
+	return NewPollingResponse(intentCode, updates, payloadSelector), nil
 }
 
 func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {

@@ -9,7 +9,6 @@ type SDKConfigParams struct {
 	Credential          string                              `json:"credential"`
 	StartWaitTimeMS     ldtime.UnixMillisecondTime          `json:"startWaitTimeMs,omitempty"`
 	InitCanFail         bool                                `json:"initCanFail,omitempty"`
-	ServiceEndpoints    *SDKConfigServiceEndpointsParams    `json:"serviceEndpoints,omitempty"`
 	Streaming           *SDKConfigStreamingParams           `json:"streaming,omitempty"`
 	Polling             *SDKConfigPollingParams             `json:"polling,omitempty"`
 	Events              *SDKConfigEventParams               `json:"events,omitempty"`
@@ -17,24 +16,54 @@ type SDKConfigParams struct {
 	Tags                *SDKConfigTagsParams                `json:"tags,omitempty"`
 	Hooks               *SDKConfigHooksParams               `json:"hooks,omitempty"`
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
+	DataSystem          *DataSystem                         `json:"dataSystem,omitempty"`
 }
 
-type SDKConfigServiceEndpointsParams struct {
-	Streaming string `json:"streaming,omitempty"`
-	Polling   string `json:"polling,omitempty"`
-	Events    string `json:"events,omitempty"`
+type DataStoreMode int
+
+const (
+	// DataStoreModeRead indicates that the data store is read-only. Data will never be written back to the store by
+	// the SDK.
+	DataStoreModeRead = 0
+	// DataStoreModeReadWrite indicates that the data store is read-write. Data from initializers/synchronizers may be
+	// written to the store as necessary.
+	DataStoreModeReadWrite = 1
+)
+
+type DataSystem struct {
+	Store         *DataStore        `json:"store,omitempty"`
+	StoreMode     DataStoreMode     `json:"storeMode"`
+	Initializers  []DataInitializer `json:"initializers"`
+	Synchronizers *Synchronizers    `json:"synchronizers,omitempty"`
+	PayloadFilter *string           `json:"payloadFilter,omitempty"`
+}
+
+type DataStore struct {
+	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
+}
+
+type DataInitializer struct {
+	Polling *SDKConfigPollingParams `json:"polling,omitempty"`
+}
+
+type Synchronizers struct {
+	Primary   Synchronizer  `json:"primary"`
+	Secondary *Synchronizer `json:"secondary,omitempty"`
+}
+
+type Synchronizer struct {
+	Streaming *SDKConfigStreamingParams `json:"streaming,omitempty"`
+	Polling   *SDKConfigPollingParams   `json:"polling,omitempty"`
 }
 
 type SDKConfigStreamingParams struct {
 	BaseURI             string                      `json:"baseUri,omitempty"`
 	InitialRetryDelayMS *ldtime.UnixMillisecondTime `json:"initialRetryDelayMs,omitempty"`
-	Filter              ldvalue.OptionalString      `json:"filter,omitempty"`
 }
 
 type SDKConfigPollingParams struct {
 	BaseURI        string                      `json:"baseUri,omitempty"`
 	PollIntervalMS *ldtime.UnixMillisecondTime `json:"pollIntervalMs,omitempty"`
-	Filter         ldvalue.OptionalString      `json:"filter,omitempty"`
 }
 
 type SDKConfigEventParams struct {
