@@ -243,11 +243,19 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.offline = config.Offline
 
-	system, err := datasystem.NewFDv1(config.Offline, config.DataStore, config.DataSource, clientContext)
-	if err != nil {
-		return nil, err
+	if config.DataSystem == nil {
+		system, err := datasystem.NewFDv1(config.Offline, config.DataStore, config.DataSource, clientContext)
+		if err != nil {
+			return nil, err
+		}
+		client.dataSystem = system
+	} else {
+		system, err := datasystem.NewFDv2(config.Offline, config.DataSystem, clientContext)
+		if err != nil {
+			return nil, err
+		}
+		client.dataSystem = system
 	}
-	client.dataSystem = system
 
 	bigSegments := config.BigSegments
 	if bigSegments == nil {

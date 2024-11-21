@@ -22,11 +22,11 @@ type Change struct {
 
 type ChangeSet struct {
 	intentCode IntentCode
-	changes  []Change
-	selector Selector
+	changes    []Change
+	selector   Selector
 }
 
-func (c *ChangeSet) IntentCode() IntentCode{
+func (c *ChangeSet) IntentCode() IntentCode {
 	return c.intentCode
 }
 
@@ -50,8 +50,8 @@ func NewChangeSetBuilder() *ChangeSetBuilder {
 func (c *ChangeSetBuilder) NoChanges() *ChangeSet {
 	return &ChangeSet{
 		intentCode: IntentNone,
-		selector: NoSelector(),
-		changes:  nil,
+		selector:   NoSelector(),
+		changes:    nil,
 	}
 }
 
@@ -69,11 +69,16 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 	}
 	changes := &ChangeSet{
 		intentCode: c.intent.Payload.Code,
-		selector: selector,
-		changes:  c.changes,
+		selector:   selector,
+		changes:    c.changes,
 	}
 	c.changes = nil
-	c.intent.Payload.Code =
+	if c.intent.Payload.Code == IntentTransferFull {
+		// TODO(SDK-931): We have an awkward situation where we don't get a new intent after receiving a payload
+		// transferred message, so we need to assume the new intent. But we don't get new Reason/ID/Target, so we don't
+		// have complete information.
+		c.intent.Payload.Code = IntentTransferChanges
+	}
 	return changes, nil
 }
 

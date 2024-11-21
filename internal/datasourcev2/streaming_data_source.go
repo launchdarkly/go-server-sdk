@@ -2,6 +2,7 @@ package datasourcev2
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"sync"
@@ -9,7 +10,9 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
+	"context"
 	es "github.com/launchdarkly/eventsource"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
@@ -80,7 +83,6 @@ type StreamProcessor struct {
 	connectionAttemptLock      sync.Mutex
 	readyOnce                  sync.Once
 	closeOnce                  sync.Once
-	persist                    bool
 }
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
@@ -97,7 +99,6 @@ func NewStreamProcessor(
 		loggers:         context.GetLogging().Loggers,
 		halt:            make(chan struct{}),
 		cfg:             cfg,
-		persist:         true,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -113,13 +114,22 @@ func NewStreamProcessor(
 	return sp
 }
 
+//nolint:revive // DataInitializer method.
+func (sp *StreamProcessor) Name() string {
+	return "StreamingDataSourceV2"
+}
+
+func (sp *StreamProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
+	return nil, errors.New("StreamProcessor does not implement Fetch capability")
+}
+
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) IsInitialized() bool {
 	return sp.isInitialized.Get()
 }
 
-//nolint:revive // no doc comment for standard method
-func (sp *StreamProcessor) Start(closeWhenReady chan<- struct{}) {
+//nolint:revive // DataSynchronizer method.
+func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
 	go sp.subscribe(closeWhenReady)
 }
@@ -258,8 +268,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
-				payload := changeSet.IntentCode().Payload
-				switch payload.Code {
+				code := changeSet.IntentCode()
+				switch code {
 				case fdv2proto.IntentTransferFull:
 					sp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
 					sp.setInitializedAndNotifyClient(true, closeWhenReady)
