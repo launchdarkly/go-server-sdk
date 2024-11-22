@@ -69,8 +69,8 @@ type FDv2 struct {
 	status interfaces.DataSourceStatus
 }
 
-func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
-
+func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
+	clientContext *internal.ClientContextImpl) (*FDv2, error) {
 	store := NewStore(clientContext.GetLogging().Loggers)
 
 	bcasters := &broadcasters{

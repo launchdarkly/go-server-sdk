@@ -81,6 +81,8 @@ type ServerIntent struct {
 	Payload Payload
 }
 
+// UnmarshalJSON unmarshals a ServerIntent from JSON. The intent is required to have at least
+// one payload (at index 0) at this time.
 func (s *ServerIntent) UnmarshalJSON(data []byte) error {
 	// Actual protocol object contains a list of payloads, but currently SDKs only support 1. It is a protocol
 	// error for this list to be empty.

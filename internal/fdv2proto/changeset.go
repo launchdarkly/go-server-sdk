@@ -5,10 +5,14 @@ import (
 	"errors"
 )
 
+// ChangeType specifies if an object is being upserted or deleted.
 type ChangeType string
 
 const (
-	ChangeTypePut    = ChangeType("put")
+	// ChangeTypePut represents an object being upserted.
+	ChangeTypePut = ChangeType("put")
+
+	// ChangeTypeDelete represents an object being deleted.
 	ChangeTypeDelete = ChangeType("delete")
 )
 
