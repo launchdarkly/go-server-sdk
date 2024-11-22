@@ -16,6 +16,8 @@ type DataSystemConfigurationBuilder struct {
 	config               ss.DataSystemConfiguration
 }
 
+// DataSystemModes provides access to high level strategies for fetching data. The default mode
+// is suitable for most use-cases.
 type DataSystemModes struct{}
 
 // Default is LaunchDarkly's recommended flag data acquisition strategy. Currently, it operates a

@@ -69,8 +69,8 @@ type FDv2 struct {
 	status interfaces.DataSourceStatus
 }
 
-func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration], clientContext *internal.ClientContextImpl) (*FDv2, error) {
-
+func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
+	clientContext *internal.ClientContextImpl) (*FDv2, error) {
 	store := NewStore(clientContext.GetLogging().Loggers)
 
 	bcasters := &broadcasters{
@@ -180,7 +180,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) *fdv2proto.Selector {
+func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) fdv2proto.Selector {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, err := initializer.Fetch(ctx)
@@ -201,7 +201,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 	return fdv2proto.NoSelector()
 }
 
-func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector *fdv2proto.Selector) {
+func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector fdv2proto.Selector) {
 	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded), we should
 	// trigger the ready signal to let the call to MakeClient unblock immediately.
 	if f.primarySync == nil {
@@ -249,7 +249,7 @@ func (f *FDv2) Store() subsystems.ReadOnlyStore {
 }
 
 func (f *FDv2) DataAvailability() DataAvailability {
-	if f.store.Selector().IsSet() {
+	if f.store.Selector().IsDefined() {
 		return Refreshed
 	}
 	if f.store.IsInitialized() {

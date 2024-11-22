@@ -19,7 +19,7 @@ type DataDestination interface {
 	//
 	// If persist is true, it indicates that the data should be propagated to any connected persistent
 	// store.
-	SetBasis(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool)
+	SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector, persist bool)
 
 	// ApplyDelta applies a set of changes to an existing basis. This operation should be atomic with
 	// respect to any other operations that modify the store.
@@ -28,5 +28,5 @@ type DataDestination interface {
 	//
 	// If persist is true, it indicates that the changes should be propagated to any connected persistent
 	// store.
-	ApplyDelta(events []fdv2proto.Event, selector *fdv2proto.Selector, persist bool)
+	ApplyDelta(events []fdv2proto.Change, selector fdv2proto.Selector, persist bool)
 }

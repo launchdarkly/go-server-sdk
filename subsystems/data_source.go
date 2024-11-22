@@ -28,9 +28,9 @@ type DataSource interface {
 // via Fetch, whereas Synchronizers provide it asynchronously via the injected DataDestination.
 type Basis struct {
 	// Events is a series of events representing actions applied to data items.
-	Events []fdv2proto.Event
+	Events []fdv2proto.Change
 	// Selector identifies this basis.
-	Selector *fdv2proto.Selector
+	Selector fdv2proto.Selector
 	// Persist is true if the data source requests that the data store persist the items to any connected
 	// Persistent Stores.
 	Persist bool
@@ -50,7 +50,7 @@ type DataSynchronizer interface {
 	DataInitializer
 	// Sync tells the data synchronizer to begin synchronizing data, starting from an optional fdv2proto.Selector.
 	// The selector may be nil indicating that a full Basis should be fetched.
-	Sync(closeWhenReady chan<- struct{}, selector *fdv2proto.Selector)
+	Sync(closeWhenReady chan<- struct{}, selector fdv2proto.Selector)
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
 	// Once this is true, it should remain true even if a problem occurs later.

@@ -7,11 +7,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
-type fakeVersionedKind struct {
-	Key     string `json:"key"`
-	Version int    `json:"version"`
-}
-
 // ServerSDKData is a convenience type for constructing a test server-side SDK data payload for
 // PollingServiceHandler or StreamingServiceHandler. Its String() method returns a JSON object with
 // the expected "flags" and "segments" properties.
@@ -59,15 +54,23 @@ func (s *ServerSDKData) Segments(segments ...ldmodel.Segment) *ServerSDKData {
 	return s
 }
 
+func mustMarshal(model any) json.RawMessage {
+	data, err := json.Marshal(model)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
 // ToPutObjects converts the data to a list of PutObject objects that can be fed to a mock streaming data source.
 func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
-	var objs []fdv2proto.PutObject
+	objs := make([]fdv2proto.PutObject, 0, len(s.FlagsMap)+len(s.SegmentsMap))
 	for _, flag := range s.FlagsMap {
 		base := fdv2proto.PutObject{
 			Version: flag.Version,
 			Kind:    fdv2proto.FlagKind,
 			Key:     flag.Key,
-			Object:  flag,
+			Object:  mustMarshal(flag),
 		}
 		objs = append(objs, base)
 	}
@@ -76,7 +79,7 @@ func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 			Version: segment.Version,
 			Kind:    fdv2proto.SegmentKind,
 			Key:     segment.Key,
-			Object:  segment,
+			Object:  mustMarshal(segment),
 		}
 		objs = append(objs, base)
 	}

@@ -22,7 +22,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request() (*PollingResponse, error)
+	Request() (*fdv2proto.ChangeSet, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -86,11 +86,11 @@ func (pp *PollingProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.Basis{Events: basis.Events(), Selector: basis.Selector(), Persist: true}, nil
+	return &subsystems.Basis{Events: basis.Changes(), Selector: basis.Selector(), Persist: true}, nil
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ *fdv2proto.Selector) {
+func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)
@@ -159,21 +159,22 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ *fdv2proto.Se
 }
 
 func (pp *PollingProcessor) poll() error {
-	response, err := pp.requester.Request()
+	changeSet, err := pp.requester.Request()
 
 	if err != nil {
 		return err
 	}
 
-	if response.Cached() {
-		return nil
-	}
-
-	switch response.Intent() {
+	code := changeSet.IntentCode()
+	switch code {
 	case fdv2proto.IntentTransferFull:
-		pp.dataDestination.SetBasis(response.Events(), response.Selector(), true)
+		pp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
 	case fdv2proto.IntentTransferChanges:
-		pp.dataDestination.ApplyDelta(response.Events(), response.Selector(), true)
+		pp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
+	case fdv2proto.IntentNone:
+		{
+			// no-op, we are already up-to-date.
+		}
 	}
 
 	return nil
