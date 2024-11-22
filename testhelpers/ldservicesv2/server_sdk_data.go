@@ -7,11 +7,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
-type fakeVersionedKind struct {
-	Key     string `json:"key"`
-	Version int    `json:"version"`
-}
-
 // ServerSDKData is a convenience type for constructing a test server-side SDK data payload for
 // PollingServiceHandler or StreamingServiceHandler. Its String() method returns a JSON object with
 // the expected "flags" and "segments" properties.

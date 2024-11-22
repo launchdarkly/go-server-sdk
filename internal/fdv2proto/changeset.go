@@ -12,6 +12,7 @@ const (
 	ChangeTypeDelete = ChangeType("delete")
 )
 
+// Change represents a change to a piece of data, such as an update or deletion.
 type Change struct {
 	Action  ChangeType
 	Kind    ObjectKind
@@ -20,33 +21,42 @@ type Change struct {
 	Object  json.RawMessage
 }
 
+// ChangeSet represents a list of changes to be applied.
 type ChangeSet struct {
 	intentCode IntentCode
 	changes    []Change
 	selector   Selector
 }
 
+// IntentCode represents the intent of the changeset.
 func (c *ChangeSet) IntentCode() IntentCode {
 	return c.intentCode
 }
 
+// Changes returns the individual changes that should be applied according
+// to the intent.
 func (c *ChangeSet) Changes() []Change {
 	return c.changes
 }
 
+// Selector identifies the version of the changes.
 func (c *ChangeSet) Selector() Selector {
 	return c.selector
 }
 
+// ChangeSetBuilder is a helper for constructing a ChangeSet.
 type ChangeSetBuilder struct {
 	intent  *ServerIntent
 	changes []Change
 }
 
+// NewChangeSetBuilder creates a new ChangeSetBuilder, which is empty by default.
 func NewChangeSetBuilder() *ChangeSetBuilder {
 	return &ChangeSetBuilder{}
 }
 
+// NoChanges represents an intent that the current data is up-to-date and doesn't
+// require changes.
 func (c *ChangeSetBuilder) NoChanges() *ChangeSet {
 	return &ChangeSet{
 		intentCode: IntentNone,
@@ -55,6 +65,7 @@ func (c *ChangeSetBuilder) NoChanges() *ChangeSet {
 	}
 }
 
+// Start begins a new change set with a given intent.
 func (c *ChangeSetBuilder) Start(intent ServerIntent) error {
 	c.intent = &intent
 	c.changes = nil
@@ -82,6 +93,7 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 	return changes, nil
 }
 
+// AddPut adds a new object to the changeset.
 func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, object json.RawMessage) {
 	c.changes = append(c.changes, Change{
 		Action:  ChangeTypePut,
@@ -92,6 +104,7 @@ func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, obje
 	})
 }
 
+// AddDelete adds a deletion to the changeset.
 func (c *ChangeSetBuilder) AddDelete(kind ObjectKind, key string, version int) {
 	c.changes = append(c.changes, Change{
 		Action:  ChangeTypeDelete,

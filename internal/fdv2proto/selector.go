@@ -16,10 +16,12 @@ func NoSelector() Selector {
 	return Selector{}
 }
 
+// IsDefined returns true if the Selector has a value.
 func (s Selector) IsDefined() bool {
 	return s != NoSelector()
 }
 
+// Name returns the name of the event.
 func (s Selector) Name() EventName {
 	return EventPayloadTransferred
 }

@@ -27,11 +27,6 @@ import (
 )
 
 const (
-	keyField     = "key"
-	kindField    = "kind"
-	versionField = "version"
-	objectField  = "object"
-
 	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
 	streamMaxRetryDelay      = 30 * time.Second
 	streamRetryResetInterval = 60 * time.Second
@@ -169,7 +164,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 			shouldRestart := false
 
 			gotMalformedEvent := func(event es.Event, err error) {
-
 				// The protocol should "forget" anything that happens upon receiving an error.
 				changeSetBuilder = fdv2proto.NewChangeSetBuilder()
 
