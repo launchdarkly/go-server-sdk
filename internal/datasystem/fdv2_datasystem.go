@@ -193,10 +193,13 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
 		f.store.SetBasis(basis.Events, basis.Selector, basis.Persist)
-		f.readyOnce.Do(func() {
-			close(closeWhenReady)
-		})
-		return basis.Selector
+
+		if basis.Selector.IsSet() && basis.Selector.State() != "" {
+			f.readyOnce.Do(func() {
+				close(closeWhenReady)
+			})
+			return basis.Selector
+		}
 	}
 	return fdv2proto.NoSelector()
 }
