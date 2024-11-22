@@ -99,6 +99,8 @@ func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (su
 		context.GetDataSourceStatusReporter(), cfg), nil
 }
 
+// AsInitializer converts the builder into a component configurer for a data initializer. The purpose
+// is to allow the PollingDataSourceBuilderV2, which is normally a synchronizer, to be used as an initializer.
 func (b *PollingDataSourceBuilderV2) AsInitializer() subsystems.ComponentConfigurer[subsystems.DataInitializer] {
 	return subsystems.AsInitializer(b)
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 
+// StatusMonitorable means a data store is capable of having its status monitored over time.
 type StatusMonitorable interface {
 	// IsStatusMonitoringEnabled returns true if this data store implementation supports status
 	// monitoring.

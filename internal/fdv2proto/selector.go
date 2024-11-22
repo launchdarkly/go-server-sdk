@@ -21,7 +21,7 @@ func (s Selector) IsDefined() bool {
 	return s != NoSelector()
 }
 
-// Name returns the name of the event.
+//nolint:revive // Event method.
 func (s Selector) Name() EventName {
 	return EventPayloadTransferred
 }

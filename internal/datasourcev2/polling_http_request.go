@@ -10,10 +10,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/gregjones/httpcache"
+	"golang.org/x/exp/maps"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-	"golang.org/x/exp/maps"
 )
 
 // pollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.

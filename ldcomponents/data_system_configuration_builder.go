@@ -7,6 +7,7 @@ import (
 	ss "github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
+// DataSystemConfigurationBuilder is a builder for configuring the SDK's data acquisition strategy.
 type DataSystemConfigurationBuilder struct {
 	storeBuilder         ss.ComponentConfigurer[ss.DataStore]
 	storeMode            ss.DataStoreMode
@@ -69,6 +70,8 @@ func DataSystem() *DataSystemModes {
 	return &DataSystemModes{}
 }
 
+// DataStore configures the SDK with an optional data store. The store allows the SDK to serve flag
+// values before becoming connected to LaunchDarkly.
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore],
 	storeMode ss.DataStoreMode) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
@@ -76,12 +79,18 @@ func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[
 	return d
 }
 
+// Initializers configures the SDK with one or more DataInitializers, which are responsible for fetching
+// complete payloads of flag data. The SDK will run the initializers in the order they are specified,
+// stopping when one successfully returns data.
 func (d *DataSystemConfigurationBuilder) Initializers(
 	initializers ...ss.ComponentConfigurer[ss.DataInitializer]) *DataSystemConfigurationBuilder {
 	d.initializerBuilders = initializers
 	return d
 }
 
+// Synchronizers configures the SDK with a primary and secondary synchronizer. The primary is responsible
+// for keeping the SDK's data up-to-date, and the SDK will fall back to the secondary in case of a
+// primary outage.
 func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
 	secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.primarySyncBuilder = primary
@@ -89,6 +98,7 @@ func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
 	return d
 }
 
+// Build creates a DataSystemConfiguration from the configuration provided to the builder.
 func (d *DataSystemConfigurationBuilder) Build(
 	context ss.ClientContext,
 ) (ss.DataSystemConfiguration, error) {

@@ -115,6 +115,7 @@ func (sp *StreamProcessor) Name() string {
 	return "StreamingDataSourceV2"
 }
 
+//nolint:revive // DataInitializer method.
 func (sp *StreamProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
 	return nil, errors.New("StreamProcessor does not implement Fetch capability")
 }

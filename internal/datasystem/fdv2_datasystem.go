@@ -24,6 +24,9 @@ type broadcasters struct {
 	flagChangeEvent  *internal.Broadcaster[interfaces.FlagChangeEvent]
 }
 
+// FDv2 is an implementation of the DataSystem interface that uses the Flag Delivery V2 protocol for
+// obtaining and keeping data up-to-date. Additionally, it operates with an optional persistent store
+// in read-only or read/write mode.
 type FDv2 struct {
 	// Operates the in-memory and optional persistent store that backs data queries.
 	store *Store
@@ -69,6 +72,8 @@ type FDv2 struct {
 	status interfaces.DataSourceStatus
 }
 
+// NewFDv2 creates a new instance of the FDv2 data system. The first argument indicates if the system is enabled or
+// disabled.
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
 	clientContext *internal.ClientContextImpl) (*FDv2, error) {
 	store := NewStore(clientContext.GetLogging().Loggers)
@@ -86,7 +91,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		dataSourceStatusProvider: &dataStatusProvider{},
 	}
 
-	// Yay circular reference.
+	// Unfortunate circular reference.
 	fdv2.dataSourceStatusProvider.system = fdv2
 
 	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
@@ -124,6 +129,8 @@ func (n noStatusMonitoring) IsStatusMonitoringEnabled() bool {
 	return false
 }
 
+// Start starts the FDv2 data system. If not disabled, it will begin initializing via the configured
+// initializers, and then start the primary synchronizer.
 func (f *FDv2) Start(closeWhenReady chan struct{}) {
 	if f.disabled {
 		f.loggers.Infof("Data system is disabled, SDK will return application-defined default values")
@@ -229,6 +236,8 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	}
 }
 
+// Stop shuts down the data system. It will close any active synchronizers. If initialization is in progress,
+// it will cancel the process gracefully.
 func (f *FDv2) Stop() error {
 	if f.cancel != nil {
 		f.cancel()
@@ -244,10 +253,12 @@ func (f *FDv2) Stop() error {
 	return nil
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) Store() subsystems.ReadOnlyStore {
 	return f.store
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) DataAvailability() DataAvailability {
 	if f.store.Selector().IsDefined() {
 		return Refreshed
@@ -258,30 +269,37 @@ func (f *FDv2) DataAvailability() DataAvailability {
 	return Defaults
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
 	return f.broadcasters.dataSourceStatus
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 	return f.dataSourceStatusProvider
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
 	return f.broadcasters.dataStoreStatus
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) DataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return f.dataStoreStatusProvider
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent] {
 	return f.broadcasters.flagChangeEvent
 }
 
+//nolint:revive // DataSystem method.
 func (f *FDv2) Offline() bool {
 	return f.disabled
 }
 
+//nolint:revive // DataSourceStatusReporter method.
 func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
 	f.status = interfaces.DataSourceStatus{
 		State:      status,

@@ -89,6 +89,7 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 	}
 	c.changes = nil
 	if c.intent.Payload.Code == IntentTransferFull {
+		//nolint:godox
 		// TODO(SDK-931): We have an awkward situation where we don't get a new intent after receiving a payload
 		// transferred message, so we need to assume the new intent. But we don't get new Reason/ID/Target, so we don't
 		// have complete information.

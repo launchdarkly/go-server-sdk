@@ -112,10 +112,6 @@ type DeleteObject struct {
 	Key     string     `json:"key"`
 }
 
-func (d DeleteObject) Delta() json.RawMessage {
-	return nil
-}
-
 //nolint:revive // Event method.
 func (d DeleteObject) Name() EventName {
 	return EventDeleteObject
