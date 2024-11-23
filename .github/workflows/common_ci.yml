@@ -63,7 +63,6 @@ jobs:
           enable_persistence_tests: 'true'
           test_service_port: ${{ env.TEST_SERVICE_PORT }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'mk/sdk-898/polling-initializer'
       - name: Upload test service logs
         uses: actions/upload-artifact@v4
         with:
