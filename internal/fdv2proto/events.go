@@ -100,6 +100,14 @@ func (s *ServerIntent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (s ServerIntent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Payloads []Payload `json:"payloads"`
+	}{
+		Payloads: []Payload{s.Payload},
+	})
+}
+
 //nolint:revive // Event method.
 func (ServerIntent) Name() EventName {
 	return EventServerIntent

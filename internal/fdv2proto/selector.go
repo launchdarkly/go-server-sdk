@@ -60,3 +60,10 @@ func (s *Selector) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
+
+func (s Selector) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		"state":   s.state,
+		"version": s.version,
+	})
+}

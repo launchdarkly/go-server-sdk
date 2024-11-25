@@ -23,45 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFDV2DefaultDataSourceIsStreaming(t *testing.T) {
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
-
-	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
-		}}).
-		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
-
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
-
-	protocol.Enqueue(streamSender)
-
-	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
-		logCapture := ldlogtest.NewMockLog()
-		defer logCapture.DumpIfTestFailed(t)
-
-		config := Config{
-			Events:           ldcomponents.NoEvents(),
-			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
-			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Default(),
-		}
-
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-		require.NoError(t, err)
-		defer client.Close()
-
-		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
-
-		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
-		assert.True(t, value)
-
-		assert.True(t, client.Initialized())
-	})
-}
-
-func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
+func TestFDV2StreamingSynchronizer(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
@@ -79,11 +41,13 @@ func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 		defer logCapture.DumpIfTestFailed(t)
 
+		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(streamServer.URL)
+
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Streaming(),
+			DataSystem:       ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -104,7 +68,7 @@ func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
 	})
 }
 
-func TestFDV2ClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.T) {
+func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
@@ -122,11 +86,13 @@ func TestFDV2ClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
+		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(streamServer.URL)
+
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Streaming(),
+			DataSystem:       ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -150,16 +116,17 @@ func TestFDV2ClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.
 	})
 }
 
-func TestFDV2ClientFailsToStartInPollingModeWith401Error(t *testing.T) {
+func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(pollServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
+		polling := ldcomponents.PollingDataSourceV2().BaseURI(pollServer.URL)
+
 		config := Config{
-			DataSystem:       ldcomponents.DataSystem().Polling(),
-			Events:           ldcomponents.NoEvents(),
-			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
-			ServiceEndpoints: interfaces.ServiceEndpoints{Polling: pollServer.URL},
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(polling, nil),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -184,7 +151,7 @@ func TestFDV2ClientFailsToStartInPollingModeWith401Error(t *testing.T) {
 	})
 }
 
-func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
+func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
@@ -198,12 +165,14 @@ func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
 	protocol.Enqueue(streamSender)
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
+
+		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(server.URL)
+
 		config := Config{
-			Events:           ldcomponents.NoEvents(),
-			HTTP:             ldcomponents.HTTPConfiguration().CACert(certData),
-			Logging:          ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
-			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: server.URL},
-			DataSystem:       ldcomponents.DataSystem().Streaming(),
+			Events:     ldcomponents.NoEvents(),
+			HTTP:       ldcomponents.HTTPConfiguration().CACert(certData),
+			Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*50000)
@@ -215,7 +184,7 @@ func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
 	})
 }
 
-func TestFDV2ClientStartupTimesOut(t *testing.T) {
+func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
@@ -236,11 +205,13 @@ func TestFDV2ClientStartupTimesOut(t *testing.T) {
 	httphelpers.WithServer(slowHandler, func(streamServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
+		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(streamServer.URL)
+
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Streaming(),
+			DataSystem:       ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Millisecond*100)
