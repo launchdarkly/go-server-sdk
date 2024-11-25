@@ -27,8 +27,8 @@ func TestFDV2DefaultDataSourceIsStreaming(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
-			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
+		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
@@ -65,8 +65,8 @@ func TestFDV2ClientStartsInStreamingMode(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
-			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
+		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
@@ -108,8 +108,8 @@ func TestFDV2ClientRetriesConnectionInStreamingModeWithNonFatalError(t *testing.
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
-			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
+		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
@@ -188,8 +188,8 @@ func TestFDV2ClientUsesCustomTLSConfiguration(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
-			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
+		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
@@ -219,8 +219,8 @@ func TestFDV2ClientStartupTimesOut(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payloads: []fdv2proto.Payload{
-			{ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing"},
+		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
