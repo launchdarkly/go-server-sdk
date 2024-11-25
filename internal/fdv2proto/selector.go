@@ -61,6 +61,7 @@ func (s *Selector) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON marshals a Selector to JSON.
 func (s Selector) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		"state":   s.state,

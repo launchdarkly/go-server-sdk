@@ -33,8 +33,12 @@ func (d *DataSystemModes) Default() *DataSystemConfigurationBuilder {
 
 // Streaming configures the SDK to efficiently streams flag/segment data in the background,
 // allowing evaluations to operate on the latest data with no additional latency.
-func (d *DataSystemModes) Streaming() *DataSystemConfigurationBuilder {
-	return d.Custom().Synchronizers(StreamingDataSourceV2(), nil)
+func (d *DataSystemModes) Streaming(configure func(s *StreamingDataSourceBuilderV2)) *DataSystemConfigurationBuilder {
+	streaming := StreamingDataSourceV2()
+	if configure != nil {
+		configure(streaming)
+	}
+	return d.Custom().Synchronizers(streaming, nil)
 }
 
 // Polling configures the SDK to regularly poll an endpoint for flag/segment data in the background.

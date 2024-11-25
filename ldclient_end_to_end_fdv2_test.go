@@ -205,13 +205,13 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 	httphelpers.WithServer(slowHandler, func(streamServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
-		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(streamServer.URL)
-
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
+			DataSystem: ldcomponents.DataSystem().Streaming(func(s *ldcomponents.StreamingDataSourceBuilderV2) {
+				s.BaseURI(streamServer.URL)
+			}),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Millisecond*100)

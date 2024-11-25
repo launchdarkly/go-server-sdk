@@ -100,6 +100,8 @@ func (s *ServerIntent) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON marshals a ServerIntent to JSON. The intent object has only one payload but the
+// protocol allows for >= 1, so this creates an array.
 func (s ServerIntent) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Payloads []Payload `json:"payloads"`
