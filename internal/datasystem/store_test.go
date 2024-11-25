@@ -14,13 +14,15 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/stretchr/testify/require"
+
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestStore_New(t *testing.T) {

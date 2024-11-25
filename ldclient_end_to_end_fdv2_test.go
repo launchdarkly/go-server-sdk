@@ -41,13 +41,13 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 		defer logCapture.DumpIfTestFailed(t)
 
-		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(streamServer.URL)
-
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
+			DataSystem: ldcomponents.DataSystem().WithEndpoints(
+				ldcomponents.Endpoints{Streaming: streamServer.URL},
+			).Streaming(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -86,13 +86,12 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
-		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(streamServer.URL)
-
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem:       ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
+			DataSystem: ldcomponents.DataSystem().WithEndpoints(
+				ldcomponents.Endpoints{Streaming: streamServer.URL}).Streaming(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
@@ -124,8 +123,9 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 		polling := ldcomponents.PollingDataSourceV2().BaseURI(pollServer.URL)
 
 		config := Config{
-			Events:     ldcomponents.NoEvents(),
-			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			// Can we do WithEndpoints.Polling()?
 			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(polling, nil),
 		}
 
@@ -166,13 +166,12 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 
-		streaming := ldcomponents.StreamingDataSourceV2().BaseURI(server.URL)
-
 		config := Config{
-			Events:     ldcomponents.NoEvents(),
-			HTTP:       ldcomponents.HTTPConfiguration().CACert(certData),
-			Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
-			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(streaming, nil),
+			Events:  ldcomponents.NoEvents(),
+			HTTP:    ldcomponents.HTTPConfiguration().CACert(certData),
+			Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+			DataSystem: ldcomponents.DataSystem().WithEndpoints(
+				ldcomponents.Endpoints{Streaming: server.URL}).Streaming(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*50000)
@@ -209,9 +208,8 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
-			DataSystem: ldcomponents.DataSystem().Streaming(func(s *ldcomponents.StreamingDataSourceBuilderV2) {
-				s.BaseURI(streamServer.URL)
-			}),
+			DataSystem: ldcomponents.DataSystem().WithEndpoints(
+				ldcomponents.Endpoints{Streaming: streamServer.URL}).Streaming(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Millisecond*100)

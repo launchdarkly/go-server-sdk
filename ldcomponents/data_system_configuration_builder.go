@@ -17,9 +17,25 @@ type DataSystemConfigurationBuilder struct {
 	config               ss.DataSystemConfiguration
 }
 
+// Endpoints represents custom endpoints for LaunchDarkly streaming and polling services.
+//
+// You may specify none, one, or both of these endpoints via WithEndpoints. If an endpoint isn't specified,
+// then the default endpoint for that service will be used.
+//
+// This is a convenience that is identical to individually configuring polling or streaming synchronizer
+// BaseURI's using their specific builder functions.
+//
+// To specify Relay Proxy endpoints, use WithRelayProxyEndpoints.
+type Endpoints struct {
+	Streaming string
+	Polling   string
+}
+
 // DataSystemModes provides access to high level strategies for fetching data. The default mode
 // is suitable for most use-cases.
-type DataSystemModes struct{}
+type DataSystemModes struct {
+	endpoints Endpoints
+}
 
 // Default is LaunchDarkly's recommended flag data acquisition strategy. Currently, it operates a
 // two-phase method for obtaining data: first, it requests data from LaunchDarkly's global CDN. Then, it initiates
@@ -27,16 +43,23 @@ type DataSystemModes struct{}
 // the streaming connection is interrupted for an extended period of time, the SDK will automatically fall back
 // to polling the global CDN for updates.
 func (d *DataSystemModes) Default() *DataSystemConfigurationBuilder {
-	return d.Custom().
-		Initializers(PollingDataSourceV2().AsInitializer()).Synchronizers(StreamingDataSourceV2(), PollingDataSourceV2())
+	streaming := StreamingDataSourceV2()
+	if d.endpoints.Streaming != "" {
+		streaming.BaseURI(d.endpoints.Streaming)
+	}
+	polling := PollingDataSourceV2()
+	if d.endpoints.Polling != "" {
+		polling.BaseURI(d.endpoints.Polling)
+	}
+	return d.Custom().Initializers(polling.AsInitializer()).Synchronizers(streaming, polling)
 }
 
 // Streaming configures the SDK to efficiently streams flag/segment data in the background,
 // allowing evaluations to operate on the latest data with no additional latency.
-func (d *DataSystemModes) Streaming(configure func(s *StreamingDataSourceBuilderV2)) *DataSystemConfigurationBuilder {
+func (d *DataSystemModes) Streaming() *DataSystemConfigurationBuilder {
 	streaming := StreamingDataSourceV2()
-	if configure != nil {
-		configure(streaming)
+	if d.endpoints.Streaming != "" {
+		streaming.BaseURI(d.endpoints.Streaming)
 	}
 	return d.Custom().Synchronizers(streaming, nil)
 }
@@ -44,7 +67,11 @@ func (d *DataSystemModes) Streaming(configure func(s *StreamingDataSourceBuilder
 // Polling configures the SDK to regularly poll an endpoint for flag/segment data in the background.
 // This is less efficient than streaming, but may be necessary in some network environments.
 func (d *DataSystemModes) Polling() *DataSystemConfigurationBuilder {
-	return d.Custom().Synchronizers(PollingDataSourceV2(), nil)
+	polling := PollingDataSourceV2()
+	if d.endpoints.Polling != "" {
+		polling.BaseURI(d.endpoints.Polling)
+	}
+	return d.Custom().Synchronizers(polling, nil)
 }
 
 // Daemon configures the SDK to read from a persistent store integration that is populated by Relay Proxy
@@ -66,6 +93,20 @@ func (d *DataSystemModes) PersistentStore(store ss.ComponentConfigurer[ss.DataSt
 // up-to-date.
 func (d *DataSystemModes) Custom() *DataSystemConfigurationBuilder {
 	return &DataSystemConfigurationBuilder{}
+}
+
+// WithEndpoints configures the data system with custom endpoints for LaunchDarkly's streaming
+// and polling synchronizers. This method is not necessary for most use-cases, but can be useful for
+// testing or custom network configurations.
+func (d *DataSystemModes) WithEndpoints(endpoints Endpoints) *DataSystemModes {
+	d.endpoints = endpoints
+	return d
+}
+
+// WithRelayProxyEndpoints configures the data system with a single endpoint for LaunchDarkly's streaming
+// and polling synchronizers. The endpoint should be Relay Proxy's base URI, for example http://localhost:8123.
+func (d *DataSystemModes) WithRelayProxyEndpoints(baseURI string) *DataSystemModes {
+	return d.WithEndpoints(Endpoints{Streaming: baseURI, Polling: baseURI})
 }
 
 // DataSystem provides a high-level selection of the SDK's data acquisition strategy. Use the returned builder to
