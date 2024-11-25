@@ -98,8 +98,16 @@ func (d *DataSystemModes) Custom() *DataSystemConfigurationBuilder {
 // WithEndpoints configures the data system with custom endpoints for LaunchDarkly's streaming
 // and polling synchronizers. This method is not necessary for most use-cases, but can be useful for
 // testing or custom network configurations.
+//
+// Any endpoint that is not specified (empty string) will be treated as the default LaunchDarkly SaaS endpoint
+// for that service.
 func (d *DataSystemModes) WithEndpoints(endpoints Endpoints) *DataSystemModes {
-	d.endpoints = endpoints
+	if endpoints.Streaming != "" {
+		d.endpoints.Streaming = endpoints.Streaming
+	}
+	if endpoints.Polling != "" {
+		d.endpoints.Polling = endpoints.Polling
+	}
 	return d
 }
 
@@ -112,7 +120,10 @@ func (d *DataSystemModes) WithRelayProxyEndpoints(baseURI string) *DataSystemMod
 // DataSystem provides a high-level selection of the SDK's data acquisition strategy. Use the returned builder to
 // select a mode, or to create a custom data acquisition strategy. To use LaunchDarkly's recommended mode, use Default.
 func DataSystem() *DataSystemModes {
-	return &DataSystemModes{}
+	return &DataSystemModes{endpoints: Endpoints{
+		Streaming: DefaultStreamingBaseURI,
+		Polling:   DefaultPollingBaseURI,
+	}}
 }
 
 // DataStore configures the SDK with an optional data store. The store allows the SDK to serve flag

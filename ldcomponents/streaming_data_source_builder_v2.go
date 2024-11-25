@@ -7,7 +7,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -37,6 +36,7 @@ type StreamingDataSourceBuilderV2 struct {
 func StreamingDataSourceV2() *StreamingDataSourceBuilderV2 {
 	return &StreamingDataSourceBuilderV2{
 		initialReconnectDelay: DefaultInitialReconnectDelay,
+		baseURI:               DefaultStreamingBaseURI,
 	}
 }
 
@@ -101,7 +101,7 @@ func (b *StreamingDataSourceBuilderV2) DescribeConfiguration(context subsystems.
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", false).
 		SetBool("customStreamURI",
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.StreamingService)).
+			b.baseURI != DefaultStreamingBaseURI).
 		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		SetBool("usingRelayDaemon", false).
 		Build()

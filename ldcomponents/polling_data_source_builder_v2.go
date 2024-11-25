@@ -7,7 +7,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -39,6 +38,7 @@ type PollingDataSourceBuilderV2 struct {
 func PollingDataSourceV2() *PollingDataSourceBuilderV2 {
 	return &PollingDataSourceBuilderV2{
 		pollInterval: DefaultPollInterval,
+		baseURI:      DefaultPollingBaseURI,
 	}
 }
 
@@ -110,7 +110,7 @@ func (b *PollingDataSourceBuilderV2) DescribeConfiguration(context subsystems.Cl
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", true).
 		SetBool("customBaseURI",
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.PollingService)).
+			b.baseURI != DefaultPollingBaseURI).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		SetBool("usingRelayDaemon", false).
 		Build()

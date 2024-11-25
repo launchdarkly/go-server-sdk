@@ -41,7 +41,7 @@ func TestChangeSetBuilder_Changes(t *testing.T) {
 	assert.Equal(t, Change{Action: ChangeTypePut, Kind: "foo", Key: "bar", Version: 1, Object: []byte("baz")}, changes[0])
 	assert.Equal(t, Change{Action: ChangeTypeDelete, Kind: "foo", Key: "bar", Version: 1}, changes[1])
 
-	assert.Equal(t, IntentTransferChanges, changeSet.IntentCode().Payload.Code)
+	assert.Equal(t, IntentTransferChanges, changeSet.IntentCode())
 	assert.Equal(t, selector, changeSet.Selector())
 
 }
@@ -63,7 +63,7 @@ func TestChangeSetBuilder_NoChanges(t *testing.T) {
 	intent := changeSet.IntentCode()
 	assert.NotNil(t, intent)
 
-	assert.Equal(t, IntentNone, intent.Payload.Code)
+	assert.Equal(t, IntentNone, intent)
 
 	assert.False(t, changeSet.Selector().IsDefined())
 	assert.Equal(t, NoSelector(), changeSet.Selector())
