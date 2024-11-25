@@ -14,7 +14,8 @@
       "exclude-paths": [
         ".github",
         ".vscode",
-        "ldotel"
+        "ldotel",
+        "ldai"
       ]
     },
     "ldotel" : {
