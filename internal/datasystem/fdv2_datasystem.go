@@ -69,6 +69,8 @@ type FDv2 struct {
 
 	dataSourceStatusProvider *dataStatusProvider
 
+	// Protects status.
+	mu     sync.Mutex
 	status interfaces.DataSourceStatus
 }
 
@@ -301,6 +303,8 @@ func (f *FDv2) Offline() bool {
 
 //nolint:revive // DataSourceStatusReporter method.
 func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.status = interfaces.DataSourceStatus{
 		State:      status,
 		LastError:  err,
@@ -308,12 +312,18 @@ func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.Da
 	}
 }
 
+func (f *FDv2) getStatus() interfaces.DataSourceStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.status
+}
+
 type dataStatusProvider struct {
 	system *FDv2
 }
 
 func (d *dataStatusProvider) GetStatus() interfaces.DataSourceStatus {
-	return d.system.status
+	return d.system.getStatus()
 }
 
 func (d *dataStatusProvider) AddStatusListener() <-chan interfaces.DataSourceStatus {
