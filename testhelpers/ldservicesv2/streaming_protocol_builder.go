@@ -37,8 +37,9 @@ func (f *StreamingProtocol) WithPutObject(object fdv2proto.PutObject) *Streaming
 	return f.pushEvent(object)
 }
 
-// WithTransferred adds a PayloadTransferred event to the protocol with a given version. The state is a a placeholder
-// string.
+// WithTransferred adds a PayloadTransferred event to the protocol with a given version. The state is an arbitrary
+// placeholder string; if tests are added that need to verify properties related to the state, this can be
+// updated.
 func (f *StreamingProtocol) WithTransferred(version int) *StreamingProtocol {
 	return f.pushEvent(fdv2proto.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", version))
 }

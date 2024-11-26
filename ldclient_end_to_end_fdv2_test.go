@@ -120,13 +120,11 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 	httphelpers.WithServer(handler, func(pollServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
-		polling := ldcomponents.PollingDataSourceV2().BaseURI(pollServer.URL)
-
 		config := Config{
 			Events:  ldcomponents.NoEvents(),
 			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
-			// Can we do WithEndpoints.Polling()?
-			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(polling, nil),
+			DataSystem: ldcomponents.DataSystem().
+				WithEndpoints(ldcomponents.Endpoints{Polling: pollServer.URL}).Polling(),
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)

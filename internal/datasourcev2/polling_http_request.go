@@ -119,7 +119,7 @@ func (r *pollingRequester) Request() (*fdv2proto.ChangeSet, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("malformed protocol")
+	return nil, fmt.Errorf("didn't receive any known protocol events in polling payload")
 }
 
 func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
