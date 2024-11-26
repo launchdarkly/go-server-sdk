@@ -49,20 +49,23 @@ func (c *Client) Config(
 	variables map[string]interface{},
 ) (Config, *Tracker) {
 	variation, err := c.sdk.JSONVariation(key, context, ldvalue.Null())
+
+	defaultTracker := NewTracker(key, c.sdk, &defaultValue, context, c.logger)
+
 	if err != nil {
 		c.logger.Warnf("Error fetching JSON variation: %s", err.Error())
-		return defaultValue, NewTracker(&defaultValue)
+		return defaultValue, defaultTracker
 	}
 
 	if variation.IsNull() {
 		c.logger.Warnf("JSON variation was null")
-		return defaultValue, NewTracker(&defaultValue)
+		return defaultValue, defaultTracker
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(variation.JSONString()), &parsed); err != nil {
 		c.logger.Warnf("Error unmarshalling JSON variation: %s", err.Error())
-		return defaultValue, NewTracker(&defaultValue)
+		return defaultValue, defaultTracker
 	}
 
 	mergedVariables := map[string]interface{}{
@@ -93,7 +96,7 @@ func (c *Client) Config(
 	}
 
 	cfg := builder.Build()
-	return cfg, NewTracker(&cfg)
+	return cfg, NewTracker(key, c.sdk, &cfg, context, c.logger)
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {

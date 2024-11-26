@@ -23,6 +23,10 @@ type Config struct {
 	c datamodel.Config
 }
 
+func (c *Config) VersionKey() string {
+	return c.c.Meta.VersionKey
+}
+
 func (c *Config) Messages() []Message {
 	var messages []Message
 	for _, m := range c.c.Messages {
