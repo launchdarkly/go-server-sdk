@@ -23,6 +23,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// This tests the sequential two-phase nature of the Flag Delivery V2 protocol. First, a polling initializer
+// attempts to grab a payload, but the mock handler will return a 500. The initializer will fail and
+// the primary synchronizer (streaming mode) will then make a streaming request. This succeeds, returning a payload
+// containing a true flag.
+func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
+
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+
+	// The polling initializer will fail since we return a 500.
+	pollRecordingHandler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(500))
+
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred(1)
+
+	// The streaming synchronizer will receive the FDv2 protocol messages, including the true flag.
+	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	protocol.Enqueue(streamSender)
+
+	streamRecordingHandler, _ := httphelpers.RecordingHandler(streamHandler)
+
+	// Use a sequential handler so that the first request is serviced by the polling handler, and the second
+	// by the streaming.
+	handler := httphelpers.SequentialHandler(pollRecordingHandler, streamRecordingHandler)
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Default(),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
+
+	})
+}
+
 func TestFDV2StreamingSynchronizer(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
