@@ -22,7 +22,7 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
-ALL_BUILD_TARGETS=sdk ldotel
+ALL_BUILD_TARGETS=sdk ldotel ldai
 ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
 ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
@@ -35,6 +35,7 @@ test: $(ALL_TEST_TARGETS)
 bump-min-go-version:
 	go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd ldotel && go mod edit -go=$(MIN_GO_VERSION) go.mod
+	cd ldai && go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd testservice && go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd ./.github/variables && sed -i.bak "s#min=[^ ]*#min=$(MIN_GO_VERSION)#g" go-versions.env && rm go-versions.env.bak
 
@@ -80,6 +81,34 @@ ldotel-lint:
 		echo "Linting ldotel without workspace" \
 		cd ldotel && 	$(LINTER) run .; \
 	fi
+
+ldai:
+	@if [ -f go.work ]; then \
+  		echo "Building ldai with workspace" \
+		go build ./ldai; \
+	else \
+		echo "Building ldai without workspace" \
+		cd ldai && go build .; \
+	fi
+
+ldai-test:
+	@if [ -f go.work ]; then \
+		echo "Testing ldai with workspace" \
+		go test -v -race ./ldai; \
+	else \
+		echo "Testing ldai without workspace" \
+		cd ldai && go test -v -race .; \
+	fi
+
+ldai-lint:
+	@if [ -f go.work ]; then \
+		echo "Linting ldai with workspace" \
+		$(LINTER) run ./ldai; \
+	else \
+		echo "Linting ldai without workspace" \
+		cd ldai && 	$(LINTER) run .; \
+	fi
+
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
@@ -127,6 +156,7 @@ workspace: go.work
 go.work:
 	go work init ./
 	go work use ./ldotel
+	go work use ./ldai
 	go work use ./testservice
 
 workspace-clean:
