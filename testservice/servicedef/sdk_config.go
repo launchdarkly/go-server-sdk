@@ -9,6 +9,7 @@ type SDKConfigParams struct {
 	Credential          string                              `json:"credential"`
 	StartWaitTimeMS     ldtime.UnixMillisecondTime          `json:"startWaitTimeMs,omitempty"`
 	InitCanFail         bool                                `json:"initCanFail,omitempty"`
+	ServiceEndpoints    *SDKConfigServiceEndpointsParams    `json:"serviceEndpoints,omitempty"`
 	Streaming           *SDKConfigStreamingParams           `json:"streaming,omitempty"`
 	Polling             *SDKConfigPollingParams             `json:"polling,omitempty"`
 	Events              *SDKConfigEventParams               `json:"events,omitempty"`
@@ -17,6 +18,12 @@ type SDKConfigParams struct {
 	Hooks               *SDKConfigHooksParams               `json:"hooks,omitempty"`
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	DataSystem          *DataSystem                         `json:"dataSystem,omitempty"`
+}
+
+type SDKConfigServiceEndpointsParams struct {
+	Streaming string `json:"streaming,omitempty"`
+	Polling   string `json:"polling,omitempty"`
+	Events    string `json:"events,omitempty"`
 }
 
 type DataStoreMode int
@@ -59,11 +66,13 @@ type Synchronizer struct {
 type SDKConfigStreamingParams struct {
 	BaseURI             string                      `json:"baseUri,omitempty"`
 	InitialRetryDelayMS *ldtime.UnixMillisecondTime `json:"initialRetryDelayMs,omitempty"`
+	Filter              ldvalue.OptionalString      `json:"filter,omitempty"`
 }
 
 type SDKConfigPollingParams struct {
 	BaseURI        string                      `json:"baseUri,omitempty"`
 	PollIntervalMS *ldtime.UnixMillisecondTime `json:"pollIntervalMs,omitempty"`
+	Filter         ldvalue.OptionalString      `json:"filter,omitempty"`
 }
 
 type SDKConfigEventParams struct {
