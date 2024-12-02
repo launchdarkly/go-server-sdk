@@ -3,6 +3,7 @@ package ldai
 import (
 	"errors"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/ldai/internal/datamodel"
@@ -80,7 +81,8 @@ func TestInvalidConfigReturnsDefault(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client, err := New(newMockSDK(test.json, nil))
+			sdk := newMockSDK(test.json, nil)
+			client, err := New(sdk)
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -88,6 +90,8 @@ func TestInvalidConfigReturnsDefault(t *testing.T) {
 
 			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
 			assert.Equal(t, defaultVal, cfg)
+
+			sdk.log.AssertMessageMatch(t, true, ldlog.Warn, "AI config 'key':")
 		})
 	}
 }
