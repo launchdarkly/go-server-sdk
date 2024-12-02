@@ -42,6 +42,11 @@ func New(sdk ServerSDK) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) logConfigWarning(key string, format string, args ...interface{}) {
+	prefix := "AI config '" + key + "': "
+	c.logger.Warnf(prefix+format, args...)
+}
+
 func (c *Client) Config(
 	key string,
 	context ldcontext.Context,
@@ -51,14 +56,16 @@ func (c *Client) Config(
 
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
+	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
+	// empty object.)
 	if result.Type() != ldvalue.ObjectType {
-		c.logger.Warnf("Error unmarshalling AI config, expected JSON object but got %s", result.Type().String())
+		c.logConfigWarning(key, "unmarshalling failed, expected JSON object but got %s", result.Type().String())
 		return defaultValue, NewTracker(key, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
-		c.logger.Warnf("Error unmarshalling AI config variation: %s", err.Error())
+		c.logConfigWarning(key, "unmarshalling failed: %v", err)
 		return defaultValue, NewTracker(key, c.sdk, &defaultValue, context, c.logger)
 	}
 
@@ -68,7 +75,7 @@ func (c *Client) Config(
 
 	for k, v := range variables {
 		if k == ldContextVariable {
-			c.logger.Warnf("AI config variables contains 'ldctx' key, which is reserved")
+			c.logConfigWarning(key, "config variables contains 'ldctx', which is reserved and cannot be overwritten")
 			continue
 		}
 		mergedVariables[k] = v
@@ -82,8 +89,8 @@ func (c *Client) Config(
 	for i, msg := range parsed.Messages {
 		content, err := interpolateTemplate(msg.Content, mergedVariables)
 		if err != nil {
-			c.logger.Errorf(
-				"AI config: malformed message at index %d: %s", i, err.Error(),
+			c.logConfigWarning(key,
+				"malformed message at index %d: %v", i, err,
 			)
 			return defaultValue, &Tracker{}
 		}
