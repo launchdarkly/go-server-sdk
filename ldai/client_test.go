@@ -45,18 +45,18 @@ func (m *mockServerSDK) TrackMetric(eventName string, context ldcontext.Context,
 }
 
 func TestNewClientReturnsErrorWhenSDKIsNil(t *testing.T) {
-	_, err := New(nil)
+	_, err := NewClient(nil)
 	require.Error(t, err)
 }
 
 func TestNewClient(t *testing.T) {
-	client, err := New(newMockSDK(nil, nil))
+	client, err := NewClient(newMockSDK(nil, nil))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 }
 
 func TestEvalErrorReturnsDefault(t *testing.T) {
-	client, err := New(newMockSDK(nil, errors.New("client is offline")))
+	client, err := NewClient(newMockSDK(nil, errors.New("client is offline")))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
@@ -82,7 +82,7 @@ func TestInvalidConfigReturnsDefault(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			sdk := newMockSDK(test.json, nil)
-			client, err := New(sdk)
+			client, err := NewClient(sdk)
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -111,7 +111,7 @@ func TestDisabledConfigs(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client, err := New(newMockSDK(test.json, nil))
+			client, err := NewClient(newMockSDK(test.json, nil))
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
@@ -125,7 +125,7 @@ func TestDisabledConfigs(t *testing.T) {
 }
 
 func TestCanSetDefaultConfigFields(t *testing.T) {
-	client, err := New(newMockSDK(nil, nil))
+	client, err := NewClient(newMockSDK(nil, nil))
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
@@ -159,7 +159,7 @@ func eval(t *testing.T, prompt string, ctx ldcontext.Context, variables map[stri
 					]
 				}`)
 
-	client, err := New(newMockSDK(json, nil))
+	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
 	cfg, _ := client.Config("key", ctx, Disabled(), variables)
 	if len(cfg.Messages()) == 0 {

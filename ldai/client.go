@@ -32,7 +32,7 @@ type Client struct {
 
 const ldContextVariable = "ldctx"
 
-func New(sdk ServerSDK) (*Client, error) {
+func NewClient(sdk ServerSDK) (*Client, error) {
 	if sdk == nil {
 		return nil, fmt.Errorf("sdk must not be nil")
 	}
