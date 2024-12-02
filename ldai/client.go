@@ -48,32 +48,27 @@ func (c *Client) Config(
 	defaultValue Config,
 	variables map[string]interface{},
 ) (Config, *Tracker) {
-	variation, err := c.sdk.JSONVariation(key, context, ldvalue.Null())
 
-	defaultTracker := NewTracker(key, c.sdk, &defaultValue, context, c.logger)
+	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
-	if err != nil {
-		c.logger.Warnf("Error fetching JSON variation: %s", err.Error())
-		return defaultValue, defaultTracker
-	}
-
-	if variation.IsNull() {
-		c.logger.Warnf("JSON variation was null")
-		return defaultValue, defaultTracker
+	if result.Type() != ldvalue.ObjectType {
+		c.logger.Warnf("Error unmarshalling AI config, expected JSON object but got %s", result.Type().String())
+		return defaultValue, NewTracker(key, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	var parsed datamodel.Config
-	if err := json.Unmarshal([]byte(variation.JSONString()), &parsed); err != nil {
-		c.logger.Warnf("Error unmarshalling JSON variation: %s", err.Error())
-		return defaultValue, defaultTracker
+	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
+		c.logger.Warnf("Error unmarshalling AI config variation: %s", err.Error())
+		return defaultValue, NewTracker(key, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	mergedVariables := map[string]interface{}{
 		ldContextVariable: getAllAttributes(context),
 	}
+
 	for k, v := range variables {
 		if k == ldContextVariable {
-			c.logger.Warnf("AI model config variables contains 'ldctx' key, which is reserved")
+			c.logger.Warnf("AI config variables contains 'ldctx' key, which is reserved")
 			continue
 		}
 		mergedVariables[k] = v
@@ -88,7 +83,7 @@ func (c *Client) Config(
 		content, err := interpolateTemplate(msg.Content, mergedVariables)
 		if err != nil {
 			c.logger.Errorf(
-				"Malformed message at index %d: %s", i, err.Error(),
+				"AI config: malformed message at index %d: %s", i, err.Error(),
 			)
 			return defaultValue, &Tracker{}
 		}

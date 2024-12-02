@@ -1,7 +1,7 @@
 package ldai
 
 import (
-	"encoding/json"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/ldai/internal/datamodel"
 	"golang.org/x/exp/slices"
 )
@@ -50,8 +50,8 @@ func (c *Config) ModelId() string {
 	return c.c.Model.Id
 }
 
-func (c *Config) MarshalJSON() ([]byte, error) {
-	return json.Marshal(c.c)
+func (c *Config) AsLdValue() ldvalue.Value {
+	return ldvalue.FromJSONMarshal(c.c)
 }
 
 type ConfigBuilder struct {

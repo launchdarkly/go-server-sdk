@@ -27,7 +27,12 @@ func (m *mockServerSDK) JSONVariation(
 	context ldcontext.Context,
 	defaultVal ldvalue.Value,
 ) (ldvalue.Value, error) {
-	return ldvalue.Parse(m.json), m.err
+
+	if m.err != nil {
+		return defaultVal, m.err
+	}
+
+	return ldvalue.Parse(m.json), nil
 }
 
 func (m *mockServerSDK) Loggers() interfaces.LDLoggers {
@@ -54,9 +59,11 @@ func TestEvalErrorReturnsDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, tracker := client.Config("key", ldcontext.New("user"), NewConfig().Disable().Build(), nil)
+	defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
+
+	cfg, tracker := client.Config("key", ldcontext.New("user"), defaultVal, nil)
 	assert.NotNil(t, tracker)
-	assert.False(t, cfg.Enabled())
+	assert.Equal(t, defaultVal, cfg)
 }
 
 func TestInvalidConfigReturnsDefault(t *testing.T) {
@@ -71,13 +78,13 @@ func TestInvalidConfigReturnsDefault(t *testing.T) {
 		{"is an array", []byte(`["hello"]`)},
 	}
 
-	defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client, err := New(newMockSDK(test.json, nil))
 			require.NoError(t, err)
 			require.NotNil(t, client)
+
+			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
 
 			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
 			assert.Equal(t, defaultVal, cfg)
@@ -125,6 +132,7 @@ func TestCanSetDefaultConfigFields(t *testing.T) {
 		WithModelId("model").Build()
 
 	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+
 	assert.True(t, cfg.Enabled())
 	assert.Equal(t, "provider", cfg.ProviderId())
 	assert.Equal(t, "model", cfg.ModelId())
