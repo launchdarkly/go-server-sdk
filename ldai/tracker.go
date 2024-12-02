@@ -49,6 +49,7 @@ const (
 )
 
 type Tracker struct {
+	key       string
 	config    *Config
 	context   ldcontext.Context
 	events    EventTracker
@@ -75,12 +76,18 @@ func NewTracker(key string, events EventTracker, config *Config, ctx ldcontext.C
 		Set("configKey", ldvalue.String(key)).Build()
 
 	return &Tracker{
+		key:       key,
 		config:    config,
 		trackData: trackData,
 		events:    events,
 		context:   ctx,
 		logger:    loggers,
 	}
+}
+
+func (t *Tracker) logWarning(format string, args ...interface{}) {
+	prefix := "AI config tracker for '" + t.key + "': "
+	t.logger.Warnf(prefix+format, args...)
 }
 
 func (t *Tracker) TrackDuration(durationMs float64) error {
@@ -94,7 +101,7 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	case Negative:
 		return t.events.TrackMetric(feedbackNegative, t.context, 1, t.trackData)
 	default:
-		return fmt.Errorf("unexpected feedback value: %v", feedback)
+		return fmt.Errorf("tracker: unexpected feedback value: %v", feedback)
 	}
 }
 
@@ -107,25 +114,25 @@ func (t *Tracker) TrackUsage(usage TokenUsage) error {
 
 	if usage.Total > 0 {
 		if err1 := t.events.TrackMetric(tokenTotal, t.context, float64(usage.Total), t.trackData); err1 != nil {
-			t.logger.Warn("Error tracking total token usage: %s", err1.Error())
+			t.logWarning("error tracking total token usage: %v", err1)
 			failed = true
 		}
 	}
 	if usage.Input > 0 {
 		if err2 := t.events.TrackMetric(tokenInput, t.context, float64(usage.Input), t.trackData); err2 != nil {
-			t.logger.Warn("Error tracking input token usage: %s", err2.Error())
+			t.logWarning("error tracking input token usage: %v", err2)
 			failed = true
 		}
 	}
 	if usage.Output > 0 {
 		if err3 := t.events.TrackMetric(tokenOutput, t.context, float64(usage.Output), t.trackData); err3 != nil {
-			t.logger.Warn("Error tracking output token usage: %s", err3.Error())
+			t.logWarning("error tracking output token usage: %v", err3)
 			failed = true
 		}
 	}
 
 	if failed {
-		return fmt.Errorf("error tracking token usage, logs contain more information")
+		return fmt.Errorf("tracker: error tracking token usage, logs contain more information")
 	}
 
 	return nil
@@ -142,27 +149,26 @@ func (t *Tracker) TrackRequest(task func() (ProviderResponse, error)) (ProviderR
 	usage, duration, err := measureDurationOfTask(task)
 
 	if err != nil {
-		t.logger.Warn("Error executing request: %s", err.Error())
+		t.logWarning("error executing request: %v", err)
 		return ProviderResponse{}, err
 	}
 	if err := t.TrackSuccess(); err != nil {
-		t.logger.Warn("Error tracking success metric for request: %s", err.Error())
+		t.logWarning("error tracking success metric for request: %v", err)
 	}
 
 	if usage.Metrics.Set() {
 		if err := t.TrackDuration(usage.Metrics.LatencyMs); err != nil {
-			t.logger.Warn("Error tracking duration metric (user provided) for request: %s", err.Error())
+			t.logWarning("error tracking duration metric (user provided) for request: %v", err)
 		}
 	} else {
 		if err := t.TrackDuration(float64(duration)); err != nil {
-			t.logger.Warn("Error tracking duration metric (automatically measured) for request: %s", err.Error())
+			t.logWarning("error tracking duration metric (automatically measured) for request: %v", err)
 		}
 	}
 
 	if usage.Usage.Set() {
-		if err := t.TrackUsage(usage.Usage); err != nil {
-			t.logger.Warn("Error tracking token usage for request: %s", err.Error())
-		}
+		// TrackUsage logs errors.
+		_ = t.TrackUsage(usage.Usage)
 	}
 
 	return usage, nil
