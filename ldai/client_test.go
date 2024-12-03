@@ -161,7 +161,9 @@ func eval(t *testing.T, prompt string, ctx ldcontext.Context, variables map[stri
 
 	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
-	cfg, _ := client.Config("key", ctx, Disabled(), variables)
+	cfg, _ := client.Config("key", ctx, Disabled(), map[string]interface{}{
+		"foo": 12,
+	})
 	if len(cfg.Messages()) == 0 {
 		return "", errors.New("no messages interpolated")
 	}

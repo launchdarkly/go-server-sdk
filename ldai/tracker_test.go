@@ -61,3 +61,48 @@ func TestTracker_TrackSuccess(t *testing.T) {
 
 	assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
 }
+
+func TestTracker_TrackRequest(t *testing.T) {
+	events := newMockEvents()
+	tracker := NewTracker("key", events, &Config{}, ldcontext.New("key"), nil)
+
+	expectedResponse := ProviderResponse{
+		Usage: TokenUsage{
+			Total: 1,
+		},
+		Metrics: Metrics{
+			LatencyMs: 1.0,
+		},
+	}
+
+	r, err := tracker.TrackRequest(func() (ProviderResponse, error) {
+		return expectedResponse, nil
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedResponse, r)
+
+	expectedSuccessEvent := trackEvent{
+		name:        "$ld:ai:generation",
+		context:     ldcontext.New("key"),
+		metricValue: 1,
+		data:        makeTrackData("key", ""),
+	}
+
+	expectedDurationEvent := trackEvent{
+		name:        "$ld:ai:duration:total",
+		context:     ldcontext.New("key"),
+		metricValue: 1.0,
+		data:        makeTrackData("key", ""),
+	}
+
+	expectedTokenUsageEvent := trackEvent{
+		name:        "$ld:ai:tokens:total",
+		context:     ldcontext.New("key"),
+		metricValue: 1,
+		data:        makeTrackData("key", ""),
+	}
+
+	expectedEvents := []trackEvent{expectedSuccessEvent, expectedDurationEvent, expectedTokenUsageEvent}
+	assert.ElementsMatch(t, expectedEvents, events.events)
+}
