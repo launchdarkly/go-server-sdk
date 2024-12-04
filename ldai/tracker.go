@@ -2,10 +2,11 @@ package ldai
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"time"
 )
 
 const (
@@ -18,46 +19,55 @@ const (
 	tokenOutput      = "$ld:ai:tokens:output"
 )
 
+// TokenUsage represents the token usage returned by a model provider for a specific request.
 type TokenUsage struct {
-	Total  int
-	Input  int
+	// Total is the total number of tokens used.
+	Total int
+	// Input is the number of input tokens used.
+	Input int
+	// Output is the number of output tokens used.
 	Output int
 }
 
+// Set returns true if any of the fields are non-zero.
 func (t TokenUsage) Set() bool {
 	return t.Total > 0 || t.Input > 0 || t.Output > 0
 }
 
+// Metrics represents the metrics returned by a model provider for a specific request.
 type Metrics struct {
-	LatencyMs float64
+	// Latency is the latency of the request.
+	Latency time.Duration
 }
 
+// Set returns true if the latency is non-zero.
 func (m Metrics) Set() bool {
-	return m.LatencyMs != 0
+	return m.Latency != 0
 }
 
+// ProviderResponse represents the response from a model provider for a specific request.
 type ProviderResponse struct {
-	Usage   TokenUsage
+	// Usage is the token usage.
+	Usage TokenUsage
+	// Metrics is the request metrics.
 	Metrics Metrics
 }
 
+// Feedback represents the feedback provided by a user for a model evaluation.
 type Feedback string
 
 const (
+	// Positive feedback (result was good).
 	Positive Feedback = "positive"
+	// Negative feedback (result was bad).
 	Negative Feedback = "negative"
 )
 
-type Tracker struct {
-	key       string
-	config    *Config
-	context   ldcontext.Context
-	events    EventTracker
-	trackData ldvalue.Value
-	logger    interfaces.LDLoggers
-}
-
-type EventTracker interface {
+// EventSink represents the Tracker's requirements for delivering analytic events. This is generally satisfied
+// by the LaunchDarkly SDK's TrackMetric method.
+type EventSink interface {
+	// TrackMetric sends a named analytic event to LaunchDarkly relevant to a particular context, and containing a
+	// metric value and additional data.
 	TrackMetric(
 		eventName string,
 		context ldcontext.Context,
@@ -66,7 +76,51 @@ type EventTracker interface {
 	) error
 }
 
-func NewTracker(key string, events EventTracker, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers) *Tracker {
+// Stopwatch is used to measure the duration of a task. Start will always be called before Stop.
+// If an implementation is not provided, the Tracker uses a default implementation that delegates to
+// time.Now and time.Since.
+type Stopwatch interface {
+	// Start starts the stopwatch.
+	Start()
+	// Stop stops the stopwatch and returns the duration since Start was called.
+	Stop() time.Duration
+}
+
+// Tracker is used to track metrics for AI config evaluation.
+// Unless otherwise noted, the Tracker's method are not safe for concurrent use.
+type Tracker struct {
+	key       string
+	config    *Config
+	context   ldcontext.Context
+	events    EventSink
+	trackData ldvalue.Value
+	logger    interfaces.LDLoggers
+	stopwatch Stopwatch
+}
+
+// Used if a custom Stopwatch is not provided.
+type defaultStopwatch struct {
+	start time.Time
+}
+
+// Start saves the current time using time.Now.
+func (d *defaultStopwatch) Start() {
+	d.start = time.Now()
+}
+
+// Stop returns the duration since Start was called using time.Since.
+func (d *defaultStopwatch) Stop() time.Duration {
+	return time.Since(d.start)
+}
+
+// newTracker creates a new Tracker with the specified key, event sink, config, context, and loggers.
+func newTracker(key string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers) *Tracker {
+	return newTrackerWithStopwatch(key, events, config, ctx, loggers, &defaultStopwatch{})
+}
+
+// newTrackerWithStopwatch creates a new Tracker with the specified key, event sink, config, context, loggers, and
+// stopwatch. This method is used for testing purposes.
+func newTrackerWithStopwatch(key string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers, stopwatch Stopwatch) *Tracker {
 	if config == nil {
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
@@ -82,6 +136,7 @@ func NewTracker(key string, events EventTracker, config *Config, ctx ldcontext.C
 		events:    events,
 		context:   ctx,
 		logger:    loggers,
+		stopwatch: stopwatch,
 	}
 }
 
@@ -90,10 +145,15 @@ func (t *Tracker) logWarning(format string, args ...interface{}) {
 	t.logger.Warnf(prefix+format, args...)
 }
 
-func (t *Tracker) TrackDuration(durationMs float64) error {
-	return t.events.TrackMetric(duration, t.context, durationMs, t.trackData)
+// TrackDuration tracks the duration of a task. For example, the duration of a model evaluation request may be
+// tracked here. See also TrackRequest.
+// The duration in milliseconds must fit within a float64.
+func (t *Tracker) TrackDuration(dur time.Duration) error {
+	return t.events.TrackMetric(duration, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
+// TrackFeedback tracks the feedback provided by a user for a model evaluation. If the feedback is not
+// Positive or Negative, returns an error and does not track anything.
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	switch feedback {
 	case Positive:
@@ -105,10 +165,12 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	}
 }
 
+// TrackSuccess tracks a successful model evaluation.
 func (t *Tracker) TrackSuccess() error {
 	return t.events.TrackMetric(generation, t.context, 1, t.trackData)
 }
 
+// TrackUsage tracks the token usage for a model evaluation.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	var failed bool
 
@@ -138,15 +200,25 @@ func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	return nil
 }
 
-func measureDurationOfTask[T any](task func() (T, error)) (T, int64, error) {
-	start := time.Now()
+func measureDurationOfTask[T any](stopwatch Stopwatch, task func() (T, error)) (T, time.Duration, error) {
+	stopwatch.Start()
 	result, err := task()
-	duration := time.Since(start).Milliseconds()
-	return result, duration, err
+	return result, stopwatch.Stop(), err
 }
 
+// TrackRequest tracks metrics for a model evaluation request. The task function should return a ProviderResponse
+// which can be used to specify request metrics and token usage.
+//
+// All fields of the ProviderResponse are optional.
+//
+// If the task returns an error, then the request is not considered successful and no metrics are tracked.
+// Otherwise, the following metrics are tracked:
+//  1. Successful model evaluation.
+//  2. Any metrics that were that set in the ProviderResponse
+//     2a) If Latency was not set in the ProviderResponse's Metrics field, an automatically measured duration.
+//  3. Any token usage that was set in the ProviderResponse.
 func (t *Tracker) TrackRequest(task func() (ProviderResponse, error)) (ProviderResponse, error) {
-	usage, duration, err := measureDurationOfTask(task)
+	usage, duration, err := measureDurationOfTask(t.stopwatch, task)
 
 	if err != nil {
 		t.logWarning("error executing request: %v", err)
@@ -157,11 +229,11 @@ func (t *Tracker) TrackRequest(task func() (ProviderResponse, error)) (ProviderR
 	}
 
 	if usage.Metrics.Set() {
-		if err := t.TrackDuration(usage.Metrics.LatencyMs); err != nil {
+		if err := t.TrackDuration(usage.Metrics.Latency); err != nil {
 			t.logWarning("error tracking duration metric (user provided) for request: %v", err)
 		}
 	} else {
-		if err := t.TrackDuration(float64(duration)); err != nil {
+		if err := t.TrackDuration(duration); err != nil {
 			t.logWarning("error tracking duration metric (automatically measured) for request: %v", err)
 		}
 	}
