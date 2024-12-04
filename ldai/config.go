@@ -2,7 +2,7 @@ package ldai
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/ldai/internal/datamodel"
+	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
