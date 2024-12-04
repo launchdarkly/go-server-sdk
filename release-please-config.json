@@ -26,6 +26,17 @@
       "extra-files" : [
         "package_info.go"
       ]
+    },
+    "ldai" : {
+      "package-name": "ldai",
+      "release-type" : "go",
+      "bump-minor-pre-major" : true,
+      "release-as": "0.1.0",
+      "tag-separator": "/",
+      "versioning" : "default",
+      "extra-files" : [
+        "package_info.go"
+      ]
     }
   }
 }
