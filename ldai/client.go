@@ -116,7 +116,7 @@ func (c *Client) Config(
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {
 	if !context.Multiple() {
-		return addSingleKindContextAttributes(context)
+		return addContextAttributes(context, false)
 	}
 
 	attributes := map[string]interface{}{
@@ -125,17 +125,20 @@ func getAllAttributes(context ldcontext.Context) map[string]interface{} {
 	}
 
 	for _, ctx := range context.GetAllIndividualContexts(nil) {
-		attributes[string(ctx.Kind())] = addSingleKindContextAttributes(ctx)
+		attributes[string(ctx.Kind())] = addContextAttributes(ctx, true)
 	}
 
 	return attributes
 }
 
-func addSingleKindContextAttributes(context ldcontext.Context) map[string]interface{} {
+func addContextAttributes(context ldcontext.Context, omitKind bool) map[string]interface{} {
 	attributes := map[string]interface{}{
-		"kind":      context.Kind(),
 		"key":       context.Key(),
 		"anonymous": context.Anonymous(),
+	}
+
+	if !omitKind {
+		attributes["kind"] = context.Kind()
 	}
 
 	for _, attr := range context.GetOptionalAttributeNames(nil) {

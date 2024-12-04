@@ -375,8 +375,27 @@ func TestInterpolation(t *testing.T) {
 
 		context := ldcontext.NewMulti(user, cat)
 
-		result, err := eval(t, "kind={{ ldctx.kind }}", context, nil)
+		result, err := eval(t, "kind=<{{ ldctx.kind }}>", context, nil)
 		require.NoError(t, err)
-		assert.Equal(t, "kind=multi", result)
+		assert.Equal(t, "kind=<multi>", result)
+	})
+
+	t.Run("interpolation with multi kind context does not have child kinds", func(t *testing.T) {
+
+		// The idea here is that in a multi-kind context, we can access ldctx.kind (== "multi"), but you can't
+		// access the kind field of the individual nested contexts since this doesn't match the actual data model.
+		// That is, you can't access ldctx.user.kind or ldctx.cat.kind, only ldctx.kind.
+
+		user := ldcontext.NewBuilder("123").
+			SetValue("cat_ownership", ldvalue.ObjectBuild().Set("count", ldvalue.Int(12)).Build()).Build()
+
+		cat := ldcontext.NewBuilder("456").Kind("cat").
+			SetValue("health", ldvalue.ObjectBuild().Set("hunger", ldvalue.String("off the charts")).Build()).Build()
+
+		context := ldcontext.NewMulti(user, cat)
+
+		result, err := eval(t, "user_kind=<{{ ldctx.user.kind}}>,cat_kind=<{{ ldctx.cat.kind }}>", context, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "user_kind=<>,cat_kind=<>", result)
 	})
 }
