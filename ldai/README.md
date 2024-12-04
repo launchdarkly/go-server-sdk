@@ -1,6 +1,6 @@
 LaunchDarkly Server-side AI SDK for Go
 ==============================================
-[![Actions Status](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldoai-ci.yml/badge.svg?branch=v7)](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml)
+[![Actions Status](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml/badge.svg?branch=v7)](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml)
 
 LaunchDarkly overview
 -------------------------
@@ -20,22 +20,32 @@ import (
 )
 ```
 
-Configure the base LaunchDarkly client:
+Configure the base LaunchDarkly Server SDK:
 
 ```go
-client, _ = ld.MakeClient("your-sdk-key", 5*time.Second)
+sdkClient, _ = ld.MakeClient("your-sdk-key", 5*time.Second)
 ```
 
-Instantiate the AI client:
+Instantiate the AI client, passing in the base Server SDK:
 ```go
-
-aiClient := ldai.New(client)
+aiClient, err := ldai.NewClient(sdkClient)
 ```
 
+Fetch a model configuration for a specific LaunchDarkly context:
+```go
+// The default value 'ldai.Disabled()' be returned if LaunchDarkly is unavailable or the config 
+// cannot be fetched. To customize the default value, use ldai.NewConfig().
+config, tracker := aiClient.Config("your-model-key", ldcontext.New("user-key"), ldai.Disabled(), nil)
+
+// Access the methods on config, and optionally use the returned tracker to generate analytic events
+// related to usage of the model config. 
+```
 Learn more
 -----------
 
 Read our [documentation](http://docs.launchdarkly.com) for in-depth instructions on configuring and using LaunchDarkly.
+You can also head straight to the [complete reference guide for this SDK](https://docs.launchdarkly.com/sdk/ai/go).
+
 
 Contributing
 ------------
