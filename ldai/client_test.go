@@ -143,17 +143,94 @@ func TestCanSetDefaultConfigFields(t *testing.T) {
 	assert.Equal(t, 2, len(cfg.Messages()))
 
 	msg := cfg.Messages()
-	assert.Equal(t, "hello", msg[0].Content())
-	assert.Equal(t, datamodel.User, msg[0].Role())
-	assert.Equal(t, "world", msg[1].Content())
-	assert.Equal(t, datamodel.System, msg[1].Role())
+	assert.Equal(t, "hello", msg[0].Content)
+	assert.Equal(t, datamodel.User, msg[0].Role)
+	assert.Equal(t, "world", msg[1].Content)
+	assert.Equal(t, datamodel.System, msg[1].Role)
+}
+
+func TestCanSetModelParameters(t *testing.T) {
+	client, err := NewClient(newMockSDK(nil, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultVal := NewConfig().WithModelParam("foo", ldvalue.String("bar")).Build()
+	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+
+	t.Run("param is present", func(t *testing.T) {
+		p, ok := cfg.ModelParam("foo")
+		assert.True(t, ok)
+		assert.Equal(t, "bar", p.StringValue())
+	})
+
+	t.Run("param is missing", func(t *testing.T) {
+		p, ok := cfg.ModelParam("missing")
+		assert.False(t, ok)
+		assert.Equal(t, ldvalue.Null(), p)
+	})
+}
+
+func TestCanSetCustomModelParameters(t *testing.T) {
+	client, err := NewClient(newMockSDK(nil, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultVal := NewConfig().WithCustomModelParam("foo", ldvalue.String("bar")).Build()
+	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+
+	t.Run("param is present", func(t *testing.T) {
+		p, ok := cfg.CustomModelParam("foo")
+		assert.True(t, ok)
+		assert.Equal(t, "bar", p.StringValue())
+	})
+
+	t.Run("param is missing", func(t *testing.T) {
+		p, ok := cfg.CustomModelParam("missing")
+		assert.False(t, ok)
+		assert.Equal(t, ldvalue.Null(), p)
+	})
+}
+
+func TestNormalAndCustomParamsDoNotInterfere(t *testing.T) {
+	client, err := NewClient(newMockSDK(nil, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultVal := NewConfig().
+		WithModelParam("foo", ldvalue.String("bar")).
+		WithCustomModelParam("foo", ldvalue.String("baz")).Build()
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+
+	foo1, ok := cfg.ModelParam("foo")
+	require.True(t, ok)
+	assert.Equal(t, "bar", foo1.StringValue())
+
+	foo2, ok := cfg.CustomModelParam("foo")
+	require.True(t, ok)
+	assert.Equal(t, "baz", foo2.StringValue())
+}
+
+func TestCannotOverwriteMessages(t *testing.T) {
+	client, err := NewClient(newMockSDK(nil, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultVal := NewConfig().
+		WithMessage("hello", datamodel.Assistant).Build()
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+
+	cfg.Messages()[0].Content = "changed"
+	cfg.Messages()[0].Role = datamodel.User
+
+	assert.ElementsMatch(t, []datamodel.Message{{Content: "hello", Role: datamodel.Assistant}}, cfg.Messages())
 }
 
 func eval(t *testing.T, prompt string, ctx ldcontext.Context, variables map[string]interface{}) (string, error) {
 	t.Helper()
 	json := []byte(`{
 					"_ldMeta": {"versionKey": "1", "enabled": true},
-					"model": {},
 					"messages": [
 						{"content": "` + prompt + `", "role": "user"}
 					]
@@ -161,13 +238,11 @@ func eval(t *testing.T, prompt string, ctx ldcontext.Context, variables map[stri
 
 	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
-	cfg, _ := client.Config("key", ctx, Disabled(), map[string]interface{}{
-		"foo": 12,
-	})
+	cfg, _ := client.Config("key", ctx, Disabled(), variables)
 	if len(cfg.Messages()) == 0 {
 		return "", errors.New("no messages interpolated")
 	}
-	return cfg.Messages()[0].Content(), nil
+	return cfg.Messages()[0].Content, nil
 }
 
 func TestInterpolation(t *testing.T) {

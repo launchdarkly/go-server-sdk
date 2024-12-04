@@ -10,6 +10,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 
+// Defines the Mustache variable name used to access the provided context.
+const ldContextVariable = "ldctx"
+
+// ServerSDK defines the required methods for the AI SDK to interact with LaunchDarkly. These methods are
+// satisfied by the LaunchDarkly Go Server SDK.
 type ServerSDK interface {
 	JSONVariation(
 		key string,
@@ -25,13 +30,14 @@ type ServerSDK interface {
 	) error
 }
 
+// Client is the main entrypoint for the AI SDK. A client can be used to obtain an AI config from LaunchDarkly.
 type Client struct {
 	sdk    ServerSDK
 	logger interfaces.LDLoggers
 }
 
-const ldContextVariable = "ldctx"
-
+// NewClient creates a new AI Client. The provided SDK interface must not be nil. The client will use the provided SDK's
+// loggers to log warnings and errors.
 func NewClient(sdk ServerSDK) (*Client, error) {
 	if sdk == nil {
 		return nil, fmt.Errorf("sdk must not be nil")
@@ -47,6 +53,13 @@ func (c *Client) logConfigWarning(key string, format string, args ...interface{}
 	c.logger.Warnf(prefix+format, args...)
 }
 
+// Config evaluates an AI config named by a given key for the given context.
+//
+// The config's messages will undergo Mustache template interpolation using the provided variables, which may be
+// nil. If the config cannot be evaluated or LaunchDarkly is unreachable, the default value is returned. Note that
+// the messages in the default will not undergo template interpolation.
+//
+// To send analytic events to LaunchDarkly related to the AI config, call methods on the returned Tracker.
 func (c *Client) Config(
 	key string,
 	context ldcontext.Context,

@@ -8,13 +8,13 @@ type Meta struct {
 }
 
 type Model struct {
-	Id         string                   `json:"id,omitempty"`
+	Id         string                   `json:"id"`
 	Parameters map[string]ldvalue.Value `json:"parameters,omitempty"`
 	Custom     map[string]ldvalue.Value `json:"custom,omitempty"`
 }
 
 type Provider struct {
-	Id string `json:"id,omitempty"`
+	Id string `json:"id"`
 }
 
 type Role string
