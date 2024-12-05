@@ -204,6 +204,13 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 
+				// IntentNone is a special case where we won't receive a payload-transferred event, so we will need
+				// to instead immediately notify the client that we are initialized.
+				if serverIntent.Payload.Code == fdv2proto.IntentNone {
+					sp.setInitializedAndNotifyClient(true, closeWhenReady)
+					break
+				}
+
 				if err := changeSetBuilder.Start(serverIntent); err != nil {
 					gotMalformedEvent(event, err)
 					break
@@ -268,12 +275,15 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				switch code {
 				case fdv2proto.IntentTransferFull:
 					sp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
-					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				case fdv2proto.IntentTransferChanges:
 					sp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
 				case fdv2proto.IntentNone:
-					// No changes, our existing data is up-to-date for the moment.
+					/* We don't expect to receive this, but it could be possible. In that case, it should be
+					equivalent to transferring no changes - a no-op.
+					*/
 				}
+
+				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())

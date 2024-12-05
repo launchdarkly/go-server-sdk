@@ -95,6 +95,9 @@ func (r *pollingRequester) Request() (*fdv2proto.ChangeSet, error) {
 			if err != nil {
 				return nil, err
 			}
+			if serverIntent.Payload.Code == fdv2proto.IntentNone {
+				return changeSet.NoChanges(), nil
+			}
 			if err := changeSet.Start(serverIntent); err != nil {
 				return nil, err
 			}
