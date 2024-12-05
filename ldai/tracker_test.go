@@ -114,34 +114,16 @@ func TestTracker_TrackRequest(t *testing.T) {
 func TestTracker_TrackRequestReceivesConfig(t *testing.T) {
 	events := newMockEvents()
 
-	expectedConfig := &Config{
-		c: datamodel.Config{
-			Messages: []datamodel.Message{
-				{
-					Content: "hello",
-					Role:    datamodel.Assistant,
-				},
-			},
-			Meta: datamodel.Meta{
-				VersionKey: "version",
-				Enabled:    true,
-			},
-			Model: datamodel.Model{
-				Id: "model",
-				Parameters: map[string]ldvalue.Value{
-					"param": ldvalue.String("value"),
-				},
-				Custom: map[string]ldvalue.Value{
-					"custom": ldvalue.String("value"),
-				},
-			},
-			Provider: datamodel.Provider{
-				Id: "provider",
-			},
-		},
-	}
+	expectedConfig := NewConfig().
+		WithMessage("hello", datamodel.Assistant).
+		WithModelId("model").
+		WithProviderId("provider").
+		WithModelParam("param", ldvalue.String("value")).
+		WithCustomModelParam("custom", ldvalue.String("value")).
+		Enable().
+		Build()
 
-	tracker := newTracker("key", events, expectedConfig, ldcontext.New("key"), nil)
+	tracker := newTracker("key", "versionKey", events, &expectedConfig, ldcontext.New("key"), nil)
 
 	var gotConfig *Config
 	_, _ = tracker.TrackRequest(func(c *Config) (ProviderResponse, error) {
@@ -149,7 +131,7 @@ func TestTracker_TrackRequestReceivesConfig(t *testing.T) {
 		return ProviderResponse{}, nil
 	})
 
-	assert.Equal(t, expectedConfig, gotConfig)
+	assert.Equal(t, expectedConfig, *gotConfig)
 }
 
 type mockStopwatch time.Duration
