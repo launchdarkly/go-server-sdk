@@ -1,6 +1,7 @@
 package ldai
 
 import (
+	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 	"testing"
 	"time"
 
@@ -78,7 +79,7 @@ func TestTracker_TrackRequest(t *testing.T) {
 		},
 	}
 
-	r, err := tracker.TrackRequest(func() (ProviderResponse, error) {
+	r, err := tracker.TrackRequest(func(c *Config) (ProviderResponse, error) {
 		return expectedResponse, nil
 	})
 
@@ -110,6 +111,47 @@ func TestTracker_TrackRequest(t *testing.T) {
 	assert.ElementsMatch(t, expectedEvents, events.events)
 }
 
+func TestTracker_TrackRequestReceivesConfig(t *testing.T) {
+	events := newMockEvents()
+
+	expectedConfig := &Config{
+		c: datamodel.Config{
+			Messages: []datamodel.Message{
+				{
+					Content: "hello",
+					Role:    datamodel.Assistant,
+				},
+			},
+			Meta: datamodel.Meta{
+				VersionKey: "version",
+				Enabled:    true,
+			},
+			Model: datamodel.Model{
+				Id: "model",
+				Parameters: map[string]ldvalue.Value{
+					"param": ldvalue.String("value"),
+				},
+				Custom: map[string]ldvalue.Value{
+					"custom": ldvalue.String("value"),
+				},
+			},
+			Provider: datamodel.Provider{
+				Id: "provider",
+			},
+		},
+	}
+
+	tracker := newTracker("key", events, expectedConfig, ldcontext.New("key"), nil)
+
+	var gotConfig *Config
+	_, _ = tracker.TrackRequest(func(c *Config) (ProviderResponse, error) {
+		gotConfig = c
+		return ProviderResponse{}, nil
+	})
+
+	assert.Equal(t, expectedConfig, gotConfig)
+}
+
 type mockStopwatch time.Duration
 
 func (m mockStopwatch) Start() {}
@@ -130,7 +172,7 @@ func TestTracker_LatencyMeasuredIfNotProvided(t *testing.T) {
 		},
 	}
 
-	r, err := tracker.TrackRequest(func() (ProviderResponse, error) {
+	r, err := tracker.TrackRequest(func(c *Config) (ProviderResponse, error) {
 		return expectedResponse, nil
 	})
 
