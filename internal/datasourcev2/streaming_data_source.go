@@ -131,6 +131,7 @@ func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, selector fdv2pro
 	go sp.subscribe(closeWhenReady, selector)
 }
 
+//nolint:gocyclo
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<- struct{}) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
