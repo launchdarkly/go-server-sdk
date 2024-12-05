@@ -52,7 +52,19 @@ func TestChangeSetBuilder_Changes(t *testing.T) {
 // If the server intends to use an xfer-full instead (for efficiency or other reasons), it will need to explicitly
 // send one.
 func TestChangeSetBuilder_ImplicitIntentXferChanges(t *testing.T) {
+	builder := NewChangeSetBuilder()
+	err := builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferFull}})
+	assert.NoError(t, err)
 
+	changes1, err := builder.Finish(NewSelector("foo", 1))
+	assert.NoError(t, err)
+	assert.Equal(t, IntentTransferFull, changes1.IntentCode())
+
+	builder.AddPut("foo", "bar", 1, []byte("baz"))
+	changes2, err := builder.Finish(NewSelector("bar", 2))
+	assert.NoError(t, err)
+
+	assert.Equal(t, IntentTransferChanges, changes2.IntentCode())
 }
 
 func TestChangeSetBuilder_NoChanges(t *testing.T) {
