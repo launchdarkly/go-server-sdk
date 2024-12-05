@@ -1,5 +1,11 @@
 LaunchDarkly Server-side AI SDK for Go
 ==============================================
+
+# ⛔️⛔️⛔️⛔️
+> [!CAUTION]
+> This library is a alpha version and should not be considered ready for production use while this message is visible.
+# ☝️☝️☝️☝️☝️☝️
+
 [![Actions Status](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml/badge.svg?branch=v7)](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml)
 
 LaunchDarkly overview
