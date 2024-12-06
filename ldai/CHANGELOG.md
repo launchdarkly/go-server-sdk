@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.1.0...ldai/v0.1.1) (2024-12-06)
+
+
+### Bug Fixes
+
+* add prefix to Feedback constants ([#216](https://github.com/launchdarkly/go-server-sdk/issues/216)) ([67d3564](https://github.com/launchdarkly/go-server-sdk/commit/67d35649f9ae32541ba37b47473855a9ac8cb52b))
+
 ## 0.1.0 (2024-12-05)
 
 
