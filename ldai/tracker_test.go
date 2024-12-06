@@ -187,8 +187,8 @@ func TestTracker_TrackFeedback(t *testing.T) {
 	events := newMockEvents()
 	tracker := newTracker("key", "versionKey", events, &Config{}, ldcontext.New("key"), nil)
 
-	assert.NoError(t, tracker.TrackFeedback(Positive))
-	assert.NoError(t, tracker.TrackFeedback(Negative))
+	assert.NoError(t, tracker.TrackFeedback(FeedbackPositive))
+	assert.NoError(t, tracker.TrackFeedback(FeedbackNegative))
 	assert.Error(t, tracker.TrackFeedback("not a valid feedback value"))
 
 	expectedPositiveEvent := trackEvent{
