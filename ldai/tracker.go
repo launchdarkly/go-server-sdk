@@ -57,10 +57,10 @@ type ProviderResponse struct {
 type Feedback string
 
 const (
-	// Positive feedback (result was good).
-	Positive Feedback = "positive"
-	// Negative feedback (result was bad).
-	Negative Feedback = "negative"
+	// FeedbackPositive is positive feedback.
+	FeedbackPositive Feedback = "positive"
+	// FeedbackNegative is negative feedback.
+	FeedbackNegative Feedback = "negative"
 )
 
 // EventSink represents the Tracker's requirements for delivering analytic events. This is generally satisfied
@@ -153,12 +153,12 @@ func (t *Tracker) TrackDuration(dur time.Duration) error {
 }
 
 // TrackFeedback tracks the feedback provided by a user for a model evaluation. If the feedback is not
-// Positive or Negative, returns an error and does not track anything.
+// FeedbackPositive or FeedbackNegative, returns an error and does not track anything.
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	switch feedback {
-	case Positive:
+	case FeedbackPositive:
 		return t.events.TrackMetric(feedbackPositive, t.context, 1, t.trackData)
-	case Negative:
+	case FeedbackNegative:
 		return t.events.TrackMetric(feedbackNegative, t.context, 1, t.trackData)
 	default:
 		return fmt.Errorf("tracker: unexpected feedback value: %v", feedback)
