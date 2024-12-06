@@ -7,7 +7,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -21,6 +20,7 @@ import (
 type StreamingDataSourceBuilderV2 struct {
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
+	baseURI               string
 }
 
 // StreamingDataSourceV2 returns a configurable factory for using streaming mode to get feature flag data.
@@ -36,6 +36,7 @@ type StreamingDataSourceBuilderV2 struct {
 func StreamingDataSourceV2() *StreamingDataSourceBuilderV2 {
 	return &StreamingDataSourceBuilderV2{
 		initialReconnectDelay: DefaultInitialReconnectDelay,
+		baseURI:               DefaultStreamingBaseURI,
 	}
 }
 
@@ -57,6 +58,12 @@ func (b *StreamingDataSourceBuilderV2) InitialReconnectDelay(
 	return b
 }
 
+// BaseURI sets the base URI for the streaming connection.
+func (b *StreamingDataSourceBuilderV2) BaseURI(baseURI string) *StreamingDataSourceBuilderV2 {
+	b.baseURI = baseURI
+	return b
+}
+
 // PayloadFilter sets the payload filter key for this streaming connection. The filter key
 // cannot be an empty string.
 //
@@ -71,18 +78,13 @@ func (b *StreamingDataSourceBuilderV2) PayloadFilter(filterKey string) *Streamin
 }
 
 // Build is called internally by the SDK.
-func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
 	}
-	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetServiceEndpoints(),
-		endpoints.StreamingService,
-		context.GetLogging().Loggers,
-	)
 	cfg := datasource.StreamConfig{
-		URI:                   configuredBaseURI,
+		URI:                   b.baseURI,
 		InitialReconnectDelay: b.initialReconnectDelay,
 		FilterKey:             filterKey,
 	}
@@ -99,7 +101,7 @@ func (b *StreamingDataSourceBuilderV2) DescribeConfiguration(context subsystems.
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", false).
 		SetBool("customStreamURI",
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.StreamingService)).
+			b.baseURI != DefaultStreamingBaseURI).
 		Set("reconnectTimeMillis", durationToMillisValue(b.initialReconnectDelay)).
 		SetBool("usingRelayDaemon", false).
 		Build()

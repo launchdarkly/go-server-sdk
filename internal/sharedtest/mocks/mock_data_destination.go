@@ -44,11 +44,14 @@ func NewMockDataDestination(realStore subsystems.DataStore) *MockDataDestination
 }
 
 // SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) {
+func (d *MockDataDestination) SetBasis(events []fdv2proto.Change, _ fdv2proto.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
-	collections := fdv2proto.ToStorableItems(events)
+	collections, err := fdv2proto.ToStorableItems(events)
+	if err != nil {
+		panic("MockDataDestination.SetBasis received malformed data: " + err.Error())
+	}
 
 	for _, coll := range collections {
 		AssertNotNil(coll.Kind)
@@ -57,11 +60,14 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Event, _ *fdv2proto.Se
 }
 
 // ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Event, _ *fdv2proto.Selector, _ bool) {
+func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Change, _ fdv2proto.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
-	collections := fdv2proto.ToStorableItems(events)
+	collections, err := fdv2proto.ToStorableItems(events)
+	if err != nil {
+		panic("MockDataDestination.ApplyDelta received malformed data: " + err.Error())
+	}
 
 	for _, coll := range collections {
 		AssertNotNil(coll.Kind)

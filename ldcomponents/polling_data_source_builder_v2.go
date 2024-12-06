@@ -7,7 +7,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -21,6 +20,7 @@ import (
 type PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
+	baseURI      string
 }
 
 // PollingDataSourceV2 returns a configurable factory for using polling mode to get feature flag data.
@@ -38,6 +38,7 @@ type PollingDataSourceBuilderV2 struct {
 func PollingDataSourceV2() *PollingDataSourceBuilderV2 {
 	return &PollingDataSourceBuilderV2{
 		pollInterval: DefaultPollInterval,
+		baseURI:      DefaultPollingBaseURI,
 	}
 }
 
@@ -50,6 +51,12 @@ func (b *PollingDataSourceBuilderV2) PollInterval(pollInterval time.Duration) *P
 	} else {
 		b.pollInterval = pollInterval
 	}
+	return b
+}
+
+// BaseURI sets the base URI for the polling connection.
+func (b *PollingDataSourceBuilderV2) BaseURI(baseURI string) *PollingDataSourceBuilderV2 {
+	b.baseURI = baseURI
 	return b
 }
 
@@ -76,20 +83,15 @@ func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDat
 }
 
 // Build is called internally by the SDK.
-func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	context.GetLogging().Loggers.Warn(
 		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
 	}
-	configuredBaseURI := endpoints.SelectBaseURI(
-		context.GetServiceEndpoints(),
-		endpoints.PollingService,
-		context.GetLogging().Loggers,
-	)
 	cfg := datasource.PollingConfig{
-		BaseURI:      configuredBaseURI,
+		BaseURI:      b.baseURI,
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
 	}
@@ -97,12 +99,18 @@ func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (su
 		context.GetDataSourceStatusReporter(), cfg), nil
 }
 
+// AsInitializer converts the builder into a component configurer for a data initializer. The purpose
+// is to allow the PollingDataSourceBuilderV2, which is normally a synchronizer, to be used as an initializer.
+func (b *PollingDataSourceBuilderV2) AsInitializer() subsystems.ComponentConfigurer[subsystems.DataInitializer] {
+	return subsystems.AsInitializer(b)
+}
+
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *PollingDataSourceBuilderV2) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		SetBool("streamingDisabled", true).
 		SetBool("customBaseURI",
-			endpoints.IsCustom(context.GetServiceEndpoints(), endpoints.PollingService)).
+			b.baseURI != DefaultPollingBaseURI).
 		Set("pollingIntervalMillis", durationToMillisValue(b.pollInterval)).
 		SetBool("usingRelayDaemon", false).
 		Build()

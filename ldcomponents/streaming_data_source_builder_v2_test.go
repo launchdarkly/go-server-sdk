@@ -55,37 +55,42 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 		})
 	})
 
-	t.Run("CreateDefaultDataSource", func(t *testing.T) {
-		baseURI := "base"
+	t.Run("DoesNotUseBaseURIFromContext", func(t *testing.T) {
+		fdv1BaseURI := "base"
 
+		// A default FDv2 streaming data source configures itself with the default
+		// streaming URI internally - it doesn't look in the Context's ServiceEndpoints for it. This is because
+		// custom endpoints are injected within the Data System config.
 		s := StreamingDataSourceV2()
 
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
-		clientContext := makeTestContextWithBaseURIs(baseURI)
+
+		clientContext := makeTestContextWithBaseURIs(fdv1BaseURI)
 		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
+
 		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
 		require.NotNil(t, ds)
 		defer ds.Close()
 
 		sp := ds.(*datasourcev2.StreamProcessor)
-		assert.Equal(t, baseURI, sp.GetBaseURI())
+		assert.Equal(t, DefaultStreamingBaseURI, sp.GetBaseURI())
 		assert.Equal(t, DefaultInitialReconnectDelay, sp.GetInitialReconnectDelay())
 		assert.Equal(t, "", sp.GetFilterKey())
 	})
 
 	t.Run("CreateCustomizedDataSource", func(t *testing.T) {
-		baseURI := "base"
+		baseURI := "base-uri"
 		delay := time.Hour
 		filter := "microservice-1"
 
-		s := StreamingDataSourceV2().InitialReconnectDelay(delay).PayloadFilter(filter)
+		s := StreamingDataSourceV2().InitialReconnectDelay(delay).PayloadFilter(filter).BaseURI(baseURI)
 
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
-		clientContext := makeTestContextWithBaseURIs(baseURI)
+		clientContext := makeTestContextWithBaseURIs("not-used")
 		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := s.Build(clientContext)
