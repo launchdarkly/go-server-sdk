@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
@@ -72,6 +70,9 @@ type FDv2 struct {
 	// Protects status.
 	mu     sync.Mutex
 	status interfaces.DataSourceStatus
+
+	fallbackCond func() bool
+	recoveryCond func() bool
 }
 
 // NewFDv2 creates a new instance of the FDv2 data system. The first argument indicates if the system is enabled or
@@ -111,6 +112,15 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.primarySync = cfg.Synchronizers.Primary
 	fdv2.secondarySync = cfg.Synchronizers.Secondary
 	fdv2.disabled = disabled
+	fdv2.fallbackCond = func() bool {
+		status := fdv2.getStatus()
+		return status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
+	}
+	fdv2.recoveryCond = func() bool {
+		status := fdv2.getStatus()
+		return status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute ||
+			status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 5*time.Minute
+	}
 
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
@@ -159,7 +169,7 @@ func (f *FDv2) hasDataSources() bool {
 }
 
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
-	selector := f.runInitializers(ctx, closeWhenReady)
+	f.runInitializers(ctx, closeWhenReady)
 
 	if f.hasDataSources() && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
@@ -167,7 +177,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 		})
 	}
 
-	f.runSynchronizers(ctx, closeWhenReady, selector)
+	f.runSynchronizers(ctx, closeWhenReady)
 }
 
 func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {
@@ -189,12 +199,12 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) fdv2proto.Selector {
+func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, err := initializer.Fetch(ctx)
 		if errors.Is(err, context.Canceled) {
-			return fdv2proto.NoSelector()
+			return
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
@@ -205,12 +215,10 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
-		return basis.Selector
 	}
-	return fdv2proto.NoSelector()
 }
 
-func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector fdv2proto.Selector) {
+func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
 	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded), we should
 	// trigger the ready signal to let the call to MakeClient unblock immediately.
 	if f.primarySync == nil {
@@ -224,16 +232,51 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	// Instead, create a "proxy" channel just for the data source; if that is closed, we close the real one
 	// using the sync.Once.
 	ready := make(chan struct{})
-	f.primarySync.Sync(ready, selector)
 
+	f.launchTask(func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ready:
+				f.readyOnce.Do(func() {
+					close(closeWhenReady)
+				})
+			}
+		}
+	})
+
+	f.launchTask(func() {
+		for {
+			f.primarySync.Sync(ready, f.store.Selector())
+			if err := f.evaluateCond(ctx, f.fallbackCond); errors.Is(err, context.Canceled) {
+				return
+			}
+			f.secondarySync.Sync(ready, f.store.Selector())
+			if err := f.evaluateCond(ctx, f.recoveryCond); errors.Is(err, context.Canceled) {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+		}
+	})
+}
+
+func (f *FDv2) evaluateCond(ctx context.Context, cond func() bool) error {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-ready:
-			f.readyOnce.Do(func() {
-				close(closeWhenReady)
-			})
 		case <-ctx.Done():
-			return
+			return ctx.Err()
+		case <-ticker.C:
+			if cond() {
+				return nil
+			}
 		}
 	}
 }
