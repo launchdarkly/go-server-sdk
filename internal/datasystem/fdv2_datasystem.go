@@ -114,12 +114,16 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.disabled = disabled
 	fdv2.fallbackCond = func() bool {
 		status := fdv2.getStatus()
-		return status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
+		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
+		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 30*time.Second
+		return interruptedAtRuntime || cannotInitialize
 	}
 	fdv2.recoveryCond = func() bool {
 		status := fdv2.getStatus()
-		return status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute ||
-			status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 5*time.Minute
+		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
+		healthyForTooLong := status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 5*time.Minute
+		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 30*time.Second
+		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
 	}
 
 	if cfg.Store != nil && !disabled {
@@ -248,15 +252,18 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 	f.launchTask(func() {
 		for {
+			f.loggers.Debugf("Synchronizer %s is starting", f.primarySync.Name())
 			f.primarySync.Sync(ready, f.store.Selector())
 			if err := f.evaluateCond(ctx, f.fallbackCond); errors.Is(err, context.Canceled) {
 				return
 			}
+			f.loggers.Debugf("Fallback condition met")
+			f.loggers.Debugf("Synchronizer %s is starting", f.secondarySync.Name())
 			f.secondarySync.Sync(ready, f.store.Selector())
 			if err := f.evaluateCond(ctx, f.recoveryCond); errors.Is(err, context.Canceled) {
 				return
 			}
-
+			f.loggers.Debugf("Recovery condition met")
 			select {
 			case <-ctx.Done():
 				return
