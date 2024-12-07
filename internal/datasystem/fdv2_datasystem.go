@@ -114,6 +114,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.disabled = disabled
 	fdv2.fallbackCond = func() bool {
 		status := fdv2.getStatus()
+		fdv2.loggers.Debugf("Status: %s", status.String())
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
 		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 30*time.Second
 		return interruptedAtRuntime || cannotInitialize
@@ -284,6 +285,7 @@ func (f *FDv2) evaluateCond(ctx context.Context, cond func() bool) error {
 			if cond() {
 				return nil
 			}
+			f.loggers.Debugf("Condition check succeeded, continue with current synchronizer")
 		}
 	}
 }
