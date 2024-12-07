@@ -37,6 +37,18 @@ const (
 	streamingWillRetryMessage = "will retry"
 )
 
+// processingState designates the 3 states we could be in when processing an event.
+type processingState string
+
+const (
+	// processingStateEventDecoded indicates that the event was successfully decoded and can be processed.
+	processingStateEventDecoded processingState = "DECODED"
+	// processingStateEventIgnored indicates that the event was ignored.
+	processingStateEventIgnored processingState = "IGNORED"
+	// processingStateEventMalformed indicates that the event was malformed.
+	processingStateEventMalformed processingState = "MALFORMED"
+)
+
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in
 // the eventsource package.
 //
@@ -159,7 +171,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			sp.logConnectionResult(true)
 
-			processedEvent := true
+			processedEvent := processingStateEventDecoded
 			shouldRestart := false
 
 			gotMalformedEvent := func(event es.Event, err error) {
@@ -187,7 +199,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 
 				shouldRestart = true // scenario 1 in error handling comments at top of file
-				processedEvent = false
+				processedEvent = processingStateEventMalformed
 			}
 
 			switch fdv2proto.EventName(event.Event()) {
@@ -289,10 +301,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 
 			default:
+				processedEvent = processingStateEventIgnored
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
 			}
 
-			if processedEvent {
+			if processedEvent == processingStateEventDecoded {
 				sp.statusReporter.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 			}
 			if shouldRestart {

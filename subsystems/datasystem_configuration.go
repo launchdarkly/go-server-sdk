@@ -2,10 +2,10 @@ package subsystems
 
 // SynchronizersConfiguration represents the config for the primary and secondary synchronizers.
 type SynchronizersConfiguration struct {
-	// The synchronizer that is primarily active.
-	Primary DataSynchronizer
-	// A fallback synchronizer if the primary fails.
-	Secondary DataSynchronizer
+	// The builder for the synchronizer that is primarily active.
+	PrimaryBuilder func() (DataSynchronizer, error)
+	// A fallback builder for the synchronizer if the primary fails.
+	SecondaryBuilder func() (DataSynchronizer, error)
 }
 
 // DataSystemConfiguration represents the configuration for the data system.
