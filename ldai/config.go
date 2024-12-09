@@ -104,7 +104,7 @@ func (cb *ConfigBuilder) Disable() *ConfigBuilder {
 	return cb.WithEnabled(false)
 }
 
-// WithModelName sets the model Name associated with the config.
+// WithModelName sets the model name associated with the config.
 func (cb *ConfigBuilder) WithModelName(modelName string) *ConfigBuilder {
 	cb.modelName = modelName
 	return cb
