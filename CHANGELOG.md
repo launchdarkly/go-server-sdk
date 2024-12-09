@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.8.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.7.0...v7.8.0) (2024-12-09)
+
+
+### Features
+
+* internal implementation of FDv2 data system ([67b411e](https://github.com/launchdarkly/go-server-sdk/commit/67b411efe0becae68d1c69bab8b0bc00c9b6378c))
+
 ## [7.7.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.6.2...v7.7.0) (2024-10-22)
 
 
