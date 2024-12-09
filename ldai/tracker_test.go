@@ -1,9 +1,10 @@
 package ldai
 
 import (
-	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 	"testing"
 	"time"
+
+	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -116,8 +117,8 @@ func TestTracker_TrackRequestReceivesConfig(t *testing.T) {
 
 	expectedConfig := NewConfig().
 		WithMessage("hello", datamodel.Assistant).
-		WithModelId("model").
-		WithProviderId("provider").
+		WithModelName("model").
+		WithProviderName("provider").
 		WithModelParam("param", ldvalue.String("value")).
 		WithCustomModelParam("custom", ldvalue.String("value")).
 		Enable().

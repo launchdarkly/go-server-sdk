@@ -13,8 +13,8 @@ type Meta struct {
 
 // Model defines the serialization format for a model.
 type Model struct {
-	// Id identifies the model.
-	Id string `json:"id"`
+	// Name identifies the model.
+	Name string `json:"name"`
 
 	// Parameters are the model parameters, generally provided by LaunchDarkly.
 	Parameters map[string]ldvalue.Value `json:"parameters,omitempty"`
@@ -25,8 +25,8 @@ type Model struct {
 
 // Provider defines the serialization format for a model provider.
 type Provider struct {
-	// Id identifies the provider.
-	Id string `json:"id"`
+	// Name identifies the provider.
+	Name string `json:"name"`
 }
 
 // Role defines the role of a message.
