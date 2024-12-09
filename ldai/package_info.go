@@ -2,4 +2,4 @@
 package ldai
 
 // Version is the current version string of the ldai package. This is updated by our release scripts.
-const Version = "0.1.1" // {{ x-release-please-version }}
+const Version = "0.2.0" // {{ x-release-please-version }}
