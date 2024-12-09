@@ -134,14 +134,14 @@ func TestCanSetDefaultConfigFields(t *testing.T) {
 	defaultVal := NewConfig().Enable().
 		WithMessage("hello", datamodel.User).
 		WithMessage("world", datamodel.System).
-		WithProviderId("provider").
-		WithModelId("model").Build()
+		WithProviderName("provider").
+		WithModelName("model").Build()
 
 	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
 
 	assert.True(t, cfg.Enabled())
-	assert.Equal(t, "provider", cfg.ProviderId())
-	assert.Equal(t, "model", cfg.ModelId())
+	assert.Equal(t, "provider", cfg.ProviderName())
+	assert.Equal(t, "model", cfg.ModelName())
 	assert.Equal(t, 2, len(cfg.Messages()))
 
 	msg := cfg.Messages()

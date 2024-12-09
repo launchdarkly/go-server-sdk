@@ -28,14 +28,14 @@ func (c *Config) Enabled() bool {
 	return c.c.Meta.Enabled
 }
 
-// ProviderId returns the provider ID associated with the config.
-func (c *Config) ProviderId() string {
-	return c.c.Provider.Id
+// ProviderName returns the provider Name associated with the config.
+func (c *Config) ProviderName() string {
+	return c.c.Provider.Name
 }
 
-// ModelId returns the model ID associated with the config.
-func (c *Config) ModelId() string {
-	return c.c.Model.Id
+// ModelName returns the model Name associated with the config.
+func (c *Config) ModelName() string {
+	return c.c.Model.Name
 }
 
 // ModelParam returns the model parameter named by key. The second parameter is true if the key exists.
@@ -60,8 +60,8 @@ func (c *Config) AsLdValue() ldvalue.Value {
 type ConfigBuilder struct {
 	messages          []datamodel.Message
 	enabled           bool
-	providerId        string
-	modelId           string
+	providerName      string
+	modelName         string
 	modelParams       map[string]ldvalue.Value
 	modelCustomParams map[string]ldvalue.Value
 }
@@ -104,15 +104,15 @@ func (cb *ConfigBuilder) Disable() *ConfigBuilder {
 	return cb.WithEnabled(false)
 }
 
-// WithModelId sets the model ID associated with the config.
-func (cb *ConfigBuilder) WithModelId(modelId string) *ConfigBuilder {
-	cb.modelId = modelId
+// WithModelName sets the model Name associated with the config.
+func (cb *ConfigBuilder) WithModelName(modelName string) *ConfigBuilder {
+	cb.modelName = modelName
 	return cb
 }
 
-// WithProviderId sets the provider ID associated with the config.
-func (cb *ConfigBuilder) WithProviderId(providerId string) *ConfigBuilder {
-	cb.providerId = providerId
+// WithProviderName sets the provider Name associated with the config.
+func (cb *ConfigBuilder) WithProviderName(providerName string) *ConfigBuilder {
+	cb.providerName = providerName
 	return cb
 }
 
@@ -140,12 +140,12 @@ func (cb *ConfigBuilder) Build() Config {
 				Enabled: cb.enabled,
 			},
 			Model: datamodel.Model{
-				Id:         cb.modelId,
+				Name:       cb.modelName,
 				Parameters: maps.Clone(cb.modelParams),
 				Custom:     maps.Clone(cb.modelCustomParams),
 			},
 			Provider: datamodel.Provider{
-				Id: cb.providerId,
+				Name: cb.providerName,
 			},
 		},
 	}

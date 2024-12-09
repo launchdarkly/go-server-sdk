@@ -98,8 +98,8 @@ func (c *Client) Config(
 	}
 
 	builder := NewConfig().
-		WithModelId(parsed.Model.Id).
-		WithProviderId(parsed.Provider.Id).
+		WithModelName(parsed.Model.Name).
+		WithProviderName(parsed.Provider.Name).
 		WithEnabled(parsed.Meta.Enabled)
 
 	for i, msg := range parsed.Messages {
