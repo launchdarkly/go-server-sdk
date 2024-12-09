@@ -28,12 +28,12 @@ func (c *Config) Enabled() bool {
 	return c.c.Meta.Enabled
 }
 
-// ProviderName returns the provider Name associated with the config.
+// ProviderName returns the provider name associated with the config.
 func (c *Config) ProviderName() string {
 	return c.c.Provider.Name
 }
 
-// ModelName returns the model Name associated with the config.
+// ModelName returns the model name associated with the config.
 func (c *Config) ModelName() string {
 	return c.c.Model.Name
 }
@@ -110,7 +110,7 @@ func (cb *ConfigBuilder) WithModelName(modelName string) *ConfigBuilder {
 	return cb
 }
 
-// WithProviderName sets the provider Name associated with the config.
+// WithProviderName sets the provider name associated with the config.
 func (cb *ConfigBuilder) WithProviderName(providerName string) *ConfigBuilder {
 	cb.providerName = providerName
 	return cb
