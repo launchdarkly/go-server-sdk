@@ -102,6 +102,14 @@ func (c *Client) Config(
 		WithProviderName(parsed.Provider.Name).
 		WithEnabled(parsed.Meta.Enabled)
 
+	for k, v := range parsed.Model.Parameters {
+		builder.WithModelParam(k, v)
+	}
+
+	for k, v := range parsed.Model.Custom {
+		builder.WithCustomModelParam(k, v)
+	}
+
 	for i, msg := range parsed.Messages {
 		content, err := interpolateTemplate(msg.Content, mergedVariables)
 		if err != nil {
