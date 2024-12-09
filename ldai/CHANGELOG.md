@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.1.1...ldai/v0.2.0) (2024-12-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rename model and provider id to name ([#218](https://github.com/launchdarkly/go-server-sdk/issues/218))
+
+### Bug Fixes
+
+* propagate parsed model params into returned AI config ([#220](https://github.com/launchdarkly/go-server-sdk/issues/220)) ([f75b7a8](https://github.com/launchdarkly/go-server-sdk/commit/f75b7a8df5f5e62f544d5e95cbc75bd82352ca57))
+
+
+### Code Refactoring
+
+* Rename model and provider id to name ([#218](https://github.com/launchdarkly/go-server-sdk/issues/218)) ([ebdc281](https://github.com/launchdarkly/go-server-sdk/commit/ebdc281c667446e04b37ef44ee5e3f953d288eb2))
+
 ## [0.1.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.1.0...ldai/v0.1.1) (2024-12-06)
 
 
