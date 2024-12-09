@@ -116,14 +116,18 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		status := fdv2.getStatus()
 		fdv2.loggers.Debugf("Status: %s", status.String())
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
-		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 30*time.Second
-		return interruptedAtRuntime || cannotInitialize
+		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 10*time.Second
+		healthyForTooLong := status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 30*time.Second
+
+		return interruptedAtRuntime || cannotInitialize || healthyForTooLong
 	}
 	fdv2.recoveryCond = func() bool {
 		status := fdv2.getStatus()
+		fdv2.loggers.Debugf("Status: %s", status.String())
+
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
 		healthyForTooLong := status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 5*time.Minute
-		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 30*time.Second
+		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 10*time.Second
 		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
 	}
 
@@ -174,6 +178,9 @@ func (f *FDv2) hasDataSources() bool {
 }
 
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
+
+	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
+
 	f.runInitializers(ctx, closeWhenReady)
 
 	if f.hasDataSources() && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
@@ -238,6 +245,8 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	// using the sync.Once.
 	ready := make(chan struct{})
 
+	// This doesn't work because the channel is still closed and when we flip flop, we might close again.
+	// Either change this to putting something in the channel, or figure out a better way to signal "ready".
 	f.launchTask(func() {
 		for {
 			select {
@@ -253,16 +262,25 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 	f.launchTask(func() {
 		for {
-			f.loggers.Debugf("Synchronizer %s is starting", f.primarySync.Name())
+			f.loggers.Debugf("Primary synchronizer %s is starting", f.primarySync.Name())
 			f.primarySync.Sync(ready, f.store.Selector())
 			if err := f.evaluateCond(ctx, f.fallbackCond); errors.Is(err, context.Canceled) {
 				return
 			}
+			if err := f.primarySync.Close(); err != nil {
+				f.loggers.Errorf("Primary synchronizer %s failed to gracefully close: %v", f.primarySync.Name(), err)
+			}
 			f.loggers.Debugf("Fallback condition met")
-			f.loggers.Debugf("Synchronizer %s is starting", f.secondarySync.Name())
+			f.loggers.Debugf("Secondary synchronizer %s is starting", f.secondarySync.Name())
+
+			f.UpdateStatus(interfaces.DataSourceStateInterrupted, interfaces.DataSourceErrorInfo{})
+
 			f.secondarySync.Sync(ready, f.store.Selector())
 			if err := f.evaluateCond(ctx, f.recoveryCond); errors.Is(err, context.Canceled) {
 				return
+			}
+			if err := f.secondarySync.Close(); err != nil {
+				f.loggers.Errorf("Secondary synchronizer %s failed to gracefully close: %v", f.secondarySync.Name(), err)
 			}
 			f.loggers.Debugf("Recovery condition met")
 			select {
@@ -357,10 +375,16 @@ func (f *FDv2) Offline() bool {
 func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	oldState := f.status.State
+
 	f.status = interfaces.DataSourceStatus{
-		State:      status,
-		LastError:  err,
-		StateSince: time.Now(),
+		State:     status,
+		LastError: err,
+	}
+
+	if status != oldState {
+		f.status.StateSince = time.Now()
 	}
 }
 

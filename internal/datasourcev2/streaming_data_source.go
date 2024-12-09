@@ -287,6 +287,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 
 			default:
+				processedEvent = false
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
 			}
 
