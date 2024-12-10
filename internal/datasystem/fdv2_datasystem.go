@@ -386,19 +386,17 @@ func (f *FDv2) Offline() bool {
 }
 
 //nolint:revive // DataSourceStatusReporter method.
-func (f *FDv2) UpdateStatus(status interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
+func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	oldState := f.status.State
-
-	f.status = interfaces.DataSourceStatus{
-		State:     status,
-		LastError: err,
+	if state != f.status.State {
+		f.status.State = state
+		f.status.StateSince = time.Now()
 	}
 
-	if status != oldState {
-		f.status.StateSince = time.Now()
+	if err != f.status.LastError {
+		f.status.LastError = err
 	}
 }
 
