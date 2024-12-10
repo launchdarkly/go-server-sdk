@@ -12,9 +12,9 @@ type Config struct {
 	c datamodel.Config
 }
 
-// VersionKey is used internally by LaunchDarkly.
-func (c *Config) VersionKey() string {
-	return c.c.Meta.VersionKey
+// VariationKey is used internally by LaunchDarkly.
+func (c *Config) VariationKey() string {
+	return c.c.Meta.VariationKey
 }
 
 // Messages returns the messages defined by the config. The series of messages may be
