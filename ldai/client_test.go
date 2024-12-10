@@ -71,7 +71,7 @@ func TestEvalErrorReturnsDefault(t *testing.T) {
 
 func TestParseMultipleMessages(t *testing.T) {
 	json := []byte(`{
-		"_ldMeta": {"versionKey": "1", "enabled": true},
+		"_ldMeta": {"variationKey": "1", "enabled": true},
 		"messages": [
 			{"content": "hello", "role": "user"},
 			{"content": "world", "role": "system"}
@@ -175,8 +175,8 @@ func TestParseDisabledConfigs(t *testing.T) {
 	}{
 		{"empty object", []byte("{}")},
 		{"missing meta field", []byte(`{"model": {}, "messages": []}`)},
-		{"meta disabled explicitly", []byte(`{"meta": {"enabled": false, "versionKey": "1"}, "model": {}, "messages": []}`)},
-		{"meta disable implicitly", []byte(`{"meta": { "versionKey": "1"}, "model": {}, "messages": []}`)},
+		{"meta disabled explicitly", []byte(`{"meta": {"enabled": false, "variationKey": "1"}, "model": {}, "messages": []}`)},
+		{"meta disable implicitly", []byte(`{"meta": { "variationKey": "1"}, "model": {}, "messages": []}`)},
 	}
 
 	defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
@@ -368,7 +368,7 @@ func TestCannotOverwriteMessages(t *testing.T) {
 func eval(t *testing.T, prompt string, ctx ldcontext.Context, variables map[string]interface{}) (string, error) {
 	t.Helper()
 	json := []byte(`{
-					"_ldMeta": {"versionKey": "1", "enabled": true},
+					"_ldMeta": {"variationKey": "1", "enabled": true},
 					"messages": [
 						{"content": "` + prompt + `", "role": "user"}
 					]

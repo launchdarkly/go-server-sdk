@@ -114,19 +114,19 @@ func (d *defaultStopwatch) Stop() time.Duration {
 }
 
 // newTracker creates a new Tracker with the specified key, event sink, config, context, and loggers.
-func newTracker(key string, versionKey string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers) *Tracker {
-	return newTrackerWithStopwatch(key, versionKey, events, config, ctx, loggers, &defaultStopwatch{})
+func newTracker(key string, variationKey string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers) *Tracker {
+	return newTrackerWithStopwatch(key, variationKey, events, config, ctx, loggers, &defaultStopwatch{})
 }
 
 // newTrackerWithStopwatch creates a new Tracker with the specified key, event sink, config, context, loggers, and
 // stopwatch. This method is used for testing purposes.
-func newTrackerWithStopwatch(key string, versionKey string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers, stopwatch Stopwatch) *Tracker {
+func newTrackerWithStopwatch(key string, variationKey string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers, stopwatch Stopwatch) *Tracker {
 	if config == nil {
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
 
 	trackData := ldvalue.ObjectBuild().
-		Set("versionKey", ldvalue.String(versionKey)).
+		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(key)).Build()
 
 	return &Tracker{

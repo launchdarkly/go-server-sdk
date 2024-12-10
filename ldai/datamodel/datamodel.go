@@ -4,8 +4,8 @@ import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 
 // Meta defines the serialization format for config metadata.
 type Meta struct {
-	// VersionKey is the version key.
-	VersionKey string `json:"versionKey,omitempty"`
+	// VariationKey is the variation key.
+	VariationKey string `json:"variationKey,omitempty"`
 
 	// Enabled is true if the config is enabled.
 	Enabled bool `json:"enabled,omitempty"`
