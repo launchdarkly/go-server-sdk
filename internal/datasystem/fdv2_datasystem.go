@@ -230,9 +230,43 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 	}
 }
 
+// The Go SDK is architected in such a way that a "closeWhenReady" channel is passed into the Data System by means
+// of MakeClient. MakeClient is able to block the user until the client reaches a terminal state in regard to
+// its initialization status - either initialized with data, or run out of time initializing, or some fatal error.
+//
+// By closing this channel, the SDK's data sources indicate that MakeClient should unblock.
+//
+// In the FDv2 world, we have the possibility that a synchronizer fails or we fall back to a secondary synchronizer.
+// Perhaps we've already closed the channel, and now a new synchronizer is attempting to do the same.
+//
+// In that case, we need to guarantee that the channel is closed only once. To do this, we "wrap" channel that is passed
+// directly into the synchronizer with another channel. The wrapper is responsible for actually closing the underlying
+// closeWhenReady, and it uses a sync.Once to ensure that happens only once.
+//
+// This design could be improved significantly. Some ideas:
+// 1) Refactor the SDK to listen to Data Source status rather than the special closeWhenReady channel. It's unclear why
+// this isn't currently the case, but there may be good reasons.
+// 2) Use callbacks. Somewhat equivalent to (1), but instead of needing to wrap the channel, we just proxy directly to
+// calling the sync.Once.
+// 3) Make the channel multi-use. Instead of the contract being "close when ready", have it be "send a value when ready".
+func (f *FDv2) closeChannelWrapper(ctx context.Context, closeWhenReady chan struct{}) chan struct{} {
+	ch := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ch:
+			f.readyOnce.Do(func() {
+				close(closeWhenReady)
+			})
+		}
+	}()
+	return ch
+}
+
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
-	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded), we should
-	// trigger the ready signal to let the call to MakeClient unblock immediately.
+	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded, which would have
+	// already closed the channel), we should close it now so that MakeClient unblocks.
 	if f.primarySync == nil {
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
@@ -240,30 +274,10 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		return
 	}
 
-	// We can't pass closeWhenReady to the data source, because it might have already been closed.
-	// Instead, create a "proxy" channel just for the data source; if that is closed, we close the real one
-	// using the sync.Once.
-	ready := make(chan struct{})
-
-	// This doesn't work because the channel is still closed and when we flip flop, we might close again.
-	// Either change this to putting something in the channel, or figure out a better way to signal "ready".
-	f.launchTask(func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ready:
-				f.readyOnce.Do(func() {
-					close(closeWhenReady)
-				})
-			}
-		}
-	})
-
 	f.launchTask(func() {
 		for {
 			f.loggers.Debugf("Primary synchronizer %s is starting", f.primarySync.Name())
-			f.primarySync.Sync(ready, f.store.Selector())
+			f.primarySync.Sync(f.closeChannelWrapper(ctx, closeWhenReady), f.store.Selector())
 			if err := f.evaluateCond(ctx, f.fallbackCond); errors.Is(err, context.Canceled) {
 				return
 			}
@@ -275,7 +289,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			f.UpdateStatus(interfaces.DataSourceStateInterrupted, interfaces.DataSourceErrorInfo{})
 
-			f.secondarySync.Sync(ready, f.store.Selector())
+			f.secondarySync.Sync(f.closeChannelWrapper(ctx, closeWhenReady), f.store.Selector())
 			if err := f.evaluateCond(ctx, f.recoveryCond); errors.Is(err, context.Canceled) {
 				return
 			}
