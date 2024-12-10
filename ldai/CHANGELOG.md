@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.2.0...ldai/v0.3.0) (2024-12-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rename versionKey to variationKey ([#221](https://github.com/launchdarkly/go-server-sdk/issues/221))
+
+### Code Refactoring
+
+* Rename versionKey to variationKey ([#221](https://github.com/launchdarkly/go-server-sdk/issues/221)) ([470f8c1](https://github.com/launchdarkly/go-server-sdk/commit/470f8c1f90022abb102f6fcf0c2856297baa8842))
+
 ## [0.2.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.1.1...ldai/v0.2.0) (2024-12-09)
 
 
