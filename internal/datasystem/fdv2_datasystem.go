@@ -71,8 +71,8 @@ type FDv2 struct {
 	mu     sync.Mutex
 	status interfaces.DataSourceStatus
 
-	fallbackCond func() bool
-	recoveryCond func() bool
+	fallbackCond func(status interfaces.DataSourceStatus) bool
+	recoveryCond func(status interfaces.DataSourceStatus) bool
 }
 
 // NewFDv2 creates a new instance of the FDv2 data system. The first argument indicates if the system is enabled or
@@ -112,19 +112,14 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.primarySync = cfg.Synchronizers.Primary
 	fdv2.secondarySync = cfg.Synchronizers.Secondary
 	fdv2.disabled = disabled
-	fdv2.fallbackCond = func() bool {
-		status := fdv2.getStatus()
-		fdv2.loggers.Debugf("Status: %s", status.String())
+	fdv2.fallbackCond = func(status interfaces.DataSourceStatus) bool {
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
 		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 10*time.Second
 		healthyForTooLong := status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 30*time.Second
 
 		return interruptedAtRuntime || cannotInitialize || healthyForTooLong
 	}
-	fdv2.recoveryCond = func() bool {
-		status := fdv2.getStatus()
-		fdv2.loggers.Debugf("Status: %s", status.String())
-
+	fdv2.recoveryCond = func(status interfaces.DataSourceStatus) bool {
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted && time.Since(status.StateSince) > 1*time.Minute
 		healthyForTooLong := status.State == interfaces.DataSourceStateValid && time.Since(status.StateSince) > 5*time.Minute
 		cannotInitialize := status.State == interfaces.DataSourceStateInitializing && time.Since(status.StateSince) > 10*time.Second
@@ -306,7 +301,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	})
 }
 
-func (f *FDv2) evaluateCond(ctx context.Context, cond func() bool) error {
+func (f *FDv2) evaluateCond(ctx context.Context, cond func(status interfaces.DataSourceStatus) bool) error {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -314,7 +309,9 @@ func (f *FDv2) evaluateCond(ctx context.Context, cond func() bool) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if cond() {
+			status := f.getStatus()
+			f.loggers.Debugf("Data source status used to evaluate condition: %s", status.String())
+			if cond(status) {
 				return nil
 			}
 			f.loggers.Debugf("Condition check succeeded, continue with current synchronizer")
