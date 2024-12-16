@@ -57,14 +57,45 @@ func TestTracker_TrackSuccess(t *testing.T) {
 	tracker := newTracker("key", "variationKey", events, &Config{}, ldcontext.New("key"), nil)
 	assert.NoError(t, tracker.TrackSuccess())
 
-	expectedEvent := trackEvent{
-		name:        "$ld:ai:generation",
-		context:     ldcontext.New("key"),
-		metricValue: 1.0,
-		data:        makeTrackData("key", "variationKey"),
+	expectedEvents := []trackEvent{
+		{
+			name:        "$ld:ai:generation",
+			context:     ldcontext.New("key"),
+			metricValue: 1.0,
+			data:        makeTrackData("key", "variationKey"),
+		},
+		{
+			name:        "$ld:ai:generation:success",
+			context:     ldcontext.New("key"),
+			metricValue: 1.0,
+			data:        makeTrackData("key", "variationKey"),
+		},
 	}
 
-	assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
+	assert.ElementsMatch(t, expectedEvents, events.events)
+}
+
+func TestTracker_TrackError(t *testing.T) {
+	events := newMockEvents()
+	tracker := newTracker("key", "variationKey", events, &Config{}, ldcontext.New("key"), nil)
+	assert.NoError(t, tracker.TrackError())
+
+	expectedEvents := []trackEvent{
+		{
+			name:        "$ld:ai:generation",
+			context:     ldcontext.New("key"),
+			metricValue: 1.0,
+			data:        makeTrackData("key", "variationKey"),
+		},
+		{
+			name:        "$ld:ai:generation:error",
+			context:     ldcontext.New("key"),
+			metricValue: 1.0,
+			data:        makeTrackData("key", "variationKey"),
+		},
+	}
+
+	assert.ElementsMatch(t, expectedEvents, events.events)
 }
 
 func TestTracker_TrackRequest(t *testing.T) {
@@ -87,28 +118,33 @@ func TestTracker_TrackRequest(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse, r)
 
-	expectedSuccessEvent := trackEvent{
-		name:        "$ld:ai:generation",
-		context:     ldcontext.New("key"),
-		metricValue: 1,
-		data:        makeTrackData("key", "variationKey"),
+	expectedEvents := []trackEvent{
+		{
+			name:        "$ld:ai:generation",
+			context:     ldcontext.New("key"),
+			metricValue: 1,
+			data:        makeTrackData("key", "variationKey"),
+		},
+		{
+			name:        "$ld:ai:generation:success",
+			context:     ldcontext.New("key"),
+			metricValue: 1,
+			data:        makeTrackData("key", "variationKey"),
+		},
+		{
+			name:        "$ld:ai:duration:total",
+			context:     ldcontext.New("key"),
+			metricValue: 10.0,
+			data:        makeTrackData("key", "variationKey"),
+		},
+		{
+			name:        "$ld:ai:tokens:total",
+			context:     ldcontext.New("key"),
+			metricValue: 1,
+			data:        makeTrackData("key", "variationKey"),
+		},
 	}
 
-	expectedDurationEvent := trackEvent{
-		name:        "$ld:ai:duration:total",
-		context:     ldcontext.New("key"),
-		metricValue: 10.0,
-		data:        makeTrackData("key", "variationKey"),
-	}
-
-	expectedTokenUsageEvent := trackEvent{
-		name:        "$ld:ai:tokens:total",
-		context:     ldcontext.New("key"),
-		metricValue: 1,
-		data:        makeTrackData("key", "variationKey"),
-	}
-
-	expectedEvents := []trackEvent{expectedSuccessEvent, expectedDurationEvent, expectedTokenUsageEvent}
 	assert.ElementsMatch(t, expectedEvents, events.events)
 }
 
