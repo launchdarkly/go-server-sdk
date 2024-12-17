@@ -10,13 +10,15 @@ import (
 )
 
 const (
-	duration         = "$ld:ai:duration:total"
-	feedbackPositive = "$ld:ai:feedback:user:positive"
-	feedbackNegative = "$ld:ai:feedback:user:negative"
-	generation       = "$ld:ai:generation"
-	tokenTotal       = "$ld:ai:tokens:total"
-	tokenInput       = "$ld:ai:tokens:input"
-	tokenOutput      = "$ld:ai:tokens:output"
+	duration          = "$ld:ai:duration:total"
+	feedbackPositive  = "$ld:ai:feedback:user:positive"
+	feedbackNegative  = "$ld:ai:feedback:user:negative"
+	generation        = "$ld:ai:generation"
+	generationSuccess = "$ld:ai:generation:success"
+	generationError   = "$ld:ai:generation:error"
+	tokenTotal        = "$ld:ai:tokens:total"
+	tokenInput        = "$ld:ai:tokens:input"
+	tokenOutput       = "$ld:ai:tokens:output"
 )
 
 // TokenUsage represents the token usage returned by a model provider for a specific request.
@@ -167,7 +169,22 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 
 // TrackSuccess tracks a successful model evaluation.
 func (t *Tracker) TrackSuccess() error {
-	return t.events.TrackMetric(generation, t.context, 1, t.trackData)
+	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
+	if err := t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData); err != nil {
+		return err
+	}
+
+	return err
+}
+
+// TrackError tracks an unsuccessful model evaluation.
+func (t *Tracker) TrackError() error {
+	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
+	if err := t.events.TrackMetric(generationError, t.context, 1, t.trackData); err != nil {
+		return err
+	}
+
+	return err
 }
 
 // TrackUsage tracks the token usage for a model evaluation.
@@ -222,6 +239,10 @@ func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (
 	usage, duration, err := measureDurationOfTask(t.stopwatch, t.config, task)
 
 	if err != nil {
+		if e := t.TrackError(); e != nil {
+			t.logWarning("error tracking error metric for request: %v", e)
+		}
+
 		t.logWarning("error executing request: %v", err)
 		return ProviderResponse{}, err
 	}
