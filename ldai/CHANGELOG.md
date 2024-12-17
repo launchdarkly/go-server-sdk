@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.3.0...ldai/v0.4.0) (2024-12-17)
+
+
+### Features
+
+* Add `TrackError` to mirror `TrackSuccess` ([#225](https://github.com/launchdarkly/go-server-sdk/issues/225)) ([ccd2c64](https://github.com/launchdarkly/go-server-sdk/commit/ccd2c644efdfd4de12ce0bff786e7f6b6764b153))
+
 ## [0.3.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.2.0...ldai/v0.3.0) (2024-12-10)
 
 
