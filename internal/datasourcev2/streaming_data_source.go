@@ -304,11 +304,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 	}
 }
 
-func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, selector fdv2proto.Selector) {
+func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
 	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath)
-	if selector.IsDefined() {
-		path = path + "?basis=" + selector.State()
-	}
 	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
 		sp.loggers.Errorf(
@@ -324,11 +321,7 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, selector fd
 		close(closeWhenReady)
 		return
 	}
-	if sp.cfg.FilterKey != "" {
-		req.URL.RawQuery = url.Values{
-			"filter": {sp.cfg.FilterKey},
-		}.Encode()
-	}
+
 	if sp.headers != nil {
 		req.Header = maps.Clone(sp.headers)
 	}
@@ -384,6 +377,17 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, selector fd
 	}
 
 	stream, err := es.SubscribeWithRequestAndOptions(req,
+		es.StreamOptionDynamicQueryParams(func(existing url.Values) url.Values {
+			if selector := sp.dataDestination.Selector(); selector.IsDefined() {
+				existing.Set("basis", selector.State())
+			}
+
+			if sp.cfg.FilterKey != "" {
+				existing.Set("filter", sp.cfg.FilterKey)
+			}
+
+			return existing
+		}),
 		es.StreamOptionHTTPClient(sp.client),
 		es.StreamOptionReadTimeout(streamReadTimeout),
 		es.StreamOptionInitialRetry(initialRetryDelay),

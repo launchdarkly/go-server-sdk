@@ -22,6 +22,7 @@ type MockDataDestination struct {
 	Statuses                chan interfaces.DataSourceStatus
 	dataStoreStatusProvider *mockDataStoreStatusProvider
 	lastStatus              interfaces.DataSourceStatus
+	lastKnownSelector       fdv2proto.Selector
 	lock                    sync.Mutex
 }
 
@@ -40,11 +41,19 @@ func NewMockDataDestination(realStore subsystems.DataStore) *MockDataDestination
 		DataStore:               dataStore,
 		Statuses:                make(chan interfaces.DataSourceStatus, 10),
 		dataStoreStatusProvider: dataStoreStatusProvider,
+		lastKnownSelector:       fdv2proto.NoSelector(),
 	}
 }
 
+// Selector returns the last known selector value.
+func (d *MockDataDestination) Selector() fdv2proto.Selector {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	return d.lastKnownSelector
+}
+
 // SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) SetBasis(events []fdv2proto.Change, _ fdv2proto.Selector, _ bool) {
+func (d *MockDataDestination) SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
@@ -56,11 +65,16 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Change, _ fdv2proto.Se
 	for _, coll := range collections {
 		AssertNotNil(coll.Kind)
 	}
-	_ = d.DataStore.Init(toposort.Sort(collections))
+
+	if err := d.DataStore.Init(toposort.Sort(collections)); err == nil {
+		d.lock.Lock()
+		d.lastKnownSelector = selector
+		d.lock.Unlock()
+	}
 }
 
 // ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Change, _ fdv2proto.Selector, _ bool) {
+func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Change, selector fdv2proto.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
@@ -80,6 +94,10 @@ func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Change, _ fdv2proto.
 			}
 		}
 	}
+
+	d.lock.Lock()
+	d.lastKnownSelector = selector
+	d.lock.Unlock()
 }
 
 // UpdateStatus in this test implementation, pushes a value onto the Statuses channel.
