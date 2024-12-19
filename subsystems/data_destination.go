@@ -4,7 +4,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
-// DataDestination represents a sink for data obtained from a data source.
+// DataDestination handles data obtained from a data source and maintains a
+// record of the last selector applied.
+
 // This interface is not stable, and not subject to any backwards
 // compatibility guarantees or semantic versioning. It is not suitable for production usage.
 //
