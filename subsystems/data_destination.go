@@ -11,7 +11,8 @@ import (
 // Do not use it.
 // You have been warned.
 type DataDestination interface {
-	// Selector returns the last known selector for the data store.
+	// Selector returns the last known selector for the data store. If no previous selector is known,
+	// this should return fdv2proto.NoSelector()
 	Selector() fdv2proto.Selector
 
 	// SetBasis defines a new basis for the data store. This means the store must
