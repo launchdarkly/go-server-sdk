@@ -90,7 +90,7 @@ func (pp *PollingProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) 
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
+func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)
