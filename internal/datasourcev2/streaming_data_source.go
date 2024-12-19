@@ -384,6 +384,8 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, _ fdv2proto
 
 			if sp.cfg.FilterKey != "" {
 				existing.Set("filter", sp.cfg.FilterKey)
+			} else {
+				existing.Del("filter")
 			}
 
 			return existing
