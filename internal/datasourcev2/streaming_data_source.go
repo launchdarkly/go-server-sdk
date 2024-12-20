@@ -322,6 +322,12 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, _ fdv2proto
 		return
 	}
 
+	if sp.cfg.FilterKey != "" {
+		req.URL.RawQuery = url.Values{
+			"filter": {sp.cfg.FilterKey},
+		}.Encode()
+	}
+
 	if sp.headers != nil {
 		req.Header = maps.Clone(sp.headers)
 	}
@@ -380,12 +386,6 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, _ fdv2proto
 		es.StreamOptionDynamicQueryParams(func(existing url.Values) url.Values {
 			if selector := sp.dataDestination.Selector(); selector.IsDefined() {
 				existing.Set("basis", selector.State())
-			}
-
-			if sp.cfg.FilterKey != "" {
-				existing.Set("filter", sp.cfg.FilterKey)
-			} else {
-				existing.Del("filter")
 			}
 
 			return existing
