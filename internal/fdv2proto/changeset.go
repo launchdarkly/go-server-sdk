@@ -76,6 +76,11 @@ func (c *ChangeSetBuilder) Start(intent ServerIntent) error {
 	return nil
 }
 
+// Reset clears any existing changes, while preserving the current intent.
+func (c *ChangeSetBuilder) Reset() {
+	c.changes = nil
+}
+
 // Finish identifies a changeset with a selector, and returns the completed changeset.
 // It clears any existing changes, while preserving the current intent, so that the builder can be reused.
 func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {

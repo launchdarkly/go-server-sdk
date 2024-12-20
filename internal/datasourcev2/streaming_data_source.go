@@ -254,9 +254,14 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 				sp.loggers.Errorf("Error on %s: %s", errorData.PayloadID, errorData.Reason)
 
-				// The protocol should "forget" anything that has happened, and expect that we will receive
-				// more messages in the future (starting with a server intent.)
-				changeSetBuilder = fdv2proto.NewChangeSetBuilder()
+				// The protocol should "reset" any previous change events it
+				// has received, but should continue to operate under the
+				// assumption the last server intent was in effect.
+				//
+				// The serer may choose to send a new server-intent, at which
+				// point we will set that as well.
+				changeSetBuilder.Reset()
+
 			case fdv2proto.EventPayloadTransferred:
 				var selector fdv2proto.Selector
 				err := json.Unmarshal([]byte(event.Data()), &selector)
