@@ -249,116 +249,67 @@ func (k unknownDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, 
 func testApplyDelta(t *testing.T) {
 	forAllDataKinds(t, func(t *testing.T, kind ldstoretypes.DataKind, makeItem collectionItemCreator, deleteItem collectionItemDeleter) {
 		t.Run("upserts", func(t *testing.T) {
-			t.Run("newer version", func(t *testing.T) {
-				store := makeMemoryStore()
-				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+			tests := []struct {
+				name           string
+				initialVersion int
+				nextVersion    int
+			}{
+				{"newer version", 10, 11},
+				{"older version", 10, 9},
+				{"same version", 10, 10},
+			}
 
-				_, collection1 := makeItem("key", 10, false)
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					store := makeMemoryStore()
+					store.SetBasis(sharedtest.NewDataSetBuilder().Build())
 
-				updates := store.ApplyDelta(collection1)
-				assert.True(t, updates[kind]["key"])
+					initialItem, initialCollection := makeItem("key", test.initialVersion, false)
 
-				item1a, collection1a := makeItem("key", 11, true)
+					store.ApplyDelta(initialCollection)
+					result, err := store.Get(kind, "key")
+					require.NoError(t, err)
+					assert.Equal(t, initialItem, result)
 
-				updates = store.ApplyDelta(collection1a)
-				assert.True(t, updates[kind]["key"])
+					updatedItem, updatedCollection := makeItem("key", test.nextVersion, true)
 
-				result, err := store.Get(kind, "key")
-				require.NoError(t, err)
-				assert.Equal(t, item1a, result)
-
-			})
-
-			t.Run("older version", func(t *testing.T) {
-				store := makeMemoryStore()
-				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
-
-				item1Version := 10
-				item1, collection1 := makeItem("key", item1Version, false)
-
-				updates := store.ApplyDelta(collection1)
-				assert.True(t, updates[kind]["key"])
-
-				_, collection1a := makeItem("key", item1Version-1, true)
-
-				updates = store.ApplyDelta(collection1a)
-				assert.False(t, updates[kind]["key"])
-
-				result, err := store.Get(kind, "key")
-				require.NoError(t, err)
-				assert.Equal(t, item1, result)
-			})
-
-			t.Run("same version", func(t *testing.T) {
-				store := makeMemoryStore()
-				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
-
-				item1Version := 10
-				item1, collection1 := makeItem("key", item1Version, false)
-				updated := store.ApplyDelta(collection1)
-				assert.True(t, updated[kind]["key"])
-
-				_, collection1a := makeItem("key", item1Version, true)
-				updated = store.ApplyDelta(collection1a)
-				assert.False(t, updated[kind]["key"])
-
-				result, err := store.Get(kind, "key")
-				require.NoError(t, err)
-				assert.Equal(t, item1, result)
-			})
+					store.ApplyDelta(updatedCollection)
+					result, err = store.Get(kind, "key")
+					require.NoError(t, err)
+					assert.Equal(t, updatedItem, result)
+				})
+			}
 		})
 
 		t.Run("deletes", func(t *testing.T) {
-			t.Run("newer version", func(t *testing.T) {
-				store := makeMemoryStore()
-				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
+			tests := []struct {
+				name           string
+				initialVersion int
+				nextVersion    int
+			}{
+				{"newer version", 10, 11},
+				{"older version", 10, 9},
+				{"same version", 10, 10},
+			}
 
-				item1, collection1 := makeItem("key", 10, false)
-				updated := store.ApplyDelta(collection1)
-				assert.True(t, updated[kind]["key"])
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					store := makeMemoryStore()
+					store.SetBasis(sharedtest.NewDataSetBuilder().Build())
 
-				item1a, collection1a := deleteItem("key", item1.Version+1)
-				updated = store.ApplyDelta(collection1a)
-				assert.True(t, updated[kind]["key"])
+					initialItem, initialCollection := makeItem("key", test.initialVersion, false)
+					store.ApplyDelta(initialCollection)
+					result, err := store.Get(kind, "key")
+					require.NoError(t, err)
+					assert.Equal(t, initialItem, result)
 
-				result, err := store.Get(kind, "key")
-				require.NoError(t, err)
-				assert.Equal(t, item1a, result)
-			})
-
-			t.Run("older version", func(t *testing.T) {
-				store := makeMemoryStore()
-				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
-
-				item1, collection1 := makeItem("key", 10, false)
-				updated := store.ApplyDelta(collection1)
-				assert.True(t, updated[kind]["key"])
-
-				_, collection1a := deleteItem("key", item1.Version-1)
-				updated = store.ApplyDelta(collection1a)
-				assert.False(t, updated[kind]["key"])
-
-				result, err := store.Get(kind, "key")
-				require.NoError(t, err)
-				assert.Equal(t, item1, result)
-			})
-
-			t.Run("same version", func(t *testing.T) {
-				store := makeMemoryStore()
-				store.SetBasis(sharedtest.NewDataSetBuilder().Build())
-
-				item1, collection1 := makeItem("key", 10, false)
-				updated := store.ApplyDelta(collection1)
-				assert.True(t, updated[kind]["key"])
-
-				_, collection1a := deleteItem("key", item1.Version)
-				updated = store.ApplyDelta(collection1a)
-				assert.False(t, updated[kind]["key"])
-
-				result, err := store.Get(kind, "key")
-				require.NoError(t, err)
-				assert.Equal(t, item1, result)
-			})
+					_, updatedCollection := deleteItem("key", test.nextVersion)
+					store.ApplyDelta(updatedCollection)
+					result, err = store.Get(kind, "key")
+					require.NoError(t, err)
+					require.IsType(t, ldstoretypes.ItemDescriptor{}.NotFound(), result)
+				})
+			}
 		})
 	})
 }

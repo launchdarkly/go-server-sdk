@@ -203,7 +203,7 @@ func BenchmarkInMemoryStoreUpsertExistingFlagSuccess(b *testing.B) {
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetFlagCopy.Version++
 		delta := makeCollections(dataKind, env.targetFlagKey, sharedtest.FlagDescriptor(*env.targetFlagCopy))
-		updates = env.store.ApplyDelta(delta)
+		env.store.ApplyDelta(delta)
 	})
 }
 
@@ -212,7 +212,7 @@ func BenchmarkInMemoryStoreUpsertExistingFlagFailure(b *testing.B) {
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetFlagCopy.Version--
 		delta := makeCollections(dataKind, env.targetFlagKey, sharedtest.FlagDescriptor(*env.targetFlagCopy))
-		updates = env.store.ApplyDelta(delta)
+		env.store.ApplyDelta(delta)
 	})
 }
 
@@ -221,7 +221,7 @@ func BenchmarkInMemoryStoreUpsertNewFlag(b *testing.B) {
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetFlagCopy.Key = env.unknownKey
 		delta := makeCollections(dataKind, env.unknownKey, sharedtest.FlagDescriptor(*env.targetFlagCopy))
-		updates = env.store.ApplyDelta(delta)
+		env.store.ApplyDelta(delta)
 	})
 }
 
@@ -230,7 +230,7 @@ func BenchmarkInMemoryStoreUpsertExistingSegmentSuccess(b *testing.B) {
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetSegmentCopy.Version++
 		delta := makeCollections(dataKind, env.targetSegmentKey, sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
-		updates = env.store.ApplyDelta(delta)
+		env.store.ApplyDelta(delta)
 	})
 }
 
@@ -239,7 +239,7 @@ func BenchmarkInMemoryStoreUpsertExistingSegmentFailure(b *testing.B) {
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetSegmentCopy.Version--
 		delta := makeCollections(dataKind, env.targetSegmentKey, sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
-		updates = env.store.ApplyDelta(delta)
+		env.store.ApplyDelta(delta)
 	})
 }
 
@@ -248,6 +248,6 @@ func BenchmarkInMemoryStoreUpsertNewSegment(b *testing.B) {
 	benchmarkInMemoryStore(b, inMemoryStoreBenchmarkCases, nil, func(env *inMemoryStoreBenchmarkEnv, bc inMemoryStoreBenchmarkCase) {
 		env.targetSegmentCopy.Key = env.unknownKey
 		delta := makeCollections(dataKind, env.unknownKey, sharedtest.SegmentDescriptor(*env.targetSegmentCopy))
-		updates = env.store.ApplyDelta(delta)
+		env.store.ApplyDelta(delta)
 	})
 }

@@ -55,28 +55,16 @@ func (s *Store) SetBasis(allData []ldstoretypes.Collection) {
 }
 
 // ApplyDelta applies a delta update to the store. ApplyDelta should not be called until
-// SetBasis has been called at least once. The return value indicates, for each DataKind
-// present in the delta, whether the item in the delta was actually updated or not.
-//
-// An item is updated only if the version of the item in the delta is greater than the version
-// in the store, or it wasn't already present.
-func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) map[ldstoretypes.DataKind]map[string]bool {
-	updatedMap := make(map[ldstoretypes.DataKind]map[string]bool)
-
+// SetBasis has been called at least once.
+func (s *Store) ApplyDelta(allData []ldstoretypes.Collection) {
 	s.Lock()
 	defer s.Unlock()
 
 	for _, coll := range allData {
 		for _, item := range coll.Items {
-			updated := s.upsert(coll.Kind, item.Key, item.Item)
-			if updatedMap[coll.Kind] == nil {
-				updatedMap[coll.Kind] = make(map[string]bool)
-			}
-			updatedMap[coll.Kind][item.Key] = updated
+			s.upsert(coll.Kind, item.Key, item.Item)
 		}
 	}
-
-	return updatedMap
 }
 
 // Get retrieves an item of the specified kind from the store. If the item is not found, then
@@ -139,27 +127,12 @@ func (s *Store) GetAllKinds() []ldstoretypes.Collection {
 func (s *Store) upsert(
 	kind ldstoretypes.DataKind,
 	key string,
-	newItem ldstoretypes.ItemDescriptor) bool {
-	var coll map[string]ldstoretypes.ItemDescriptor
-	var ok bool
-	shouldUpdate := true
-	updated := false
-	if coll, ok = s.data[kind]; ok {
-		if item, ok := coll[key]; ok {
-			if item.Version >= newItem.Version {
-				shouldUpdate = false
-			}
-		}
+	newItem ldstoretypes.ItemDescriptor) {
+	if coll, ok := s.data[kind]; ok {
+		coll[key] = newItem
 	} else {
 		s.data[kind] = map[string]ldstoretypes.ItemDescriptor{key: newItem}
-		shouldUpdate = false // because we already initialized the map with the new item
-		updated = true
 	}
-	if shouldUpdate {
-		coll[key] = newItem
-		updated = true
-	}
-	return updated
 }
 
 // IsInitialized returns true if the store has ever been initialized with a basis.
