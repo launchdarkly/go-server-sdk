@@ -205,7 +205,6 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 		})
 		return
 	}
-	return
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
