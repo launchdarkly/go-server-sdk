@@ -15,8 +15,8 @@ github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/launchdarkly/ccache v1.1.0 h1:voD1M+ZJXR3MREOKtBwgTF9hYHl1jg+vFKS/+VAkR2k=
 github.com/launchdarkly/ccache v1.1.0/go.mod h1:TlxzrlnzvYeXiLHmesMuvoZetu4Z97cV1SsdqqBJi1Q=
-github.com/launchdarkly/eventsource v1.6.2 h1:5SbcIqzUomn+/zmJDrkb4LYw7ryoKFzH/0TbR0/3Bdg=
-github.com/launchdarkly/eventsource v1.6.2/go.mod h1:LHxSeb4OnqznNZxCSXbFghxS/CjIQfzHovNoAqbO/Wk=
+github.com/launchdarkly/eventsource v1.8.0 h1:o9TL53lINP9PCrKESlpIZADvN+eHWlSVmAzZDZ+FEA0=
+github.com/launchdarkly/eventsource v1.8.0/go.mod h1:IBckHy1VOjJGqSg07EJJLiUnk5DPunX9LKD9vbcgeHo=
 github.com/launchdarkly/go-jsonstream/v3 v3.1.0 h1:U/7/LplZO72XefBQ+FzHf6o4FwLHVqBE+4V58Ornu/E=
 github.com/launchdarkly/go-jsonstream/v3 v3.1.0/go.mod h1:2Pt4BR5AwWgsuVTCcIpB6Os04JFIKWfoA+7faKkZB5E=
 github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1 h1:Iz5cg9mB/0vt5llZE+J0iGQ5+O/U8CWuRUUR7Ou8eNM=
@@ -32,7 +32,6 @@ github.com/launchdarkly/go-semver v1.0.3/go.mod h1:xFmMwXba5Mb+3h72Z+VeSs9ahCvKo
 github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1 h1:rTgcYAFraGFj7sBMB2b7JCYCm0b9kph4FaMX02t4osQ=
 github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1/go.mod h1:fPS5d+zOsgFnMunj+Ki6jjlZtFvo4h9iNbtNXxzYn58=
 github.com/launchdarkly/go-test-helpers/v2 v2.2.0 h1:L3kGILP/6ewikhzhdNkHy1b5y4zs50LueWenVF0sBbs=
-github.com/launchdarkly/go-test-helpers/v2 v2.2.0/go.mod h1:L7+th5govYp5oKU9iN7To5PgznBuIjBPn+ejqKR0avw=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.2 h1:rh0085g1rVJM5qIukdaQ8z1XTWZztbJ49vRZuveqiuU=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.2/go.mod h1:u2ZvJlc/DDJTFrshWW50tWMZHLVYXofuSHUfTU/eIwM=
 github.com/mailru/easyjson v0.7.7 h1:UGYAvKxe3sBsEDzO8ZeWOSlIQfWFlxbzLZe7hwFURr0=
@@ -44,8 +43,6 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZVejAe8=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
-github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
-github.com/stretchr/testify v1.6.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
@@ -69,8 +66,6 @@ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/ghodss/yaml.v1 v1.0.0 h1:JlY4R6oVz+ZSvcDhVfNQ/k/8Xo6yb2s1PBhslPZPX4c=
 gopkg.in/ghodss/yaml.v1 v1.0.0/go.mod h1:HDvRMPQLqycKPs9nWLuzZWxsxRzISLCRORiDpBUOMqg=
-gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
-gopkg.in/yaml.v2 v2.2.8/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v2 v2.3.0 h1:clyUAQHOM3G0M3f5vQj7LuJrETvjVot3Z5el9nffUtU=
 gopkg.in/yaml.v2 v2.3.0/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=

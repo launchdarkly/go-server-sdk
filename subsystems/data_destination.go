@@ -4,13 +4,19 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
-// DataDestination represents a sink for data obtained from a data source.
+// DataDestination handles data obtained from a data source and maintains a
+// record of the last selector applied.
+//
 // This interface is not stable, and not subject to any backwards
 // compatibility guarantees or semantic versioning. It is not suitable for production usage.
 //
 // Do not use it.
 // You have been warned.
 type DataDestination interface {
+	// Selector returns the last known selector for the data store. If no previous selector is known,
+	// this should return fdv2proto.NoSelector()
+	Selector() fdv2proto.Selector
+
 	// SetBasis defines a new basis for the data store. This means the store must
 	// be emptied of any existing data before applying the events. This operation should be
 	// atomic with respect to any other operations that modify the store.

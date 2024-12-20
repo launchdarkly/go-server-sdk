@@ -43,7 +43,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/launchdarkly/ccache v1.1.0 // indirect
-	github.com/launchdarkly/eventsource v1.6.2 // indirect
+	github.com/launchdarkly/eventsource v1.8.0 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.0 // indirect
 	github.com/launchdarkly/go-sdk-events/v3 v3.4.0 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
@@ -57,7 +57,7 @@ require (
 	github.com/redis/go-redis/v9 v9.0.2 // indirect
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
 )
 
 replace github.com/launchdarkly/go-server-sdk/v7 => ../
