@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.8.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.8.0...v7.8.1) (2024-12-20)
+
+
+### Bug Fixes
+
+* Send updated selector on streaming reconnect ([#227](https://github.com/launchdarkly/go-server-sdk/issues/227)) ([5977c84](https://github.com/launchdarkly/go-server-sdk/commit/5977c84140f4da0bbf5d9dd2ee9716842d7569f4))
+
 ## [7.8.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.7.0...v7.8.0) (2024-12-09)
 
 
