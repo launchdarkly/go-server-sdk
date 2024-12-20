@@ -48,9 +48,8 @@ type DataInitializer interface {
 // DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.
 type DataSynchronizer interface {
 	DataInitializer
-	// Sync tells the data synchronizer to begin synchronizing data, starting from an optional fdv2proto.Selector.
-	// The selector may be nil indicating that a full Basis should be fetched.
-	Sync(closeWhenReady chan<- struct{}, selector fdv2proto.Selector)
+	// Sync tells the data synchronizer to begin synchronizing data.
+	Sync(closeWhenReady chan<- struct{})
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
 	// Once this is true, it should remain true even if a problem occurs later.

@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
@@ -159,7 +157,7 @@ func (f *FDv2) hasDataSources() bool {
 }
 
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
-	selector := f.runInitializers(ctx, closeWhenReady)
+	f.runInitializers(ctx, closeWhenReady)
 
 	if f.hasDataSources() && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
@@ -167,7 +165,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 		})
 	}
 
-	f.runSynchronizers(ctx, closeWhenReady, selector)
+	f.runSynchronizers(ctx, closeWhenReady)
 }
 
 func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {
@@ -189,12 +187,12 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) fdv2proto.Selector {
+func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, err := initializer.Fetch(ctx)
 		if errors.Is(err, context.Canceled) {
-			return fdv2proto.NoSelector()
+			return
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
@@ -205,12 +203,11 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
-		return basis.Selector
+		return
 	}
-	return fdv2proto.NoSelector()
 }
 
-func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, selector fdv2proto.Selector) {
+func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
 	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded), we should
 	// trigger the ready signal to let the call to MakeClient unblock immediately.
 	if f.primarySync == nil {
@@ -224,7 +221,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	// Instead, create a "proxy" channel just for the data source; if that is closed, we close the real one
 	// using the sync.Once.
 	ready := make(chan struct{})
-	f.primarySync.Sync(ready, selector)
+	f.primarySync.Sync(ready)
 
 	for {
 		select {

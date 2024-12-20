@@ -126,9 +126,9 @@ func (sp *StreamProcessor) IsInitialized() bool {
 }
 
 //nolint:revive // DataSynchronizer method.
-func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}, selector fdv2proto.Selector) {
+func (sp *StreamProcessor) Sync(closeWhenReady chan<- struct{}) {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	go sp.subscribe(closeWhenReady, selector)
+	go sp.subscribe(closeWhenReady)
 }
 
 //nolint:gocyclo
@@ -304,7 +304,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 	}
 }
 
-func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}, _ fdv2proto.Selector) {
+func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath)
 	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
