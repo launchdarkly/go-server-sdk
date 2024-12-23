@@ -244,6 +244,14 @@ func (s *Store) getActive() subsystems.ReadOnlyStore {
 	return s.active
 }
 
+func (s *Store) hasReadOnlyPersistence() bool {
+	if s.persistentStore == nil {
+		return false
+	}
+
+	return s.persistentStore.mode == subsystems.DataStoreModeRead
+}
+
 //nolint:revive // Implementation for ReadOnlyStore.
 func (s *Store) GetAll(kind ldstoretypes.DataKind) ([]ldstoretypes.KeyedItemDescriptor, error) {
 	return s.getActive().GetAll(kind)
