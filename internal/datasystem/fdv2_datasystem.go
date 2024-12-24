@@ -264,7 +264,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 	}
 
 	if !f.hasDataSources() && f.store.hasReadOnlyPersistence() {
-		return Refreshed
+		return Cached
 	}
 
 	if f.store.IsInitialized() {
