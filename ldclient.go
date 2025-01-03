@@ -88,6 +88,9 @@ type dataSystem interface {
 
 	// DataAvailability indicates what form of data is available.
 	DataAvailability() datasystem.DataAvailability
+
+	/// TargetAvailability indicates the ideal form of data available.
+	TargetAvailability() datasystem.DataAvailability
 }
 
 var (
@@ -342,7 +345,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		for {
 			select {
 			case <-closeWhenReady:
-				if client.dataSystem.DataAvailability() != datasystem.Defaults {
+				if client.dataSystem.DataAvailability() != client.dataSystem.TargetAvailability() {
 					loggers.Warn("LaunchDarkly client initialization failed")
 					return client, ErrInitializationFailed
 				}

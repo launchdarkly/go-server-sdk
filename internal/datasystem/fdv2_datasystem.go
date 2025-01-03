@@ -263,14 +263,20 @@ func (f *FDv2) DataAvailability() DataAvailability {
 		return Refreshed
 	}
 
-	if !f.hasDataSources() && f.store.hasReadOnlyPersistence() {
+	if !f.hasDataSources() || f.store.IsInitialized() {
 		return Cached
 	}
 
-	if f.store.IsInitialized() {
-		return Cached
-	}
 	return Defaults
+}
+
+//nolint:revive // DataSystem method.
+func (f *FDv2) TargetAvailability() DataAvailability {
+	if f.hasDataSources() {
+		return Refreshed
+	}
+
+	return Cached
 }
 
 //nolint:revive // DataSystem method.

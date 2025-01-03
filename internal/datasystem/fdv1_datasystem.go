@@ -156,6 +156,11 @@ func (f *FDv1) DataAvailability() DataAvailability {
 }
 
 //nolint:revive // Data system implementation.
+func (f *FDv1) TargetAvailability() DataAvailability {
+	return Refreshed
+}
+
+//nolint:revive // Data system implementation.
 func (f *FDv1) Store() subsystems.ReadOnlyStore {
 	return f.dataStore
 }
