@@ -11,3 +11,9 @@ const (
 	// Refreshed means the SDK has obtained, at least once, the latest known data from LaunchDarkly.
 	Refreshed = DataAvailability("refreshed")
 )
+
+// AtLeast returns true if the DataAvailability is at least as good as the
+// other DataAvailability in terms of data quality.
+func (da DataAvailability) AtLeast(other DataAvailability) bool {
+	return da == Refreshed || (da == Cached && other == Defaults)
+}

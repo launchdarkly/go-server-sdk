@@ -345,7 +345,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		for {
 			select {
 			case <-closeWhenReady:
-				if client.dataSystem.DataAvailability() != client.dataSystem.TargetAvailability() {
+				if client.dataSystem.DataAvailability().AtLeast(client.dataSystem.TargetAvailability()) {
 					loggers.Warn("LaunchDarkly client initialization failed")
 					return client, ErrInitializationFailed
 				}
