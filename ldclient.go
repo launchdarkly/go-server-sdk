@@ -346,12 +346,13 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			select {
 			case <-closeWhenReady:
 				if client.dataSystem.DataAvailability().AtLeast(client.dataSystem.TargetAvailability()) {
-					loggers.Warn("LaunchDarkly client initialization failed")
-					return client, ErrInitializationFailed
+					loggers.Info("Initialized LaunchDarkly client")
+					return client, nil
 				}
 
-				loggers.Info("Initialized LaunchDarkly client")
-				return client, nil
+				loggers.Warn("LaunchDarkly client initialization failed")
+				return client, ErrInitializationFailed
+
 			case <-timeout:
 				loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
 				go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting
