@@ -88,6 +88,9 @@ type dataSystem interface {
 
 	// DataAvailability indicates what form of data is available.
 	DataAvailability() datasystem.DataAvailability
+
+	/// TargetAvailability indicates the ideal form of data available.
+	TargetAvailability() datasystem.DataAvailability
 }
 
 var (
@@ -342,13 +345,14 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		for {
 			select {
 			case <-closeWhenReady:
-				if client.dataSystem.DataAvailability() != datasystem.Refreshed {
-					loggers.Warn("LaunchDarkly client initialization failed")
-					return client, ErrInitializationFailed
+				if client.dataSystem.DataAvailability().AtLeast(client.dataSystem.TargetAvailability()) {
+					loggers.Info("Initialized LaunchDarkly client")
+					return client, nil
 				}
 
-				loggers.Info("Initialized LaunchDarkly client")
-				return client, nil
+				loggers.Warn("LaunchDarkly client initialization failed")
+				return client, ErrInitializationFailed
+
 			case <-timeout:
 				loggers.Warn("Timeout encountered waiting for LaunchDarkly client initialization")
 				go func() { <-closeWhenReady }() // Don't block the DataSource when not waiting

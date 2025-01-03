@@ -170,6 +170,7 @@ func (d *DataSystemConfigurationBuilder) Build(
 		}
 		conf.Store = store
 	}
+	conf.StoreMode = d.storeMode
 	for i, initializerBuilder := range d.initializerBuilders {
 		if initializerBuilder == nil {
 			return ss.DataSystemConfiguration{},
