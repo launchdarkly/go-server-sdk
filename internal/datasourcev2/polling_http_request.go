@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -67,12 +68,12 @@ func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
 
-func (r *pollingRequester) Request() (*fdv2proto.ChangeSet, error) {
+func (r *pollingRequester) Request(ctx context.Context) (*fdv2proto.ChangeSet, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	body, cached, err := r.makeRequest(endpoints.PollingRequestPath)
+	body, cached, err := r.makeRequest(ctx, endpoints.PollingRequestPath)
 	if err != nil {
 		return nil, err
 	}
@@ -88,45 +89,50 @@ func (r *pollingRequester) Request() (*fdv2proto.ChangeSet, error) {
 	changeSet := fdv2proto.NewChangeSetBuilder()
 
 	for _, event := range payload.Events {
-		switch event.Name {
-		case fdv2proto.EventServerIntent:
-			var serverIntent fdv2proto.ServerIntent
-			err := json.Unmarshal(event.Data, &serverIntent)
-			if err != nil {
-				return nil, err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			switch event.Name {
+			case fdv2proto.EventServerIntent:
+				var serverIntent fdv2proto.ServerIntent
+				err := json.Unmarshal(event.Data, &serverIntent)
+				if err != nil {
+					return nil, err
+				}
+				if serverIntent.Payload.Code == fdv2proto.IntentNone {
+					return changeSet.NoChanges(), nil
+				}
+				if err := changeSet.Start(serverIntent); err != nil {
+					return nil, err
+				}
+			case fdv2proto.EventPutObject:
+				var put fdv2proto.PutObject
+				if err := json.Unmarshal(event.Data, &put); err != nil {
+					return nil, err
+				}
+				changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
+			case fdv2proto.EventDeleteObject:
+				var deleteObject fdv2proto.DeleteObject
+				if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
+					return nil, err
+				}
+				changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
+			case fdv2proto.EventPayloadTransferred:
+				var selector fdv2proto.Selector
+				if err := json.Unmarshal(event.Data, &selector); err != nil {
+					return nil, err
+				}
+				return changeSet.Finish(selector)
 			}
-			if serverIntent.Payload.Code == fdv2proto.IntentNone {
-				return changeSet.NoChanges(), nil
-			}
-			if err := changeSet.Start(serverIntent); err != nil {
-				return nil, err
-			}
-		case fdv2proto.EventPutObject:
-			var put fdv2proto.PutObject
-			if err := json.Unmarshal(event.Data, &put); err != nil {
-				return nil, err
-			}
-			changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
-		case fdv2proto.EventDeleteObject:
-			var deleteObject fdv2proto.DeleteObject
-			if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
-				return nil, err
-			}
-			changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
-		case fdv2proto.EventPayloadTransferred:
-			var selector fdv2proto.Selector
-			if err := json.Unmarshal(event.Data, &selector); err != nil {
-				return nil, err
-			}
-			return changeSet.Finish(selector)
 		}
 	}
 
 	return nil, fmt.Errorf("didn't receive any known protocol events in polling payload")
 }
 
-func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
-	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
+func (r *pollingRequester) makeRequest(ctx context.Context, resource string) ([]byte, bool, error) {
+	req, reqErr := http.NewRequestWithContext(ctx, "GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(
 			"unable to create a poll request; this is not a network problem, most likely a bad base URI: %w",
