@@ -22,7 +22,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request() (*fdv2proto.ChangeSet, error)
+	Request(context.Context) (*fdv2proto.ChangeSet, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -79,10 +79,8 @@ func (pp *PollingProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (pp *PollingProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
-	//nolint:godox
-	// TODO(SDK-752): Plumb the context into the request method.
-	basis, err := pp.requester.Request()
+func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error) {
+	basis, err := pp.requester.Request(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +90,13 @@ func (pp *PollingProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) 
 //nolint:revive // DataSynchronizer method.
 func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
+
+	// This process has a shared method serving both as an initializer and a synchronizer.
+	//
+	// The initializers currently provide a cancellable context throughout
+	// their call stack. Once we have done the same with the synchronizers, we
+	// can the TODO context with a real one.
+	ctx := context.TODO()
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)
 
@@ -112,7 +117,7 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 			case <-pp.quit:
 				return
 			case <-ticker.C:
-				if err := pp.poll(); err != nil {
+				if err := pp.poll(ctx); err != nil {
 					if hse, ok := err.(httpStatusError); ok {
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:       interfaces.DataSourceErrorKindErrorResponse,
@@ -158,8 +163,8 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 	}()
 }
 
-func (pp *PollingProcessor) poll() error {
-	changeSet, err := pp.requester.Request()
+func (pp *PollingProcessor) poll(ctx context.Context) error {
+	changeSet, err := pp.requester.Request(ctx)
 
 	if err != nil {
 		return err
