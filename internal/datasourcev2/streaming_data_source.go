@@ -159,9 +159,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			sp.logConnectionResult(true)
 
-			//nolint:godox
-			// TODO(cwaldren/mkeeler): Should this actually be true by default? It means if we receive an event
-			// we don't understand then we go to the Valid state.
 			processedEvent := true
 			shouldRestart := false
 
