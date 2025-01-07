@@ -91,6 +91,11 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error
 func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
+	// This process has a shared method serving both as an initializer and a synchronizer.
+	//
+	// The initializers currently provide a cancellable context throughout
+	// their call stack. Once we have done the same with the synchronizers, we
+	// can the TODO context with a real one.
 	ctx := context.TODO()
 
 	ticker := newTickerWithInitialTick(pp.pollInterval)
