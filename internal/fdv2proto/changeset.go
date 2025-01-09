@@ -93,11 +93,11 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 		changes:    c.changes,
 	}
 	c.changes = nil
+
+	// Once a full transfer has been processed, all future changes should be
+	// assumed to be changes. Flag delivery can override this behavior by
+	// sending a new ServerIntent to any connected stream.
 	if c.intent.Payload.Code == IntentTransferFull {
-		//nolint:godox
-		// TODO(SDK-931): We have an awkward situation where we don't get a new intent after receiving a payload
-		// transferred message, so we need to assume the new intent. But we don't get new Reason/ID/Target, so we don't
-		// have complete information.
 		c.intent.Payload.Code = IntentTransferChanges
 	}
 	return changes, nil

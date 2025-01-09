@@ -255,7 +255,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				// has received, but should continue to operate under the
 				// assumption the last server intent was in effect.
 				//
-				// The serer may choose to send a new server-intent, at which
+				// The server may choose to send a new server-intent, at which
 				// point we will set that as well.
 				changeSetBuilder.Reset()
 
