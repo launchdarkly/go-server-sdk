@@ -16,9 +16,12 @@ const (
 	generation        = "$ld:ai:generation"
 	generationSuccess = "$ld:ai:generation:success"
 	generationError   = "$ld:ai:generation:error"
-	tokenTotal        = "$ld:ai:tokens:total"
-	tokenInput        = "$ld:ai:tokens:input"
-	tokenOutput       = "$ld:ai:tokens:output"
+	//nolint:gosec
+	tokenTotal = "$ld:ai:tokens:total"
+	//nolint:gosec
+	tokenInput = "$ld:ai:tokens:input"
+	//nolint:gosec
+	tokenOutput = "$ld:ai:tokens:output"
 )
 
 // TokenUsage represents the token usage returned by a model provider for a specific request.
