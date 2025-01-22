@@ -57,55 +57,55 @@ sdk-lint:
 
 ldotel:
 	@if [ -f go.work ]; then \
-  		echo "Building ldotel with workspace" \
+		echo "Building ldotel with workspace"; \
 		go build ./ldotel; \
 	else \
-		echo "Building ldotel without workspace" \
+		echo "Building ldotel without workspace"; \
 		cd ldotel && go build .; \
 	fi
 
 ldotel-test:
 	@if [ -f go.work ]; then \
-		echo "Testing ldotel with workspace" \
+		echo "Testing ldotel with workspace"; \
 		go test -v -race ./ldotel; \
 	else \
-		echo "Testing ldotel without workspace" \
+		echo "Testing ldotel without workspace"; \
 		cd ldotel && go test -v -race .; \
 	fi
 
 ldotel-lint:
 	@if [ -f go.work ]; then \
-		echo "Linting ldotel with workspace" \
+		echo "Linting ldotel with workspace"; \
 		$(LINTER) run ./ldotel; \
 	else \
-		echo "Linting ldotel without workspace" \
+		echo "Linting ldotel without workspace"; \
 		cd ldotel && 	$(LINTER) run .; \
 	fi
 
 ldai:
 	@if [ -f go.work ]; then \
-  		echo "Building ldai with workspace" \
+		echo "Building ldai with workspace"; \
 		go build ./ldai; \
 	else \
-		echo "Building ldai without workspace" \
+		echo "Building ldai without workspace"; \
 		cd ldai && go build .; \
 	fi
 
 ldai-test:
 	@if [ -f go.work ]; then \
-		echo "Testing ldai with workspace" \
+		echo "Testing ldai with workspace"; \
 		go test -v -race ./ldai; \
 	else \
-		echo "Testing ldai without workspace" \
+		echo "Testing ldai without workspace"; \
 		cd ldai && go test -v -race .; \
 	fi
 
 ldai-lint:
 	@if [ -f go.work ]; then \
-		echo "Linting ldai with workspace" \
+		echo "Linting ldai with workspace"; \
 		$(LINTER) run ./ldai; \
 	else \
-		echo "Linting ldai without workspace" \
+		echo "Linting ldai without workspace"; \
 		cd ldai && 	$(LINTER) run .; \
 	fi
 
