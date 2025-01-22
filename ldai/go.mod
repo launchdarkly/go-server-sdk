@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/ldai
 
-go 1.18
+go 1.20
 
 require (
 	github.com/alexkappa/mustache v1.0.0
