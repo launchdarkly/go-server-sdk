@@ -119,13 +119,26 @@ func (d *defaultStopwatch) Stop() time.Duration {
 }
 
 // newTracker creates a new Tracker with the specified key, event sink, config, context, and loggers.
-func newTracker(key string, variationKey string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers) *Tracker {
+func newTracker(
+	key string,
+	variationKey string,
+	events EventSink,
+	config *Config,
+	ctx ldcontext.Context,
+	loggers interfaces.LDLoggers) *Tracker {
 	return newTrackerWithStopwatch(key, variationKey, events, config, ctx, loggers, &defaultStopwatch{})
 }
 
 // newTrackerWithStopwatch creates a new Tracker with the specified key, event sink, config, context, loggers, and
 // stopwatch. This method is used for testing purposes.
-func newTrackerWithStopwatch(key string, variationKey string, events EventSink, config *Config, ctx ldcontext.Context, loggers interfaces.LDLoggers, stopwatch Stopwatch) *Tracker {
+func newTrackerWithStopwatch(
+	key string,
+	variationKey string,
+	events EventSink,
+	config *Config,
+	ctx ldcontext.Context,
+	loggers interfaces.LDLoggers,
+	stopwatch Stopwatch) *Tracker {
 	if config == nil {
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
@@ -220,14 +233,18 @@ func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	return nil
 }
 
-func measureDurationOfTask[T any, A any](stopwatch Stopwatch, arg A, task func(A) (T, error)) (T, time.Duration, error) {
+func measureDurationOfTask[T any, A any](
+	stopwatch Stopwatch,
+	arg A,
+	task func(A) (T, error)) (T, time.Duration, error) {
 	stopwatch.Start()
 	result, err := task(arg)
 	return result, stopwatch.Stop(), err
 }
 
 // TrackRequest tracks metrics for a model evaluation request. The task function should return a ProviderResponse
-// which can be used to specify request metrics and token usage. All fields of the returned ProviderResponse are optional.
+// which can be used to specify request metrics and token usage. All fields of the returned ProviderResponse are
+// optional.
 //
 // The task function will be passed the current AI config, which can be used to obtain any parameters or messages
 // relevant to the request.

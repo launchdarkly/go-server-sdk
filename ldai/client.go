@@ -70,7 +70,6 @@ func (c *Client) Config(
 	defaultValue Config,
 	variables map[string]interface{},
 ) (Config, *Tracker) {
-
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
 	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
