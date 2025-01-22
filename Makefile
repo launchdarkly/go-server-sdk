@@ -73,13 +73,13 @@ ldotel-test:
 		cd ldotel && go test -v -race .; \
 	fi
 
-ldotel-lint:
+ldotel-lint: $(LINTER_VERSION_FILE)
 	@if [ -f go.work ]; then \
 		echo "Linting ldotel with workspace"; \
 		$(LINTER) run ./ldotel; \
 	else \
 		echo "Linting ldotel without workspace"; \
-		cd ldotel && 	$(LINTER) run .; \
+		cd ldotel && 	../$(LINTER) run .; \
 	fi
 
 ldai:
@@ -100,13 +100,13 @@ ldai-test:
 		cd ldai && go test -v -race .; \
 	fi
 
-ldai-lint:
+ldai-lint: $(LINTER_VERSION_FILE)
 	@if [ -f go.work ]; then \
 		echo "Linting ldai with workspace"; \
 		$(LINTER) run ./ldai; \
 	else \
 		echo "Linting ldai without workspace"; \
-		cd ldai && 	$(LINTER) run .; \
+		cd ldai && 	../$(LINTER) run .; \
 	fi
 
 
