@@ -6,11 +6,12 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockEvents struct {
@@ -198,8 +199,8 @@ func TestTracker_LatencyMeasuredIfNotProvided(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse, r)
 
-	require.Equal(t, 3, len(events.events))
-	gotEvent := events.events[1]
+	require.Equal(t, 4, len(events.events))
+	gotEvent := events.events[2]
 	assert.Equal(t, "$ld:ai:duration:total", gotEvent.name)
 	assert.Equal(t, 42.0, gotEvent.metricValue)
 }

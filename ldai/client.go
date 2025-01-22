@@ -7,6 +7,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 
 	"github.com/alexkappa/mustache"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -69,7 +70,6 @@ func (c *Client) Config(
 	defaultValue Config,
 	variables map[string]interface{},
 ) (Config, *Tracker) {
-
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
 	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
