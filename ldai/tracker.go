@@ -16,7 +16,8 @@ const (
 	generation        = "$ld:ai:generation"
 	generationSuccess = "$ld:ai:generation:success"
 	generationError   = "$ld:ai:generation:error"
-	timeToFirstToken  = "$ld:ai:tokens:ttf"
+	//nolint:gosec
+	timeToFirstToken = "$ld:ai:tokens:ttf"
 	//nolint:gosec
 	tokenTotal = "$ld:ai:tokens:total"
 	//nolint:gosec
