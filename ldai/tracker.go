@@ -207,6 +207,7 @@ func (t *Tracker) TrackError() error {
 	return err
 }
 
+// TrackTimeToFirstToken tracks the time to the first token of the streamed response.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
 	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
 }
