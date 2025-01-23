@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.0.2...ldotel/v1.1.0) (2025-01-23)
+
+
+### Features
+
+* Update minimum go version to 1.20. ([46c9694](https://github.com/launchdarkly/go-server-sdk/commit/46c9694e733356cf4d051e7b72241b0a6e330a37))
+
 ## [1.0.2](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.0.1...ldotel/v1.0.2) (2024-08-28)
 
 
