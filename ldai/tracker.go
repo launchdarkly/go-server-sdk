@@ -36,11 +36,6 @@ type TokenUsage struct {
 	Output int
 }
 
-// Set returns true if any of the fields are non-zero.
-func (t TokenUsage) Set() bool {
-	return t.Total > 0 || t.Input > 0 || t.Output > 0
-}
-
 // Metrics represents the metrics returned by a model provider for a specific request.
 type Metrics struct {
 	// Latency is the latency of the request.
