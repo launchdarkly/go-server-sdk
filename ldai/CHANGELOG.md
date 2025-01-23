@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.4.0...ldai/v0.5.0) (2025-01-23)
+
+
+### Features
+
+* Add timeToFirstToken to Tracker ([234b171](https://github.com/launchdarkly/go-server-sdk/commit/234b1716a7c09400f850af8e6c3c805498fc7321))
+* Drop Set method on Metric interface. ([234b171](https://github.com/launchdarkly/go-server-sdk/commit/234b1716a7c09400f850af8e6c3c805498fc7321))
+* Update minimum go version to 1.20. ([46c9694](https://github.com/launchdarkly/go-server-sdk/commit/46c9694e733356cf4d051e7b72241b0a6e330a37))
+
 ## [0.4.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.3.0...ldai/v0.4.0) (2024-12-17)
 
 
