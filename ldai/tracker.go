@@ -36,17 +36,17 @@ type TokenUsage struct {
 	Output int
 }
 
+// Set returns true if any of the fields are non-zero.
+func (t TokenUsage) Set() bool {
+	return t.Total > 0 || t.Input > 0 || t.Output > 0
+}
+
 // Metrics represents the metrics returned by a model provider for a specific request.
 type Metrics struct {
 	// Latency is the latency of the request.
 	Latency time.Duration
 	// TimeToFirstToken is the time to the first token of the streamed response.
 	TimeToFirstToken time.Duration
-}
-
-// Set returns true if the latency is non-zero.
-func (m Metrics) Set() bool {
-	return m.Latency != 0 || m.TimeToFirstToken != 0
 }
 
 // ProviderResponse represents the response from a model provider for a specific request.
