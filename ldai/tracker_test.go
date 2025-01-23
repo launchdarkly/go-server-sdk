@@ -108,7 +108,8 @@ func TestTracker_TrackRequest(t *testing.T) {
 			Total: 1,
 		},
 		Metrics: Metrics{
-			Latency: 10 * time.Millisecond,
+			Latency:          10 * time.Millisecond,
+			TimeToFirstToken: 42 * time.Millisecond,
 		},
 	}
 
@@ -142,6 +143,12 @@ func TestTracker_TrackRequest(t *testing.T) {
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 1,
+			data:        makeTrackData("key", "variationKey"),
+		},
+		{
+			name:        "$ld:ai:tokens:ttf",
+			context:     ldcontext.New("key"),
+			metricValue: 42.0,
 			data:        makeTrackData("key", "variationKey"),
 		},
 	}

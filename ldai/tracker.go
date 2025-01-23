@@ -17,6 +17,8 @@ const (
 	generationSuccess = "$ld:ai:generation:success"
 	generationError   = "$ld:ai:generation:error"
 	//nolint:gosec
+	timeToFirstToken = "$ld:ai:tokens:ttf"
+	//nolint:gosec
 	tokenTotal = "$ld:ai:tokens:total"
 	//nolint:gosec
 	tokenInput = "$ld:ai:tokens:input"
@@ -43,11 +45,8 @@ func (t TokenUsage) Set() bool {
 type Metrics struct {
 	// Latency is the latency of the request.
 	Latency time.Duration
-}
-
-// Set returns true if the latency is non-zero.
-func (m Metrics) Set() bool {
-	return m.Latency != 0
+	// TimeToFirstToken is the time to the first token of the streamed response.
+	TimeToFirstToken time.Duration
 }
 
 // ProviderResponse represents the response from a model provider for a specific request.
@@ -203,6 +202,11 @@ func (t *Tracker) TrackError() error {
 	return err
 }
 
+// TrackTimeToFirstToken tracks the time to the first token of the streamed response.
+func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
+	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
+}
+
 // TrackUsage tracks the token usage for a model evaluation.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	var failed bool
@@ -270,13 +274,19 @@ func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (
 		t.logWarning("error tracking success metric for request: %v", err)
 	}
 
-	if usage.Metrics.Set() {
+	if usage.Metrics.Latency != 0 {
 		if err := t.TrackDuration(usage.Metrics.Latency); err != nil {
 			t.logWarning("error tracking duration metric (user provided) for request: %v", err)
 		}
 	} else {
 		if err := t.TrackDuration(duration); err != nil {
 			t.logWarning("error tracking duration metric (automatically measured) for request: %v", err)
+		}
+	}
+
+	if usage.Metrics.TimeToFirstToken != 0 {
+		if err := t.TrackTimeToFirstToken(usage.Metrics.TimeToFirstToken); err != nil {
+			t.logWarning("error tracking time to first token metric for request: %v", err)
 		}
 	}
 
