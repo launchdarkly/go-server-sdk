@@ -183,18 +183,14 @@ func (d *DataSystemConfigurationBuilder) Build(
 		conf.Initializers = append(conf.Initializers, initializer)
 	}
 	if d.primarySyncBuilder != nil {
-		primarySync, err := d.primarySyncBuilder.Build(context)
-		if err != nil {
-			return ss.DataSystemConfiguration{}, err
+		conf.Synchronizers.PrimaryBuilder = func() (ss.DataSynchronizer, error) {
+			return d.primarySyncBuilder.Build(context)
 		}
-		conf.Synchronizers.Primary = primarySync
 	}
 	if d.secondarySyncBuilder != nil {
-		secondarySync, err := d.secondarySyncBuilder.Build(context)
-		if err != nil {
-			return ss.DataSystemConfiguration{}, err
+		conf.Synchronizers.SecondaryBuilder = func() (ss.DataSynchronizer, error) {
+			return d.secondarySyncBuilder.Build(context)
 		}
-		conf.Synchronizers.Secondary = secondarySync
 	}
 	return conf, nil
 }
