@@ -4,6 +4,14 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
+// TestSDKKey is a test SDK key that can be used in test code.
+const TestSDKKey = "test-sdk-key"
+
+// BasicClientContext returns a basic implementation of interfaces.ClientContext for use in test code.
+func BasicClientContext() subsystems.ClientContext {
+	return NewSimpleTestContext(TestSDKKey)
+}
+
 // NewSimpleTestContext returns a basic implementation of interfaces.ClientContext for use in test code.
 func NewSimpleTestContext(sdkKey string) subsystems.ClientContext {
 	return NewTestContext(sdkKey, nil, nil)

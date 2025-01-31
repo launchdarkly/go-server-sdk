@@ -383,11 +383,11 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-			id := ldevents.NewDiagnosticID(testSDKKey)
+			id := ldevents.NewDiagnosticID(sharedtest.TestSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := &internal.ClientContextImpl{
 				BasicClientContext: subsystems.BasicClientContext{
-					SDKKey:  testSDKKey,
+					SDKKey:  sharedtest.TestSDKKey,
 					Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
 				},
 				DiagnosticsManager: diagnosticsManager,
@@ -424,11 +424,11 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-			id := ldevents.NewDiagnosticID(testSDKKey)
+			id := ldevents.NewDiagnosticID(sharedtest.TestSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
 			context := &internal.ClientContextImpl{
 				BasicClientContext: subsystems.BasicClientContext{
-					SDKKey:  testSDKKey,
+					SDKKey:  sharedtest.TestSDKKey,
 					Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
 				},
 				DiagnosticsManager: diagnosticsManager,
@@ -465,7 +465,7 @@ func TestStreamProcessorUsesHTTPClientFactory(t *testing.T) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
-			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{
 				URI:                   ts.URL,
@@ -495,7 +495,7 @@ func TestStreamProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 				return &c
 			}
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
-			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
 
 			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
@@ -517,7 +517,7 @@ func TestStreamProcessorRestartsStreamIfStoreNeedsRefresh(t *testing.T) {
 
 	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(updates *mocks.MockDataSourceUpdates) {
-			sp := NewStreamProcessor(basicClientContext(), updates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
+			sp := NewStreamProcessor(sharedtest.BasicClientContext(), updates, StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
@@ -541,7 +541,7 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 	defer mockLog.DumpIfTestFailed(t)
 	clientContext := &internal.ClientContextImpl{
 		BasicClientContext: subsystems.BasicClientContext{
-			SDKKey:  testSDKKey,
+			SDKKey:  sharedtest.TestSDKKey,
 			Logging: subsystems.LoggingConfiguration{Loggers: mockLog.Loggers},
 		},
 	}
@@ -570,7 +570,7 @@ func TestStreamProcessorAppendsFilterParameter(t *testing.T) {
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 
-				sp := NewStreamProcessor(basicClientContext(), dataSourceUpdates, StreamConfig{
+				sp := NewStreamProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, StreamConfig{
 					URI:                   ts.URL,
 					InitialReconnectDelay: briefDelay,
 					FilterKey:             filter.key,
