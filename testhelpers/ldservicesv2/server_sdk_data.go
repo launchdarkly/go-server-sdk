@@ -62,6 +62,39 @@ func mustMarshal(model any) json.RawMessage {
 	return data
 }
 
+// ToInitializerPayload converts the data to a PollingPayload object that can
+// be fed to a mock polling service.
+func (s *ServerSDKData) ToInitializerPayload() fdv2proto.PollingPayload {
+	pollingPayload := fdv2proto.PollingPayload{}
+	pollingPayload.Events = make([]fdv2proto.RawEvent, 0, 10)
+
+	pollingPayload.Events = append(pollingPayload.Events, fdv2proto.RawEvent{
+		Name: "server-intent",
+		Data: mustMarshal(fdv2proto.ServerIntent{
+			Payload: fdv2proto.Payload{
+				ID:     "",
+				Target: 0,
+				Code:   "",
+				Reason: "",
+			},
+		}),
+	})
+
+	for _, putObject := range s.ToPutObjects() {
+		pollingPayload.Events = append(pollingPayload.Events, fdv2proto.RawEvent{
+			Name: "put-object",
+			Data: mustMarshal(putObject),
+		})
+	}
+
+	pollingPayload.Events = append(pollingPayload.Events, fdv2proto.RawEvent{
+		Name: "payload-transferred",
+		Data: mustMarshal(fdv2proto.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", 1)),
+	})
+
+	return pollingPayload
+}
+
 // ToPutObjects converts the data to a list of PutObject objects that can be fed to a mock streaming data source.
 func (s *ServerSDKData) ToPutObjects() []fdv2proto.PutObject {
 	objs := make([]fdv2proto.PutObject, 0, len(s.FlagsMap)+len(s.SegmentsMap))

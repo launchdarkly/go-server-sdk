@@ -29,7 +29,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 				ldservices.ServerSidePollingServiceHandler(expectedData.ToServerSDKData()),
 			)
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
-				r := newPollingRequester(basicClientContext(), nil, ts.URL, filter.key)
+				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
 				data, cached, err := r.Request()
 
@@ -47,7 +47,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		t.Run("HTTP error response", func(t *testing.T) {
 			handler := httphelpers.HandlerWithStatus(500)
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
-				r := newPollingRequester(basicClientContext(), nil, ts.URL, filter.key)
+				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
 				data, cached, err := r.Request()
 
@@ -67,7 +67,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				closedServerURL = ts.URL
 			})
-			r := newPollingRequester(basicClientContext(), nil, closedServerURL, filter.key)
+			r := newPollingRequester(sharedtest.BasicClientContext(), nil, closedServerURL, filter.key)
 
 			data, cached, err := r.Request()
 
@@ -79,7 +79,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		t.Run("malformed data", func(t *testing.T) {
 			handler := httphelpers.HandlerWithResponse(200, nil, []byte("{"))
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
-				r := newPollingRequester(basicClientContext(), nil, ts.URL, filter.key)
+				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
 				data, cached, err := r.Request()
 
@@ -92,7 +92,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		})
 
 		t.Run("malformed base URI", func(t *testing.T) {
-			r := newPollingRequester(basicClientContext(), nil, "::::", filter.key)
+			r := newPollingRequester(sharedtest.BasicClientContext(), nil, "::::", filter.key)
 
 			data, cached, err := r.Request()
 
@@ -109,7 +109,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 				httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil),
 			)
 			httpConfig := subsystems.HTTPConfiguration{DefaultHeaders: headers}
-			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
 
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := newPollingRequester(context, nil, ts.URL, filter.key)
@@ -125,7 +125,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 		t.Run("logs debug message", func(t *testing.T) {
 			mockLog := ldlogtest.NewMockLog()
 			mockLog.Loggers.SetMinLevel(ldlog.Debug)
-			context := sharedtest.NewTestContext(testSDKKey, nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
 			handler := httphelpers.HandlerWithJSONResponse(ldservices.NewServerSDKData(), nil)
 
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -158,7 +158,7 @@ func TestRequestorImplCaching(t *testing.T) {
 			),
 		)
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
-			r := newPollingRequester(basicClientContext(), nil, ts.URL, filter.key)
+			r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
 			data1, cached1, err1 := r.Request()
 
@@ -192,7 +192,7 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 	httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 	httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
-	context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
+	context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
 
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		r := newPollingRequester(context, nil, ts.URL, "")
@@ -212,7 +212,7 @@ func TestRequestorImplCanAppendsFilterParameter(t *testing.T) {
 
 	testWithFilters(t, func(t *testing.T, filter filterTest) {
 		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
-			r := newPollingRequester(basicClientContext(), nil, ts.URL, filter.key)
+			r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
 			_, _, _ = r.Request()
 

@@ -27,7 +27,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	r.RequestAllRespCh <- mocks.RequestAllResponse{}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Minute)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, r, time.Minute)
 
 		p.Close()
 
@@ -49,7 +49,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	r.RequestAllRespCh <- resp
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
 		defer p.Close()
 
 		closeWhenReady := make(chan struct{})
@@ -116,7 +116,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
 		defer p.Close()
 		closeWhenReady := make(chan struct{})
 		p.Start(closeWhenReady)
@@ -168,7 +168,7 @@ func testPollingProcessorUnrecoverableError(
 	req.RequestAllRespCh <- mocks.RequestAllResponse{} // we shouldn't get a second request, but just in case
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(basicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
 		defer p.Close()
 		closeWhenReady := make(chan struct{})
 		p.Start(closeWhenReady)
@@ -191,7 +191,7 @@ func TestPollingProcessorUsesHTTPClientFactory(t *testing.T) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			httpClientFactory := urlAppendingHTTPClientFactory("/transformed")
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
-			context := sharedtest.NewTestContext(testSDKKey, &httpConfig, nil)
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
 
 			p := NewPollingProcessor(context, dataSourceUpdates, PollingConfig{
 				BaseURI:      ts.URL,
@@ -216,7 +216,7 @@ func TestPollingProcessorAppendsFilterParameter(t *testing.T) {
 		pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
 		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 			withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-				p := NewPollingProcessor(basicClientContext(), dataSourceUpdates, PollingConfig{
+				p := NewPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, PollingConfig{
 					BaseURI:      ts.URL,
 					PollInterval: time.Minute * 30,
 					FilterKey:    filter.key,
