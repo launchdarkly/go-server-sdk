@@ -18,6 +18,11 @@ func (c *Config) VariationKey() string {
 	return c.c.Meta.VariationKey
 }
 
+// Version is used internally by LaunchDarkly.
+func (c *Config) Version() int {
+	return c.c.Meta.Version
+}
+
 // Messages returns the messages defined by the config. The series of messages may be
 // passed to an AI model provider.
 func (c *Config) Messages() []datamodel.Message {

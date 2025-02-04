@@ -121,11 +121,12 @@ func (d *defaultStopwatch) Stop() time.Duration {
 func newTracker(
 	key string,
 	variationKey string,
+	version int,
 	events EventSink,
 	config *Config,
 	ctx ldcontext.Context,
 	loggers interfaces.LDLoggers) *Tracker {
-	return newTrackerWithStopwatch(key, variationKey, events, config, ctx, loggers, &defaultStopwatch{})
+	return newTrackerWithStopwatch(key, variationKey, version, events, config, ctx, loggers, &defaultStopwatch{})
 }
 
 // newTrackerWithStopwatch creates a new Tracker with the specified key, event sink, config, context, loggers, and
@@ -133,6 +134,7 @@ func newTracker(
 func newTrackerWithStopwatch(
 	key string,
 	variationKey string,
+	version int,
 	events EventSink,
 	config *Config,
 	ctx ldcontext.Context,
@@ -144,7 +146,9 @@ func newTrackerWithStopwatch(
 
 	trackData := ldvalue.ObjectBuild().
 		Set("variationKey", ldvalue.String(variationKey)).
-		Set("configKey", ldvalue.String(key)).Build()
+		Set("configKey", ldvalue.String(key)).
+		Set("version", ldvalue.Int(version)).
+		Build()
 
 	return &Tracker{
 		key:       key,
