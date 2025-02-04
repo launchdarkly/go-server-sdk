@@ -122,7 +122,13 @@ func (c *Client) Config(
 	}
 
 	cfg := builder.Build()
-	return cfg, newTracker(key, parsed.Meta.VariationKey, parsed.Meta.Version, c.sdk, &cfg, context, c.logger)
+
+	version := 1
+	if parsed.Meta.Version != nil {
+		version = *parsed.Meta.Version
+	}
+
+	return cfg, newTracker(key, parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {

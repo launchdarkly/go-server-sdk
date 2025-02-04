@@ -20,7 +20,10 @@ func (c *Config) VariationKey() string {
 
 // Version is used internally by LaunchDarkly.
 func (c *Config) Version() int {
-	return c.c.Meta.Version
+	if c.c.Meta.Version == nil {
+		return 1
+	}
+	return *c.c.Meta.Version
 }
 
 // Messages returns the messages defined by the config. The series of messages may be
