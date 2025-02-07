@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.5.0...ldai/v0.6.0) (2025-02-07)
+
+
+### Features
+
+* Add variation version to metric data ([#244](https://github.com/launchdarkly/go-server-sdk/issues/244)) ([01ee033](https://github.com/launchdarkly/go-server-sdk/commit/01ee0339c9f1adad462c1dba6927a2c213f5e032))
+
 ## [0.5.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.4.0...ldai/v0.5.0) (2025-01-23)
 
 
