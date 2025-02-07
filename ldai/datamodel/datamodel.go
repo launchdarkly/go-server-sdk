@@ -9,6 +9,9 @@ type Meta struct {
 
 	// Enabled is true if the config is enabled.
 	Enabled bool `json:"enabled,omitempty"`
+
+	// Version is the version of the Variation.
+	Version *int `json:"version,omitempty"`
 }
 
 // Model defines the serialization format for a model.

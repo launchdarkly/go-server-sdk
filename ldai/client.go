@@ -76,13 +76,13 @@ func (c *Client) Config(
 	// empty object.)
 	if result.Type() != ldvalue.ObjectType {
 		c.logConfigWarning(key, "unmarshalling failed, expected JSON object but got %s", result.Type().String())
-		return defaultValue, newTracker(key, "", c.sdk, &defaultValue, context, c.logger)
+		return defaultValue, newTracker(key, "", 1, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
 		c.logConfigWarning(key, "unmarshalling failed: %v", err)
-		return defaultValue, newTracker(key, "", c.sdk, &defaultValue, context, c.logger)
+		return defaultValue, newTracker(key, "", 1, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	mergedVariables := map[string]interface{}{
@@ -122,7 +122,13 @@ func (c *Client) Config(
 	}
 
 	cfg := builder.Build()
-	return cfg, newTracker(key, parsed.Meta.VariationKey, c.sdk, &cfg, context, c.logger)
+
+	version := 1
+	if parsed.Meta.Version != nil {
+		version = *parsed.Meta.Version
+	}
+
+	return cfg, newTracker(key, parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {
