@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        branch: ["v6", "v7"]
+        branch: ["v7"]
       fail-fast: false
     env:
       officialLatestVersion: ${{ needs.check-go-eol.outputs.latest }}
