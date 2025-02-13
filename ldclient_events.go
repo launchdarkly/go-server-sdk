@@ -351,3 +351,8 @@ func (c *clientEventsDisabledDecorator) WithEventsDisabled(disabled bool) interf
 	}
 	return c.client
 }
+
+func (c *clientEventsDisabledDecorator) GetAribitraryConfigValue(configKey string, key ldvalue.Value,
+) (ldvalue.Value, error) {
+	return c.client.GetAribitraryConfigValue(configKey, key)
+}
