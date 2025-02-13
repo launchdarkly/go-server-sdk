@@ -42,3 +42,15 @@ func (d dataStoreEvaluatorDataProviderImpl) GetSegment(key string) *ldmodel.Segm
 	}
 	return nil
 }
+
+func (d dataStoreEvaluatorDataProviderImpl) GetArbitraryConfigs(key string) *ldmodel.ArbitraryConfigs {
+	item, err := d.store.Get(datakinds.ArbitraryConfigs, key)
+	if err == nil && item.Item != nil {
+		data := item.Item
+		if config, ok := data.(*ldmodel.ArbitraryConfigs); ok {
+			return config
+		}
+		d.loggers.Errorf("unexpected data type (%T) found in store for arbitrary_configs: %s", data, key)
+	}
+	return nil
+}
