@@ -136,12 +136,12 @@ type LDClientEvaluations interface {
 	// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/all-flags#go
 	AllFlagsState(context ldcontext.Context, options ...flagstate.Option) flagstate.AllFlags
 
-	// GetAribitraryConfigValue returns the value of a configuration item for the given key.
+	// GetArbitraryConfigValue returns the value of a configuration item for the given key.
 	// It only applies to arbitrary configs that are stored as key-value pairs.
 	//
 	// The configKey is the key of the arbitrary configuration item you want to retrieve.
 	// The valueKey is the key of the value you want to retrieve from the configuration item.
-	GetAribitraryConfigValue(configKey string, valueKey ldvalue.Value) (ldvalue.Value, error)
+	GetArbitraryConfigValue(configKey string, valueKey ldvalue.Value) (ldvalue.Value, error)
 }
 
 // LDClientEvents defines the methods implemented by LDClient that are specifically for generating

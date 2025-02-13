@@ -723,10 +723,10 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	return state.Build()
 }
 
-// GetAribitraryConfigValue returns the value of a configuration item for the given key.
+// GetArbitraryConfigValue returns the value of a configuration item for the given key.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/arbitrary-configs#go
-func (client *LDClient) GetAribitraryConfigValue(configKey string, key ldvalue.Value) (ldvalue.Value, error) {
+func (client *LDClient) GetArbitraryConfigValue(configKey string, key ldvalue.Value) (ldvalue.Value, error) {
 	items, err := client.dataSystem.Store().GetAll(datakinds.ArbitraryConfigs)
 	if err != nil {
 		return ldvalue.Value{}, err
