@@ -11,7 +11,7 @@ require (
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.1
 	github.com/launchdarkly/go-sdk-common/v3 v3.1.0
 	github.com/launchdarkly/go-sdk-events/v3 v3.4.0
-	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1
+	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.2-0.20250213083258-db6d9b161c3f
 	github.com/launchdarkly/go-test-helpers/v3 v3.0.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.9.0

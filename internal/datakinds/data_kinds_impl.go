@@ -27,6 +27,7 @@ const deletedItemPlaceholderKey = "$deleted"
 // Type aliases for our two implementations of StoreDataKind
 type featureFlagStoreDataKind struct{}
 type segmentStoreDataKind struct{}
+type arbitraryConfigStoreDataKind struct{}
 
 // Features is the global StoreDataKind instance for feature flags.
 var Features DataKindInternal = featureFlagStoreDataKind{} //nolint:gochecknoglobals
@@ -34,9 +35,12 @@ var Features DataKindInternal = featureFlagStoreDataKind{} //nolint:gochecknoglo
 // Segments is the global StoreDataKind instance for segments.
 var Segments DataKindInternal = segmentStoreDataKind{} //nolint:gochecknoglobals
 
+// ArbitraryConfigs is the global StoreDataKind instance for arbitrary configs.
+var ArbitraryConfigs DataKindInternal = arbitraryConfigStoreDataKind{} //nolint:gochecknoglobals
+
 // AllDataKinds returns all the supported data StoreDataKinds.
 func AllDataKinds() []ldstoretypes.DataKind {
-	return []ldstoretypes.DataKind{Features, Segments}
+	return []ldstoretypes.DataKind{Features, Segments, ArbitraryConfigs}
 }
 
 // GetName returns the unique namespace identifier for feature flag objects.
@@ -132,4 +136,26 @@ func maybeSegment(segment ldmodel.Segment, err error) (ldstoretypes.ItemDescript
 // String returns a human-readable string identifier.
 func (sk segmentStoreDataKind) String() string {
 	return sk.GetName()
+}
+
+func (ac arbitraryConfigStoreDataKind) GetName() string {
+	return "arbitraryConfigs"
+}
+
+func (ac arbitraryConfigStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byte {
+	return nil
+}
+
+func (ac arbitraryConfigStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	config, err := modelSerialization.UnmarshalArbitraryConfigs(data)
+	return ldstoretypes.ItemDescriptor{Version: config.Version, Item: &config}, err
+}
+
+func (ac arbitraryConfigStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (ldstoretypes.ItemDescriptor, error) {
+	config := ldmodel.UnmarshalArbitraryConfigsFromJSONReader(reader)
+	return ldstoretypes.ItemDescriptor{Version: config.Version, Item: &config}, reader.Error()
+}
+
+func (ac arbitraryConfigStoreDataKind) String() string {
+	return ac.GetName()
 }

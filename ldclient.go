@@ -723,6 +723,35 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	return state.Build()
 }
 
+// GetAribitraryConfigValue returns the value of a configuration item for the given key.
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/arbitrary-configs#go
+func (client *LDClient) GetAribitraryConfigValue(configKey string, key ldvalue.Value) (ldvalue.Value, error) {
+	items, err := client.dataSystem.Store().GetAll(datakinds.ArbitraryConfigs)
+	if err != nil {
+		return ldvalue.Value{}, err
+	}
+
+	for _, item := range items {
+		if item.Key == configKey && item.Item.Item != nil {
+			config, ok := item.Item.Item.(*ldmodel.ArbitraryConfigs)
+			if !ok {
+				return ldvalue.Value{}, fmt.Errorf("config key %s is not an arbitrary config", configKey)
+			}
+			if config.DataType != ldmodel.KeyValuesType {
+				return ldvalue.Value{}, fmt.Errorf("config key %s is not a key-values config", configKey)
+			}
+			value, ok := config.Values.(map[any]any)[key]
+			if !ok {
+				return ldvalue.Value{}, fmt.Errorf("value key %s not found in config key %s", key, configKey)
+			}
+			return ldvalue.CopyArbitraryValue(value), nil
+		}
+	}
+
+	return ldvalue.Value{}, fmt.Errorf("config key %s not found", configKey)
+}
+
 // BoolVariation returns the value of a boolean feature flag for a given evaluation context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and

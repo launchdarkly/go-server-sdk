@@ -34,6 +34,9 @@ var (
 //	    },
 //	    "segments": {
 //	      "segment1": { "key", "segment1", "version": 1, ...etc. }
+//	    },
+//	    "arbitraryConfigs": {
+//	      "config1": { "key": "config1", "version": 1, ...etc. }
 //	    }
 //	  }
 //	}
@@ -172,6 +175,8 @@ func parsePath(path string) (datakinds.DataKindInternal, string) {
 		return datakinds.Segments, strings.TrimPrefix(path, "/segments/")
 	case strings.HasPrefix(path, "/flags/"):
 		return datakinds.Features, strings.TrimPrefix(path, "/flags/")
+	case strings.HasPrefix(path, "/arbitraryConfigs/"):
+		return datakinds.ArbitraryConfigs, strings.TrimPrefix(path, "/arbitraryConfigs/")
 	default:
 		return nil, ""
 	}
