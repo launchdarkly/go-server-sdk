@@ -48,7 +48,7 @@ github.com/launchdarkly/go-sdk-events/v3
 # github.com/launchdarkly/go-semver v1.0.3
 ## explicit; go 1.13
 github.com/launchdarkly/go-semver
-# github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.2-0.20250213083258-db6d9b161c3f
+# github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.2-0.20250213194029-fb80a56775ed
 ## explicit; go 1.18
 github.com/launchdarkly/go-server-sdk-evaluation/v3
 github.com/launchdarkly/go-server-sdk-evaluation/v3/internal

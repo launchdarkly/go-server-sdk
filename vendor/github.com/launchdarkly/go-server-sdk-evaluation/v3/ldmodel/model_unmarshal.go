@@ -377,13 +377,17 @@ func readArbitraryConfigs(r *jreader.Reader, out *ArbitraryConfigs) {
 		case "version":
 			out.Version = r.Int()
 		case "dataType":
-			out.DataType = ArbitraryConfigType(r.String())
+			out.DataType = StringToDataType(r.String())
 		case "values":
+			var v ldvalue.Value
+			v.ReadFromJSONReader(r)
 			switch out.DataType {
 			case ArrayType:
-				out.Values = r.Array()
+				out.Values = v.AsValueArray()
 			case KeyValuesType:
-				out.Values = r.Object()
+				out.Values = v.AsValueMap()
+			default:
+				r.SkipValue()
 			}
 		}
 	}

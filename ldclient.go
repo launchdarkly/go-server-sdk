@@ -742,11 +742,7 @@ func (client *LDClient) GetAribitraryConfigValue(configKey string, key ldvalue.V
 				return ldvalue.Value{}, fmt.Errorf("config key %s is of type %s, not a key-values config",
 					configKey, config.DataType)
 			}
-			value, ok := config.Values.(map[any]any)[key]
-			if !ok {
-				return ldvalue.Value{}, fmt.Errorf("value key %s not found in config key %s", key, configKey)
-			}
-			return ldvalue.CopyArbitraryValue(value), nil
+			return ldvalue.CopyArbitraryValue(config.Values).GetByKey(key.String()), nil
 		}
 	}
 
