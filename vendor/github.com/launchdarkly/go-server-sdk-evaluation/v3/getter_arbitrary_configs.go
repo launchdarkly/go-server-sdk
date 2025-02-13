@@ -8,14 +8,13 @@ import (
 type arbitraryConfigProvider struct {
 }
 
-func (p *arbitraryConfigProvider) GetArbitraryConfigMapValues(config ldmodel.ArbitraryConfigs, key any) ldvalue.Value {
-	if config.Key == "" || config.Values == nil || config.DataType != ldmodel.KeyValuesType {
+func (p *arbitraryConfigProvider) GetArbitraryConfigMapValues(config ldmodel.ArbitraryConfigs, key ldvalue.Value) ldvalue.Value {
+	if config.Key == "" || config.DataType != ldmodel.KeyValuesType {
 		return ldvalue.Null()
 	}
-	values := config.Values.(map[string]any)
-	value, ok := values[key.(string)]
-	if !ok {
+	values := config.Values.AsValueMap()
+	if !values.IsDefined() {
 		return ldvalue.Null()
 	}
-	return ldvalue.FromJSONMarshal(value)
+	return values.Get(key.String())
 }

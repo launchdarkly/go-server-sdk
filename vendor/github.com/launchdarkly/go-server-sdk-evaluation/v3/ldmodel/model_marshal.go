@@ -275,14 +275,14 @@ func marshalArbitraryConfigsToWriter(configs ArbitraryConfigs, w *jwriter.Writer
 	switch configs.DataType {
 	case ArrayType:
 		valuesArr := obj.Name("values").Array()
-		for _, v := range configs.Values.([]any) {
-			valuesArr.String(v.(string))
+		for _, v := range configs.Values.AsValueArray().AsSlice() {
+			valuesArr.String(v.String())
 		}
 		valuesArr.End()
 	case KeyValuesType:
 		valuesObj := obj.Name("values").Object()
-		for k, v := range configs.Values.(map[string]any) {
-			valuesObj.Name(k).String(v.(string))
+		for k, v := range configs.Values.AsValueMap().AsMap() {
+			valuesObj.Name(k).String(v.String())
 		}
 		valuesObj.End()
 	}

@@ -1,6 +1,7 @@
 package ldbuilders
 
 import (
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 )
 
@@ -30,7 +31,7 @@ func (b *ArbitraryConfigsBuilder) DataType(dataType ldmodel.ArbitraryConfigType)
 }
 
 // Values sets the configuration values.
-func (b *ArbitraryConfigsBuilder) Values(values any) *ArbitraryConfigsBuilder {
+func (b *ArbitraryConfigsBuilder) Values(values ldvalue.Value) *ArbitraryConfigsBuilder {
 	b.config.Values = values
 	return b
 }

@@ -1,5 +1,7 @@
 package ldmodel
 
+import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+
 type ArbitraryConfigType string
 
 const (
@@ -19,7 +21,7 @@ type ArbitraryConfigs struct {
 	DataType ArbitraryConfigType `json:"dataType"`
 
 	// Values contains any associated configuration values.
-	Values any `json:"values"`
+	Values ldvalue.Value `json:"values"`
 
 	// Version is an integer that is incremented by LaunchDarkly every time the configuration is
 	// changed.

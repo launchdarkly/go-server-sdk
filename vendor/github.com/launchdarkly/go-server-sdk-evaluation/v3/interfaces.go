@@ -27,7 +27,7 @@ type Evaluator interface {
 }
 
 type ArbitraryConfigProvider interface {
-	GetArbitraryConfigMapValues(config ldmodel.ArbitraryConfigs, key any) ldvalue.Value
+	GetArbitraryConfigMapValues(config ldmodel.ArbitraryConfigs, key ldvalue.Value) ldvalue.Value
 }
 
 // PrerequisiteFlagEventRecorder is a function that Evaluator.Evaluate() will call to record the
