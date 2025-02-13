@@ -739,7 +739,8 @@ func (client *LDClient) GetAribitraryConfigValue(configKey string, key ldvalue.V
 				return ldvalue.Value{}, fmt.Errorf("config key %s is not an arbitrary config", configKey)
 			}
 			if config.DataType != ldmodel.KeyValuesType {
-				return ldvalue.Value{}, fmt.Errorf("config key %s is not a key-values config", configKey)
+				return ldvalue.Value{}, fmt.Errorf("config key %s is of type %s, not a key-values config",
+					configKey, config.DataType)
 			}
 			value, ok := config.Values.(map[any]any)[key]
 			if !ok {
