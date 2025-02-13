@@ -742,7 +742,7 @@ func (client *LDClient) GetArbitraryConfigValue(configKey string, key ldvalue.Va
 				return ldvalue.Value{}, fmt.Errorf("config key %s is of type %s, not a key-values config",
 					configKey, config.DataType)
 			}
-			return config.Values.AsValueMap().Get(key.String()), nil
+			return config.Values.AsValueMap().Get(key.StringValue()), nil
 		}
 	}
 
