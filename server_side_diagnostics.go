@@ -105,5 +105,5 @@ func makeDiagnosticSDKData() ldvalue.Value {
 }
 
 func durationToMillis(d time.Duration) ldvalue.Value {
-	return ldvalue.Float64(float64(uint64(d / time.Millisecond)))
+	return ldvalue.Float64(float64(uint64(d / time.Millisecond))) //nolint:gosec
 }

@@ -245,7 +245,7 @@ func (w *BigSegmentStoreWrapper) pollStoreAndUpdateStatus() interfaces.BigSegmen
 }
 
 func (w *BigSegmentStoreWrapper) isStale(updateTime ldtime.UnixMillisecondTime) bool {
-	age := time.Duration(uint64(ldtime.UnixMillisNow())-uint64(updateTime)) * time.Millisecond
+	age := time.Duration(uint64(ldtime.UnixMillisNow())-uint64(updateTime)) * time.Millisecond //nolint:gosec
 	return age >= w.staleTime
 }
 

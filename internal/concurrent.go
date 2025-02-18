@@ -1,8 +1,6 @@
 package internal
 
-import (
-	"sync/atomic"
-)
+import "sync/atomic"
 
 // AtomicBoolean is a simple atomic boolean type based on sync/atomic. Since sync/atomic supports
 // only integer types, the implementation uses an int32. (Note: we should be able to get rid of

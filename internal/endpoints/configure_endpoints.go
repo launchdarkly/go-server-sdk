@@ -13,7 +13,7 @@ type ServiceType int
 const (
 	StreamingService ServiceType = iota //nolint:revive // internal constant
 	PollingService   ServiceType = iota //nolint:revive // internal constant
-	EventsService    ServiceType = iota //nolint:revive // internal constant
+	EventsService    ServiceType = iota // internal constant
 )
 
 func (s ServiceType) String() string {
