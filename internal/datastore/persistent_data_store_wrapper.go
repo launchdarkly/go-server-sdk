@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/patrickmn/go-cache"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/singleflight"
 )
 

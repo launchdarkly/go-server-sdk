@@ -3,6 +3,7 @@ package datasourcev2
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -22,8 +23,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-
-	"golang.org/x/exp/maps"
 )
 
 const (

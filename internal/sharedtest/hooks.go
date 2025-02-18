@@ -3,9 +3,8 @@ package sharedtest
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/stretchr/testify/assert"
 

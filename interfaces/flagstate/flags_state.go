@@ -2,13 +2,12 @@ package flagstate
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jwriter"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-
-	"golang.org/x/exp/maps"
 )
 
 // AllFlags is a snapshot of the state of multiple feature flags with regard to a specific evaluation

@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -16,8 +17,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	es "github.com/launchdarkly/eventsource"
-
-	"golang.org/x/exp/maps"
 )
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in

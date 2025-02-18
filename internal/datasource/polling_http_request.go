@@ -3,6 +3,7 @@ package datasource
 import (
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 
 	"github.com/gregjones/httpcache"
-	"golang.org/x/exp/maps"
 )
 
 // pollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.

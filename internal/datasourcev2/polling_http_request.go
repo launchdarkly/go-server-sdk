@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/gregjones/httpcache"
-	"golang.org/x/exp/maps"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
