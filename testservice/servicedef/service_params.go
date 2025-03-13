@@ -18,7 +18,7 @@ const (
 	CapabilityContextType                 = "context-type"
 	CapabilityMigrations                  = "migrations"
 	CapabilityEventSampling               = "event-sampling"
-	CapabilityInlineContext               = "inline-context"
+	CapabilityInlineContextAll            = "inline-context-all"
 	CapabilityAnonymousRedaction          = "anonymous-redaction"
 	CapabilityEvaluationHooks             = "evaluation-hooks"
 	CapabilityOmitAnonymousContexts       = "omit-anonymous-contexts"

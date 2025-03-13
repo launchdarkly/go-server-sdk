@@ -37,7 +37,7 @@ var capabilities = []string{
 	servicedef.CapabilityContextType,
 	servicedef.CapabilityMigrations,
 	servicedef.CapabilityEventSampling,
-	servicedef.CapabilityInlineContext,
+	servicedef.CapabilityInlineContextAll,
 	servicedef.CapabilityAnonymousRedaction,
 	servicedef.CapabilityEvaluationHooks,
 	servicedef.CapabilityOmitAnonymousContexts,
