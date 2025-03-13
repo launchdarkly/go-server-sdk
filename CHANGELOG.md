@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.9.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.8.0...v7.9.0) (2025-03-13)
+
+
+### Features
+
+* Inline context for custom and migration events ([ce0245f](https://github.com/launchdarkly/go-server-sdk/commit/ce0245fd6a6278d073fe99ee9c0509dd17b736b1))
+* Update minimum go version to 1.20. ([46c9694](https://github.com/launchdarkly/go-server-sdk/commit/46c9694e733356cf4d051e7b72241b0a6e330a37))
+
 ## [7.8.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.7.0...v7.8.0) (2024-12-09)
 
 
