@@ -43,7 +43,7 @@
 
 ### Bug Fixes
 
-* propagate parsed model params into returned AI config ([#220](https://github.com/launchdarkly/go-server-sdk/issues/220)) ([f75b7a8](https://github.com/launchdarkly/go-server-sdk/commit/f75b7a8df5f5e62f544d5e95cbc75bd82352ca57))
+* propagate parsed model params into returned AI Config ([#220](https://github.com/launchdarkly/go-server-sdk/issues/220)) ([f75b7a8](https://github.com/launchdarkly/go-server-sdk/commit/f75b7a8df5f5e62f544d5e95cbc75bd82352ca57))
 
 
 ### Code Refactoring

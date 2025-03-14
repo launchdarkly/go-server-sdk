@@ -164,7 +164,7 @@ func TestParseInvalidConfigReturnsDefault(t *testing.T) {
 			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
 			assert.Equal(t, defaultVal, cfg)
 
-			sdk.log.AssertMessageMatch(t, true, ldlog.Warn, "AI config 'key':")
+			sdk.log.AssertMessageMatch(t, true, ldlog.Warn, "AI Config 'key':")
 		})
 	}
 }
