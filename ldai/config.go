@@ -8,7 +8,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 )
 
-// Config represents an AI config.
+// Config represents an AI Config.
 type Config struct {
 	c datamodel.Config
 }
@@ -64,8 +64,8 @@ func (c *Config) AsLdValue() ldvalue.Value {
 	return ldvalue.FromJSONMarshal(c.c)
 }
 
-// ConfigBuilder is used to define a default AI config, returned when LaunchDarkly is unreachable or there
-// is an error evaluating the config.
+// ConfigBuilder is used to define a default AI Config, returned when LaunchDarkly is unreachable or there
+// is an error evaluating the Config.
 type ConfigBuilder struct {
 	messages          []datamodel.Message
 	enabled           bool
@@ -75,7 +75,7 @@ type ConfigBuilder struct {
 	modelCustomParams map[string]ldvalue.Value
 }
 
-// NewConfig returns a new ConfigBuilder. By default, the config is disabled.
+// NewConfig returns a new ConfigBuilder. By default, the Config is disabled.
 func NewConfig() *ConfigBuilder {
 	return &ConfigBuilder{
 		modelParams:       make(map[string]ldvalue.Value),

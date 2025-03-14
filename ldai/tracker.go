@@ -90,7 +90,7 @@ type Stopwatch interface {
 	Stop() time.Duration
 }
 
-// Tracker is used to track metrics for AI config evaluation.
+// Tracker is used to track metrics for AI Config evaluation.
 // Unless otherwise noted, the Tracker's method are not safe for concurrent use.
 type Tracker struct {
 	key       string
@@ -162,7 +162,7 @@ func newTrackerWithStopwatch(
 }
 
 func (t *Tracker) logWarning(format string, args ...interface{}) {
-	prefix := "AI config tracker for '" + t.key + "': "
+	prefix := "AI Config tracker for '" + t.key + "': "
 	t.logger.Warnf(prefix+format, args...)
 }
 
@@ -254,7 +254,7 @@ func measureDurationOfTask[T any, A any](
 // which can be used to specify request metrics and token usage. All fields of the returned ProviderResponse are
 // optional.
 //
-// The task function will be passed the current AI config, which can be used to obtain any parameters or messages
+// The task function will be passed the current AI Config, which can be used to obtain any parameters or messages
 // relevant to the request.
 //
 // If the task returns an error, then the request is not considered successful and no metrics are tracked.

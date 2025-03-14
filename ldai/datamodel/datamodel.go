@@ -55,7 +55,7 @@ type Message struct {
 	Role Role `json:"role"`
 }
 
-// Config defines the serialization format for an AI config.
+// Config defines the serialization format for an AI Config.
 type Config struct {
 	// Messages is a list of messages. The messages received from LaunchDarkly are uninterpolated.
 	Messages []Message `json:"messages,omitempty"`

@@ -33,7 +33,7 @@ type ServerSDK interface {
 	) error
 }
 
-// Client is the main entrypoint for the AI SDK. A client can be used to obtain an AI config from LaunchDarkly.
+// Client is the main entrypoint for the AI SDK. A client can be used to obtain an AI Config from LaunchDarkly.
 // Unless otherwise noted, the Client's method are not safe for concurrent use.
 type Client struct {
 	sdk    ServerSDK
@@ -53,17 +53,17 @@ func NewClient(sdk ServerSDK) (*Client, error) {
 }
 
 func (c *Client) logConfigWarning(key string, format string, args ...interface{}) {
-	prefix := "AI config '" + key + "': "
+	prefix := "AI Config '" + key + "': "
 	c.logger.Warnf(prefix+format, args...)
 }
 
-// Config evaluates an AI config named by a given key for the given context.
+// Config evaluates an AI Config named by a given key for the given context.
 //
 // The config's messages will undergo Mustache template interpolation using the provided variables, which may be
 // nil. If the config cannot be evaluated or LaunchDarkly is unreachable, the default value is returned. Note that
 // the messages in the default will not undergo template interpolation.
 //
-// To send analytic events to LaunchDarkly related to the AI config, call methods on the returned Tracker.
+// To send analytic events to LaunchDarkly related to the AI Config, call methods on the returned Tracker.
 func (c *Client) Config(
 	key string,
 	context ldcontext.Context,
