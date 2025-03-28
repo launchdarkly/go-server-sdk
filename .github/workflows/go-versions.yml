@@ -49,4 +49,8 @@ jobs:
       - name: Set Go Version Matrices
         id: set-matrix
         run: |
-          echo "all=[\"${{ steps.set-env.outputs.latest }}\",\"${{ steps.set-env.outputs.penultimate }}\",\"${{ steps.set-env.outputs.min }}\"]" >> $GITHUB_OUTPUT
+          if [ "${{ steps.set-env.outputs.penultimate }}" == "${{ steps.set-env.outputs.min }}" ]; then
+            echo "all=[\"${{ steps.set-env.outputs.latest }}\",\"${{ steps.set-env.outputs.penultimate }}\"]" >> $GITHUB_OUTPUT
+          else
+            echo "all=[\"${{ steps.set-env.outputs.latest }}\",\"${{ steps.set-env.outputs.penultimate }}\",\"${{ steps.set-env.outputs.min }}\"]" >> $GITHUB_OUTPUT
+          fi
