@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.10.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.9.0...v7.10.0) (2025-03-28)
+
+
+### Features
+
+* Bump minimum Go version to 1.23 ([416d972](https://github.com/launchdarkly/go-server-sdk/commit/416d972395a6eba5c979a04aa5e59745a54e1880))
+
+
+### Bug Fixes
+
+* Bump launchdarkly/go-ntlm-proxy-auth to v1.0.2 ([416d972](https://github.com/launchdarkly/go-server-sdk/commit/416d972395a6eba5c979a04aa5e59745a54e1880))
+
 ## [7.9.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.8.0...v7.9.0) (2025-03-13)
 
 
