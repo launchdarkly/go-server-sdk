@@ -93,6 +93,9 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			)
 			processor.Close()
 
+			// Give the processor time to close
+			time.Sleep(100 * time.Millisecond)
+
 			statusChan := processor.Sync()
 			th.AssertChannelClosed(t, statusChan, time.Second, "starting a closed processor shouldn't block")
 		})
