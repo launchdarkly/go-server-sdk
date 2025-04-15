@@ -34,7 +34,6 @@ type PollingRequester interface {
 // DataSource interface.
 type PollingProcessor struct {
 	dataDestination    subsystems.DataDestination
-	statusReporter     subsystems.DataSourceStatusReporter
 	requester          PollingRequester
 	pollInterval       time.Duration
 	loggers            ldlog.Loggers
@@ -48,23 +47,20 @@ type PollingProcessor struct {
 func NewPollingProcessor(
 	context subsystems.ClientContext,
 	dataDestination subsystems.DataDestination,
-	statusReporter subsystems.DataSourceStatusReporter,
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
 	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
-	return newPollingProcessor(context, dataDestination, statusReporter, httpRequester, cfg.PollInterval)
+	return newPollingProcessor(context, dataDestination, httpRequester, cfg.PollInterval)
 }
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
 	dataDestination subsystems.DataDestination,
-	statusReporter subsystems.DataSourceStatusReporter,
 	requester PollingRequester,
 	pollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
 		dataDestination: dataDestination,
-		statusReporter:  statusReporter,
 		requester:       requester,
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
@@ -88,7 +84,8 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
+func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
+	statusChan := make(chan interfaces.DataSourceStatus)
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	// This process has a shared method serving both as an initializer and a synchronizer.
@@ -103,21 +100,14 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 	go func() {
 		defer ticker.Stop()
 
-		var readyOnce sync.Once
-		notifyReady := func() {
-			readyOnce.Do(func() {
-				close(closeWhenReady)
-			})
-		}
-		// Ensure we stop waiting for initialization if we exit, even if initialization fails
-		defer notifyReady()
+		defer close(statusChan)
 
 		for {
 			select {
 			case <-pp.quit:
 				return
 			case <-ticker.C:
-				if err := pp.poll(ctx); err != nil {
+				if err := pp.poll(ctx, statusChan); err != nil {
 					if hse, ok := err.(httpStatusError); ok {
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:       interfaces.DataSourceErrorKindErrorResponse,
@@ -132,10 +122,17 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 							pollingWillRetryMessage,
 						)
 						if recoverable {
-							pp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+							statusChan <- interfaces.DataSourceStatus{
+								State:      interfaces.DataSourceStateInterrupted,
+								StateSince: time.Now(),
+								LastError:  errorInfo,
+							}
 						} else {
-							pp.statusReporter.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
-							notifyReady()
+							statusChan <- interfaces.DataSourceStatus{
+								State:      interfaces.DataSourceStateOff,
+								StateSince: time.Now(),
+								LastError:  errorInfo,
+							}
 							return
 						}
 					} else {
@@ -148,22 +145,29 @@ func (pp *PollingProcessor) Sync(closeWhenReady chan<- struct{}) {
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
 						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
-						pp.statusReporter.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+						statusChan <- interfaces.DataSourceStatus{
+							State:      interfaces.DataSourceStateInterrupted,
+							StateSince: time.Now(),
+							LastError:  errorInfo,
+						}
 					}
 					continue
 				}
-				pp.statusReporter.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 				pp.setInitializedOnce.Do(func() {
 					pp.isInitialized.Set(true)
-					pp.loggers.Info("First polling request successful")
-					notifyReady()
 				})
+				statusChan <- interfaces.DataSourceStatus{
+					State:      interfaces.DataSourceStateValid,
+					StateSince: time.Now(),
+				}
 			}
 		}
 	}()
+
+	return statusChan
 }
 
-func (pp *PollingProcessor) poll(ctx context.Context) error {
+func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfaces.DataSourceStatus) error {
 	changeSet, err := pp.requester.Request(ctx)
 
 	if err != nil {
@@ -174,12 +178,18 @@ func (pp *PollingProcessor) poll(ctx context.Context) error {
 	switch code {
 	case fdv2proto.IntentTransferFull:
 		pp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
+		statusChan <- interfaces.DataSourceStatus{
+			State:      interfaces.DataSourceStateValid,
+			StateSince: time.Now(),
+		}
 	case fdv2proto.IntentTransferChanges:
 		pp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
-	case fdv2proto.IntentNone:
-		{
-			// no-op, we are already up-to-date.
+		statusChan <- interfaces.DataSourceStatus{
+			State:      interfaces.DataSourceStateValid,
+			StateSince: time.Now(),
 		}
+	case fdv2proto.IntentNone:
+		// no-op, we are already up-to-date
 	}
 
 	return nil

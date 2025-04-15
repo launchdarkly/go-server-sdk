@@ -117,6 +117,52 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 	})
 }
 
+func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		dataSystemBuilder := ldcomponents.DataSystem().Custom().Synchronizers(
+			ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+			ldcomponents.PollingDataSourceV2().BaseURI(server.URL),
+		)
+
+		config := Config{
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: dataSystemBuilder,
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
+
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.False(t, value)
+
+		// Streaming request
+		r := <-requestsCh
+		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
+
+		// Polling request
+		r = <-requestsCh
+		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
+
+		// Ensure no further requests
+		assertNoMoreRequests(t, requestsCh)
+
+		expectedStreamError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
+		expectedPollError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
+		assert.Equal(t, []string{expectedStreamError, expectedPollError}, logCapture.GetOutput(ldlog.Error))
+		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+	})
+}
+
 func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
