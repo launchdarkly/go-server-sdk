@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
@@ -49,7 +50,7 @@ type DataInitializer interface {
 type DataSynchronizer interface {
 	DataInitializer
 	// Sync tells the data synchronizer to begin synchronizing data.
-	Sync(closeWhenReady chan<- struct{})
+	Sync() <-chan interfaces.DataSourceStatus
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
 	// Once this is true, it should remain true even if a problem occurs later.

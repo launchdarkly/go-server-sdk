@@ -35,6 +35,13 @@ type FDv2 struct {
 	// The primary synchronizer responsible for keeping data up-to-date.
 	primarySyncBuilder func() (subsystems.DataSynchronizer, error)
 
+	// Boolean used to track whether the datasystem was originally configured
+	// with sort sort of valid data source.
+	//
+	// We cannot check this at run time because synchronizers may be removed if
+	// they permanently fail.
+	configuredWithDatSources bool
+
 	// The secondary synchronizer, in case the primary is unavailable.
 	secondarySyncBuilder func() (subsystems.DataSynchronizer, error)
 
@@ -131,6 +138,8 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
 	}
 
+	fdv2.configuredWithDatSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
+
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
@@ -173,16 +182,12 @@ func (f *FDv2) launchTask(task func()) {
 	}()
 }
 
-func (f *FDv2) hasDataSources() bool {
-	return len(f.initializers) > 0 || f.primarySyncBuilder != nil
-}
-
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
 	f.runInitializers(ctx, closeWhenReady)
 
-	if f.hasDataSources() && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
+	if f.configuredWithDatSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
 			f.runPersistentStoreOutageRecovery(ctx, f.dataStoreStatusProvider.AddStatusListener())
 		})
@@ -230,41 +235,6 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 	}
 }
 
-// The Go SDK is architected in such a way that a "closeWhenReady" channel is passed into the Data System by means
-// of MakeClient. MakeClient is able to block the user until the client reaches a terminal state in regard to
-// its initialization status - either initialized with data, or run out of time initializing, or some fatal error.
-//
-// By closing this channel, the SDK's data sources indicate that MakeClient should unblock.
-//
-// In the FDv2 world, we have the possibility that a synchronizer fails or we fall back to a secondary synchronizer.
-// Perhaps we've already closed the channel, and now a new synchronizer is attempting to do the same.
-//
-// In that case, we need to guarantee that the channel is closed only once. To do this, we "wrap" the channel that is
-// passed directly into the synchronizer with another channel. The wrapper is responsible for actually closing the
-// underlying closeWhenReady, and it uses a sync.Once to ensure that happens only once.
-//
-// This design could be improved significantly. Some ideas:
-// 1) Refactor the SDK to listen to Data Source status rather than the special closeWhenReady channel. It's unclear why
-// this isn't currently the case, but there may be good reasons.
-// 2) Use callbacks. Somewhat equivalent to (1), but instead of needing to wrap the channel, we just proxy directly to
-// calling the sync.Once.
-// 3) Make the channel multi-use. Instead of the contract being "close when ready", have it be "send a value when
-// ready".
-func (f *FDv2) closeChannelWrapper(ctx context.Context, closeWhenReady chan struct{}) chan struct{} {
-	ch := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ch:
-			f.readyOnce.Do(func() {
-				close(closeWhenReady)
-			})
-		}
-	}()
-	return ch
-}
-
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
 	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded, which would have
 	// already closed the channel), we should close it now so that MakeClient unblocks.
@@ -276,6 +246,11 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	}
 
 	f.launchTask(func() {
+		// Ensure we stop waiting for initialization if we exit, even if initialization fails
+		defer f.readyOnce.Do(func() {
+			close(closeWhenReady)
+		})
+
 		for {
 			primarySync, err := f.primarySyncBuilder()
 			if err != nil {
@@ -284,14 +259,33 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 
 			f.loggers.Debugf("Primary synchronizer %s is starting", primarySync.Name())
-			primarySync.Sync(f.closeChannelWrapper(ctx, closeWhenReady))
-			if err := f.evaluateCond(ctx, f.fallbackCond); errors.Is(err, context.Canceled) {
+			statusChan := primarySync.Sync()
+			removeSync, err := f.consumeSynchronizerResults(ctx, statusChan, f.fallbackCond, closeWhenReady)
+			if errors.Is(err, context.Canceled) {
 				return
-			}
-			if err := primarySync.Close(); err != nil {
+			} else if err := primarySync.Close(); err != nil {
 				f.loggers.Errorf("Primary synchronizer %s failed to gracefully close: %v", primarySync.Name(), err)
 			}
-			f.loggers.Debugf("Fallback condition met")
+
+			if removeSync {
+				f.primarySyncBuilder = f.secondarySyncBuilder
+				f.secondarySyncBuilder = nil
+
+				if f.primarySyncBuilder == nil {
+					f.loggers.Debugf("No more synchronizers available, closing the channel")
+					f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+					f.readyOnce.Do(func() {
+						close(closeWhenReady)
+					})
+					return
+				}
+			} else {
+				f.loggers.Debugf("Fallback condition met")
+			}
+
+			if f.secondarySyncBuilder == nil {
+				continue
+			}
 
 			secondarySync, err := f.secondarySyncBuilder()
 			if err != nil {
@@ -300,13 +294,18 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 			f.loggers.Debugf("Secondary synchronizer %s is starting", secondarySync.Name())
 
-			secondarySync.Sync(f.closeChannelWrapper(ctx, closeWhenReady))
-			if err := f.evaluateCond(ctx, f.recoveryCond); errors.Is(err, context.Canceled) {
+			statusChan = secondarySync.Sync()
+			removeSync, err = f.consumeSynchronizerResults(ctx, statusChan, f.recoveryCond, closeWhenReady)
+			if errors.Is(err, context.Canceled) {
 				return
-			}
-			if err := secondarySync.Close(); err != nil {
+			} else if err := secondarySync.Close(); err != nil {
 				f.loggers.Errorf("Secondary synchronizer %s failed to gracefully close: %v", secondarySync.Name(), err)
 			}
+
+			if removeSync {
+				f.secondarySyncBuilder = nil
+			}
+
 			f.loggers.Debugf("Recovery condition met")
 			select {
 			case <-ctx.Done():
@@ -317,18 +316,44 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	})
 }
 
-func (f *FDv2) evaluateCond(ctx context.Context, cond func(status interfaces.DataSourceStatus) bool) error {
+func (f *FDv2) consumeSynchronizerResults(
+	ctx context.Context,
+	statusChan <-chan interfaces.DataSourceStatus,
+	cond func(status interfaces.DataSourceStatus) bool,
+	closeWhenReady chan<- struct{},
+) (bool, error) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
+		case result, ok := <-statusChan:
+			// The status channel being closed means that we won't be receiving
+			// any more information from that synchronizer and we should
+			// probably fall back.
+			if !ok {
+				return false, nil
+			}
+
+			switch result.State {
+			case interfaces.DataSourceStateValid:
+				f.readyOnce.Do(func() {
+					close(closeWhenReady)
+				})
+				f.UpdateStatus(result.State, result.LastError)
+			case interfaces.DataSourceStateInterrupted:
+				f.UpdateStatus(result.State, result.LastError)
+			case interfaces.DataSourceStateOff:
+				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.LastError)
+				return true, nil
+			}
 		case <-ticker.C:
 			status := f.getStatus()
 			f.loggers.Debugf("Data source status used to evaluate condition: %s", status.String())
 			if cond(status) {
-				return nil
+				return false, nil
 			}
 			f.loggers.Debugf("Condition check succeeded, continue with current synchronizer")
 		}
@@ -358,7 +383,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 		return Refreshed
 	}
 
-	if !f.hasDataSources() || f.store.IsInitialized() {
+	if !f.configuredWithDatSources || f.store.IsInitialized() {
 		return Cached
 	}
 
@@ -367,7 +392,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 
 //nolint:revive // DataSystem method.
 func (f *FDv2) TargetAvailability() DataAvailability {
-	if f.hasDataSources() {
+	if f.configuredWithDatSources {
 		return Refreshed
 	}
 

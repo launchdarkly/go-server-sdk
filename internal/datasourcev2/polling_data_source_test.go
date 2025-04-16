@@ -28,7 +28,6 @@ var (
 
 func TestPolllingProcessorAsInitializer(t *testing.T) {
 	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-	statusReporter := mocks.NewMockStatusReporter()
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
 	t.Run("successful fetch does not change initialization status", func(t *testing.T) {
@@ -37,7 +36,6 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
 				dd,
-				statusReporter,
 				datasource.PollingConfig{
 					BaseURI:      ts.URL,
 					PollInterval: time.Minute * 30,
@@ -62,7 +60,6 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
 				dd,
-				statusReporter,
 				datasource.PollingConfig{
 					BaseURI:      ts.URL,
 					FilterKey:    "filter-value",
@@ -80,9 +77,8 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 }
 
 func TestPollingProcessorAsSynchronizer(t *testing.T) {
-	t.Run("pre-closing should not block close when ready", func(t *testing.T) {
+	t.Run("pre-closing should shutdown immediately", func(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		statusReporter := mocks.NewMockStatusReporter()
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
 		handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
@@ -90,7 +86,6 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
 				dd,
-				statusReporter,
 				datasource.PollingConfig{
 					BaseURI:      ts.URL,
 					PollInterval: time.Minute * 30,
@@ -98,16 +93,13 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			)
 			processor.Close()
 
-			closeWhenReady := make(chan struct{})
-			processor.Sync(closeWhenReady)
-
-			th.AssertChannelClosed(t, closeWhenReady, time.Second, "starting a closed processor shouldn't block")
+			statusChan := processor.Sync()
+			th.AssertChannelClosed(t, statusChan, time.Second, "starting a closed processor should not yield results")
 		})
 	})
 
 	t.Run("syncing should set initialization", func(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		statusReporter := mocks.NewMockStatusReporter()
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
 		handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
@@ -115,17 +107,16 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
 				dd,
-				statusReporter,
 				datasource.PollingConfig{
 					BaseURI:      ts.URL,
 					PollInterval: time.Minute * 30,
 				},
 			)
-			closeWhenReady := make(chan struct{})
-			processor.Sync(closeWhenReady)
 
-			th.AssertChannelClosed(t, closeWhenReady, time.Second, "starting a closed processor shouldn't block")
+			statusChan := processor.Sync()
+			result := <-statusChan
 
+			assert.Equal(t, result.State, interfaces.DataSourceStateValid)
 			assert.True(t, processor.IsInitialized())
 		})
 	})
@@ -133,7 +124,6 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 	for _, statusCode := range []int{400, 408, 429, 500, 503} {
 		t.Run(fmt.Sprintf("handles recoverable error %d", statusCode), func(t *testing.T) {
 			dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-			statusReporter := mocks.NewMockStatusReporter()
 			data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
 			handler, requestsCh := httphelpers.RecordingHandler(
@@ -146,21 +136,21 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 				processor := NewPollingProcessor(
 					sharedtest.BasicClientContext(),
 					dd,
-					statusReporter,
 					datasource.PollingConfig{
 						BaseURI:      ts.URL,
 						PollInterval: time.Millisecond,
 					},
 				)
-				closeWhenReady := make(chan struct{})
-				processor.Sync(closeWhenReady)
+				statusChan := processor.Sync()
 
 				<-requestsCh
-				_ = statusReporter.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
+				result := <-statusChan
+				assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
 				assert.False(t, processor.IsInitialized())
 
 				<-requestsCh
-				_ = statusReporter.RequireStatusOf(t, interfaces.DataSourceStateValid)
+				result = <-statusChan
+				assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 				assert.True(t, processor.IsInitialized())
 			})
 		})
@@ -169,25 +159,23 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 	for _, statusCode := range []int{401, 403, 404, 405} {
 		t.Run(fmt.Sprintf("handles unrecoverable error %d", statusCode), func(t *testing.T) {
 			dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-			statusReporter := mocks.NewMockStatusReporter()
 
 			handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(statusCode))
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				processor := NewPollingProcessor(
 					sharedtest.BasicClientContext(),
 					dd,
-					statusReporter,
 					datasource.PollingConfig{
 						BaseURI:      ts.URL,
 						PollInterval: time.Minute * 30,
 					},
 				)
-				closeWhenReady := make(chan struct{})
-				processor.Sync(closeWhenReady)
+				statusChan := processor.Sync()
 
 				<-requestsCh
+				result := <-statusChan
 
-				_ = statusReporter.RequireStatusOf(t, interfaces.DataSourceStateOff)
+				assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 				_ = func(errorInfo interfaces.DataSourceErrorInfo) {
 					assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, errorInfo.Kind)
 					assert.Equal(t, statusCode, errorInfo.StatusCode)
@@ -200,7 +188,6 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 
 	t.Run("appends filter parameter", func(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-		statusReporter := mocks.NewMockStatusReporter()
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
 		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
@@ -208,7 +195,6 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
 				dd,
-				statusReporter,
 				datasource.PollingConfig{
 					BaseURI:      ts.URL,
 					FilterKey:    "filter-value",

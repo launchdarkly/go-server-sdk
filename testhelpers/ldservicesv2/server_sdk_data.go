@@ -72,10 +72,10 @@ func (s *ServerSDKData) ToInitializerPayload() fdv2proto.PollingPayload {
 		Name: "server-intent",
 		Data: mustMarshal(fdv2proto.ServerIntent{
 			Payload: fdv2proto.Payload{
-				ID:     "",
+				ID:     "some-id",
 				Target: 0,
-				Code:   "",
-				Reason: "",
+				Code:   fdv2proto.IntentTransferFull,
+				Reason: "cant-catchup",
 			},
 		}),
 	})
