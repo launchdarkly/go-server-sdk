@@ -332,7 +332,7 @@ func (f *FDv2) consumeSynchronizerResults(
 		case result, ok := <-statusChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
-			// probably shut it down.
+			// probably fall back.
 			if !ok {
 				return false, nil
 			}
