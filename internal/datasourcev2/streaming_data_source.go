@@ -147,6 +147,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 		select {
 		case event, ok := <-stream.Events:
 			if !ok {
+				close(statusChan)
 				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
 				// only happens when we have received from sp.halt, in which case we return immediately
 				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
@@ -308,7 +309,6 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 
 		case <-sp.halt:
 			stream.Close()
-			close(statusChan)
 			return
 		}
 	}

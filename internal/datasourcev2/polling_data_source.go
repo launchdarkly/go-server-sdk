@@ -3,13 +3,13 @@ package datasourcev2
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
@@ -33,14 +33,13 @@ type PollingRequester interface {
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataDestination    subsystems.DataDestination
-	requester          PollingRequester
-	pollInterval       time.Duration
-	loggers            ldlog.Loggers
-	setInitializedOnce sync.Once
-	isInitialized      internal.AtomicBoolean
-	quit               chan struct{}
-	closeOnce          sync.Once
+	dataDestination subsystems.DataDestination
+	requester       PollingRequester
+	pollInterval    time.Duration
+	loggers         ldlog.Loggers
+	isInitialized   *atomic.Bool
+	quit            chan struct{}
+	closeOnce       sync.Once
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -65,6 +64,7 @@ func newPollingProcessor(
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
 		quit:            make(chan struct{}),
+		isInitialized:   &atomic.Bool{},
 	}
 	return pp
 }
@@ -100,11 +100,10 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 	go func() {
 		defer ticker.Stop()
 
-		defer close(statusChan)
-
 		for {
 			select {
 			case <-pp.quit:
+				close(statusChan)
 				return
 			case <-ticker.C:
 				if err := pp.poll(ctx, statusChan); err != nil {
@@ -153,13 +152,6 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 					}
 					continue
 				}
-				pp.setInitializedOnce.Do(func() {
-					pp.isInitialized.Set(true)
-				})
-				statusChan <- interfaces.DataSourceStatus{
-					State:      interfaces.DataSourceStateValid,
-					StateSince: time.Now(),
-				}
 			}
 		}
 	}()
@@ -178,18 +170,20 @@ func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfac
 	switch code {
 	case fdv2proto.IntentTransferFull:
 		pp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
-		statusChan <- interfaces.DataSourceStatus{
-			State:      interfaces.DataSourceStateValid,
-			StateSince: time.Now(),
-		}
 	case fdv2proto.IntentTransferChanges:
 		pp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
-		statusChan <- interfaces.DataSourceStatus{
-			State:      interfaces.DataSourceStateValid,
-			StateSince: time.Now(),
-		}
 	case fdv2proto.IntentNone:
 		// no-op, we are already up-to-date
+	default:
+		// this should never happen but we don't want to actually call this
+		// valid if it does.
+		return nil
+	}
+
+	pp.isInitialized.CompareAndSwap(false, true)
+	statusChan <- interfaces.DataSourceStatus{
+		State:      interfaces.DataSourceStateValid,
+		StateSince: time.Now(),
 	}
 
 	return nil
@@ -205,7 +199,7 @@ func (pp *PollingProcessor) Close() error {
 
 //nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) IsInitialized() bool {
-	return pp.isInitialized.Get()
+	return pp.isInitialized.Load()
 }
 
 // GetBaseURI returns the configured polling base URI, for testing.
