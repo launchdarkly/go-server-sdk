@@ -46,6 +46,23 @@ type streamingTestParams struct {
 	mockLog    *ldlogtest.MockLog
 }
 
+func PreclosingShouldShutdownImmediately(t *testing.T) {
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	sp := NewStreamProcessor(
+		sharedtest.BasicClientContext(),
+		dd,
+		datasource.StreamConfig{
+			URI:                   ":/",
+			InitialReconnectDelay: time.Millisecond * 50,
+			FilterKey:             "filter-value",
+		},
+	)
+
+	sp.Close()
+	statusChan := sp.Sync()
+	th.AssertChannelClosed(t, statusChan, time.Second, "starting a closed processor should not yield results")
+}
+
 func TestMalformedStreamBaseURI(t *testing.T) {
 	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 

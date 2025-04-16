@@ -77,7 +77,7 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 }
 
 func TestPollingProcessorAsSynchronizer(t *testing.T) {
-	t.Run("pre-closing should not block close when ready", func(t *testing.T) {
+	t.Run("pre-closing should shutdown immediately", func(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
@@ -94,7 +94,7 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			processor.Close()
 
 			statusChan := processor.Sync()
-			th.AssertChannelClosed(t, statusChan, time.Second, "starting a closed processor shouldn't block")
+			th.AssertChannelClosed(t, statusChan, time.Second, "starting a closed processor should not yield results")
 		})
 	})
 

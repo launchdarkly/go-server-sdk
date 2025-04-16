@@ -2,7 +2,6 @@ package datasourcev2
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -37,9 +36,9 @@ type PollingProcessor struct {
 	requester       PollingRequester
 	pollInterval    time.Duration
 	loggers         ldlog.Loggers
-	isInitialized   *atomic.Bool
+	isInitialized   atomic.Bool
+	isClosed        atomic.Bool
 	quit            chan struct{}
-	closeOnce       sync.Once
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -64,7 +63,7 @@ func newPollingProcessor(
 		pollInterval:    pollInterval,
 		loggers:         context.GetLogging().Loggers,
 		quit:            make(chan struct{}),
-		isInitialized:   &atomic.Bool{},
+		isInitialized:   atomic.Bool{},
 	}
 	return pp
 }
@@ -87,6 +86,12 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error
 func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 	statusChan := make(chan interfaces.DataSourceStatus)
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
+
+	if pp.isClosed.Load() {
+		pp.loggers.Warnf("Polling processor is already closed, not starting polling")
+		close(statusChan)
+		return statusChan
+	}
 
 	// This process has a shared method serving both as an initializer and a synchronizer.
 	//
@@ -191,9 +196,9 @@ func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfac
 
 //nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) Close() error {
-	pp.closeOnce.Do(func() {
+	if swapped := pp.isClosed.CompareAndSwap(false, true); swapped {
 		close(pp.quit)
-	})
+	}
 	return nil
 }
 
