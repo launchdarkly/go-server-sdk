@@ -334,7 +334,7 @@ func (f *FDv2) consumeSynchronizerResults(
 			// any more information from that synchronizer and we should
 			// probably shut it down.
 			if !ok {
-				return true, nil
+				return false, nil
 			}
 
 			switch result.State {
