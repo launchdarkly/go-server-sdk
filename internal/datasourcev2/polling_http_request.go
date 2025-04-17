@@ -73,7 +73,7 @@ func (r *pollingRequester) Request(ctx context.Context) (*fdv2proto.ChangeSet, e
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	body, cached, err := r.makeRequest(ctx, endpoints.PollingRequestPath)
+	body, cached, err := r.makeRequest(ctx, endpoints.PollingRequestV2Path)
 	if err != nil {
 		return nil, err
 	}

@@ -31,7 +31,7 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
 	t.Run("successful fetch does not change initialization status", func(t *testing.T) {
-		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
@@ -50,12 +50,12 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 			assert.False(t, processor.IsInitialized())
 
 			r := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", r.Request.URL.Path)
+			assert.Equal(t, "/sdk/poll", r.Request.URL.Path)
 		})
 	})
 
 	t.Run("appends filter parameter", func(t *testing.T) {
-		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
@@ -70,7 +70,7 @@ func TestPolllingProcessorAsInitializer(t *testing.T) {
 			assert.NoError(t, err)
 
 			r := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", r.Request.URL.Path)
+			assert.Equal(t, "/sdk/poll", r.Request.URL.Path)
 			assert.Equal(t, "filter-value", r.Request.URL.Query().Get("filter"))
 		})
 	})
@@ -81,7 +81,7 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
-		handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
@@ -102,7 +102,7 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
-		handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
@@ -129,7 +129,7 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			handler, requestsCh := httphelpers.RecordingHandler(
 				httphelpers.SequentialHandler(
 					httphelpers.HandlerWithStatus(statusCode),
-					ldservices.ServerSidePollingServiceHandler(data),
+					ldservices.ServerSidePollingV2ServiceHandler(data),
 				),
 			)
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -190,7 +190,7 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
-		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+		handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			processor := NewPollingProcessor(
 				sharedtest.BasicClientContext(),
@@ -205,7 +205,7 @@ func TestPollingProcessorAsSynchronizer(t *testing.T) {
 			assert.NoError(t, err)
 
 			r := <-requestsCh
-			assert.Equal(t, "/sdk/latest-all", r.Request.URL.Path)
+			assert.Equal(t, "/sdk/poll", r.Request.URL.Path)
 			assert.Equal(t, "filter-value", r.Request.URL.Query().Get("filter"))
 		})
 	})
