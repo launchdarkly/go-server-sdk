@@ -21,7 +21,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request(context.Context) (*fdv2proto.ChangeSet, error)
+	Request(context.Context, fdv2proto.Selector) (*fdv2proto.ChangeSet, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -75,11 +75,11 @@ func (pp *PollingProcessor) Name() string {
 
 //nolint:revive // DataInitializer method.
 func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error) {
-	basis, err := pp.requester.Request(ctx)
+	changeSet, err := pp.requester.Request(ctx, pp.dataDestination.Selector())
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.Basis{Events: basis.Changes(), Selector: basis.Selector(), Persist: true}, nil
+	return &subsystems.Basis{Events: changeSet.Changes(), Selector: changeSet.Selector(), Persist: true}, nil
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -165,7 +165,7 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 }
 
 func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfaces.DataSourceStatus) error {
-	changeSet, err := pp.requester.Request(ctx)
+	changeSet, err := pp.requester.Request(ctx, pp.dataDestination.Selector())
 
 	if err != nil {
 		return err

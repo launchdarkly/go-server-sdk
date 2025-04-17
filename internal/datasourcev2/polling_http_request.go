@@ -68,12 +68,12 @@ func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
 
-func (r *pollingRequester) Request(ctx context.Context) (*fdv2proto.ChangeSet, error) {
+func (r *pollingRequester) Request(ctx context.Context, selector fdv2proto.Selector) (*fdv2proto.ChangeSet, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	body, cached, err := r.makeRequest(ctx, endpoints.PollingRequestV2Path)
+	body, cached, err := r.makeRequest(ctx, endpoints.PollingRequestV2Path, selector)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,11 @@ func (r *pollingRequester) Request(ctx context.Context) (*fdv2proto.ChangeSet, e
 	return nil, fmt.Errorf("didn't receive any known protocol events in polling payload")
 }
 
-func (r *pollingRequester) makeRequest(ctx context.Context, resource string) ([]byte, bool, error) {
+func (r *pollingRequester) makeRequest(
+	ctx context.Context,
+	resource string,
+	selector fdv2proto.Selector,
+) ([]byte, bool, error) {
 	req, reqErr := http.NewRequestWithContext(ctx, "GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(
@@ -140,11 +144,21 @@ func (r *pollingRequester) makeRequest(ctx context.Context, resource string) ([]
 		)
 		return nil, false, reqErr
 	}
-	if r.filterKey != "" {
-		req.URL.RawQuery = url.Values{
-			"filter": {r.filterKey},
-		}.Encode()
+
+	params := url.Values{}
+
+	if selector.IsDefined() {
+		params["basis"] = []string{selector.State()}
 	}
+
+	if r.filterKey != "" {
+		params["filter"] = []string{r.filterKey}
+	}
+
+	if len(params) > 0 {
+		req.URL.RawQuery = params.Encode()
+	}
+
 	url := req.URL.String()
 	if r.headers != nil {
 		req.Header = maps.Clone(r.headers)
