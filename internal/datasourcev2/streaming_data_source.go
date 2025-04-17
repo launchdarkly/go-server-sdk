@@ -315,7 +315,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 }
 
 func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStatus) {
-	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath)
+	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestV2Path)
 	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
 		sp.loggers.Errorf(

@@ -115,7 +115,7 @@ func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T
 		}}).
 		WithPutObjects(ldservicesv2.NewServerSDKData().ToPutObjects()).
 		WithTransferred(1)
-	streamHandler, stream := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(stream)
 
 	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
@@ -251,7 +251,7 @@ func runStreamingTest(
 		WithTransferred(1)
 
 	events := make(chan eventsource.Event, 1000)
-	streamHandler, stream := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(stream)
 
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
@@ -307,7 +307,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
 
 	sequentialHandler := httphelpers.SequentialHandler(

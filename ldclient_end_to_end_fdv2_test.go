@@ -42,7 +42,7 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 		WithTransferred(1)
 
 	// The streaming synchronizer will receive the FDv2 protocol messages, including the true flag.
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
 
 	streamRecordingHandler, _ := httphelpers.RecordingHandler(streamHandler)
@@ -82,7 +82,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
 
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
@@ -173,7 +173,7 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
 
 	failThenSucceedHandler := httphelpers.SequentialHandler(httphelpers.HandlerWithStatus(503), streamHandler)
@@ -254,7 +254,7 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
@@ -286,7 +286,7 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingServiceHandler(protocol.Next())
+	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
 	protocol.Enqueue(streamSender)
 
 	slowHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
