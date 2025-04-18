@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.10.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.10.0...v7.10.1) (2025-04-16)
+
+
+### Bug Fixes
+
+* Handle shutting down data system when all synchronizers permanently fail ([#256](https://github.com/launchdarkly/go-server-sdk/issues/256)) ([031835e](https://github.com/launchdarkly/go-server-sdk/commit/031835eefdbb00162273c070b7b4aac39ceadf35))
+
 ## [7.10.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.9.0...v7.10.0) (2025-03-28)
 
 
