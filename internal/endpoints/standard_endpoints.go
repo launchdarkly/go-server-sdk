@@ -13,8 +13,14 @@ const (
 	// StreamingRequestPath is the URL path for the server-side streaming endpoint.
 	StreamingRequestPath = "/all"
 
+	// StreamingRequestV2Path is the URL path for the server-side streaming endpoint v2.
+	StreamingRequestV2Path = "/sdk/stream"
+
 	// PollingRequestPath is the URL path for the server-side polling endpoint.
 	PollingRequestPath = "/sdk/latest-all"
+
+	// PollingRequestV2Path is the URL path for the server-side polling endpoint v2.
+	PollingRequestV2Path = "/sdk/poll"
 
 	// Events service paths are defined in the go-sdk-events package
 )

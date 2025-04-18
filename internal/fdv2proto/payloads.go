@@ -9,7 +9,7 @@ type Payload struct {
 	// use that as the key consistently throughout the the process.
 	ID     string     `json:"id"`
 	Target int        `json:"target"`
-	Code   IntentCode `json:"code"`
+	Code   IntentCode `json:"intentCode"`
 	Reason string     `json:"reason"`
 }
 
