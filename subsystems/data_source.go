@@ -50,7 +50,7 @@ type DataInitializer interface {
 type DataSynchronizer interface {
 	DataInitializer
 	// Sync tells the data synchronizer to begin synchronizing data.
-	Sync() <-chan interfaces.DataSourceStatus
+	Sync() <-chan interfaces.DataSynchronizerStatus
 	// IsInitialized returns true if the data source has successfully initialized at some point.
 	//
 	// Once this is true, it should remain true even if a problem occurs later.

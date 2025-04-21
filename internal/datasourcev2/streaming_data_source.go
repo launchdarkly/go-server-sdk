@@ -122,15 +122,15 @@ func (sp *StreamProcessor) IsInitialized() bool {
 }
 
 //nolint:revive // DataSynchronizer method.
-func (sp *StreamProcessor) Sync() <-chan interfaces.DataSourceStatus {
+func (sp *StreamProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	statusChan := make(chan interfaces.DataSourceStatus, 100)
+	statusChan := make(chan interfaces.DataSynchronizerStatus, 100)
 	go sp.subscribe(statusChan)
 
 	return statusChan
 }
 
-func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- interfaces.DataSourceStatus) {
+func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- interfaces.DataSynchronizerStatus) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
 		for range stream.Events {
@@ -182,10 +182,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 					Message: err.Error(),
 					Time:    time.Now(),
 				}
-				statusChan <- interfaces.DataSourceStatus{
-					State:      interfaces.DataSourceStateInterrupted,
-					StateSince: time.Now(),
-					LastError:  errorInfo,
+				statusChan <- interfaces.DataSynchronizerStatus{
+					State: interfaces.DataSourceStateInterrupted,
+					Error: errorInfo,
 				}
 
 				shouldRestart = true // scenario 1 in error handling comments at top of file
@@ -206,9 +205,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 				// IntentNone is a special case where we won't receive a payload-transferred event, so we will need
 				// to instead immediately notify the client that we are initialized.
 				if serverIntent.Payload.Code == fdv2proto.IntentNone {
-					statusChan <- interfaces.DataSourceStatus{
-						State:      interfaces.DataSourceStateValid,
-						StateSince: time.Now(),
+					statusChan <- interfaces.DataSynchronizerStatus{
+						State: interfaces.DataSourceStateValid,
 					}
 					sp.setInitialized(true)
 					break
@@ -293,9 +291,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 					continue
 				}
 
-				statusChan <- interfaces.DataSourceStatus{
-					State:      interfaces.DataSourceStateValid,
-					StateSince: time.Now(),
+				statusChan <- interfaces.DataSynchronizerStatus{
+					State: interfaces.DataSourceStateValid,
 				}
 				sp.setInitialized(true)
 
@@ -314,7 +311,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 	}
 }
 
-func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStatus) {
+func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchronizerStatus) {
 	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestV2Path)
 	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
@@ -322,10 +319,9 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStat
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
 			reqErr,
 		)
-		statusChan <- interfaces.DataSourceStatus{
-			State:      interfaces.DataSourceStateOff,
-			StateSince: time.Now(),
-			LastError: interfaces.DataSourceErrorInfo{
+		statusChan <- interfaces.DataSynchronizerStatus{
+			State: interfaces.DataSourceStateOff,
+			Error: interfaces.DataSourceErrorInfo{
 				Kind:    interfaces.DataSourceErrorKindUnknown,
 				Message: reqErr.Error(),
 				Time:    time.Now(),
@@ -362,6 +358,16 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStat
 				StatusCode: se.Code,
 				Time:       time.Now(),
 			}
+
+			if se.Header.Get("X-LD-FD-Fallback") != "" {
+				statusChan <- interfaces.DataSynchronizerStatus{
+					State:    interfaces.DataSourceStateOff,
+					Error:    errorInfo,
+					Fallback: true,
+				}
+				return es.StreamErrorHandlerResult{CloseNow: true}
+			}
+
 			recoverable := checkIfErrorIsRecoverableAndLog(
 				sp.loggers,
 				httpErrorDescription(se.Code),
@@ -371,17 +377,15 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStat
 			)
 			if recoverable {
 				sp.logConnectionStarted()
-				statusChan <- interfaces.DataSourceStatus{
-					State:      interfaces.DataSourceStateInterrupted,
-					StateSince: time.Now(),
-					LastError:  errorInfo,
+				statusChan <- interfaces.DataSynchronizerStatus{
+					State: interfaces.DataSourceStateInterrupted,
+					Error: errorInfo,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
-			statusChan <- interfaces.DataSourceStatus{
-				State:      interfaces.DataSourceStateOff,
-				StateSince: time.Now(),
-				LastError:  errorInfo,
+			statusChan <- interfaces.DataSynchronizerStatus{
+				State: interfaces.DataSourceStateOff,
+				Error: errorInfo,
 			}
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
@@ -398,10 +402,9 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStat
 			Message: err.Error(),
 			Time:    time.Now(),
 		}
-		statusChan <- interfaces.DataSourceStatus{
-			State:      interfaces.DataSourceStateInterrupted,
-			StateSince: time.Now(),
-			LastError:  errorInfo,
+		statusChan <- interfaces.DataSynchronizerStatus{
+			State: interfaces.DataSourceStateInterrupted,
+			Error: errorInfo,
 		}
 		sp.logConnectionStarted()
 		return es.StreamErrorHandlerResult{CloseNow: false}
@@ -429,10 +432,9 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSourceStat
 	if err != nil {
 		sp.logConnectionResult(false)
 
-		statusChan <- interfaces.DataSourceStatus{
-			State:      interfaces.DataSourceStateOff,
-			StateSince: time.Now(),
-			LastError: interfaces.DataSourceErrorInfo{
+		statusChan <- interfaces.DataSynchronizerStatus{
+			State: interfaces.DataSourceStateOff,
+			Error: interfaces.DataSourceErrorInfo{
 				Kind:    interfaces.DataSourceErrorKindUnknown,
 				Message: err.Error(),
 				Time:    time.Now(),

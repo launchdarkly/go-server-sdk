@@ -175,7 +175,7 @@ func (r *pollingRequester) makeRequest(
 		_ = res.Body.Close()
 	}()
 
-	if err := checkForHTTPError(res.StatusCode, url); err != nil {
+	if err := checkForHTTPError(res.StatusCode, res.Header, url); err != nil {
 		return nil, false, err
 	}
 

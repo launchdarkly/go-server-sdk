@@ -14,6 +14,7 @@ type DataSystemConfigurationBuilder struct {
 	initializerBuilders  []ss.ComponentConfigurer[ss.DataInitializer]
 	primarySyncBuilder   ss.ComponentConfigurer[ss.DataSynchronizer]
 	secondarySyncBuilder ss.ComponentConfigurer[ss.DataSynchronizer]
+	fdv1FallbackBuilder  ss.ComponentConfigurer[ss.DataSynchronizer]
 	config               ss.DataSystemConfiguration
 }
 
@@ -47,11 +48,18 @@ func (d *DataSystemModes) Default() *DataSystemConfigurationBuilder {
 	if d.endpoints.Streaming != "" {
 		streaming.BaseURI(d.endpoints.Streaming)
 	}
+
 	polling := PollingDataSourceV2()
+	fallback := fdv1PollingDataSourceV2()
 	if d.endpoints.Polling != "" {
 		polling.BaseURI(d.endpoints.Polling)
+		fallback.BaseURI(d.endpoints.Polling)
 	}
-	return d.Custom().Initializers(polling.AsInitializer()).Synchronizers(streaming, polling)
+
+	return d.Custom().
+		Initializers(polling.AsInitializer()).
+		Synchronizers(streaming, polling).
+		fallback(fallback)
 }
 
 // Streaming configures the SDK to efficiently streams flag/segment data in the background,
@@ -61,17 +69,23 @@ func (d *DataSystemModes) Streaming() *DataSystemConfigurationBuilder {
 	if d.endpoints.Streaming != "" {
 		streaming.BaseURI(d.endpoints.Streaming)
 	}
-	return d.Custom().Synchronizers(streaming, nil)
+	fallback := fdv1PollingDataSourceV2()
+	if d.endpoints.Polling != "" {
+		fallback.BaseURI(d.endpoints.Polling)
+	}
+	return d.Custom().Synchronizers(streaming, nil).fallback(fallback)
 }
 
 // Polling configures the SDK to regularly poll an endpoint for flag/segment data in the background.
 // This is less efficient than streaming, but may be necessary in some network environments.
 func (d *DataSystemModes) Polling() *DataSystemConfigurationBuilder {
 	polling := PollingDataSourceV2()
+	fallback := fdv1PollingDataSourceV2()
 	if d.endpoints.Polling != "" {
 		polling.BaseURI(d.endpoints.Polling)
+		fallback.BaseURI(d.endpoints.Polling)
 	}
-	return d.Custom().Synchronizers(polling, nil)
+	return d.Custom().Synchronizers(polling, nil).fallback(fallback)
 }
 
 // Daemon configures the SDK to read from a persistent store integration that is populated by Relay Proxy
@@ -154,6 +168,12 @@ func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
 	return d
 }
 
+func (d *DataSystemConfigurationBuilder) fallback(
+	fallback ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
+	d.fdv1FallbackBuilder = fallback
+	return d
+}
+
 // Build creates a DataSystemConfiguration from the configuration provided to the builder.
 func (d *DataSystemConfigurationBuilder) Build(
 	context ss.ClientContext,
@@ -192,5 +212,11 @@ func (d *DataSystemConfigurationBuilder) Build(
 			return d.secondarySyncBuilder.Build(context)
 		}
 	}
+	if d.fdv1FallbackBuilder != nil {
+		conf.Synchronizers.FDv1FallbackBuilder = func() (ss.DataSynchronizer, error) {
+			return d.fdv1FallbackBuilder.Build(context)
+		}
+	}
+
 	return conf, nil
 }

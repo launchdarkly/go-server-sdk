@@ -30,8 +30,9 @@ const (
 )
 
 var (
-	alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
-	testUser       = lduser.NewUser("test-user-key")
+	alwaysTrueFlag  = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
+	alwaysFalseFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(false)).Build()
+	testUser        = lduser.NewUser("test-user-key")
 )
 
 // This file contains smoke tests for a complete SDK instance running against embedded HTTP servers. We have many
