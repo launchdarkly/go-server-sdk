@@ -42,8 +42,7 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 		WithTransferred(1)
 
 	// The streaming synchronizer will receive the FDv2 protocol messages, including the true flag.
-	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(streamSender)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	streamRecordingHandler, _ := httphelpers.RecordingHandler(streamHandler)
 
@@ -126,8 +125,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(streamSender)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
@@ -217,8 +215,7 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(streamSender)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	failThenSucceedHandler := httphelpers.SequentialHandler(httphelpers.HandlerWithStatus(503), streamHandler)
 	handler, requestsCh := httphelpers.RecordingHandler(failThenSucceedHandler)
@@ -298,8 +295,7 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(streamSender)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
 
@@ -330,8 +326,7 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
 
-	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(streamSender)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	slowHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(300 * time.Millisecond)

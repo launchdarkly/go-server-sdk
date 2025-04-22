@@ -36,7 +36,7 @@ type FDv2 struct {
 	primarySyncBuilder func() (subsystems.DataSynchronizer, error)
 
 	// Boolean used to track whether the datasystem was originally configured
-	// with sort sort of valid data source.
+	// with some sort of valid data source.
 	//
 	// We cannot check this at run time because synchronizers may be removed if
 	// they permanently fail.
@@ -89,13 +89,13 @@ type FDv2 struct {
 // disabled.
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
 	clientContext *internal.ClientContextImpl) (*FDv2, error) {
-	store := NewStore(clientContext.GetLogging().Loggers)
-
 	bcasters := &broadcasters{
 		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatus:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
 		flagChangeEvent:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
 	}
+
+	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent)
 
 	fdv2 := &FDv2{
 		store:                    store,
