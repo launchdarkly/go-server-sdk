@@ -359,10 +359,10 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 				Time:       time.Now(),
 			}
 
-			if se.Header.Get("X-LD-FD-Fallback") != "" {
+			if se.Header.Get("X-LD-FD-Fallback") == "true" {
 				statusChan <- interfaces.DataSynchronizerStatus{
-					State:    interfaces.DataSourceStateOff,
-					Error:    errorInfo,
+					State:            interfaces.DataSourceStateOff,
+					Error:            errorInfo,
 					RevertToFDv1: true,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}

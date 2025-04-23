@@ -119,7 +119,7 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 							Time:       time.Now(),
 						}
 
-						if hse.Header.Get("X-LD-FD-Fallback") != "" {
+						if hse.Header.Get("X-LD-FD-Fallback") == "true" {
 							statusChan <- interfaces.DataSynchronizerStatus{
 								State:    interfaces.DataSourceStateOff,
 								Error:    errorInfo,
