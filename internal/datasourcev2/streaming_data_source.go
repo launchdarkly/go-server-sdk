@@ -363,7 +363,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 				statusChan <- interfaces.DataSynchronizerStatus{
 					State:    interfaces.DataSourceStateOff,
 					Error:    errorInfo,
-					Fallback: true,
+					RevertToFDv1: true,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}
 			}

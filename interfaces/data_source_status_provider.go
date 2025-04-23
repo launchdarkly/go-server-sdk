@@ -88,9 +88,9 @@ type DataSourceStatusProvider interface {
 //
 // Synchronizers are expected to emit these status updates on the channel returned by Sync().
 type DataSynchronizerStatus struct {
-	State    DataSourceState
-	Error    DataSourceErrorInfo
-	Fallback bool
+	State        DataSourceState
+	Error        DataSourceErrorInfo
+	RevertToFDv1 bool
 }
 
 // DataSourceStatus is information about the data source's status and the last status change.

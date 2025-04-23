@@ -123,7 +123,7 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 							statusChan <- interfaces.DataSynchronizerStatus{
 								State:    interfaces.DataSourceStateOff,
 								Error:    errorInfo,
-								Fallback: true,
+								RevertToFDv1: true,
 							}
 							return
 						}

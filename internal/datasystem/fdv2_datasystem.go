@@ -368,7 +368,7 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
 				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
-				return true, result.Fallback, nil
+				return true, result.RevertToFDv1, nil
 			}
 		case <-ticker.C:
 			status := f.getStatus()
