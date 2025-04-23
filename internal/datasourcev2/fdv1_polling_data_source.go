@@ -57,6 +57,7 @@ func (r *fdv1ToFDv2Requester) Request(ctx context.Context, selector fdv2proto.Se
 			bytes, err := json.Marshal(keyedItem.Item.Item)
 			if err != nil {
 				r.loggers.Warn("Error marshalling v1 item to JSON: %s", err)
+				return nil, err
 			}
 
 			changeSetBuilder.AddPut(kind, keyedItem.Key, keyedItem.Item.Version, bytes)
