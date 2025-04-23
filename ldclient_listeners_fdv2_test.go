@@ -2,11 +2,12 @@ package ldclient
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/stretchr/testify/assert"
@@ -37,11 +38,11 @@ type clientListenersV2TestParams struct {
 	control  httphelpers.SSEStreamControl
 }
 
-func clientListenersV2Test(action func(clientListenersV2TestParams)) {
-	clientListenersV2TestWithConfig(nil, action)
+func clientListenersV2Test(action func(clientListenersV2TestParams), handlers ...http.Handler) {
+	clientListenersV2TestWithConfig(nil, action, handlers...)
 }
 
-func clientListenersV2TestWithConfig(configAction func(*Config), action func(clientListenersV2TestParams)) {
+func clientListenersV2TestWithConfig(configAction func(*Config), action func(clientListenersV2TestParams), handlers ...http.Handler) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
@@ -51,16 +52,15 @@ func clientListenersV2TestWithConfig(configAction func(*Config), action func(cli
 		WithTransferred(1)
 	streamHandler, control := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
-	handler := httphelpers.SequentialHandler(streamHandler)
+	handler := httphelpers.SequentialHandler(streamHandler, handlers...)
 
 	httphelpers.WithServer(handler, func(server *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
-		defer logCapture.Dump(os.Stdout)
 
 		config := Config{
 			Events:     ldcomponents.NoEvents(),
 			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
-			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Default(),
+			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Streaming(),
 		}
 		if configAction != nil {
 			configAction(&config)
@@ -148,5 +148,70 @@ func TestFlagTrackerV2(t *testing.T) {
 			assert.Equal(t, ldvalue.Bool(false), event1.NewValue)
 			th.AssertNoMoreValues(t, ch3, timeout)
 		})
+	})
+}
+
+func TestDataSourceStatusProviderV2(t *testing.T) {
+	t.Run("returns latest status", func(t *testing.T) {
+		timeBeforeStarting := time.Now()
+		clientListenersV2Test(func(p clientListenersV2TestParams) {
+			initialStatus := p.client.GetDataSourceStatusProvider().GetStatus()
+			assert.Equal(t, interfaces.DataSourceStateValid, initialStatus.State)
+			assert.False(t, initialStatus.StateSince.Before(timeBeforeStarting))
+			assert.Equal(t, interfaces.DataSourceErrorInfo{}, initialStatus.LastError)
+
+			p.control.Close()
+
+			timeout := time.NewTimer(time.Second)
+			for {
+				select {
+				case <-timeout.C:
+					assert.Fail(t, "timed out waiting for new status")
+					return
+				default:
+					status := p.client.GetDataSourceStatusProvider().GetStatus()
+					if status.State == interfaces.DataSourceStateOff {
+						return
+					}
+				}
+			}
+		}, httphelpers.HandlerWithStatus(401))
+	})
+
+	t.Run("sends latest status", func(t *testing.T) {
+		timeBeforeStarting := time.Now()
+		clientListenersV2Test(func(p clientListenersV2TestParams) {
+			initialStatus := p.client.GetDataSourceStatusProvider().GetStatus()
+			assert.Equal(t, interfaces.DataSourceStateValid, initialStatus.State)
+			assert.False(t, initialStatus.StateSince.Before(timeBeforeStarting))
+			assert.Equal(t, interfaces.DataSourceErrorInfo{}, initialStatus.LastError)
+
+			ch := p.client.GetDataSourceStatusProvider().AddStatusListener()
+			p.control.Close()
+
+			status := <-ch
+			assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
+			assert.Equal(t, interfaces.DataSourceErrorKindNetworkError, status.LastError.Kind)
+			assert.Equal(t, 0, status.LastError.StatusCode)
+
+			status = <-ch
+			assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
+			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)
+			assert.Equal(t, 401, status.LastError.StatusCode)
+
+			status = <-ch
+			assert.Equal(t, interfaces.DataSourceStateOff, status.State)
+
+			status = p.client.GetDataSourceStatusProvider().GetStatus()
+			assert.Equal(t, interfaces.DataSourceStateOff, status.State)
+		}, httphelpers.HandlerWithStatus(401))
+	})
+
+	t.Run("waitFor detects correct status", func(t *testing.T) {
+		clientListenersV2Test(func(p clientListenersV2TestParams) {
+			p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second)
+			p.control.Close()
+			p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateOff, time.Second)
+		}, httphelpers.HandlerWithStatus(401))
 	})
 }
