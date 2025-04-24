@@ -209,9 +209,30 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 
 	t.Run("waitFor detects correct status", func(t *testing.T) {
 		clientListenersV2Test(func(p clientListenersV2TestParams) {
-			p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second)
+			// Can wait for the valid state
+			foundIt := p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second)
+			assert.True(t, foundIt)
+
+			// Negative timeouts fire immediately
+			start := time.Now()
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second*-1)
+			assert.WithinDuration(t, time.Now(), start, time.Millisecond*30)
+			assert.False(t, foundIt)
+
+			// Make sure timeout will occur when a state cannot be found
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second)
+			assert.False(t, foundIt)
+
+			// Shut it down and make sure it's stopped.
 			p.control.Close()
-			p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateOff, time.Second)
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateOff, time.Second)
+			assert.True(t, foundIt)
+
+			// Ensure that an off status doesn't require the use of a timer.
+			start = time.Now()
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Hour*100)
+			assert.WithinDuration(t, time.Now(), start, time.Millisecond*30)
+			assert.False(t, foundIt)
 		}, httphelpers.HandlerWithStatus(401))
 	})
 }

@@ -498,7 +498,14 @@ func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, ti
 	ch := d.AddStatusListener()
 	defer d.RemoveStatusListener(ch)
 
-	timer := time.NewTimer(timeout)
+	switch d.system.getStatus().State {
+	case desiredState:
+		return true
+	case interfaces.DataSourceStateOff:
+		return false
+	}
+
+	deadline := time.After(timeout)
 
 	for {
 		select {
@@ -506,7 +513,7 @@ func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, ti
 			if status.State == desiredState {
 				return true
 			}
-		case <-timer.C:
+		case <-deadline:
 			return false
 		}
 	}
