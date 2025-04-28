@@ -168,6 +168,8 @@ func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
 	return d
 }
 
+// FDv1CompatibleSynchronizer configures the SDK with a fallback synchronizer that is compatible
+// with the Flag Delivery v1 API.
 func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
 	fallback ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.fdv1FallbackBuilder = fallback
