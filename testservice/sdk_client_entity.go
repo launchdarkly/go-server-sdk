@@ -396,9 +396,23 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 		}
 
 		if config.DataSystem.Synchronizers != nil {
+			var fdv1Fallback *ldcomponents.FDv1PollingDataSourceBuilderV2
 			primary, err := makeSynchronizerConfig(config.DataSystem.Synchronizers.Primary, config, &ret)
 			if err != nil {
 				return ret, err
+			}
+
+			if config.DataSystem.Synchronizers.Primary.Polling != nil {
+				fdv1Fallback = ldcomponents.FDv1PollingDataSourceV2()
+				if config.DataSystem.Synchronizers.Primary.Polling.PollIntervalMS != nil {
+					fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*config.DataSystem.Synchronizers.Primary.Polling.PollIntervalMS))
+				}
+				if config.DataSystem.Synchronizers.Primary.Polling.BaseURI != "" {
+					fdv1Fallback.BaseURI(config.DataSystem.Synchronizers.Primary.Polling.BaseURI)
+				}
+				if config.DataSystem.PayloadFilter != nil {
+					fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
+				}
 			}
 
 			var secondary subsystems.ComponentConfigurer[subsystems.DataSynchronizer]
@@ -407,6 +421,24 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 				if err != nil {
 					return ret, err
 				}
+
+				if fdv1Fallback == nil && config.DataSystem.Synchronizers.Secondary.Polling != nil {
+					fdv1Fallback = ldcomponents.FDv1PollingDataSourceV2()
+					if config.DataSystem.Synchronizers.Secondary.Polling.PollIntervalMS != nil {
+						fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*config.DataSystem.Synchronizers.Secondary.Polling.PollIntervalMS))
+					}
+					if config.DataSystem.Synchronizers.Secondary.Polling.BaseURI != "" {
+						fdv1Fallback.BaseURI(config.DataSystem.Synchronizers.Secondary.Polling.BaseURI)
+					}
+					if config.DataSystem.PayloadFilter != nil {
+						fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
+					}
+				}
+
+			}
+
+			if fdv1Fallback != nil {
+				dataSystemBuilder.FDv1CompatibleSynchronizer(fdv1Fallback)
 			}
 
 			dataSystemBuilder.Synchronizers(primary, secondary)

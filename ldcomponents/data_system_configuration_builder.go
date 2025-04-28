@@ -50,7 +50,7 @@ func (d *DataSystemModes) Default() *DataSystemConfigurationBuilder {
 	}
 
 	polling := PollingDataSourceV2()
-	fallback := fdv1PollingDataSourceV2()
+	fallback := FDv1PollingDataSourceV2()
 	if d.endpoints.Polling != "" {
 		polling.BaseURI(d.endpoints.Polling)
 		fallback.BaseURI(d.endpoints.Polling)
@@ -59,7 +59,7 @@ func (d *DataSystemModes) Default() *DataSystemConfigurationBuilder {
 	return d.Custom().
 		Initializers(polling.AsInitializer()).
 		Synchronizers(streaming, polling).
-		fdv1CompatibleSynchronizer(fallback)
+		FDv1CompatibleSynchronizer(fallback)
 }
 
 // Streaming configures the SDK to efficiently streams flag/segment data in the background,
@@ -69,23 +69,23 @@ func (d *DataSystemModes) Streaming() *DataSystemConfigurationBuilder {
 	if d.endpoints.Streaming != "" {
 		streaming.BaseURI(d.endpoints.Streaming)
 	}
-	fallback := fdv1PollingDataSourceV2()
+	fallback := FDv1PollingDataSourceV2()
 	if d.endpoints.Polling != "" {
 		fallback.BaseURI(d.endpoints.Polling)
 	}
-	return d.Custom().Synchronizers(streaming, nil).fdv1CompatibleSynchronizer(fallback)
+	return d.Custom().Synchronizers(streaming, nil).FDv1CompatibleSynchronizer(fallback)
 }
 
 // Polling configures the SDK to regularly poll an endpoint for flag/segment data in the background.
 // This is less efficient than streaming, but may be necessary in some network environments.
 func (d *DataSystemModes) Polling() *DataSystemConfigurationBuilder {
 	polling := PollingDataSourceV2()
-	fallback := fdv1PollingDataSourceV2()
+	fallback := FDv1PollingDataSourceV2()
 	if d.endpoints.Polling != "" {
 		polling.BaseURI(d.endpoints.Polling)
 		fallback.BaseURI(d.endpoints.Polling)
 	}
-	return d.Custom().Synchronizers(polling, nil).fdv1CompatibleSynchronizer(fallback)
+	return d.Custom().Synchronizers(polling, nil).FDv1CompatibleSynchronizer(fallback)
 }
 
 // Daemon configures the SDK to read from a persistent store integration that is populated by Relay Proxy
@@ -168,7 +168,7 @@ func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
 	return d
 }
 
-func (d *DataSystemConfigurationBuilder) fdv1CompatibleSynchronizer(
+func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
 	fallback ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
 	d.fdv1FallbackBuilder = fallback
 	return d
