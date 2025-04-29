@@ -352,10 +352,10 @@ func (s *Store) computeChangedItemsForFullDataSet(
 			}
 		}
 		for _, key := range allKeys {
-			oldItem, haveOld := oldItems[key]
-			newItem, haveNew := newItems[key]
+			_, haveOld := oldItems[key]
+			_, haveNew := newItems[key]
 			if haveOld || haveNew {
-				if !haveOld || !haveNew || oldItem.Version < newItem.Version {
+				if !haveOld || !haveNew {
 					s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
 				}
 			}
