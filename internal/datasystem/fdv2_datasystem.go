@@ -455,13 +455,20 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	changed := false
 	if state != f.status.State {
 		f.status.State = state
 		f.status.StateSince = time.Now()
+		changed = true
 	}
 
 	if err != f.status.LastError {
 		f.status.LastError = err
+		changed = true
+	}
+
+	if changed {
+		f.broadcasters.dataSourceStatus.Broadcast(f.status)
 	}
 }
 
@@ -488,9 +495,28 @@ func (d *dataStatusProvider) RemoveStatusListener(listener <-chan interfaces.Dat
 }
 
 func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, timeout time.Duration) bool {
-	//nolint:godox
-	// TODO(SDK-930): Implement dataStatusProvider for this data system.
-	panic("implement me")
+	ch := d.AddStatusListener()
+	defer d.RemoveStatusListener(ch)
+
+	switch d.system.getStatus().State {
+	case desiredState:
+		return true
+	case interfaces.DataSourceStateOff:
+		return false
+	}
+
+	deadline := time.After(timeout)
+
+	for {
+		select {
+		case status := <-ch:
+			if status.State == desiredState {
+				return true
+			}
+		case <-deadline:
+			return false
+		}
+	}
 }
 
 var _ interfaces.DataSourceStatusProvider = (*dataStatusProvider)(nil)
