@@ -3,6 +3,8 @@ package datasystem
 import (
 	"sync"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
@@ -56,6 +58,13 @@ type Store struct {
 	// the persistentStore may be used if configured.
 	memoryStore *memorystorev2.Store
 
+	// Used to track dependencies between items in the store. This helps ensure
+	// we trigger the correct flag change notifications.
+	dependencyTracker *dependencyTracker
+
+	// Broadcaster for flag change events.
+	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent]
+
 	// True if the data in the memory store may be persisted to the persistent store.
 	//
 	// This may be false if an initializer/synchronizer has received data that shouldn't propagate memory to the
@@ -102,13 +111,18 @@ func (p *persistentStore) writable() bool {
 
 // NewStore creates a new store. If a persistent store needs to be configured, call WithPersistence before any other
 // method is called.
-func NewStore(loggers ldlog.Loggers) *Store {
+func NewStore(
+	loggers ldlog.Loggers,
+	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent],
+) *Store {
 	s := &Store{
-		persistentStore: nil,
-		memoryStore:     memorystorev2.New(loggers),
-		loggers:         loggers,
-		selector:        fdv2proto.NoSelector(),
-		persist:         false,
+		persistentStore:   nil,
+		memoryStore:       memorystorev2.New(loggers),
+		dependencyTracker: newDependencyTracker(),
+		flagChangeEvent:   flagChangeEvent,
+		loggers:           loggers,
+		selector:          fdv2proto.NoSelector(),
+		persist:           false,
 	}
 	s.active = s.memoryStore
 	return s
@@ -161,7 +175,36 @@ func (s *Store) SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	var prechangeSnapshot map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
+	// Because flag listeners can be added and removed at any time, we need to
+	// check at a single point in time if there are listeners. If so, we can
+	// take a snapshot of the existing data.
+	//
+	// Later, instead of checking if there are listeners, we can check if we have a snapshot.
+	if s.flagChangeEvent.HasListeners() {
+		prechangeSnapshot = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
+		for _, kind := range datakinds.AllDataKinds() {
+			if items, err := s.memoryStore.GetAll(kind); err == nil {
+				m := make(map[string]ldstoretypes.ItemDescriptor)
+				for _, item := range items {
+					m[item.Key] = item.Item
+				}
+				prechangeSnapshot[kind] = m
+			} else {
+				s.loggers.Errorf("store: couldn't get all items of kind %s: %v", kind, err)
+			}
+		}
+	}
+
 	s.memoryStore.SetBasis(collections)
+
+	s.updateDependencyTrackerFromFullDataSet(collections)
+	// If we took a snapshot, we had change listeners interested at the time.
+	// So try to notify them. If no listeners are attached now, it won't matter
+	// as they will be skipped.
+	if prechangeSnapshot != nil {
+		s.sendChangeEvents(s.computeChangedItemsForFullDataSet(prechangeSnapshot, fullDataSetToMap(collections)))
+	}
 
 	s.persist = persist
 	s.selector = selector
@@ -192,6 +235,21 @@ func (s *Store) ApplyDelta(events []fdv2proto.Change, selector fdv2proto.Selecto
 	defer s.mu.Unlock()
 
 	s.memoryStore.ApplyDelta(collections)
+
+	hasListeners := s.flagChangeEvent.HasListeners()
+	affectedItems := make(toposort.Neighbors)
+	for _, collection := range collections {
+		for _, item := range collection.Items {
+			s.dependencyTracker.updateDependenciesFrom(collection.Kind, item.Key, item.Item)
+			if hasListeners {
+				s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(collection.Kind, item.Key))
+			}
+		}
+	}
+
+	if len(affectedItems) > 0 {
+		s.sendChangeEvents(affectedItems)
+	}
 
 	s.persist = persist
 	s.selector = selector
@@ -257,4 +315,75 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 //nolint:revive // Implementation for ReadOnlyStore.
 func (s *Store) IsInitialized() bool {
 	return s.getActive().IsInitialized()
+}
+
+// updateDependencyTrackerFromFullDataSet is a copy of the implementation in
+// internal.datasource. This duplication will be removed when FDv1 support is
+// removed.
+func (s *Store) updateDependencyTrackerFromFullDataSet(allData []ldstoretypes.Collection) {
+	s.dependencyTracker.reset()
+	for _, coll := range allData {
+		for _, item := range coll.Items {
+			s.dependencyTracker.updateDependenciesFrom(coll.Kind, item.Key, item.Item)
+		}
+	}
+}
+
+// sendChangeEvents is a copy of the implementation in internal.datasource.
+// This duplication will be removed when FDv1 support is removed.
+func (s *Store) sendChangeEvents(affectedItems toposort.Neighbors) {
+	for item := range affectedItems {
+		if item.Kind() == datakinds.Features {
+			s.flagChangeEvent.Broadcast(interfaces.FlagChangeEvent{Key: item.Key()})
+		}
+	}
+}
+
+// computeChangedItemsForFullDataSet is a copy of the implementation in
+// internal.datasource. This duplication will be removed when FDv1 support is
+// removed.
+func (s *Store) computeChangedItemsForFullDataSet(
+	oldDataMap map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor,
+	newDataMap map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor,
+) toposort.Neighbors {
+	affectedItems := make(toposort.Neighbors)
+	for _, kind := range datakinds.AllDataKinds() {
+		oldItems := oldDataMap[kind]
+		newItems := newDataMap[kind]
+		allKeys := make([]string, 0, len(oldItems)+len(newItems))
+		for key := range oldItems {
+			allKeys = append(allKeys, key)
+		}
+		for key := range newItems {
+			if _, found := oldItems[key]; !found {
+				allKeys = append(allKeys, key)
+			}
+		}
+		for _, key := range allKeys {
+			_, haveOld := oldItems[key]
+			_, haveNew := newItems[key]
+			if haveOld || haveNew {
+				if !haveOld || !haveNew {
+					s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
+				}
+			}
+		}
+	}
+	return affectedItems
+}
+
+// fullDataSetToMap is a copy of the implementation in internal.datasource.
+// This duplication will be removed when FDv1 support is removed.
+func fullDataSetToMap(
+	allData []ldstoretypes.Collection,
+) map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor {
+	ret := make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor, len(allData))
+	for _, coll := range allData {
+		m := make(map[string]ldstoretypes.ItemDescriptor, len(coll.Items))
+		for _, item := range coll.Items {
+			m[item.Key] = item.Item
+		}
+		ret[coll.Kind] = m
+	}
+	return ret
 }

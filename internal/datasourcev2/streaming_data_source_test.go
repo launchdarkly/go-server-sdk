@@ -115,8 +115,7 @@ func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T
 		}}).
 		WithPutObjects(ldservicesv2.NewServerSDKData().ToPutObjects()).
 		WithTransferred(1)
-	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(stream)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 
@@ -154,7 +153,12 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 	expectRestart := func(t *testing.T, p streamingTestParams) {
 		// Allow time for a reconnect (which sends the initial payload (server-intent), then we can queue up the transferred event.
 		<-time.After(300 * time.Millisecond)
-		p.protocol.WithTransferred(1).Enqueue(p.stream)
+		p.protocol.WithIntent(fdv2proto.ServerIntent{
+			Payload: fdv2proto.Payload{
+				ID: "fake-id", Target: 0, Code: "none", Reason: "caughtup",
+			}}).
+			WithTransferred(1).
+			Enqueue(p.stream)
 
 		<-p.requests
 		th.RequireValue(t, p.requests, time.Millisecond*300, "expected stream restart, did not see one")
@@ -251,8 +255,7 @@ func runStreamingTest(
 		WithTransferred(1)
 
 	events := make(chan eventsource.Event, 1000)
-	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(stream)
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 
@@ -307,8 +310,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred(1)
-	streamHandler, streamSender := ldservices.ServerSideStreamingV2ServiceHandler(protocol.Next())
-	protocol.Enqueue(streamSender)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	sequentialHandler := httphelpers.SequentialHandler(
 		httphelpers.HandlerWithStatus(statusCode), // fails the first time

@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/stretchr/testify/assert"
 
@@ -27,20 +28,26 @@ import (
 
 func TestStore_New(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	store := NewStore(logCapture.Loggers)
+	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	defer broadcaster.Close()
+	store := NewStore(logCapture.Loggers, broadcaster)
 	assert.NoError(t, store.Close())
 }
 
 func TestStore_NoSelector(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	store := NewStore(logCapture.Loggers)
+	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	defer broadcaster.Close()
+	store := NewStore(logCapture.Loggers, broadcaster)
 	defer store.Close()
 	assert.Equal(t, fdv2proto.NoSelector(), store.Selector())
 }
 
 func TestStore_NoPersistence_NewStore_IsNotInitialized(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	store := NewStore(logCapture.Loggers)
+	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	defer broadcaster.Close()
+	store := NewStore(logCapture.Loggers, broadcaster)
 	defer store.Close()
 	assert.False(t, store.IsInitialized())
 }
@@ -61,7 +68,9 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
-			store := NewStore(logCapture.Loggers)
+			broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+			defer broadcaster.Close()
+			store := NewStore(logCapture.Loggers, broadcaster)
 			defer store.Close()
 			store.SetBasis([]fdv2proto.Change{}, tt.selector, tt.persist)
 			assert.True(t, store.IsInitialized())
@@ -88,7 +97,9 @@ func MinimalSegment(key string, version int) json.RawMessage {
 func TestStore_Commit(t *testing.T) {
 	t.Run("absence of persistent store doesn't cause error when committing", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		store := NewStore(logCapture.Loggers)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster)
 		defer store.Close()
 		assert.NoError(t, store.Commit())
 	})
@@ -98,8 +109,10 @@ func TestStore_Commit(t *testing.T) {
 
 		// isDown causes the fake to reject updates (until flipped to false).
 		spy := &fakeStore{isDown: true}
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
 
-		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
+		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
 		// The store receives data as a list of changes, but the persistent store receives them as an
@@ -144,7 +157,9 @@ func TestStore_Commit(t *testing.T) {
 
 		// The fake should accept updates.
 		spy := &fakeStore{isDown: false}
-		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
 		input := []fdv2proto.Change{
@@ -168,7 +183,9 @@ func TestStore_Commit(t *testing.T) {
 
 		// The fake should accept updates.
 		spy := &fakeStore{isDown: false}
-		store := NewStore(logCapture.Loggers).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
 		defer store.Close()
 
 		input := []fdv2proto.Change{
@@ -191,7 +208,9 @@ func TestStore_Commit(t *testing.T) {
 func TestStore_GetActive(t *testing.T) {
 	t.Run("memory store is active if no persistent store configured", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		store := NewStore(logCapture.Loggers)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster)
 		defer store.Close()
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -211,7 +230,9 @@ func TestStore_GetActive(t *testing.T) {
 	t.Run("persistent store is active if configured", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
-		store := NewStore(logCapture.Loggers).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
 		_, err := store.Get(ldstoreimpl.Features(), "foo")
@@ -222,7 +243,9 @@ func TestStore_GetActive(t *testing.T) {
 
 	t.Run("active store swaps from persistent to memory", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		store := NewStore(logCapture.Loggers).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
 		// Before there's any data, if we call Get the persistent store should be accessed.
@@ -244,7 +267,9 @@ func TestStore_GetActive(t *testing.T) {
 
 func TestStore_SelectorIsRemembered(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	store := NewStore(logCapture.Loggers)
+	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	defer broadcaster.Close()
+	store := NewStore(logCapture.Loggers, broadcaster)
 	defer store.Close()
 
 	selector1 := fdv2proto.NewSelector("foo", 1)
@@ -274,7 +299,9 @@ func TestStore_SelectorIsRemembered(t *testing.T) {
 func TestStore_Concurrency(t *testing.T) {
 	t.Run("methods using the active store", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		store := NewStore(logCapture.Loggers)
+		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		defer broadcaster.Close()
+		store := NewStore(logCapture.Loggers, broadcaster)
 		defer store.Close()
 
 		var wg sync.WaitGroup
