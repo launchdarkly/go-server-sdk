@@ -175,16 +175,21 @@ func (s *Store) SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var oldData map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
+	var prechangeSnapshot map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
+	// Because flag listeners can be added and removed at any time, we need to
+	// check at a single point in time if there are listeners. If so, we can
+	// take a snapshot of the existing data.
+	//
+	// Later, instead of checking if there are listeners, we can check if we have a snapshot.
 	if s.flagChangeEvent.HasListeners() {
-		oldData = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
+		prechangeSnapshot = make(map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor)
 		for _, kind := range datakinds.AllDataKinds() {
 			if items, err := s.memoryStore.GetAll(kind); err == nil {
 				m := make(map[string]ldstoretypes.ItemDescriptor)
 				for _, item := range items {
 					m[item.Key] = item.Item
 				}
-				oldData[kind] = m
+				prechangeSnapshot[kind] = m
 			} else {
 				s.loggers.Errorf("store: couldn't get all items of kind %s: %v", kind, err)
 			}
@@ -194,8 +199,11 @@ func (s *Store) SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector,
 	s.memoryStore.SetBasis(collections)
 
 	s.updateDependencyTrackerFromFullDataSet(collections)
-	if oldData != nil {
-		s.sendChangeEvents(s.computeChangedItemsForFullDataSet(oldData, fullDataSetToMap(collections)))
+	// If we took a snapshot, we had change listeners interested at the time.
+	// So try to notify them. If no listeners are attached now, it won't matter
+	// as they will be skipped.
+	if prechangeSnapshot != nil {
+		s.sendChangeEvents(s.computeChangedItemsForFullDataSet(prechangeSnapshot, fullDataSetToMap(collections)))
 	}
 
 	s.persist = persist
