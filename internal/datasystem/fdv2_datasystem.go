@@ -45,6 +45,9 @@ type FDv2 struct {
 	// The secondary synchronizer, in case the primary is unavailable.
 	secondarySyncBuilder func() (subsystems.DataSynchronizer, error)
 
+	// The fdv1 fallback synchronizer, in case we have to fall back to fdv1.
+	fdv1SyncBuilder func() (subsystems.DataSynchronizer, error)
+
 	// Whether the SDK should make use of persistent store/initializers/synchronizers or not.
 	disabled bool
 
@@ -118,6 +121,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.initializers = cfg.Initializers
 	fdv2.primarySyncBuilder = cfg.Synchronizers.PrimaryBuilder
 	fdv2.secondarySyncBuilder = cfg.Synchronizers.SecondaryBuilder
+	fdv2.fdv1SyncBuilder = cfg.Synchronizers.FDv1FallbackBuilder
 	fdv2.disabled = disabled
 	fdv2.fallbackCond = func(status interfaces.DataSourceStatus) bool {
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted &&
@@ -260,7 +264,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			f.loggers.Debugf("Primary synchronizer %s is starting", primarySync.Name())
 			statusChan := primarySync.Sync()
-			removeSync, err := f.consumeSynchronizerResults(ctx, statusChan, f.fallbackCond, closeWhenReady)
+			removeSync, fallbackv1, err := f.consumeSynchronizerResults(ctx, statusChan, f.fallbackCond, closeWhenReady)
 			if errors.Is(err, context.Canceled) {
 				return
 			} else if err := primarySync.Close(); err != nil {
@@ -270,6 +274,10 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			if removeSync {
 				f.primarySyncBuilder = f.secondarySyncBuilder
 				f.secondarySyncBuilder = nil
+
+				if fallbackv1 {
+					f.primarySyncBuilder = f.fdv1SyncBuilder
+				}
 
 				if f.primarySyncBuilder == nil {
 					f.loggers.Debugf("No more synchronizers available, closing the channel")
@@ -295,7 +303,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			f.loggers.Debugf("Secondary synchronizer %s is starting", secondarySync.Name())
 
 			statusChan = secondarySync.Sync()
-			removeSync, err = f.consumeSynchronizerResults(ctx, statusChan, f.recoveryCond, closeWhenReady)
+			removeSync, fallbackv1, err = f.consumeSynchronizerResults(ctx, statusChan, f.recoveryCond, closeWhenReady)
 			if errors.Is(err, context.Canceled) {
 				return
 			} else if err := secondarySync.Close(); err != nil {
@@ -304,6 +312,19 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			if removeSync {
 				f.secondarySyncBuilder = nil
+
+				if fallbackv1 {
+					f.primarySyncBuilder = f.fdv1SyncBuilder
+
+					if f.primarySyncBuilder == nil {
+						f.loggers.Debugf("No more synchronizers available, closing the channel")
+						f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+						f.readyOnce.Do(func() {
+							close(closeWhenReady)
+						})
+						return
+					}
+				}
 			}
 
 			f.loggers.Debugf("Recovery condition met")
@@ -318,23 +339,23 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 func (f *FDv2) consumeSynchronizerResults(
 	ctx context.Context,
-	statusChan <-chan interfaces.DataSourceStatus,
+	statusChan <-chan interfaces.DataSynchronizerStatus,
 	cond func(status interfaces.DataSourceStatus) bool,
 	closeWhenReady chan<- struct{},
-) (bool, error) {
+) (bool, bool, error) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return false, ctx.Err()
+			return false, false, ctx.Err()
 		case result, ok := <-statusChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
 			// probably fall back.
 			if !ok {
-				return false, nil
+				return false, false, nil
 			}
 
 			switch result.State {
@@ -342,18 +363,18 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.readyOnce.Do(func() {
 					close(closeWhenReady)
 				})
-				f.UpdateStatus(result.State, result.LastError)
+				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateInterrupted:
-				f.UpdateStatus(result.State, result.LastError)
+				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
-				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.LastError)
-				return true, nil
+				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
+				return true, result.RevertToFDv1, nil
 			}
 		case <-ticker.C:
 			status := f.getStatus()
 			f.loggers.Debugf("Data source status used to evaluate condition: %s", status.String())
 			if cond(status) {
-				return false, nil
+				return false, false, nil
 			}
 			f.loggers.Debugf("Condition check succeeded, continue with current synchronizer")
 		}

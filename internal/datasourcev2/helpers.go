@@ -15,6 +15,7 @@ import (
 type httpStatusError struct {
 	Message string
 	Code    int
+	Header  http.Header
 }
 
 func (e httpStatusError) Error() string {
@@ -63,23 +64,29 @@ func checkIfErrorIsRecoverableAndLog(
 	return true
 }
 
-func checkForHTTPError(statusCode int, url string) error {
+func checkForHTTPError(statusCode int, header http.Header, url string) error {
 	if statusCode == http.StatusUnauthorized {
 		return httpStatusError{
 			Message: fmt.Sprintf("Invalid SDK key when accessing URL: %s. Verify that your SDK key is correct.", url),
-			Code:    statusCode}
+			Code:    statusCode,
+			Header:  header,
+		}
 	}
 
 	if statusCode == http.StatusNotFound {
 		return httpStatusError{
 			Message: fmt.Sprintf("Resource not found when accessing URL: %s. Verify that this resource exists.", url),
-			Code:    statusCode}
+			Code:    statusCode,
+			Header:  header,
+		}
 	}
 
 	if statusCode/100 != 2 {
 		return httpStatusError{
 			Message: fmt.Sprintf("Unexpected response code: %d when accessing URL: %s", statusCode, url),
-			Code:    statusCode}
+			Code:    statusCode,
+			Header:  header,
+		}
 	}
 	return nil
 }

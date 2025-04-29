@@ -83,6 +83,16 @@ type DataSourceStatusProvider interface {
 	WaitFor(desiredState DataSourceState, timeout time.Duration) bool
 }
 
+// DataSynchronizerStatus represents intermediate information that a data synchronizer may provide
+// about its status.
+//
+// Synchronizers are expected to emit these status updates on the channel returned by Sync().
+type DataSynchronizerStatus struct {
+	State        DataSourceState
+	Error        DataSourceErrorInfo
+	RevertToFDv1 bool
+}
+
 // DataSourceStatus is information about the data source's status and the last status change.
 //
 // See [DataSourceStatusProvider].

@@ -72,6 +72,50 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 	})
 }
 
+func TestFDV2CanFallBackToV1(t *testing.T) {
+	dataV1 := ldservices.NewServerSDKData().Flags(alwaysFalseFlag)
+	dataV2 := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+
+	header := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+	// The polling initializer will fail since we return a 500.
+	pollV1SyncRecordingHandler, pollV1SyncReqCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(dataV1))
+	pollV2InitRecordingHandler, pollV2SyncReqCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(dataV2))
+
+	streamHandler, streamV2SyncReqCh := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
+
+	handler := httphelpers.SequentialHandler(pollV2InitRecordingHandler, streamHandler, pollV1SyncRecordingHandler)
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Default(),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+
+		<-pollV2SyncReqCh
+		<-streamV2SyncReqCh
+		<-pollV1SyncReqCh
+
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
+		assertNoMoreRequests(t, pollV2SyncReqCh)
+		assertNoMoreRequests(t, streamV2SyncReqCh)
+
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, true)
+		assert.False(t, value)
+
+	})
+}
+
 func TestFDV2StreamingSynchronizer(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 

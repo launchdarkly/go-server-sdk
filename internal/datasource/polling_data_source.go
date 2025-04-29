@@ -55,7 +55,7 @@ func NewPollingProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg PollingConfig,
 ) *PollingProcessor {
-	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
+	httpRequester := NewPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
 	return newPollingProcessor(context, dataSourceUpdates, httpRequester, cfg.PollInterval)
 }
 

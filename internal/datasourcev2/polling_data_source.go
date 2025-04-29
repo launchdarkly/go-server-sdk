@@ -83,8 +83,8 @@ func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
-	statusChan := make(chan interfaces.DataSourceStatus)
+func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
+	statusChan := make(chan interfaces.DataSynchronizerStatus)
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	if pp.isClosed.Load() {
@@ -118,6 +118,16 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 							StatusCode: hse.Code,
 							Time:       time.Now(),
 						}
+
+						if hse.Header.Get("X-LD-FD-Fallback") == "true" {
+							statusChan <- interfaces.DataSynchronizerStatus{
+								State:        interfaces.DataSourceStateOff,
+								Error:        errorInfo,
+								RevertToFDv1: true,
+							}
+							return
+						}
+
 						recoverable := checkIfErrorIsRecoverableAndLog(
 							pp.loggers,
 							httpErrorDescription(hse.Code),
@@ -126,16 +136,14 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 							pollingWillRetryMessage,
 						)
 						if recoverable {
-							statusChan <- interfaces.DataSourceStatus{
-								State:      interfaces.DataSourceStateInterrupted,
-								StateSince: time.Now(),
-								LastError:  errorInfo,
+							statusChan <- interfaces.DataSynchronizerStatus{
+								State: interfaces.DataSourceStateInterrupted,
+								Error: errorInfo,
 							}
 						} else {
-							statusChan <- interfaces.DataSourceStatus{
-								State:      interfaces.DataSourceStateOff,
-								StateSince: time.Now(),
-								LastError:  errorInfo,
+							statusChan <- interfaces.DataSynchronizerStatus{
+								State: interfaces.DataSourceStateOff,
+								Error: errorInfo,
 							}
 							return
 						}
@@ -149,10 +157,9 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
 						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
-						statusChan <- interfaces.DataSourceStatus{
-							State:      interfaces.DataSourceStateInterrupted,
-							StateSince: time.Now(),
-							LastError:  errorInfo,
+						statusChan <- interfaces.DataSynchronizerStatus{
+							State: interfaces.DataSourceStateInterrupted,
+							Error: errorInfo,
 						}
 					}
 					continue
@@ -164,7 +171,7 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSourceStatus {
 	return statusChan
 }
 
-func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfaces.DataSourceStatus) error {
+func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfaces.DataSynchronizerStatus) error {
 	changeSet, err := pp.requester.Request(ctx, pp.dataDestination.Selector())
 
 	if err != nil {
@@ -186,9 +193,8 @@ func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfac
 	}
 
 	pp.isInitialized.CompareAndSwap(false, true)
-	statusChan <- interfaces.DataSourceStatus{
-		State:      interfaces.DataSourceStateValid,
-		StateSince: time.Now(),
+	statusChan <- interfaces.DataSynchronizerStatus{
+		State: interfaces.DataSourceStateValid,
 	}
 
 	return nil

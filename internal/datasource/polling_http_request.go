@@ -17,8 +17,8 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-// pollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.
-type pollingRequester struct {
+// PollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.
+type PollingRequester struct {
 	httpClient *http.Client
 	baseURI    string
 	filterKey  string
@@ -34,12 +34,14 @@ func (e malformedJSONError) Error() string {
 	return e.innerError.Error()
 }
 
-func newPollingRequester(
+// NewPollingRequester creates a new PollingRequester instance. This is for
+// internal use only and should not be relied upon by consumers.
+func NewPollingRequester(
 	context subsystems.ClientContext,
 	httpClient *http.Client,
 	baseURI string,
 	filterKey string,
-) *pollingRequester {
+) *PollingRequester {
 	if httpClient == nil {
 		httpClient = context.GetHTTP().CreateHTTPClient()
 	}
@@ -51,7 +53,7 @@ func newPollingRequester(
 		Transport:           httpClient.Transport,
 	}
 
-	return &pollingRequester{
+	return &PollingRequester{
 		httpClient: &modifiedClient,
 		baseURI:    baseURI,
 		filterKey:  filterKey,
@@ -59,14 +61,22 @@ func newPollingRequester(
 		loggers:    context.GetLogging().Loggers,
 	}
 }
-func (r *pollingRequester) BaseURI() string {
+
+// BaseURI returns the base URI used for the polling request.
+func (r *PollingRequester) BaseURI() string {
 	return r.baseURI
 }
 
-func (r *pollingRequester) FilterKey() string {
+// FilterKey returns the filter key used for the polling request.
+func (r *PollingRequester) FilterKey() string {
 	return r.filterKey
 }
-func (r *pollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {
+
+// Request makes a request to the LaunchDarkly polling endpoint for feature flag updates.
+// It returns the data in the form of a slice of ldstoretypes.Collection.
+// The boolean return value indicates whether the data was served from the cache.
+// If an error occurs, it will be returned as the third return value.
+func (r *PollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -87,7 +97,7 @@ func (r *pollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {
 	return data, cached, nil
 }
 
-func (r *pollingRequester) makeRequest(resource string) ([]byte, bool, error) {
+func (r *PollingRequester) makeRequest(resource string) ([]byte, bool, error) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(

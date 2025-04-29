@@ -6,6 +6,9 @@ type SynchronizersConfiguration struct {
 	PrimaryBuilder func() (DataSynchronizer, error)
 	// A fallback builder for the synchronizer if the primary fails.
 	SecondaryBuilder func() (DataSynchronizer, error)
+	// A temporarily supported FDv1 fallback builder for the synchronizer as an
+	// alternative fallback option.
+	FDv1FallbackBuilder func() (DataSynchronizer, error)
 }
 
 // DataSystemConfiguration represents the configuration for the data system.

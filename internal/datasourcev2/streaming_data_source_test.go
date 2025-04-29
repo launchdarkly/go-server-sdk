@@ -40,7 +40,7 @@ const (
 type streamingTestParams struct {
 	events     chan<- eventsource.Event
 	protocol   *ldservicesv2.StreamingProtocol
-	statusChan <-chan interfaces.DataSourceStatus
+	statusChan <-chan interfaces.DataSynchronizerStatus
 	stream     httphelpers.SSEStreamControl
 	requests   <-chan httphelpers.HTTPRequestInfo
 	mockLog    *ldlogtest.MockLog
@@ -81,7 +81,7 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 
 	result := <-statusChan
 	assert.Equal(t, interfaces.DataSourceStateOff, result.State)
-	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.LastError.Kind)
+	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
 }
 
 func TestStreamingProcessorAppendsFilterParameter(t *testing.T) {
@@ -339,7 +339,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 		result := <-statusChan
 
 		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
-		assert.Equal(t, statusCode, result.LastError.StatusCode)
+		assert.Equal(t, statusCode, result.Error.StatusCode)
 
 		result = <-statusChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
@@ -378,7 +378,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 		assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
 
 		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
-		assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, result.LastError.Kind)
-		assert.Equal(t, statusCode, result.LastError.StatusCode)
+		assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, result.Error.Kind)
+		assert.Equal(t, statusCode, result.Error.StatusCode)
 	})
 }
