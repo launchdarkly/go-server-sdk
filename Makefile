@@ -1,5 +1,8 @@
 GOLANGCI_LINT_VERSION=v1.64.5
 
+# Default version for contract tests
+VERSION=v2
+
 LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
 
@@ -174,7 +177,7 @@ start-contract-test-service-bg:
 
 run-contract-tests:
 	@curl -s https://raw.githubusercontent.com/launchdarkly/sdk-test-harness/v2/downloader/run.sh \
-      | VERSION=v2 PARAMS="-url http://localhost:10000 -debug -stop-service-at-end $(TEST_HARNESS_PARAMS)" sh
+      | VERSION=$(VERSION) PARAMS="-url http://localhost:10000 -debug -stop-service-at-end $(TEST_HARNESS_PARAMS)" sh
 
 contract-tests: build-contract-tests start-contract-test-service-bg run-contract-tests
 
