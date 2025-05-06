@@ -5,8 +5,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -21,7 +19,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request(context.Context, fdv2proto.Selector) (*fdv2proto.ChangeSet, error)
+	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -173,18 +171,17 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 
 func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfaces.DataSynchronizerStatus) error {
 	changeSet, err := pp.requester.Request(ctx, pp.dataDestination.Selector())
-
 	if err != nil {
 		return err
 	}
 
 	code := changeSet.IntentCode()
 	switch code {
-	case fdv2proto.IntentTransferFull:
+	case subsystems.IntentTransferFull:
 		pp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
-	case fdv2proto.IntentTransferChanges:
+	case subsystems.IntentTransferChanges:
 		pp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
-	case fdv2proto.IntentNone:
+	case subsystems.IntentNone:
 		// no-op, we are already up-to-date
 	default:
 		// this should never happen but we don't want to actually call this

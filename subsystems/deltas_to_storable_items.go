@@ -1,4 +1,4 @@
-package fdv2proto
+package subsystems
 
 import (
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"

@@ -217,4 +217,11 @@ type Config struct {
 	// 5. After a period of time, the SDK will swap back to the realtime Flag Delivery Network if it becomes
 	//    available again.
 	DataSystem subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration]
+
+	// This property is for use by LaunchDarkly only. External use outside of the Relay Proxy is not supported.
+	//
+	// LDRelayDataDestination provides a hook for the relay proxy to wrap and
+	// replace the SDK's internal data destination implementation. This allows
+	// it to be notified and update connected streams more efficiently.
+	LDRelayDataDestination func(subsystems.DataDestination, subsystems.ReadOnlyStore) subsystems.DataDestination
 }

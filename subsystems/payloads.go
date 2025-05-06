@@ -1,4 +1,4 @@
-package fdv2proto
+package subsystems
 
 // Payload represents a payload delivered in a streaming response.
 type Payload struct {

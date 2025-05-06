@@ -16,7 +16,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -110,7 +109,7 @@ func TestStreamingProcessorAppendsFilterParameter(t *testing.T) {
 
 func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(ldservicesv2.NewServerSDKData().ToPutObjects()).
@@ -153,8 +152,8 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 	expectRestart := func(t *testing.T, p streamingTestParams) {
 		// Allow time for a reconnect (which sends the initial payload (server-intent), then we can queue up the transferred event.
 		<-time.After(300 * time.Millisecond)
-		p.protocol.WithIntent(fdv2proto.ServerIntent{
-			Payload: fdv2proto.Payload{
+		p.protocol.WithIntent(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
 				ID: "fake-id", Target: 0, Code: "none", Reason: "caughtup",
 			}}).
 			WithTransferred(1).
@@ -248,7 +247,7 @@ func runStreamingTest(
 	test func(streamingTestParams),
 ) {
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(initialData.ToPutObjects()).
@@ -305,7 +304,7 @@ func runStreamingTest(
 func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).

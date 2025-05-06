@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 )
 
 // DataSource describes the interface for an object that receives feature flag data.
@@ -29,9 +28,9 @@ type DataSource interface {
 // via Fetch, whereas Synchronizers provide it asynchronously via the injected DataDestination.
 type Basis struct {
 	// Events is a series of events representing actions applied to data items.
-	Events []fdv2proto.Change
+	Events []Change
 	// Selector identifies this basis.
-	Selector fdv2proto.Selector
+	Selector Selector
 	// Persist is true if the data source requests that the data store persist the items to any connected
 	// Persistent Stores.
 	Persist bool

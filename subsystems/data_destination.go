@@ -1,9 +1,5 @@
 package subsystems
 
-import (
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-)
-
 // DataDestination handles data obtained from a data source and maintains a
 // record of the last selector applied.
 //
@@ -14,8 +10,8 @@ import (
 // You have been warned.
 type DataDestination interface {
 	// Selector returns the last known selector for the data store. If no previous selector is known,
-	// this should return fdv2proto.NoSelector()
-	Selector() fdv2proto.Selector
+	// this should return subsystems.NoSelector()
+	Selector() Selector
 
 	// SetBasis defines a new basis for the data store. This means the store must
 	// be emptied of any existing data before applying the events. This operation should be
@@ -25,7 +21,7 @@ type DataDestination interface {
 	//
 	// If persist is true, it indicates that the data should be propagated to any connected persistent
 	// store.
-	SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector, persist bool)
+	SetBasis(events []Change, selector Selector, persist bool)
 
 	// ApplyDelta applies a set of changes to an existing basis. This operation should be atomic with
 	// respect to any other operations that modify the store.
@@ -34,5 +30,5 @@ type DataDestination interface {
 	//
 	// If persist is true, it indicates that the changes should be propagated to any connected persistent
 	// store.
-	ApplyDelta(events []fdv2proto.Change, selector fdv2proto.Selector, persist bool)
+	ApplyDelta(events []Change, selector Selector, persist bool)
 }

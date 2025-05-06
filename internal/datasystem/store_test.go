@@ -15,8 +15,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +38,7 @@ func TestStore_NoSelector(t *testing.T) {
 	defer broadcaster.Close()
 	store := NewStore(logCapture.Loggers, broadcaster)
 	defer store.Close()
-	assert.Equal(t, fdv2proto.NoSelector(), store.Selector())
+	assert.Equal(t, subsystems.NoSelector(), store.Selector())
 }
 
 func TestStore_NoPersistence_NewStore_IsNotInitialized(t *testing.T) {
@@ -53,11 +51,11 @@ func TestStore_NoPersistence_NewStore_IsNotInitialized(t *testing.T) {
 }
 
 func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
-	v1 := fdv2proto.NewSelector("foo", 1)
-	none := fdv2proto.NoSelector()
+	v1 := subsystems.NewSelector("foo", 1)
+	none := subsystems.NoSelector()
 	tests := []struct {
 		name     string
-		selector fdv2proto.Selector
+		selector subsystems.Selector
 		persist  bool
 	}{
 		{"with selector, persist", v1, true},
@@ -72,7 +70,7 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 			defer broadcaster.Close()
 			store := NewStore(logCapture.Loggers, broadcaster)
 			defer store.Close()
-			store.SetBasis([]fdv2proto.Change{}, tt.selector, tt.persist)
+			store.SetBasis([]subsystems.Change{}, tt.selector, tt.persist)
 			assert.True(t, store.IsInitialized())
 		})
 	}
@@ -117,9 +115,9 @@ func TestStore_Commit(t *testing.T) {
 
 		// The store receives data as a list of changes, but the persistent store receives them as an
 		// []ldstoretypes.Collection.
-		input := []fdv2proto.Change{
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
+		input := []subsystems.Change{
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
 		}
 
 		// OK: basically we need to match up the JSON with the FlagBuilder stuff for this to work, a naive marshal won't work.
@@ -139,7 +137,7 @@ func TestStore_Commit(t *testing.T) {
 			}}
 
 		// There should be an error since writing to the store will fail.
-		store.SetBasis(input, fdv2proto.NoSelector(), true)
+		store.SetBasis(input, subsystems.NoSelector(), true)
 
 		// Since writing should have failed, there should be no data in the persistent store.
 		require.Empty(t, spy.initPayload)
@@ -162,12 +160,12 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		input := []fdv2proto.Change{
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
+		input := []subsystems.Change{
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
 		}
 
-		store.SetBasis(input, fdv2proto.NoSelector(), false)
+		store.SetBasis(input, subsystems.NoSelector(), false)
 
 		// Since SetBasis will immediately mirror the data if persist == true, we can check this is empty now.
 		require.Empty(t, spy.initPayload)
@@ -188,13 +186,13 @@ func TestStore_Commit(t *testing.T) {
 		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
 		defer store.Close()
 
-		input := []fdv2proto.Change{
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("key", 1)},
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
+		input := []subsystems.Change{
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("key", 1)},
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
 		}
 
 		// Even though persist is true, the store was marked as read-only, so it shouldn't be written to.
-		store.SetBasis(input, fdv2proto.NoSelector(), true)
+		store.SetBasis(input, subsystems.NoSelector(), true)
 
 		require.Empty(t, spy.initPayload)
 
@@ -216,11 +214,11 @@ func TestStore_GetActive(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
-		input := []fdv2proto.Change{
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
+		input := []subsystems.Change{
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
 		}
 
-		store.SetBasis(input, fdv2proto.NoSelector(), false)
+		store.SetBasis(input, subsystems.NoSelector(), false)
 
 		foo, err = store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -252,11 +250,11 @@ func TestStore_GetActive(t *testing.T) {
 		_, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.Equal(t, errImAPersistentStore, err)
 
-		input := []fdv2proto.Change{
-			{Action: fdv2proto.ChangeTypePut, Kind: fdv2proto.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
+		input := []subsystems.Change{
+			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
 		}
 
-		store.SetBasis(input, fdv2proto.NoSelector(), false)
+		store.SetBasis(input, subsystems.NoSelector(), false)
 
 		// Now that there's memory data, the persistent store should no longer be accessed.
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
@@ -272,28 +270,28 @@ func TestStore_SelectorIsRemembered(t *testing.T) {
 	store := NewStore(logCapture.Loggers, broadcaster)
 	defer store.Close()
 
-	selector1 := fdv2proto.NewSelector("foo", 1)
-	selector2 := fdv2proto.NewSelector("bar", 2)
-	selector3 := fdv2proto.NewSelector("baz", 3)
-	selector4 := fdv2proto.NewSelector("qux", 4)
-	selector5 := fdv2proto.NewSelector("this better be the last one", 5)
+	selector1 := subsystems.NewSelector("foo", 1)
+	selector2 := subsystems.NewSelector("bar", 2)
+	selector3 := subsystems.NewSelector("baz", 3)
+	selector4 := subsystems.NewSelector("qux", 4)
+	selector5 := subsystems.NewSelector("this better be the last one", 5)
 
-	store.SetBasis([]fdv2proto.Change{}, selector1, false)
+	store.SetBasis([]subsystems.Change{}, selector1, false)
 	assert.Equal(t, selector1, store.Selector())
 
-	store.SetBasis([]fdv2proto.Change{}, selector2, false)
+	store.SetBasis([]subsystems.Change{}, selector2, false)
 	assert.Equal(t, selector2, store.Selector())
 
-	store.ApplyDelta([]fdv2proto.Change{}, selector3, false)
+	store.ApplyDelta([]subsystems.Change{}, selector3, false)
 	assert.Equal(t, selector3, store.Selector())
 
-	store.ApplyDelta([]fdv2proto.Change{}, selector4, false)
+	store.ApplyDelta([]subsystems.Change{}, selector4, false)
 	assert.Equal(t, selector4, store.Selector())
 
 	assert.NoError(t, store.Commit())
 	assert.Equal(t, selector4, store.Selector())
 
-	store.SetBasis([]fdv2proto.Change{}, selector5, false)
+	store.SetBasis([]subsystems.Change{}, selector5, false)
 }
 
 func TestStore_Concurrency(t *testing.T) {
@@ -328,10 +326,10 @@ func TestStore_Concurrency(t *testing.T) {
 			_ = store.IsInitialized()
 		})
 		go run(func() {
-			store.SetBasis([]fdv2proto.Change{}, fdv2proto.NoSelector(), true)
+			store.SetBasis([]subsystems.Change{}, subsystems.NoSelector(), true)
 		})
 		go run(func() {
-			store.ApplyDelta([]fdv2proto.Change{}, fdv2proto.NoSelector(), true)
+			store.ApplyDelta([]subsystems.Change{}, subsystems.NoSelector(), true)
 		})
 		go run(func() {
 			_ = store.Selector()

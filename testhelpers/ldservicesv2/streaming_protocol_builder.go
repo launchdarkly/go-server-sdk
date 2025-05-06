@@ -3,7 +3,7 @@ package ldservicesv2
 import (
 	"encoding/json"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )
 
@@ -28,12 +28,12 @@ func NewStreamingProtocol() *StreamingProtocol {
 }
 
 // WithIntent adds a ServerIntent event to the protocol.
-func (f *StreamingProtocol) WithIntent(intent fdv2proto.ServerIntent) *StreamingProtocol {
+func (f *StreamingProtocol) WithIntent(intent subsystems.ServerIntent) *StreamingProtocol {
 	return f.pushEvent(intent)
 }
 
 // WithPutObject adds a PutObject event to the protocol.
-func (f *StreamingProtocol) WithPutObject(object fdv2proto.PutObject) *StreamingProtocol {
+func (f *StreamingProtocol) WithPutObject(object subsystems.PutObject) *StreamingProtocol {
 	return f.pushEvent(object)
 }
 
@@ -41,18 +41,18 @@ func (f *StreamingProtocol) WithPutObject(object fdv2proto.PutObject) *Streaming
 // placeholder string; if tests are added that need to verify properties related to the state, this can be
 // updated.
 func (f *StreamingProtocol) WithTransferred(version int) *StreamingProtocol {
-	return f.pushEvent(fdv2proto.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", version))
+	return f.pushEvent(subsystems.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", version))
 }
 
 // WithPutObjects adds multiple PutObject events to the protocol.
-func (f *StreamingProtocol) WithPutObjects(objects []fdv2proto.PutObject) *StreamingProtocol {
+func (f *StreamingProtocol) WithPutObjects(objects []subsystems.PutObject) *StreamingProtocol {
 	for _, object := range objects {
 		f.WithPutObject(object)
 	}
 	return f
 }
 
-func (f *StreamingProtocol) pushEvent(data fdv2proto.Event) *StreamingProtocol {
+func (f *StreamingProtocol) pushEvent(data subsystems.Event) *StreamingProtocol {
 	marshalled, err := json.Marshal(data)
 	if err != nil {
 		panic(err)

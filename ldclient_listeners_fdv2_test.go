@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -45,7 +45,7 @@ func clientListenersV2Test(action func(clientListenersV2TestParams), handlers ..
 func clientListenersV2TestWithConfig(configAction func(*Config), action func(clientListenersV2TestParams), handlers ...http.Handler) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "something-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
@@ -84,9 +84,9 @@ func TestFlagTrackerV2(t *testing.T) {
 			th.AssertNoMoreValues(t, ch2, timeout)
 
 			jsonFlag, _ := json.Marshal(alwaysFalseFlag)
-			p.protocol.WithPutObject(fdv2proto.PutObject{
+			p.protocol.WithPutObject(subsystems.PutObject{
 				Version: 10,
-				Kind:    fdv2proto.FlagKind,
+				Kind:    subsystems.FlagKind,
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})
@@ -100,9 +100,9 @@ func TestFlagTrackerV2(t *testing.T) {
 			th.AssertChannelClosed(t, ch1, time.Millisecond)
 
 			jsonFlag, _ = json.Marshal(alwaysTrueFlag)
-			p.protocol.WithPutObject(fdv2proto.PutObject{
+			p.protocol.WithPutObject(subsystems.PutObject{
 				Version: 10,
-				Kind:    fdv2proto.FlagKind,
+				Kind:    subsystems.FlagKind,
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})
@@ -129,9 +129,9 @@ func TestFlagTrackerV2(t *testing.T) {
 			th.AssertNoMoreValues(t, ch3, timeout)
 
 			jsonFlag, _ := json.Marshal(onlyTrueForImportantUsers)
-			p.protocol.WithPutObject(fdv2proto.PutObject{
+			p.protocol.WithPutObject(subsystems.PutObject{
 				Version: 10,
-				Kind:    fdv2proto.FlagKind,
+				Kind:    subsystems.FlagKind,
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})

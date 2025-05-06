@@ -88,7 +88,8 @@ type FDv2 struct {
 // NewFDv2 creates a new instance of the FDv2 data system. The first argument indicates if the system is enabled or
 // disabled.
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
-	clientContext *internal.ClientContextImpl) (*FDv2, error) {
+	clientContext *internal.ClientContextImpl,
+	ldRelayWrapper func(subsystems.DataDestination, subsystems.ReadOnlyStore) subsystems.DataDestination) (*FDv2, error) {
 	bcasters := &broadcasters{
 		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatus:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
@@ -96,6 +97,12 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	}
 
 	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent)
+	var dd subsystems.DataDestination
+	if ldRelayWrapper != nil {
+		dd = ldRelayWrapper(store, store)
+	} else {
+		dd = store
+	}
 
 	fdv2 := &FDv2{
 		store:                    store,
@@ -110,7 +117,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
 	clientContextCopy := *clientContext
 	clientContextCopy.DataStoreUpdateSink = dataStoreUpdateSink
-	clientContextCopy.DataDestination = store
+	clientContextCopy.DataDestination = dd
 	clientContextCopy.DataSourceStatusReporter = fdv2
 
 	cfg, err := cfgBuilder.Build(clientContextCopy)

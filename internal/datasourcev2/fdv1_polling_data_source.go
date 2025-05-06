@@ -7,7 +7,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -16,23 +15,26 @@ type fdv1ToFDv2Requester struct {
 	loggers   ldlog.Loggers
 }
 
-func (r *fdv1ToFDv2Requester) Request(ctx context.Context, selector fdv2proto.Selector) (*fdv2proto.ChangeSet, error) {
+func (r *fdv1ToFDv2Requester) Request(
+	ctx context.Context,
+	selector subsystems.Selector,
+) (*subsystems.ChangeSet, error) {
 	data, cached, err := r.requester.Request()
 	if err != nil {
 		return nil, err
 	}
 
-	code := fdv2proto.IntentTransferFull
+	code := subsystems.IntentTransferFull
 	reason := "cant-catchup"
 
 	if cached {
-		code = fdv2proto.IntentNone
+		code = subsystems.IntentNone
 		reason = "cached"
 	}
 
-	changeSetBuilder := fdv2proto.NewChangeSetBuilder()
-	err = changeSetBuilder.Start(fdv2proto.ServerIntent{
-		Payload: fdv2proto.Payload{
+	changeSetBuilder := subsystems.NewChangeSetBuilder()
+	err = changeSetBuilder.Start(subsystems.ServerIntent{
+		Payload: subsystems.Payload{
 			ID:     "arbitrary-id",
 			Target: 0,
 			Code:   code,
@@ -44,9 +46,9 @@ func (r *fdv1ToFDv2Requester) Request(ctx context.Context, selector fdv2proto.Se
 	}
 
 	for _, item := range data {
-		kind := fdv2proto.FlagKind
+		kind := subsystems.FlagKind
 		if item.Kind == datakinds.Segments {
-			kind = fdv2proto.SegmentKind
+			kind = subsystems.SegmentKind
 		}
 
 		for _, keyedItem := range item.Items {
@@ -64,7 +66,7 @@ func (r *fdv1ToFDv2Requester) Request(ctx context.Context, selector fdv2proto.Se
 		}
 	}
 
-	return changeSetBuilder.Finish(fdv2proto.NewSelector("state", 1))
+	return changeSetBuilder.Finish(subsystems.NewSelector("state", 1))
 }
 
 func (r *fdv1ToFDv2Requester) BaseURI() string {

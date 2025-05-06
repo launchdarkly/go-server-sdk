@@ -9,8 +9,6 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -77,7 +75,7 @@ type Store struct {
 	active subsystems.ReadOnlyStore
 
 	// Identifies the current data.
-	selector fdv2proto.Selector
+	selector subsystems.Selector
 
 	mu sync.RWMutex
 
@@ -121,7 +119,7 @@ func NewStore(
 		dependencyTracker: newDependencyTracker(),
 		flagChangeEvent:   flagChangeEvent,
 		loggers:           loggers,
-		selector:          fdv2proto.NoSelector(),
+		selector:          subsystems.NoSelector(),
 		persist:           false,
 	}
 	s.active = s.memoryStore
@@ -148,7 +146,7 @@ func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems
 }
 
 // Selector returns the current selector.
-func (s *Store) Selector() fdv2proto.Selector {
+func (s *Store) Selector() subsystems.Selector {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.selector
@@ -166,8 +164,8 @@ func (s *Store) Close() error {
 
 // SetBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
 // set persist to true.
-func (s *Store) SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector, persist bool) {
-	collections, err := fdv2proto.ToStorableItems(events)
+func (s *Store) SetBasis(events []subsystems.Change, selector subsystems.Selector, persist bool) {
+	collections, err := subsystems.ToStorableItems(events)
 	if err != nil {
 		s.loggers.Errorf("store: couldn't set basis due to malformed data: %v", err)
 		return
@@ -224,8 +222,8 @@ func (s *Store) shouldPersist() bool {
 
 // ApplyDelta applies a delta update to the store. ApplyDelta should not be called until SetBasis has been called.
 // To request data persistence, set persist to true.
-func (s *Store) ApplyDelta(events []fdv2proto.Change, selector fdv2proto.Selector, persist bool) {
-	collections, err := fdv2proto.ToStorableItems(events)
+func (s *Store) ApplyDelta(events []subsystems.Change, selector subsystems.Selector, persist bool) {
+	collections, err := subsystems.ToStorableItems(events)
 	if err != nil {
 		s.loggers.Errorf("store: couldn't apply delta due to malformed data: %v", err)
 		return
