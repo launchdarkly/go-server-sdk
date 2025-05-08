@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -35,7 +35,7 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 	pollRecordingHandler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(500))
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
@@ -119,7 +119,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
@@ -209,7 +209,7 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
@@ -289,7 +289,7 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
@@ -320,7 +320,7 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
-		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).

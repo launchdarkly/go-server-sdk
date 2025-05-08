@@ -1,4 +1,4 @@
-package fdv2proto
+package subsystems
 
 import (
 	"encoding/json"
@@ -6,6 +6,12 @@ import (
 )
 
 // ChangeType specifies if an object is being upserted or deleted.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type ChangeType string
 
 const (
@@ -17,6 +23,12 @@ const (
 )
 
 // Change represents a change to a piece of data, such as an update or deletion.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type Change struct {
 	Action  ChangeType
 	Kind    ObjectKind
@@ -26,6 +38,12 @@ type Change struct {
 }
 
 // ChangeSet represents a list of changes to be applied.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type ChangeSet struct {
 	intentCode IntentCode
 	changes    []Change
@@ -49,12 +67,24 @@ func (c *ChangeSet) Selector() Selector {
 }
 
 // ChangeSetBuilder is a helper for constructing a ChangeSet.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type ChangeSetBuilder struct {
 	intent  *ServerIntent
 	changes []Change
 }
 
 // NewChangeSetBuilder creates a new ChangeSetBuilder, which is empty by default.
+//
+// This function is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 func NewChangeSetBuilder() *ChangeSetBuilder {
 	return &ChangeSetBuilder{}
 }

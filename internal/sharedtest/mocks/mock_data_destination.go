@@ -7,8 +7,6 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	th "github.com/launchdarkly/go-test-helpers/v3"
@@ -22,7 +20,7 @@ type MockDataDestination struct {
 	Statuses                chan interfaces.DataSourceStatus
 	dataStoreStatusProvider *mockDataStoreStatusProvider
 	lastStatus              interfaces.DataSourceStatus
-	lastKnownSelector       fdv2proto.Selector
+	lastKnownSelector       subsystems.Selector
 	lock                    sync.Mutex
 }
 
@@ -41,23 +39,23 @@ func NewMockDataDestination(realStore subsystems.DataStore) *MockDataDestination
 		DataStore:               dataStore,
 		Statuses:                make(chan interfaces.DataSourceStatus, 10),
 		dataStoreStatusProvider: dataStoreStatusProvider,
-		lastKnownSelector:       fdv2proto.NoSelector(),
+		lastKnownSelector:       subsystems.NoSelector(),
 	}
 }
 
 // Selector returns the last known selector value.
-func (d *MockDataDestination) Selector() fdv2proto.Selector {
+func (d *MockDataDestination) Selector() subsystems.Selector {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	return d.lastKnownSelector
 }
 
 // SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) SetBasis(events []fdv2proto.Change, selector fdv2proto.Selector, _ bool) {
+func (d *MockDataDestination) SetBasis(events []subsystems.Change, selector subsystems.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
-	collections, err := fdv2proto.ToStorableItems(events)
+	collections, err := subsystems.ToStorableItems(events)
 	if err != nil {
 		panic("MockDataDestination.SetBasis received malformed data: " + err.Error())
 	}
@@ -74,11 +72,11 @@ func (d *MockDataDestination) SetBasis(events []fdv2proto.Change, selector fdv2p
 }
 
 // ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) ApplyDelta(events []fdv2proto.Change, selector fdv2proto.Selector, _ bool) {
+func (d *MockDataDestination) ApplyDelta(events []subsystems.Change, selector subsystems.Selector, _ bool) {
 	// For now, the selector is ignored. When the data sources start making use of it, it should be
 	// stored so that assertions can be made.
 
-	collections, err := fdv2proto.ToStorableItems(events)
+	collections, err := subsystems.ToStorableItems(events)
 	if err != nil {
 		panic("MockDataDestination.ApplyDelta received malformed data: " + err.Error())
 	}

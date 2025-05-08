@@ -1,4 +1,4 @@
-package fdv2proto
+package subsystems
 
 import (
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
@@ -8,6 +8,12 @@ import (
 
 // ToStorableItems converts a list of FDv2 events to a list of collections suitable for insertion
 // into a data store.
+//
+// This function is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 func ToStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
 	collections := make(kindMap)
 	for _, event := range deltas {

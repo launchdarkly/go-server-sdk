@@ -40,7 +40,7 @@ func ServerSideStreamingServiceHandler(
 //
 //	initialData := ldservicesv2.NewServerSDKData().Flags(flag1, flag2)
 //	protocol := ldservicesv2.NewStreamingProtocol().
-//		WithIntent(fdv2proto.ServerIntent{Payload: fdv2proto.Payload{
+//		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
 //			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 //		}}).
 //	WithPutObjects(initialData.ToPutObjects()).
@@ -48,9 +48,9 @@ func ServerSideStreamingServiceHandler(
 //	handler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 //	server := httptest.NewServer(handler)
 //
-//	protocol.WithPutObject(fdv2proto.PutObject{
+//	protocol.WithPutObject(subsystems.PutObject{
 //		Version: 10,
-//		Kind:    fdv2proto.FlagKind,
+//		Kind:    subsystems.FlagKind,
 //		Key:     alwaysTrueFlag.Key,
 //		Object:  jsonFlag,
 //	}

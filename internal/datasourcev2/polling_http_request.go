@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"github.com/gregjones/httpcache"
 	"golang.org/x/exp/maps"
 
@@ -68,7 +66,7 @@ func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
 
-func (r *pollingRequester) Request(ctx context.Context, selector fdv2proto.Selector) (*fdv2proto.ChangeSet, error) {
+func (r *pollingRequester) Request(ctx context.Context, selector subsystems.Selector) (*subsystems.ChangeSet, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
@@ -78,15 +76,15 @@ func (r *pollingRequester) Request(ctx context.Context, selector fdv2proto.Selec
 		return nil, err
 	}
 	if cached {
-		return fdv2proto.NewChangeSetBuilder().NoChanges(), nil
+		return subsystems.NewChangeSetBuilder().NoChanges(), nil
 	}
 
-	var payload fdv2proto.PollingPayload
+	var payload subsystems.PollingPayload
 	if err = json.Unmarshal(body, &payload); err != nil {
 		return nil, malformedJSONError{err}
 	}
 
-	changeSet := fdv2proto.NewChangeSetBuilder()
+	changeSet := subsystems.NewChangeSetBuilder()
 
 	for _, event := range payload.Events {
 		select {
@@ -94,32 +92,32 @@ func (r *pollingRequester) Request(ctx context.Context, selector fdv2proto.Selec
 			return nil, ctx.Err()
 		default:
 			switch event.Name {
-			case fdv2proto.EventServerIntent:
-				var serverIntent fdv2proto.ServerIntent
+			case subsystems.EventServerIntent:
+				var serverIntent subsystems.ServerIntent
 				err := json.Unmarshal(event.Data, &serverIntent)
 				if err != nil {
 					return nil, err
 				}
-				if serverIntent.Payload.Code == fdv2proto.IntentNone {
+				if serverIntent.Payload.Code == subsystems.IntentNone {
 					return changeSet.NoChanges(), nil
 				}
 				if err := changeSet.Start(serverIntent); err != nil {
 					return nil, err
 				}
-			case fdv2proto.EventPutObject:
-				var put fdv2proto.PutObject
+			case subsystems.EventPutObject:
+				var put subsystems.PutObject
 				if err := json.Unmarshal(event.Data, &put); err != nil {
 					return nil, err
 				}
 				changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
-			case fdv2proto.EventDeleteObject:
-				var deleteObject fdv2proto.DeleteObject
+			case subsystems.EventDeleteObject:
+				var deleteObject subsystems.DeleteObject
 				if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
 					return nil, err
 				}
 				changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
-			case fdv2proto.EventPayloadTransferred:
-				var selector fdv2proto.Selector
+			case subsystems.EventPayloadTransferred:
+				var selector subsystems.Selector
 				if err := json.Unmarshal(event.Data, &selector); err != nil {
 					return nil, err
 				}
@@ -134,7 +132,7 @@ func (r *pollingRequester) Request(ctx context.Context, selector fdv2proto.Selec
 func (r *pollingRequester) makeRequest(
 	ctx context.Context,
 	resource string,
-	selector fdv2proto.Selector,
+	selector subsystems.Selector,
 ) ([]byte, bool, error) {
 	req, reqErr := http.NewRequestWithContext(ctx, "GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {

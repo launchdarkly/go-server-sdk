@@ -253,7 +253,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 		client.dataSystem = system
 	} else {
-		system, err := datasystem.NewFDv2(config.Offline, config.DataSystem, clientContext)
+		system, err := datasystem.NewFDv2(config.Offline, config.DataSystem, clientContext, config.LDRelayDataDestination)
 		if err != nil {
 			return nil, err
 		}

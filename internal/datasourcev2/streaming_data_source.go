@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/fdv2proto"
-
 	"context"
 
 	es "github.com/launchdarkly/eventsource"
@@ -141,7 +139,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 		}
 	}()
 
-	changeSetBuilder := fdv2proto.NewChangeSetBuilder()
+	changeSetBuilder := subsystems.NewChangeSetBuilder()
 
 	for {
 		select {
@@ -162,7 +160,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 
 			gotMalformedEvent := func(event es.Event, err error) {
 				// The protocol should "forget" anything that happens upon receiving an error.
-				changeSetBuilder = fdv2proto.NewChangeSetBuilder()
+				changeSetBuilder = subsystems.NewChangeSetBuilder()
 
 				if event == nil {
 					sp.loggers.Errorf(
@@ -190,12 +188,12 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 				shouldRestart = true // scenario 1 in error handling comments at top of file
 			}
 
-			switch fdv2proto.EventName(event.Event()) {
-			case fdv2proto.EventHeartbeat:
+			switch subsystems.EventName(event.Event()) {
+			case subsystems.EventHeartbeat:
 				// Swallow the event and move on.
-			case fdv2proto.EventServerIntent:
+			case subsystems.EventServerIntent:
 
-				var serverIntent fdv2proto.ServerIntent
+				var serverIntent subsystems.ServerIntent
 				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -204,7 +202,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 
 				// IntentNone is a special case where we won't receive a payload-transferred event, so we will need
 				// to instead immediately notify the client that we are initialized.
-				if serverIntent.Payload.Code == fdv2proto.IntentNone {
+				if serverIntent.Payload.Code == subsystems.IntentNone {
 					statusChan <- interfaces.DataSynchronizerStatus{
 						State: interfaces.DataSourceStateValid,
 					}
@@ -217,24 +215,24 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 					break
 				}
 
-			case fdv2proto.EventPutObject:
-				var p fdv2proto.PutObject
+			case subsystems.EventPutObject:
+				var p subsystems.PutObject
 				err := json.Unmarshal([]byte(event.Data()), &p)
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
 				changeSetBuilder.AddPut(p.Kind, p.Key, p.Version, p.Object)
-			case fdv2proto.EventDeleteObject:
-				var d fdv2proto.DeleteObject
+			case subsystems.EventDeleteObject:
+				var d subsystems.DeleteObject
 				err := json.Unmarshal([]byte(event.Data()), &d)
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
 				changeSetBuilder.AddDelete(d.Kind, d.Key, d.Version)
-			case fdv2proto.EventGoodbye:
-				var goodbye fdv2proto.Goodbye
+			case subsystems.EventGoodbye:
+				var goodbye subsystems.Goodbye
 				err := json.Unmarshal([]byte(event.Data()), &goodbye)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -244,8 +242,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 				if !goodbye.Silent {
 					sp.loggers.Errorf("SSE server received error: %s (%v)", goodbye.Reason, goodbye.Catastrophe)
 				}
-			case fdv2proto.EventError:
-				var errorData fdv2proto.Error
+			case subsystems.EventError:
+				var errorData subsystems.Error
 				err := json.Unmarshal([]byte(event.Data()), &errorData)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -262,8 +260,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 				// point we will set that as well.
 				changeSetBuilder.Reset()
 
-			case fdv2proto.EventPayloadTransferred:
-				var selector fdv2proto.Selector
+			case subsystems.EventPayloadTransferred:
+				var selector subsystems.Selector
 				err := json.Unmarshal([]byte(event.Data()), &selector)
 				if err != nil {
 					gotMalformedEvent(event, err)
@@ -279,11 +277,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 
 				code := changeSet.IntentCode()
 				switch code {
-				case fdv2proto.IntentTransferFull:
+				case subsystems.IntentTransferFull:
 					sp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
-				case fdv2proto.IntentTransferChanges:
+				case subsystems.IntentTransferChanges:
 					sp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
-				case fdv2proto.IntentNone:
+				case subsystems.IntentNone:
 					/* We don't expect to receive this, but it could be possible. In that case, it should be
 					equivalent to transferring no changes - a no-op.
 					*/

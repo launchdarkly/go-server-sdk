@@ -1,4 +1,4 @@
-package fdv2proto
+package subsystems
 
 import (
 	"encoding/json"
@@ -8,6 +8,12 @@ import (
 )
 
 // IntentCode represents the various intents that can be sent by the server.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type IntentCode string
 
 const (
@@ -21,12 +27,24 @@ const (
 )
 
 // Event represents an event that can be sent by the server.
+//
+// This interface is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type Event interface {
 	// Name returns the name of the event.
 	Name() EventName
 }
 
 // EventName is the name of the event.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type EventName string
 
 const (
@@ -54,6 +72,12 @@ const (
 )
 
 // ObjectKind represents the kind of object.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type ObjectKind string
 
 const (
@@ -77,6 +101,12 @@ func (o ObjectKind) ToFDV1() (datakinds.DataKindInternal, bool) {
 }
 
 // ServerIntent represents the server's intent.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type ServerIntent struct {
 	Payload Payload
 }
@@ -116,6 +146,12 @@ func (ServerIntent) Name() EventName {
 }
 
 // DeleteObject specifies the deletion of a particular object.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type DeleteObject struct {
 	Version int        `json:"version"`
 	Kind    ObjectKind `json:"kind"`
@@ -128,6 +164,12 @@ func (d DeleteObject) Name() EventName {
 }
 
 // PutObject specifies the addition of a particular object with upsert semantics.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type PutObject struct {
 	Version int             `json:"version"`
 	Kind    ObjectKind      `json:"kind"`
@@ -141,6 +183,12 @@ func (p PutObject) Name() EventName {
 }
 
 // Error represents an error event.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type Error struct {
 	PayloadID string `json:"payloadId"`
 	Reason    string `json:"reason"`
@@ -152,6 +200,12 @@ func (e Error) Name() EventName {
 }
 
 // Goodbye represents a goodbye event.
+//
+// This type is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
 type Goodbye struct {
 	Reason      string `json:"reason"`
 	Silent      bool   `json:"silent"`
