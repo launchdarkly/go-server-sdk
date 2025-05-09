@@ -41,7 +41,7 @@ func (f *StreamingProtocol) WithPutObject(object subsystems.PutObject) *Streamin
 // placeholder string; if tests are added that need to verify properties related to the state, this can be
 // updated.
 func (f *StreamingProtocol) WithTransferred(version int) *StreamingProtocol {
-	return f.pushEvent(subsystems.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", version))
+	return f.pushEvent(subsystems.NewSelector("(p:17YNC7XBH88Y6RDJJ48EKPCJS7:53)", version))
 }
 
 // WithPutObjects adds multiple PutObject events to the protocol.
