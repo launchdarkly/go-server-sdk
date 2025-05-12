@@ -89,7 +89,7 @@ func (s *ServerSDKData) ToInitializerPayload() subsystems.PollingPayload {
 
 	pollingPayload.Events = append(pollingPayload.Events, subsystems.RawEvent{
 		Name: "payload-transferred",
-		Data: mustMarshal(subsystems.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", 1)),
+		Data: mustMarshal(subsystems.NewSelector("(p:17YNC7XBH88Y6RDJJ48EKPCJS7:53)", 1)),
 	})
 
 	return pollingPayload
