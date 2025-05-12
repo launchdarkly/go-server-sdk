@@ -39,7 +39,7 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 
 	// The streaming synchronizer will receive the FDv2 protocol messages, including the true flag.
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
@@ -123,7 +123,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
@@ -213,7 +213,7 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
@@ -293,7 +293,7 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
@@ -324,7 +324,7 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 

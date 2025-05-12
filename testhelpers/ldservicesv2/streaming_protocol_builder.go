@@ -3,12 +3,29 @@ package ldservicesv2
 import (
 	"encoding/json"
 
+	"github.com/launchdarkly/eventsource"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 )
 
 // ProtocolEvents represents a list of SSE-formatted events.
 type ProtocolEvents []httphelpers.SSEEvent
+
+type sseEvent struct {
+	event httphelpers.SSEEvent
+}
+
+func (s sseEvent) Id() string {
+	return s.event.ID
+}
+
+func (s sseEvent) Event() string {
+	return s.event.Event
+}
+
+func (s sseEvent) Data() string {
+	return s.event.Data
+}
 
 // Enqueue adds all the events to an SSEStreamController.
 func (p ProtocolEvents) Enqueue(control httphelpers.SSEStreamControl) {
@@ -37,11 +54,16 @@ func (f *StreamingProtocol) WithPutObject(object subsystems.PutObject) *Streamin
 	return f.pushEvent(object)
 }
 
+// WithDeleteObject adds a DeleteObject event to the protocol.
+func (f *StreamingProtocol) WithDeleteObject(object subsystems.DeleteObject) *StreamingProtocol {
+	return f.pushEvent(object)
+}
+
 // WithTransferred adds a PayloadTransferred event to the protocol with a given version. The state is an arbitrary
 // placeholder string; if tests are added that need to verify properties related to the state, this can be
 // updated.
-func (f *StreamingProtocol) WithTransferred(version int) *StreamingProtocol {
-	return f.pushEvent(subsystems.NewSelector("[p:17YNC7XBH88Y6RDJJ48EKPCJS7:53]", version))
+func (f *StreamingProtocol) WithTransferred(state string, version int) *StreamingProtocol {
+	return f.pushEvent(subsystems.NewSelector(state, version))
 }
 
 // WithPutObjects adds multiple PutObject events to the protocol.
@@ -80,4 +102,14 @@ func (f *StreamingProtocol) Next() httphelpers.SSEEvent {
 func (f *StreamingProtocol) Enqueue(control httphelpers.SSEStreamControl) {
 	f.events.Enqueue(control)
 	f.events = nil
+}
+
+// SSEEvents returns the events in the protocol and clears the internal queue.
+func (f *StreamingProtocol) SSEEvents() []eventsource.Event {
+	events := make([]eventsource.Event, len(f.events))
+	for i, event := range f.events {
+		events[i] = sseEvent{event: event}
+	}
+	f.events = nil
+	return events
 }
