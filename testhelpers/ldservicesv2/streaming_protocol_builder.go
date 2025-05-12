@@ -15,7 +15,7 @@ type sseEvent struct {
 	event httphelpers.SSEEvent
 }
 
-func (s sseEvent) Id() string {
+func (s sseEvent) Id() string { //nolint:stylecheck
 	return s.event.ID
 }
 
