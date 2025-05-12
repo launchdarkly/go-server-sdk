@@ -113,7 +113,7 @@ func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(ldservicesv2.NewServerSDKData().ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
@@ -156,7 +156,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 			Payload: subsystems.Payload{
 				ID: "fake-id", Target: 0, Code: "none", Reason: "caughtup",
 			}}).
-			WithTransferred(1).
+			WithTransferred("state", 1).
 			Enqueue(p.stream)
 
 		<-p.requests
@@ -251,7 +251,7 @@ func runStreamingTest(
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(initialData.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 
 	events := make(chan eventsource.Event, 1000)
 	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
@@ -308,7 +308,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	sequentialHandler := httphelpers.SequentialHandler(
