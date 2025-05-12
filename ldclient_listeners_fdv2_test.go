@@ -49,7 +49,7 @@ func clientListenersV2TestWithConfig(configAction func(*Config), action func(cli
 			ID: "something-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
-		WithTransferred(1)
+		WithTransferred("state", 1)
 	streamHandler, control := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	handler := httphelpers.SequentialHandler(streamHandler, handlers...)
@@ -90,7 +90,7 @@ func TestFlagTrackerV2(t *testing.T) {
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})
-			p.protocol.WithTransferred(1)
+			p.protocol.WithTransferred("state", 1)
 			p.protocol.Enqueue(p.control)
 
 			sharedtest.ExpectFlagChangeEvents(t, ch1, alwaysTrueFlag.Key)
@@ -106,7 +106,7 @@ func TestFlagTrackerV2(t *testing.T) {
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})
-			p.protocol.WithTransferred(2)
+			p.protocol.WithTransferred("state", 2)
 			p.protocol.Enqueue(p.control)
 
 			sharedtest.ExpectFlagChangeEvents(t, ch2, alwaysTrueFlag.Key)
@@ -135,7 +135,7 @@ func TestFlagTrackerV2(t *testing.T) {
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})
-			p.protocol.WithTransferred(1)
+			p.protocol.WithTransferred("state", 1)
 			p.protocol.Enqueue(p.control)
 
 			// ch1 doesn't receive one, because the flag's value hasn't changed for user
