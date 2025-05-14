@@ -6,3 +6,4 @@ allocations.out
 .vscode
 go.work
 go.work.sum
+coverage.out

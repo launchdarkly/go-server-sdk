@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
@@ -155,7 +157,8 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 		p.protocol.WithIntent(subsystems.ServerIntent{
 			Payload: subsystems.Payload{
 				ID: "fake-id", Target: 0, Code: "none", Reason: "caughtup",
-			}}).
+			},
+		}).
 			WithTransferred("state", 1).
 			Enqueue(p.stream)
 
@@ -217,8 +220,10 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 
 	t.Run("put-object with well-formed JSON but malformed data model item", func(t *testing.T) {
 		runStreamingTest(t, ldservicesv2.NewServerSDKData(), func(p streamingTestParams) {
-			p.stream.Send(httphelpers.SSEEvent{Event: putObjectEvent,
-				Data: `{"version": "invalid", "kind": "flag", "key": "flag-key", "object": {}}`})
+			p.stream.Send(httphelpers.SSEEvent{
+				Event: putObjectEvent,
+				Data:  `{"version": "invalid", "kind": "flag", "key": "flag-key", "object": {}}`,
+			})
 			expectRestart(t, p)
 			p.mockLog.AssertMessageMatch(t, true, ldlog.Error, ".*malformed JSON data.*will restart")
 		})
@@ -298,7 +303,6 @@ func runStreamingTest(
 			test(params)
 		},
 	)
-
 }
 
 func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
@@ -382,4 +386,70 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 		assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, result.Error.Kind)
 		assert.Equal(t, statusCode, result.Error.StatusCode)
 	})
+}
+
+func TestStreamingDataSourceHandlesUpToDateAndSubsequentChanges(t *testing.T) {
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "up-to-date",
+				Code:   subsystems.IntentNone, // Indicates the data source is up to date
+				Reason: "initial-state",
+			},
+		})
+
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	// Set up the mock data destination and server
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	handler, _ := httphelpers.RecordingHandler(streamHandler)
+
+	mockLog := ldlogtest.NewMockLog()
+	mockLog.Loggers.SetMinLevel(ldlog.Debug)
+	defer mockLog.DumpIfTestFailed(t)
+
+	httphelpers.WithServer(
+		handler,
+		func(streamServer *httptest.Server) {
+			httpClientFactory := func() *http.Client {
+				c := *http.DefaultClient
+				c.Timeout = 200 * time.Millisecond
+				return &c
+			}
+			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
+
+			sp := NewStreamProcessor(context, dd, datasource.StreamConfig{URI: streamServer.URL})
+			defer sp.Close()
+
+			// Start the stream and verify the data source is initialized, but the flag doesn't exist.
+			statusChan := sp.Sync()
+			status := <-statusChan
+			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
+			assert.True(t, sp.IsInitialized(), "Data source should be initialized after receiving up-to-date intent")
+
+			flag, err := dd.DataStore.Get(datakinds.Features, "test-flag")
+			assert.NoError(t, err)
+			assert.Nil(t, flag.Item)
+
+			// Push a change through the data source
+			change := subsystems.PutObject{
+				Kind:    "flag",
+				Key:     "test-flag",
+				Version: 1,
+				Object:  json.RawMessage(`{"key": "test-flag", "version": 1}`),
+			}
+			protocol.WithPutObjects([]subsystems.PutObject{change})
+			protocol.WithTransferred("state", 1)
+			protocol.Enqueue(stream)
+
+			// Verify the change is successfully received and applied
+			status = <-statusChan
+			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
+			flag, err = dd.DataStore.Get(datakinds.Features, "test-flag")
+			assert.NoError(t, err)
+			assert.Equal(t, 1, flag.Version)
+			assert.NotNil(t, 1, flag.Item)
+		},
+	)
 }

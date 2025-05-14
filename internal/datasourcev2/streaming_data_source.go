@@ -1,14 +1,13 @@
 package datasourcev2
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
-
-	"context"
 
 	es "github.com/launchdarkly/eventsource"
 
@@ -128,6 +127,7 @@ func (sp *StreamProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 	return statusChan
 }
 
+//nolint:gocyclo
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- interfaces.DataSynchronizerStatus) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -200,18 +200,23 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 					break
 				}
 
+				if err := changeSetBuilder.Start(serverIntent); err != nil {
+					gotMalformedEvent(event, err)
+					break
+				}
+
 				// IntentNone is a special case where we won't receive a payload-transferred event, so we will need
 				// to instead immediately notify the client that we are initialized.
 				if serverIntent.Payload.Code == subsystems.IntentNone {
+					if err := changeSetBuilder.ExpectChanges(); err != nil {
+						gotMalformedEvent(nil, err)
+						break
+					}
+
 					statusChan <- interfaces.DataSynchronizerStatus{
 						State: interfaces.DataSourceStateValid,
 					}
 					sp.setInitialized(true)
-					break
-				}
-
-				if err := changeSetBuilder.Start(serverIntent); err != nil {
-					gotMalformedEvent(event, err)
 					break
 				}
 
@@ -426,7 +431,6 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 		es.StreamOptionCanRetryFirstConnection(-1),
 		es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info)),
 	)
-
 	if err != nil {
 		sp.logConnectionResult(false)
 

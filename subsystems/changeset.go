@@ -106,6 +106,27 @@ func (c *ChangeSetBuilder) Start(intent ServerIntent) error {
 	return nil
 }
 
+// ExpectChanges ensures that the current ChangeSetBuilder is prepared to handle changes.
+//
+// If a data source's initial connection reflects an update-to-date status, we
+// need to keep the provided server-intent. This allows subsequent changes to
+// come down the line without an explicit server-intent.
+//
+// However, to maintain logical consistency, we need to ensure that the intent
+// is set to IntentTransferChanges.
+func (c *ChangeSetBuilder) ExpectChanges() error {
+	if c.intent == nil {
+		return errors.New("changeset: cannot expect changes without a server-intent")
+	}
+
+	if c.intent.Payload.Code != IntentNone {
+		return nil
+	}
+
+	c.intent.Payload.Code = IntentTransferChanges
+	return nil
+}
+
 // Reset clears any existing changes, while preserving the current intent.
 func (c *ChangeSetBuilder) Reset() {
 	c.changes = nil
