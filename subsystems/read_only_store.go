@@ -1,6 +1,8 @@
 package subsystems
 
-import "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+import (
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+)
 
 // ReadOnlyStore represents a read-only data store that can be used to retrieve
 // any of the SDK's supported DataKinds.
@@ -29,4 +31,18 @@ type ReadOnlyStore interface {
 	// check the store again; this method should be as fast as possible since it may be called during
 	// feature flag evaluations.
 	IsInitialized() bool
+}
+
+// ReadOnlyDataStore represents a read-only data store that can be used to
+// retrieve any of the SDK's supported DataKinds.
+//
+// This field is not stable, and not subject to any backwards compatibility guarantees or semantic versioning.
+// It is not suitable for production usage. Do not use it. You have been warned.
+type ReadOnlyDataStore interface {
+	ReadOnlyStore
+
+	// Snapshot returns a snapshot of the current state of the data store. The
+	// snapshot includes both the map representing the data in the active store,
+	// but also a selector that can be used as a basis for the FDv2 protocol.
+	Snapshot() (map[ldstoretypes.DataKind][]ldstoretypes.KeyedItemDescriptor, Selector, error)
 }

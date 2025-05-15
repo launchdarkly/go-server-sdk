@@ -26,7 +26,8 @@ type FDv1 struct {
 // client is in offline mode. If configuration is invalid, an error will be returned.
 func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsystems.DataStore],
 	dataSourceFactory subsystems.ComponentConfigurer[subsystems.DataSource],
-	clientContext *internal.ClientContextImpl) (*FDv1, error) {
+	clientContext *internal.ClientContextImpl,
+) (*FDv1, error) {
 	system := &FDv1{
 		dataSourceStatusBroadcaster: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatusBroadcaster:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
