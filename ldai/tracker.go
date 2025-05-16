@@ -32,8 +32,23 @@ type TokenUsage struct {
 	Total int
 	// Input is the number of input tokens used.
 	Input int
+
 	// Output is the number of output tokens used.
 	Output int
+}
+
+// MetricSummary represents a summary of metrics tracked by the tracker.
+type MetricSummary struct {
+	// Duration is the tracked duration in milliseconds. It is nil if no duration was tracked.
+	Duration *time.Duration
+	// Feedback is the tracked user feedback (positive or negative). It is nil if no feedback was tracked.
+	Feedback *Feedback
+	// Tokens contains information about token usage. It is nil if no token usage was tracked.
+	Tokens *TokenUsage
+	// Success indicates whether the operation was successful. It is nil if success/error was not tracked.
+	Success *bool
+	// TimeToFirstToken is the time to the first token in milliseconds. It is nil if not tracked.
+	TimeToFirstToken *time.Duration
 }
 
 // Set returns true if any of the fields are non-zero.
@@ -100,6 +115,12 @@ type Tracker struct {
 	trackData ldvalue.Value
 	logger    interfaces.LDLoggers
 	stopwatch Stopwatch
+
+	duration         *time.Duration
+	feedback         *Feedback
+	tokens           *TokenUsage
+	success          *bool
+	timeToFirstToken *time.Duration
 }
 
 // Used if a custom Stopwatch is not provided.
@@ -170,6 +191,7 @@ func (t *Tracker) logWarning(format string, args ...interface{}) {
 // tracked here. See also TrackRequest.
 // The duration in milliseconds must fit within a float64.
 func (t *Tracker) TrackDuration(dur time.Duration) error {
+	t.duration = &dur
 	return t.events.TrackMetric(duration, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
@@ -178,8 +200,10 @@ func (t *Tracker) TrackDuration(dur time.Duration) error {
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	switch feedback {
 	case FeedbackPositive:
+		t.feedback = &feedback
 		return t.events.TrackMetric(feedbackPositive, t.context, 1, t.trackData)
 	case FeedbackNegative:
+		t.feedback = &feedback
 		return t.events.TrackMetric(feedbackNegative, t.context, 1, t.trackData)
 	default:
 		return fmt.Errorf("tracker: unexpected feedback value: %v", feedback)
@@ -188,6 +212,9 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 
 // TrackSuccess tracks a successful model evaluation.
 func (t *Tracker) TrackSuccess() error {
+	success := true
+	t.success = &success
+
 	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
 	if err := t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData); err != nil {
 		return err
@@ -198,6 +225,9 @@ func (t *Tracker) TrackSuccess() error {
 
 // TrackError tracks an unsuccessful model evaluation.
 func (t *Tracker) TrackError() error {
+	success := false
+	t.success = &success
+
 	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
 	if err := t.events.TrackMetric(generationError, t.context, 1, t.trackData); err != nil {
 		return err
@@ -208,11 +238,16 @@ func (t *Tracker) TrackError() error {
 
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
+	t.timeToFirstToken = &dur
 	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
 // TrackUsage tracks the token usage for a model evaluation.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
+	if usage.Set() {
+		t.tokens = &usage
+	}
+
 	var failed bool
 
 	if usage.Total > 0 {
@@ -248,6 +283,18 @@ func measureDurationOfTask[T any, A any](
 	stopwatch.Start()
 	result, err := task(arg)
 	return result, stopwatch.Stop(), err
+}
+
+// GetSummary returns a summary of all metrics that have been tracked using this tracker.
+// If the same metric has been tracked multiple times, this returns the most recent value.
+func (t *Tracker) GetSummary() MetricSummary {
+	return MetricSummary{
+		Duration:         t.duration,
+		Feedback:         t.feedback,
+		Tokens:           t.tokens,
+		Success:          t.success,
+		TimeToFirstToken: t.timeToFirstToken,
+	}
 }
 
 // TrackRequest tracks metrics for a model evaluation request. The task function should return a ProviderResponse

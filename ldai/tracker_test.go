@@ -308,3 +308,92 @@ func TestTracker_TrackUsage(t *testing.T) {
 		assert.ElementsMatch(t, []trackEvent{expectedTotal, expectedInput, expectedOutput}, events.events)
 	})
 }
+func TestTracker_GetSummary(t *testing.T) {
+	t.Run("empty summary when nothing tracked", func(t *testing.T) {
+		events := newMockEvents()
+		tracker := newTracker("key", "variationKey", 10, events, &Config{}, ldcontext.New("key"), nil)
+		
+		summary := tracker.GetSummary()
+		
+		assert.Nil(t, summary.Duration)
+		assert.Nil(t, summary.Feedback)
+		assert.Nil(t, summary.Tokens)
+		assert.Nil(t, summary.Success)
+		assert.Nil(t, summary.TimeToFirstToken)
+	})
+	
+	t.Run("latest duration is returned", func(t *testing.T) {
+		events := newMockEvents()
+		tracker := newTracker("key", "variationKey", 11, events, &Config{}, ldcontext.New("key"), nil)
+		
+		_ = tracker.TrackDuration(time.Millisecond * 10)
+		_ = tracker.TrackDuration(time.Millisecond * 20)
+		
+		summary := tracker.GetSummary()
+		
+		assert.NotNil(t, summary.Duration)
+		assert.Equal(t, time.Millisecond * 20, *summary.Duration)
+	})
+	
+	t.Run("latest feedback is returned", func(t *testing.T) {
+		events := newMockEvents()
+		tracker := newTracker("key", "variationKey", 12, events, &Config{}, ldcontext.New("key"), nil)
+		
+		_ = tracker.TrackFeedback(FeedbackPositive)
+		_ = tracker.TrackFeedback(FeedbackNegative)
+		
+		summary := tracker.GetSummary()
+		
+		assert.NotNil(t, summary.Feedback)
+		assert.Equal(t, FeedbackNegative, *summary.Feedback)
+	})
+	
+	t.Run("success status tracked correctly", func(t *testing.T) {
+		events := newMockEvents()
+		tracker := newTracker("key", "variationKey", 13, events, &Config{}, ldcontext.New("key"), nil)
+		
+		_ = tracker.TrackSuccess()
+		
+		summary := tracker.GetSummary()
+		
+		assert.NotNil(t, summary.Success)
+		assert.True(t, *summary.Success)
+		
+		_ = tracker.TrackError()
+		
+		summary = tracker.GetSummary()
+		
+		assert.NotNil(t, summary.Success)
+		assert.False(t, *summary.Success)
+	})
+	
+	t.Run("time to first token is returned", func(t *testing.T) {
+		events := newMockEvents()
+		tracker := newTracker("key", "variationKey", 14, events, &Config{}, ldcontext.New("key"), nil)
+		
+		duration := time.Millisecond * 30
+		_ = tracker.TrackTimeToFirstToken(duration)
+		
+		summary := tracker.GetSummary()
+		
+		assert.NotNil(t, summary.TimeToFirstToken)
+		assert.Equal(t, duration, *summary.TimeToFirstToken)
+	})
+	
+	t.Run("token usage is returned", func(t *testing.T) {
+		events := newMockEvents()
+		tracker := newTracker("key", "variationKey", 15, events, &Config{}, ldcontext.New("key"), nil)
+		
+		usage := TokenUsage{
+			Total:  100,
+			Input:  40,
+			Output: 60,
+		}
+		_ = tracker.TrackUsage(usage)
+		
+		summary := tracker.GetSummary()
+		
+		assert.NotNil(t, summary.Tokens)
+		assert.Equal(t, usage, *summary.Tokens)
+	})
+}
