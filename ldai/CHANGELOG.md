@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.6.0...ldai/v0.7.0) (2025-05-19)
+
+
+### Features
+
+* Add GetSummary method to tracker ([#269](https://github.com/launchdarkly/go-server-sdk/issues/269)) ([5cd7b46](https://github.com/launchdarkly/go-server-sdk/commit/5cd7b463fe641cdc4dff3dbce1a68416c4208b6c))
+
 ## [0.6.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.5.0...ldai/v0.6.0) (2025-02-07)
 
 
