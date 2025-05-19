@@ -13,8 +13,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
-var _ subsystems.DataDestination = (*Store)(nil)
-var _ subsystems.ReadOnlyStore = (*Store)(nil)
+var (
+	_ subsystems.DataDestination   = (*Store)(nil)
+	_ subsystems.ReadOnlyStore     = (*Store)(nil)
+	_ subsystems.ReadOnlyDataStore = (*Store)(nil)
+)
 
 type broadcasters struct {
 	dataSourceStatus *internal.Broadcaster[interfaces.DataSourceStatus]
@@ -89,7 +92,8 @@ type FDv2 struct {
 // disabled.
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
 	clientContext *internal.ClientContextImpl,
-	ldRelayWrapper func(subsystems.DataDestination, subsystems.ReadOnlyStore) subsystems.DataDestination) (*FDv2, error) {
+	ldRelayWrapper func(subsystems.DataDestination, subsystems.ReadOnlyDataStore) subsystems.DataDestination,
+) (*FDv2, error) {
 	bcasters := &broadcasters{
 		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
 		dataStoreStatus:  internal.NewBroadcaster[interfaces.DataStoreStatus](),

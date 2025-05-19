@@ -131,7 +131,8 @@ func NewStore(
 // DataDestination, which is what this store struct implements. Therefore, the call to NewStore and
 // WithPersistence need to be separate.
 func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems.DataStoreMode,
-	statusProvider interfaces.DataStoreStatusProvider) *Store {
+	statusProvider interfaces.DataStoreStatusProvider,
+) *Store {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -298,6 +299,32 @@ func (s *Store) getActive() subsystems.ReadOnlyStore {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.active
+}
+
+//nolint:revive // Implementation for ReadOnlyDataStore.
+func (s *Store) Snapshot() (
+	map[ldstoretypes.DataKind][]ldstoretypes.KeyedItemDescriptor, subsystems.Selector, error,
+) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	store := s.active
+	flags, err := store.GetAll(datakinds.Features)
+	if err != nil {
+		return nil, subsystems.NoSelector(), err
+	}
+
+	segments, err := store.GetAll(datakinds.Segments)
+	if err != nil {
+		return nil, subsystems.NoSelector(), err
+	}
+
+	payload := map[ldstoretypes.DataKind][]ldstoretypes.KeyedItemDescriptor{
+		datakinds.Features: flags,
+		datakinds.Segments: segments,
+	}
+
+	return payload, s.selector, nil
 }
 
 //nolint:revive // Implementation for ReadOnlyStore.
