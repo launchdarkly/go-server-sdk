@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	ldcommon "github.com/launchdarkly/go-sdk-common/v3"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -39,16 +40,16 @@ type TokenUsage struct {
 
 // MetricSummary represents a summary of metrics tracked by the tracker.
 type MetricSummary struct {
-	// Duration is the tracked duration in milliseconds. It is nil if no duration was tracked.
-	Duration *time.Duration
-	// Feedback is the tracked user feedback (positive or negative). It is nil if no feedback was tracked.
-	Feedback *Feedback
-	// Tokens contains information about token usage. It is nil if no token usage was tracked.
-	Tokens *TokenUsage
-	// Success indicates whether the operation was successful. It is nil if success/error was not tracked.
-	Success *bool
-	// TimeToFirstToken is the time to the first token in milliseconds. It is nil if not tracked.
-	TimeToFirstToken *time.Duration
+	// Duration is the tracked duration in milliseconds.
+	Duration ldcommon.Option[time.Duration]
+	// Feedback is the tracked user feedback (positive or negative).
+	Feedback ldcommon.Option[Feedback]
+	// Tokens contains information about token usage.
+	Tokens ldcommon.Option[TokenUsage]
+	// Success indicates whether the operation was successful.
+	Success ldcommon.Option[bool]
+	// TimeToFirstToken is the time to the first token in milliseconds.
+	TimeToFirstToken ldcommon.Option[time.Duration]
 }
 
 // Set returns true if any of the fields are non-zero.
@@ -116,11 +117,11 @@ type Tracker struct {
 	logger    interfaces.LDLoggers
 	stopwatch Stopwatch
 
-	duration         *time.Duration
-	feedback         *Feedback
-	tokens           *TokenUsage
-	success          *bool
-	timeToFirstToken *time.Duration
+	duration         ldcommon.Option[time.Duration]
+	feedback         ldcommon.Option[Feedback]
+	tokens           ldcommon.Option[TokenUsage]
+	success          ldcommon.Option[bool]
+	timeToFirstToken ldcommon.Option[time.Duration]
 }
 
 // Used if a custom Stopwatch is not provided.
@@ -146,7 +147,8 @@ func newTracker(
 	events EventSink,
 	config *Config,
 	ctx ldcontext.Context,
-	loggers interfaces.LDLoggers) *Tracker {
+	loggers interfaces.LDLoggers,
+) *Tracker {
 	return newTrackerWithStopwatch(key, variationKey, version, events, config, ctx, loggers, &defaultStopwatch{})
 }
 
@@ -160,7 +162,8 @@ func newTrackerWithStopwatch(
 	config *Config,
 	ctx ldcontext.Context,
 	loggers interfaces.LDLoggers,
-	stopwatch Stopwatch) *Tracker {
+	stopwatch Stopwatch,
+) *Tracker {
 	if config == nil {
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
@@ -191,7 +194,7 @@ func (t *Tracker) logWarning(format string, args ...interface{}) {
 // tracked here. See also TrackRequest.
 // The duration in milliseconds must fit within a float64.
 func (t *Tracker) TrackDuration(dur time.Duration) error {
-	t.duration = &dur
+	t.duration = ldcommon.Some(dur)
 	return t.events.TrackMetric(duration, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
@@ -200,10 +203,10 @@ func (t *Tracker) TrackDuration(dur time.Duration) error {
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	switch feedback {
 	case FeedbackPositive:
-		t.feedback = &feedback
+		t.feedback = ldcommon.Some(feedback)
 		return t.events.TrackMetric(feedbackPositive, t.context, 1, t.trackData)
 	case FeedbackNegative:
-		t.feedback = &feedback
+		t.feedback = ldcommon.Some(feedback)
 		return t.events.TrackMetric(feedbackNegative, t.context, 1, t.trackData)
 	default:
 		return fmt.Errorf("tracker: unexpected feedback value: %v", feedback)
@@ -212,8 +215,7 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 
 // TrackSuccess tracks a successful model evaluation.
 func (t *Tracker) TrackSuccess() error {
-	success := true
-	t.success = &success
+	t.success = ldcommon.Some(true)
 
 	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
 	if err := t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData); err != nil {
@@ -225,8 +227,7 @@ func (t *Tracker) TrackSuccess() error {
 
 // TrackError tracks an unsuccessful model evaluation.
 func (t *Tracker) TrackError() error {
-	success := false
-	t.success = &success
+	t.success = ldcommon.Some(false)
 
 	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
 	if err := t.events.TrackMetric(generationError, t.context, 1, t.trackData); err != nil {
@@ -238,14 +239,14 @@ func (t *Tracker) TrackError() error {
 
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
-	t.timeToFirstToken = &dur
+	t.timeToFirstToken = ldcommon.Some(dur)
 	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
 // TrackUsage tracks the token usage for a model evaluation.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	if usage.Set() {
-		t.tokens = &usage
+		t.tokens = ldcommon.Some(usage)
 	}
 
 	var failed bool
@@ -279,7 +280,8 @@ func (t *Tracker) TrackUsage(usage TokenUsage) error {
 func measureDurationOfTask[T any, A any](
 	stopwatch Stopwatch,
 	arg A,
-	task func(A) (T, error)) (T, time.Duration, error) {
+	task func(A) (T, error),
+) (T, time.Duration, error) {
 	stopwatch.Start()
 	result, err := task(arg)
 	return result, stopwatch.Stop(), err
@@ -312,7 +314,6 @@ func (t *Tracker) GetSummary() MetricSummary {
 //  3. Any token usage that was set in the ProviderResponse.
 func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (ProviderResponse, error) {
 	usage, duration, err := measureDurationOfTask(t.stopwatch, t.config, task)
-
 	if err != nil {
 		if e := t.TrackError(); e != nil {
 			t.logWarning("error tracking error metric for request: %v", e)
