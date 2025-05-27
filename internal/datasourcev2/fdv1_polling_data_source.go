@@ -80,12 +80,11 @@ func (r *fdv1ToFDv2Requester) FilterKey() string {
 // NewFDv1PollingProcessor creates the internal implementation of the polling data source.
 func NewFDv1PollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination,
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
 	requester := &fdv1ToFDv2Requester{
 		requester: datasource.NewPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey),
 		loggers:   context.GetLogging().Loggers,
 	}
-	return newPollingProcessor(context, dataDestination, requester, cfg.PollInterval)
+	return newPollingProcessor(context, requester, cfg.PollInterval)
 }

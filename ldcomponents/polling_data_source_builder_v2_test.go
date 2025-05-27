@@ -8,9 +8,6 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,11 +59,9 @@ func TestPollingDataSourceV2Builder(t *testing.T) {
 		// custom endpoints are injected within the Data System config.
 		p := PollingDataSourceV2()
 
-		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
 
 		clientContext := makeTestContextWithBaseURIs(fdv1BaseURI)
-		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 
 		ds, err := p.Build(clientContext)
@@ -86,11 +81,9 @@ func TestPollingDataSourceV2Builder(t *testing.T) {
 
 		p := PollingDataSourceV2().PollInterval(interval).PayloadFilter(filter).BaseURI(baseURI)
 
-		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
 
 		clientContext := makeTestContextWithBaseURIs(baseURI)
-		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 
 		ds, err := p.Build(clientContext)

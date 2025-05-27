@@ -27,13 +27,16 @@ type DataSource interface {
 // Basis represents the initial payload of data that a data source can provide. Initializers provide this
 // via Fetch, whereas Synchronizers provide it asynchronously via the injected DataDestination.
 type Basis struct {
-	// Events is a series of events representing actions applied to data items.
-	Events []Change
-	// Selector identifies this basis.
-	Selector Selector
+	ChangeSet ChangeSet
 	// Persist is true if the data source requests that the data store persist the items to any connected
 	// Persistent Stores.
 	Persist bool
+}
+
+// DataSelector is an interface that provides a Selector, which is used by synchronizers and initializers to
+// the basis of data to fetch.
+type DataSelector interface {
+	Selector() Selector
 }
 
 // DataInitializer represents a component capable of obtaining a Basis via a synchronous call.
@@ -42,18 +45,22 @@ type DataInitializer interface {
 	Name() string
 	// Fetch returns a Basis, or an error if the Basis could not be retrieved. If the context has expired,
 	// return the context's error.
-	Fetch(ctx context.Context) (*Basis, error)
+	Fetch(ds DataSelector, ctx context.Context) (*Basis, error)
+}
+
+// DataSynchronizerResult represents the results of a Synchronizer's ongoing Sync method.
+type DataSynchronizerResult struct {
+	ChangeSet    *ChangeSet
+	State        interfaces.DataSourceState
+	Error        interfaces.DataSourceErrorInfo
+	RevertToFDv1 bool
 }
 
 // DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.
 type DataSynchronizer interface {
 	DataInitializer
 	// Sync tells the data synchronizer to begin synchronizing data.
-	Sync() <-chan interfaces.DataSynchronizerStatus
-	// IsInitialized returns true if the data source has successfully initialized at some point.
-	//
-	// Once this is true, it should remain true even if a problem occurs later.
-	IsInitialized() bool
+	Sync(DataSelector) <-chan DataSynchronizerResult
 	io.Closer
 }
 

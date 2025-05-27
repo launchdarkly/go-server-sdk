@@ -78,7 +78,7 @@ func (b *FDv1PollingDataSourceBuilderV2) Build(context subsystems.ClientContext)
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
 	}
-	return datasourcev2.NewFDv1PollingProcessor(context, context.GetDataDestination(), cfg), nil
+	return datasourcev2.NewFDv1PollingProcessor(context, cfg), nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

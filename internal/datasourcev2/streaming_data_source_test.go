@@ -1,6 +1,7 @@
 package datasourcev2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,58 +42,55 @@ const (
 type streamingTestParams struct {
 	events     chan<- eventsource.Event
 	protocol   *ldservicesv2.StreamingProtocol
-	statusChan <-chan interfaces.DataSynchronizerStatus
+	resultChan <-chan subsystems.DataSynchronizerResult
 	stream     httphelpers.SSEStreamControl
 	requests   <-chan httphelpers.HTTPRequestInfo
 	mockLog    *ldlogtest.MockLog
 }
 
-func PreclosingShouldShutdownImmediately(t *testing.T) {
-	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
-	sp := NewStreamProcessor(
-		sharedtest.BasicClientContext(),
-		dd,
-		datasource.StreamConfig{
-			URI:                   ":/",
-			InitialReconnectDelay: time.Millisecond * 50,
-			FilterKey:             "filter-value",
-		},
-	)
-
-	sp.Close()
-	statusChan := sp.Sync()
-	th.AssertChannelClosed(t, statusChan, time.Second, "starting a closed processor should not yield results")
-}
-
-func TestMalformedStreamBaseURI(t *testing.T) {
-	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+func TestStreamingDoesNotWorkAsInitializer(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 	sp := NewStreamProcessor(
 		sharedtest.BasicClientContext(),
-		dd,
 		datasource.StreamConfig{
-			URI:                   ":/",
+			URI:                   "http://example.com/stream",
 			InitialReconnectDelay: time.Millisecond * 50,
-			FilterKey:             "filter-value",
 		},
 	)
 
 	defer sp.Close()
-	statusChan := sp.Sync()
+	basis, err := sp.Fetch(ds, context.Background())
+	assert.Nil(t, basis)
+	assert.NotNil(t, err)
+}
 
-	result := <-statusChan
+func TestMalformedStreamBaseURI(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	sp := NewStreamProcessor(
+		sharedtest.BasicClientContext(),
+		datasource.StreamConfig{
+			URI:                   ":/",
+			InitialReconnectDelay: time.Millisecond * 50,
+		},
+	)
+
+	defer sp.Close()
+	resultChan := sp.Sync(ds)
+
+	result := <-resultChan
 	assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
 }
 
 func TestStreamingProcessorAppendsFilterParameter(t *testing.T) {
-	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		sp := NewStreamProcessor(
 			sharedtest.BasicClientContext(),
-			dd,
 			datasource.StreamConfig{
 				URI:                   ts.URL,
 				InitialReconnectDelay: time.Millisecond * 50,
@@ -101,11 +99,132 @@ func TestStreamingProcessorAppendsFilterParameter(t *testing.T) {
 		)
 
 		defer sp.Close()
-		sp.Sync()
+		sp.Sync(ds)
 
 		r := <-requestsCh
 
 		assert.Equal(t, "filter-value", r.Request.URL.Query().Get("filter"))
+	})
+}
+
+func TestStreamingProcessorAppendsBasisParameter(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NewSelector("test-state", 1))
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		defer sp.Close()
+		sp.Sync(ds)
+
+		r := <-requestsCh
+
+		assert.Equal(t, "test-state", r.Request.URL.Query().Get("basis"))
+	})
+}
+
+func TestStreamingProcessorCanMakeSuccessfulRequest(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "something-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("updated-state", 2)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	handler, _ := httphelpers.RecordingHandler(streamHandler) // we don't care about getting valid stream data
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		defer sp.Close()
+		resultChan := sp.Sync(ds)
+		result := <-resultChan
+
+		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
+		assert.NotNil(t, result.ChangeSet)
+		assert.Len(t, result.ChangeSet.Changes(), 1)
+	})
+}
+
+func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	header := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		defer sp.Close()
+		resultChan := sp.Sync(ds)
+		result := <-resultChan
+
+		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
+		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
+		assert.True(t, result.RevertToFDv1)
+	})
+}
+
+func TestStreamingProcessorPreClosingShouldShutdownImmediately(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		sp.Close()
+		resultChan := sp.Sync(ds)
+
+		// Assert the channel is closed
+		th.AssertChannelClosed(t, resultChan, time.Second, "starting a closed processor should not yield results")
+	})
+}
+
+func TestStreamingProcessorClosingClosesResultChan(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		resultChan := sp.Sync(ds)
+		sp.Close()
+
+		<-resultChan // Ignore the first close when the error handler deals with the 401
+		<-resultChan // Ignore the redundant off returned because the SSE client failed to start
+
+		// Assert the channel is closed
+		th.AssertChannelClosed(t, resultChan, time.Second, "starting a closed processor should not yield results")
 	})
 }
 
@@ -118,7 +237,7 @@ func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T
 		WithTransferred("state", 1)
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
-	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler) // we don't care about getting valid stream data
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -132,16 +251,14 @@ func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T
 
 		sp := NewStreamProcessor(
 			context,
-			dd,
 			datasource.StreamConfig{
 				URI:                   ts.URL,
 				InitialReconnectDelay: time.Millisecond * 50,
-				FilterKey:             "filter-value",
 			},
 		)
 
 		defer sp.Close()
-		sp.Sync()
+		sp.Sync(ds)
 
 		<-time.After(500 * time.Millisecond)
 		assert.Equal(t, 1, len(requestsCh))
@@ -175,7 +292,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 			case <-timer.C:
 				assert.Fail(t, "timed out waiting for stream to restart")
 				return
-			case status := <-p.statusChan:
+			case status := <-p.resultChan:
 				if isValid && status.State == interfaces.DataSourceStateInterrupted {
 					isValid = false
 				} else if !isValid && status.State == interfaces.DataSourceStateValid {
@@ -205,7 +322,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 			p.stream.Send(httphelpers.SSEEvent{Event: putEvent, Data: `{"path": "/", "data": }"`})
 			p.stream.EndAll()
 			<-time.After(300 * time.Millisecond)
-			<-p.statusChan
+			<-p.resultChan
 			p.mockLog.AssertMessageMatch(t, true, ldlog.Info, "Unexpected event found in stream")
 		})
 	})
@@ -274,11 +391,10 @@ func runStreamingTest(
 	httphelpers.WithServer(
 		handler,
 		func(streamServer *httptest.Server) {
-			dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+			ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 			sp := NewStreamProcessor(
 				context,
-				dd,
 				datasource.StreamConfig{
 					URI:                   streamServer.URL,
 					InitialReconnectDelay: briefDelay,
@@ -286,15 +402,15 @@ func runStreamingTest(
 			)
 			defer sp.Close()
 
-			statusChan := sp.Sync()
+			resultChan := sp.Sync(ds)
 
-			status := <-statusChan
+			status := <-resultChan
 			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
 
 			params := streamingTestParams{
 				events:     events,
 				protocol:   protocol,
-				statusChan: statusChan,
+				resultChan: resultChan,
 				stream:     stream,
 				requests:   requestsCh,
 				mockLog:    mockLog,
@@ -322,7 +438,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(sequentialHandler, func(ts *httptest.Server) {
-		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 		id := ldevents.NewDiagnosticID(sharedtest.TestSDKKey)
 		diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
@@ -334,19 +450,19 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 			DiagnosticsManager: diagnosticsManager,
 		}
 
-		sp := NewStreamProcessor(context, dd, datasource.StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
+		sp := NewStreamProcessor(context, datasource.StreamConfig{URI: ts.URL, InitialReconnectDelay: briefDelay})
 		defer sp.Close()
 
 		// should have gotten two status updates: first for the error, then the success - note that we're checking
 		// here for Interrupted because that's how the StreamProcessor reports the error, even though in the public
 		// API it would show up as Initializing because it was still initializing
-		statusChan := sp.Sync()
-		result := <-statusChan
+		resultChan := sp.Sync(ds)
+		result := <-resultChan
 
 		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
 		assert.Equal(t, statusCode, result.Error.StatusCode)
 
-		result = <-statusChan
+		result = <-resultChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 
 		event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
@@ -360,7 +476,7 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
 	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
-		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+		ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 		id := ldevents.NewDiagnosticID(sharedtest.TestSDKKey)
 		diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
@@ -372,11 +488,11 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 			DiagnosticsManager: diagnosticsManager,
 		}
 
-		sp := NewStreamProcessor(context, dd, datasource.StreamConfig{URI: ts.URL, InitialReconnectDelay: time.Second})
+		sp := NewStreamProcessor(context, datasource.StreamConfig{URI: ts.URL, InitialReconnectDelay: time.Second})
 		defer sp.Close()
 
-		statusChan := sp.Sync()
-		result := <-statusChan
+		resultChan := sp.Sync(ds)
+		result := <-resultChan
 
 		event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
 		assert.Equal(t, 1, event.GetByKey("streamInits").Count())
@@ -419,14 +535,14 @@ func TestStreamingDataSourceHandlesUpToDateAndSubsequentChanges(t *testing.T) {
 			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
 			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
 
-			sp := NewStreamProcessor(context, dd, datasource.StreamConfig{URI: streamServer.URL})
+			sp := NewStreamProcessor(context, datasource.StreamConfig{URI: streamServer.URL})
 			defer sp.Close()
 
 			// Start the stream and verify the data source is initialized, but the flag doesn't exist.
-			statusChan := sp.Sync()
-			status := <-statusChan
+			resultChan := sp.Sync(dd)
+			status := <-resultChan
 			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
-			assert.True(t, sp.IsInitialized(), "Data source should be initialized after receiving up-to-date intent")
+			assert.Nil(t, status.ChangeSet)
 
 			flag, err := dd.DataStore.Get(datakinds.Features, "test-flag")
 			assert.NoError(t, err)
@@ -444,8 +560,11 @@ func TestStreamingDataSourceHandlesUpToDateAndSubsequentChanges(t *testing.T) {
 			protocol.Enqueue(stream)
 
 			// Verify the change is successfully received and applied
-			status = <-statusChan
+			status = <-resultChan
 			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
+			assert.NotNil(t, status.ChangeSet)
+			dd.SetBasis(status.ChangeSet.Changes(), status.ChangeSet.Selector(), true)
+
 			flag, err = dd.DataStore.Get(datakinds.Features, "test-flag")
 			assert.NoError(t, err)
 			assert.Equal(t, 1, flag.Version)

@@ -101,12 +101,6 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	}
 
 	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent)
-	var dd subsystems.DataDestination
-	if ldRelayWrapper != nil {
-		dd = ldRelayWrapper(store, store)
-	} else {
-		dd = store
-	}
 
 	fdv2 := &FDv2{
 		store:                    store,
@@ -121,7 +115,6 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(bcasters.dataStoreStatus)
 	clientContextCopy := *clientContext
 	clientContextCopy.DataStoreUpdateSink = dataStoreUpdateSink
-	clientContextCopy.DataDestination = dd
 	clientContextCopy.DataSourceStatusReporter = fdv2
 
 	cfg, err := cfgBuilder.Build(clientContextCopy)
@@ -233,7 +226,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
-		basis, err := initializer.Fetch(ctx)
+		basis, err := initializer.Fetch(f.store, ctx)
 		if errors.Is(err, context.Canceled) {
 			return
 		}
@@ -242,7 +235,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		f.store.SetBasis(basis.Events, basis.Selector, basis.Persist)
+		f.store.SetBasis(basis.ChangeSet.Changes(), basis.ChangeSet.Selector(), basis.Persist)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -274,8 +267,8 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 
 			f.loggers.Debugf("Primary synchronizer %s is starting", primarySync.Name())
-			statusChan := primarySync.Sync()
-			removeSync, fallbackv1, err := f.consumeSynchronizerResults(ctx, statusChan, f.fallbackCond, closeWhenReady)
+			resultChan := primarySync.Sync(f.store)
+			removeSync, fallbackv1, err := f.consumeSynchronizerResults(ctx, resultChan, f.fallbackCond, closeWhenReady)
 			if errors.Is(err, context.Canceled) {
 				return
 			} else if err := primarySync.Close(); err != nil {
@@ -313,8 +306,8 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 			f.loggers.Debugf("Secondary synchronizer %s is starting", secondarySync.Name())
 
-			statusChan = secondarySync.Sync()
-			removeSync, fallbackv1, err = f.consumeSynchronizerResults(ctx, statusChan, f.recoveryCond, closeWhenReady)
+			resultChan = secondarySync.Sync(f.store)
+			removeSync, fallbackv1, err = f.consumeSynchronizerResults(ctx, resultChan, f.recoveryCond, closeWhenReady)
 			if errors.Is(err, context.Canceled) {
 				return
 			} else if err := secondarySync.Close(); err != nil {
@@ -350,7 +343,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 func (f *FDv2) consumeSynchronizerResults(
 	ctx context.Context,
-	statusChan <-chan interfaces.DataSynchronizerStatus,
+	resultChan <-chan subsystems.DataSynchronizerResult,
 	cond func(status interfaces.DataSourceStatus) bool,
 	closeWhenReady chan<- struct{},
 ) (bool, bool, error) {
@@ -361,7 +354,7 @@ func (f *FDv2) consumeSynchronizerResults(
 		select {
 		case <-ctx.Done():
 			return false, false, ctx.Err()
-		case result, ok := <-statusChan:
+		case result, ok := <-resultChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
 			// probably fall back.
@@ -371,9 +364,21 @@ func (f *FDv2) consumeSynchronizerResults(
 
 			switch result.State {
 			case interfaces.DataSourceStateValid:
+				if result.ChangeSet != nil {
+					switch result.ChangeSet.IntentCode() {
+					case subsystems.IntentTransferFull:
+						f.store.SetBasis(result.ChangeSet.Changes(), result.ChangeSet.Selector(), true)
+					case subsystems.IntentTransferChanges:
+						f.store.ApplyDelta(result.ChangeSet.Changes(), result.ChangeSet.Selector(), true)
+					default:
+						f.loggers.Warnf("Received unexpected intent code %s from synchronizer", result.ChangeSet.IntentCode())
+					}
+				}
+
 				f.readyOnce.Do(func() {
 					close(closeWhenReady)
 				})
+
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateInterrupted:
 				f.UpdateStatus(result.State, result.Error)

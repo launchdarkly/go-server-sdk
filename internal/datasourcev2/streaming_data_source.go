@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	es "github.com/launchdarkly/eventsource"
@@ -64,30 +65,26 @@ const (
 // DataSource interface.
 type StreamProcessor struct {
 	cfg                        datasource.StreamConfig
-	dataDestination            subsystems.DataDestination
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
-	isInitialized              internal.AtomicBoolean
-	halt                       chan struct{}
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
-	closeOnce                  sync.Once
+	isClosed                   atomic.Bool
+	halt                       chan struct{}
 }
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
 func NewStreamProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination,
 	cfg datasource.StreamConfig,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
-		dataDestination: dataDestination,
-		headers:         context.GetHTTP().DefaultHeaders,
-		loggers:         context.GetLogging().Loggers,
-		halt:            make(chan struct{}),
-		cfg:             cfg,
+		headers: context.GetHTTP().DefaultHeaders,
+		loggers: context.GetLogging().Loggers,
+		halt:    make(chan struct{}),
+		cfg:     cfg,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -109,26 +106,27 @@ func (sp *StreamProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (sp *StreamProcessor) Fetch(_ context.Context) (*subsystems.Basis, error) {
+func (sp *StreamProcessor) Fetch(ds subsystems.DataSelector, _ context.Context) (*subsystems.Basis, error) {
 	return nil, errors.New("StreamProcessor does not implement Fetch capability")
 }
 
-//nolint:revive // no doc comment for standard method
-func (sp *StreamProcessor) IsInitialized() bool {
-	return sp.isInitialized.Get()
-}
-
 //nolint:revive // DataSynchronizer method.
-func (sp *StreamProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
-	sp.loggers.Info("Starting LaunchDarkly streaming connection")
-	statusChan := make(chan interfaces.DataSynchronizerStatus, 100)
-	go sp.subscribe(statusChan)
+func (sp *StreamProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
+	resultChan := make(chan subsystems.DataSynchronizerResult, 100)
 
-	return statusChan
+	if sp.isClosed.Load() {
+		sp.loggers.Warnf("Streaming processor is already closed, not starting streaming")
+		close(resultChan)
+		return resultChan
+	}
+
+	sp.loggers.Info("Starting LaunchDarkly streaming connection")
+	go sp.subscribe(ds, resultChan)
+
+	return resultChan
 }
 
-//nolint:gocyclo
-func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- interfaces.DataSynchronizerStatus) {
+func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- subsystems.DataSynchronizerResult) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
 		for range stream.Events {
@@ -145,7 +143,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 		select {
 		case event, ok := <-stream.Events:
 			if !ok {
-				close(statusChan)
+				close(resultChan)
 				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
 				// only happens when we have received from sp.halt, in which case we return immediately
 				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
@@ -180,7 +178,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 					Message: err.Error(),
 					Time:    time.Now(),
 				}
-				statusChan <- interfaces.DataSynchronizerStatus{
+				resultChan <- subsystems.DataSynchronizerResult{
 					State: interfaces.DataSourceStateInterrupted,
 					Error: errorInfo,
 				}
@@ -213,10 +211,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 						break
 					}
 
-					statusChan <- interfaces.DataSynchronizerStatus{
+					resultChan <- subsystems.DataSynchronizerResult{
 						State: interfaces.DataSourceStateValid,
 					}
-					sp.setInitialized(true)
 					break
 				}
 
@@ -280,24 +277,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 					break
 				}
 
-				code := changeSet.IntentCode()
-				switch code {
-				case subsystems.IntentTransferFull:
-					sp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
-				case subsystems.IntentTransferChanges:
-					sp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
-				case subsystems.IntentNone:
-					/* We don't expect to receive this, but it could be possible. In that case, it should be
-					equivalent to transferring no changes - a no-op.
-					*/
-				default:
-					continue
+				resultChan <- subsystems.DataSynchronizerResult{
+					ChangeSet: changeSet,
+					State:     interfaces.DataSourceStateValid,
 				}
-
-				statusChan <- interfaces.DataSynchronizerStatus{
-					State: interfaces.DataSourceStateValid,
-				}
-				sp.setInitialized(true)
 
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
@@ -314,7 +297,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, statusChan chan<- in
 	}
 }
 
-func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchronizerStatus) {
+func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult) {
 	path := endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestV2Path)
 	req, reqErr := http.NewRequest("GET", path, nil)
 	if reqErr != nil {
@@ -322,7 +305,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
 			reqErr,
 		)
-		statusChan <- interfaces.DataSynchronizerStatus{
+		resultChan <- subsystems.DataSynchronizerResult{
 			State: interfaces.DataSourceStateOff,
 			Error: interfaces.DataSourceErrorInfo{
 				Kind:    interfaces.DataSourceErrorKindUnknown,
@@ -330,6 +313,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 				Time:    time.Now(),
 			},
 		}
+		close(resultChan)
 		sp.logConnectionResult(false)
 		return
 	}
@@ -363,7 +347,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 			}
 
 			if se.Header.Get("X-LD-FD-Fallback") == "true" {
-				statusChan <- interfaces.DataSynchronizerStatus{
+				resultChan <- subsystems.DataSynchronizerResult{
 					State:        interfaces.DataSourceStateOff,
 					Error:        errorInfo,
 					RevertToFDv1: true,
@@ -380,13 +364,13 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 			)
 			if recoverable {
 				sp.logConnectionStarted()
-				statusChan <- interfaces.DataSynchronizerStatus{
+				resultChan <- subsystems.DataSynchronizerResult{
 					State: interfaces.DataSourceStateInterrupted,
 					Error: errorInfo,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
-			statusChan <- interfaces.DataSynchronizerStatus{
+			resultChan <- subsystems.DataSynchronizerResult{
 				State: interfaces.DataSourceStateOff,
 				Error: errorInfo,
 			}
@@ -405,7 +389,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 			Message: err.Error(),
 			Time:    time.Now(),
 		}
-		statusChan <- interfaces.DataSynchronizerStatus{
+		resultChan <- subsystems.DataSynchronizerResult{
 			State: interfaces.DataSourceStateInterrupted,
 			Error: errorInfo,
 		}
@@ -415,7 +399,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 
 	stream, err := es.SubscribeWithRequestAndOptions(req,
 		es.StreamOptionDynamicQueryParams(func(existing url.Values) url.Values {
-			if selector := sp.dataDestination.Selector(); selector.IsDefined() {
+			if selector := ds.Selector(); selector.IsDefined() {
 				existing.Set("basis", selector.State())
 			}
 
@@ -434,7 +418,7 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 	if err != nil {
 		sp.logConnectionResult(false)
 
-		statusChan <- interfaces.DataSynchronizerStatus{
+		resultChan <- subsystems.DataSynchronizerResult{
 			State: interfaces.DataSourceStateOff,
 			Error: interfaces.DataSourceErrorInfo{
 				Kind:    interfaces.DataSourceErrorKindUnknown,
@@ -442,20 +426,12 @@ func (sp *StreamProcessor) subscribe(statusChan chan<- interfaces.DataSynchroniz
 				Time:    time.Now(),
 			},
 		}
+		close(resultChan)
 
 		return
 	}
 
-	sp.consumeStream(stream, statusChan)
-}
-
-func (sp *StreamProcessor) setInitialized(success bool) {
-	if success {
-		wasAlreadyInitialized := sp.isInitialized.GetAndSet(true)
-		if !wasAlreadyInitialized {
-			sp.loggers.Info("LaunchDarkly streaming is active")
-		}
-	}
+	sp.consumeStream(stream, resultChan)
 }
 
 func (sp *StreamProcessor) logConnectionStarted() {
@@ -478,9 +454,9 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Close() error {
-	sp.closeOnce.Do(func() {
+	if swapped := sp.isClosed.CompareAndSwap(false, true); swapped {
 		close(sp.halt)
-	})
+	}
 	return nil
 }
 
