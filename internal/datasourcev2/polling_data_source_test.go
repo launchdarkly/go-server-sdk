@@ -170,7 +170,7 @@ func TestPollingProcessorSynchronizerClosingClosesResultChan(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
 
-	handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
+	handler, requestCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		processor := NewPollingProcessor(
 			sharedtest.BasicClientContext(),
@@ -181,6 +181,8 @@ func TestPollingProcessorSynchronizerClosingClosesResultChan(t *testing.T) {
 		)
 
 		resultChan := processor.Sync(ds)
+		<-requestCh  // Wait for the request to be made
+		<-resultChan // Discard the first result
 		processor.Close()
 
 		th.AssertChannelClosed(t, resultChan, time.Second, "starting a closed processor should not yield results")
