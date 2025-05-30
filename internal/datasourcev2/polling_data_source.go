@@ -30,38 +30,32 @@ type PollingRequester interface {
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	dataDestination subsystems.DataDestination
-	requester       PollingRequester
-	pollInterval    time.Duration
-	loggers         ldlog.Loggers
-	isInitialized   atomic.Bool
-	isClosed        atomic.Bool
-	quit            chan struct{}
+	requester    PollingRequester
+	pollInterval time.Duration
+	loggers      ldlog.Loggers
+	isClosed     atomic.Bool
+	quit         chan struct{}
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
 func NewPollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination,
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
 	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
-	return newPollingProcessor(context, dataDestination, httpRequester, cfg.PollInterval)
+	return newPollingProcessor(context, httpRequester, cfg.PollInterval)
 }
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
-	dataDestination subsystems.DataDestination,
 	requester PollingRequester,
 	pollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
-		dataDestination: dataDestination,
-		requester:       requester,
-		pollInterval:    pollInterval,
-		loggers:         context.GetLogging().Loggers,
-		quit:            make(chan struct{}),
-		isInitialized:   atomic.Bool{},
+		requester:    requester,
+		pollInterval: pollInterval,
+		loggers:      context.GetLogging().Loggers,
+		quit:         make(chan struct{}),
 	}
 	return pp
 }
@@ -72,23 +66,23 @@ func (pp *PollingProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (pp *PollingProcessor) Fetch(ctx context.Context) (*subsystems.Basis, error) {
-	changeSet, err := pp.requester.Request(ctx, pp.dataDestination.Selector())
+func (pp *PollingProcessor) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, error) {
+	changeSet, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
 		return nil, err
 	}
-	return &subsystems.Basis{Events: changeSet.Changes(), Selector: changeSet.Selector(), Persist: true}, nil
+	return &subsystems.Basis{ChangeSet: *changeSet, Persist: true}, nil
 }
 
 //nolint:revive // DataSynchronizer method.
-func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
-	statusChan := make(chan interfaces.DataSynchronizerStatus)
+func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
+	resultChan := make(chan subsystems.DataSynchronizerResult)
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	if pp.isClosed.Load() {
 		pp.loggers.Warnf("Polling processor is already closed, not starting polling")
-		close(statusChan)
-		return statusChan
+		close(resultChan)
+		return resultChan
 	}
 
 	// This process has a shared method serving both as an initializer and a synchronizer.
@@ -106,10 +100,10 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 		for {
 			select {
 			case <-pp.quit:
-				close(statusChan)
+				close(resultChan)
 				return
 			case <-ticker.C:
-				if err := pp.poll(ctx, statusChan); err != nil {
+				if err := pp.poll(ctx, ds, resultChan); err != nil {
 					if hse, ok := err.(httpStatusError); ok {
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:       interfaces.DataSourceErrorKindErrorResponse,
@@ -118,7 +112,7 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 						}
 
 						if hse.Header.Get("X-LD-FD-Fallback") == "true" {
-							statusChan <- interfaces.DataSynchronizerStatus{
+							resultChan <- subsystems.DataSynchronizerResult{
 								State:        interfaces.DataSourceStateOff,
 								Error:        errorInfo,
 								RevertToFDv1: true,
@@ -134,12 +128,12 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 							pollingWillRetryMessage,
 						)
 						if recoverable {
-							statusChan <- interfaces.DataSynchronizerStatus{
+							resultChan <- subsystems.DataSynchronizerResult{
 								State: interfaces.DataSourceStateInterrupted,
 								Error: errorInfo,
 							}
 						} else {
-							statusChan <- interfaces.DataSynchronizerStatus{
+							resultChan <- subsystems.DataSynchronizerResult{
 								State: interfaces.DataSourceStateOff,
 								Error: errorInfo,
 							}
@@ -155,7 +149,7 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
 						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
-						statusChan <- interfaces.DataSynchronizerStatus{
+						resultChan <- subsystems.DataSynchronizerResult{
 							State: interfaces.DataSourceStateInterrupted,
 							Error: errorInfo,
 						}
@@ -166,32 +160,20 @@ func (pp *PollingProcessor) Sync() <-chan interfaces.DataSynchronizerStatus {
 		}
 	}()
 
-	return statusChan
+	return resultChan
 }
 
-func (pp *PollingProcessor) poll(ctx context.Context, statusChan chan<- interfaces.DataSynchronizerStatus) error {
-	changeSet, err := pp.requester.Request(ctx, pp.dataDestination.Selector())
+func (pp *PollingProcessor) poll(
+	ctx context.Context, ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult,
+) error {
+	changeSet, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
 		return err
 	}
 
-	code := changeSet.IntentCode()
-	switch code {
-	case subsystems.IntentTransferFull:
-		pp.dataDestination.SetBasis(changeSet.Changes(), changeSet.Selector(), true)
-	case subsystems.IntentTransferChanges:
-		pp.dataDestination.ApplyDelta(changeSet.Changes(), changeSet.Selector(), true)
-	case subsystems.IntentNone:
-		// no-op, we are already up-to-date
-	default:
-		// this should never happen but we don't want to actually call this
-		// valid if it does.
-		return nil
-	}
-
-	pp.isInitialized.CompareAndSwap(false, true)
-	statusChan <- interfaces.DataSynchronizerStatus{
-		State: interfaces.DataSourceStateValid,
+	resultChan <- subsystems.DataSynchronizerResult{
+		ChangeSet: changeSet,
+		State:     interfaces.DataSourceStateValid,
 	}
 
 	return nil
@@ -203,11 +185,6 @@ func (pp *PollingProcessor) Close() error {
 		close(pp.quit)
 	}
 	return nil
-}
-
-//nolint:revive // no doc comment for standard method
-func (pp *PollingProcessor) IsInitialized() bool {
-	return pp.isInitialized.Load()
 }
 
 // GetBaseURI returns the configured polling base URI, for testing.

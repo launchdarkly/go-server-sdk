@@ -90,7 +90,7 @@ func TestFlagTrackerV2(t *testing.T) {
 				Key:     alwaysTrueFlag.Key,
 				Object:  jsonFlag,
 			})
-			p.protocol.WithTransferred("state", 1)
+			p.protocol.WithTransferred("state", 2)
 			p.protocol.Enqueue(p.control)
 
 			sharedtest.ExpectFlagChangeEvents(t, ch1, alwaysTrueFlag.Key)

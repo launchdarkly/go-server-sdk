@@ -90,7 +90,6 @@ func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (
 	}
 	return datasourcev2.NewStreamProcessor(
 		context,
-		context.GetDataDestination(),
 		cfg,
 	), nil
 }

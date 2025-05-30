@@ -8,9 +8,6 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,11 +60,9 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 		// custom endpoints are injected within the Data System config.
 		s := StreamingDataSourceV2()
 
-		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
 
 		clientContext := makeTestContextWithBaseURIs(fdv1BaseURI)
-		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 
 		ds, err := s.Build(clientContext)
@@ -88,10 +83,8 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 
 		s := StreamingDataSourceV2().InitialReconnectDelay(delay).PayloadFilter(filter).BaseURI(baseURI)
 
-		dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 		statusReporter := mocks.NewMockStatusReporter()
 		clientContext := makeTestContextWithBaseURIs("not-used")
-		clientContext.BasicClientContext.DataDestination = dd
 		clientContext.BasicClientContext.DataSourceStatusReporter = statusReporter
 		ds, err := s.Build(clientContext)
 		require.NoError(t, err)
