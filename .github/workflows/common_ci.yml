@@ -6,6 +6,8 @@ on:
         description: "Go version to use for the jobs."
         required: true
         type: string
+permissions:
+  contents: read
 
 jobs:
   unit-test-and-coverage:
