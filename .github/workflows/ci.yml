@@ -1,4 +1,6 @@
 name: Build and Test SDK
+permissions:
+  contents: read
 on:
   push:
     branches: [ 'v7', 'feat/**' ]
