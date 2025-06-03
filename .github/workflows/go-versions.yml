@@ -18,6 +18,8 @@
 #    matrix: ${{ fromJSON(this-job.outputs.latest-matrix) }}
 #
 name: Go Versions
+permissions:
+  contents: read
 on:
   workflow_call:
     outputs:
