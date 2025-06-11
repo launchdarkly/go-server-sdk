@@ -64,16 +64,32 @@ func mustMarshal(model any) json.RawMessage {
 
 // ToInitializerPayload converts the data to a PollingPayload object that can
 // be fed to a mock polling service.
-func (s *ServerSDKData) ToInitializerPayload() subsystems.PollingPayload {
+func (s *ServerSDKData) ToInitializerPayload(selector subsystems.Selector) subsystems.PollingPayload {
 	pollingPayload := subsystems.PollingPayload{}
 	pollingPayload.Events = make([]subsystems.RawEvent, 0, 10)
+
+	if len(s.FlagsMap) == 0 && len(s.SegmentsMap) == 0 && selector.IsDefined() {
+		pollingPayload.Events = append(pollingPayload.Events, subsystems.RawEvent{
+			Name: "server-intent",
+			Data: mustMarshal(subsystems.ServerIntent{
+				Payload: subsystems.Payload{
+					ID:     selector.State(),
+					Target: selector.Version(),
+					Code:   subsystems.IntentNone,
+					Reason: "up-to-date",
+				},
+			}),
+		})
+
+		return pollingPayload
+	}
 
 	pollingPayload.Events = append(pollingPayload.Events, subsystems.RawEvent{
 		Name: "server-intent",
 		Data: mustMarshal(subsystems.ServerIntent{
 			Payload: subsystems.Payload{
-				ID:     "some-id",
-				Target: 0,
+				ID:     selector.State(),
+				Target: selector.Version(),
 				Code:   subsystems.IntentTransferFull,
 				Reason: "cant-catchup",
 			},
@@ -89,7 +105,7 @@ func (s *ServerSDKData) ToInitializerPayload() subsystems.PollingPayload {
 
 	pollingPayload.Events = append(pollingPayload.Events, subsystems.RawEvent{
 		Name: "payload-transferred",
-		Data: mustMarshal(subsystems.NewSelector("(p:17YNC7XBH88Y6RDJJ48EKPCJS7:53)", 1)),
+		Data: mustMarshal(selector),
 	})
 
 	return pollingPayload
