@@ -659,3 +659,92 @@ func TestStreamingDataSourceHandlesResettingFromError(t *testing.T) {
 		},
 	)
 }
+
+func TestStreamingDataSourceIgnoresGoodbye(t *testing.T) {
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "payload-id",
+				Code:   subsystems.IntentNone, // Indicates the data source is up to date
+				Reason: "up-to-date",
+			},
+		})
+
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	// Set up the mock data destination and server
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	handler, _ := httphelpers.RecordingHandler(streamHandler)
+
+	mockLog := ldlogtest.NewMockLog()
+	mockLog.Loggers.SetMinLevel(ldlog.Debug)
+	defer mockLog.DumpIfTestFailed(t)
+
+	httphelpers.WithServer(
+		handler,
+		func(streamServer *httptest.Server) {
+			httpClientFactory := func() *http.Client {
+				c := *http.DefaultClient
+				c.Timeout = 200 * time.Millisecond
+				return &c
+			}
+			httpConfig := subsystems.HTTPConfiguration{CreateHTTPClient: httpClientFactory}
+			context := sharedtest.NewTestContext(sharedtest.TestSDKKey, &httpConfig, nil)
+
+			sp := NewStreamProcessor(context, datasource.StreamConfig{URI: streamServer.URL})
+			defer sp.Close()
+
+			// Start the stream and verify the data source is initialized, but the flag doesn't exist.
+			resultChan := sp.Sync(dd)
+			status := <-resultChan
+			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
+			assert.Nil(t, status.ChangeSet)
+
+			flag, err := dd.DataStore.Get(datakinds.Features, "test-flag")
+			assert.NoError(t, err)
+			assert.Nil(t, flag.Item)
+
+			// Push through a put for a new flag that will be discarded due to an error
+			change := subsystems.PutObject{
+				Kind:    "flag",
+				Key:     "before-goodbye-flag",
+				Version: 1,
+				Object:  json.RawMessage(`{"key": "before-goodbye-flag", "version": 1}`),
+			}
+			protocol.WithPutObjects([]subsystems.PutObject{change})
+
+			protocol.WithGoodbye(subsystems.Goodbye{
+				Reason:      "for testing reason",
+				Silent:      false,
+				Catastrophe: false,
+			})
+
+			// Push a change through the data source
+			change = subsystems.PutObject{
+				Kind:    "flag",
+				Key:     "test-flag",
+				Version: 1,
+				Object:  json.RawMessage(`{"key": "test-flag", "version": 1}`),
+			}
+			protocol.WithPutObjects([]subsystems.PutObject{change})
+			protocol.WithTransferred("state", 1)
+			protocol.Enqueue(stream)
+
+			// Verify the change is successfully received and applied
+			status = <-resultChan
+			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
+			assert.NotNil(t, status.ChangeSet)
+			dd.SetBasis(status.ChangeSet.Changes(), status.ChangeSet.Selector(), true)
+
+			flag, err = dd.DataStore.Get(datakinds.Features, "test-flag")
+			assert.NoError(t, err)
+			assert.Equal(t, 1, flag.Version)
+			assert.NotNil(t, 1, flag.Item)
+
+			flag, err = dd.DataStore.Get(datakinds.Features, "before-goodbye-flag")
+			assert.NoError(t, err)
+			assert.Equal(t, 1, flag.Version)
+			assert.NotNil(t, 1, flag.Item)
+		},
+	)
+}

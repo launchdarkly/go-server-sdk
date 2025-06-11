@@ -59,6 +59,11 @@ func (f *StreamingProtocol) WithError(err subsystems.Error) *StreamingProtocol {
 	return f.pushEvent(err)
 }
 
+// WithGoodbye adds a Goodbye event to the protocol.
+func (f *StreamingProtocol) WithGoodbye(goodbye subsystems.Goodbye) *StreamingProtocol {
+	return f.pushEvent(goodbye)
+}
+
 // WithDeleteObject adds a DeleteObject event to the protocol.
 func (f *StreamingProtocol) WithDeleteObject(object subsystems.DeleteObject) *StreamingProtocol {
 	return f.pushEvent(object)
