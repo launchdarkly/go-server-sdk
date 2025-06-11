@@ -54,6 +54,11 @@ func (f *StreamingProtocol) WithPutObject(object subsystems.PutObject) *Streamin
 	return f.pushEvent(object)
 }
 
+// WithError adds an Error event to the protocol.
+func (f *StreamingProtocol) WithError(err subsystems.Error) *StreamingProtocol {
+	return f.pushEvent(err)
+}
+
 // WithDeleteObject adds a DeleteObject event to the protocol.
 func (f *StreamingProtocol) WithDeleteObject(object subsystems.DeleteObject) *StreamingProtocol {
 	return f.pushEvent(object)
