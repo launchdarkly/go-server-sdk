@@ -93,18 +93,8 @@ func createDataSource(
 }
 
 //nolint:revive // Data system implementation.
-func (f *FDv1) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
-	return f.dataSourceStatusBroadcaster
-}
-
-//nolint:revive // Data system implementation.
 func (f *FDv1) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 	return f.dataSourceStatusProvider
-}
-
-//nolint:revive // Data system implementation.
-func (f *FDv1) DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
-	return f.dataStoreStatusBroadcaster
 }
 
 //nolint:revive // Data system implementation.

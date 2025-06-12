@@ -437,18 +437,8 @@ func (f *FDv2) TargetAvailability() DataAvailability {
 }
 
 //nolint:revive // DataSystem method.
-func (f *FDv2) DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus] {
-	return f.broadcasters.dataSourceStatus
-}
-
-//nolint:revive // DataSystem method.
 func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 	return f.dataSourceStatusProvider
-}
-
-//nolint:revive // DataSystem method.
-func (f *FDv2) DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus] {
-	return f.broadcasters.dataStoreStatus
 }
 
 //nolint:revive // DataSystem method.
