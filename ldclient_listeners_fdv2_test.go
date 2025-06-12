@@ -48,7 +48,7 @@ func clientListenersV2TestWithConfig(configAction func(*Config), action func(cli
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "something-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)

@@ -28,7 +28,6 @@ import (
 // the primary synchronizer (streaming mode) will then make a streaming request. This succeeds, returning a payload
 // containing a true flag.
 func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
-
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	// The polling initializer will fail since we return a 500.
@@ -36,7 +35,7 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)
@@ -67,7 +66,6 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
-
 	})
 }
 
@@ -111,7 +109,6 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, true)
 		assert.False(t, value)
-
 	})
 }
 
@@ -120,7 +117,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)
@@ -210,7 +207,7 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)
@@ -290,7 +287,7 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)
@@ -298,7 +295,6 @@ func TestFDV2StreamingSynchronizerUsesCustomTLSConfiguration(t *testing.T) {
 	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 
 	httphelpers.WithSelfSignedServer(streamHandler, func(server *httptest.Server, certData []byte, certs *x509.CertPool) {
-
 		config := Config{
 			Events:  ldcomponents.NoEvents(),
 			HTTP:    ldcomponents.HTTPConfiguration().CACert(certData),
@@ -321,7 +317,7 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)

@@ -132,7 +132,7 @@ func TestStreamingProcessorCanMakeSuccessfulRequest(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "something-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("updated-state", 2)
@@ -231,7 +231,7 @@ func TestStreamingProcessorClosingClosesResultChan(t *testing.T) {
 func TestStreamingProcessorDoesNotUseConfiguredTimeoutAsReadTimeout(t *testing.T) {
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(ldservicesv2.NewServerSDKData().ToPutObjects()).
 		WithTransferred("state", 1)
@@ -273,7 +273,7 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 		<-time.After(300 * time.Millisecond)
 		p.protocol.WithIntent(subsystems.ServerIntent{
 			Payload: subsystems.Payload{
-				ID: "fake-id", Target: 0, Code: "none", Reason: "caughtup",
+				ID: "fake-id", Target: 0, Code: subsystems.IntentNone, Reason: "caughtup",
 			},
 		}).
 			WithTransferred("state", 1).
@@ -370,7 +370,7 @@ func runStreamingTest(
 ) {
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(initialData.ToPutObjects()).
 		WithTransferred("state", 1)
@@ -425,7 +425,7 @@ func testStreamProcessorRecoverableHTTPError(t *testing.T, statusCode int) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "fake-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)
