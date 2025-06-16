@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/stretchr/testify/assert"
 
@@ -46,7 +48,7 @@ func clientListenersV2TestWithConfig(configAction func(*Config), action func(cli
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
-			ID: "something-id", Target: 0, Code: "xfer-full", Reason: "payload-missing",
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
 		}}).
 		WithPutObjects(data.ToPutObjects()).
 		WithTransferred("state", 1)
@@ -234,5 +236,45 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 			assert.WithinDuration(t, time.Now(), start, time.Millisecond*30)
 			assert.False(t, foundIt)
 		}, httphelpers.HandlerWithStatus(401))
+	})
+}
+
+func TestBigSegmentsStoreStatusProviderV2(t *testing.T) {
+	t.Run("returns unavailable status when not configured", func(t *testing.T) {
+		clientListenersV2Test(func(p clientListenersV2TestParams) {
+			assert.Equal(t, interfaces.BigSegmentStoreStatus{},
+				p.client.GetBigSegmentStoreStatusProvider().GetStatus())
+		})
+	})
+
+	t.Run("sends status updates", func(t *testing.T) {
+		store := &mocks.MockBigSegmentStore{}
+		store.TestSetMetadataToCurrentTime()
+		storeFactory := mocks.SingleComponentConfigurer[subsystems.BigSegmentStore]{Instance: store}
+		clientListenersV2TestWithConfig(
+			func(c *Config) {
+				c.BigSegments = ldcomponents.BigSegments(storeFactory).StatusPollInterval(time.Millisecond * 10)
+			},
+			func(p clientListenersV2TestParams) {
+				statusCh := p.client.GetBigSegmentStoreStatusProvider().AddStatusListener()
+
+				mocks.ExpectBigSegmentStoreStatus(
+					t,
+					statusCh,
+					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
+					time.Second,
+					interfaces.BigSegmentStoreStatus{Available: true},
+				)
+
+				store.TestSetMetadataState(subsystems.BigSegmentStoreMetadata{}, errors.New("failing"))
+
+				mocks.ExpectBigSegmentStoreStatus(
+					t,
+					statusCh,
+					p.client.GetBigSegmentStoreStatusProvider().GetStatus,
+					time.Second,
+					interfaces.BigSegmentStoreStatus{Available: false},
+				)
+			})
 	})
 }

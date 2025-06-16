@@ -27,7 +27,7 @@ var alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariati
 
 func TestPollingProcessorInitializerCanMakeSuccessfulRequest(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NewSelector("test-state", 1))
 
 	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -44,6 +44,8 @@ func TestPollingProcessorInitializerCanMakeSuccessfulRequest(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, basis.ChangeSet.Changes(), 1)
 		assert.Equal(t, basis.ChangeSet.IntentCode(), subsystems.IntentTransferFull)
+		assert.Equal(t, "test-state", basis.ChangeSet.Selector().State())
+		assert.Equal(t, 1, basis.ChangeSet.Selector().Version())
 
 		r := <-requestsCh
 		assert.Equal(t, "/sdk/poll", r.Request.URL.Path)
@@ -52,7 +54,7 @@ func TestPollingProcessorInitializerCanMakeSuccessfulRequest(t *testing.T) {
 
 func TestPollingProcessorInitializerAppendsFilterParameter(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -75,7 +77,7 @@ func TestPollingProcessorInitializerAppendsFilterParameter(t *testing.T) {
 }
 
 func TestPollingProcessorInitializerAppendsBasisParameter(t *testing.T) {
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		processor := NewPollingProcessor(
@@ -99,7 +101,7 @@ func TestPollingProcessorInitializerAppendsBasisParameter(t *testing.T) {
 
 func TestPollingProcessorSynchronizerAppendsFilterParameter(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -124,7 +126,7 @@ func TestPollingProcessorSynchronizerAppendsFilterParameter(t *testing.T) {
 
 func TestPollingProcessorSynchronizerAppendsBasisParameter(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NewSelector("test-state", 1))
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 	handler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -148,7 +150,7 @@ func TestPollingProcessorSynchronizerAppendsBasisParameter(t *testing.T) {
 
 func TestPollingProcessorSynchronizerPreClosingShouldShutdownImmediately(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 	handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -168,7 +170,7 @@ func TestPollingProcessorSynchronizerPreClosingShouldShutdownImmediately(t *test
 
 func TestPollingProcessorSynchronizerClosingClosesResultChan(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 	handler, requestCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -191,7 +193,7 @@ func TestPollingProcessorSynchronizerClosingClosesResultChan(t *testing.T) {
 
 func TestPollingProcessorSynchronizerCanMakeSuccessfulRequest(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 	handler, _ := httphelpers.RecordingHandler(ldservices.ServerSidePollingV2ServiceHandler(data))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -263,7 +265,7 @@ func TestPollingProcessorSynchronizerHandlesRecoverableErrors(t *testing.T) {
 	for _, statusCode := range []int{400, 408, 429, 500, 503} {
 		t.Run(fmt.Sprintf("handles recoverable error %d", statusCode), func(t *testing.T) {
 			ds := mocks.NewMockDataSelector(subsystems.NoSelector())
-			data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload()
+			data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
 			handler, requestsCh := httphelpers.RecordingHandler(
 				httphelpers.SequentialHandler(

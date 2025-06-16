@@ -58,7 +58,6 @@ func TestRequestorImplRequestAll(t *testing.T) {
 				assert.False(t, cached)
 				assert.Nil(t, data)
 			})
-
 		})
 
 		t.Run("network error", func(t *testing.T) {
@@ -203,7 +202,6 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 
 		assert.Equal(t, "/sdk/latest-all/transformed", req.Request.URL.Path)
 	})
-
 }
 
 func TestRequestorImplCanAppendsFilterParameter(t *testing.T) {

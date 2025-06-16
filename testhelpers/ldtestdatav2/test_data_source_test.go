@@ -6,13 +6,43 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+
 	th "github.com/launchdarkly/go-test-helpers/v3"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var threeStringValues = []ldvalue.Value{ldvalue.String("red"), ldvalue.String("green"), ldvalue.String("blue")}
+
+type testDataSourceTestParams struct {
+	td      *TestDataSynchronizer
+	updates *mocks.MockDataSourceUpdates
+}
+
+func testDataSourceTest(t *testing.T, action func(testDataSourceTestParams)) {
+	t.Helper()
+	var p testDataSourceTestParams
+	p.td = DataSource()
+	action(p)
+}
+
+func (p testDataSourceTestParams) withDataSynchronizer(t *testing.T, selector subsystems.DataSelector, action func(subsystems.DataSynchronizer, <-chan subsystems.DataSynchronizerResult)) {
+	t.Helper()
+	context := subsystems.BasicClientContext{DataSourceUpdateSink: p.updates}
+	synchronizer, err := p.td.Build(context)
+	require.NoError(t, err)
+	defer synchronizer.Close()
+
+	resultChan := synchronizer.Sync(selector)
+
+	action(synchronizer, resultChan)
+}
 
 func TestCanBeUsedAsInitializer(t *testing.T) {
 	td := DataSource()

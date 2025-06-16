@@ -58,6 +58,7 @@ func newPollingRequester(
 		loggers:    context.GetLogging().Loggers,
 	}
 }
+
 func (r *pollingRequester) BaseURI() string {
 	return r.baseURI
 }

@@ -70,9 +70,7 @@ const (
 // dataSystem represents the requirements the client has for storing/retrieving/detecting changes related
 // to the SDK's data model.
 type dataSystem interface {
-	DataSourceStatusBroadcaster() *internal.Broadcaster[interfaces.DataSourceStatus]
 	DataSourceStatusProvider() interfaces.DataSourceStatusProvider
-	DataStoreStatusBroadcaster() *internal.Broadcaster[interfaces.DataStoreStatus]
 	DataStoreStatusProvider() interfaces.DataStoreStatusProvider
 	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
 
