@@ -63,6 +63,11 @@ type Store struct {
 	// Broadcaster for flag change events.
 	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent]
 
+	// Broadcaster for changesets being applied to this store. These events will
+	// fire after the changes have been applied to the in memory and persistence
+	// stores, if configured.
+	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
+
 	// True if the data in the memory store may be persisted to the persistent store.
 	//
 	// This may be false if an initializer/synchronizer has received data that shouldn't propagate memory to the
@@ -112,15 +117,17 @@ func (p *persistentStore) writable() bool {
 func NewStore(
 	loggers ldlog.Loggers,
 	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent],
+	changeSet *internal.Broadcaster[subsystems.ChangeSet],
 ) *Store {
 	s := &Store{
-		persistentStore:   nil,
-		memoryStore:       memorystorev2.New(loggers),
-		dependencyTracker: newDependencyTracker(),
-		flagChangeEvent:   flagChangeEvent,
-		loggers:           loggers,
-		selector:          subsystems.NoSelector(),
-		persist:           false,
+		persistentStore:      nil,
+		memoryStore:          memorystorev2.New(loggers),
+		dependencyTracker:    newDependencyTracker(),
+		flagChangeEvent:      flagChangeEvent,
+		changeSetBroadcaster: changeSet,
+		loggers:              loggers,
+		selector:             subsystems.NoSelector(),
+		persist:              false,
 	}
 	s.active = s.memoryStore
 	return s
@@ -163,10 +170,10 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// SetBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
-// set persist to true.
-func (s *Store) SetBasis(events []subsystems.Change, selector subsystems.Selector, persist bool) {
-	collections, err := subsystems.ToStorableItems(events)
+// Apply applies a changeset to the store. The changeset must be a valid set of changes that can be applied
+// to the store. If the changeset is not valid, an error will be logged and the changeset will not be applied.
+func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) {
+	collections, err := subsystems.ToStorableItems(changeSet.Changes())
 	if err != nil {
 		s.loggers.Errorf("store: couldn't set basis due to malformed data: %v", err)
 		return
@@ -174,6 +181,22 @@ func (s *Store) SetBasis(events []subsystems.Change, selector subsystems.Selecto
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	switch changeSet.IntentCode() {
+	case subsystems.IntentTransferFull:
+		s.setBasis(collections, changeSet.Selector(), persist)
+	case subsystems.IntentTransferChanges:
+		s.applyDelta(collections, changeSet.Selector(), persist)
+	case subsystems.IntentNone:
+		return
+		// No-op, no changes to apply.
+	}
+
+	s.changeSetBroadcaster.Broadcast(changeSet)
+}
+
+// setBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
+// set persist to true.
+func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
 	var prechangeSnapshot map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	// Because flag listeners can be added and removed at any time, we need to
 	// check at a single point in time if there are listeners. If so, we can
@@ -221,18 +244,9 @@ func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
-// ApplyDelta applies a delta update to the store. ApplyDelta should not be called until SetBasis has been called.
+// applyDelta applies a delta update to the store. applyDelta should not be called until SetBasis has been called.
 // To request data persistence, set persist to true.
-func (s *Store) ApplyDelta(events []subsystems.Change, selector subsystems.Selector, persist bool) {
-	collections, err := subsystems.ToStorableItems(events)
-	if err != nil {
-		s.loggers.Errorf("store: couldn't apply delta due to malformed data: %v", err)
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
 	s.memoryStore.ApplyDelta(collections)
 
 	hasListeners := s.flagChangeEvent.HasListeners()

@@ -14,15 +14,22 @@ import (
 )
 
 var (
-	_ subsystems.DataDestination   = (*Store)(nil)
 	_ subsystems.ReadOnlyStore     = (*Store)(nil)
 	_ subsystems.ReadOnlyDataStore = (*Store)(nil)
 )
 
 type broadcasters struct {
-	dataSourceStatus *internal.Broadcaster[interfaces.DataSourceStatus]
-	dataStoreStatus  *internal.Broadcaster[interfaces.DataStoreStatus]
-	flagChangeEvent  *internal.Broadcaster[interfaces.FlagChangeEvent]
+	dataSourceStatus     *internal.Broadcaster[interfaces.DataSourceStatus]
+	dataStoreStatus      *internal.Broadcaster[interfaces.DataStoreStatus]
+	flagChangeEvent      *internal.Broadcaster[interfaces.FlagChangeEvent]
+	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
+}
+
+func (b *broadcasters) Close() {
+	b.dataSourceStatus.Close()
+	b.dataStoreStatus.Close()
+	b.flagChangeEvent.Close()
+	b.changeSetBroadcaster.Close()
 }
 
 // FDv2 is an implementation of the DataSystem interface that uses the Flag Delivery V2 protocol for
@@ -43,7 +50,7 @@ type FDv2 struct {
 	//
 	// We cannot check this at run time because synchronizers may be removed if
 	// they permanently fail.
-	configuredWithDatSources bool
+	configuredWithDataSources bool
 
 	// The secondary synchronizer, in case the primary is unavailable.
 	secondarySyncBuilder func() (subsystems.DataSynchronizer, error)
@@ -92,15 +99,20 @@ type FDv2 struct {
 // disabled.
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
 	clientContext *internal.ClientContextImpl,
-	ldRelayWrapper func(subsystems.DataDestination, subsystems.ReadOnlyDataStore) subsystems.DataDestination,
+	ldRelayWrapper func(subsystems.ReadOnlyDataStore, <-chan subsystems.ChangeSet),
 ) (*FDv2, error) {
 	bcasters := &broadcasters{
-		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
-		dataStoreStatus:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
-		flagChangeEvent:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
+		dataSourceStatus:     internal.NewBroadcaster[interfaces.DataSourceStatus](),
+		dataStoreStatus:      internal.NewBroadcaster[interfaces.DataStoreStatus](),
+		flagChangeEvent:      internal.NewBroadcaster[interfaces.FlagChangeEvent](),
+		changeSetBroadcaster: internal.NewBroadcaster[subsystems.ChangeSet](),
 	}
 
-	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent)
+	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent, bcasters.changeSetBroadcaster)
+
+	if ldRelayWrapper != nil {
+		ldRelayWrapper(store, bcasters.changeSetBroadcaster.AddListener())
+	}
 
 	fdv2 := &FDv2{
 		store:                    store,
@@ -146,7 +158,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
 	}
 
-	fdv2.configuredWithDatSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
+	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
 
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
@@ -195,7 +207,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 
 	f.runInitializers(ctx, closeWhenReady)
 
-	if f.configuredWithDatSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
+	if f.configuredWithDataSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
 			f.runPersistentStoreOutageRecovery(ctx, f.dataStoreStatusProvider.AddStatusListener())
 		})
@@ -235,7 +247,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		f.store.SetBasis(basis.ChangeSet.Changes(), basis.ChangeSet.Selector(), basis.Persist)
+		f.store.Apply(basis.ChangeSet, basis.Persist)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -365,14 +377,7 @@ func (f *FDv2) consumeSynchronizerResults(
 			switch result.State {
 			case interfaces.DataSourceStateValid:
 				if result.ChangeSet != nil {
-					switch result.ChangeSet.IntentCode() {
-					case subsystems.IntentTransferFull:
-						f.store.SetBasis(result.ChangeSet.Changes(), result.ChangeSet.Selector(), true)
-					case subsystems.IntentTransferChanges:
-						f.store.ApplyDelta(result.ChangeSet.Changes(), result.ChangeSet.Selector(), true)
-					default:
-						f.loggers.Warnf("Received unexpected intent code %s from synchronizer", result.ChangeSet.IntentCode())
-					}
+					f.store.Apply(*result.ChangeSet, true)
 				}
 
 				f.readyOnce.Do(func() {
@@ -405,6 +410,7 @@ func (f *FDv2) Stop() error {
 	}
 	f.wg.Wait()
 	_ = f.store.Close()
+	f.broadcasters.Close()
 
 	return nil
 }
@@ -420,7 +426,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 		return Refreshed
 	}
 
-	if !f.configuredWithDatSources || f.store.IsInitialized() {
+	if !f.configuredWithDataSources || f.store.IsInitialized() {
 		return Cached
 	}
 
@@ -429,7 +435,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 
 //nolint:revive // DataSystem method.
 func (f *FDv2) TargetAvailability() DataAvailability {
-	if f.configuredWithDatSources {
+	if f.configuredWithDataSources {
 		return Refreshed
 	}
 

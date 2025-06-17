@@ -99,6 +99,16 @@ func (c *ChangeSetBuilder) NoChanges() *ChangeSet {
 	}
 }
 
+// Empty returns an empty ChangeSet, which is useful for initializing a client
+// without data, or for clearing out all existing data.
+func (c *ChangeSetBuilder) Empty(selector Selector) *ChangeSet {
+	return &ChangeSet{
+		intentCode: IntentTransferFull,
+		selector:   selector,
+		changes:    nil,
+	}
+}
+
 // Start begins a new change set with a given intent.
 func (c *ChangeSetBuilder) Start(intent ServerIntent) error {
 	c.intent = &intent
