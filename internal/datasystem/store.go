@@ -63,6 +63,11 @@ type Store struct {
 	// Broadcaster for flag change events.
 	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent]
 
+	// Broadcaster for changesets being applied to this store. These events will
+	// fire after the changes have been applied to the in memory and persistence
+	// stores, if configured.
+	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
+
 	// True if the data in the memory store may be persisted to the persistent store.
 	//
 	// This may be false if an initializer/synchronizer has received data that shouldn't propagate memory to the
@@ -112,15 +117,17 @@ func (p *persistentStore) writable() bool {
 func NewStore(
 	loggers ldlog.Loggers,
 	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent],
+	changeSet *internal.Broadcaster[subsystems.ChangeSet],
 ) *Store {
 	s := &Store{
-		persistentStore:   nil,
-		memoryStore:       memorystorev2.New(loggers),
-		dependencyTracker: newDependencyTracker(),
-		flagChangeEvent:   flagChangeEvent,
-		loggers:           loggers,
-		selector:          subsystems.NoSelector(),
-		persist:           false,
+		persistentStore:      nil,
+		memoryStore:          memorystorev2.New(loggers),
+		dependencyTracker:    newDependencyTracker(),
+		flagChangeEvent:      flagChangeEvent,
+		changeSetBroadcaster: changeSet,
+		loggers:              loggers,
+		selector:             subsystems.NoSelector(),
+		persist:              false,
 	}
 	s.active = s.memoryStore
 	return s

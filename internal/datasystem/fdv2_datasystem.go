@@ -20,9 +20,11 @@ var (
 )
 
 type broadcasters struct {
-	dataSourceStatus *internal.Broadcaster[interfaces.DataSourceStatus]
-	dataStoreStatus  *internal.Broadcaster[interfaces.DataStoreStatus]
-	flagChangeEvent  *internal.Broadcaster[interfaces.FlagChangeEvent]
+	dataSourceStatus     *internal.Broadcaster[interfaces.DataSourceStatus]
+	dataStoreStatus      *internal.Broadcaster[interfaces.DataStoreStatus]
+	flagChangeEvent      *internal.Broadcaster[interfaces.FlagChangeEvent]
+	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
+}
 }
 
 // FDv2 is an implementation of the DataSystem interface that uses the Flag Delivery V2 protocol for
@@ -92,15 +94,20 @@ type FDv2 struct {
 // disabled.
 func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems.DataSystemConfiguration],
 	clientContext *internal.ClientContextImpl,
-	ldRelayWrapper func(subsystems.DataDestination, subsystems.ReadOnlyDataStore) subsystems.DataDestination,
+	ldRelayWrapper func(subsystems.ReadOnlyDataStore, <-chan subsystems.ChangeSet),
 ) (*FDv2, error) {
 	bcasters := &broadcasters{
-		dataSourceStatus: internal.NewBroadcaster[interfaces.DataSourceStatus](),
-		dataStoreStatus:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
-		flagChangeEvent:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
+		dataSourceStatus:     internal.NewBroadcaster[interfaces.DataSourceStatus](),
+		dataStoreStatus:      internal.NewBroadcaster[interfaces.DataStoreStatus](),
+		flagChangeEvent:      internal.NewBroadcaster[interfaces.FlagChangeEvent](),
+		changeSetBroadcaster: internal.NewBroadcaster[subsystems.ChangeSet](),
 	}
 
-	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent)
+	store := NewStore(clientContext.GetLogging().Loggers, bcasters.flagChangeEvent, bcasters.changeSetBroadcaster)
+
+	if ldRelayWrapper != nil {
+		ldRelayWrapper(store, bcasters.changeSetBroadcaster.AddListener())
+	}
 
 	fdv2 := &FDv2{
 		store:                    store,
