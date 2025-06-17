@@ -14,7 +14,6 @@ import (
 )
 
 var (
-	_ subsystems.DataDestination   = (*Store)(nil)
 	_ subsystems.ReadOnlyStore     = (*Store)(nil)
 	_ subsystems.ReadOnlyDataStore = (*Store)(nil)
 )
