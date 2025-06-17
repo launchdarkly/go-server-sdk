@@ -223,5 +223,5 @@ type Config struct {
 	// LDRelayDataDestination provides a hook for the relay proxy to wrap and
 	// replace the SDK's internal data destination implementation. This allows
 	// it to be notified and update connected streams more efficiently.
-	LDRelayDataDestination func(subsystems.DataDestination, subsystems.ReadOnlyDataStore) subsystems.DataDestination
+	LDRelayDataDestination func(subsystems.ReadOnlyDataStore, <-chan subsystems.ChangeSet)
 }

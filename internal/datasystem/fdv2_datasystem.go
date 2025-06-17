@@ -25,6 +25,12 @@ type broadcasters struct {
 	flagChangeEvent      *internal.Broadcaster[interfaces.FlagChangeEvent]
 	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
 }
+
+func (b *broadcasters) Close() {
+	b.dataSourceStatus.Close()
+	b.dataStoreStatus.Close()
+	b.flagChangeEvent.Close()
+	b.changeSetBroadcaster.Close()
 }
 
 // FDv2 is an implementation of the DataSystem interface that uses the Flag Delivery V2 protocol for
@@ -412,6 +418,7 @@ func (f *FDv2) Stop() error {
 	}
 	f.wg.Wait()
 	_ = f.store.Close()
+	f.broadcasters.Close()
 
 	return nil
 }
