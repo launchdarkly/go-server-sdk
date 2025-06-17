@@ -43,7 +43,7 @@ type FDv2 struct {
 	//
 	// We cannot check this at run time because synchronizers may be removed if
 	// they permanently fail.
-	configuredWithDatSources bool
+	configuredWithDataSources bool
 
 	// The secondary synchronizer, in case the primary is unavailable.
 	secondarySyncBuilder func() (subsystems.DataSynchronizer, error)
@@ -146,7 +146,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
 	}
 
-	fdv2.configuredWithDatSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
+	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
 
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
@@ -195,7 +195,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 
 	f.runInitializers(ctx, closeWhenReady)
 
-	if f.configuredWithDatSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
+	if f.configuredWithDataSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
 			f.runPersistentStoreOutageRecovery(ctx, f.dataStoreStatusProvider.AddStatusListener())
 		})
@@ -420,7 +420,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 		return Refreshed
 	}
 
-	if !f.configuredWithDatSources || f.store.IsInitialized() {
+	if !f.configuredWithDataSources || f.store.IsInitialized() {
 		return Cached
 	}
 
@@ -429,7 +429,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 
 //nolint:revive // DataSystem method.
 func (f *FDv2) TargetAvailability() DataAvailability {
-	if f.configuredWithDatSources {
+	if f.configuredWithDataSources {
 		return Refreshed
 	}
 
