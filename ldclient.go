@@ -91,9 +91,7 @@ type dataSystem interface {
 	TargetAvailability() datasystem.DataAvailability
 }
 
-var (
-	_ dataSystem = &datasystem.FDv1{}
-)
+var _ dataSystem = &datasystem.FDv1{}
 
 // LDClient is the LaunchDarkly client.
 //
@@ -402,7 +400,6 @@ func (client *LDClient) migrationVariation(
 		func() (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 			detail, flag, err := client.variationAndFlag(key, context, defaultStageAsValue, true,
 				eventsScope)
-
 			if err != nil {
 				// Detail will already contain the default.
 				// We do not have an error on the flag-not-found case.

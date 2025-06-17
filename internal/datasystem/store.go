@@ -170,10 +170,10 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// SetBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
-// set persist to true.
-func (s *Store) SetBasis(events []subsystems.Change, selector subsystems.Selector, persist bool) {
-	collections, err := subsystems.ToStorableItems(events)
+// Apply applies a changeset to the store. The changeset must be a valid set of changes that can be applied
+// to the store. If the changeset is not valid, an error will be logged and the changeset will not be applied.
+func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) {
+	collections, err := subsystems.ToStorableItems(changeSet.Changes())
 	if err != nil {
 		s.loggers.Errorf("store: couldn't set basis due to malformed data: %v", err)
 		return
@@ -181,6 +181,22 @@ func (s *Store) SetBasis(events []subsystems.Change, selector subsystems.Selecto
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	switch changeSet.IntentCode() {
+	case subsystems.IntentTransferFull:
+		s.setBasis(collections, changeSet.Selector(), persist)
+	case subsystems.IntentTransferChanges:
+		s.applyDelta(collections, changeSet.Selector(), persist)
+	case subsystems.IntentNone:
+		return
+		// No-op, no changes to apply.
+	}
+
+	s.changeSetBroadcaster.Broadcast(changeSet)
+}
+
+// setBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
+// set persist to true.
+func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
 	var prechangeSnapshot map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	// Because flag listeners can be added and removed at any time, we need to
 	// check at a single point in time if there are listeners. If so, we can
@@ -228,18 +244,9 @@ func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
-// ApplyDelta applies a delta update to the store. ApplyDelta should not be called until SetBasis has been called.
+// applyDelta applies a delta update to the store. applyDelta should not be called until SetBasis has been called.
 // To request data persistence, set persist to true.
-func (s *Store) ApplyDelta(events []subsystems.Change, selector subsystems.Selector, persist bool) {
-	collections, err := subsystems.ToStorableItems(events)
-	if err != nil {
-		s.loggers.Errorf("store: couldn't apply delta due to malformed data: %v", err)
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
 	s.memoryStore.ApplyDelta(collections)
 
 	hasListeners := s.flagChangeEvent.HasListeners()

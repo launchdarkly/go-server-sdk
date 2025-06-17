@@ -247,7 +247,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.loggers.Infof("Initialized via %s", initializer.Name())
-		f.store.SetBasis(basis.ChangeSet.Changes(), basis.ChangeSet.Selector(), basis.Persist)
+		f.store.Apply(basis.ChangeSet, basis.Persist)
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -377,14 +377,7 @@ func (f *FDv2) consumeSynchronizerResults(
 			switch result.State {
 			case interfaces.DataSourceStateValid:
 				if result.ChangeSet != nil {
-					switch result.ChangeSet.IntentCode() {
-					case subsystems.IntentTransferFull:
-						f.store.SetBasis(result.ChangeSet.Changes(), result.ChangeSet.Selector(), true)
-					case subsystems.IntentTransferChanges:
-						f.store.ApplyDelta(result.ChangeSet.Changes(), result.ChangeSet.Selector(), true)
-					default:
-						f.loggers.Warnf("Received unexpected intent code %s from synchronizer", result.ChangeSet.IntentCode())
-					}
+					f.store.Apply(*result.ChangeSet, true)
 				}
 
 				f.readyOnce.Do(func() {

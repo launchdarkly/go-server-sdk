@@ -26,26 +26,26 @@ import (
 
 func TestStore_New(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-	defer broadcaster.Close()
-	store := NewStore(logCapture.Loggers, broadcaster)
+	flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+	store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 	assert.NoError(t, store.Close())
 }
 
 func TestStore_NoSelector(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-	defer broadcaster.Close()
-	store := NewStore(logCapture.Loggers, broadcaster)
+	flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+	store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 	defer store.Close()
 	assert.Equal(t, subsystems.NoSelector(), store.Selector())
 }
 
 func TestStore_NoPersistence_NewStore_IsNotInitialized(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-	defer broadcaster.Close()
-	store := NewStore(logCapture.Loggers, broadcaster)
+	flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+	store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 	defer store.Close()
 	assert.False(t, store.IsInitialized())
 }
@@ -66,11 +66,12 @@ func TestStore_NoPersistence_MemoryStore_IsInitialized(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logCapture := ldlogtest.NewMockLog()
-			broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-			defer broadcaster.Close()
-			store := NewStore(logCapture.Loggers, broadcaster)
+			flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+			changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+			store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 			defer store.Close()
-			store.SetBasis([]subsystems.Change{}, tt.selector, tt.persist)
+
+			store.Apply(*subsystems.NewChangeSetBuilder().Empty(tt.selector), tt.persist)
 			assert.True(t, store.IsInitialized())
 		})
 	}
@@ -95,9 +96,9 @@ func MinimalSegment(key string, version int) json.RawMessage {
 func TestStore_Commit(t *testing.T) {
 	t.Run("absence of persistent store doesn't cause error when committing", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 		defer store.Close()
 		assert.NoError(t, store.Commit())
 	})
@@ -107,18 +108,25 @@ func TestStore_Commit(t *testing.T) {
 
 		// isDown causes the fake to reject updates (until flipped to false).
 		spy := &fakeStore{isDown: true}
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
 
-		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		// The store receives data as a list of changes, but the persistent store receives them as an
-		// []ldstoretypes.Collection.
-		input := []subsystems.Change{
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
-		}
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+				Reason: "cant-catchup",
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		builder.AddPut(subsystems.SegmentKind, "bar", 2, MinimalSegment("bar", 2))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
 
 		// OK: basically we need to match up the JSON with the FlagBuilder stuff for this to work, a naive marshal won't work.
 		// The original data system PR has some infra for this. Maybe bring it in in this pr.
@@ -134,10 +142,11 @@ func TestStore_Commit(t *testing.T) {
 				Items: []ldstoretypes.KeyedItemDescriptor{
 					{Key: "bar", Item: sharedtest.SegmentDescriptor(ldbuilders.NewSegmentBuilder("bar").Version(2).Build())},
 				},
-			}}
+			},
+		}
 
 		// There should be an error since writing to the store will fail.
-		store.SetBasis(input, subsystems.NoSelector(), true)
+		store.Apply(*changeSet, true)
 
 		// Since writing should have failed, there should be no data in the persistent store.
 		require.Empty(t, spy.initPayload)
@@ -155,19 +164,28 @@ func TestStore_Commit(t *testing.T) {
 
 		// The fake should accept updates.
 		spy := &fakeStore{isDown: false}
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
-		input := []subsystems.Change{
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
-		}
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+				Reason: "cant-catchup",
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		builder.AddPut(subsystems.SegmentKind, "bar", 2, MinimalSegment("bar", 2))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
 
-		store.SetBasis(input, subsystems.NoSelector(), false)
+		store.Apply(*changeSet, false)
 
-		// Since SetBasis will immediately mirror the data if persist == true, we can check this is empty now.
+		// Since Apply will immediately mirror the data if persist == true, we can check this is empty now.
 		require.Empty(t, spy.initPayload)
 
 		require.NoError(t, store.Commit())
@@ -181,18 +199,27 @@ func TestStore_Commit(t *testing.T) {
 
 		// The fake should accept updates.
 		spy := &fakeStore{isDown: false}
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).WithPersistence(spy, subsystems.DataStoreModeRead, nil)
 		defer store.Close()
 
-		input := []subsystems.Change{
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("key", 1)},
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.SegmentKind, Key: "bar", Version: 2, Object: MinimalSegment("bar", 2)},
-		}
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+				Reason: "cant-catchup",
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		builder.AddPut(subsystems.SegmentKind, "bar", 2, MinimalSegment("bar", 2))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
 
 		// Even though persist is true, the store was marked as read-only, so it shouldn't be written to.
-		store.SetBasis(input, subsystems.NoSelector(), true)
+		store.Apply(*changeSet, true)
 
 		require.Empty(t, spy.initPayload)
 
@@ -206,19 +233,28 @@ func TestStore_Commit(t *testing.T) {
 func TestStore_GetActive(t *testing.T) {
 	t.Run("memory store is active if no persistent store configured", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 		defer store.Close()
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
 		assert.Equal(t, foo, ldstoretypes.ItemDescriptor{}.NotFound())
 
-		input := []subsystems.Change{
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
-		}
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+				Reason: "cant-catchup",
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
 
-		store.SetBasis(input, subsystems.NoSelector(), false)
+		store.Apply(*changeSet, false)
 
 		foo, err = store.Get(ldstoreimpl.Features(), "foo")
 		assert.NoError(t, err)
@@ -228,9 +264,9 @@ func TestStore_GetActive(t *testing.T) {
 	t.Run("persistent store is active if configured", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
 		_, err := store.Get(ldstoreimpl.Features(), "foo")
@@ -241,20 +277,28 @@ func TestStore_GetActive(t *testing.T) {
 
 	t.Run("active store swaps from persistent to memory", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).WithPersistence(&fakeStore{}, subsystems.DataStoreModeReadWrite, nil)
 		defer store.Close()
 
 		// Before there's any data, if we call Get the persistent store should be accessed.
 		_, err := store.Get(ldstoreimpl.Features(), "foo")
 		assert.Equal(t, errImAPersistentStore, err)
 
-		input := []subsystems.Change{
-			{Action: subsystems.ChangeTypePut, Kind: subsystems.FlagKind, Key: "foo", Version: 1, Object: MinimalFlag("foo", 1)},
-		}
-
-		store.SetBasis(input, subsystems.NoSelector(), false)
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+				Reason: "cant-catchup",
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+		store.Apply(*changeSet, false)
 
 		// Now that there's memory data, the persistent store should no longer be accessed.
 		foo, err := store.Get(ldstoreimpl.Features(), "foo")
@@ -265,41 +309,55 @@ func TestStore_GetActive(t *testing.T) {
 
 func TestStore_SelectorIsRemembered(t *testing.T) {
 	logCapture := ldlogtest.NewMockLog()
-	broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-	defer broadcaster.Close()
-	store := NewStore(logCapture.Loggers, broadcaster)
+	flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+	store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 	defer store.Close()
 
 	selector1 := subsystems.NewSelector("foo", 1)
 	selector2 := subsystems.NewSelector("bar", 2)
 	selector3 := subsystems.NewSelector("baz", 3)
 	selector4 := subsystems.NewSelector("qux", 4)
-	selector5 := subsystems.NewSelector("this better be the last one", 5)
 
-	store.SetBasis([]subsystems.Change{}, selector1, false)
+	builder := subsystems.NewChangeSetBuilder()
+	builder.Start(subsystems.ServerIntent{
+		Payload: subsystems.Payload{
+			ID:     "state",
+			Target: 1,
+			Code:   subsystems.IntentTransferFull,
+			Reason: "cant-catchup",
+		},
+	})
+	changeSet, err := builder.Finish(selector1)
+	require.NoError(t, err)
+	store.Apply(*changeSet, false)
 	assert.Equal(t, selector1, store.Selector())
 
-	store.SetBasis([]subsystems.Change{}, selector2, false)
+	changeSet, err = builder.Finish(selector2)
+	require.NoError(t, err)
+	store.Apply(*changeSet, false)
 	assert.Equal(t, selector2, store.Selector())
 
-	store.ApplyDelta([]subsystems.Change{}, selector3, false)
+	changeSet, err = builder.Finish(selector3)
+	require.NoError(t, err)
+	store.Apply(*changeSet, false)
 	assert.Equal(t, selector3, store.Selector())
 
-	store.ApplyDelta([]subsystems.Change{}, selector4, false)
+	changeSet, err = builder.Finish(selector4)
+	require.NoError(t, err)
+	store.Apply(*changeSet, false)
 	assert.Equal(t, selector4, store.Selector())
 
 	assert.NoError(t, store.Commit())
 	assert.Equal(t, selector4, store.Selector())
-
-	store.SetBasis([]subsystems.Change{}, selector5, false)
 }
 
 func TestStore_Concurrency(t *testing.T) {
 	t.Run("methods using the active store", func(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
-		broadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
-		defer broadcaster.Close()
-		store := NewStore(logCapture.Loggers, broadcaster)
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
 		defer store.Close()
 
 		var wg sync.WaitGroup
@@ -326,10 +384,22 @@ func TestStore_Concurrency(t *testing.T) {
 			_ = store.IsInitialized()
 		})
 		go run(func() {
-			store.SetBasis([]subsystems.Change{}, subsystems.NoSelector(), true)
+			store.Apply(*subsystems.NewChangeSetBuilder().Empty(subsystems.NoSelector()), true)
 		})
 		go run(func() {
-			store.ApplyDelta([]subsystems.Change{}, subsystems.NoSelector(), true)
+			builder := subsystems.NewChangeSetBuilder()
+			builder.Start(subsystems.ServerIntent{
+				Payload: subsystems.Payload{
+					ID:     "state",
+					Target: 1,
+					Code:   subsystems.IntentTransferChanges,
+					Reason: "stale",
+				},
+			})
+			changeSet, err := builder.Finish(subsystems.NoSelector())
+			require.NoError(t, err)
+
+			store.Apply(*changeSet, true)
 		})
 		go run(func() {
 			_ = store.Selector()
