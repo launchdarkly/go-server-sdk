@@ -225,6 +225,8 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "FancySDK", c1.DefaultHeaders.Get("X-LaunchDarkly-Wrapper"))
+		assert.Equal(t, "FancySDK", c1.WrapperName)
+		assert.Empty(t, c1.WrapperVersion)
 
 		c2, err := HTTPConfiguration().
 			Wrapper("FancySDK", "2.0").
@@ -232,6 +234,8 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "FancySDK/2.0", c2.DefaultHeaders.Get("X-LaunchDarkly-Wrapper"))
+		assert.Equal(t, "FancySDK", c2.WrapperName)
+		assert.Equal(t, "2.0", c2.WrapperVersion)
 	})
 
 	t.Run("tags header", func(t *testing.T) {

@@ -17,4 +17,10 @@ type HTTPConfiguration struct {
 	//
 	// The SDK will ensure that this field is non-nil before passing it to any component.
 	CreateHTTPClient func() *http.Client
+
+	// WrapperName contains the wrapper library name, if any.
+	WrapperName string
+
+	// WrapperVersion containsthe wrapper libaray version, if any.
+	WrapperVersion string
 }

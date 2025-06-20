@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasystem"
+	"github.com/launchdarkly/go-server-sdk/v7/ldplugins"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -321,9 +322,37 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		},
 	)
 
-	client.hookRunner = hooks.NewRunner(loggers, config.Hooks)
+	// Prepare environment metatadata for plugins
+	environmentMetadata := ldplugins.EnvironmentMetadata{
+		Sdk: ldplugins.SdkMetadata{
+			Name:           "GoClient",
+			Version:        internal.SDKVersion,
+			WrapperName:    clientContext.HTTP.WrapperName,
+			WrapperVersion: clientContext.HTTP.WrapperVersion,
+		},
+		SdkKey: client.sdkKey,
+		Application: ldplugins.ApplicationMetadata{
+			ID:      config.ApplicationInfo.ApplicationID,
+			Version: config.ApplicationInfo.ApplicationVersion,
+		},
+	}
+
+	allHooks := config.Hooks
+
+	// Append plugin hooks to hooks from config
+	for _, plugin := range config.Plugins {
+		hooks := plugin.GetHooks(environmentMetadata)
+		allHooks = append(allHooks, hooks...)
+	}
+
+	client.hookRunner = hooks.NewRunner(loggers, allHooks)
 
 	clientValid = true
+
+	// Call Register on plugins as soon as possible after client is valid
+	for _, plugin := range config.Plugins {
+		plugin.Register(client, environmentMetadata)
+	}
 
 	client.dataSystem.Start(closeWhenReady)
 	if waitFor > 0 && !client.offline {
