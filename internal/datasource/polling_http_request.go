@@ -13,8 +13,9 @@ import (
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 
+	"maps"
+
 	"github.com/gregjones/httpcache"
-	"golang.org/x/exp/maps"
 )
 
 // PollingRequester is the internal implementation of getting flag/segment data from the LD polling endpoints.

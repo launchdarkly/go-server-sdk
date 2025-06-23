@@ -9,7 +9,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 // TestDataSource is a test fixture that provides dynamically updatable feature flag state in a
