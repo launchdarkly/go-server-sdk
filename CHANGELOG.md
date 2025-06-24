@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.11.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.10.2...v7.11.0) (2025-06-24)
+
+
+### Features
+
+* add Plugin support ([#286](https://github.com/launchdarkly/go-server-sdk/issues/286)) ([b461415](https://github.com/launchdarkly/go-server-sdk/commit/b461415af44316e9b6155000dc5ddb85c4dc56e0))
+
 ## [7.10.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.10.1...v7.10.2) (2025-06-02)
 
 
