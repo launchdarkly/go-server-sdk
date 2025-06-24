@@ -36,7 +36,8 @@ type HTTPConfigurationBuilder struct {
 	httpOptions       []ldhttp.TransportOption
 	proxyURL          string
 	userAgent         string
-	wrapperIdentifier string
+	wrapperName       string
+	wrapperVersion    string
 	customHeaders     map[string]string
 }
 
@@ -165,11 +166,8 @@ func (b *HTTPConfigurationBuilder) UserAgent(userAgent string) *HTTPConfiguratio
 // metrics on the usage of these wrapper libraries.
 func (b *HTTPConfigurationBuilder) Wrapper(wrapperName, wrapperVersion string) *HTTPConfigurationBuilder {
 	if b.checkValid() {
-		if wrapperName == "" || wrapperVersion == "" {
-			b.wrapperIdentifier = wrapperName
-		} else {
-			b.wrapperIdentifier = fmt.Sprintf("%s/%s", wrapperName, wrapperVersion)
-		}
+		b.wrapperName = wrapperName
+		b.wrapperVersion = wrapperVersion
 	}
 	return b
 }
@@ -222,8 +220,8 @@ func (b *HTTPConfigurationBuilder) Build(
 		userAgent = userAgent + " " + b.userAgent
 	}
 	headers.Set("User-Agent", userAgent)
-	if b.wrapperIdentifier != "" {
-		headers.Add("X-LaunchDarkly-Wrapper", b.wrapperIdentifier)
+	if wrapperIdentifier := buildWrapperHeaderValue(b.wrapperName, b.wrapperVersion); wrapperIdentifier != "" {
+		headers.Add("X-LaunchDarkly-Wrapper", wrapperIdentifier)
 	}
 	if tagsHeaderValue := buildTagsHeaderValue(clientContext); tagsHeaderValue != "" {
 		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
@@ -267,6 +265,8 @@ func (b *HTTPConfigurationBuilder) Build(
 	return subsystems.HTTPConfiguration{
 		DefaultHeaders:   headers,
 		CreateHTTPClient: clientFactory,
+		WrapperName:      b.wrapperName,
+		WrapperVersion:   b.wrapperVersion,
 	}, nil
 }
 
@@ -279,4 +279,14 @@ func buildTagsHeaderValue(clientContext subsystems.ClientContext) string {
 		parts = append(parts, fmt.Sprintf("application-version/%s", value))
 	}
 	return strings.Join(parts, " ")
+}
+
+func buildWrapperHeaderValue(wrapperName string, wrapperVersion string) string {
+	wrapperIdentifier := ""
+	if wrapperName == "" || wrapperVersion == "" {
+		wrapperIdentifier = wrapperName
+	} else {
+		wrapperIdentifier = fmt.Sprintf("%s/%s", wrapperName, wrapperVersion)
+	}
+	return wrapperIdentifier
 }

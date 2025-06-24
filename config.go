@@ -4,6 +4,7 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
+	"github.com/launchdarkly/go-server-sdk/v7/ldplugins"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -224,4 +225,9 @@ type Config struct {
 	// replace the SDK's internal data destination implementation. This allows
 	// it to be notified and update connected streams more efficiently.
 	LDRelayDataDestination func(subsystems.ReadOnlyDataStore, <-chan subsystems.ChangeSet)
+
+	// A list of plugins to be used with the SDK.
+	//
+	// Plugin support is currently experimental and subject to change.
+	Plugins []ldplugins.Plugin
 }
