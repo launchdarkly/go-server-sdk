@@ -97,7 +97,7 @@ func (h Unimplemented) AfterEvaluation(
 	return data, nil
 }
 
-// AfterEvaluation is a default implementation of the AfterTrack stage.
+// AfterTrack is a default implementation of the AfterTrack stage.
 func (h Unimplemented) AfterTrack(
 	_ context.Context,
 	_ TrackSeriesContext,

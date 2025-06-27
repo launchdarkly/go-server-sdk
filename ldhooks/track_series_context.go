@@ -9,7 +9,6 @@ import (
 type TrackSeriesContext struct {
 	context     ldcontext.Context
 	key         string
-	hasMetric   bool
 	metricValue *float64
 	data        ldvalue.Value
 }
