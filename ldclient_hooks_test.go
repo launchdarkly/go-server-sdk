@@ -24,6 +24,7 @@ type parameterizedVariation struct {
 }
 
 const hookTestFlag string = "test-flag"
+const hookTestEvent string = "test-event"
 
 func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 	testContext := ldcontext.New("test-context")
@@ -52,7 +53,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 					testCase.defaultValue, testCase.methodName),
 				EvaluationSeriesData: ldhooks.NewEvaluationSeriesBuilder(ldhooks.EmptyEvaluationSeriesData()).
 					Set("test-key", "test-value").Build(),
-				Detail: ldreason.NewEvaluationDetailForError(
+				EvaluationDetail: ldreason.NewEvaluationDetailForError(
 					ldreason.EvalErrorClientNotReady,
 					ldvalue.CopyArbitraryValue(testCase.defaultValue),
 				),
@@ -251,7 +252,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("for method %v", testCase.methodName), func(t *testing.T) {
 			hook := sharedtest.NewTestHook("test-hook")
-			hook.BeforeInject = func(
+			hook.BeforeEvaluationInject = func(
 				ctx gocontext.Context,
 				context ldhooks.EvaluationSeriesContext,
 				data ldhooks.EvaluationSeriesData,
@@ -267,4 +268,55 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestHooksAreExecutedForAllTrackMethod(t *testing.T) {
+	testContext := ldcontext.New("test-context")
+	testData := ldvalue.ObjectBuild().Set("test-key", ldvalue.String("test-value")).Build()
+	testMetric := 1234.5
+
+	t.Run("for method LDClient.TrackEvent", func(t *testing.T) {
+		hook := sharedtest.NewTestHook("test-hook")
+		client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
+		client.eventsDefault = newEventsScope(client, false)
+		client.TrackEvent(hookTestEvent, testContext)
+
+		hook.Verify(t, sharedtest.HookExpectedCall{
+			HookStage: sharedtest.HookStageAfterTrack,
+			TrackCapture: sharedtest.HookTrackCapture{
+				GoContext:          gocontext.TODO(),
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, nil, ldvalue.Null()),
+			},
+		})
+	})
+
+	t.Run("for method LDClient.TrackData", func(t *testing.T) {
+		hook := sharedtest.NewTestHook("test-hook")
+		client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
+		client.eventsDefault = newEventsScope(client, false)
+		client.TrackData(hookTestEvent, testContext, testData)
+
+		hook.Verify(t, sharedtest.HookExpectedCall{
+			HookStage: sharedtest.HookStageAfterTrack,
+			TrackCapture: sharedtest.HookTrackCapture{
+				GoContext:          gocontext.TODO(),
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, nil, testData),
+			},
+		})
+	})
+
+	t.Run("for method LDClient.TrackMetric", func(t *testing.T) {
+		hook := sharedtest.NewTestHook("test-hook")
+		client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
+		client.eventsDefault = newEventsScope(client, false)
+		client.TrackMetric(hookTestEvent, testContext, testMetric, testData)
+
+		hook.Verify(t, sharedtest.HookExpectedCall{
+			HookStage: sharedtest.HookStageAfterTrack,
+			TrackCapture: sharedtest.HookTrackCapture{
+				GoContext:          gocontext.TODO(),
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, &testMetric, testData),
+			},
+		})
+	})
 }

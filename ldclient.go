@@ -501,16 +501,13 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 		client.loggers.Warnf("Track called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-
-	client.eventProcessor.RecordCustomEvent(
-		client.eventsDefault.factory.NewCustomEventData(
-			eventName,
-			ldevents.Context(context),
-			data,
-			false,
-			0,
-			ldvalue.NewOptionalInt(1),
-		))
+	client.trackWithHooks(
+		eventName,
+		context,
+		data,
+		false,
+		0,
+	)
 	return nil
 }
 
@@ -539,16 +536,41 @@ func (client *LDClient) TrackMetric(
 		client.loggers.Warnf("TrackMetric called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.RecordCustomEvent(
-		client.eventsDefault.factory.NewCustomEventData(
-			eventName,
-			ldevents.Context(context),
-			data,
-			true,
-			metricValue,
-			ldvalue.NewOptionalInt(1),
-		))
+	client.trackWithHooks(
+		eventName,
+		context,
+		data,
+		true,
+		metricValue,
+	)
 	return nil
+}
+
+func (client *LDClient) trackWithHooks(
+	eventName string,
+	context ldcontext.Context,
+	data ldvalue.Value,
+	hasMetric bool,
+	metricValue float64,
+) {
+	var metric *float64 = nil
+	if hasMetric {
+		metric = &metricValue
+	}
+	client.hookRunner.RunTrack(gocontext.TODO(), eventName, context, metric, data,
+		func() {
+			client.eventProcessor.RecordCustomEvent(
+				client.eventsDefault.factory.NewCustomEventData(
+					eventName,
+					ldevents.Context(context),
+					data,
+					hasMetric,
+					metricValue,
+					ldvalue.NewOptionalInt(1),
+				),
+			)
+		},
+	)
 }
 
 // TrackMigrationOp reports a migration operation event.

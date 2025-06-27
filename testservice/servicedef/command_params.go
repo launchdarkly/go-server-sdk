@@ -152,6 +152,7 @@ type HookStage string
 const (
 	BeforeEvaluation HookStage = "beforeEvaluation"
 	AfterEvaluation  HookStage = "afterEvaluation"
+	AfterTrack       HookStage = "afterTrack"
 )
 
 type EvaluationSeriesContext struct {
@@ -161,9 +162,21 @@ type EvaluationSeriesContext struct {
 	Method       string            `json:"method"`
 }
 
-type HookExecutionPayload struct {
+type TrackSeriesContext struct {
+	Key         string            `json:"key"`
+	Context     ldcontext.Context `json:"context"`
+	MetricValue *float64          `json:"metricValue,omitempty"`
+	Data        ldvalue.Value     `json:"data"`
+}
+
+type HookExecutionEvaluationPayload struct {
 	EvaluationSeriesContext EvaluationSeriesContext  `json:"evaluationSeriesContext,omitempty"`
 	EvaluationSeriesData    map[string]ldvalue.Value `json:"evaluationSeriesData,omitempty"`
 	EvaluationDetail        EvaluateFlagResponse     `json:"evaluationDetail,omitempty"`
 	Stage                   HookStage                `json:"stage,omitempty"`
+}
+
+type HookExecutionTrackPayload struct {
+	TrackSeriesContext TrackSeriesContext `json:"trackSeriesContext,omitempty"`
+	Stage              HookStage          `json:"stage,omitempty"`
 }
