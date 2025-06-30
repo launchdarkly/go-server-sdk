@@ -16,11 +16,19 @@ import (
 // The execution of hooks is mostly tested in hook_runner_test. The tests here are to test the usage of the hook runner
 // by the client, but not the implementation of the hook runner itself.
 
-type parameterizedVariation struct {
+type parameterizedEvalTest struct {
 	variationCall func(client *LDClient)
 	methodName    string
 	defaultValue  ldvalue.Value
 	context       gocontext.Context
+}
+
+type parameterizedTrackTest struct {
+	trackCall   func(client *LDClient)
+	methodName  string
+	metricValue *float64
+	data        ldvalue.Value
+	context     gocontext.Context
 }
 
 const hookTestFlag string = "test-flag"
@@ -34,7 +42,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 	piValue := ldvalue.Float64(3.14)
 	stringValue := ldvalue.String("test-string")
 
-	beforeCapture := func(testCase parameterizedVariation) sharedtest.HookExpectedCall {
+	beforeCapture := func(testCase parameterizedEvalTest) sharedtest.HookExpectedCall {
 		return sharedtest.HookExpectedCall{
 			HookStage: sharedtest.HookStageBeforeEvaluation,
 			EvalCapture: sharedtest.HookEvalCapture{
@@ -45,7 +53,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 			}}
 	}
 
-	afterCapture := func(testCase parameterizedVariation) sharedtest.HookExpectedCall {
+	afterCapture := func(testCase parameterizedEvalTest) sharedtest.HookExpectedCall {
 		return sharedtest.HookExpectedCall{
 			HookStage: sharedtest.HookStageAfterEvaluation,
 			EvalCapture: sharedtest.HookEvalCapture{
@@ -61,7 +69,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 			}}
 	}
 
-	testCases := []parameterizedVariation{
+	testCases := []parameterizedEvalTest{
 		// Bool variations
 		{
 			variationCall: func(client *LDClient) {
@@ -270,53 +278,86 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 	}
 }
 
-func TestHooksAreExecutedForAllTrackMethod(t *testing.T) {
+func TestHooksAreExecutedForAllTrackMethods(t *testing.T) {
 	testContext := ldcontext.New("test-context")
+	testGoContext := gocontext.WithValue(gocontext.TODO(), "test-key", "test-value")
 	testData := ldvalue.ObjectBuild().Set("test-key", ldvalue.String("test-value")).Build()
 	testMetric := 1234.5
 
-	t.Run("for method LDClient.TrackEvent", func(t *testing.T) {
-		hook := sharedtest.NewTestHook("test-hook")
-		client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
-		client.eventsDefault = newEventsScope(client, false)
-		client.TrackEvent(hookTestEvent, testContext)
-
-		hook.Verify(t, sharedtest.HookExpectedCall{
+	afterCapture := func(testCase parameterizedTrackTest) sharedtest.HookExpectedCall {
+		return sharedtest.HookExpectedCall{
 			HookStage: sharedtest.HookStageAfterTrack,
 			TrackCapture: sharedtest.HookTrackCapture{
-				GoContext:          gocontext.TODO(),
-				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, nil, ldvalue.Null()),
+				GoContext:          testCase.context,
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, testCase.metricValue, testCase.data),
 			},
-		})
-	})
+		}
+	}
 
-	t.Run("for method LDClient.TrackData", func(t *testing.T) {
-		hook := sharedtest.NewTestHook("test-hook")
-		client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
-		client.eventsDefault = newEventsScope(client, false)
-		client.TrackData(hookTestEvent, testContext, testData)
-
-		hook.Verify(t, sharedtest.HookExpectedCall{
-			HookStage: sharedtest.HookStageAfterTrack,
-			TrackCapture: sharedtest.HookTrackCapture{
-				GoContext:          gocontext.TODO(),
-				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, nil, testData),
+	testCases := []parameterizedTrackTest{
+		{
+			trackCall: func(client *LDClient) {
+				_ = client.TrackEvent(hookTestEvent, testContext)
 			},
-		})
-	})
-
-	t.Run("for method LDClient.TrackMetric", func(t *testing.T) {
-		hook := sharedtest.NewTestHook("test-hook")
-		client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
-		client.eventsDefault = newEventsScope(client, false)
-		client.TrackMetric(hookTestEvent, testContext, testMetric, testData)
-
-		hook.Verify(t, sharedtest.HookExpectedCall{
-			HookStage: sharedtest.HookStageAfterTrack,
-			TrackCapture: sharedtest.HookTrackCapture{
-				GoContext:          gocontext.TODO(),
-				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, &testMetric, testData),
+			methodName:  "LDClient.TrackEvent",
+			data:        ldvalue.Null(),
+			metricValue: nil,
+			context:     gocontext.TODO(),
+		},
+		{
+			trackCall: func(client *LDClient) {
+				_ = client.TrackEventCtx(testGoContext, hookTestEvent, testContext)
 			},
+			methodName:  "LDClient.TrackEventCtx",
+			data:        ldvalue.Null(),
+			metricValue: nil,
+			context:     testGoContext,
+		},
+		{
+			trackCall: func(client *LDClient) {
+				_ = client.TrackData(hookTestEvent, testContext, testData)
+			},
+			methodName:  "LDClient.TrackData",
+			data:        testData,
+			metricValue: nil,
+			context:     gocontext.TODO(),
+		},
+		{
+			trackCall: func(client *LDClient) {
+				_ = client.TrackDataCtx(testGoContext, hookTestEvent, testContext, testData)
+			},
+			methodName:  "LDClient.TrackDataCtx",
+			data:        testData,
+			metricValue: nil,
+			context:     testGoContext,
+		},
+		{
+			trackCall: func(client *LDClient) {
+				_ = client.TrackMetric(hookTestEvent, testContext, testMetric, testData)
+			},
+			methodName:  "LDClient.TrackMetric",
+			data:        testData,
+			metricValue: &testMetric,
+			context:     gocontext.TODO(),
+		},
+		{
+			trackCall: func(client *LDClient) {
+				_ = client.TrackMetricCtx(testGoContext, hookTestEvent, testContext, testMetric, testData)
+			},
+			methodName:  "LDClient.TrackMetricCtx",
+			data:        testData,
+			metricValue: &testMetric,
+			context:     testGoContext,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("for method %v", testCase.methodName), func(t *testing.T) {
+			hook := sharedtest.NewTestHook("test-hook")
+			client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
+			client.eventsDefault = newEventsScope(client, false)
+			testCase.trackCall(client)
+			hook.Verify(t, afterCapture(testCase))
 		})
-	})
+	}
 }
