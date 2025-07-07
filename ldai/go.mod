@@ -7,7 +7,6 @@ require (
 	github.com/launchdarkly/go-sdk-common/v3 v3.3.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.7.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
 )
 
 require (
@@ -18,5 +17,6 @@ require (
 	github.com/launchdarkly/go-sdk-events/v3 v3.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

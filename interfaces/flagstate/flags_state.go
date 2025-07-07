@@ -8,7 +8,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 // AllFlags is a snapshot of the state of multiple feature flags with regard to a specific evaluation

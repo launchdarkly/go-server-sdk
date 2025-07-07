@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"golang.org/x/exp/slices"
+	"slices"
 
 	"github.com/stretchr/testify/assert"
 

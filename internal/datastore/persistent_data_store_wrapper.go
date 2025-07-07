@@ -10,8 +10,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
+	"slices"
+
 	"github.com/patrickmn/go-cache"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/singleflight"
 )
 

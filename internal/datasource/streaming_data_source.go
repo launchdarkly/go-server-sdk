@@ -17,7 +17,7 @@ import (
 
 	es "github.com/launchdarkly/eventsource"
 
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 // Implementation of the streaming data source, not including the lower-level SSE implementation which is in

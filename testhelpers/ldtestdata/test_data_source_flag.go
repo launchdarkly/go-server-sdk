@@ -9,8 +9,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
+	"maps"
+
+	"slices"
 )
 
 const (

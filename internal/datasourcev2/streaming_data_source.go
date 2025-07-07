@@ -21,7 +21,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 const (
