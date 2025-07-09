@@ -93,6 +93,7 @@ type pluginHookTestData struct {
 // This differs from TestHook in that we only care if the evaluation hook methods
 // are called and not about testing evaluation hook logic itself.
 type TestPluginHook struct {
+	ldhooks.Unimplemented
 	testData *pluginHookTestData
 	metadata ldhooks.Metadata
 }

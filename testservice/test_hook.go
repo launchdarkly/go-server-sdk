@@ -45,7 +45,7 @@ func (t testHook) BeforeEvaluation(
 	if hasErr {
 		return data, errors.New(errString)
 	}
-	err := t.callbackService.post("", servicedef.HookExecutionPayload{
+	err := t.callbackService.post("", servicedef.HookExecutionEvaluationPayload{
 		EvaluationSeriesContext: evaluationSeriesContextToService(seriesContext),
 		EvaluationSeriesData:    evaluationSeriesDataToService(data),
 		Stage:                   servicedef.BeforeEvaluation,
@@ -71,7 +71,7 @@ func (t testHook) AfterEvaluation(
 	if hasErr {
 		return data, errors.New(errString)
 	}
-	err := t.callbackService.post("", servicedef.HookExecutionPayload{
+	err := t.callbackService.post("", servicedef.HookExecutionEvaluationPayload{
 		EvaluationSeriesContext: evaluationSeriesContextToService(seriesContext),
 		EvaluationSeriesData:    evaluationSeriesDataToService(data),
 		Stage:                   servicedef.AfterEvaluation,
@@ -86,6 +86,20 @@ func (t testHook) AfterEvaluation(
 		dataBuilder.Set(key, value)
 	}
 	return data, nil
+}
+
+func (t testHook) AfterTrack(
+	_ context.Context,
+	seriesContext ldhooks.TrackSeriesContext,
+) error {
+	errString, hasErr := t.errors[servicedef.AfterTrack]
+	if hasErr {
+		return errors.New(errString)
+	}
+	return t.callbackService.post("", servicedef.HookExecutionTrackPayload{
+		TrackSeriesContext: trackSeriesContextToService(seriesContext),
+		Stage:              servicedef.AfterTrack,
+	}, nil)
 }
 
 func evaluationSeriesContextToService(
@@ -116,4 +130,15 @@ func detailToService(detail ldreason.EvaluationDetail) *servicedef.EvaluateFlagR
 		rep.Reason = &detail.Reason
 	}
 	return rep
+}
+
+func trackSeriesContextToService(
+	seriesContext ldhooks.TrackSeriesContext,
+) servicedef.TrackSeriesContext {
+	return servicedef.TrackSeriesContext{
+		Key:         seriesContext.Key(),
+		Context:     seriesContext.Context(),
+		MetricValue: seriesContext.MetricValue(),
+		Data:        seriesContext.Data(),
+	}
 }

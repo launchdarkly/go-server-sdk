@@ -482,6 +482,16 @@ func (client *LDClient) TrackEvent(eventName string, context ldcontext.Context) 
 	return client.TrackData(eventName, context, ldvalue.Null())
 }
 
+// TrackEventCtx is the same as [LDClient.TrackEvent], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the track operation to be cancelled. The context.Context is
+// used by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+func (client *LDClient) TrackEventCtx(ctx gocontext.Context, eventName string, context ldcontext.Context) error {
+	return client.TrackDataCtx(ctx, eventName, context, ldvalue.Null())
+}
+
 // TrackData reports an event associated with an evaluation context, and adds custom data.
 //
 // The eventName parameter is defined by the application and will be shown in analytics reports;
@@ -501,16 +511,44 @@ func (client *LDClient) TrackData(eventName string, context ldcontext.Context, d
 		client.loggers.Warnf("Track called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
+	client.trackWithHooks(
+		gocontext.TODO(),
+		eventName,
+		context,
+		data,
+		false,
+		0,
+	)
+	return nil
+}
 
-	client.eventProcessor.RecordCustomEvent(
-		client.eventsDefault.factory.NewCustomEventData(
-			eventName,
-			ldevents.Context(context),
-			data,
-			false,
-			0,
-			ldvalue.NewOptionalInt(1),
-		))
+// TrackDataCtx is the same as [LDClient.TrackData], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the track operation to be cancelled. The context.Context is
+// used by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+func (client *LDClient) TrackDataCtx(
+	ctx gocontext.Context,
+	eventName string,
+	context ldcontext.Context,
+	data ldvalue.Value,
+) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("Track called with invalid context: %s", err)
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
+	}
+	client.trackWithHooks(
+		ctx,
+		eventName,
+		context,
+		data,
+		false,
+		0,
+	)
 	return nil
 }
 
@@ -539,16 +577,74 @@ func (client *LDClient) TrackMetric(
 		client.loggers.Warnf("TrackMetric called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
-	client.eventProcessor.RecordCustomEvent(
-		client.eventsDefault.factory.NewCustomEventData(
-			eventName,
-			ldevents.Context(context),
-			data,
-			true,
-			metricValue,
-			ldvalue.NewOptionalInt(1),
-		))
+	client.trackWithHooks(
+		gocontext.TODO(),
+		eventName,
+		context,
+		data,
+		true,
+		metricValue,
+	)
 	return nil
+}
+
+// TrackMetricCtx is the same as [LDClient.TrackMetric], but accepts a context.Context.
+//
+// Cancelling the context.Context will not cause the track operation to be cancelled. The context.Context is
+// used by hook implementations refer to [ldhooks.Hook].
+//
+// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+func (client *LDClient) TrackMetricCtx(
+	ctx gocontext.Context,
+	eventName string,
+	context ldcontext.Context,
+	metricValue float64,
+	data ldvalue.Value,
+) error {
+	if client.eventsDefault.disabled {
+		return nil
+	}
+	if err := context.Err(); err != nil {
+		client.loggers.Warnf("TrackMetricCtx called with invalid context: %s", err)
+		return nil // Don't return an error value because we didn't in the past and it might confuse users
+	}
+	client.trackWithHooks(
+		ctx,
+		eventName,
+		context,
+		data,
+		true,
+		metricValue,
+	)
+	return nil
+}
+
+func (client *LDClient) trackWithHooks(
+	ctx gocontext.Context,
+	eventName string,
+	context ldcontext.Context,
+	data ldvalue.Value,
+	hasMetric bool,
+	metricValue float64,
+) {
+	var metric *float64 = nil
+	if hasMetric {
+		metric = &metricValue
+	}
+	client.hookRunner.RunTrack(ctx, eventName, context, metric, data,
+		func() {
+			client.eventProcessor.RecordCustomEvent(
+				client.eventsDefault.factory.NewCustomEventData(
+					eventName,
+					ldevents.Context(context),
+					data,
+					hasMetric,
+					metricValue,
+					ldvalue.NewOptionalInt(1),
+				),
+			)
+		},
+	)
 }
 
 // TrackMigrationOp reports a migration operation event.

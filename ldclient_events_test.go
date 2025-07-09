@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	gocontext "context"
 	"testing"
 	"time"
 
@@ -64,6 +65,25 @@ func TestTrackEventSendsCustomEvent(t *testing.T) {
 	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
 }
 
+func TestTrackEventCtxSendsCustomEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := lduser.NewUser("userKey")
+	key := "eventKey"
+	err := client.TrackEventCtx(gocontext.TODO(), key, user)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.CustomEventData)
+	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, ldvalue.Null(), e.Data)
+	assert.False(t, e.HasMetric)
+	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
+}
+
 func TestTrackEventSendsSamplingRatio(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
@@ -84,6 +104,26 @@ func TestTrackEventSendsSamplingRatio(t *testing.T) {
 	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
 }
 
+func TestTrackEventCtxSendsSamplingRatio(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := lduser.NewUser("userKey")
+	key := "eventKey"
+
+	err := client.TrackEventCtx(gocontext.TODO(), key, user)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.CustomEventData)
+	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, ldvalue.Null(), e.Data)
+	assert.False(t, e.HasMetric)
+	assert.Equal(t, ldvalue.NewOptionalInt(1), e.SamplingRatio)
+}
+
 func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
@@ -92,6 +132,25 @@ func TestTrackDataSendsCustomEventWithData(t *testing.T) {
 	key := "eventKey"
 	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
 	err := client.TrackData(key, user, data)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.CustomEventData)
+	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, data, e.Data)
+	assert.False(t, e.HasMetric)
+}
+
+func TestTrackDataCtxSendsCustomEventWithData(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := lduser.NewUser("userKey")
+	key := "eventKey"
+	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
+	err := client.TrackDataCtx(gocontext.TODO(), key, user, data)
 	assert.NoError(t, err)
 
 	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
@@ -124,11 +183,43 @@ func TestTrackMetricSendsCustomEventWithMetricAndData(t *testing.T) {
 	assert.Equal(t, metric, e.MetricValue)
 }
 
-func TestTrackWithEmptyUserKeySendsNoEvent(t *testing.T) {
+func TestTrackMetricCtxSendsCustomEventWithMetricAndData(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	user := lduser.NewUser("userKey")
+	key := "eventKey"
+	data := ldvalue.ArrayOf(ldvalue.String("a"), ldvalue.String("b"))
+	metric := float64(1.5)
+	err := client.TrackMetricCtx(gocontext.TODO(), key, user, metric, data)
+	assert.NoError(t, err)
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 1, len(events))
+	e := events[0].(ldevents.CustomEventData)
+	assert.Equal(t, ldevents.Context(user), e.Context)
+	assert.Equal(t, key, e.Key)
+	assert.Equal(t, data, e.Data)
+	assert.True(t, e.HasMetric)
+	assert.Equal(t, metric, e.MetricValue)
+}
+
+func TestTrackEventWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	client := makeTestClient()
 	defer client.Close()
 
 	err := client.TrackEvent("eventkey", lduser.NewUser(""))
+	assert.NoError(t, err) // we don't return an error for this, we just log it
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 0, len(events))
+}
+
+func TestTrackEventCtxWithEmptyUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	err := client.TrackEventCtx(gocontext.TODO(), "eventkey", lduser.NewUser(""))
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
@@ -140,6 +231,17 @@ func TestTrackMetricWithEmptyUserKeySendsNoEvent(t *testing.T) {
 	defer client.Close()
 
 	err := client.TrackMetric("eventKey", lduser.NewUser(""), 2.5, ldvalue.Null())
+	assert.NoError(t, err) // we don't return an error for this, we just log it
+
+	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+	assert.Equal(t, 0, len(events))
+}
+
+func TestTrackMetricCtxWithEmptyUserKeySendsNoEvent(t *testing.T) {
+	client := makeTestClient()
+	defer client.Close()
+
+	err := client.TrackMetricCtx(gocontext.TODO(), "eventKey", lduser.NewUser(""), 2.5, ldvalue.Null())
 	assert.NoError(t, err) // we don't return an error for this, we just log it
 
 	events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
@@ -169,6 +271,20 @@ func TestTrackWithEventsDisabledDoesNotCauseError(t *testing.T) {
 
 	require.NoError(t, client.TrackEvent("eventkey", lduser.NewUser("")))
 	require.NoError(t, client.TrackMetric("eventkey", lduser.NewUser(""), 0, ldvalue.Null()))
+
+	assert.Len(t, mockLog.GetOutput(ldlog.Warn), 0)
+}
+
+func TestTrackCtxWithEventsDisabledDoesNotCauseError(t *testing.T) {
+	mockLog := ldlogtest.NewMockLog()
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.Events = ldcomponents.NoEvents()
+		c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
+	})
+	defer client.Close()
+
+	require.NoError(t, client.TrackEventCtx(gocontext.TODO(), "eventkey", lduser.NewUser("")))
+	require.NoError(t, client.TrackMetricCtx(gocontext.TODO(), "eventkey", lduser.NewUser(""), 0, ldvalue.Null()))
 
 	assert.Len(t, mockLog.GetOutput(ldlog.Warn), 0)
 }
@@ -209,6 +325,8 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 			checkEvents(func() { ci.TrackEvent("eventkey", user) })
 			checkEvents(func() { ci.TrackData("eventkey", user, ldvalue.Bool(true)) })
 			checkEvents(func() { ci.TrackMetric("eventkey", user, 1.5, ldvalue.Null()) })
+			// It is not possible to test TrackEventCtx, TrackDataCtx, and TrackMetricCtx
+			// since those methods are not present in LDClientInterface.
 
 			state := ci.AllFlagsState(user)
 			assert.True(t, state.IsValid())

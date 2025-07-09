@@ -62,3 +62,24 @@ func (h *Runner) prepareEvaluationSeries(
 		loggers: &h.loggers,
 	}
 }
+
+// RunTrack runs the track series after the given track function.
+func (h *Runner) RunTrack(
+	ctx gocontext.Context,
+	key string,
+	trackContext ldcontext.Context,
+	metricValue *float64,
+	data ldvalue.Value,
+	fn func(),
+) {
+	fn()
+	if len(h.hooks) == 0 {
+		return
+	}
+	e := TrackExecution{
+		hooks:   h.hooks,
+		context: ldhooks.NewTrackSeriesContext(trackContext, key, metricValue, data),
+		loggers: &h.loggers,
+	}
+	e.AfterTrack(ctx)
+}

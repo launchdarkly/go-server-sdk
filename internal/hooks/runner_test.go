@@ -19,7 +19,8 @@ func TestHookRunner(t *testing.T) {
 	flagKey := "test-flag"
 	testMethod := "testMethod"
 	defaultDetail := ldreason.NewEvaluationDetail(falseValue, 0, ldreason.NewEvalReasonFallthrough())
-	basicResult := func() (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
+	eventKey := "test-event"
+	basicEvalResult := func() (ldreason.EvaluationDetail, *ldmodel.FeatureFlag, error) {
 		return defaultDetail, nil, nil
 	}
 
@@ -28,28 +29,30 @@ func TestHookRunner(t *testing.T) {
 
 		t.Run("prepare evaluation series", func(t *testing.T) {
 			res := runner.prepareEvaluationSeries(flagKey, ldContext, falseValue, testMethod)
-			emptyExecutionAssertions(t, res, ldContext)
+			emptyEvaluationExecutionAssertions(t, res, ldContext)
 		})
 
-		t.Run("run execution", func(t *testing.T) {
+		t.Run("run evaluation execution", func(t *testing.T) {
 			detail, flag, err := runner.RunEvaluation(
 				gocontext.Background(),
 				flagKey,
 				ldContext,
 				falseValue,
 				testMethod,
-				basicResult,
+				basicEvalResult,
 			)
 			assert.Equal(t, defaultDetail, detail)
 			assert.Nil(t, flag)
 			assert.Nil(t, err)
 		})
+
+		// RunTrack has no return values so there's nothing to test
 	})
 
-	t.Run("verify execution and order", func(t *testing.T) {
+	t.Run("verify evaluation execution and order", func(t *testing.T) {
 		tracker := newOrderTracker()
-		hookA := createOrderTrackingHook("a", tracker)
-		hookB := createOrderTrackingHook("b", tracker)
+		hookA := createOrderTrackingEvalHook("a", tracker)
+		hookB := createOrderTrackingEvalHook("b", tracker)
 		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
 
 		_, _, _ = runner.RunEvaluation(
@@ -58,7 +61,7 @@ func TestHookRunner(t *testing.T) {
 			ldContext,
 			falseValue,
 			testMethod,
-			basicResult,
+			basicEvalResult,
 		)
 
 		hookA.Verify(t, sharedtest.HookExpectedCall{
@@ -85,7 +88,7 @@ func TestHookRunner(t *testing.T) {
 					),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            gocontext.Background(),
-					Detail:               defaultDetail,
+					EvaluationDetail:     defaultDetail,
 				},
 			})
 
@@ -112,12 +115,41 @@ func TestHookRunner(t *testing.T) {
 					),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            gocontext.Background(),
-					Detail:               defaultDetail,
+					EvaluationDetail:     defaultDetail,
 				},
 			})
 
 		// BeforeEvaluation should execute in registration order.
 		assert.Equal(t, []string{"a", "b"}, tracker.orderBefore)
+		// AfterEvaluation should execute in reverse registration order.
+		assert.Equal(t, []string{"b", "a"}, tracker.orderAfter)
+	})
+
+	t.Run("verify track execution and order", func(t *testing.T) {
+		tracker := newOrderTracker()
+		hookA := createOrderTrackingTrackHook("a", tracker)
+		hookB := createOrderTrackingTrackHook("b", tracker)
+		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+
+		runner.RunTrack(gocontext.Background(), eventKey, ldContext, nil, ldvalue.Null(), func() {})
+
+		hookA.Verify(t, sharedtest.HookExpectedCall{
+			HookStage: sharedtest.HookStageAfterTrack,
+			TrackCapture: sharedtest.HookTrackCapture{
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, eventKey, nil, ldvalue.Null()),
+				GoContext:          gocontext.Background(),
+			},
+		})
+
+		hookB.Verify(t, sharedtest.HookExpectedCall{
+			HookStage: sharedtest.HookStageAfterTrack,
+			TrackCapture: sharedtest.HookTrackCapture{
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, eventKey, nil, ldvalue.Null()),
+				GoContext:          gocontext.Background(),
+			},
+		})
+
+		// AfterTrack should execute in reverse registration order.
 		assert.Equal(t, []string{"b", "a"}, tracker.orderAfter)
 	})
 }

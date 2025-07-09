@@ -21,6 +21,7 @@ import (
 type Hook interface {
 	Metadata() Metadata
 	EvaluationSeries
+	TrackSeries
 }
 
 // The EvaluationSeries is composed of stages, methods that are called during the evaluation of flags.
@@ -50,9 +51,19 @@ type EvaluationSeries interface {
 	) (EvaluationSeriesData, error)
 }
 
+// The TrackSeries is composed of stages, methods that are called during the tracking of events.
+type TrackSeries interface {
+	// AfterTrack is called during the execution of a track Method.
+	AfterTrack(
+		ctx context.Context,
+		seriesContext TrackSeriesContext,
+	) error
+}
+
 // hookInterfaces is an interface for implementation by the Unimplemented
 type hookInterfaces interface {
 	EvaluationSeries
+	TrackSeries
 }
 
 // Unimplemented implements all Hook methods with empty functions.
@@ -84,6 +95,14 @@ func (h Unimplemented) AfterEvaluation(
 	_ ldreason.EvaluationDetail,
 ) (EvaluationSeriesData, error) {
 	return data, nil
+}
+
+// AfterTrack is a default implementation of the AfterTrack stage.
+func (h Unimplemented) AfterTrack(
+	_ context.Context,
+	_ TrackSeriesContext,
+) error {
+	return nil
 }
 
 // Implementation note: Unimplemented does not implement GetMetaData because that must be implemented by hook
