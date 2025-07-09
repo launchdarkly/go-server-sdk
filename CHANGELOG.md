@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.12.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.11.0...v7.12.0) (2025-07-09)
+
+
+### Features
+
+* Add Track Series Hook support ([#289](https://github.com/launchdarkly/go-server-sdk/issues/289)) ([a3f6af4](https://github.com/launchdarkly/go-server-sdk/commit/a3f6af42f1bd0743dd93a74fce5ddccc26f8201d))
+
 ## [7.11.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.10.2...v7.11.0) (2025-06-24)
 
 
