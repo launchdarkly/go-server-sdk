@@ -1,4 +1,4 @@
 package internal
 
 // SDKVersion is the current version string of the SDK. This is updated by our release scripts.
-const SDKVersion = "7.11.0" // {{ x-release-please-version }}
+const SDKVersion = "7.12.0" // {{ x-release-please-version }}
