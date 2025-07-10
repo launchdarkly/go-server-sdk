@@ -74,7 +74,7 @@ type StreamProcessor struct {
 	connectionAttemptLock      sync.Mutex
 	isClosed                   atomic.Bool
 	halt                       chan struct{}
-	environmentID              ldvalue.OptionalString
+	environmentID              atomic.Pointer[ldvalue.OptionalString]
 }
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
@@ -98,6 +98,8 @@ func NewStreamProcessor(
 	// sure it's zero and not the usual configured default. What we do want is a *connection* timeout,
 	// which is set by Config.newHTTPClient as a property of the Dialer.
 	sp.client.Timeout = 0
+
+	sp.environmentID.Store(&ldvalue.OptionalString{})
 
 	return sp
 }
@@ -159,7 +161,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			shouldRestart := false
 
 			if eventWithHeaders, ok := event.(es.EventWithHeaders); ok {
-				sp.environmentID = internal.NewInitMetadataFromHeaders(eventWithHeaders.Headers()).GetEnvironmentID()
+				environmentID := internal.NewInitMetadataFromHeaders(eventWithHeaders.Headers()).GetEnvironmentID()
+				sp.environmentID.Store(&environmentID)
 			}
 
 			gotMalformedEvent := func(event es.Event, err error) {
@@ -187,7 +190,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				resultChan <- subsystems.DataSynchronizerResult{
 					State:         interfaces.DataSourceStateInterrupted,
 					Error:         errorInfo,
-					EnvironmentID: sp.environmentID,
+					EnvironmentID: *sp.environmentID.Load(),
 				}
 
 				shouldRestart = true // scenario 1 in error handling comments at top of file
@@ -220,7 +223,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 
 					resultChan <- subsystems.DataSynchronizerResult{
 						State:         interfaces.DataSourceStateValid,
-						EnvironmentID: sp.environmentID,
+						EnvironmentID: *sp.environmentID.Load(),
 					}
 					break
 				}
@@ -288,7 +291,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				resultChan <- subsystems.DataSynchronizerResult{
 					ChangeSet:     changeSet,
 					State:         interfaces.DataSourceStateValid,
-					EnvironmentID: sp.environmentID,
+					EnvironmentID: *sp.environmentID.Load(),
 				}
 
 			default:
@@ -321,7 +324,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				Message: reqErr.Error(),
 				Time:    time.Now(),
 			},
-			EnvironmentID: sp.environmentID,
+			EnvironmentID: *sp.environmentID.Load(),
 		}
 		close(resultChan)
 		sp.logConnectionResult(false)
@@ -361,7 +364,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 					State:         interfaces.DataSourceStateOff,
 					Error:         errorInfo,
 					RevertToFDv1:  true,
-					EnvironmentID: sp.environmentID,
+					EnvironmentID: *sp.environmentID.Load(),
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}
 			}
@@ -378,14 +381,14 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				resultChan <- subsystems.DataSynchronizerResult{
 					State:         interfaces.DataSourceStateInterrupted,
 					Error:         errorInfo,
-					EnvironmentID: sp.environmentID,
+					EnvironmentID: *sp.environmentID.Load(),
 				}
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
 			resultChan <- subsystems.DataSynchronizerResult{
 				State:         interfaces.DataSourceStateOff,
 				Error:         errorInfo,
-				EnvironmentID: sp.environmentID,
+				EnvironmentID: *sp.environmentID.Load(),
 			}
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
@@ -405,7 +408,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 		resultChan <- subsystems.DataSynchronizerResult{
 			State:         interfaces.DataSourceStateInterrupted,
 			Error:         errorInfo,
-			EnvironmentID: sp.environmentID,
+			EnvironmentID: *sp.environmentID.Load(),
 		}
 		sp.logConnectionStarted()
 		return es.StreamErrorHandlerResult{CloseNow: false}
@@ -439,7 +442,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				Message: err.Error(),
 				Time:    time.Now(),
 			},
-			EnvironmentID: sp.environmentID,
+			EnvironmentID: *sp.environmentID.Load(),
 		}
 		close(resultChan)
 
