@@ -1,6 +1,10 @@
 package mocks
 
-import "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+import (
+	"net/http"
+
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+)
 
 // Requester is a mock used in polling_data_source_test.go, to satisfy the
 // datasource.Requester interface (used by PollingProcessor).
@@ -14,9 +18,10 @@ type Requester struct {
 // RequestAllResponse is used to inject custom responses into the Requester,
 // which will subsequently return them to the object under test.
 type RequestAllResponse struct {
-	Data   []ldstoretypes.Collection
-	Cached bool
-	Err    error
+	Data    []ldstoretypes.Collection
+	Cached  bool
+	Headers http.Header
+	Err     error
 }
 
 // NewPollingRequester constructs a Requester.
@@ -45,12 +50,12 @@ func (r *Requester) FilterKey() string {
 
 // Request blocks until a mock request is available on the RequestAllRespCh, or until closing
 // via Close().
-func (r *Requester) Request() ([]ldstoretypes.Collection, bool, error) {
+func (r *Requester) Request() ([]ldstoretypes.Collection, bool, http.Header, error) {
 	select {
 	case resp := <-r.RequestAllRespCh:
 		r.PollsCh <- struct{}{}
-		return resp.Data, resp.Cached, resp.Err
+		return resp.Data, resp.Cached, resp.Headers, resp.Err
 	case <-r.CloserCh:
-		return nil, false, nil
+		return nil, false, nil, nil
 	}
 }

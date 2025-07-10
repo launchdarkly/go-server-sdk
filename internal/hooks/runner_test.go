@@ -13,6 +13,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type mockEnvironmentIDProvider struct {
+	environmentID ldvalue.OptionalString
+}
+
+func (e mockEnvironmentIDProvider) GetEnvironmentID() ldvalue.OptionalString {
+	return e.environmentID
+}
+
+func newMockEnvironmentIDProvider(environmentID string) mockEnvironmentIDProvider {
+	return mockEnvironmentIDProvider{
+		environmentID: ldvalue.NewOptionalString(environmentID),
+	}
+}
+
 func TestHookRunner(t *testing.T) {
 	falseValue := ldvalue.Bool(false)
 	ldContext := ldcontext.New("test-context")
@@ -25,7 +39,7 @@ func TestHookRunner(t *testing.T) {
 	}
 
 	t.Run("with no hooks", func(t *testing.T) {
-		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
+		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{}, mockEnvironmentIDProvider{})
 
 		t.Run("prepare evaluation series", func(t *testing.T) {
 			res := runner.prepareEvaluationSeries(flagKey, ldContext, falseValue, testMethod)
@@ -53,7 +67,7 @@ func TestHookRunner(t *testing.T) {
 		tracker := newOrderTracker()
 		hookA := createOrderTrackingEvalHook("a", tracker)
 		hookB := createOrderTrackingEvalHook("b", tracker)
-		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB}, newMockEnvironmentIDProvider("env-id"))
 
 		_, _, _ = runner.RunEvaluation(
 			gocontext.Background(),
@@ -72,6 +86,7 @@ func TestHookRunner(t *testing.T) {
 					ldContext,
 					falseValue,
 					testMethod,
+					ldvalue.NewOptionalString("env-id"),
 				),
 				EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 				GoContext:            gocontext.Background(),
@@ -85,6 +100,7 @@ func TestHookRunner(t *testing.T) {
 						ldContext,
 						falseValue,
 						testMethod,
+						ldvalue.NewOptionalString("env-id"),
 					),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            gocontext.Background(),
@@ -100,6 +116,7 @@ func TestHookRunner(t *testing.T) {
 					ldContext,
 					falseValue,
 					testMethod,
+					ldvalue.NewOptionalString("env-id"),
 				),
 				EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 				GoContext:            gocontext.Background(),
@@ -112,6 +129,7 @@ func TestHookRunner(t *testing.T) {
 						ldContext,
 						falseValue,
 						testMethod,
+						ldvalue.NewOptionalString("env-id"),
 					),
 					EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 					GoContext:            gocontext.Background(),
@@ -129,14 +147,14 @@ func TestHookRunner(t *testing.T) {
 		tracker := newOrderTracker()
 		hookA := createOrderTrackingTrackHook("a", tracker)
 		hookB := createOrderTrackingTrackHook("b", tracker)
-		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB}, newMockEnvironmentIDProvider("env-id"))
 
 		runner.RunTrack(gocontext.Background(), eventKey, ldContext, nil, ldvalue.Null(), func() {})
 
 		hookA.Verify(t, sharedtest.HookExpectedCall{
 			HookStage: sharedtest.HookStageAfterTrack,
 			TrackCapture: sharedtest.HookTrackCapture{
-				TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, eventKey, nil, ldvalue.Null()),
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, eventKey, nil, ldvalue.Null(), ldvalue.NewOptionalString("env-id")),
 				GoContext:          gocontext.Background(),
 			},
 		})
@@ -144,7 +162,7 @@ func TestHookRunner(t *testing.T) {
 		hookB.Verify(t, sharedtest.HookExpectedCall{
 			HookStage: sharedtest.HookStageAfterTrack,
 			TrackCapture: sharedtest.HookTrackCapture{
-				TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, eventKey, nil, ldvalue.Null()),
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, eventKey, nil, ldvalue.Null(), ldvalue.NewOptionalString("env-id")),
 				GoContext:          gocontext.Background(),
 			},
 		})

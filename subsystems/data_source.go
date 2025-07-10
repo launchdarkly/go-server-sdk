@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 
@@ -30,7 +31,8 @@ type Basis struct {
 	ChangeSet ChangeSet
 	// Persist is true if the data source requests that the data store persist the items to any connected
 	// Persistent Stores.
-	Persist bool
+	Persist       bool
+	EnvironmentID ldvalue.OptionalString
 }
 
 // DataSelector is an interface that provides a Selector, which is used by synchronizers and initializers to
@@ -50,10 +52,11 @@ type DataInitializer interface {
 
 // DataSynchronizerResult represents the results of a Synchronizer's ongoing Sync method.
 type DataSynchronizerResult struct {
-	ChangeSet    *ChangeSet
-	State        interfaces.DataSourceState
-	Error        interfaces.DataSourceErrorInfo
-	RevertToFDv1 bool
+	ChangeSet     *ChangeSet
+	State         interfaces.DataSourceState
+	Error         interfaces.DataSourceErrorInfo
+	RevertToFDv1  bool
+	EnvironmentID ldvalue.OptionalString
 }
 
 // DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.

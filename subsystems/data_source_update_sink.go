@@ -1,6 +1,7 @@
 package subsystems
 
 import (
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
@@ -56,4 +57,17 @@ type DataSourceUpdateSink interface {
 	// to take some special action: for instance, if a database outage may have caused some data to be
 	// lost and therefore the data should be re-requested from LaunchDarkly.
 	GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider
+}
+
+// DataSourceUpdateSinkWithEnvironmentID is an additional interface for a DataSourceUpdateSink
+// that supports setting an EnvironmentID.
+//
+// This is defined as a separate interface for backward compatibility, since this feature was
+// added after the DataSourceUpdateSink interface had been defined and adding a method to
+// DataSourceUpdateSink would break existing implementations. All internal implementations
+// of DataSourceUpdateSink implement this interface, and in a future major version the
+// DataSourceUpdateSink type will be changed to always include this field.
+type DataSourceUpdateSinkWithEnvironmentID interface {
+	// SetEnvironmentID sets the EnvironmentID tracked by this DataSourceUpdateSink.
+	SetEnvironmentID(environmentID ldvalue.OptionalString)
 }

@@ -47,7 +47,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 			HookStage: sharedtest.HookStageBeforeEvaluation,
 			EvalCapture: sharedtest.HookEvalCapture{
 				EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", testContext,
-					testCase.defaultValue, testCase.methodName),
+					testCase.defaultValue, testCase.methodName, ldvalue.OptionalString{}),
 				EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 				GoContext:            testCase.context,
 			}}
@@ -58,7 +58,7 @@ func TestHooksAreExecutedForAllVariationMethods(t *testing.T) {
 			HookStage: sharedtest.HookStageAfterEvaluation,
 			EvalCapture: sharedtest.HookEvalCapture{
 				EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext(hookTestFlag, testContext,
-					testCase.defaultValue, testCase.methodName),
+					testCase.defaultValue, testCase.methodName, ldvalue.OptionalString{}),
 				EvaluationSeriesData: ldhooks.NewEvaluationSeriesBuilder(ldhooks.EmptyEvaluationSeriesData()).
 					Set("test-key", "test-value").Build(),
 				EvaluationDetail: ldreason.NewEvaluationDetailForError(
@@ -288,8 +288,14 @@ func TestHooksAreExecutedForAllTrackMethods(t *testing.T) {
 		return sharedtest.HookExpectedCall{
 			HookStage: sharedtest.HookStageAfterTrack,
 			TrackCapture: sharedtest.HookTrackCapture{
-				GoContext:          testCase.context,
-				TrackSeriesContext: ldhooks.NewTrackSeriesContext(testContext, hookTestEvent, testCase.metricValue, testCase.data),
+				GoContext: testCase.context,
+				TrackSeriesContext: ldhooks.NewTrackSeriesContext(
+					testContext,
+					hookTestEvent,
+					testCase.metricValue,
+					testCase.data,
+					ldvalue.OptionalString{},
+				),
 			},
 		}
 	}

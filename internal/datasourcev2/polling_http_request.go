@@ -68,22 +68,25 @@ func (r *pollingRequester) FilterKey() string {
 	return r.filterKey
 }
 
-func (r *pollingRequester) Request(ctx context.Context, selector subsystems.Selector) (*subsystems.ChangeSet, error) {
+func (r *pollingRequester) Request(
+	ctx context.Context,
+	selector subsystems.Selector,
+) (*subsystems.ChangeSet, http.Header, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	body, cached, err := r.makeRequest(ctx, endpoints.PollingRequestV2Path, selector)
+	body, cached, headers, err := r.makeRequest(ctx, endpoints.PollingRequestV2Path, selector)
 	if err != nil {
-		return nil, err
+		return nil, headers, err
 	}
 	if cached {
-		return subsystems.NewChangeSetBuilder().NoChanges(), nil
+		return subsystems.NewChangeSetBuilder().NoChanges(), headers, nil
 	}
 
 	var payload subsystems.PollingPayload
 	if err = json.Unmarshal(body, &payload); err != nil {
-		return nil, malformedJSONError{err}
+		return nil, headers, malformedJSONError{err}
 	}
 
 	changeSet := subsystems.NewChangeSetBuilder()
@@ -91,58 +94,59 @@ func (r *pollingRequester) Request(ctx context.Context, selector subsystems.Sele
 	for _, event := range payload.Events {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, headers, ctx.Err()
 		default:
 			switch event.Name {
 			case subsystems.EventServerIntent:
 				var serverIntent subsystems.ServerIntent
 				err := json.Unmarshal(event.Data, &serverIntent)
 				if err != nil {
-					return nil, err
+					return nil, headers, err
 				}
 				if serverIntent.Payload.Code == subsystems.IntentNone {
-					return changeSet.NoChanges(), nil
+					return changeSet.NoChanges(), headers, nil
 				}
 				if err := changeSet.Start(serverIntent); err != nil {
-					return nil, err
+					return nil, headers, err
 				}
 			case subsystems.EventPutObject:
 				var put subsystems.PutObject
 				if err := json.Unmarshal(event.Data, &put); err != nil {
-					return nil, err
+					return nil, headers, err
 				}
 				changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
 			case subsystems.EventDeleteObject:
 				var deleteObject subsystems.DeleteObject
 				if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
-					return nil, err
+					return nil, headers, err
 				}
 				changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
 			case subsystems.EventPayloadTransferred:
 				var selector subsystems.Selector
 				if err := json.Unmarshal(event.Data, &selector); err != nil {
-					return nil, err
+					return nil, headers, err
 				}
-				return changeSet.Finish(selector)
+				changeset, err := changeSet.Finish(selector)
+				return changeset, headers, err
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("didn't receive any known protocol events in polling payload")
+	return nil, headers, fmt.Errorf("didn't receive any known protocol events in polling payload")
 }
 
 func (r *pollingRequester) makeRequest(
 	ctx context.Context,
 	resource string,
 	selector subsystems.Selector,
-) ([]byte, bool, error) {
+) ([]byte, bool, http.Header, error) {
 	req, reqErr := http.NewRequestWithContext(ctx, "GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(
 			"unable to create a poll request; this is not a network problem, most likely a bad base URI: %w",
 			reqErr,
 		)
-		return nil, false, reqErr
+		return nil, false, nil, reqErr
 	}
 
 	params := url.Values{}
@@ -167,7 +171,7 @@ func (r *pollingRequester) makeRequest(
 	res, resErr := r.httpClient.Do(req)
 
 	if resErr != nil {
-		return nil, false, resErr
+		return nil, false, nil, resErr
 	}
 
 	defer func() {
@@ -176,7 +180,7 @@ func (r *pollingRequester) makeRequest(
 	}()
 
 	if err := checkForHTTPError(res.StatusCode, res.Header, url); err != nil {
-		return nil, false, err
+		return nil, false, res.Header, err
 	}
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
@@ -184,7 +188,7 @@ func (r *pollingRequester) makeRequest(
 	body, ioErr := io.ReadAll(res.Body)
 
 	if ioErr != nil {
-		return nil, false, ioErr // COVERAGE: there is no way to simulate this condition in unit tests
+		return nil, false, res.Header, ioErr // COVERAGE: there is no way to simulate this condition in unit tests
 	}
-	return body, cached, nil
+	return body, cached, res.Header, nil
 }

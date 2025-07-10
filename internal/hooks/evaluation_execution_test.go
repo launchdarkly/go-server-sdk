@@ -42,7 +42,7 @@ func TestEvaluationExecution(t *testing.T) {
 	ldContext := ldcontext.New("test-context")
 
 	t.Run("with no hooks", func(t *testing.T) {
-		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{})
+		runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{}, mockEnvironmentIDProvider{})
 
 		t.Run("run before evaluation", func(t *testing.T) {
 			execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
@@ -65,7 +65,7 @@ func TestEvaluationExecution(t *testing.T) {
 		t.Run("prepare evaluation series", func(t *testing.T) {
 			hookA := sharedtest.NewTestHook("a")
 			hookB := sharedtest.NewTestHook("b")
-			runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+			runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB}, mockEnvironmentIDProvider{})
 
 			ldContext := ldcontext.New("test-context")
 			res := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue, "testMethod")
@@ -110,7 +110,7 @@ func TestEvaluationExecution(t *testing.T) {
 						tracker := newOrderTracker()
 						hookA := createOrderTrackingEvalHook("a", tracker)
 						hookB := createOrderTrackingEvalHook("b", tracker)
-						runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+						runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB}, mockEnvironmentIDProvider{})
 
 						execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
 							"testMethod")
@@ -126,7 +126,7 @@ func TestEvaluationExecution(t *testing.T) {
 			t.Run("run before evaluation", func(t *testing.T) {
 				hookA := sharedtest.NewTestHook("a")
 				hookB := sharedtest.NewTestHook("b")
-				runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+				runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB}, newMockEnvironmentIDProvider("env-id"))
 
 				execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
 					"testMethod")
@@ -136,7 +136,7 @@ func TestEvaluationExecution(t *testing.T) {
 					HookStage: sharedtest.HookStageBeforeEvaluation,
 					EvalCapture: sharedtest.HookEvalCapture{
 						EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-							falseValue, "testMethod"),
+							falseValue, "testMethod", ldvalue.NewOptionalString("env-id")),
 						EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 						GoContext:            context.Background(),
 					}})
@@ -145,7 +145,7 @@ func TestEvaluationExecution(t *testing.T) {
 					HookStage: sharedtest.HookStageBeforeEvaluation,
 					EvalCapture: sharedtest.HookEvalCapture{
 						EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-							falseValue, "testMethod"),
+							falseValue, "testMethod", ldvalue.NewOptionalString("env-id")),
 						EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 						GoContext:            context.Background(),
 					}})
@@ -154,7 +154,7 @@ func TestEvaluationExecution(t *testing.T) {
 			t.Run("run after evaluation", func(t *testing.T) {
 				hookA := sharedtest.NewTestHook("a")
 				hookB := sharedtest.NewTestHook("b")
-				runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB})
+				runner := NewRunner(sharedtest.NewTestLoggers(), []ldhooks.Hook{hookA, hookB}, newMockEnvironmentIDProvider("env-id"))
 
 				execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
 					"testMethod")
@@ -166,7 +166,7 @@ func TestEvaluationExecution(t *testing.T) {
 					HookStage: sharedtest.HookStageAfterEvaluation,
 					EvalCapture: sharedtest.HookEvalCapture{
 						EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-							falseValue, "testMethod"),
+							falseValue, "testMethod", ldvalue.NewOptionalString("env-id")),
 						EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 						EvaluationDetail:     detail,
 						GoContext:            context.Background(),
@@ -176,7 +176,7 @@ func TestEvaluationExecution(t *testing.T) {
 					HookStage: sharedtest.HookStageAfterEvaluation,
 					EvalCapture: sharedtest.HookEvalCapture{
 						EvaluationSeriesContext: ldhooks.NewEvaluationSeriesContext("test-flag", ldContext,
-							falseValue, "testMethod"),
+							falseValue, "testMethod", ldvalue.NewOptionalString("env-id")),
 						EvaluationSeriesData: ldhooks.EmptyEvaluationSeriesData(),
 						EvaluationDetail:     detail,
 						GoContext:            context.Background(),
@@ -206,7 +206,7 @@ func TestEvaluationExecution(t *testing.T) {
 						Build(), nil
 				}
 
-				runner := NewRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
+				runner := NewRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB}, mockEnvironmentIDProvider{})
 				execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
 					"testMethod")
 
@@ -255,7 +255,7 @@ func TestEvaluationExecution(t *testing.T) {
 
 				}
 
-				runner := NewRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB})
+				runner := NewRunner(mockLog.Loggers, []ldhooks.Hook{hookA, hookB}, mockEnvironmentIDProvider{})
 				execution := runner.prepareEvaluationSeries("test-flag", ldContext, falseValue,
 					"testMethod")
 				detail := ldreason.NewEvaluationDetail(falseValue, 0,

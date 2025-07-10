@@ -191,6 +191,13 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 					break
 				}
 				if sp.dataSourceUpdates.Init(put.Data) {
+					if eventWithHeaders, ok := event.(es.EventWithHeaders); ok {
+						if dataSourceUpdatesWithInitMetadata, ok :=
+							sp.dataSourceUpdates.(subsystems.DataSourceUpdateSinkWithEnvironmentID); ok {
+							initMetadata := internal.NewInitMetadataFromHeaders(eventWithHeaders.Headers())
+							dataSourceUpdatesWithInitMetadata.SetEnvironmentID(initMetadata.GetEnvironmentID())
+						}
+					}
 					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				} else {
 					storeUpdateFailed("initial streaming data")

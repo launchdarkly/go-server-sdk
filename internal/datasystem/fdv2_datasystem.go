@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
@@ -87,6 +88,8 @@ type FDv2 struct {
 
 	dataSourceStatusProvider *dataStatusProvider
 
+	environmentIDProvider *environmentIDProvider
+
 	// Protects status.
 	mu     sync.Mutex
 	status interfaces.DataSourceStatus
@@ -119,6 +122,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		loggers:                  clientContext.GetLogging().Loggers,
 		broadcasters:             bcasters,
 		dataSourceStatusProvider: &dataStatusProvider{},
+		environmentIDProvider:    &environmentIDProvider{},
 	}
 
 	// Unfortunate circular reference.
@@ -246,6 +250,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
 			continue
 		}
+		f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
 		f.loggers.Infof("Initialized via %s", initializer.Name())
 		f.store.Apply(basis.ChangeSet, basis.Persist)
 		f.readyOnce.Do(func() {
@@ -374,6 +379,8 @@ func (f *FDv2) consumeSynchronizerResults(
 				return false, false, nil
 			}
 
+			f.environmentIDProvider.SetEnvironmentID(result.EnvironmentID)
+
 			switch result.State {
 			case interfaces.DataSourceStateValid:
 				if result.ChangeSet != nil {
@@ -450,6 +457,11 @@ func (f *FDv2) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 //nolint:revive // DataSystem method.
 func (f *FDv2) DataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return f.dataStoreStatusProvider
+}
+
+//nolint:revive // DataSystem method.
+func (f *FDv2) EnvironmentIDProvider() internal.EnvironmentIDProvider {
+	return f.environmentIDProvider
 }
 
 //nolint:revive // DataSystem method.
@@ -532,3 +544,17 @@ func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, ti
 }
 
 var _ interfaces.DataSourceStatusProvider = (*dataStatusProvider)(nil)
+
+type environmentIDProvider struct {
+	environmentID ldvalue.OptionalString
+}
+
+func (e environmentIDProvider) GetEnvironmentID() ldvalue.OptionalString {
+	return e.environmentID
+}
+
+func (e *environmentIDProvider) SetEnvironmentID(environmentID ldvalue.OptionalString) {
+	e.environmentID = environmentID
+}
+
+var _ internal.EnvironmentIDProvider = (*environmentIDProvider)(nil)

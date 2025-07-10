@@ -31,10 +31,11 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := NewPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-				data, cached, err := r.Request()
+				data, cached, headers, err := r.Request()
 
 				assert.NoError(t, err)
 				assert.False(t, cached)
+				assert.NotEmpty(t, headers)
 
 				assert.Equal(t, sharedtest.NormalizeDataSet(expectedData.Build()), sharedtest.NormalizeDataSet(data))
 
@@ -49,7 +50,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := NewPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-				data, cached, err := r.Request()
+				data, cached, headers, err := r.Request()
 
 				assert.Error(t, err)
 				if he, ok := err.(httpStatusError); assert.True(t, ok) {
@@ -57,6 +58,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 				}
 				assert.False(t, cached)
 				assert.Nil(t, data)
+				assert.NotEmpty(t, headers)
 			})
 		})
 
@@ -68,11 +70,12 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			})
 			r := NewPollingRequester(sharedtest.BasicClientContext(), nil, closedServerURL, filter.key)
 
-			data, cached, err := r.Request()
+			data, cached, headers, err := r.Request()
 
 			assert.Error(t, err)
 			assert.False(t, cached)
 			assert.Nil(t, data)
+			assert.Nil(t, headers)
 		})
 
 		t.Run("malformed data", func(t *testing.T) {
@@ -80,25 +83,27 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := NewPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-				data, cached, err := r.Request()
+				data, cached, headers, err := r.Request()
 
 				require.Error(t, err)
 				_, ok := err.(malformedJSONError)
 				assert.True(t, ok)
 				assert.False(t, cached)
 				assert.Nil(t, data)
+				assert.NotEmpty(t, headers)
 			})
 		})
 
 		t.Run("malformed base URI", func(t *testing.T) {
 			r := NewPollingRequester(sharedtest.BasicClientContext(), nil, "::::", filter.key)
 
-			data, cached, err := r.Request()
+			data, cached, headers, err := r.Request()
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "missing protocol scheme")
 			assert.False(t, cached)
 			assert.Nil(t, data)
+			assert.Nil(t, headers)
 		})
 
 		t.Run("sends configured headers", func(t *testing.T) {
@@ -113,7 +118,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := NewPollingRequester(context, nil, ts.URL, filter.key)
 
-				_, _, err := r.Request()
+				_, _, _, err := r.Request()
 				assert.NoError(t, err)
 
 				req := <-requestsCh
@@ -130,7 +135,7 @@ func TestRequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := NewPollingRequester(context, nil, ts.URL, filter.key)
 
-				_, _, err := r.Request()
+				_, _, _, err := r.Request()
 				assert.NoError(t, err)
 
 				assert.Equal(t, []string{"Polling LaunchDarkly for feature flag updates"},
@@ -159,10 +164,11 @@ func TestRequestorImplCaching(t *testing.T) {
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			r := NewPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-			data1, cached1, err1 := r.Request()
+			data1, cached1, headers1, err1 := r.Request()
 
 			assert.NoError(t, err1)
 			assert.False(t, cached1)
+			assert.NotEmpty(t, headers1)
 			assert.Equal(t, sharedtest.NormalizeDataSet(expectedData.Build()), sharedtest.NormalizeDataSet(data1))
 
 			req1 := <-requestsCh
@@ -171,10 +177,11 @@ func TestRequestorImplCaching(t *testing.T) {
 
 			assert.Equal(t, "", req1.Request.Header.Get("If-None-Match"))
 
-			data2, cached2, err2 := r.Request()
+			data2, cached2, headers2, err2 := r.Request()
 
 			assert.NoError(t, err2)
 			assert.True(t, cached2)
+			assert.NotEmpty(t, headers2)
 			assert.Nil(t, data2) // for cached data, requestAll doesn't bother parsing the body
 
 			req2 := <-requestsCh
@@ -196,7 +203,7 @@ func TestRequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		r := NewPollingRequester(context, nil, ts.URL, "")
 
-		_, _, _ = r.Request()
+		_, _, _, _ = r.Request()
 
 		req := <-requestsCh
 
@@ -212,7 +219,7 @@ func TestRequestorImplCanAppendsFilterParameter(t *testing.T) {
 		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 			r := NewPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-			_, _, _ = r.Request()
+			_, _, _, _ = r.Request()
 
 			req := <-requestsCh
 

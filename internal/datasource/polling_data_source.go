@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
@@ -28,7 +29,7 @@ type PollingConfig struct {
 // Requester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type Requester interface {
-	Request() (data []ldstoretypes.Collection, cached bool, err error)
+	Request() (data []ldstoretypes.Collection, cached bool, headers http.Header, err error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -145,7 +146,7 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 }
 
 func (pp *PollingProcessor) poll() error {
-	allData, cached, err := pp.requester.Request()
+	allData, cached, headers, err := pp.requester.Request()
 
 	if err != nil {
 		return err
@@ -154,6 +155,10 @@ func (pp *PollingProcessor) poll() error {
 	// We initialize the store only if the request wasn't cached
 	if !cached {
 		pp.dataSourceUpdates.Init(allData)
+		if dataSourceWithInitMetadata, ok := pp.dataSourceUpdates.(subsystems.DataSourceUpdateSinkWithEnvironmentID); ok {
+			initMetadata := internal.NewInitMetadataFromHeaders(headers)
+			dataSourceWithInitMetadata.SetEnvironmentID(initMetadata.GetEnvironmentID())
+		}
 	}
 	return nil
 }

@@ -29,7 +29,7 @@ func TestTrackExecution(t *testing.T) {
 		loggers := sharedtest.NewTestLoggers()
 		execution := TrackExecution{
 			hooks:   []ldhooks.Hook{},
-			context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()),
+			context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}),
 			loggers: &loggers,
 		}
 		execution.AfterTrack(gocontext.Background())
@@ -44,7 +44,7 @@ func TestTrackExecution(t *testing.T) {
 			hookB := createOrderTrackingTrackHook("b", tracker)
 			execution := TrackExecution{
 				hooks:   []ldhooks.Hook{hookA, hookB},
-				context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()),
+				context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}),
 				loggers: &loggers,
 			}
 			execution.AfterTrack(gocontext.Background())
@@ -58,7 +58,7 @@ func TestTrackExecution(t *testing.T) {
 
 			execution := TrackExecution{
 				hooks:   []ldhooks.Hook{hookA, hookB},
-				context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()),
+				context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}),
 				loggers: &loggers,
 			}
 			execution.AfterTrack(gocontext.Background())
@@ -67,7 +67,7 @@ func TestTrackExecution(t *testing.T) {
 				HookStage: sharedtest.HookStageAfterTrack,
 				TrackCapture: sharedtest.HookTrackCapture{
 					GoContext:          gocontext.Background(),
-					TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()),
+					TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}),
 				},
 			})
 
@@ -75,7 +75,7 @@ func TestTrackExecution(t *testing.T) {
 				HookStage: sharedtest.HookStageAfterTrack,
 				TrackCapture: sharedtest.HookTrackCapture{
 					GoContext:          gocontext.Background(),
-					TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()),
+					TrackSeriesContext: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}),
 				},
 			})
 		})
@@ -96,13 +96,13 @@ func TestTrackExecution(t *testing.T) {
 
 			execution := TrackExecution{
 				hooks:   []ldhooks.Hook{hookA, hookB},
-				context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()),
+				context: ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}),
 				loggers: &mockLog.Loggers,
 			}
 			execution.AfterTrack(gocontext.Background())
 
 			assert.Len(t, execution.hooks, 2)
-			assert.Equal(t, execution.context, ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null()))
+			assert.Equal(t, execution.context, ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}))
 			assert.Equal(t, []string{"During tracking of event \"test-event\", an error was encountered in \"AfterTrack\" of the \"b\" hook: something bad"},
 				mockLog.GetOutput(ldlog.Error))
 		})

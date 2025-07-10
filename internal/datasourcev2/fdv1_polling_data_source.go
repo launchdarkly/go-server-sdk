@@ -3,6 +3,7 @@ package datasourcev2
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
@@ -18,10 +19,10 @@ type fdv1ToFDv2Requester struct {
 func (r *fdv1ToFDv2Requester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, error) {
-	data, cached, err := r.requester.Request()
+) (*subsystems.ChangeSet, http.Header, error) {
+	data, cached, headers, err := r.requester.Request()
 	if err != nil {
-		return nil, err
+		return nil, headers, err
 	}
 
 	code := subsystems.IntentTransferFull
@@ -42,7 +43,7 @@ func (r *fdv1ToFDv2Requester) Request(
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, headers, err
 	}
 
 	for _, item := range data {
@@ -59,14 +60,15 @@ func (r *fdv1ToFDv2Requester) Request(
 			bytes, err := json.Marshal(keyedItem.Item.Item)
 			if err != nil {
 				r.loggers.Warn("Error marshalling v1 item to JSON: %s", err)
-				return nil, err
+				return nil, headers, err
 			}
 
 			changeSetBuilder.AddPut(kind, keyedItem.Key, keyedItem.Item.Version, bytes)
 		}
 	}
 
-	return changeSetBuilder.Finish(subsystems.NewSelector("state", 1))
+	changeset, err := changeSetBuilder.Finish(subsystems.NewSelector("state", 1))
+	return changeset, headers, err
 }
 
 func (r *fdv1ToFDv2Requester) BaseURI() string {

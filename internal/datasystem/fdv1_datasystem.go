@@ -16,6 +16,7 @@ type FDv1 struct {
 	dataSourceStatusProvider    interfaces.DataSourceStatusProvider
 	dataStoreStatusBroadcaster  *internal.Broadcaster[interfaces.DataStoreStatus]
 	dataStoreStatusProvider     interfaces.DataStoreStatusProvider
+	environmentIDProvider       internal.EnvironmentIDProvider
 	flagChangeEventBroadcaster  *internal.Broadcaster[interfaces.FlagChangeEvent]
 	dataStore                   subsystems.DataStore
 	dataSource                  subsystems.DataSource
@@ -68,6 +69,7 @@ func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsy
 		system.dataSourceStatusBroadcaster,
 		dataSourceUpdateSink,
 	)
+	system.environmentIDProvider = dataSourceUpdateSink
 
 	return system, nil
 }
@@ -100,6 +102,11 @@ func (f *FDv1) DataSourceStatusProvider() interfaces.DataSourceStatusProvider {
 //nolint:revive // Data system implementation.
 func (f *FDv1) DataStoreStatusProvider() interfaces.DataStoreStatusProvider {
 	return f.dataStoreStatusProvider
+}
+
+//nolint:revive // Data system implementation.
+func (f *FDv1) EnvironmentIDProvider() internal.EnvironmentIDProvider {
+	return f.environmentIDProvider
 }
 
 //nolint:revive // Data system implementation.

@@ -73,6 +73,7 @@ const (
 type dataSystem interface {
 	DataSourceStatusProvider() interfaces.DataSourceStatusProvider
 	DataStoreStatusProvider() interfaces.DataStoreStatusProvider
+	EnvironmentIDProvider() internal.EnvironmentIDProvider
 	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
 
 	// Start starts the data system; the given channel will be closed when the system has reached an initial state
@@ -345,7 +346,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		allHooks = append(allHooks, hooks...)
 	}
 
-	client.hookRunner = hooks.NewRunner(loggers, allHooks)
+	client.hookRunner = hooks.NewRunner(loggers, allHooks, client.dataSystem.EnvironmentIDProvider())
 
 	clientValid = true
 
