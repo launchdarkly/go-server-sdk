@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -33,12 +32,11 @@ type PollingRequester interface {
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
 type PollingProcessor struct {
-	requester     PollingRequester
-	pollInterval  time.Duration
-	loggers       ldlog.Loggers
-	isClosed      atomic.Bool
-	quit          chan struct{}
-	environmentID ldvalue.OptionalString
+	requester    PollingRequester
+	pollInterval time.Duration
+	loggers      ldlog.Loggers
+	isClosed     atomic.Bool
+	quit         chan struct{}
 }
 
 // NewPollingProcessor creates the internal implementation of the polling data source.
@@ -75,8 +73,8 @@ func (pp *PollingProcessor) Fetch(ds subsystems.DataSelector, ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	pp.environmentID = internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
-	return &subsystems.Basis{ChangeSet: *changeSet, Persist: true, EnvironmentID: pp.environmentID}, nil
+	environmentID := internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
+	return &subsystems.Basis{ChangeSet: *changeSet, Persist: true, EnvironmentID: environmentID}, nil
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -110,6 +108,8 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 			case <-ticker.C:
 				if err := pp.poll(ctx, ds, resultChan); err != nil {
 					if hse, ok := err.(httpStatusError); ok {
+						environmentID := internal.NewInitMetadataFromHeaders(hse.Header).GetEnvironmentID()
+
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:       interfaces.DataSourceErrorKindErrorResponse,
 							StatusCode: hse.Code,
@@ -121,7 +121,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 								State:         interfaces.DataSourceStateOff,
 								Error:         errorInfo,
 								RevertToFDv1:  true,
-								EnvironmentID: pp.environmentID,
+								EnvironmentID: environmentID,
 							}
 							return
 						}
@@ -137,13 +137,13 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 							resultChan <- subsystems.DataSynchronizerResult{
 								State:         interfaces.DataSourceStateInterrupted,
 								Error:         errorInfo,
-								EnvironmentID: pp.environmentID,
+								EnvironmentID: environmentID,
 							}
 						} else {
 							resultChan <- subsystems.DataSynchronizerResult{
 								State:         interfaces.DataSourceStateOff,
 								Error:         errorInfo,
-								EnvironmentID: pp.environmentID,
+								EnvironmentID: environmentID,
 							}
 							return
 						}
@@ -158,9 +158,8 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 						}
 						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
 						resultChan <- subsystems.DataSynchronizerResult{
-							State:         interfaces.DataSourceStateInterrupted,
-							Error:         errorInfo,
-							EnvironmentID: pp.environmentID,
+							State: interfaces.DataSourceStateInterrupted,
+							Error: errorInfo,
 						}
 					}
 					continue
@@ -180,12 +179,10 @@ func (pp *PollingProcessor) poll(
 		return err
 	}
 
-	pp.environmentID = internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
-
 	resultChan <- subsystems.DataSynchronizerResult{
 		ChangeSet:     changeSet,
 		State:         interfaces.DataSourceStateValid,
-		EnvironmentID: pp.environmentID,
+		EnvironmentID: internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
 	}
 
 	return nil
