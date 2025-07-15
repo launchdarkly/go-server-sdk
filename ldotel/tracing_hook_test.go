@@ -4,7 +4,12 @@ import (
 	gocontext "context"
 	"testing"
 
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldtestdata"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/stretchr/testify/assert"
@@ -24,12 +29,14 @@ func configureMemoryExporter() *tracetest.InMemoryExporter {
 	return exporter
 }
 
-func createClientWithTracing(options ...TracingHookOption) *ldclient.LDClient {
+func createClientWithTracing(options ...TracingHookOption) (*ldclient.LDClient, *ldtestdata.TestDataSource) {
+	td := ldtestdata.DataSource()
 	client, _ := ldclient.MakeCustomClient("", ldclient.Config{
-		Offline: true,
-		Hooks:   []ldhooks.Hook{NewTracingHook(options...)},
+		Events:     ldcomponents.NoEvents(),
+		DataSource: td,
+		Hooks:      []ldhooks.Hook{NewTracingHook(options...)},
 	}, 0)
-	return client
+	return client, td
 }
 
 const flagKey = "test-flag"
@@ -38,7 +45,7 @@ const spanName = "test-span"
 func TestBasicSpanEventsEvents(t *testing.T) {
 	exporter := configureMemoryExporter()
 	tracer := otel.Tracer("launchdarkly-client")
-	client := createClientWithTracing()
+	client, _ := createClientWithTracing()
 	context := ldcontext.New("test-context")
 
 	ctx := gocontext.Background()
@@ -59,16 +66,16 @@ func TestBasicSpanEventsEvents(t *testing.T) {
 	attributes := attribute.NewSet(flagEvent.Attributes...)
 	attributeFlagKey, _ := (&attributes).Value("feature_flag.key")
 	assert.Equal(t, flagKey, attributeFlagKey.AsString())
-	attributeProviderName, _ := (&attributes).Value("feature_flag.provider_name")
+	attributeProviderName, _ := (&attributes).Value("feature_flag.provider.name")
 	assert.Equal(t, "LaunchDarkly", attributeProviderName.AsString())
-	attributeContextKey, _ := (&attributes).Value("feature_flag.context.key")
+	attributeContextKey, _ := (&attributes).Value("feature_flag.context.id")
 	assert.Equal(t, context.FullyQualifiedKey(), attributeContextKey.AsString())
 }
 
 func TestSpanEventsWithVariant(t *testing.T) {
 	exporter := configureMemoryExporter()
 	tracer := otel.Tracer("launchdarkly-client")
-	client := createClientWithTracing(WithVariant())
+	client, _ := createClientWithTracing(WithVariant())
 	context := ldcontext.New("test-context")
 
 	ctx := gocontext.Background()
@@ -84,14 +91,14 @@ func TestSpanEventsWithVariant(t *testing.T) {
 	flagEvent := events[0]
 
 	attributes := attribute.NewSet(flagEvent.Attributes...)
-	attributeVariant, _ := (&attributes).Value("feature_flag.variant")
+	attributeVariant, _ := (&attributes).Value("feature_flag.result.value")
 	assert.Equal(t, "false", attributeVariant.AsString())
 }
 
 func TestMultipleSpanEvents(t *testing.T) {
 	exporter := configureMemoryExporter()
 	tracer := otel.Tracer("launchdarkly-client")
-	client := createClientWithTracing()
+	client, _ := createClientWithTracing()
 	context := ldcontext.New("test-context")
 
 	ctx := gocontext.Background()
@@ -113,9 +120,9 @@ func TestMultipleSpanEvents(t *testing.T) {
 	boolFlagEventAttributes := attribute.NewSet(flagEventBool.Attributes...)
 	boolAttributeFlagKey, _ := (&boolFlagEventAttributes).Value("feature_flag.key")
 	assert.Equal(t, flagKey, boolAttributeFlagKey.AsString())
-	boolAttributeProviderName, _ := (&boolFlagEventAttributes).Value("feature_flag.provider_name")
+	boolAttributeProviderName, _ := (&boolFlagEventAttributes).Value("feature_flag.provider.name")
 	assert.Equal(t, "LaunchDarkly", boolAttributeProviderName.AsString())
-	boolAttributeContextKey, _ := (&boolFlagEventAttributes).Value("feature_flag.context.key")
+	boolAttributeContextKey, _ := (&boolFlagEventAttributes).Value("feature_flag.context.id")
 	assert.Equal(t, context.FullyQualifiedKey(), boolAttributeContextKey.AsString())
 
 	flagEventString := events[1]
@@ -124,16 +131,16 @@ func TestMultipleSpanEvents(t *testing.T) {
 	stringFlagEventAttributes := attribute.NewSet(flagEventString.Attributes...)
 	stringAttributeFlagKey, _ := (&stringFlagEventAttributes).Value("feature_flag.key")
 	assert.Equal(t, flagKey, stringAttributeFlagKey.AsString())
-	stringAttributeProviderName, _ := (&boolFlagEventAttributes).Value("feature_flag.provider_name")
+	stringAttributeProviderName, _ := (&boolFlagEventAttributes).Value("feature_flag.provider.name")
 	assert.Equal(t, "LaunchDarkly", stringAttributeProviderName.AsString())
-	stringAttributeContextKey, _ := (&stringFlagEventAttributes).Value("feature_flag.context.key")
+	stringAttributeContextKey, _ := (&stringFlagEventAttributes).Value("feature_flag.context.id")
 	assert.Equal(t, context.FullyQualifiedKey(), stringAttributeContextKey.AsString())
 }
 
 func TestSpanCreationWithParent(t *testing.T) {
 	exporter := configureMemoryExporter()
 	tracer := otel.Tracer("launchdarkly-client")
-	client := createClientWithTracing(WithSpans())
+	client, _ := createClientWithTracing(WithSpans())
 	context := ldcontext.New("test-context")
 
 	ctx := gocontext.Background()
@@ -153,13 +160,13 @@ func TestSpanCreationWithParent(t *testing.T) {
 	attributes := attribute.NewSet(exportedSpan.Attributes()...)
 	attributeFlagKey, _ := (&attributes).Value("feature_flag.key")
 	assert.Equal(t, flagKey, attributeFlagKey.AsString())
-	attributeContextKey, _ := (&attributes).Value("feature_flag.context.key")
+	attributeContextKey, _ := (&attributes).Value("feature_flag.context.id")
 	assert.Equal(t, context.FullyQualifiedKey(), attributeContextKey.AsString())
 }
 
 func TestSpanCreationWithoutParent(t *testing.T) {
 	exporter := configureMemoryExporter()
-	client := createClientWithTracing(WithSpans())
+	client, _ := createClientWithTracing(WithSpans())
 	context := ldcontext.New("test-context")
 
 	_, _ = client.BoolVariation(flagKey, context, false)
@@ -168,4 +175,120 @@ func TestSpanCreationWithoutParent(t *testing.T) {
 	assert.Len(t, exportedSpans, 1)
 	exportedSpan := exportedSpans[0]
 	assert.Equal(t, "LDClient.BoolVariation", exportedSpan.Name())
+}
+
+func TestSpanEventsWithInExperiment(t *testing.T) {
+	exporter := configureMemoryExporter()
+	tracer := otel.Tracer("launchdarkly-client")
+	client, td := createClientWithTracing()
+	context := ldcontext.New("test-context")
+
+	flagJSON := `{
+		"key": "test-flag",
+		"salt": "salty",
+		"on": true,
+		"fallthrough": {
+			"rollout": {
+				"kind": "experiment",
+				"seed": 12345,
+				"variations": [
+					{
+						"variation": 0,
+						"weight": 100000
+					},
+					{
+						"variation": 1,
+						"weight": 0
+					}
+				]
+			}
+		},
+		"variations": [
+			true,
+			false
+		]
+	}`
+
+	flag, err := ldmodel.NewJSONDataModelSerialization().UnmarshalFeatureFlag([]byte(flagJSON))
+	assert.NoError(t, err)
+
+	td.UsePreconfiguredFlag(flag)
+
+	ctx := gocontext.Background()
+	ctx, span := tracer.Start(ctx, spanName)
+
+	_, _ = client.BoolVariationCtx(ctx, flagKey, context, false)
+
+	span.End()
+
+	exportedSpans := exporter.GetSpans().Snapshots()
+	assert.Len(t, exportedSpans, 1)
+	events := exportedSpans[0].Events()
+	assert.Len(t, events, 1)
+	flagEvent := events[0]
+	assert.Equal(t, "feature_flag", flagEvent.Name)
+
+	attributes := attribute.NewSet(flagEvent.Attributes...)
+	attributeInExperiment, _ := (&attributes).Value("feature_flag.result.reason.inExperiment")
+	assert.Equal(t, true, attributeInExperiment.AsBool())
+}
+
+func TestSpanEventsWithoutInExperiment(t *testing.T) {
+	exporter := configureMemoryExporter()
+	tracer := otel.Tracer("launchdarkly-client")
+	client, td := createClientWithTracing()
+	context := ldcontext.New("test-context")
+
+	// Create a flag that will NOT trigger an experiment
+	td.Update(td.Flag(flagKey).On(true).
+		Variations(ldvalue.Bool(false), ldvalue.Bool(true)).
+		FallthroughVariationIndex(1))
+
+	ctx := gocontext.Background()
+	ctx, span := tracer.Start(ctx, spanName)
+
+	_, _ = client.BoolVariationCtx(ctx, flagKey, context, false)
+
+	span.End()
+
+	exportedSpans := exporter.GetSpans().Snapshots()
+	assert.Len(t, exportedSpans, 1)
+	events := exportedSpans[0].Events()
+	assert.Len(t, events, 1)
+	flagEvent := events[0]
+	assert.Equal(t, "feature_flag", flagEvent.Name)
+
+	attributes := attribute.NewSet(flagEvent.Attributes...)
+	_, found := (&attributes).Value("feature_flag.result.reason.inExperiment")
+	// The attribute should not be present when not in experiment
+	assert.False(t, found)
+}
+
+func TestSpanEventsWithVariationIndex(t *testing.T) {
+	exporter := configureMemoryExporter()
+	tracer := otel.Tracer("launchdarkly-client")
+	client, td := createClientWithTracing()
+	context := ldcontext.New("test-context")
+
+	td.Update(td.Flag(flagKey).On(true).
+		Variations(ldvalue.String("variation0"), ldvalue.String("variation1"), ldvalue.String("variation2")).
+		FallthroughVariationIndex(2))
+
+	ctx := gocontext.Background()
+	ctx, span := tracer.Start(ctx, spanName)
+
+	_, _ = client.StringVariationCtx(ctx, flagKey, context, "default")
+
+	span.End()
+
+	exportedSpans := exporter.GetSpans().Snapshots()
+	assert.Len(t, exportedSpans, 1)
+	events := exportedSpans[0].Events()
+	assert.Len(t, events, 1)
+	flagEvent := events[0]
+	assert.Equal(t, "feature_flag", flagEvent.Name)
+
+	attributes := attribute.NewSet(flagEvent.Attributes...)
+	attributeVariationIndex, _ := (&attributes).Value("feature_flag.result.variationIndex")
+	assert.Equal(t, int64(2), attributeVariationIndex.AsInt64())
 }

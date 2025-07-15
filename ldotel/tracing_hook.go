@@ -5,7 +5,6 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
@@ -13,7 +12,37 @@ import (
 )
 
 const eventName = "feature_flag"
-const contextKeyAttributeName = "feature_flag.context.key"
+
+const attrFeatureFlagKey = "feature_flag.key"
+const attrFeatureFlagContextID = "feature_flag.context.id"
+const attrFeatureFlagProviderName = "feature_flag.provider.name"
+const attrFeatureFlagResultValue = "feature_flag.result.value"
+const attrFeatureFlagReasonInExperiment = "feature_flag.result.reason.inExperiment"
+const attrFeatureFlagResultVariationIndex = "feature_flag.result.variationIndex"
+
+func featureFlagKey(key string) attribute.KeyValue {
+	return attribute.String(attrFeatureFlagKey, key)
+}
+
+func featureFlagContextID(contextID string) attribute.KeyValue {
+	return attribute.String(attrFeatureFlagContextID, contextID)
+}
+
+func featureFlagProviderName(providerName string) attribute.KeyValue {
+	return attribute.String(attrFeatureFlagProviderName, providerName)
+}
+
+func featureFlagResultValue(value string) attribute.KeyValue {
+	return attribute.String(attrFeatureFlagResultValue, value)
+}
+
+func featureFlagReasonInExperiment(inExperiment bool) attribute.KeyValue {
+	return attribute.Bool(attrFeatureFlagReasonInExperiment, inExperiment)
+}
+
+func featureFlagResultVariationIndex(variationIndex int) attribute.KeyValue {
+	return attribute.Int(attrFeatureFlagResultVariationIndex, variationIndex)
+}
 
 // TracingHookOption is used to implement functional options for the TracingHook.
 type TracingHookOption func(hook *TracingHook)
@@ -28,9 +57,18 @@ func WithSpans() TracingHookOption {
 }
 
 // WithVariant option enables putting a stringified version of the flag value in the feature_flag span event.
+//
+// Deprecated: Use WithValue instead.
 func WithVariant() TracingHookOption {
 	return func(h *TracingHook) {
-		h.includeVariant = true
+		h.includeValue = true
+	}
+}
+
+// WithValue option enables putting a stringified version of the flag value in the feature_flag span event.
+func WithValue() TracingHookOption {
+	return func(h *TracingHook) {
+		h.includeValue = true
 	}
 }
 
@@ -44,10 +82,10 @@ func WithVariant() TracingHookOption {
 // and the key of the flag being evaluated.
 type TracingHook struct {
 	ldhooks.Unimplemented
-	metadata       ldhooks.Metadata
-	spans          bool
-	includeVariant bool
-	tracer         trace.Tracer
+	metadata     ldhooks.Metadata
+	spans        bool
+	includeValue bool
+	tracer       trace.Tracer
 }
 
 // Metadata returns meta-data about the tracing hook.
@@ -74,8 +112,9 @@ func (h TracingHook) BeforeEvaluation(ctx context.Context, seriesContext ldhooks
 	if h.spans {
 		_, span := h.tracer.Start(ctx, seriesContext.Method())
 
-		span.SetAttributes(semconv.FeatureFlagKey(seriesContext.FlagKey()),
-			attribute.String(contextKeyAttributeName, seriesContext.Context().FullyQualifiedKey()))
+		span.SetAttributes(featureFlagKey(seriesContext.FlagKey()),
+			featureFlagContextID(seriesContext.Context().FullyQualifiedKey()),
+		)
 
 		return ldhooks.NewEvaluationSeriesBuilder(data).Set("variationSpan", span).Build(), nil
 	}
@@ -94,12 +133,20 @@ func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.
 	}
 
 	attribs := []attribute.KeyValue{
-		semconv.FeatureFlagKey(seriesContext.FlagKey()),
-		semconv.FeatureFlagProviderName("LaunchDarkly"),
-		attribute.String(contextKeyAttributeName, seriesContext.Context().FullyQualifiedKey()),
+		featureFlagKey(seriesContext.FlagKey()),
+		featureFlagProviderName("LaunchDarkly"),
+		featureFlagContextID(seriesContext.Context().FullyQualifiedKey()),
 	}
-	if h.includeVariant {
-		attribs = append(attribs, semconv.FeatureFlagVariant(detail.Value.JSONString()))
+	if h.includeValue {
+		attribs = append(attribs, featureFlagResultValue(detail.Value.JSONString()))
+	}
+
+	if detail.Reason.IsInExperiment() {
+		attribs = append(attribs, featureFlagReasonInExperiment(detail.Reason.IsInExperiment()))
+	}
+
+	if detail.VariationIndex.IsDefined() {
+		attribs = append(attribs, featureFlagResultVariationIndex(detail.VariationIndex.IntValue()))
 	}
 
 	span := trace.SpanFromContext(ctx)
