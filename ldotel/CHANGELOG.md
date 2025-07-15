@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.1.0...ldotel/v1.2.0) (2025-07-15)
+
+
+### Features
+
+* Support latest feature flagging semantic conventions. ([#292](https://github.com/launchdarkly/go-server-sdk/issues/292)) ([59f0b5c](https://github.com/launchdarkly/go-server-sdk/commit/59f0b5c4fa812894fb62369ca0aba21f181e59bf))
+
 ## [1.1.0](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.0.2...ldotel/v1.1.0) (2025-01-23)
 
 
