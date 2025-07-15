@@ -379,7 +379,9 @@ func (f *FDv2) consumeSynchronizerResults(
 				return false, false, nil
 			}
 
-			f.environmentIDProvider.SetEnvironmentID(result.EnvironmentID)
+			if result.EnvironmentID.IsDefined() {
+				f.environmentIDProvider.SetEnvironmentID(result.EnvironmentID)
+			}
 
 			switch result.State {
 			case interfaces.DataSourceStateValid:
