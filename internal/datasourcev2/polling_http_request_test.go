@@ -33,7 +33,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-				changeSet, err := r.Request(context.Background(), subsystems.NoSelector())
+				changeSet, _, err := r.Request(context.Background(), subsystems.NoSelector())
 
 				assert.NoError(t, err)
 				assert.Equal(t, subsystems.IntentTransferFull, changeSet.IntentCode())
@@ -51,7 +51,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-				changeSet, err := r.Request(context.Background(), subsystems.NoSelector())
+				changeSet, _, err := r.Request(context.Background(), subsystems.NoSelector())
 
 				assert.Error(t, err)
 				if he, ok := err.(httpStatusError); assert.True(t, ok) {
@@ -69,7 +69,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 			})
 			r := newPollingRequester(sharedtest.BasicClientContext(), nil, closedServerURL, filter.key)
 
-			changeSet, err := r.Request(context.Background(), subsystems.NoSelector())
+			changeSet, _, err := r.Request(context.Background(), subsystems.NoSelector())
 
 			assert.Error(t, err)
 			assert.Nil(t, changeSet)
@@ -80,7 +80,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-				changeSet, err := r.Request(context.Background(), subsystems.NoSelector())
+				changeSet, _, err := r.Request(context.Background(), subsystems.NoSelector())
 
 				require.Error(t, err)
 				_, ok := err.(malformedJSONError)
@@ -92,7 +92,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 		t.Run("malformed base URI", func(t *testing.T) {
 			r := newPollingRequester(sharedtest.BasicClientContext(), nil, "::::", filter.key)
 
-			changeSet, err := r.Request(context.Background(), subsystems.NoSelector())
+			changeSet, _, err := r.Request(context.Background(), subsystems.NoSelector())
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "missing protocol scheme")
@@ -112,7 +112,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := newPollingRequester(ldcontext, nil, ts.URL, filter.key)
 
-				_, err := r.Request(context.Background(), subsystems.NoSelector())
+				_, _, err := r.Request(context.Background(), subsystems.NoSelector())
 				assert.NoError(t, err)
 
 				req := <-requestsCh
@@ -132,7 +132,7 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 			httphelpers.WithServer(handler, func(ts *httptest.Server) {
 				r := newPollingRequester(ldcontext, nil, ts.URL, filter.key)
 
-				_, err := r.Request(context.Background(), subsystems.NoSelector())
+				_, _, err := r.Request(context.Background(), subsystems.NoSelector())
 				assert.NoError(t, err)
 
 				assert.Equal(t, []string{"Polling LaunchDarkly for feature flag updates"},
@@ -159,7 +159,7 @@ func TestV2RequestorImplCaching(t *testing.T) {
 		httphelpers.WithServer(handler, func(ts *httptest.Server) {
 			r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-			changeSet1, err1 := r.Request(context.Background(), subsystems.NoSelector())
+			changeSet1, _, err1 := r.Request(context.Background(), subsystems.NoSelector())
 
 			assert.NoError(t, err1)
 			assert.NotNil(t, changeSet1)
@@ -171,7 +171,7 @@ func TestV2RequestorImplCaching(t *testing.T) {
 
 			assert.Equal(t, "", req1.Request.Header.Get("If-None-Match"))
 
-			changeSet2, err2 := r.Request(context.Background(), selector)
+			changeSet2, _, err2 := r.Request(context.Background(), selector)
 
 			assert.NoError(t, err2)
 			assert.Equal(t, subsystems.IntentNone, changeSet2.IntentCode())
@@ -184,7 +184,7 @@ func TestV2RequestorImplCaching(t *testing.T) {
 
 			assert.Equal(t, "", req2.Request.Header.Get("If-None-Match"))
 
-			changeSet3, err3 := r.Request(context.Background(), selector)
+			changeSet3, _, err3 := r.Request(context.Background(), selector)
 
 			assert.NoError(t, err3)
 			assert.Equal(t, subsystems.IntentNone, changeSet3.IntentCode())
@@ -210,7 +210,7 @@ func TestV2RequestorImplCanUseCustomHTTPClientFactory(t *testing.T) {
 	httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 		r := newPollingRequester(ldcontext, nil, ts.URL, "")
 
-		_, _ = r.Request(context.Background(), subsystems.NoSelector())
+		_, _, _ = r.Request(context.Background(), subsystems.NoSelector())
 
 		req := <-requestsCh
 
@@ -226,7 +226,7 @@ func TestV2RequestorImplCanAppendsFilterParameter(t *testing.T) {
 		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 			r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-			_, _ = r.Request(context.Background(), subsystems.NoSelector())
+			_, _, _ = r.Request(context.Background(), subsystems.NoSelector())
 
 			req := <-requestsCh
 
@@ -243,7 +243,7 @@ func TestV2RequestorImplCanAppendsBasis(t *testing.T) {
 		httphelpers.WithServer(pollHandler, func(ts *httptest.Server) {
 			r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
 
-			_, _ = r.Request(context.Background(), subsystems.NewSelector("test-state", 1))
+			_, _, _ = r.Request(context.Background(), subsystems.NewSelector("test-state", 1))
 
 			req := <-requestsCh
 

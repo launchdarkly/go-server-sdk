@@ -156,17 +156,19 @@ const (
 )
 
 type EvaluationSeriesContext struct {
-	FlagKey      string            `json:"flagKey"`
-	Context      ldcontext.Context `json:"context"`
-	DefaultValue ldvalue.Value     `json:"defaultValue"`
-	Method       string            `json:"method"`
+	FlagKey       string                 `json:"flagKey"`
+	Context       ldcontext.Context      `json:"context"`
+	DefaultValue  ldvalue.Value          `json:"defaultValue"`
+	Method        string                 `json:"method"`
+	EnvironmentID ldvalue.OptionalString `json:"environmentId,omitempty"`
 }
 
 type TrackSeriesContext struct {
-	Key         string            `json:"key"`
-	Context     ldcontext.Context `json:"context"`
-	MetricValue *float64          `json:"metricValue,omitempty"`
-	Data        ldvalue.Value     `json:"data"`
+	Key           string                 `json:"key"`
+	Context       ldcontext.Context      `json:"context"`
+	MetricValue   *float64               `json:"metricValue,omitempty"`
+	Data          ldvalue.Value          `json:"data"`
+	EnvironmentID ldvalue.OptionalString `json:"environmentId,omitempty"`
 }
 
 type HookExecutionEvaluationPayload struct {

@@ -6,13 +6,13 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
 	github.com/launchdarkly/ccache v1.1.0
-	github.com/launchdarkly/eventsource v1.9.1
+	github.com/launchdarkly/eventsource v1.10.0
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.0
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.2
 	github.com/launchdarkly/go-sdk-common/v3 v3.1.0
 	github.com/launchdarkly/go-sdk-events/v3 v3.5.0
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1
-	github.com/launchdarkly/go-test-helpers/v3 v3.0.2
+	github.com/launchdarkly/go-test-helpers/v3 v3.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/sync v0.8.0

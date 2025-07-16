@@ -77,35 +77,35 @@ func (r *PollingRequester) FilterKey() string {
 // It returns the data in the form of a slice of ldstoretypes.Collection.
 // The boolean return value indicates whether the data was served from the cache.
 // If an error occurs, it will be returned as the third return value.
-func (r *PollingRequester) Request() ([]ldstoretypes.Collection, bool, error) {
+func (r *PollingRequester) Request() ([]ldstoretypes.Collection, bool, http.Header, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
-	body, cached, err := r.makeRequest(endpoints.PollingRequestPath)
+	body, cached, headers, err := r.makeRequest(endpoints.PollingRequestPath)
 	if err != nil {
-		return nil, false, err
+		return nil, false, headers, err
 	}
 	if cached {
-		return nil, true, nil
+		return nil, true, headers, nil
 	}
 
 	reader := jreader.NewReader(body)
 	data := parseAllStoreDataFromJSONReader(&reader)
 	if err := reader.Error(); err != nil {
-		return nil, false, malformedJSONError{err}
+		return nil, false, headers, malformedJSONError{err}
 	}
-	return data, cached, nil
+	return data, cached, headers, nil
 }
 
-func (r *PollingRequester) makeRequest(resource string) ([]byte, bool, error) {
+func (r *PollingRequester) makeRequest(resource string) ([]byte, bool, http.Header, error) {
 	req, reqErr := http.NewRequest("GET", endpoints.AddPath(r.baseURI, resource), nil)
 	if reqErr != nil {
 		reqErr = fmt.Errorf(
 			"unable to create a poll request; this is not a network problem, most likely a bad base URI: %w",
 			reqErr,
 		)
-		return nil, false, reqErr
+		return nil, false, nil, reqErr
 	}
 	if r.filterKey != "" {
 		req.URL.RawQuery = url.Values{
@@ -120,7 +120,7 @@ func (r *PollingRequester) makeRequest(resource string) ([]byte, bool, error) {
 	res, resErr := r.httpClient.Do(req)
 
 	if resErr != nil {
-		return nil, false, resErr
+		return nil, false, nil, resErr
 	}
 
 	defer func() {
@@ -129,7 +129,7 @@ func (r *PollingRequester) makeRequest(resource string) ([]byte, bool, error) {
 	}()
 
 	if err := checkForHTTPError(res.StatusCode, url); err != nil {
-		return nil, false, err
+		return nil, false, res.Header, err
 	}
 
 	cached := res.Header.Get(httpcache.XFromCache) != ""
@@ -137,7 +137,7 @@ func (r *PollingRequester) makeRequest(resource string) ([]byte, bool, error) {
 	body, ioErr := io.ReadAll(res.Body)
 
 	if ioErr != nil {
-		return nil, false, ioErr // COVERAGE: there is no way to simulate this condition in unit tests
+		return nil, false, res.Header, ioErr // COVERAGE: there is no way to simulate this condition in unit tests
 	}
-	return body, cached, nil
+	return body, cached, res.Header, nil
 }

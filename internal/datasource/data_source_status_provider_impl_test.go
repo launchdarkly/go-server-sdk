@@ -27,8 +27,14 @@ func dataSourceStatusProviderImplTest(action func(dataSourceStatusProviderImplTe
 	defer flagBroadcaster.Close()
 	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
 	dataStoreStatusProvider := datastore.NewDataStoreStatusProviderImpl(store, nil)
-	p.dataSourceUpdates = NewDataSourceUpdateSinkImpl(store, dataStoreStatusProvider, statusBroadcaster, flagBroadcaster,
-		0, sharedtest.NewTestLoggers())
+	p.dataSourceUpdates = NewDataSourceUpdateSinkImpl(
+		store,
+		dataStoreStatusProvider,
+		statusBroadcaster,
+		flagBroadcaster,
+		0,
+		sharedtest.NewTestLoggers(),
+	)
 	p.dataSourceStatusProvider = NewDataSourceStatusProviderImpl(statusBroadcaster, p.dataSourceUpdates)
 
 	action(p)

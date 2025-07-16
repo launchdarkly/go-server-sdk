@@ -106,10 +106,11 @@ func evaluationSeriesContextToService(
 	seriesContext ldhooks.EvaluationSeriesContext,
 ) servicedef.EvaluationSeriesContext {
 	return servicedef.EvaluationSeriesContext{
-		FlagKey:      seriesContext.FlagKey(),
-		Context:      seriesContext.Context(),
-		DefaultValue: seriesContext.DefaultValue(),
-		Method:       seriesContext.Method(),
+		FlagKey:       seriesContext.FlagKey(),
+		Context:       seriesContext.Context(),
+		DefaultValue:  seriesContext.DefaultValue(),
+		Method:        seriesContext.Method(),
+		EnvironmentID: seriesContext.EnvironmentID(),
 	}
 }
 
@@ -136,9 +137,10 @@ func trackSeriesContextToService(
 	seriesContext ldhooks.TrackSeriesContext,
 ) servicedef.TrackSeriesContext {
 	return servicedef.TrackSeriesContext{
-		Key:         seriesContext.Key(),
-		Context:     seriesContext.Context(),
-		MetricValue: seriesContext.MetricValue(),
-		Data:        seriesContext.Data(),
+		Key:           seriesContext.Key(),
+		Context:       seriesContext.Context(),
+		MetricValue:   seriesContext.MetricValue(),
+		Data:          seriesContext.Data(),
+		EnvironmentID: seriesContext.EnvironmentID(),
 	}
 }

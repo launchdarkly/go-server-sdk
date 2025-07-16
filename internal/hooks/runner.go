@@ -8,20 +8,27 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 )
 
 // Runner manages the registration and execution of hooks.
 type Runner struct {
-	hooks   []ldhooks.Hook
-	loggers ldlog.Loggers
+	hooks                 []ldhooks.Hook
+	loggers               ldlog.Loggers
+	environmentIDProvider internal.EnvironmentIDProvider
 }
 
 // NewRunner creates a new hook runner.
-func NewRunner(loggers ldlog.Loggers, hooks []ldhooks.Hook) *Runner {
+func NewRunner(
+	loggers ldlog.Loggers,
+	hooks []ldhooks.Hook,
+	environmentIDProvider internal.EnvironmentIDProvider,
+) *Runner {
 	return &Runner{
-		loggers: loggers,
-		hooks:   hooks,
+		loggers:               loggers,
+		hooks:                 hooks,
+		environmentIDProvider: environmentIDProvider,
 	}
 }
 
@@ -56,9 +63,15 @@ func (h *Runner) prepareEvaluationSeries(
 		returnData[i] = ldhooks.EmptyEvaluationSeriesData()
 	}
 	return &EvaluationExecution{
-		hooks:   h.hooks,
-		data:    returnData,
-		context: ldhooks.NewEvaluationSeriesContext(flagKey, evalContext, defaultVal, method),
+		hooks: h.hooks,
+		data:  returnData,
+		context: ldhooks.NewEvaluationSeriesContext(
+			flagKey,
+			evalContext,
+			defaultVal,
+			method,
+			h.environmentIDProvider.GetEnvironmentID(),
+		),
 		loggers: &h.loggers,
 	}
 }
@@ -77,8 +90,14 @@ func (h *Runner) RunTrack(
 		return
 	}
 	e := TrackExecution{
-		hooks:   h.hooks,
-		context: ldhooks.NewTrackSeriesContext(trackContext, key, metricValue, data),
+		hooks: h.hooks,
+		context: ldhooks.NewTrackSeriesContext(
+			trackContext,
+			key,
+			metricValue,
+			data,
+			h.environmentIDProvider.GetEnvironmentID(),
+		),
 		loggers: &h.loggers,
 	}
 	e.AfterTrack(ctx)

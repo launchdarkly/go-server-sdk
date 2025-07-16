@@ -8,6 +8,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	intf "github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
@@ -29,6 +30,7 @@ type DataSourceUpdateSinkImpl struct {
 	currentStatus               intf.DataSourceStatus
 	lastStoreUpdateFailed       bool
 	lock                        sync.Mutex
+	environmentID               ldvalue.OptionalString
 }
 
 // NewDataSourceUpdateSinkImpl creates the internal implementation of DataSourceUpdateSink.
@@ -294,6 +296,16 @@ func (d *DataSourceUpdateSinkImpl) computeChangedItemsForFullDataSet(
 		}
 	}
 	return affectedItems
+}
+
+//nolint:revive // EnvironmentIDProvider method.
+func (d *DataSourceUpdateSinkImpl) GetEnvironmentID() ldvalue.OptionalString {
+	return d.environmentID
+}
+
+//nolint:revive // DataSourceUpdateSinkWithEnvironmentID method.
+func (d *DataSourceUpdateSinkImpl) SetEnvironmentID(environmentID ldvalue.OptionalString) {
+	d.environmentID = environmentID
 }
 
 type outageTracker struct {

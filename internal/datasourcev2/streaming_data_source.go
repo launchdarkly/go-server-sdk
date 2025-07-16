@@ -14,6 +14,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
@@ -138,6 +139,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 	}()
 
 	changeSetBuilder := subsystems.NewChangeSetBuilder()
+	environmentID := ldvalue.OptionalString{}
 
 	for {
 		select {
@@ -155,6 +157,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			sp.logConnectionResult(true)
 
 			shouldRestart := false
+
+			if eventWithHeaders, ok := event.(es.EventWithHeaders); ok {
+				environmentID = internal.NewInitMetadataFromHeaders(eventWithHeaders.Headers()).GetEnvironmentID()
+			}
 
 			gotMalformedEvent := func(event es.Event, err error) {
 				// The protocol should "forget" anything that happens upon receiving an error.
@@ -179,8 +185,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					Time:    time.Now(),
 				}
 				resultChan <- subsystems.DataSynchronizerResult{
-					State: interfaces.DataSourceStateInterrupted,
-					Error: errorInfo,
+					State:         interfaces.DataSourceStateInterrupted,
+					Error:         errorInfo,
+					EnvironmentID: environmentID,
 				}
 
 				shouldRestart = true // scenario 1 in error handling comments at top of file
@@ -212,7 +219,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					}
 
 					resultChan <- subsystems.DataSynchronizerResult{
-						State: interfaces.DataSourceStateValid,
+						State:         interfaces.DataSourceStateValid,
+						EnvironmentID: environmentID,
 					}
 					break
 				}
@@ -278,8 +286,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				}
 
 				resultChan <- subsystems.DataSynchronizerResult{
-					ChangeSet: changeSet,
-					State:     interfaces.DataSourceStateValid,
+					ChangeSet:     changeSet,
+					State:         interfaces.DataSourceStateValid,
+					EnvironmentID: environmentID,
 				}
 
 			default:
@@ -340,6 +349,8 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 		sp.logConnectionResult(false)
 
 		if se, ok := err.(es.SubscriptionError); ok {
+			environmentID := internal.NewInitMetadataFromHeaders(se.Header).GetEnvironmentID()
+
 			errorInfo := interfaces.DataSourceErrorInfo{
 				Kind:       interfaces.DataSourceErrorKindErrorResponse,
 				StatusCode: se.Code,
@@ -348,9 +359,10 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 
 			if se.Header.Get("X-LD-FD-Fallback") == "true" {
 				resultChan <- subsystems.DataSynchronizerResult{
-					State:        interfaces.DataSourceStateOff,
-					Error:        errorInfo,
-					RevertToFDv1: true,
+					State:         interfaces.DataSourceStateOff,
+					Error:         errorInfo,
+					RevertToFDv1:  true,
+					EnvironmentID: environmentID,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}
 			}
@@ -365,14 +377,16 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 			if recoverable {
 				sp.logConnectionStarted()
 				resultChan <- subsystems.DataSynchronizerResult{
-					State: interfaces.DataSourceStateInterrupted,
-					Error: errorInfo,
+					State:         interfaces.DataSourceStateInterrupted,
+					Error:         errorInfo,
+					EnvironmentID: environmentID,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
 			resultChan <- subsystems.DataSynchronizerResult{
-				State: interfaces.DataSourceStateOff,
-				Error: errorInfo,
+				State:         interfaces.DataSourceStateOff,
+				Error:         errorInfo,
+				EnvironmentID: environmentID,
 			}
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
