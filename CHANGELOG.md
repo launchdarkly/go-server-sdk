@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.13.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.12.0...v7.13.0) (2025-07-16)
+
+
+### Features
+
+* add environment ID support ([#291](https://github.com/launchdarkly/go-server-sdk/issues/291)) ([13b78f2](https://github.com/launchdarkly/go-server-sdk/commit/13b78f287381fd3611b62accdcd19e31979e317b))
+
 ## [7.12.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.11.0...v7.12.0) (2025-07-09)
 
 
