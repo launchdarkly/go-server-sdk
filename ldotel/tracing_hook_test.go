@@ -2,11 +2,18 @@ package ldotel
 
 import (
 	gocontext "context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldtestdata"
+	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -37,6 +44,22 @@ func createClientWithTracing(options ...TracingHookOption) (*ldclient.LDClient, 
 		Hooks:      []ldhooks.Hook{NewTracingHook(options...)},
 	}, 0)
 	return client, td
+}
+
+func createStreamHandlerWithEnvironmentID(environmentID string) http.Handler {
+	flag := ldbuilders.NewFlagBuilder(flagKey).SingleVariation(ldvalue.Bool(true)).Build()
+	initialEvent := ldservices.NewServerSDKData().Flags(&flag).ToPutEvent()
+	handler, _ := httphelpers.SSEHandlerWithEnvironmentID(&initialEvent, environmentID)
+	return httphelpers.HandlerForPath("/all", httphelpers.HandlerForMethod("GET", handler, nil), nil)
+}
+
+func createClientWithStreamServerAndTracing(server *httptest.Server, options ...TracingHookOption) *ldclient.LDClient {
+	client, _ := ldclient.MakeCustomClient("", ldclient.Config{
+		Events:           ldcomponents.NoEvents(),
+		ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: server.URL},
+		Hooks:            []ldhooks.Hook{NewTracingHook(options...)},
+	}, 5*time.Second)
+	return client
 }
 
 const flagKey = "test-flag"
@@ -131,7 +154,7 @@ func TestMultipleSpanEvents(t *testing.T) {
 	stringFlagEventAttributes := attribute.NewSet(flagEventString.Attributes...)
 	stringAttributeFlagKey, _ := (&stringFlagEventAttributes).Value("feature_flag.key")
 	assert.Equal(t, flagKey, stringAttributeFlagKey.AsString())
-	stringAttributeProviderName, _ := (&boolFlagEventAttributes).Value("feature_flag.provider.name")
+	stringAttributeProviderName, _ := (&stringFlagEventAttributes).Value("feature_flag.provider.name")
 	assert.Equal(t, "LaunchDarkly", stringAttributeProviderName.AsString())
 	stringAttributeContextKey, _ := (&stringFlagEventAttributes).Value("feature_flag.context.id")
 	assert.Equal(t, context.FullyQualifiedKey(), stringAttributeContextKey.AsString())
@@ -291,4 +314,104 @@ func TestSpanEventsWithVariationIndex(t *testing.T) {
 	attributes := attribute.NewSet(flagEvent.Attributes...)
 	attributeVariationIndex, _ := (&attributes).Value("feature_flag.result.variationIndex")
 	assert.Equal(t, int64(2), attributeVariationIndex.AsInt64())
+}
+
+func TestEnvironmentIDIsOptional(t *testing.T) {
+	exporter := configureMemoryExporter()
+	tracer := otel.Tracer("launchdarkly-client")
+	client, _ := createClientWithTracing()
+	context := ldcontext.New("test-context")
+
+	ctx := gocontext.Background()
+
+	ctx, span := tracer.Start(ctx, spanName)
+
+	_, _ = client.BoolVariationCtx(ctx, flagKey, context, false)
+
+	span.End()
+
+	exportedSpans := exporter.GetSpans().Snapshots()
+	events := exportedSpans[0].Events()
+	flagEvent := events[0]
+
+	attributes := attribute.NewSet(flagEvent.Attributes...)
+	_, attributeSetIDPresent := (&attributes).Value("feature_flag.set.id")
+	assert.False(t, attributeSetIDPresent)
+}
+
+func TestEnvironmentIDFromHookOptions(t *testing.T) {
+	exporter := configureMemoryExporter()
+	tracer := otel.Tracer("launchdarkly-client")
+	client, _ := createClientWithTracing(WithEnvironmentID("env-id-from-options"))
+	context := ldcontext.New("test-context")
+
+	ctx := gocontext.Background()
+
+	ctx, span := tracer.Start(ctx, spanName)
+
+	_, _ = client.BoolVariationCtx(ctx, flagKey, context, false)
+
+	span.End()
+
+	exportedSpans := exporter.GetSpans().Snapshots()
+	events := exportedSpans[0].Events()
+	flagEvent := events[0]
+
+	attributes := attribute.NewSet(flagEvent.Attributes...)
+	attributeSetID, _ := (&attributes).Value("feature_flag.set.id")
+	assert.Equal(t, "env-id-from-options", attributeSetID.AsString())
+}
+
+func TestEnvironmentIDFromSeriesContext(t *testing.T) {
+	streamHandler := createStreamHandlerWithEnvironmentID("env-id-from-context")
+	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+		exporter := configureMemoryExporter()
+		tracer := otel.Tracer("launchdarkly-client")
+		client := createClientWithStreamServerAndTracing(streamServer)
+		defer client.Close()
+		context := ldcontext.New("test-context")
+
+		ctx := gocontext.Background()
+
+		ctx, span := tracer.Start(ctx, spanName)
+
+		_, _ = client.BoolVariationCtx(ctx, flagKey, context, false)
+
+		span.End()
+
+		exportedSpans := exporter.GetSpans().Snapshots()
+		events := exportedSpans[0].Events()
+		flagEvent := events[0]
+
+		attributes := attribute.NewSet(flagEvent.Attributes...)
+		attributeSetID, _ := (&attributes).Value("feature_flag.set.id")
+		assert.Equal(t, "env-id-from-context", attributeSetID.AsString())
+	})
+}
+
+func TestEnvironmentIDFromHookOptionsOverridesSeriesContext(t *testing.T) {
+	streamHandler := createStreamHandlerWithEnvironmentID("env-id-from-context")
+	httphelpers.WithServer(streamHandler, func(streamServer *httptest.Server) {
+		exporter := configureMemoryExporter()
+		tracer := otel.Tracer("launchdarkly-client")
+		client := createClientWithStreamServerAndTracing(streamServer, WithEnvironmentID("env-id-from-options"))
+		defer client.Close()
+		context := ldcontext.New("test-context")
+
+		ctx := gocontext.Background()
+
+		ctx, span := tracer.Start(ctx, spanName)
+
+		_, _ = client.BoolVariationCtx(ctx, flagKey, context, false)
+
+		span.End()
+
+		exportedSpans := exporter.GetSpans().Snapshots()
+		events := exportedSpans[0].Events()
+		flagEvent := events[0]
+
+		attributes := attribute.NewSet(flagEvent.Attributes...)
+		attributeSetID, _ := (&attributes).Value("feature_flag.set.id")
+		assert.Equal(t, "env-id-from-options", attributeSetID.AsString())
+	})
 }
