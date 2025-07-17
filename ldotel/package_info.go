@@ -8,4 +8,4 @@
 package ldotel
 
 // Version is the current version string of the ldotel package. This is updated by our release scripts.
-const Version = "1.2.0" // {{ x-release-please-version }}
+const Version = "1.3.0" // {{ x-release-please-version }}

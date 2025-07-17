@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.2.0...ldotel/v1.3.0) (2025-07-17)
+
+
+### Features
+
+* add environment ID support to ldotel ([5f28fc0](https://github.com/launchdarkly/go-server-sdk/commit/5f28fc040b851ef5bab6843dfe446d047ed4e75f))
+
+
+### Bug Fixes
+
+* bump go minimum to 1.23 ([5f28fc0](https://github.com/launchdarkly/go-server-sdk/commit/5f28fc040b851ef5bab6843dfe446d047ed4e75f))
+
 ## [1.2.0](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.1.0...ldotel/v1.2.0) (2025-07-15)
 
 
