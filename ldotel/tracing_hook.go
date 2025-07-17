@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 )
 
@@ -19,6 +20,7 @@ const attrFeatureFlagProviderName = "feature_flag.provider.name"
 const attrFeatureFlagResultValue = "feature_flag.result.value"
 const attrFeatureFlagReasonInExperiment = "feature_flag.result.reason.inExperiment"
 const attrFeatureFlagResultVariationIndex = "feature_flag.result.variationIndex"
+const attrFeatureFlagSetID = "feature_flag.set.id"
 
 func featureFlagKey(key string) attribute.KeyValue {
 	return attribute.String(attrFeatureFlagKey, key)
@@ -42,6 +44,10 @@ func featureFlagReasonInExperiment(inExperiment bool) attribute.KeyValue {
 
 func featureFlagResultVariationIndex(variationIndex int) attribute.KeyValue {
 	return attribute.Int(attrFeatureFlagResultVariationIndex, variationIndex)
+}
+
+func featureFlagSetID(setID string) attribute.KeyValue {
+	return attribute.String(attrFeatureFlagSetID, setID)
 }
 
 // TracingHookOption is used to implement functional options for the TracingHook.
@@ -72,6 +78,14 @@ func WithValue() TracingHookOption {
 	}
 }
 
+// WithEnvironmentID option sets the environemntID to be used as feature_flag.set.id, which will override any
+// environmentID supplied by the hook series context.
+func WithEnvironmentID(environmentID string) TracingHookOption {
+	return func(h *TracingHook) {
+		h.environmentID = ldvalue.NewOptionalString(environmentID)
+	}
+}
+
 // A TracingHook adds OpenTelemetry support to the LaunchDarkly SDK.
 //
 // By default, span events will be added for each call to a "Variation" method. Variation methods without "Ctx" will not
@@ -82,10 +96,11 @@ func WithValue() TracingHookOption {
 // and the key of the flag being evaluated.
 type TracingHook struct {
 	ldhooks.Unimplemented
-	metadata     ldhooks.Metadata
-	spans        bool
-	includeValue bool
-	tracer       trace.Tracer
+	metadata      ldhooks.Metadata
+	spans         bool
+	includeValue  bool
+	tracer        trace.Tracer
+	environmentID ldvalue.OptionalString
 }
 
 // Metadata returns meta-data about the tracing hook.
@@ -147,6 +162,12 @@ func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.
 
 	if detail.VariationIndex.IsDefined() {
 		attribs = append(attribs, featureFlagResultVariationIndex(detail.VariationIndex.IntValue()))
+	}
+
+	if id, ok := h.environmentID.Get(); ok {
+		attribs = append(attribs, featureFlagSetID(id))
+	} else if id, ok := seriesContext.EnvironmentID().Get(); ok {
+		attribs = append(attribs, featureFlagSetID(id))
 	}
 
 	span := trace.SpanFromContext(ctx)
