@@ -164,10 +164,10 @@ func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.
 		attribs = append(attribs, featureFlagResultVariationIndex(detail.VariationIndex.IntValue()))
 	}
 
-	if h.environmentID.IsDefined() {
-		attribs = append(attribs, featureFlagSetID(h.environmentID.StringValue()))
-	} else if seriesContext.EnvironmentID().IsDefined() {
-		attribs = append(attribs, featureFlagSetID(seriesContext.EnvironmentID().StringValue()))
+	if id, ok := h.environmentID.Get(); ok {
+		attribs = append(attribs, featureFlagSetID(id))
+	} else if id, ok := seriesContext.EnvironmentID().Get(); ok {
+		attribs = append(attribs, featureFlagSetID(id))
 	}
 
 	span := trace.SpanFromContext(ctx)
