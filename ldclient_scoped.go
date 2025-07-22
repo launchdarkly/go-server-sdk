@@ -63,6 +63,10 @@ func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 	}
 }
 
+func (c *LDScopedClient) overwriteIndividualContextByKind(context ldcontext.Context) {
+	c.contexts[context.Kind()] = context
+}
+
 func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 	c.Lock()
 	defer c.Unlock()
@@ -70,10 +74,12 @@ func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 
 	for _, ctx := range contexts {
 		if ctx.Multiple() {
-			c.OverwriteContextByKind(ctx.GetAllIndividualContexts(nil)...)
+			for _, individual := range ctx.GetAllIndividualContexts(nil) {
+				c.overwriteIndividualContextByKind(individual)
+			}
 			continue
 		}
-		c.contexts[ctx.Kind()] = ctx
+		c.overwriteIndividualContextByKind(ctx)
 	}
 }
 

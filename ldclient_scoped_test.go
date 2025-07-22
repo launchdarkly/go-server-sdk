@@ -59,6 +59,7 @@ func TestScopedClientCollectsContexts(t *testing.T) {
 		c := makeTestClient().ForContext(ldctx1, ldctx2, ldctx3, ldctx4)
 
 		c.OverwriteContextByKind(dupeCtx)
+		c.OverwriteContextByKind(ldctx2, ldctx3)
 
 		assert.Equal(t, ldcontext.NewMulti(ldctx2, ldctx3, ldctx4, dupeCtx), c.CurrentContext())
 	})
