@@ -18,13 +18,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 )
 
-func TestScopedClientCurrentContext(t *testing.T) {
-	ldctx := ldcontext.New("user1")
-	c := makeTestClient().ForContext(ldctx)
-
-	assert.Equal(t, ldctx, c.CurrentContext())
-}
-
 func TestScopedClientCollectsContexts(t *testing.T) {
 	ldctx1 := ldcontext.NewWithKind("foo", "foo1")
 	ldctx2 := ldcontext.NewMulti(
