@@ -12,9 +12,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 
-// LDScopedClient is a wrapper around LDClient that lets you specify the context
-// to be used for all operations, rather than taking a context as a parameter
-// every time you call a method.
+// LDScopedClient is a wrapper around LDClient that lets you specify the
+// evaluation context to be used for all operations, rather than taking the
+// evaluation context as a parameter every time you call a method.
 //
 // A LDScopedClient is created by calling [LDClient.ForContext]. This sets the
 // initial context to be used for all operations:
@@ -24,13 +24,13 @@ import (
 //	scopedClient.BoolVariation("flag-key", false)
 //
 // Scoped contexts are mutable, to facilitate incrementally building up a
-// multi-context representing the current scope. However, you should create a
-// new scoped client for each logical scope where the contexts are different. For
-// instance, if you are using a scoped client in an HTTP request handler, you
-// should create a new scoped client for each request. You should only use the
-// mutable features of LDScopedClient to add new contexts, not to change or
-// remove existing data. A scoped client is thread-safe, so you can safely use it
-// from multiple goroutines.
+// multi-context representing the current scope. You should create a new scoped
+// client for each logical scope where the contexts are different. For instance,
+// if you are using a scoped client in an HTTP request handler, you should create
+// a new scoped client for each request. You should only use the mutable features
+// of LDScopedClient to add new contexts, not to change or remove existing data.
+// A scoped client is thread-safe, so you can safely use it from multiple
+// goroutines.
 //
 // You may add new contexts with [LDScopedClient.AddContext]. The scoped client's
 // contexts so far are combined into a multi-context whenever the scoped client
@@ -61,11 +61,11 @@ type LDScopedClient struct {
 	rebuild bool
 }
 
-// ForContext creates a new LDScopedClient with an initial context. This scoped
-// client wraps the original client, using the specified context for all
-// operations, like evaluating feature flags or sending events. The scoped client
-// supports most of the same methods as LDClient, like BoolVariation et al., but
-// without the context parameter.
+// ForContext creates a new LDScopedClient, a wrapper of LDClient that uses a
+// certain LaunchDarkly evaluation context for all operations, like evaluating
+// feature flags or sending events. The scoped client supports most of the same
+// methods as LDClient, like BoolVariation et al., but without the
+// ldcontext.Context parameter.
 //
 // You may pass a multi-context, or multiple individual contexts, to ForContext.
 // All of the contexts passed in will be combined into a multi-context when the
@@ -94,8 +94,8 @@ func (c *LDScopedClient) addIndividualContext(context ldcontext.Context) {
 	c.contexts[context.Kind()] = context
 }
 
-// AddContext adds additional contexts to the scoped client, affecting all future
-// operations on it, like flag evaluations and event tracking.
+// AddContext adds additional evaluation contexts to the scoped client, affecting
+// all future operations on it, like flag evaluations and event tracking.
 //
 // All of the contexts added must have kinds that are not already present. If you
 // try to add a context with a duplicate kind, the new context will not be added
@@ -154,8 +154,8 @@ func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 	}
 }
 
-// CurrentContext returns the current context for the scoped client. This is the
-// combination of all the contexts that have been added so far, as a
+// CurrentContext returns the current LaunchDarkly context for the scoped client.
+// This is the combination of all the contexts that have been added so far, as a
 // multi-context.
 func (c *LDScopedClient) CurrentContext() ldcontext.Context {
 	c.Lock()
