@@ -10,7 +10,6 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 )
 
 // TODO:
@@ -237,12 +236,6 @@ func (c *LDScopedClient) MigrationVariationCtx(
 	defaultStage ldmigration.Stage,
 ) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	return c.client.MigrationVariationCtx(ctx, key, c.CurrentContext(), defaultStage)
-}
-
-func (c *LDScopedClient) AllFlagsState(
-	options ...flagstate.Option,
-) flagstate.AllFlags {
-	return c.client.AllFlagsState(c.CurrentContext(), options...)
 }
 
 func (c *LDScopedClient) Identify() error {
