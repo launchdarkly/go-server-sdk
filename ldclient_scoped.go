@@ -13,6 +13,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 )
 
+// TODO:
+// - add docstrings to everything
+// - e2e tests (ld_client_end_to_end_test.go?)
+// - unit tests for context collector piece
+
 type LDScopedClient struct {
 	sync.Mutex
 	client *LDClient
@@ -34,6 +39,14 @@ func (c *LDClient) ForContext(contexts ...ldcontext.Context) *LDScopedClient {
 	return cc
 }
 
+func (c *LDScopedClient) addIndividualContext(context ldcontext.Context) {
+	if _, ok := c.contexts[context.Kind()]; ok {
+		c.client.loggers.Warnf("Tried to add a duplicate %s context to LDScopedClient", context.Kind())
+		return
+	}
+	c.contexts[context.Kind()] = context
+}
+
 func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 	c.Lock()
 	defer c.Unlock()
@@ -41,14 +54,12 @@ func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 
 	for _, ctx := range contexts {
 		if ctx.Multiple() {
-			c.AddContext(ctx.GetAllIndividualContexts(nil)...)
+			for _, individual := range ctx.GetAllIndividualContexts(nil) {
+				c.addIndividualContext(individual)
+			}
 			continue
 		}
-		if _, ok := c.contexts[ctx.Kind()]; ok {
-			c.client.loggers.Warnf("Tried to add a duplicate %s context to LDScopedClient", ctx.Kind())
-			continue
-		}
-		c.contexts[ctx.Kind()] = ctx
+		c.addIndividualContext(ctx)
 	}
 }
 
