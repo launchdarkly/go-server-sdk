@@ -76,9 +76,9 @@ type LDScopedClient struct {
 //
 // For more info on how to use the scoped client, see the documentation for
 // LDScopedClient.
-func (c *LDClient) ForContext(contexts ...ldcontext.Context) *LDScopedClient {
+func (client *LDClient) ForContext(contexts ...ldcontext.Context) *LDScopedClient {
 	cc := &LDScopedClient{
-		client:   c,
+		client:   client,
 		contexts: make(map[ldcontext.Kind]ldcontext.Context),
 		rebuild:  true,
 	}
@@ -322,7 +322,10 @@ func (c *LDScopedClient) Float64VariationCtx(
 //
 // For more information, see the Reference Guide:
 // https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (c *LDScopedClient) Float64VariationDetail(key string, defaultVal float64) (float64, ldreason.EvaluationDetail, error) {
+func (c *LDScopedClient) Float64VariationDetail(
+	key string,
+	defaultVal float64,
+) (float64, ldreason.EvaluationDetail, error) {
 	return c.client.Float64VariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
@@ -377,7 +380,10 @@ func (c *LDScopedClient) StringVariationCtx(
 //
 // For more information, see the Reference Guide:
 // https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (c *LDScopedClient) StringVariationDetail(key string, defaultVal string) (string, ldreason.EvaluationDetail, error) {
+func (c *LDScopedClient) StringVariationDetail(
+	key string,
+	defaultVal string,
+) (string, ldreason.EvaluationDetail, error) {
 	return c.client.StringVariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
@@ -450,7 +456,10 @@ func (c *LDScopedClient) JSONVariationCtx(
 //
 // For more information, see the Reference Guide:
 // https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
-func (c *LDScopedClient) JSONVariationDetail(key string, defaultVal ldvalue.Value) (ldvalue.Value, ldreason.EvaluationDetail, error) {
+func (c *LDScopedClient) JSONVariationDetail(
+	key string,
+	defaultVal ldvalue.Value,
+) (ldvalue.Value, ldreason.EvaluationDetail, error) {
 	return c.client.JSONVariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
