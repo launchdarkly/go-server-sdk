@@ -12,7 +12,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 )
 
@@ -382,4 +384,105 @@ func TestScopedMigrationVariation(t *testing.T) {
 		})
 	})
 
+}
+
+// Scoped event tests
+
+func TestScopedTrackCalls(t *testing.T) {
+	t.Run("TrackEvent", func(t *testing.T) {
+		client := makeTestClient()
+		defer client.Close()
+
+		key := "eventKey"
+		err := client.ForContext(evalTestUser).TrackEvent(key)
+		assert.NoError(t, err)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		assert.Equal(t, 1, len(events))
+		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
+		assert.Equal(t, key, e.Key)
+	})
+	t.Run("TrackEventCtx", func(t *testing.T) {
+		client := makeTestClient()
+		defer client.Close()
+
+		key := "eventKey"
+		err := client.ForContext(evalTestUser).TrackEventCtx(gocontext.TODO(), key)
+		assert.NoError(t, err)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		assert.Equal(t, 1, len(events))
+		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
+		assert.Equal(t, key, e.Key)
+	})
+	t.Run("TrackData", func(t *testing.T) {
+		client := makeTestClient()
+		defer client.Close()
+
+		key := "eventKey"
+		data := ldvalue.String("data")
+		err := client.ForContext(evalTestUser).TrackData(key, data)
+		assert.NoError(t, err)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		assert.Equal(t, 1, len(events))
+		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
+		assert.Equal(t, key, e.Key)
+		assert.Equal(t, data, e.Data)
+	})
+	t.Run("TrackDataCtx", func(t *testing.T) {
+		client := makeTestClient()
+		defer client.Close()
+
+		key := "eventKey"
+		data := ldvalue.String("data")
+		err := client.ForContext(evalTestUser).TrackDataCtx(gocontext.TODO(), key, data)
+		assert.NoError(t, err)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		assert.Equal(t, 1, len(events))
+		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
+		assert.Equal(t, key, e.Key)
+		assert.Equal(t, data, e.Data)
+	})
+	t.Run("TrackMetric", func(t *testing.T) {
+		client := makeTestClient()
+		defer client.Close()
+
+		key := "eventKey"
+		data := ldvalue.String("data")
+		metric := float64(1.5)
+		err := client.ForContext(evalTestUser).TrackMetric(key, metric, data)
+		assert.NoError(t, err)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		assert.Equal(t, 1, len(events))
+		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
+		assert.Equal(t, key, e.Key)
+		assert.Equal(t, data, e.Data)
+		assert.Equal(t, metric, e.MetricValue)
+	})
+	t.Run("TrackMetricCtx", func(t *testing.T) {
+		client := makeTestClient()
+		defer client.Close()
+
+		key := "eventKey"
+		data := ldvalue.String("data")
+		metric := float64(1.5)
+		err := client.ForContext(evalTestUser).TrackMetricCtx(gocontext.TODO(), key, metric, data)
+		assert.NoError(t, err)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		assert.Equal(t, 1, len(events))
+		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
+		assert.Equal(t, key, e.Key)
+		assert.Equal(t, data, e.Data)
+		assert.Equal(t, metric, e.MetricValue)
+	})
 }
