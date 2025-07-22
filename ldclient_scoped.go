@@ -179,7 +179,8 @@ func (c *LDScopedClient) Client() *LDClient {
 
 // Contextual methods: equivalent to calling the same method on the underlying client with the current context
 
-// BoolVariation returns the value of a boolean feature flag for the current evaluation context.
+// BoolVariation returns the value of a boolean feature flag for the current
+// evaluation context.
 //
 // Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
 // has no off variation.
@@ -189,10 +190,11 @@ func (c *LDScopedClient) BoolVariation(key string, defaultVal bool) (bool, error
 	return c.client.BoolVariation(key, c.CurrentContext(), defaultVal)
 }
 
-// BoolVariationCtx is the same as [LDScopedClient.BoolVariation], but accepts a context.Context.
+// BoolVariationCtx is the same as [LDScopedClient.BoolVariation], but accepts a
+// context.Context.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) BoolVariationCtx(
@@ -203,19 +205,22 @@ func (c *LDScopedClient) BoolVariationCtx(
 	return c.client.BoolVariationCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// BoolVariationDetail is the same as [LDScopedClient.BoolVariation], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// BoolVariationDetail is the same as [LDScopedClient.BoolVariation], but also
+// returns further information about how the value was calculated. The "reason"
+// data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) BoolVariationDetail(key string, defaultVal bool) (bool, ldreason.EvaluationDetail, error) {
 	return c.client.BoolVariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
-// BoolVariationDetailCtx is the same as [LDScopedClient.BoolVariationCtx], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// BoolVariationDetailCtx is the same as [LDScopedClient.BoolVariationCtx], but
+// also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) BoolVariationDetailCtx(
@@ -226,24 +231,29 @@ func (c *LDScopedClient) BoolVariationDetailCtx(
 	return c.client.BoolVariationDetailCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// IntVariation returns the value of a feature flag (whose variations are integers) for the current evaluation context.
+// IntVariation returns the value of a feature flag (whose variations are
+// integers) for the current evaluation context.
 //
-// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
-// has no off variation.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the
+// feature is turned off and has no off variation.
 //
-// If the flag variation has a numeric value that is not an integer, it is rounded toward zero (truncated).
+// If the flag variation has a numeric value that is not an integer, it is
+// rounded toward zero (truncated).
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) IntVariation(key string, defaultVal int) (int, error) {
 	return c.client.IntVariation(key, c.CurrentContext(), defaultVal)
 }
 
-// IntVariationCtx is the same as [LDScopedClient.IntVariation], but accepts a context.Context.
+// IntVariationCtx is the same as [LDScopedClient.IntVariation], but accepts a
+// context.Context.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) IntVariationCtx(
 	ctx gocontext.Context,
 	key string,
@@ -252,19 +262,22 @@ func (c *LDScopedClient) IntVariationCtx(
 	return c.client.IntVariationCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// IntVariationDetail is the same as [LDScopedClient.IntVariation], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// IntVariationDetail is the same as [LDScopedClient.IntVariation], but also
+// returns further information about how the value was calculated. The "reason"
+// data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) IntVariationDetail(key string, defaultVal int) (int, ldreason.EvaluationDetail, error) {
 	return c.client.IntVariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
-// IntVariationDetailCtx is the same as [LDScopedClient.IntVariationCtx], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// IntVariationDetailCtx is the same as [LDScopedClient.IntVariationCtx], but
+// also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) IntVariationDetailCtx(
@@ -275,23 +288,26 @@ func (c *LDScopedClient) IntVariationDetailCtx(
 	return c.client.IntVariationDetailCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// Float64Variation returns the value of a feature flag (whose variations are floats) for the current evaluation
-// context.
+// Float64Variation returns the value of a feature flag (whose variations are
+// floats) for the current evaluation context.
 //
-// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and
-// has no off variation.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the
+// feature is turned off and has no off variation.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) Float64Variation(key string, defaultVal float64) (float64, error) {
 	return c.client.Float64Variation(key, c.CurrentContext(), defaultVal)
 }
 
-// Float64VariationCtx is the same as [LDScopedClient.Float64Variation], but accepts a context.Context.
+// Float64VariationCtx is the same as [LDScopedClient.Float64Variation], but
+// accepts a context.Context.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) Float64VariationCtx(
 	ctx gocontext.Context,
 	key string,
@@ -300,21 +316,25 @@ func (c *LDScopedClient) Float64VariationCtx(
 	return c.client.Float64VariationCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// Float64VariationDetail is the same as [LDScopedClient.Float64Variation], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// Float64VariationDetail is the same as [LDScopedClient.Float64Variation], but
+// also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) Float64VariationDetail(key string, defaultVal float64) (float64, ldreason.EvaluationDetail, error) {
 	return c.client.Float64VariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
-// Float64VariationDetailCtx is the same as [LDScopedClient.Float64VariationCtx], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// Float64VariationDetailCtx is the same as [LDScopedClient.Float64VariationCtx],
+// but also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) Float64VariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
@@ -323,23 +343,26 @@ func (c *LDScopedClient) Float64VariationDetailCtx(
 	return c.client.Float64VariationDetailCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// StringVariation returns the value of a feature flag (whose variations are strings) for the current evaluation
-// context.
+// StringVariation returns the value of a feature flag (whose variations are
+// strings) for the current evaluation context.
 //
-// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off and has
-// no off variation.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the
+// feature is turned off and has no off variation.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) StringVariation(key string, defaultVal string) (string, error) {
 	return c.client.StringVariation(key, c.CurrentContext(), defaultVal)
 }
 
-// StringVariationCtx is the same as [LDScopedClient.StringVariation], but accepts a context.Context.
+// StringVariationCtx is the same as [LDScopedClient.StringVariation], but
+// accepts a context.Context.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) StringVariationCtx(
 	ctx gocontext.Context,
 	key string,
@@ -348,21 +371,25 @@ func (c *LDScopedClient) StringVariationCtx(
 	return c.client.StringVariationCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// StringVariationDetail is the same as [LDScopedClient.StringVariation], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// StringVariationDetail is the same as [LDScopedClient.StringVariation], but
+// also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) StringVariationDetail(key string, defaultVal string) (string, ldreason.EvaluationDetail, error) {
 	return c.client.StringVariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
-// StringVariationDetailCtx is the same as [LDScopedClient.StringVariationCtx], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// StringVariationDetailCtx is the same as [LDScopedClient.StringVariationCtx],
+// but also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) StringVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
@@ -371,12 +398,13 @@ func (c *LDScopedClient) StringVariationDetailCtx(
 	return c.client.StringVariationDetailCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// JSONVariation returns the value of a feature flag for the current evaluation context, allowing the value to
-// be of any JSON type.
+// JSONVariation returns the value of a feature flag for the current evaluation
+// context, allowing the value to be of any JSON type.
 //
-// The value is returned as an [ldvalue.Value], which can be inspected or converted to other types using
-// methods such as [ldvalue.Value.GetType] and [ldvalue.Value.BoolValue]. The defaultVal parameter also uses this
-// type. For instance, if the values for this flag are JSON arrays:
+// The value is returned as an [ldvalue.Value], which can be inspected or
+// converted to other types using methods such as [ldvalue.Value.GetType] and
+// [ldvalue.Value.BoolValue]. The defaultVal parameter also uses this type. For
+// instance, if the values for this flag are JSON arrays:
 //
 //	defaultValAsArray := ldvalue.BuildArray().
 //	    Add(ldvalue.String("defaultFirstItem")).
@@ -391,19 +419,23 @@ func (c *LDScopedClient) StringVariationDetailCtx(
 //	result, err := client.JSONVariation(flagKey, defaultValAsRawJSON)
 //	resultAsRawJSON := result.AsRaw()
 //
-// Returns defaultVal if there is an error, if the flag doesn't exist, or the feature is turned off.
+// Returns defaultVal if there is an error, if the flag doesn't exist, or the
+// feature is turned off.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) JSONVariation(key string, defaultVal ldvalue.Value) (ldvalue.Value, error) {
 	return c.client.JSONVariation(key, c.CurrentContext(), defaultVal)
 }
 
-// JSONVariationCtx is the same as [LDScopedClient.JSONVariation], but accepts a context.Context.
+// JSONVariationCtx is the same as [LDScopedClient.JSONVariation], but accepts a
+// context.Context.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) JSONVariationCtx(
 	ctx gocontext.Context,
 	key string,
@@ -412,21 +444,25 @@ func (c *LDScopedClient) JSONVariationCtx(
 	return c.client.JSONVariationCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// JSONVariationDetail is the same as [LDScopedClient.JSONVariation], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// JSONVariationDetail is the same as [LDScopedClient.JSONVariation], but also
+// returns further information about how the value was calculated. The "reason"
+// data will also be included in analytics events.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) JSONVariationDetail(key string, defaultVal ldvalue.Value) (ldvalue.Value, ldreason.EvaluationDetail, error) {
 	return c.client.JSONVariationDetail(key, c.CurrentContext(), defaultVal)
 }
 
-// JSONVariationDetailCtx is the same as [LDScopedClient.JSONVariationCtx], but also returns further information about how
-// the value was calculated. The "reason" data will also be included in analytics events.
+// JSONVariationDetailCtx is the same as [LDScopedClient.JSONVariationCtx], but
+// also returns further information about how the value was calculated. The
+// "reason" data will also be included in analytics events.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluation-reasons#go
 func (c *LDScopedClient) JSONVariationDetailCtx(
 	ctx gocontext.Context,
 	key string,
@@ -435,7 +471,8 @@ func (c *LDScopedClient) JSONVariationDetailCtx(
 	return c.client.JSONVariationDetailCtx(ctx, key, c.CurrentContext(), defaultVal)
 }
 
-// MigrationVariation returns the migration stage of the migration feature flag for the current evaluation context.
+// MigrationVariation returns the migration stage of the migration feature flag
+// for the current evaluation context.
 //
 // Returns defaultStage if there is an error or if the flag doesn't exist.
 //
@@ -447,12 +484,14 @@ func (c *LDScopedClient) MigrationVariation(
 	return c.client.MigrationVariation(key, c.CurrentContext(), defaultStage)
 }
 
-// MigrationVariationCtx is the same as [LDScopedClient.MigrationVariation], but accepts a context.Context.
+// MigrationVariationCtx is the same as [LDScopedClient.MigrationVariation], but
+// accepts a context.Context.
 //
-// Cancelling the context.Context will not cause the evaluation to be cancelled. The context.Context is used
-// by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the evaluation to be cancelled.
+// The context.Context is used by hook implementations refer to [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/evaluating#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/evaluating#go
 func (c *LDScopedClient) MigrationVariationCtx(
 	ctx gocontext.Context,
 	key string,
@@ -463,29 +502,33 @@ func (c *LDScopedClient) MigrationVariationCtx(
 
 // Identify sends an identify event for the current evaluation context.
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/identify#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/identify#go
 func (c *LDScopedClient) Identify() error {
 	return c.client.Identify(c.CurrentContext())
 }
 
 // TrackEvent sends a custom event for the current evaluation context.
 //
-// The eventName parameter is defined by the application and will be shown in analytics reports;
-// it normally corresponds to the event name of a metric that you have created through the
-// LaunchDarkly dashboard. If you want to associate additional data with this event, use [TrackData]
-// or [TrackMetric].
+// The eventName parameter is defined by the application and will be shown in
+// analytics reports; it normally corresponds to the event name of a metric that
+// you have created through the LaunchDarkly dashboard. If you want to associate
+// additional data with this event, use [TrackData] or [TrackMetric].
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
 func (c *LDScopedClient) TrackEvent(eventName string) error {
 	return c.client.TrackEvent(eventName, c.CurrentContext())
 }
 
-// TrackEventCtx is the same as [LDScopedClient.TrackEvent], but accepts a context.Context.
+// TrackEventCtx is the same as [LDScopedClient.TrackEvent], but accepts a
+// context.Context.
 //
-// Cancelling the context.Context will not cause the track operation to be cancelled. The context.Context is
-// used by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the track operation to be
+// cancelled. The context.Context is used by hook implementations refer to
+// [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/events#go
 func (c *LDScopedClient) TrackEventCtx(
 	ctx gocontext.Context,
 	eventName string,
@@ -493,27 +536,33 @@ func (c *LDScopedClient) TrackEventCtx(
 	return c.client.TrackEventCtx(ctx, eventName, c.CurrentContext())
 }
 
-// TrackData sends a custom event for the current evaluation context, with custom data.
+// TrackData sends a custom event for the current evaluation context, with custom
+// data.
 //
-// The eventName parameter is defined by the application and will be shown in analytics reports;
-// it normally corresponds to the event name of a metric that you have created through the
-// LaunchDarkly dashboard.
+// The eventName parameter is defined by the application and will be shown in
+// analytics reports; it normally corresponds to the event name of a metric that
+// you have created through the LaunchDarkly dashboard.
 //
-// The data parameter is a value of any JSON type, represented with the [ldvalue.Value] type, that
-// will be sent with the event. If no such value is needed, use [ldvalue.Null]() (or call [TrackEvent]
-// instead). To send a numeric value for experimentation, use [TrackMetric].
+// The data parameter is a value of any JSON type, represented with the
+// [ldvalue.Value] type, that will be sent with the event. If no such value is
+// needed, use [ldvalue.Null]() (or call [TrackEvent] instead). To send a numeric
+// value for experimentation, use [TrackMetric].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/events#go
 func (c *LDScopedClient) TrackData(eventName string, data ldvalue.Value) error {
 	return c.client.TrackData(eventName, c.CurrentContext(), data)
 }
 
-// TrackDataCtx is the same as [LDScopedClient.TrackData], but accepts a context.Context.
+// TrackDataCtx is the same as [LDScopedClient.TrackData], but accepts a
+// context.Context.
 //
-// Cancelling the context.Context will not cause the track operation to be cancelled. The context.Context is
-// used by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the track operation to be
+// cancelled. The context.Context is used by hook implementations refer to
+// [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/events#go
 func (c *LDScopedClient) TrackDataCtx(
 	ctx gocontext.Context,
 	eventName string,
@@ -522,26 +571,32 @@ func (c *LDScopedClient) TrackDataCtx(
 	return c.client.TrackDataCtx(ctx, eventName, c.CurrentContext(), data)
 }
 
-// TrackMetric sends a custom event for the current evaluation context, with a numeric value.
+// TrackMetric sends a custom event for the current evaluation context, with a
+// numeric value.
 //
-// The eventName parameter is defined by the application and will be shown in analytics reports;
-// it normally corresponds to the event name of a metric that you have created through the
-// LaunchDarkly dashboard.
+// The eventName parameter is defined by the application and will be shown in
+// analytics reports; it normally corresponds to the event name of a metric that
+// you have created through the LaunchDarkly dashboard.
 //
-// The data parameter is a value of any JSON type, represented with the [ldvalue.Value] type, that
-// will be sent with the event. If no such value is needed, use [ldvalue.Null]().
+// The data parameter is a value of any JSON type, represented with the
+// [ldvalue.Value] type, that will be sent with the event. If no such value is
+// needed, use [ldvalue.Null]().
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/events#go
 func (c *LDScopedClient) TrackMetric(eventName string, metricValue float64, data ldvalue.Value) error {
 	return c.client.TrackMetric(eventName, c.CurrentContext(), metricValue, data)
 }
 
-// TrackMetricCtx is the same as [LDScopedClient.TrackMetric], but accepts a context.Context.
+// TrackMetricCtx is the same as [LDScopedClient.TrackMetric], but accepts a
+// context.Context.
 //
-// Cancelling the context.Context will not cause the track operation to be cancelled. The context.Context is
-// used by hook implementations refer to [ldhooks.Hook].
+// Cancelling the context.Context will not cause the track operation to be
+// cancelled. The context.Context is used by hook implementations refer to
+// [ldhooks.Hook].
 //
-// For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/events#go
+// For more information, see the Reference Guide:
+// https://docs.launchdarkly.com/sdk/features/events#go
 func (c *LDScopedClient) TrackMetricCtx(
 	ctx gocontext.Context,
 	eventName string,
