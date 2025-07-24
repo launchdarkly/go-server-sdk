@@ -47,17 +47,20 @@ func TestTracker_NewDoesNotPanicWithConfig(t *testing.T) {
 	})
 }
 
-func makeTrackData(configKey, variationKey string, version int) ldvalue.Value {
+func makeTrackData(configKey, variationKey string, version int, config *Config) ldvalue.Value {
 	return ldvalue.ObjectBuild().
 		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(configKey)).
 		Set("version", ldvalue.Int(version)).
+		Set("providerName", ldvalue.String(config.ProviderName())).
+		Set("modelName", ldvalue.String(config.ModelName())).
 		Build()
 }
 
 func TestTracker_TrackSuccess(t *testing.T) {
 	events := newMockEvents()
-	tracker := newTracker("key", "variationKey", 1, events, &Config{}, ldcontext.New("key"), nil)
+	config := &Config{}
+	tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
 	assert.NoError(t, tracker.TrackSuccess())
 
 	expectedEvents := []trackEvent{
@@ -65,13 +68,13 @@ func TestTracker_TrackSuccess(t *testing.T) {
 			name:        "$ld:ai:generation",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 1),
+			data:        makeTrackData("key", "variationKey", 1, config),
 		},
 		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 1),
+			data:        makeTrackData("key", "variationKey", 1, config),
 		},
 	}
 
@@ -80,7 +83,8 @@ func TestTracker_TrackSuccess(t *testing.T) {
 
 func TestTracker_TrackError(t *testing.T) {
 	events := newMockEvents()
-	tracker := newTracker("key", "variationKey", 2, events, &Config{}, ldcontext.New("key"), nil)
+	config := &Config{}
+	tracker := newTracker("key", "variationKey", 2, events, config, ldcontext.New("key"), nil)
 	assert.NoError(t, tracker.TrackError())
 
 	expectedEvents := []trackEvent{
@@ -88,13 +92,13 @@ func TestTracker_TrackError(t *testing.T) {
 			name:        "$ld:ai:generation",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 2),
+			data:        makeTrackData("key", "variationKey", 2, config),
 		},
 		{
 			name:        "$ld:ai:generation:error",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 2),
+			data:        makeTrackData("key", "variationKey", 2, config),
 		},
 	}
 
@@ -103,7 +107,8 @@ func TestTracker_TrackError(t *testing.T) {
 
 func TestTracker_TrackRequest(t *testing.T) {
 	events := newMockEvents()
-	tracker := newTracker("key", "variationKey", 3, events, &Config{}, ldcontext.New("key"), nil)
+	config := &Config{}
+	tracker := newTracker("key", "variationKey", 3, events, config, ldcontext.New("key"), nil)
 
 	expectedResponse := ProviderResponse{
 		Usage: TokenUsage{
@@ -127,31 +132,31 @@ func TestTracker_TrackRequest(t *testing.T) {
 			name:        "$ld:ai:generation",
 			context:     ldcontext.New("key"),
 			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3),
+			data:        makeTrackData("key", "variationKey", 3, config),
 		},
 		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
 			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3),
+			data:        makeTrackData("key", "variationKey", 3, config),
 		},
 		{
 			name:        "$ld:ai:duration:total",
 			context:     ldcontext.New("key"),
 			metricValue: 10.0,
-			data:        makeTrackData("key", "variationKey", 3),
+			data:        makeTrackData("key", "variationKey", 3, config),
 		},
 		{
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3),
+			data:        makeTrackData("key", "variationKey", 3, config),
 		},
 		{
 			name:        "$ld:ai:tokens:ttf",
 			context:     ldcontext.New("key"),
 			metricValue: 42.0,
-			data:        makeTrackData("key", "variationKey", 3),
+			data:        makeTrackData("key", "variationKey", 3, config),
 		},
 	}
 
@@ -191,9 +196,10 @@ func (m mockStopwatch) Stop() time.Duration {
 
 func TestTracker_LatencyMeasuredIfNotProvided(t *testing.T) {
 	events := newMockEvents()
+	config := &Config{}
 
 	tracker := newTrackerWithStopwatch(
-		"key", "variationKey", 5, events, &Config{}, ldcontext.New("key"), nil, mockStopwatch(42*time.Millisecond))
+		"key", "variationKey", 5, events, config, ldcontext.New("key"), nil, mockStopwatch(42*time.Millisecond))
 
 	expectedResponse := ProviderResponse{
 		Usage: TokenUsage{
@@ -216,7 +222,8 @@ func TestTracker_LatencyMeasuredIfNotProvided(t *testing.T) {
 
 func TestTracker_TrackDuration(t *testing.T) {
 	events := newMockEvents()
-	tracker := newTracker("key", "variationKey", 6, events, &Config{}, ldcontext.New("key"), nil)
+	config := &Config{}
+	tracker := newTracker("key", "variationKey", 6, events, config, ldcontext.New("key"), nil)
 
 	assert.NoError(t, tracker.TrackDuration(time.Millisecond*10))
 
@@ -224,7 +231,7 @@ func TestTracker_TrackDuration(t *testing.T) {
 		name:        "$ld:ai:duration:total",
 		context:     ldcontext.New("key"),
 		metricValue: 10.0,
-		data:        makeTrackData("key", "variationKey", 6),
+		data:        makeTrackData("key", "variationKey", 6, config),
 	}
 
 	assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
@@ -232,7 +239,8 @@ func TestTracker_TrackDuration(t *testing.T) {
 
 func TestTracker_TrackFeedback(t *testing.T) {
 	events := newMockEvents()
-	tracker := newTracker("key", "variationKey", 7, events, &Config{}, ldcontext.New("key"), nil)
+	config := &Config{}
+	tracker := newTracker("key", "variationKey", 7, events, config, ldcontext.New("key"), nil)
 
 	assert.NoError(t, tracker.TrackFeedback(FeedbackPositive))
 	assert.NoError(t, tracker.TrackFeedback(FeedbackNegative))
@@ -242,14 +250,14 @@ func TestTracker_TrackFeedback(t *testing.T) {
 		name:        "$ld:ai:feedback:user:positive",
 		context:     ldcontext.New("key"),
 		metricValue: 1.0,
-		data:        makeTrackData("key", "variationKey", 7),
+		data:        makeTrackData("key", "variationKey", 7, config),
 	}
 
 	expectedNegativeEvent := trackEvent{
 		name:        "$ld:ai:feedback:user:negative",
 		context:     ldcontext.New("key"),
 		metricValue: 1.0,
-		data:        makeTrackData("key", "variationKey", 7),
+		data:        makeTrackData("key", "variationKey", 7, config),
 	}
 
 	assert.ElementsMatch(t, []trackEvent{expectedPositiveEvent, expectedNegativeEvent}, events.events)
@@ -258,7 +266,8 @@ func TestTracker_TrackFeedback(t *testing.T) {
 func TestTracker_TrackUsage(t *testing.T) {
 	t.Run("only one field set, only one event", func(t *testing.T) {
 		events := newMockEvents()
-		tracker := newTracker("key", "variationKey", 8, events, &Config{}, ldcontext.New("key"), nil)
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 8, events, config, ldcontext.New("key"), nil)
 
 		assert.NoError(t, tracker.TrackUsage(TokenUsage{
 			Total: 42,
@@ -268,7 +277,7 @@ func TestTracker_TrackUsage(t *testing.T) {
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 42.0,
-			data:        makeTrackData("key", "variationKey", 8),
+			data:        makeTrackData("key", "variationKey", 8, config),
 		}
 
 		assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
@@ -276,7 +285,8 @@ func TestTracker_TrackUsage(t *testing.T) {
 
 	t.Run("all fields set, all events", func(t *testing.T) {
 		events := newMockEvents()
-		tracker := newTracker("key", "variationKey", 9, events, &Config{}, ldcontext.New("key"), nil)
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 9, events, config, ldcontext.New("key"), nil)
 
 		assert.NoError(t, tracker.TrackUsage(TokenUsage{
 			Total:  42,
@@ -288,21 +298,21 @@ func TestTracker_TrackUsage(t *testing.T) {
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 42.0,
-			data:        makeTrackData("key", "variationKey", 9),
+			data:        makeTrackData("key", "variationKey", 9, config),
 		}
 
 		expectedInput := trackEvent{
 			name:        "$ld:ai:tokens:input",
 			context:     ldcontext.New("key"),
 			metricValue: 20.0,
-			data:        makeTrackData("key", "variationKey", 9),
+			data:        makeTrackData("key", "variationKey", 9, config),
 		}
 
 		expectedOutput := trackEvent{
 			name:        "$ld:ai:tokens:output",
 			context:     ldcontext.New("key"),
 			metricValue: 22.0,
-			data:        makeTrackData("key", "variationKey", 9),
+			data:        makeTrackData("key", "variationKey", 9, config),
 		}
 
 		assert.ElementsMatch(t, []trackEvent{expectedTotal, expectedInput, expectedOutput}, events.events)
