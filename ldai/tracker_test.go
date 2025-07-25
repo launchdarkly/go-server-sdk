@@ -62,12 +62,6 @@ func TestTracker_TrackSuccess(t *testing.T) {
 
 	expectedEvents := []trackEvent{
 		{
-			name:        "$ld:ai:generation",
-			context:     ldcontext.New("key"),
-			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 1),
-		},
-		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
@@ -84,12 +78,6 @@ func TestTracker_TrackError(t *testing.T) {
 	assert.NoError(t, tracker.TrackError())
 
 	expectedEvents := []trackEvent{
-		{
-			name:        "$ld:ai:generation",
-			context:     ldcontext.New("key"),
-			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 2),
-		},
 		{
 			name:        "$ld:ai:generation:error",
 			context:     ldcontext.New("key"),
@@ -123,12 +111,6 @@ func TestTracker_TrackRequest(t *testing.T) {
 	assert.Equal(t, expectedResponse, r)
 
 	expectedEvents := []trackEvent{
-		{
-			name:        "$ld:ai:generation",
-			context:     ldcontext.New("key"),
-			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3),
-		},
 		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
