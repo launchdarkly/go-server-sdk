@@ -14,7 +14,9 @@ import (
 
 // LDScopedClient is a wrapper around LDClient that lets you specify the
 // evaluation context to be used for all operations, rather than taking the
-// evaluation context as a parameter every time you call a method.
+// evaluation context as a parameter every time you call a method. You should
+// create a new scoped client for each logical scope where the evaluation context
+// should be isolated from other scopes, like a web request.
 //
 // An LDScopedClient is created by calling [LDClient.ForContext]. This sets the
 // initial context to be used for all operations:
@@ -23,33 +25,37 @@ import (
 //	scopedClient := client.ForContext(userContext)
 //	scopedClient.BoolVariation("flag-key", false)
 //
-// Scoped contexts are mutable, to facilitate incrementally building up a
-// multi-context representing the current scope. You should create a new scoped
-// client for each logical scope where the contexts are different. For instance,
-// if you are using a scoped client in an HTTP request handler, you should create
-// a new scoped client for each request. You should only use the mutable features
-// of LDScopedClient to add new contexts, not to change or remove existing data.
-// A scoped client is thread-safe, so you can safely use it from multiple
-// goroutines.
+// A scoped client contains one or more contexts, each with a unique kind. You
+// can add additional contexts with [LDScopedClient.AddContext], as long as the
+// new contexts' kinds are not already present. The "current context" is the
+// combination of all contexts added so far, as a multi-context.
 //
-// You may add new contexts with [LDScopedClient.AddContext]. The scoped client's
-// contexts so far are combined into a multi-context whenever the scoped client
-// is used. This is useful when more contexts become available later in the
+//	scopedClient := client.ForContext(userContext)
+//	scopedClient.CurrentContext() // returns the single "user" context
+//	scopedClient.AddContext(ldcontext.NewWithKind("company", "acme"))
+//	scopedClient.CurrentContext() // returns a multi-context with a "user" and "company" context
+//
+// Adding contexts is useful when more contexts become available later in the
 // lifecycle of a request. For instance, you might have a `user` context that is
 // available early in the request, but you also want to evaluate flags with a
 // `company` context that is only available later:
 //
+//	scopedClient := client.ForContext(ldcontext.New("user-key"))
 //	company := fetchCompanyForUser(user)
 //	scopedClient.AddContext(ldcontext.NewWithKind("company", company.Id))
 //	scopedClient.BoolVariation("enterprise-features", false)
 //
-// You can also overwrite a context that was previously added, by calling
-// [LDScopedClient.OverwriteContextByKind]. This can be used when an existing
-// context needs to be updated with new data:
+// You can also overwrite a context that you previously added, by calling
+// [LDScopedClient.OverwriteContextByKind]. Use this when you need to update an
+// existing context with new data:
 //
 //	entitlements := fetchUserEntitlements(user)
-//	fullUserCtx := ldcontext.NewBuilder(user.Id).Set("entitlements", entitlements).Build()
+//	userCtx := scopedClient.CurrentContext().IndividualContextByKind("user")
+//	fullUserCtx := ldcontext.NewBuilderFromContext(userCtx).Set("entitlements", entitlements).Build()
 //	scopedClient.OverwriteContextByKind(fullUserCtx)
+//
+// A scoped client is thread-safe, so you can safely use it from multiple
+// goroutines.
 type LDScopedClient struct {
 	sync.Mutex
 	client *LDClient
