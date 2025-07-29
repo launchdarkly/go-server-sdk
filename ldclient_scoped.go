@@ -16,7 +16,7 @@ import (
 // evaluation context to be used for all operations, rather than taking the
 // evaluation context as a parameter every time you call a method.
 //
-// A LDScopedClient is created by calling [LDClient.ForContext]. This sets the
+// An LDScopedClient is created by calling [LDClient.ForContext]. This sets the
 // initial context to be used for all operations:
 //
 //	userContext := ldcontext.New("user-key")
