@@ -171,6 +171,8 @@ func newTrackerWithStopwatch(
 		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(key)).
 		Set("version", ldvalue.Int(version)).
+		Set("providerName", ldvalue.String(config.ProviderName())).
+		Set("modelName", ldvalue.String(config.ModelName())).
 		Build()
 
 	return &Tracker{
