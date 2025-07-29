@@ -191,7 +191,7 @@ func TestTracker_LatencyMeasuredIfNotProvided(t *testing.T) {
 	assert.Equal(t, expectedResponse, r)
 
 	require.Equal(t, 3, len(events.events))
-	gotEvent := events.events[2]
+	gotEvent := events.events[1]
 	assert.Equal(t, "$ld:ai:duration:total", gotEvent.name)
 	assert.Equal(t, 42.0, gotEvent.metricValue)
 }
