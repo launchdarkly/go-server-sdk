@@ -98,16 +98,16 @@ func (c *LDScopedClient) addIndividualContext(context ldcontext.Context) {
 	c.contexts[context.Kind()] = context
 }
 
-// AddContext adds additional evaluation contexts to the scoped client, affecting
-// all future operations on it, like flag evaluations and event tracking.
+// AddContext adds additional evaluation contexts to the scoped client's current context.
+// This affects all future operations on it, like flag evaluations and event tracking.
 //
-// All of the contexts added must have kinds that are not already present. If you
-// try to add a context with a duplicate kind, the new context will not be added
-// and a warning will be logged. If you want to replace an existing context, use
+// Each context added must have a kind that is not already present. If you try to
+// add a context with a duplicate kind, the new context will not be added and a
+// warning will be logged. If you want to replace an existing context, use
 // [LDScopedClient.OverwriteContextByKind] instead.
 //
-// The scoped client's contexts so far are combined into a multi-context whenever the
-// scoped client is used.
+// Passing a multi-context to AddContext is equivalent to passing in all of its
+// individual contexts separately.
 func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 	c.Lock()
 	defer c.Unlock()
