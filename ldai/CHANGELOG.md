@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.7.0...ldai/v0.7.1) (2025-07-29)
+
+
+### Bug Fixes
+
+* Remove deprecated track generation event ([#301](https://github.com/launchdarkly/go-server-sdk/issues/301)) ([ca20f09](https://github.com/launchdarkly/go-server-sdk/commit/ca20f092cbc3098e0a4b98041d6f7147c0b2cf5a))
+* Update AI tracker to include model & provider name for metrics generation ([#302](https://github.com/launchdarkly/go-server-sdk/issues/302)) ([9a84146](https://github.com/launchdarkly/go-server-sdk/commit/9a84146c755a6abfb2b64eafcfed8f06242128fe))
+
 ## [0.7.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.6.0...ldai/v0.7.0) (2025-05-19)
 
 
