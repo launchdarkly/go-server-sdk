@@ -18,11 +18,11 @@ import (
 // create a new scoped client for each logical scope where the evaluation context
 // should be isolated from other scopes, like a web request.
 //
-// An LDScopedClient is created by calling [LDClient.ForContext]. This sets the
+// An LDScopedClient is created by calling [NewScopedClient]. This sets the
 // initial context to be used for all operations:
 //
 //	userContext := ldcontext.New("user-key")
-//	scopedClient := client.ForContext(userContext)
+//	scopedClient := ld.NewScopedClient(client, userContext)
 //	scopedClient.BoolVariation("flag-key", false)
 //
 // A scoped client contains one or more contexts, each with a unique kind. You
@@ -30,7 +30,7 @@ import (
 // new contexts' kinds are not already present. The "current context" is the
 // combination of all contexts added so far, as a multi-context.
 //
-//	scopedClient := client.ForContext(userContext)
+//	scopedClient := ld.NewScopedClient(client, userContext)
 //	scopedClient.CurrentContext() // returns the single "user" context
 //	scopedClient.AddContext(ldcontext.NewWithKind("company", "acme"))
 //	scopedClient.CurrentContext() // returns a multi-context with a "user" and "company" context
@@ -40,7 +40,7 @@ import (
 // available early in the request, but you also want to evaluate flags with a
 // `company` context that is only available later:
 //
-//	scopedClient := client.ForContext(ldcontext.New("user-key"))
+//	scopedClient := ld.NewScopedClient(client, ldcontext.New("user-key"))
 //	company := fetchCompanyForUser(user)
 //	scopedClient.AddContext(ldcontext.NewWithKind("company", company.Id))
 //	scopedClient.BoolVariation("enterprise-features", false)
@@ -67,22 +67,20 @@ type LDScopedClient struct {
 	rebuild bool
 }
 
-// ForContext creates a new LDScopedClient, a wrapper of LDClient that uses a
+// NewScopedClient creates a new LDScopedClient, a wrapper of LDClient that uses a
 // certain LaunchDarkly evaluation context for all operations, like evaluating
 // feature flags or sending events. The scoped client supports most of the same
 // methods as LDClient, like BoolVariation et al., but without the
 // ldcontext.Context parameter.
 //
-// You may pass a multi-context, or multiple individual contexts, to ForContext.
-// All of the contexts passed in will be combined into a multi-context when the
-// scoped client is used.
+// You may pass one or more contexts to NewScopedClient. All contexts will be
+// combined into a multi-context when the scoped client is used. Passing in one
+// multi-context is equivalent to passing in all of its individual contexts
+// separately.
 //
-// You should create a new scoped client for each logical scope where the
-// contexts are isolated from each other, like a web request.
-//
-// For more info on how to use the scoped client, see the documentation for
-// LDScopedClient.
-func (client *LDClient) ForContext(contexts ...ldcontext.Context) *LDScopedClient {
+// For more information on how to use the scoped client, read the documentation
+// for LDScopedClient.
+func NewScopedClient(client *LDClient, contexts ...ldcontext.Context) *LDScopedClient {
 	cc := &LDScopedClient{
 		client:   client,
 		contexts: make(map[ldcontext.Kind]ldcontext.Context),
@@ -140,7 +138,7 @@ func (c *LDScopedClient) overwriteIndividualContextByKind(context ldcontext.Cont
 // will be overwritten. Any other existing contexts will remain unchanged:
 //
 //	company := ldcontext.NewWithKind("company", "acme")
-//	scopedClient := client.ForContext(company)
+//	scopedClient := ld.NewScopedClient(client, company)
 //	scopedClient.AddContext(ldcontext.New("user-key"))
 //	scopedClient.OverwriteContextByKind(ldcontext.NewWithKind("company", "monsoon"))
 //	scopedClient.CurrentContext() // returns a multi-context with "monsoon" and "user-key"
