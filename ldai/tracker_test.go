@@ -65,12 +65,6 @@ func TestTracker_TrackSuccess(t *testing.T) {
 
 	expectedEvents := []trackEvent{
 		{
-			name:        "$ld:ai:generation",
-			context:     ldcontext.New("key"),
-			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 1, config),
-		},
-		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
@@ -88,12 +82,6 @@ func TestTracker_TrackError(t *testing.T) {
 	assert.NoError(t, tracker.TrackError())
 
 	expectedEvents := []trackEvent{
-		{
-			name:        "$ld:ai:generation",
-			context:     ldcontext.New("key"),
-			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 2, config),
-		},
 		{
 			name:        "$ld:ai:generation:error",
 			context:     ldcontext.New("key"),
@@ -128,12 +116,6 @@ func TestTracker_TrackRequest(t *testing.T) {
 	assert.Equal(t, expectedResponse, r)
 
 	expectedEvents := []trackEvent{
-		{
-			name:        "$ld:ai:generation",
-			context:     ldcontext.New("key"),
-			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3, config),
-		},
 		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
@@ -214,8 +196,8 @@ func TestTracker_LatencyMeasuredIfNotProvided(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse, r)
 
-	require.Equal(t, 4, len(events.events))
-	gotEvent := events.events[2]
+	require.Equal(t, 3, len(events.events))
+	gotEvent := events.events[1]
 	assert.Equal(t, "$ld:ai:duration:total", gotEvent.name)
 	assert.Equal(t, 42.0, gotEvent.metricValue)
 }

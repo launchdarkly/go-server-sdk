@@ -39,12 +39,12 @@ aiClient, err := ldai.NewClient(sdkClient)
 
 Fetch a model configuration for a specific LaunchDarkly context:
 ```go
-// The default value 'ldai.Disabled()' be returned if LaunchDarkly is unavailable or the config 
+// The default value 'ldai.Disabled()' be returned if LaunchDarkly is unavailable or the config
 // cannot be fetched. To customize the default value, use ldai.NewConfig().
 config, tracker := aiClient.Config("your-model-key", ldcontext.New("user-key"), ldai.Disabled(), nil)
 
 // Access the methods on config, and optionally use the returned tracker to generate analytic events
-// related to usage of the model config. 
+// related to usage of the model config.
 ```
 Learn more
 -----------
@@ -56,7 +56,7 @@ You can also head straight to the [complete reference guide for this SDK](https:
 Contributing
 ------------
 
-We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](CONTRIBUTING.md) for instructions on how to contribute to this library.
+We encourage pull requests and other contributions from the community. Check out our [contributing guidelines](../CONTRIBUTING.md) for instructions on how to contribute to this library.
 
 About LaunchDarkly
 -----------

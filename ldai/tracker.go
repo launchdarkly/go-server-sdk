@@ -14,7 +14,6 @@ const (
 	duration          = "$ld:ai:duration:total"
 	feedbackPositive  = "$ld:ai:feedback:user:positive"
 	feedbackNegative  = "$ld:ai:feedback:user:negative"
-	generation        = "$ld:ai:generation"
 	generationSuccess = "$ld:ai:generation:success"
 	generationError   = "$ld:ai:generation:error"
 	//nolint:gosec
@@ -219,24 +218,14 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 func (t *Tracker) TrackSuccess() error {
 	t.success = ldcommon.Some(true)
 
-	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
-	if err := t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData); err != nil {
-		return err
-	}
-
-	return err
+	return t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData)
 }
 
 // TrackError tracks an unsuccessful model evaluation.
 func (t *Tracker) TrackError() error {
 	t.success = ldcommon.Some(false)
 
-	err := t.events.TrackMetric(generation, t.context, 1, t.trackData)
-	if err := t.events.TrackMetric(generationError, t.context, 1, t.trackData); err != nil {
-		return err
-	}
-
-	return err
+	return t.events.TrackMetric(generationError, t.context, 1, t.trackData)
 }
 
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
