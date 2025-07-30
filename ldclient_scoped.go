@@ -74,9 +74,9 @@ type LDScopedClient struct {
 // ldcontext.Context parameter.
 //
 // You may pass one or more contexts to NewScopedClient. All contexts will be
-// combined into a multi-context when the scoped client is used. Passing in one
-// multi-context is equivalent to passing in all of its individual contexts
-// separately.
+// combined into a multi-context when the scoped client is used. Providing a
+// multi-context to NewScopedClient is equivalent to providing all of its
+// individual contexts separately.
 //
 // For more information on how to use the scoped client, read the documentation
 // for LDScopedClient.
@@ -106,7 +106,7 @@ func (c *LDScopedClient) addIndividualContext(context ldcontext.Context) {
 // warning will be logged. If you want to replace an existing context, use
 // [LDScopedClient.OverwriteContextByKind] instead.
 //
-// Passing a multi-context to AddContext is equivalent to passing in all of its
+// Providing a multi-context to AddContext is equivalent to adding all of its
 // individual contexts separately.
 func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 	c.Lock()
@@ -141,8 +141,8 @@ func (c *LDScopedClient) overwriteIndividualContextByKind(context ldcontext.Cont
 //	scopedClient.OverwriteContextByKind(ldcontext.NewWithKind("company", "monsoon"))
 //	scopedClient.CurrentContext() // returns a multi-context with "monsoon" and "user-key"
 //
-// Passing a multi-context to OverwriteContextByKind is equivalent to passing in
-// all of its individual contexts separately.
+// Providing a multi-context to OverwriteContextByKind is equivalent to calling
+// OverwriteContextByKind on each of the multi-context's individual contexts.
 func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 	c.Lock()
 	defer c.Unlock()
