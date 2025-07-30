@@ -514,14 +514,6 @@ func (c *LDScopedClient) MigrationVariationCtx(
 	return c.client.MigrationVariationCtx(ctx, key, c.CurrentContext(), defaultStage)
 }
 
-// Identify sends an identify event for the current evaluation context.
-//
-// For more information, see the Reference Guide:
-// https://docs.launchdarkly.com/sdk/features/identify#go
-func (c *LDScopedClient) Identify() error {
-	return c.client.Identify(c.CurrentContext())
-}
-
 // TrackEvent sends a custom event for the current evaluation context.
 //
 // The eventName parameter is defined by the application and will be shown in
