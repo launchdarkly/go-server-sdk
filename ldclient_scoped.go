@@ -18,6 +18,10 @@ import (
 // create a new scoped client for each logical scope where the evaluation context
 // should be isolated from other scopes, like a web request.
 //
+// This type is not stable, and not subject to any backwards compatibility
+// guarantees or semantic versioning. It is not suitable for production usage. Do
+// not use it. You have been warned.
+//
 // An LDScopedClient is created by calling [NewScopedClient]. This sets the
 // initial context to be used for all operations:
 //
@@ -80,6 +84,10 @@ type LDScopedClient struct {
 //
 // For more information on how to use the scoped client, read the documentation
 // for LDScopedClient.
+//
+// This function is not stable, and not subject to any backwards compatibility
+// guarantees or semantic versioning. It is not suitable for production usage. Do
+// not use it. You have been warned.
 func NewScopedClient(client *LDClient, contexts ...ldcontext.Context) *LDScopedClient {
 	cc := &LDScopedClient{
 		client:   client,
