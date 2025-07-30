@@ -131,17 +131,18 @@ func (c *LDScopedClient) overwriteIndividualContextByKind(context ldcontext.Cont
 // OverwriteContextByKind overwrites an existing context in the scoped client, affecting all future
 // operations on it, like flag evaluations and event tracking.
 //
-// You may pass a multi-context, or multiple individual contexts, to OverwriteContextByKind.
-// Any existing contexts with the same kind as any of the new contexts will be overwritten.
-//
-// If the scoped client had multiple contexts, only the context with the same kind as the new context
-// will be overwritten. Any other existing contexts will remain unchanged:
+// If the scoped client already has multiple contexts, only the individual
+// context with the same kind as the new context will be overwritten. Any other
+// existing contexts will remain unchanged:
 //
 //	company := ldcontext.NewWithKind("company", "acme")
 //	scopedClient := ld.NewScopedClient(client, company)
 //	scopedClient.AddContext(ldcontext.New("user-key"))
 //	scopedClient.OverwriteContextByKind(ldcontext.NewWithKind("company", "monsoon"))
 //	scopedClient.CurrentContext() // returns a multi-context with "monsoon" and "user-key"
+//
+// Passing a multi-context to OverwriteContextByKind is equivalent to passing in
+// all of its individual contexts separately.
 func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 	c.Lock()
 	defer c.Unlock()
