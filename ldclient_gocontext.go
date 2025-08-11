@@ -11,6 +11,10 @@ type scopedClientKey struct{}
 //	scopedClient := ld.NewScopedClient(client, ldUserContext)
 //	ctx := ld.GoContextWithScopedClient(context.Background(), scopedClient)
 //	otherFunction(ctx)
+//
+// This function is not stable, and not subject to any backwards compatibility
+// guarantees or semantic versioning. It is not suitable for production usage. Do
+// not use it. You have been warned.
 func GoContextWithScopedClient(ctx context.Context, client *LDScopedClient) context.Context {
 	return context.WithValue(ctx, scopedClientKey{}, client)
 }
@@ -27,6 +31,10 @@ func GoContextWithScopedClient(ctx context.Context, client *LDScopedClient) cont
 //			// handle err as appropriate...
 //		}
 //	}
+//
+// This function is not stable, and not subject to any backwards compatibility
+// guarantees or semantic versioning. It is not suitable for production usage. Do
+// not use it. You have been warned.
 func GetScopedClient(ctx context.Context) (*LDScopedClient, bool) {
 	client, ok := ctx.Value(scopedClientKey{}).(*LDScopedClient)
 	return client, ok
@@ -40,6 +48,10 @@ func GetScopedClient(ctx context.Context) (*LDScopedClient, bool) {
 //		isFeatureEnabled, err := scopedClient.BoolVariation("my-flag", false)
 //		// handle err as appropriate...
 //	}
+//
+// This function is not stable, and not subject to any backwards compatibility
+// guarantees or semantic versioning. It is not suitable for production usage. Do
+// not use it. You have been warned.
 func MustGetScopedClient(ctx context.Context) *LDScopedClient {
 	client, ok := GetScopedClient(ctx)
 	if !ok {
