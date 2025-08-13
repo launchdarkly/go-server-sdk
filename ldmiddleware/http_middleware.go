@@ -2,9 +2,12 @@ package ldmiddleware
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/felixge/httpsnoop"
 	"github.com/google/uuid"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ld "github.com/launchdarkly/go-server-sdk/v7"
 )
 
@@ -56,4 +59,49 @@ func AddRequestScopedClientWithKeyFn(client *ld.LDClient, keyFn RequestKeyFunc) 
 			next.ServeHTTP(w, r.WithContext(ctxWithScoped))
 		})
 	}
+}
+
+// TrackTiming sends a LD event "http.request.duration_ms" with the duration of the request in milliseconds.
+// This middleware must be after AddRequestScopedClient in the middleware chain, as it uses the scoped client
+// from the request context.
+//
+// The timing event will include all LaunchDarkly contexts added to the scoped client. You may add more
+// contexts to the scoped client _during_ the request, and they will be included in the timing event sent
+// when the request completes.
+func TrackTiming(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		next.ServeHTTP(w, r)
+		duration := time.Since(startTime)
+		scoped, ok := ld.GetScopedClient(r.Context())
+		if !ok {
+			return
+		}
+		scoped.TrackMetric("http.request.duration_ms", float64(duration.Milliseconds()), ldvalue.Null())
+	})
+}
+
+// TrackErrorResponses sends a LD event "http.response.4xx" or "http.response.5xx" if the response code is 4xx or 5xx.
+// This middleware must be after AddRequestScopedClient in the middleware chain, as it uses the scoped client
+// from the request context.
+//
+// The error event will include all LaunchDarkly contexts added to the scoped client. You may add more
+// contexts to the scoped client _during_ the request, and they will be included in the error event sent
+// when the request completes.
+func TrackErrorResponses(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metrics := httpsnoop.CaptureMetrics(next, w, r)
+		if metrics.Code < 400 {
+			return
+		}
+		scoped, ok := ld.GetScopedClient(r.Context())
+		if !ok {
+			return
+		}
+		if metrics.Code < 500 {
+			_ = scoped.TrackEvent("http.response.4xx")
+			return
+		}
+		_ = scoped.TrackEvent("http.response.5xx")
+	})
 }
