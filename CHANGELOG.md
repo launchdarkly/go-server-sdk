@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.13.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.1...v7.13.2) (2025-08-14)
+
+
+### Bug Fixes
+
+* **experimental:** Add experimental LDScopedClient for incrementally building and propagating contexts ([#297](https://github.com/launchdarkly/go-server-sdk/issues/297)) ([2b96332](https://github.com/launchdarkly/go-server-sdk/commit/2b9633214755c469eea1673d383a489078fe3f24))
+* **experimental:** Functions for putting/getting an LDScopedClient from context.Context ([#305](https://github.com/launchdarkly/go-server-sdk/issues/305)) ([d61c744](https://github.com/launchdarkly/go-server-sdk/commit/d61c74412a9ffe35b40719238311f6182b342dc4))
+
 ## [7.13.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.0...v7.13.1) (2025-07-25)
 
 
