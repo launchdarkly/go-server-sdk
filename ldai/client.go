@@ -70,6 +70,8 @@ func (c *Client) Config(
 	defaultValue Config,
 	variables map[string]interface{},
 ) (Config, *Tracker) {
+	c.sdk.TrackMetric("$ld:ai:config:function:single", context, 1, ldvalue.String(key))
+
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
 	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
