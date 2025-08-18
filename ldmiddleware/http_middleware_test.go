@@ -2,6 +2,7 @@ package ldmiddleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,19 +86,12 @@ func TestTrackTiming_AfterTrackReceivesDurationMetric(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://test/path", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
-	if rr.Code != 204 {
-		t.Fatalf("unexpected status: %d", rr.Code)
-	}
-	if len(rec.events) != 1 {
-		t.Fatalf("expected 1 track event, got %d", len(rec.events))
-	}
+	assert.Equal(t, 204, rr.Code)
+	assert.Equal(t, 1, len(rec.events))
 	e := rec.events[0]
-	if e.Key() != "http.request.duration_ms" {
-		t.Fatalf("unexpected key: %s", e.Key())
-	}
-	if e.MetricValue() == nil || *e.MetricValue() <= 0 {
-		t.Fatalf("expected positive metric value")
-	}
+	assert.Equal(t, "http.request.duration_ms", e.Key())
+	assert.NotNil(t, e.MetricValue())
+	assert.Greater(t, *e.MetricValue(), 0.0)
 }
 
 func TestTrackErrorResponses_AfterTrackReceivesErrorKeys(t *testing.T) {
@@ -105,25 +99,33 @@ func TestTrackErrorResponses_AfterTrackReceivesErrorKeys(t *testing.T) {
 	client := makeClientWithHook(t, rec)
 
 	for _, status := range []int{404, 503} {
+		t.Run(fmt.Sprintf("status %d", status), func(t *testing.T) {
+			rec.events = nil
+			leaf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status) })
+			handler := AddScopedClientForRequest(client)(TrackErrorResponses(leaf))
+
+			req := httptest.NewRequest("GET", "http://test/path", nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			assert.Equal(t, status, rr.Code)
+			assert.Equal(t, 1, len(rec.events))
+			want := "http.response.5xx"
+			if status < 500 {
+				want = "http.response.4xx"
+			}
+			assert.Equal(t, want, rec.events[0].Key())
+		})
+	}
+
+	t.Run("no events when no error", func(t *testing.T) {
 		rec.events = nil
-		leaf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status) })
+		leaf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
 		handler := AddScopedClientForRequest(client)(TrackErrorResponses(leaf))
 
 		req := httptest.NewRequest("GET", "http://test/path", nil)
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
-		if rr.Code != status {
-			t.Fatalf("unexpected status: %d", rr.Code)
-		}
-		if len(rec.events) != 1 {
-			t.Fatalf("expected 1 track event, got %d", len(rec.events))
-		}
-		want := "http.response.5xx"
-		if status < 500 {
-			want = "http.response.4xx"
-		}
-		if rec.events[0].Key() != want {
-			t.Fatalf("unexpected key: %s", rec.events[0].Key())
-		}
-	}
+		assert.Equal(t, 200, rr.Code)
+		assert.Equal(t, 0, len(rec.events))
+	})
 }
