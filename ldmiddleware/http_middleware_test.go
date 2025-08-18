@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	ld "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
-	"github.com/stretchr/testify/assert"
 )
 
 type recordingHook struct {
@@ -50,17 +51,20 @@ func TestAddScopedClientForRequest_SetsScopedClientAndContext(t *testing.T) {
 		ctx := sc.CurrentContext()
 		assert.Equal(t, "request", string(ctx.Kind()))
 		assert.NotEmpty(t, ctx.Key())
-		assert.Equal(t, r.Method, ctx.GetValue("method").StringValue())
-		assert.Equal(t, r.URL.Path, ctx.GetValue("path").StringValue())
-		assert.Equal(t, r.UserAgent(), ctx.GetValue("userAgent").StringValue())
-		assert.Equal(t, r.URL.Scheme, ctx.GetValue("scheme").StringValue())
-		assert.Equal(t, r.URL.RawQuery, ctx.GetValue("query").StringValue())
-		assert.Equal(t, r.Proto, ctx.GetValue("proto").StringValue())
-		assert.Equal(t, r.Host, ctx.GetValue("host").StringValue())
+		assert.Equal(t, "GET", ctx.GetValue("method").StringValue())
+		assert.Equal(t, "test", ctx.GetValue("host").StringValue())
+		assert.NotEmpty(t, ctx.GetValue("userAgent").StringValue())
+		assert.Equal(t, "user-agent/1.0", ctx.GetValue("userAgent").StringValue())
+		assert.Equal(t, "/path", ctx.GetValue("path").StringValue())
+		assert.Equal(t, "http", ctx.GetValue("scheme").StringValue())
+		assert.Equal(t, "q=1", ctx.GetValue("query").StringValue())
+		assert.Equal(t, "HTTP/1.1", ctx.GetValue("proto").StringValue())
+		assert.NotEmpty(t, ctx.GetValue("remoteAddr").StringValue())
 		assert.Equal(t, r.RemoteAddr, ctx.GetValue("remoteAddr").StringValue())
 		w.WriteHeader(204)
 	}))
 	req := httptest.NewRequest("GET", "http://test/path?q=1", nil)
+	req.Header.Set("User-Agent", "user-agent/1.0")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != 204 {
