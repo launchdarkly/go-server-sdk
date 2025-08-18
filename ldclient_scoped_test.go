@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -65,10 +66,41 @@ func TestScopedClientCollectsContexts(t *testing.T) {
 
 		assert.Equal(t, ldcontext.NewMulti(ldctx2, ldctx3, ldctx4, dupeCtx), c.CurrentContext())
 	})
+
+	t.Run("calling scoped client methods sends usage events", func(t *testing.T) {
+		client := makeTestClient()
+		c := NewScopedClient(client, ldctx1)
+		c.AddContext(ldctx2, ldctx3)
+		c.OverwriteContextByKind(ldctx3, ldctx4)
+
+		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+		expectedEvents := []struct {
+			Key        string
+			Context    ldcontext.Context
+			DataString string
+		}{
+			{"$ld:scoped:usage", ldctx1, "new"},
+			{"$ld:scoped:usage", ldctx2, "add"},
+			{"$ld:scoped:usage", ldctx3, "add"},
+			{"$ld:scoped:usage", ldctx3, "overwrite"},
+			{"$ld:scoped:usage", ldctx4, "overwrite"},
+		}
+		require.Equal(t, len(expectedEvents), len(events))
+		for i, expected := range expectedEvents {
+			e := events[i].(ldevents.CustomEventData)
+			assert.Equal(t, expected.Key, e.Key)
+			assert.Equal(t, ldevents.Context(expected.Context), e.Context)
+			assert.Equal(t, ldvalue.String(expected.DataString), e.Data)
+		}
+	})
 }
 
 // Testing the scoped versions of all the evaluation methods
 // Almost the same as the tests in ldclient_evaluation_test.go, but with the scoped client instead
+
+func clearCapturedEvents(client *LDClient) {
+	client.eventProcessor.(*mocks.CapturingEventProcessor).Events = nil
+}
 
 func TestScopedBoolVariation(t *testing.T) {
 	expected, defaultVal := true, false
@@ -78,6 +110,7 @@ func TestScopedBoolVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.BoolVariation(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -91,6 +124,7 @@ func TestScopedBoolVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.BoolVariationCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -104,6 +138,7 @@ func TestScopedBoolVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.BoolVariationDetail(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -119,6 +154,7 @@ func TestScopedBoolVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Bool(true))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.BoolVariationDetailCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -139,6 +175,7 @@ func TestScopedIntVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Int(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.IntVariation(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -152,6 +189,7 @@ func TestScopedIntVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Int(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.IntVariationCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -165,6 +203,7 @@ func TestScopedIntVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Int(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.IntVariationDetail(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -180,6 +219,7 @@ func TestScopedIntVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Int(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.IntVariationDetailCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -200,6 +240,7 @@ func TestScopedFloat64Variation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Float64(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.Float64Variation(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -213,6 +254,7 @@ func TestScopedFloat64Variation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Float64(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.Float64VariationCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -226,6 +268,7 @@ func TestScopedFloat64Variation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Float64(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.Float64VariationDetail(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -241,6 +284,7 @@ func TestScopedFloat64Variation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.Float64(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.Float64VariationDetailCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -261,6 +305,7 @@ func TestScopedStringVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.StringVariation(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -274,6 +319,7 @@ func TestScopedStringVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.StringVariationCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -287,6 +333,7 @@ func TestScopedStringVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.StringVariationDetail(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -302,6 +349,7 @@ func TestScopedStringVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, ldvalue.String(expected))
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.StringVariationDetailCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -323,6 +371,7 @@ func TestScopedJSONVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, expected)
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.JSONVariation(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -336,6 +385,7 @@ func TestScopedJSONVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, expected)
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, err := scopedClient.JSONVariationCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -349,6 +399,7 @@ func TestScopedJSONVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, expected)
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.JSONVariationDetail(evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -364,6 +415,7 @@ func TestScopedJSONVariation(t *testing.T) {
 			p.setupSingleValueFlag(evalFlagKey, expected)
 
 			scopedClient := NewScopedClient(p.client, evalTestUser)
+			clearCapturedEvents(p.client)
 			actual, detail, err := scopedClient.JSONVariationDetailCtx(gocontext.TODO(), evalFlagKey, defaultVal)
 
 			assert.NoError(t, err)
@@ -416,8 +468,8 @@ func TestScopedTrackCalls(t *testing.T) {
 		assert.NoError(t, err)
 
 		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
-		assert.Equal(t, 1, len(events))
-		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, 2, len(events))
+		e := events[1].(ldevents.CustomEventData)
 		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
 		assert.Equal(t, key, e.Key)
 	})
@@ -431,8 +483,8 @@ func TestScopedTrackCalls(t *testing.T) {
 		assert.NoError(t, err)
 
 		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
-		assert.Equal(t, 1, len(events))
-		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, 2, len(events))
+		e := events[1].(ldevents.CustomEventData)
 		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
 		assert.Equal(t, key, e.Key)
 	})
@@ -447,8 +499,8 @@ func TestScopedTrackCalls(t *testing.T) {
 		assert.NoError(t, err)
 
 		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
-		assert.Equal(t, 1, len(events))
-		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, 2, len(events))
+		e := events[1].(ldevents.CustomEventData)
 		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
 		assert.Equal(t, key, e.Key)
 		assert.Equal(t, data, e.Data)
@@ -464,8 +516,8 @@ func TestScopedTrackCalls(t *testing.T) {
 		assert.NoError(t, err)
 
 		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
-		assert.Equal(t, 1, len(events))
-		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, 2, len(events))
+		e := events[1].(ldevents.CustomEventData)
 		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
 		assert.Equal(t, key, e.Key)
 		assert.Equal(t, data, e.Data)
@@ -482,8 +534,8 @@ func TestScopedTrackCalls(t *testing.T) {
 		assert.NoError(t, err)
 
 		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
-		assert.Equal(t, 1, len(events))
-		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, 2, len(events))
+		e := events[1].(ldevents.CustomEventData)
 		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
 		assert.Equal(t, key, e.Key)
 		assert.Equal(t, data, e.Data)
@@ -501,8 +553,8 @@ func TestScopedTrackCalls(t *testing.T) {
 		assert.NoError(t, err)
 
 		events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
-		assert.Equal(t, 1, len(events))
-		e := events[0].(ldevents.CustomEventData)
+		assert.Equal(t, 2, len(events))
+		e := events[1].(ldevents.CustomEventData)
 		assert.Equal(t, ldevents.Context(evalTestUser), e.Context)
 		assert.Equal(t, key, e.Key)
 		assert.Equal(t, data, e.Data)
