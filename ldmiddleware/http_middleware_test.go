@@ -10,6 +10,7 @@ import (
 	ld "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
+	"github.com/stretchr/testify/assert"
 )
 
 type recordingHook struct {
@@ -47,18 +48,16 @@ func TestAddScopedClientForRequest_SetsScopedClientAndContext(t *testing.T) {
 			t.Fatalf("scoped client not found in request context")
 		}
 		ctx := sc.CurrentContext()
-		if string(ctx.Kind()) != "request" {
-			t.Fatalf("unexpected kind: %s", ctx.Kind())
-		}
-		if ctx.Key() == "" {
-			t.Fatalf("expected non-empty context key")
-		}
-		if ctx.GetValue("method").StringValue() != r.Method {
-			t.Fatalf("method attribute mismatch")
-		}
-		if ctx.GetValue("path").StringValue() != r.URL.Path {
-			t.Fatalf("path attribute mismatch")
-		}
+		assert.Equal(t, "request", string(ctx.Kind()))
+		assert.NotEmpty(t, ctx.Key())
+		assert.Equal(t, r.Method, ctx.GetValue("method").StringValue())
+		assert.Equal(t, r.URL.Path, ctx.GetValue("path").StringValue())
+		assert.Equal(t, r.UserAgent(), ctx.GetValue("userAgent").StringValue())
+		assert.Equal(t, r.URL.Scheme, ctx.GetValue("scheme").StringValue())
+		assert.Equal(t, r.URL.RawQuery, ctx.GetValue("query").StringValue())
+		assert.Equal(t, r.Proto, ctx.GetValue("proto").StringValue())
+		assert.Equal(t, r.Host, ctx.GetValue("host").StringValue())
+		assert.Equal(t, r.RemoteAddr, ctx.GetValue("remoteAddr").StringValue())
 		w.WriteHeader(204)
 	}))
 	req := httptest.NewRequest("GET", "http://test/path?q=1", nil)
