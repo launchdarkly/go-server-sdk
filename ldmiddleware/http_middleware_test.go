@@ -50,7 +50,7 @@ func TestAddScopedClientForRequest_SetsScopedClientAndContext(t *testing.T) {
 			t.Fatalf("scoped client not found in request context")
 		}
 		ctx := sc.CurrentContext()
-		assert.Equal(t, "request", string(ctx.Kind()))
+		assert.Equal(t, "ld_request", string(ctx.Kind()))
 		assert.NotEmpty(t, ctx.Key())
 		assert.Equal(t, "GET", ctx.GetValue("method").StringValue())
 		assert.Equal(t, "test", ctx.GetValue("host").StringValue())

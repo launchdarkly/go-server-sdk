@@ -40,7 +40,7 @@ func AddScopedClientForRequestWithKeyFn(client *ld.LDClient, keyFn RequestKeyFun
 				requestKey = uuid.New().String()
 			}
 
-			b := ldcontext.NewBuilder(requestKey).Kind("request").Anonymous(true)
+			b := ldcontext.NewBuilder(requestKey).Kind("ld_request").Anonymous(true)
 			b.SetString("method", r.Method)
 			b.SetString("host", r.Host)
 			b.SetString("userAgent", r.UserAgent())
