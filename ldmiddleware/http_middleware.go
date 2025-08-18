@@ -15,18 +15,18 @@ import (
 // Return (key, true) to use the provided key; return ("", false) to fall back to the default UUID key.
 type RequestKeyFunc func(r *http.Request) (string, bool)
 
-// AddRequestScopedClient returns a net/http middleware that, for each incoming request,
+// AddScopedClientForRequest returns a net/http middleware that, for each incoming request,
 // creates an LDScopedClient seeded with a `request`-kind LDContext populated with useful
 // HTTP request attributes (e.g., method, path, host, userAgent), and stores it in the
 // request's Go context. Downstream handlers can retrieve it via ld.GetScopedClient.
-func AddRequestScopedClient(client *ld.LDClient) func(next http.Handler) http.Handler {
-	return AddRequestScopedClientWithKeyFn(client, nil)
+func AddScopedClientForRequest(client *ld.LDClient) func(next http.Handler) http.Handler {
+	return AddScopedClientForRequestWithKeyFn(client, nil)
 }
 
-// AddRequestScopedClientWithKeyFn is like AddRequestScopedClient, but allows providing a function to override
+// AddScopedClientForRequestWithKeyFn is like AddScopedClientForRequest, but allows providing a function to override
 // the context key used for the `request`-kind LDContext. If the function returns ok=false or an empty key,
 // a random UUID will be used.
-func AddRequestScopedClientWithKeyFn(client *ld.LDClient, keyFn RequestKeyFunc) func(next http.Handler) http.Handler {
+func AddScopedClientForRequestWithKeyFn(client *ld.LDClient, keyFn RequestKeyFunc) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Determine request context key
@@ -62,8 +62,8 @@ func AddRequestScopedClientWithKeyFn(client *ld.LDClient, keyFn RequestKeyFunc) 
 }
 
 // TrackTiming sends a LD event "http.request.duration_ms" with the duration of the request in milliseconds.
-// This middleware must be after AddRequestScopedClient in the middleware chain, as it uses the scoped client
-// from the request context.
+// This middleware must be after AddScopedClientForRequest in the middleware chain, as it uses the scoped client
+// from the Go context.
 //
 // The timing event will include all LaunchDarkly contexts added to the scoped client. You may add more
 // contexts to the scoped client _during_ the request, and they will be included in the timing event sent
@@ -82,8 +82,8 @@ func TrackTiming(next http.Handler) http.Handler {
 }
 
 // TrackErrorResponses sends a LD event "http.response.4xx" or "http.response.5xx" if the response code is 4xx or 5xx.
-// This middleware must be after AddRequestScopedClient in the middleware chain, as it uses the scoped client
-// from the request context.
+// This middleware must be after AddScopedClientForRequest in the middleware chain, as it uses the scoped client
+// from the Go context.
 //
 // The error event will include all LaunchDarkly contexts added to the scoped client. You may add more
 // contexts to the scoped client _during_ the request, and they will be included in the error event sent
