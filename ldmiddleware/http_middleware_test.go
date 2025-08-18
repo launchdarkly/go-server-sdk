@@ -68,9 +68,23 @@ func TestAddScopedClientForRequest_SetsScopedClientAndContext(t *testing.T) {
 	req.Header.Set("User-Agent", "user-agent/1.0")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
-	if rr.Code != 204 {
-		t.Fatalf("unexpected status: %d", rr.Code)
-	}
+	assert.Equal(t, 204, rr.Code)
+}
+
+func TestAddScopedClientForRequest_WithKeyFn(t *testing.T) {
+	client := makeClientWithHook(t, &recordingHook{})
+	handler := AddScopedClientForRequestWithKeyFn(client, func(r *http.Request) (string, bool) {
+		return "test-key", true
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sc, ok := ld.GetScopedClient(r.Context())
+		assert.True(t, ok)
+		assert.Equal(t, "test-key", sc.CurrentContext().Key())
+		w.WriteHeader(204)
+	}))
+	req := httptest.NewRequest("GET", "http://test/path", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, 204, rr.Code)
 }
 
 func TestTrackTiming_AfterTrackReceivesDurationMetric(t *testing.T) {
