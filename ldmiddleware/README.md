@@ -51,5 +51,7 @@ func myHandler(w http.ResponseWriter, r *http.Request) {
     if enableBetaFeatures {
         // Do something
     }
+
+    w.WriteHeader(200)
 }
 ```
