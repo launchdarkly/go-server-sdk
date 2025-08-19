@@ -109,6 +109,32 @@ ldai-lint: $(LINTER_VERSION_FILE)
 		cd ldai && 	../$(LINTER) run .; \
 	fi
 
+ldmiddleware:
+	@if [ -f go.work ]; then \
+		echo "Building ldmiddleware with workspace"; \
+		go build ./ldmiddleware; \
+	else \
+		echo "Building ldmiddleware without workspace"; \
+		cd ldmiddleware && go build .; \
+	fi
+
+ldmiddleware-test:
+	@if [ -f go.work ]; then \
+		echo "Testing ldmiddleware with workspace"; \
+		go test -v -race ./ldmiddleware; \
+	else \
+		echo "Testing ldmiddleware without workspace"; \
+		cd ldmiddleware && go test -v -race .; \
+	fi
+
+ldmiddleware-lint: $(LINTER_VERSION_FILE)
+	@if [ -f go.work ]; then \
+		echo "Linting ldmiddleware with workspace"; \
+		$(LINTER) run ./ldmiddleware; \
+	else \
+		echo "Linting ldmiddleware without workspace"; \
+		cd ldmiddleware && 	../$(LINTER) run .; \
+	fi
 
 test-coverage: $(COVERAGE_PROFILE_RAW)
 	go run github.com/launchdarkly-labs/go-coverage-enforcer@latest $(COVERAGE_ENFORCER_FLAGS) -outprofile $(COVERAGE_PROFILE_FILTERED) $(COVERAGE_PROFILE_RAW)
