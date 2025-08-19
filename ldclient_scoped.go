@@ -77,10 +77,9 @@ type LDScopedClient struct {
 // methods as LDClient, like BoolVariation et al., but without the
 // ldcontext.Context parameter.
 //
-// You may pass one or more contexts to NewScopedClient. All contexts will be
-// combined into a multi-context when the scoped client is used. Providing a
+// You may pass a single-kind or multi-kind context to NewScopedClient. Providing a
 // multi-context to NewScopedClient is equivalent to providing all of its
-// individual contexts separately.
+// individual contexts separately via [LDScopedClient.AddContext].
 //
 // For more information on how to use the scoped client, read the documentation
 // for LDScopedClient.
@@ -88,13 +87,13 @@ type LDScopedClient struct {
 // This function is not stable, and not subject to any backwards compatibility
 // guarantees or semantic versioning. It is not suitable for production usage. Do
 // not use it. You have been warned.
-func NewScopedClient(client *LDClient, contexts ...ldcontext.Context) *LDScopedClient {
+func NewScopedClient(client *LDClient, context ldcontext.Context) *LDScopedClient {
 	cc := &LDScopedClient{
 		client:   client,
 		contexts: make(map[ldcontext.Kind]ldcontext.Context),
 		rebuild:  true,
 	}
-	cc.AddContext(contexts...)
+	cc.AddContext(context)
 	return cc
 }
 

@@ -36,9 +36,8 @@ func TestScopedClientCollectsContexts(t *testing.T) {
 		client := makeTestClientWithConfig(func(config *Config) {
 			config.Logging = ldcomponents.Logging().Loggers(logCapture.Loggers)
 		})
-		c := NewScopedClient(client, ldctx1, ldctx2)
-
-		c.AddContext(ldctx3, ldctx4)
+		c := NewScopedClient(client, ldctx2)
+		c.AddContext(ldctx1, ldctx3, ldctx4)
 
 		assert.Equal(t, ldcontext.NewMulti(ldctx1, ldctx2, ldctx3, ldctx4), c.CurrentContext())
 		assert.Empty(t, logCapture.GetOutput(ldlog.Warn))
@@ -59,7 +58,7 @@ func TestScopedClientCollectsContexts(t *testing.T) {
 
 	t.Run("overwriting contexts", func(t *testing.T) {
 		client := makeTestClient()
-		c := NewScopedClient(client, ldctx1, ldctx2, ldctx3, ldctx4)
+		c := NewScopedClient(client, ldcontext.NewMulti(ldctx1, ldctx2, ldctx3, ldctx4))
 
 		c.OverwriteContextByKind(dupeCtx)
 		c.OverwriteContextByKind(ldctx2, ldctx3)
