@@ -6,6 +6,7 @@ import (
 
 	"github.com/felixge/httpsnoop"
 	"github.com/google/uuid"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ld "github.com/launchdarkly/go-server-sdk/v7"
@@ -77,7 +78,7 @@ func TrackTiming(next http.Handler) http.Handler {
 		if !ok {
 			return
 		}
-		scoped.TrackMetric("http.request.duration_ms", float64(duration.Milliseconds()), ldvalue.Null())
+		_ = scoped.TrackMetric("http.request.duration_ms", float64(duration.Milliseconds()), ldvalue.Null())
 	})
 }
 
