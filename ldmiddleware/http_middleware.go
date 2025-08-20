@@ -27,7 +27,9 @@ func AddScopedClientForRequest(client *ld.LDClient) func(next http.Handler) http
 // AddScopedClientForRequestWithKeyFn is like AddScopedClientForRequest, but allows providing a function to override
 // the context key used for the `request`-kind LDContext. If the function returns ok=false or an empty key,
 // a random UUID will be used.
-func AddScopedClientForRequestWithKeyFn(client *ld.LDClient, keyFn RequestKeyFunc) func(next http.Handler) http.Handler {
+func AddScopedClientForRequestWithKeyFn(
+	client *ld.LDClient, keyFn RequestKeyFunc,
+) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Determine request context key
