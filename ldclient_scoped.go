@@ -88,12 +88,13 @@ type LDScopedClient struct {
 // guarantees or semantic versioning. It is not suitable for production usage. Do
 // not use it. You have been warned.
 func NewScopedClient(client *LDClient, context ldcontext.Context) *LDScopedClient {
+	_ = client.TrackData("$ld:scoped:usage", context, ldvalue.String("new"))
 	cc := &LDScopedClient{
 		client:   client,
 		contexts: make(map[ldcontext.Kind]ldcontext.Context),
 		rebuild:  true,
 	}
-	cc.AddContext(context)
+	cc.addContext(context)
 	return cc
 }
 
@@ -103,6 +104,16 @@ func (c *LDScopedClient) addIndividualContext(context ldcontext.Context) {
 		return
 	}
 	c.contexts[context.Kind()] = context
+}
+
+func (c *LDScopedClient) addContext(context ldcontext.Context) {
+	if context.Multiple() {
+		for _, individual := range context.GetAllIndividualContexts(nil) {
+			c.addIndividualContext(individual)
+		}
+		return
+	}
+	c.addIndividualContext(context)
 }
 
 // AddContext adds additional evaluation contexts to the scoped client's current context.
@@ -121,13 +132,8 @@ func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 	c.rebuild = true
 
 	for _, ctx := range contexts {
-		if ctx.Multiple() {
-			for _, individual := range ctx.GetAllIndividualContexts(nil) {
-				c.addIndividualContext(individual)
-			}
-			continue
-		}
-		c.addIndividualContext(ctx)
+		_ = c.client.TrackData("$ld:scoped:usage", ctx, ldvalue.String("add"))
+		c.addContext(ctx)
 	}
 }
 
@@ -156,6 +162,7 @@ func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 	c.rebuild = true
 
 	for _, ctx := range contexts {
+		_ = c.client.TrackData("$ld:scoped:usage", ctx, ldvalue.String("overwrite"))
 		if ctx.Multiple() {
 			for _, individual := range ctx.GetAllIndividualContexts(nil) {
 				c.overwriteIndividualContextByKind(individual)
