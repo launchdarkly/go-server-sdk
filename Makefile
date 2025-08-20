@@ -22,7 +22,7 @@ COVERAGE_ENFORCER_FLAGS=-package github.com/launchdarkly/go-server-sdk/v7 \
 	-skipcode "// COVERAGE" \
 	-packagestats -filestats -showcode
 
-ALL_BUILD_TARGETS=sdk ldotel ldai
+ALL_BUILD_TARGETS=sdk ldotel ldai ldmiddleware
 ALL_TEST_TARGETS = $(addsuffix -test, $(ALL_BUILD_TARGETS))
 ALL_LINT_TARGETS = $(addsuffix -lint, $(ALL_BUILD_TARGETS))
 
