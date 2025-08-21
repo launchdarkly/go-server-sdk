@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.13.4](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.3...v7.13.4) (2025-08-21)
+
+
+### Bug Fixes
+
+* **experimental:** Update usability warning for LDScopedClient - in beta, subject to change ([#312](https://github.com/launchdarkly/go-server-sdk/issues/312)) ([b1b102c](https://github.com/launchdarkly/go-server-sdk/commit/b1b102c0e318178c16b5e70c535099ce84460190))
+
 ## [7.13.3](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.2...v7.13.3) (2025-08-20)
 
 
