@@ -2,6 +2,21 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.13.4](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.3...v7.13.4) (2025-08-21)
+
+
+### Bug Fixes
+
+* **experimental:** Update usability warning for LDScopedClient - in beta, subject to change ([#312](https://github.com/launchdarkly/go-server-sdk/issues/312)) ([b1b102c](https://github.com/launchdarkly/go-server-sdk/commit/b1b102c0e318178c16b5e70c535099ce84460190))
+
+## [7.13.3](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.2...v7.13.3) (2025-08-20)
+
+
+### Bug Fixes
+
+* **experimental:** NewScopedClient can now only take one context argument ([#309](https://github.com/launchdarkly/go-server-sdk/issues/309)) ([b149429](https://github.com/launchdarkly/go-server-sdk/commit/b149429419663486b4b2447a9cb3ce368cf84da9))
+* **experimental:** NewScopedClient, AddContext, OverwriteContextByKind emit usage events ([#310](https://github.com/launchdarkly/go-server-sdk/issues/310)) ([4a36949](https://github.com/launchdarkly/go-server-sdk/commit/4a3694921f023549074e6d92034f81b7b0fe80e7))
+
 ## [7.13.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.1...v7.13.2) (2025-08-14)
 
 

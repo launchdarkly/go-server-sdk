@@ -18,9 +18,9 @@ import (
 // create a new scoped client for each logical scope where the evaluation context
 // should be isolated from other scopes, like a web request.
 //
-// This type is not stable, and not subject to any backwards compatibility
-// guarantees or semantic versioning. It is not suitable for production usage. Do
-// not use it. You have been warned.
+// This type is in beta. It is still undergoing testing and active development.
+// Its functionality may change without notice, including becoming backwards
+// incompatible.
 //
 // An LDScopedClient is created by calling [NewScopedClient]. This sets the
 // initial context to be used for all operations:
@@ -77,24 +77,24 @@ type LDScopedClient struct {
 // methods as LDClient, like BoolVariation et al., but without the
 // ldcontext.Context parameter.
 //
-// You may pass one or more contexts to NewScopedClient. All contexts will be
-// combined into a multi-context when the scoped client is used. Providing a
+// You may pass a single-kind or multi-kind context to NewScopedClient. Providing a
 // multi-context to NewScopedClient is equivalent to providing all of its
-// individual contexts separately.
+// individual contexts separately via [LDScopedClient.AddContext].
 //
 // For more information on how to use the scoped client, read the documentation
 // for LDScopedClient.
 //
-// This function is not stable, and not subject to any backwards compatibility
-// guarantees or semantic versioning. It is not suitable for production usage. Do
-// not use it. You have been warned.
-func NewScopedClient(client *LDClient, contexts ...ldcontext.Context) *LDScopedClient {
+// This function is in beta. It is still undergoing testing and active
+// development. Its functionality may change without notice, including becoming
+// backwards incompatible.
+func NewScopedClient(client *LDClient, context ldcontext.Context) *LDScopedClient {
+	_ = client.TrackData("$ld:scoped:usage", context, ldvalue.String("new"))
 	cc := &LDScopedClient{
 		client:   client,
 		contexts: make(map[ldcontext.Kind]ldcontext.Context),
 		rebuild:  true,
 	}
-	cc.AddContext(contexts...)
+	cc.addContext(context)
 	return cc
 }
 
@@ -104,6 +104,16 @@ func (c *LDScopedClient) addIndividualContext(context ldcontext.Context) {
 		return
 	}
 	c.contexts[context.Kind()] = context
+}
+
+func (c *LDScopedClient) addContext(context ldcontext.Context) {
+	if context.Multiple() {
+		for _, individual := range context.GetAllIndividualContexts(nil) {
+			c.addIndividualContext(individual)
+		}
+		return
+	}
+	c.addIndividualContext(context)
 }
 
 // AddContext adds additional evaluation contexts to the scoped client's current context.
@@ -122,13 +132,8 @@ func (c *LDScopedClient) AddContext(contexts ...ldcontext.Context) {
 	c.rebuild = true
 
 	for _, ctx := range contexts {
-		if ctx.Multiple() {
-			for _, individual := range ctx.GetAllIndividualContexts(nil) {
-				c.addIndividualContext(individual)
-			}
-			continue
-		}
-		c.addIndividualContext(ctx)
+		_ = c.client.TrackData("$ld:scoped:usage", ctx, ldvalue.String("add"))
+		c.addContext(ctx)
 	}
 }
 
@@ -157,6 +162,7 @@ func (c *LDScopedClient) OverwriteContextByKind(contexts ...ldcontext.Context) {
 	c.rebuild = true
 
 	for _, ctx := range contexts {
+		_ = c.client.TrackData("$ld:scoped:usage", ctx, ldvalue.String("overwrite"))
 		if ctx.Multiple() {
 			for _, individual := range ctx.GetAllIndividualContexts(nil) {
 				c.overwriteIndividualContextByKind(individual)
