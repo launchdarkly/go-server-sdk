@@ -101,8 +101,8 @@ func TestTrackTiming_AfterTrackReceivesDurationMetric(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	assert.Equal(t, 204, rr.Code)
-	assert.Equal(t, 1, len(rec.events))
-	e := rec.events[0]
+	assert.Equal(t, 2, len(rec.events)) // $ld:scoped:usage and http.request.duration_ms
+	e := rec.events[1]
 	assert.Equal(t, "http.request.duration_ms", e.Key())
 	assert.NotNil(t, e.MetricValue())
 	assert.Greater(t, *e.MetricValue(), 0.0)
@@ -122,12 +122,12 @@ func TestTrackErrorResponses_AfterTrackReceivesErrorKeys(t *testing.T) {
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 			assert.Equal(t, status, rr.Code)
-			assert.Equal(t, 1, len(rec.events))
+			assert.Equal(t, 2, len(rec.events)) // $ld:scoped:usage and http.response.*
 			want := "http.response.5xx"
 			if status < 500 {
 				want = "http.response.4xx"
 			}
-			assert.Equal(t, want, rec.events[0].Key())
+			assert.Equal(t, want, rec.events[1].Key())
 		})
 	}
 
@@ -140,6 +140,6 @@ func TestTrackErrorResponses_AfterTrackReceivesErrorKeys(t *testing.T) {
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 		assert.Equal(t, 200, rr.Code)
-		assert.Equal(t, 0, len(rec.events))
+		assert.Equal(t, 1, len(rec.events)) // $ld:scoped:usage
 	})
 }
