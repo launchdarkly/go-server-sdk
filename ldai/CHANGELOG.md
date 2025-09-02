@@ -5,7 +5,7 @@
 
 ### Bug Fixes
 
-* add usage tracking to config method ([#307](https://github.com/launchdarkly/go-server-sdk/issues/307)) ([400a61e](https://github.com/launchdarkly/go-server-sdk/commit/400a61ea733a004dbedc1bbcaf6f897f3988f40d))
+* Add usage tracking to config method ([#307](https://github.com/launchdarkly/go-server-sdk/issues/307)) ([400a61e](https://github.com/launchdarkly/go-server-sdk/commit/400a61ea733a004dbedc1bbcaf6f897f3988f40d))
 
 ## [0.7.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.7.0...ldai/v0.7.1) (2025-07-29)
 
