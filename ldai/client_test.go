@@ -17,13 +17,21 @@ import (
 )
 
 type mockServerSDK struct {
-	log  *ldlogtest.MockLog
-	json []byte
-	err  error
+	log    *ldlogtest.MockLog
+	json   []byte
+	err    error
+	events []mockEvent
+}
+
+type mockEvent struct {
+	eventName   string
+	context     ldcontext.Context
+	metricValue float64
+	data        ldvalue.Value
 }
 
 func newMockSDK(json []byte, err error) *mockServerSDK {
-	return &mockServerSDK{json: json, err: err, log: ldlogtest.NewMockLog()}
+	return &mockServerSDK{json: json, err: err, log: ldlogtest.NewMockLog(), events: []mockEvent{}}
 }
 
 func (m *mockServerSDK) JSONVariation(
@@ -44,6 +52,12 @@ func (m *mockServerSDK) Loggers() interfaces.LDLoggers {
 }
 
 func (m *mockServerSDK) TrackMetric(eventName string, context ldcontext.Context, metricValue float64, data ldvalue.Value) error {
+	m.events = append(m.events, mockEvent{
+		eventName:   eventName,
+		context:     context,
+		metricValue: metricValue,
+		data:        data,
+	})
 	return nil
 }
 
@@ -286,6 +300,33 @@ func TestCanSetDefaultConfigFields(t *testing.T) {
 	assert.Equal(t, datamodel.User, msg[0].Role)
 	assert.Equal(t, "world", msg[1].Content)
 	assert.Equal(t, datamodel.System, msg[1].Role)
+}
+
+func TestConfigMethodTracking(t *testing.T) {
+	mockSDK := newMockSDK(nil, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultConfig := NewConfig().WithEnabled(false).Build()
+	context := ldcontext.New("user-key")
+	configKey := "test-config-key"
+
+	config, tracker := client.Config(configKey, context, defaultConfig, nil)
+
+	require.NotNil(t, config)
+	require.NotNil(t, tracker)
+
+	expectedEvents := []mockEvent{
+		{
+			eventName:   "$ld:ai:config:function:single",
+			context:     context,
+			metricValue: 1,
+			data:        ldvalue.String(configKey),
+		},
+	}
+
+	assert.ElementsMatch(t, expectedEvents, mockSDK.events)
 }
 
 func TestCanSetModelParameters(t *testing.T) {
