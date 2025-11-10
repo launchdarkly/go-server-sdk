@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,4 +87,76 @@ func TestCanSetProxyURL(t *testing.T) {
 	urlOut, err := transport.Proxy(&http.Request{})
 	require.NoError(t, err)
 	assert.Equal(t, url, urlOut)
+}
+
+func TestCanSetIdleConnTimeout(t *testing.T) {
+	customTimeout := 30 * time.Second
+	transport, _, err := NewHTTPTransport(IdleConnTimeoutOption(customTimeout))
+	require.NoError(t, err)
+	assert.Equal(t, customTimeout, transport.IdleConnTimeout)
+}
+
+func TestDefaultIdleConnTimeoutIsUsedWhenNotSet(t *testing.T) {
+	transport, _, err := NewHTTPTransport()
+	require.NoError(t, err)
+	// Should use the default from newDefaultTransport
+	assert.Equal(t, 90*time.Second, transport.IdleConnTimeout)
+}
+
+func TestCanSetMaxIdleConns(t *testing.T) {
+	customMax := 50
+	transport, _, err := NewHTTPTransport(MaxIdleConnsOption(customMax))
+	require.NoError(t, err)
+	assert.Equal(t, customMax, transport.MaxIdleConns)
+}
+
+func TestDefaultMaxIdleConnsIsUsedWhenNotSet(t *testing.T) {
+	transport, _, err := NewHTTPTransport()
+	require.NoError(t, err)
+	// Should use the default from newDefaultTransport
+	assert.Equal(t, 100, transport.MaxIdleConns)
+}
+
+func TestCanSetMaxIdleConnsPerHost(t *testing.T) {
+	customMax := 10
+	transport, _, err := NewHTTPTransport(MaxIdleConnsPerHostOption(customMax))
+	require.NoError(t, err)
+	assert.Equal(t, customMax, transport.MaxIdleConnsPerHost)
+}
+
+func TestDefaultMaxIdleConnsPerHostIsUsedWhenNotSet(t *testing.T) {
+	transport, _, err := NewHTTPTransport()
+	require.NoError(t, err)
+	// Should be 0 (no limit) when not set
+	assert.Equal(t, 0, transport.MaxIdleConnsPerHost)
+}
+
+func TestCanDisableKeepAlives(t *testing.T) {
+	transport, _, err := NewHTTPTransport(DisableKeepAlivesOption(true))
+	require.NoError(t, err)
+	assert.True(t, transport.DisableKeepAlives)
+}
+
+func TestKeepAlivesEnabledByDefault(t *testing.T) {
+	transport, _, err := NewHTTPTransport()
+	require.NoError(t, err)
+	assert.False(t, transport.DisableKeepAlives)
+}
+
+func TestCanSetMultipleConnectionOptions(t *testing.T) {
+	customIdleTimeout := 45 * time.Second
+	customMaxIdle := 75
+	customMaxIdlePerHost := 15
+
+	transport, _, err := NewHTTPTransport(
+		IdleConnTimeoutOption(customIdleTimeout),
+		MaxIdleConnsOption(customMaxIdle),
+		MaxIdleConnsPerHostOption(customMaxIdlePerHost),
+		DisableKeepAlivesOption(true),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, customIdleTimeout, transport.IdleConnTimeout)
+	assert.Equal(t, customMaxIdle, transport.MaxIdleConns)
+	assert.Equal(t, customMaxIdlePerHost, transport.MaxIdleConnsPerHost)
+	assert.True(t, transport.DisableKeepAlives)
 }

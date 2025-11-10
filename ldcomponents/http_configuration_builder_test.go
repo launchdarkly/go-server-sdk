@@ -12,6 +12,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhttp"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	helpers "github.com/launchdarkly/go-test-helpers/v3"
@@ -252,6 +253,119 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "application-id/appid application-version/appver", c.DefaultHeaders.Get("X-LaunchDarkly-Tags"))
 		})
+	})
+
+	t.Run("HTTPOptions with IdleConnTimeout", func(t *testing.T) {
+		customTimeout := 45 * time.Second
+		c, err := HTTPConfiguration().
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.IdleConnTimeoutOption(customTimeout)}).
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.Equal(t, customTimeout, transport.IdleConnTimeout)
+	})
+
+	t.Run("HTTPOptions with MaxIdleConns", func(t *testing.T) {
+		customMax := 50
+		c, err := HTTPConfiguration().
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.MaxIdleConnsOption(customMax)}).
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.Equal(t, customMax, transport.MaxIdleConns)
+	})
+
+	t.Run("HTTPOptions with MaxIdleConnsPerHost", func(t *testing.T) {
+		customMax := 15
+		c, err := HTTPConfiguration().
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.MaxIdleConnsPerHostOption(customMax)}).
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.Equal(t, customMax, transport.MaxIdleConnsPerHost)
+	})
+
+	t.Run("HTTPOptions with DisableKeepAlives", func(t *testing.T) {
+		c, err := HTTPConfiguration().
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.DisableKeepAlivesOption(true)}).
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.True(t, transport.DisableKeepAlives)
+	})
+
+	t.Run("HTTPOptions with multiple transport options", func(t *testing.T) {
+		customIdleTimeout := 30 * time.Second
+		customMaxIdle := 75
+		customMaxIdlePerHost := 20
+
+		c, err := HTTPConfiguration().
+			HTTPOptions([]ldhttp.TransportOption{
+				ldhttp.IdleConnTimeoutOption(customIdleTimeout),
+				ldhttp.MaxIdleConnsOption(customMaxIdle),
+				ldhttp.MaxIdleConnsPerHostOption(customMaxIdlePerHost),
+				ldhttp.DisableKeepAlivesOption(true),
+			}).
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.Equal(t, customIdleTimeout, transport.IdleConnTimeout)
+		assert.Equal(t, customMaxIdle, transport.MaxIdleConns)
+		assert.Equal(t, customMaxIdlePerHost, transport.MaxIdleConnsPerHost)
+		assert.True(t, transport.DisableKeepAlives)
+	})
+
+	t.Run("HTTPOptions combined with other builder methods", func(t *testing.T) {
+		customIdleTimeout := 60 * time.Second
+		customConnectTimeout := 5 * time.Second
+
+		c, err := HTTPConfiguration().
+			ConnectTimeout(customConnectTimeout).
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.IdleConnTimeoutOption(customIdleTimeout)}).
+			Header("Custom-Header", "test-value").
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		assert.Equal(t, customConnectTimeout, client.Timeout)
+
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.Equal(t, customIdleTimeout, transport.IdleConnTimeout)
+
+		assert.Equal(t, "test-value", c.DefaultHeaders.Get("Custom-Header"))
+	})
+
+	t.Run("HTTPOptions called multiple times accumulates options", func(t *testing.T) {
+		customIdleTimeout := 25 * time.Second
+		customMaxIdle := 80
+
+		c, err := HTTPConfiguration().
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.IdleConnTimeoutOption(customIdleTimeout)}).
+			HTTPOptions([]ldhttp.TransportOption{ldhttp.MaxIdleConnsOption(customMaxIdle)}).
+			Build(basicConfig)
+		require.NoError(t, err)
+
+		client := c.CreateHTTPClient()
+		require.NotNil(t, client.Transport)
+		transport := client.Transport.(*http.Transport)
+		assert.Equal(t, customIdleTimeout, transport.IdleConnTimeout)
+		assert.Equal(t, customMaxIdle, transport.MaxIdleConns)
 	})
 
 	t.Run("nil safety", func(t *testing.T) {
