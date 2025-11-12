@@ -4,6 +4,7 @@
   "packages" : {
     "." : {
       "release-type" : "go",
+      "release-as": "7.14.0",
       "bump-minor-pre-major" : true,
       "versioning" : "default",
       "include-component-in-tag" : false,
@@ -41,6 +42,7 @@
     "ldmiddleware" : {
       "package-name": "ldmiddleware",
       "release-type" : "go",
+      "release-as": "0.1.0",
       "tag-separator": "/",
       "versioning" : "default",
       "extra-files" : [
