@@ -9,11 +9,6 @@ All notable changes to the LaunchDarkly Go SDK will be documented in this file. 
 
 * Add new transport configuration options ([#320](https://github.com/launchdarkly/go-server-sdk/issues/320)) ([e2d9a7c](https://github.com/launchdarkly/go-server-sdk/commit/e2d9a7c3bb65d39e6882e61f77e33656ae39033e))
 
-
-### Bug Fixes
-
-* **experimental:** Add ldmiddleware library, utilities for creating scoped clients, contexts, events automatically ([#306](https://github.com/launchdarkly/go-server-sdk/issues/306)) ([b175f8c](https://github.com/launchdarkly/go-server-sdk/commit/b175f8cf065ce85f54f303fbc9874b9dbecd87ed))
-
 ## [7.13.4](https://github.com/launchdarkly/go-server-sdk/compare/v7.13.3...v7.13.4) (2025-08-21)
 
 
