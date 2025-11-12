@@ -22,6 +22,14 @@ type transportExtraOptions struct {
 	caCerts        *x509.CertPool
 	connectTimeout time.Duration
 	proxyURL       *url.URL
+
+	// idleConnTimeout and maxIdleConns have to be pointers to support backwards
+	// compatibility as we provide defaults for these.
+	idleConnTimeout *time.Duration
+	maxIdleConns    *int
+
+	maxIdleConnsPerHost int
+	disableKeepAlives   bool
 }
 
 // TransportOption is the interface for optional configuration parameters that can be passed to NewHTTPTransport.
@@ -101,6 +109,65 @@ func (o proxyOption) apply(opts *transportExtraOptions) error {
 	return nil
 }
 
+type idleConnTimeoutOption struct {
+	timeout time.Duration
+}
+
+func (o idleConnTimeoutOption) apply(opts *transportExtraOptions) error {
+	opts.idleConnTimeout = &o.timeout
+	return nil
+}
+
+// IdleConnTimeoutOption specifies the maximum amount of time an idle (keep-alive) connection will remain
+// idle before closing itself, when used with NewHTTPTransport.
+func IdleConnTimeoutOption(timeout time.Duration) TransportOption {
+	return idleConnTimeoutOption{timeout: timeout}
+}
+
+type maxIdleConnsOption struct {
+	count int
+}
+
+func (o maxIdleConnsOption) apply(opts *transportExtraOptions) error {
+	opts.maxIdleConns = &o.count
+	return nil
+}
+
+// MaxIdleConnsOption specifies the maximum number of idle (keep-alive) connections across all hosts,
+// when used with NewHTTPTransport.
+func MaxIdleConnsOption(count int) TransportOption {
+	return maxIdleConnsOption{count: count}
+}
+
+type maxIdleConnsPerHostOption struct {
+	count int
+}
+
+func (o maxIdleConnsPerHostOption) apply(opts *transportExtraOptions) error {
+	opts.maxIdleConnsPerHost = o.count
+	return nil
+}
+
+// MaxIdleConnsPerHostOption specifies the maximum number of idle (keep-alive) connections per host,
+// when used with NewHTTPTransport.
+func MaxIdleConnsPerHostOption(count int) TransportOption {
+	return maxIdleConnsPerHostOption{count: count}
+}
+
+type disableKeepAlivesOption struct {
+	disable bool
+}
+
+func (o disableKeepAlivesOption) apply(opts *transportExtraOptions) error {
+	opts.disableKeepAlives = o.disable
+	return nil
+}
+
+// DisableKeepAlivesOption disables HTTP keep-alives when set to true, when used with NewHTTPTransport.
+func DisableKeepAlivesOption(disable bool) TransportOption {
+	return disableKeepAlivesOption{disable: disable}
+}
+
 // NewHTTPTransport creates a customized http.Transport struct using the specified options. It returns both
 // the Transport and an associated net.Dialer.
 //
@@ -127,6 +194,18 @@ func NewHTTPTransport(options ...TransportOption) (*http.Transport, *net.Dialer,
 	}
 	if extraOptions.proxyURL != nil {
 		transport.Proxy = http.ProxyURL(extraOptions.proxyURL)
+	}
+	if extraOptions.idleConnTimeout != nil {
+		transport.IdleConnTimeout = *extraOptions.idleConnTimeout
+	}
+	if extraOptions.maxIdleConns != nil {
+		transport.MaxIdleConns = *extraOptions.maxIdleConns
+	}
+	if extraOptions.maxIdleConnsPerHost != 0 {
+		transport.MaxIdleConnsPerHost = extraOptions.maxIdleConnsPerHost
+	}
+	if extraOptions.disableKeepAlives {
+		transport.DisableKeepAlives = true
 	}
 	return transport, dialer, nil
 }

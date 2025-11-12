@@ -88,6 +88,20 @@ func (b *HTTPConfigurationBuilder) CACertFile(filePath string) *HTTPConfiguratio
 	return b
 }
 
+// HTTPOptions allows specifying additional HTTP transport options that will be applied to the
+// underlying HTTP transport used by the SDK.
+//
+// These options are applied in addition to any other HTTP configuration settings you may have
+// specified with other methods on this builder. The options are processed in the order they
+// are provided.
+func (b *HTTPConfigurationBuilder) HTTPOptions(opts []ldhttp.TransportOption) *HTTPConfigurationBuilder {
+	if b.checkValid() {
+		b.httpOptions = append(b.httpOptions, opts...)
+	}
+
+	return b
+}
+
 // ConnectTimeout sets the connection timeout.
 //
 // This is the maximum amount of time to wait for each individual connection attempt to a remote service
