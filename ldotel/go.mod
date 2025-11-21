@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/ldotel
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/launchdarkly/go-sdk-common/v3 v3.3.0
