@@ -4,7 +4,6 @@
   "packages" : {
     "." : {
       "release-type" : "go",
-      "release-as": "7.14.0",
       "bump-minor-pre-major" : true,
       "versioning" : "default",
       "include-component-in-tag" : false,
