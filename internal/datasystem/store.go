@@ -399,8 +399,18 @@ func (s *Store) computeChangedItemsForFullDataSet(
 			}
 		}
 		for _, key := range allKeys {
-			_, haveOld := oldItems[key]
-			_, haveNew := newItems[key]
+			old, haveOld := oldItems[key]
+			new, haveNew := newItems[key]
+
+			// If the flag version is changed, then we would want to refresh the value. This could happen
+			// if the we initialize from a stale data source.
+			if haveOld && haveNew {
+				if old.Version != new.Version {
+					s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
+					continue
+				}
+			}
+
 			if haveOld || haveNew {
 				if !haveOld || !haveNew {
 					s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
