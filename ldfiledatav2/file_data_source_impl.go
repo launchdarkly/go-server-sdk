@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,7 +28,9 @@ import (
 type fileDataSource struct {
 	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
 	statusBroadcaster    *internal.Broadcaster[interfaces.DataSynchronizerStatus]
-	version              int
+	// NOTE: this is not really used anymore because file data sources at this
+	// moment will not report a selector.
+	version int
 
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
@@ -349,7 +350,11 @@ func mergeFileData(
 		}
 	}
 
-	return builder.Finish(subsystems.NewSelector(strconv.Itoa(version), version))
+	// File data source will not have a selector for now.
+	// NOTE: If we start supporting FDv2 data from file then this statement might change.
+	// When that happens we will construct the selector the same way that we construct it
+	// in the FDv2 polling data source.
+	return builder.Finish(subsystems.NoSelector())
 }
 
 func makeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {

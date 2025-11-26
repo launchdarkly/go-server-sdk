@@ -9,6 +9,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/ldfiledatav2"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
+	testHelpers "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/stretchr/testify/assert"
@@ -352,5 +354,51 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 
 		assert.Equal(t, []string{"Timeout encountered waiting for LaunchDarkly client initialization"}, logCapture.GetOutput(ldlog.Warn))
 		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
+	})
+}
+
+func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("state", 1)
+
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
+
+	testHelpers.WithTempFileData([]byte(`{"flags": {"`+alwaysFalseFlag.Key+`": {"on": false}}, "segments": {}}`), func(filename string) {
+
+		httphelpers.WithServer(handler, func(server *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+					).
+					Synchronizers(
+						ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+						nil,
+					),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+
+			<-requestsCh
+
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+
+			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+			assert.True(t, value)
+		})
 	})
 }

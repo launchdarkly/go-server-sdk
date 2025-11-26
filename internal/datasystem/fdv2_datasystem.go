@@ -251,12 +251,14 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			continue
 		}
 		f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
-		f.loggers.Infof("Initialized via %s", initializer.Name())
 		f.store.Apply(basis.ChangeSet, basis.Persist)
-		f.readyOnce.Do(func() {
-			close(closeWhenReady)
-		})
-		return
+		if basis.ChangeSet.Selector().IsDefined() {
+			f.loggers.Infof("Initialized via %s", initializer.Name())
+			f.readyOnce.Do(func() {
+				close(closeWhenReady)
+			})
+			return
+		}
 	}
 }
 
