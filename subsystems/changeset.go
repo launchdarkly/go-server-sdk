@@ -183,10 +183,10 @@ func (c *ChangeSetBuilder) Empty(selector Selector) *ChangeSet {
 }
 
 // Start begins a new change set with a given intent.
-func (c *ChangeSetBuilder) Start(intent ServerIntent) error {
+func (c *ChangeSetBuilder) Start(intent ServerIntent) *ChangeSetBuilder {
 	c.intent = &intent
 	c.changes = nil
-	return nil
+	return c
 }
 
 // ExpectChanges ensures that the current ChangeSetBuilder is prepared to handle changes.
@@ -239,7 +239,7 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 }
 
 // AddPut adds a new object to the changeset.
-func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, object json.RawMessage) {
+func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, object json.RawMessage) *ChangeSetBuilder {
 	c.changes = append(c.changes, Change{
 		Action:  ChangeTypePut,
 		Kind:    kind,
@@ -247,14 +247,18 @@ func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, obje
 		Version: version,
 		Object:  object,
 	})
+
+	return c
 }
 
 // AddDelete adds a deletion to the changeset.
-func (c *ChangeSetBuilder) AddDelete(kind ObjectKind, key string, version int) {
+func (c *ChangeSetBuilder) AddDelete(kind ObjectKind, key string, version int) *ChangeSetBuilder {
 	c.changes = append(c.changes, Change{
 		Action:  ChangeTypeDelete,
 		Kind:    kind,
 		Key:     key,
 		Version: version,
 	})
+
+	return c
 }

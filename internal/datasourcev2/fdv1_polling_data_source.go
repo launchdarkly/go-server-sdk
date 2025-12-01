@@ -34,7 +34,7 @@ func (r *fdv1ToFDv2Requester) Request(
 	}
 
 	changeSetBuilder := subsystems.NewChangeSetBuilder()
-	err = changeSetBuilder.Start(subsystems.ServerIntent{
+	changeSetBuilder.Start(subsystems.ServerIntent{
 		Payload: subsystems.Payload{
 			ID:     "arbitrary-id",
 			Target: 0,
@@ -42,9 +42,6 @@ func (r *fdv1ToFDv2Requester) Request(
 			Reason: reason,
 		},
 	})
-	if err != nil {
-		return nil, headers, err
-	}
 
 	for _, item := range data {
 		kind := subsystems.FlagKind

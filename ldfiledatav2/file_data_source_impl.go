@@ -305,7 +305,7 @@ func mergeFileData(
 	allFileData ...fileData,
 ) (*subsystems.ChangeSet, error) {
 	builder := subsystems.NewChangeSetBuilder()
-	err := builder.Start(subsystems.ServerIntent{
+	builder.Start(subsystems.ServerIntent{
 		Payload: subsystems.Payload{
 			ID:     "",
 			Target: version,
@@ -313,9 +313,6 @@ func mergeFileData(
 			Reason: "payload-missing",
 		},
 	})
-	if err != nil {
-		return nil, fmt.Errorf("error starting change set: %w", err)
-	}
 
 	seenKeys := map[subsystems.ObjectKind]map[string]bool{
 		subsystems.FlagKind:    {},
