@@ -3,6 +3,10 @@ package subsystems
 import (
 	"encoding/json"
 	"errors"
+	"sync"
+
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 // ChangeType specifies if an object is being upserted or deleted.
@@ -48,6 +52,9 @@ type ChangeSet struct {
 	intentCode IntentCode
 	changes    []Change
 	selector   Selector
+
+	mu         *sync.Mutex
+	collection []ldstoretypes.Collection
 }
 
 // IntentCode represents the intent of the changeset.
@@ -64,6 +71,63 @@ func (c *ChangeSet) Changes() []Change {
 // Selector identifies the version of the changes.
 func (c *ChangeSet) Selector() Selector {
 	return c.selector
+}
+
+func (c *ChangeSet) Collections() ([]ldstoretypes.Collection, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.collection != nil {
+		return c.collection, nil
+	}
+
+	collection, err := toStorableItems(c.changes)
+	if err != nil {
+		return nil, err
+	}
+
+	c.collection = collection
+	return c.collection, nil
+}
+
+// toStorableItems converts a list of FDv2 events to a list of collections suitable for insertion
+// into a data store.
+func toStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
+	collections := make(kindMap)
+	for _, event := range deltas {
+		kind, ok := event.Kind.ToFDV1()
+		if !ok {
+			// If we don't recognize this kind, it's not an error and should be ignored for forwards
+			// compatibility.
+			continue
+		}
+
+		switch event.Action {
+		case ChangeTypePut:
+			// A put requires deserializing the item. We delegate to the optimized streaming JSON
+			// parser.
+			reader := jreader.NewReader(event.Object)
+			item, err := kind.DeserializeFromJSONReader(&reader)
+			if err != nil {
+				return nil, err
+			}
+			collections[kind] = append(collections[kind], ldstoretypes.KeyedItemDescriptor{
+				Key:  event.Key,
+				Item: item,
+			})
+		case ChangeTypeDelete:
+			// A deletion is represented by a tombstone, which is an ItemDescriptor with a version and nil item.
+			collections[kind] = append(collections[kind], ldstoretypes.KeyedItemDescriptor{
+				Key:  event.Key,
+				Item: ldstoretypes.ItemDescriptor{Version: event.Version, Item: nil},
+			})
+		default:
+			// An unknown action isn't an error, and should be ignored for forwards compatibility.
+			continue
+		}
+	}
+
+	return collections.flatten(), nil
 }
 
 // ChangeSetBuilder is a helper for constructing a ChangeSet.
@@ -96,6 +160,7 @@ func (c *ChangeSetBuilder) NoChanges() *ChangeSet {
 		intentCode: IntentNone,
 		selector:   NoSelector(),
 		changes:    nil,
+		mu:         &sync.Mutex{},
 	}
 }
 
@@ -106,6 +171,7 @@ func (c *ChangeSetBuilder) Empty(selector Selector) *ChangeSet {
 		intentCode: IntentTransferFull,
 		selector:   selector,
 		changes:    nil,
+		mu:         &sync.Mutex{},
 	}
 }
 
@@ -152,6 +218,7 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 		intentCode: c.intent.Payload.Code,
 		selector:   selector,
 		changes:    c.changes,
+		mu:         &sync.Mutex{},
 	}
 	c.changes = nil
 

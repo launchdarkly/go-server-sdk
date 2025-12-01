@@ -173,7 +173,7 @@ func (s *Store) Close() error {
 // Apply applies a changeset to the store. The changeset must be a valid set of changes that can be applied
 // to the store. If the changeset is not valid, an error will be logged and the changeset will not be applied.
 func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) {
-	collections, err := subsystems.ToStorableItems(changeSet.Changes())
+	collections, err := changeSet.Collections()
 	if err != nil {
 		s.loggers.Errorf("store: couldn't set basis due to malformed data: %v", err)
 		return
@@ -244,7 +244,7 @@ func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
-// applyDelta applies a delta update to the store. applyDelta should not be called until SetBasis has been called.
+// applyDelta applies a delta update to the store. applyDelta should not be called until setBasis has been called.
 // To request data persistence, set persist to true.
 func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
 	s.memoryStore.ApplyDelta(collections)
@@ -298,7 +298,7 @@ func (s *Store) GetDataStoreStatusProvider() interfaces.DataStoreStatusProvider 
 }
 
 // Commit persists the data in the memory store to the persistent store, if configured. The persistent store
-// must also be in write mode, and the last call to SetBasis or ApplyDelta must have had persist set to true.
+// must also be in write mode, and the last call to setBasis or applyDelta must have had persist set to true.
 func (s *Store) Commit() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
