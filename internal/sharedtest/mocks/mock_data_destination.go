@@ -50,6 +50,7 @@ func (d *MockDataDestination) Selector() subsystems.Selector {
 	return d.lastKnownSelector
 }
 
+// Apply persists the given ChangeSet to the DataStore.
 func (d *MockDataDestination) Apply(changeSet subsystems.ChangeSet, persist bool) {
 	switch changeSet.IntentCode() {
 	case subsystems.IntentTransferFull:

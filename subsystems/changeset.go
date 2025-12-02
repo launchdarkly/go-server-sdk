@@ -73,6 +73,8 @@ func (c *ChangeSet) Selector() Selector {
 	return c.selector
 }
 
+// Collections converts the changeset into a list of collections suitable for
+// insertion into a data store, relaying to FDv1 clients, etc.
 func (c *ChangeSet) Collections() ([]ldstoretypes.Collection, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
