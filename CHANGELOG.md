@@ -2,6 +2,15 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.14.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.1...v7.14.2) (2025-12-02)
+
+
+### Bug Fixes
+
+* Add `ChangeSet.Collections` to help reduce relay memory usage ([#332](https://github.com/launchdarkly/go-server-sdk/issues/332)) ([ca33a3c](https://github.com/launchdarkly/go-server-sdk/commit/ca33a3c641020c430b95233cc62d15437c4abd9f))
+* align fdv2 intializer to spec ([#330](https://github.com/launchdarkly/go-server-sdk/issues/330)) ([68599fa](https://github.com/launchdarkly/go-server-sdk/commit/68599fafe567a29ac540727c07b45bf24d4e3949))
+* Update changeset builder to support chaining calls ([#333](https://github.com/launchdarkly/go-server-sdk/issues/333)) ([69e269b](https://github.com/launchdarkly/go-server-sdk/commit/69e269b44410401b4e4df4fac2b36969ae67a094))
+
 ## [7.14.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.0...v7.14.1) (2025-11-21)
 
 
