@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
-
-	"maps"
 
 	"github.com/gregjones/httpcache"
 
@@ -106,9 +105,7 @@ func (r *pollingRequester) Request(
 				if serverIntent.Payload.Code == subsystems.IntentNone {
 					return changeSet.NoChanges(), headers, nil
 				}
-				if err := changeSet.Start(serverIntent); err != nil {
-					return nil, headers, err
-				}
+				changeSet.Start(serverIntent)
 			case subsystems.EventPutObject:
 				var put subsystems.PutObject
 				if err := json.Unmarshal(event.Data, &put); err != nil {

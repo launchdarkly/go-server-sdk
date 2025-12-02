@@ -18,7 +18,7 @@ func TestChangeSetBuilder_MustStartToFinish(t *testing.T) {
 	_, err := builder.Finish(selector)
 	assert.Error(t, err)
 
-	assert.NoError(t, builder.Start(ServerIntent{Payload: Payload{Code: IntentNone}}))
+	builder.Start(ServerIntent{Payload: Payload{Code: IntentNone}})
 
 	_, err = builder.Finish(selector)
 	assert.NoError(t, err)
@@ -26,8 +26,7 @@ func TestChangeSetBuilder_MustStartToFinish(t *testing.T) {
 
 func TestChangeSetBuilder_Changes(t *testing.T) {
 	builder := NewChangeSetBuilder()
-	err := builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferChanges}})
-	assert.NoError(t, err)
+	builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferChanges}})
 
 	builder.AddPut("foo", "bar", 1, []byte("baz"))
 	builder.AddDelete("foo", "bar", 1)
@@ -44,7 +43,6 @@ func TestChangeSetBuilder_Changes(t *testing.T) {
 
 	assert.Equal(t, IntentTransferChanges, changeSet.IntentCode())
 	assert.Equal(t, selector, changeSet.Selector())
-
 }
 
 // After receiving an intent, the SDK may receive 1 or more objects before receiving a payload-transferred.
@@ -54,8 +52,7 @@ func TestChangeSetBuilder_Changes(t *testing.T) {
 // send one.
 func TestChangeSetBuilder_ImplicitIntentXferChanges(t *testing.T) {
 	builder := NewChangeSetBuilder()
-	err := builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferFull}})
-	assert.NoError(t, err)
+	builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferFull}})
 
 	changes1, err := builder.Finish(NewSelector("foo", 1))
 	assert.NoError(t, err)

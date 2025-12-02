@@ -205,18 +205,15 @@ func (t *TestDataSynchronizer) makeFullTransferChangeset() (*subsystems.ChangeSe
 	version := t.version
 	t.version++
 
-	builder := subsystems.NewChangeSetBuilder()
-	err := builder.Start(subsystems.ServerIntent{
-		Payload: subsystems.Payload{
-			ID:     "",
-			Target: version,
-			Code:   subsystems.IntentTransferFull,
-			Reason: "payload-missing",
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
+	builder := subsystems.NewChangeSetBuilder().
+		Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "",
+				Target: version,
+				Code:   subsystems.IntentTransferFull,
+				Reason: "payload-missing",
+			},
+		})
 
 	for key, item := range t.currentFlags {
 		json, err := json.Marshal(item.Item)
@@ -246,18 +243,15 @@ func (t *TestDataSynchronizer) makeTransferChangesForObject(
 	version := t.version
 	t.version++
 
-	builder := subsystems.NewChangeSetBuilder()
-	err := builder.Start(subsystems.ServerIntent{
-		Payload: subsystems.Payload{
-			ID:     "",
-			Target: version,
-			Code:   subsystems.IntentTransferChanges,
-			Reason: "changes",
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
+	builder := subsystems.NewChangeSetBuilder().
+		Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "",
+				Target: version,
+				Code:   subsystems.IntentTransferChanges,
+				Reason: "changes",
+			},
+		})
 
 	json, err := json.Marshal(item.Item)
 	if err != nil {

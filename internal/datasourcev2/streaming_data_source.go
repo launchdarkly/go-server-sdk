@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -21,8 +22,6 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
-
-	"maps"
 )
 
 const (
@@ -205,10 +204,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					break
 				}
 
-				if err := changeSetBuilder.Start(serverIntent); err != nil {
-					gotMalformedEvent(event, err)
-					break
-				}
+				changeSetBuilder.Start(serverIntent)
 
 				// IntentNone is a special case where we won't receive a payload-transferred event, so we will need
 				// to instead immediately notify the client that we are initialized.
