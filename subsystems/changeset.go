@@ -81,6 +81,11 @@ func (c *ChangeSet) Collections() ([]ldstoretypes.Collection, error) {
 		return c.collection, nil
 	}
 
+	if c.changes == nil {
+		c.collection = []ldstoretypes.Collection{}
+		return c.collection, nil
+	}
+
 	collection, err := toStorableItems(c.changes)
 	if err != nil {
 		return nil, err
