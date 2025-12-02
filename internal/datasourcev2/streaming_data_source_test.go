@@ -563,7 +563,7 @@ func TestStreamingDataSourceHandlesUpToDateAndSubsequentChanges(t *testing.T) {
 			status = <-resultChan
 			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
 			assert.NotNil(t, status.ChangeSet)
-			dd.SetBasis(status.ChangeSet.Changes(), status.ChangeSet.Selector(), true)
+			dd.Apply(*status.ChangeSet, true)
 
 			flag, err = dd.DataStore.Get(datakinds.Features, "test-flag")
 			assert.NoError(t, err)
@@ -646,7 +646,7 @@ func TestStreamingDataSourceHandlesResettingFromError(t *testing.T) {
 			status = <-resultChan
 			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
 			assert.NotNil(t, status.ChangeSet)
-			dd.SetBasis(status.ChangeSet.Changes(), status.ChangeSet.Selector(), true)
+			dd.Apply(*status.ChangeSet, true)
 
 			flag, err = dd.DataStore.Get(datakinds.Features, "test-flag")
 			assert.NoError(t, err)
@@ -734,7 +734,7 @@ func TestStreamingDataSourceIgnoresGoodbye(t *testing.T) {
 			status = <-resultChan
 			assert.Equal(t, interfaces.DataSourceStateValid, status.State)
 			assert.NotNil(t, status.ChangeSet)
-			dd.SetBasis(status.ChangeSet.Changes(), status.ChangeSet.Selector(), true)
+			dd.Apply(*status.ChangeSet, true)
 
 			flag, err = dd.DataStore.Get(datakinds.Features, "test-flag")
 			assert.NoError(t, err)

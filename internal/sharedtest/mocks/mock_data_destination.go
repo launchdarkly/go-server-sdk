@@ -50,14 +50,21 @@ func (d *MockDataDestination) Selector() subsystems.Selector {
 	return d.lastKnownSelector
 }
 
-// SetBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) SetBasis(events []subsystems.Change, selector subsystems.Selector, _ bool) {
-	// For now, the selector is ignored. When the data sources start making use of it, it should be
-	// stored so that assertions can be made.
+// Apply persists the given ChangeSet to the DataStore.
+func (d *MockDataDestination) Apply(changeSet subsystems.ChangeSet, persist bool) {
+	switch changeSet.IntentCode() {
+	case subsystems.IntentTransferFull:
+		d.setBasis(changeSet, persist)
+	case subsystems.IntentTransferChanges:
+		d.applyDelta(changeSet, persist)
+	}
+}
 
-	collections, err := subsystems.ToStorableItems(events)
+// setBasis in this test implementation, delegates to d.DataStore.CapturedUpdates.
+func (d *MockDataDestination) setBasis(changeSet subsystems.ChangeSet, _ bool) {
+	collections, err := changeSet.Collections()
 	if err != nil {
-		panic("MockDataDestination.SetBasis received malformed data: " + err.Error())
+		panic("MockDataDestination.setBasis received malformed data: " + err.Error())
 	}
 
 	for _, coll := range collections {
@@ -66,19 +73,16 @@ func (d *MockDataDestination) SetBasis(events []subsystems.Change, selector subs
 
 	if err := d.DataStore.Init(toposort.Sort(collections)); err == nil {
 		d.lock.Lock()
-		d.lastKnownSelector = selector
+		d.lastKnownSelector = changeSet.Selector()
 		d.lock.Unlock()
 	}
 }
 
-// ApplyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
-func (d *MockDataDestination) ApplyDelta(events []subsystems.Change, selector subsystems.Selector, _ bool) {
-	// For now, the selector is ignored. When the data sources start making use of it, it should be
-	// stored so that assertions can be made.
-
-	collections, err := subsystems.ToStorableItems(events)
+// applyDelta in this test implementation, delegates to d.DataStore.CapturedUpdates.
+func (d *MockDataDestination) applyDelta(changeSet subsystems.ChangeSet, _ bool) {
+	collections, err := changeSet.Collections()
 	if err != nil {
-		panic("MockDataDestination.ApplyDelta received malformed data: " + err.Error())
+		panic("MockDataDestination.applyDelta received malformed data: " + err.Error())
 	}
 
 	for _, coll := range collections {
@@ -94,7 +98,7 @@ func (d *MockDataDestination) ApplyDelta(events []subsystems.Change, selector su
 	}
 
 	d.lock.Lock()
-	d.lastKnownSelector = selector
+	d.lastKnownSelector = changeSet.Selector()
 	d.lock.Unlock()
 }
 

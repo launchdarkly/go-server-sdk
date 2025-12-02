@@ -138,9 +138,11 @@ func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context)
 	changeSetChan := fs.changeSetBroadcaster.AddListener()
 	statusChan := fs.statusBroadcaster.AddListener()
 
+	changeset := subsystems.NewChangeSetBuilder().NoChanges()
+
 	var err error
 	basis := &subsystems.Basis{
-		ChangeSet: subsystems.ChangeSet{},
+		ChangeSet: *changeset,
 		Persist:   false,
 	}
 
