@@ -166,7 +166,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	}
 
 	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
-	fdv2.daemonMode = !fdv2.configuredWithDataSources && cfg.Store == nil
+	fdv2.daemonMode = !fdv2.configuredWithDataSources && cfg.Store != nil
 
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.

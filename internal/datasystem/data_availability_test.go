@@ -197,9 +197,9 @@ func TestFDv1TargetAvailability(t *testing.T) {
 
 // mockDataSystemConfigBuilder creates a mock DataSystemConfiguration builder for testing
 type mockDataSystemConfigBuilder struct {
-	store         subsystems.DataStore
-	storeMode     subsystems.DataStoreMode
-	initializers  []subsystems.DataInitializer
+	store          subsystems.DataStore
+	storeMode      subsystems.DataStoreMode
+	initializers   []subsystems.DataInitializer
 	hasSyncBuilder bool
 }
 
@@ -226,6 +226,7 @@ func (m *mockSynchronizer) Name() string { return "mock" }
 func (m *mockSynchronizer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, error) {
 	return nil, nil
 }
+
 func (m *mockSynchronizer) Sync(store subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
 	ch := make(chan subsystems.DataSynchronizerResult)
 	close(ch)
@@ -394,7 +395,7 @@ func TestFDv2TargetAvailability(t *testing.T) {
 		require.NoError(t, err)
 		defer fdv2.Stop()
 
-		assert.Equal(t, Cached, fdv2.TargetAvailability())
+		assert.Equal(t, Defaults, fdv2.TargetAvailability())
 	})
 
 	t.Run("store provided without data sources (not daemon mode)", func(t *testing.T) {
@@ -413,6 +414,6 @@ func TestFDv2TargetAvailability(t *testing.T) {
 		defer fdv2.Stop()
 
 		// Has a store but no data sources, so not daemon mode
-		assert.Equal(t, Defaults, fdv2.TargetAvailability())
+		assert.Equal(t, Cached, fdv2.TargetAvailability())
 	})
 }
