@@ -21,6 +21,7 @@ type FDv1 struct {
 	dataStore                   subsystems.DataStore
 	dataSource                  subsystems.DataSource
 	offline                     bool
+	daemonMode                  bool
 }
 
 // NewFDv1 creates a new FDv1 instance from data store and data source configurers. Offline determines if the
@@ -34,6 +35,7 @@ func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsy
 		dataStoreStatusBroadcaster:  internal.NewBroadcaster[interfaces.DataStoreStatus](),
 		flagChangeEventBroadcaster:  internal.NewBroadcaster[interfaces.FlagChangeEvent](),
 		offline:                     offline,
+		daemonMode:                  dataSourceFactory == ldcomponents.ExternalUpdatesOnly(),
 	}
 
 	dataStoreUpdateSink := datastore.NewDataStoreUpdateSinkImpl(system.dataStoreStatusBroadcaster)
@@ -144,17 +146,30 @@ func (f *FDv1) DataAvailability() DataAvailability {
 	if f.offline {
 		return Defaults
 	}
-	if f.dataSource.IsInitialized() {
-		return Refreshed
+
+	if !f.daemonMode {
+		if f.dataSource.IsInitialized() {
+			return Refreshed
+		}
 	}
+
 	if f.dataStore.IsInitialized() {
 		return Cached
 	}
+
 	return Defaults
 }
 
 //nolint:revive // Data system implementation.
 func (f *FDv1) TargetAvailability() DataAvailability {
+	if f.offline {
+		return Defaults
+	}
+
+	if f.daemonMode {
+		return Cached
+	}
+
 	return Refreshed
 }
 
