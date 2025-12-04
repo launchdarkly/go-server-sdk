@@ -10,6 +10,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -205,33 +206,51 @@ func (t *TestDataSynchronizer) makeFullTransferChangeset() (*subsystems.ChangeSe
 	version := t.version
 	t.version++
 
-	builder := subsystems.NewChangeSetBuilder().
-		Start(subsystems.ServerIntent{
-			Payload: subsystems.Payload{
-				ID:     "",
-				Target: version,
-				Code:   subsystems.IntentTransferFull,
-				Reason: "payload-missing",
-			},
-		})
+	intent := subsystems.ServerIntent{
+		Payload: subsystems.Payload{
+			ID:     "",
+			Target: version,
+			Code:   subsystems.IntentTransferFull,
+			Reason: "payload-missing",
+		},
+	}
 
+	// Build collections directly from the current state
+	flagItems := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentFlags))
 	for key, item := range t.currentFlags {
-		json, err := json.Marshal(item.Item)
-		if err != nil {
-			return nil, err
-		}
-		builder.AddPut(subsystems.FlagKind, key, item.Version, json)
+		flagItems = append(flagItems, ldstoretypes.KeyedItemDescriptor{
+			Key:  key,
+			Item: item,
+		})
 	}
 
+	segmentItems := make([]ldstoretypes.KeyedItemDescriptor, 0, len(t.currentSegments))
 	for key, item := range t.currentSegments {
-		json, err := json.Marshal(item.Item)
-		if err != nil {
-			return nil, err
-		}
-		builder.AddPut(subsystems.SegmentKind, key, item.Version, json)
+		segmentItems = append(segmentItems, ldstoretypes.KeyedItemDescriptor{
+			Key:  key,
+			Item: item,
+		})
 	}
 
-	return builder.Finish(subsystems.NewSelector(strconv.Itoa(version), version))
+	collections := make([]ldstoretypes.Collection, 0, 2)
+	if len(flagItems) > 0 {
+		collections = append(collections, ldstoretypes.Collection{
+			Kind:  ldstoreimpl.Features(),
+			Items: flagItems,
+		})
+	}
+	if len(segmentItems) > 0 {
+		collections = append(collections, ldstoretypes.Collection{
+			Kind:  ldstoreimpl.Segments(),
+			Items: segmentItems,
+		})
+	}
+
+	return subsystems.NewChangeSetFromCollections(
+		intent,
+		subsystems.NewSelector(strconv.Itoa(version), version),
+		collections,
+	)
 }
 
 func (t *TestDataSynchronizer) makeTransferChangesForObject(
