@@ -160,6 +160,86 @@ func NewChangeSetBuilder() *ChangeSetBuilder {
 	return &ChangeSetBuilder{}
 }
 
+// NewChangeSetFromCollections creates a ChangeSet directly from collections,
+// pre-populating the collections cache to avoid redundant conversions.
+//
+// This is useful when data is already in Collection format (e.g., from file data sources
+// or offline mode) and avoids the overhead of converting Collections -> Changes -> Collections.
+//
+// This function is not stable, and not subject to any backwards
+// compatibility guarantees or semantic versioning. It is not suitable for production usage.
+//
+// Do not use it.
+// You have been warned.
+func NewChangeSetFromCollections(
+	intent ServerIntent,
+	selector Selector,
+	collections []ldstoretypes.Collection,
+) (*ChangeSet, error) {
+	// Build Changes from collections for the ChangeSet API
+	changes, err := collectionsToChanges(collections)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ChangeSet{
+		intentCode: intent.Payload.Code,
+		selector:   selector,
+		changes:    changes,
+		collection: collections, // Pre-populate the cache!
+		mu:         &sync.Mutex{},
+	}, nil
+}
+
+// collectionsToChanges converts Collections to Changes.
+// This is the inverse of toStorableItems.
+func collectionsToChanges(collections []ldstoretypes.Collection) ([]Change, error) {
+	var changes []Change
+
+	for _, coll := range collections {
+		// Map from FDv1 DataKind to ObjectKind
+		// Features -> FlagKind, Segments -> SegmentKind
+		kindName := coll.Kind.GetName()
+		var kind ObjectKind
+		switch kindName {
+		case "features":
+			kind = FlagKind
+		case "segments":
+			kind = SegmentKind
+		default:
+			// Unknown kind, skip for forward compatibility
+			continue
+		}
+
+		for _, item := range coll.Items {
+			if item.Item.Item != nil {
+				// This is a Put operation
+				jsonData, err := json.Marshal(item.Item.Item)
+				if err != nil {
+					return nil, err
+				}
+				changes = append(changes, Change{
+					Action:  ChangeTypePut,
+					Kind:    kind,
+					Key:     item.Key,
+					Version: item.Item.Version,
+					Object:  jsonData,
+				})
+			} else {
+				// This is a Delete operation (tombstone)
+				changes = append(changes, Change{
+					Action:  ChangeTypeDelete,
+					Kind:    kind,
+					Key:     item.Key,
+					Version: item.Item.Version,
+				})
+			}
+		}
+	}
+
+	return changes, nil
+}
+
 // NoChanges represents an intent that the current data is up-to-date and doesn't
 // require changes.
 func (c *ChangeSetBuilder) NoChanges() *ChangeSet {

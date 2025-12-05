@@ -20,6 +20,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"gopkg.in/ghodss/yaml.v1"
@@ -247,12 +248,11 @@ type fileData struct {
 	Segments   *map[string]ldmodel.Segment
 }
 
-func insertData(
+func insertDataIntoCollection(
+	items *[]ldstoretypes.KeyedItemDescriptor,
 	seenKeys map[subsystems.ObjectKind]map[string]bool,
-	builder *subsystems.ChangeSetBuilder,
 	objectKind subsystems.ObjectKind,
 	key string,
-	version int,
 	data ldstoretypes.ItemDescriptor,
 	duplicateKeysHandling DuplicateKeysHandling,
 ) error {
@@ -265,12 +265,10 @@ func insertData(
 		}
 	}
 
-	json, err := json.Marshal(data.Item)
-	if err != nil {
-		return fmt.Errorf("error serializing %s '%s': %w", objectKind, key, err)
-	}
-
-	builder.AddPut(objectKind, key, version, json)
+	*items = append(*items, ldstoretypes.KeyedItemDescriptor{
+		Key:  key,
+		Item: data,
+	})
 	seenKeys[objectKind][key] = true
 
 	return nil
@@ -304,25 +302,29 @@ func mergeFileData(
 	version int,
 	allFileData ...fileData,
 ) (*subsystems.ChangeSet, error) {
-	builder := subsystems.NewChangeSetBuilder()
-	builder.Start(subsystems.ServerIntent{
+	intent := subsystems.ServerIntent{
 		Payload: subsystems.Payload{
 			ID:     "",
 			Target: version,
 			Code:   subsystems.IntentTransferFull,
 			Reason: "payload-missing",
 		},
-	})
+	}
+
+	// Build collections directly instead of using ChangeSetBuilder
+	flagItems := make([]ldstoretypes.KeyedItemDescriptor, 0)
+	segmentItems := make([]ldstoretypes.KeyedItemDescriptor, 0)
 
 	seenKeys := map[subsystems.ObjectKind]map[string]bool{
 		subsystems.FlagKind:    {},
 		subsystems.SegmentKind: {},
 	}
+
 	for _, d := range allFileData {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				data := ldstoretypes.ItemDescriptor{Version: f.Version, Item: &f}
-				err := insertData(seenKeys, builder, subsystems.FlagKind, key, f.Version, data, duplicateKeysHandling)
+				err := insertDataIntoCollection(&flagItems, seenKeys, subsystems.FlagKind, key, data, duplicateKeysHandling)
 				if err != nil {
 					return nil, err
 				}
@@ -332,7 +334,7 @@ func mergeFileData(
 			for key, value := range *d.FlagValues {
 				flag := makeFlagWithValue(key, value)
 				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
-				err := insertData(seenKeys, builder, subsystems.FlagKind, key, flag.Version, data, duplicateKeysHandling)
+				err := insertDataIntoCollection(&flagItems, seenKeys, subsystems.FlagKind, key, data, duplicateKeysHandling)
 				if err != nil {
 					return nil, err
 				}
@@ -341,7 +343,7 @@ func mergeFileData(
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
-				err := insertData(seenKeys, builder, subsystems.SegmentKind, key, s.Version, data, duplicateKeysHandling)
+				err := insertDataIntoCollection(&segmentItems, seenKeys, subsystems.SegmentKind, key, data, duplicateKeysHandling)
 				if err != nil {
 					return nil, err
 				}
@@ -349,11 +351,26 @@ func mergeFileData(
 		}
 	}
 
+	// Build collections
+	collections := make([]ldstoretypes.Collection, 0, 2)
+	if len(flagItems) > 0 {
+		collections = append(collections, ldstoretypes.Collection{
+			Kind:  ldstoreimpl.Features(),
+			Items: flagItems,
+		})
+	}
+	if len(segmentItems) > 0 {
+		collections = append(collections, ldstoretypes.Collection{
+			Kind:  ldstoreimpl.Segments(),
+			Items: segmentItems,
+		})
+	}
+
 	// File data source will not have a selector for now.
 	// NOTE: If we start supporting FDv2 data from file then this statement might change.
 	// When that happens we will construct the selector the same way that we construct it
 	// in the FDv2 polling data source.
-	return builder.Finish(subsystems.NoSelector())
+	return subsystems.NewChangeSetFromCollections(intent, subsystems.NoSelector(), collections)
 }
 
 func makeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {
