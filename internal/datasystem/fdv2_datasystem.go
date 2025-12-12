@@ -288,10 +288,12 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			f.loggers.Debugf("Primary synchronizer %s is starting", primarySync.Name())
 			resultChan := primarySync.Sync(f.store)
 			removeSync, fallbackv1, err := f.consumeSynchronizerResults(ctx, resultChan, f.fallbackCond, closeWhenReady)
+
+			if err := primarySync.Close(); err != nil {
+				f.loggers.Errorf("Primary synchronizer %s failed to gracefully close: %v", primarySync.Name(), err)
+			}
 			if errors.Is(err, context.Canceled) {
 				return
-			} else if err := primarySync.Close(); err != nil {
-				f.loggers.Errorf("Primary synchronizer %s failed to gracefully close: %v", primarySync.Name(), err)
 			}
 
 			if removeSync {
@@ -327,10 +329,12 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			resultChan = secondarySync.Sync(f.store)
 			removeSync, fallbackv1, err = f.consumeSynchronizerResults(ctx, resultChan, f.recoveryCond, closeWhenReady)
+
+			if err := secondarySync.Close(); err != nil {
+				f.loggers.Errorf("Secondary synchronizer %s failed to gracefully close: %v", secondarySync.Name(), err)
+			}
 			if errors.Is(err, context.Canceled) {
 				return
-			} else if err := secondarySync.Close(); err != nil {
-				f.loggers.Errorf("Secondary synchronizer %s failed to gracefully close: %v", secondarySync.Name(), err)
 			}
 
 			if removeSync {
