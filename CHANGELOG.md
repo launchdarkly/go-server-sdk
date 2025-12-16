@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.14.4](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.3...v7.14.4) (2025-12-15)
+
+
+### Bug Fixes
+
+* fdv2 datasystem leaves sychronizer open after client is closed ([#337](https://github.com/launchdarkly/go-server-sdk/issues/337)) ([e29ee24](https://github.com/launchdarkly/go-server-sdk/commit/e29ee2417c56be8ecb87989f971996af93b6b43f))
+
 ## [7.14.3](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.2...v7.14.3) (2025-12-05)
 
 
