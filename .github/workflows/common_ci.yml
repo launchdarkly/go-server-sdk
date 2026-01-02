@@ -51,12 +51,23 @@ jobs:
       - name: Build test service
         run: make build-contract-tests
       - name: Start test service in background
+
         run: make start-contract-test-service-bg
-      - uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1.2.0
+      - name: Run SDK contract test v2
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
         with:
           enable_persistence_tests: 'true'
           test_service_port: ${{ env.TEST_SERVICE_PORT }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          stop_service: 'false'
+      - name: Run SDK contract test v3
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        with:
+          enable_persistence_tests: 'true'
+          test_service_port: ${{ env.TEST_SERVICE_PORT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v3.0.0-alpha.1
+
       - name: Upload test service logs
         uses: actions/upload-artifact@v4
         with:
