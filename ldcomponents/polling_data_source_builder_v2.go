@@ -84,8 +84,6 @@ func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDat
 
 // Build is called internally by the SDK.
 func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
-	context.GetLogging().Loggers.Warn(
-		"You should only disable the streaming API if instructed to do so by LaunchDarkly support")
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet && filterKey == "" {
 		return nil, errors.New("payload filter key cannot be an empty string")
