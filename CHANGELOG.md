@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.14.5](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.4...v7.14.5) (2026-01-16)
+
+
+### Bug Fixes
+
+* Remove disable streaming warning ([#340](https://github.com/launchdarkly/go-server-sdk/issues/340)) ([6fc5062](https://github.com/launchdarkly/go-server-sdk/commit/6fc5062cad480b6b431dd14f08ae55bef9a1501d))
+
 ## [7.14.4](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.3...v7.14.4) (2025-12-15)
 
 
