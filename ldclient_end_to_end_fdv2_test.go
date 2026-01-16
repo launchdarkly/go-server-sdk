@@ -200,7 +200,7 @@ func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
 		expectedStreamError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
 		expectedPollError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
 		assert.Equal(t, []string{expectedStreamError, expectedPollError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -280,7 +280,7 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 
 		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
 		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -372,7 +372,6 @@ func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
 
 	testHelpers.WithTempFileData([]byte(`{"flags": {"`+alwaysFalseFlag.Key+`": {"on": false}}, "segments": {}}`), func(filename string) {
-
 		httphelpers.WithServer(handler, func(server *httptest.Server) {
 			logCapture := ldlogtest.NewMockLog()
 
