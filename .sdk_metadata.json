@@ -7,7 +7,37 @@
       "languages": [
         "Go"
       ],
-      "userAgents": ["GoClient"]
+      "userAgents": ["GoClient"],
+      "features": {
+        "allFlags": { "introduced": "2.0" },
+        "appMetadata": { "introduced": "5.9" },
+        "bigSegments": { "introduced": "5.5" },
+        "contexts": { "introduced": "6.0" },
+        "eventCompression": { "introduced": "7.6" },
+        "experimentation": { "introduced": "5.4" },
+        "fileDataSource": { "introduced": "4.4" },
+        "flagChanges": { "introduced": "5.0" },
+        "hooks": { "introduced": "7.3" },
+        "inlineContextCustomEvents": { "introduced": "7.9" },
+        "inlineContextEvaluationEvents": { "introduced": "7.1" },
+        "migrations": { "introduced": "7.0" },
+        "offlineMode": { "introduced": "2.0" },
+        "omitAnonContexts": { "introduced": "7.5" },
+        "otel": { "introduced": "7.4" },
+        "pluginSupport": { "introduced": "7.11" },
+        "privateAttrs": { "introduced": "2.2.3" },
+        "relayProxyDaemon": { "introduced": "2.0" },
+        "relayProxyProxy": { "introduced": "2.0" },
+        "secureMode": { "introduced": "2.0" },
+        "storingData": { "introduced": "2.0" },
+        "storingDataConsul": { "introduced": "4.5" },
+        "storingDataDynamodb": { "introduced": "4.5" },
+        "storingDataRedis": { "introduced": "2.0" },
+        "testDataSource": { "introduced": "5.0" },
+        "track": { "introduced": "2.0" },
+        "variationDetail": { "introduced": "4.3" },
+        "webProxy": { "introduced": "2.0" }
+      }
     }
   }
 }
