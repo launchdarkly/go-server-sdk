@@ -62,6 +62,9 @@ type FDv2 struct {
 	// Whether the SDK should make use of persistent store/initializers/synchronizers or not.
 	disabled bool
 
+	// Whether the SDK is running in daemon mode (i.e., using Relay Proxy for data updates).
+	daemonMode bool
+
 	loggers ldlog.Loggers
 
 	// Cancel and wg are used to track and stop the goroutines used by the system.
@@ -163,6 +166,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	}
 
 	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
+	fdv2.daemonMode = !fdv2.configuredWithDataSources && cfg.Store != nil
 
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
@@ -441,7 +445,7 @@ func (f *FDv2) DataAvailability() DataAvailability {
 		return Refreshed
 	}
 
-	if !f.configuredWithDataSources || f.store.IsInitialized() {
+	if f.store.IsInitialized() {
 		return Cached
 	}
 
@@ -450,11 +454,19 @@ func (f *FDv2) DataAvailability() DataAvailability {
 
 //nolint:revive // DataSystem method.
 func (f *FDv2) TargetAvailability() DataAvailability {
+	if f.disabled {
+		return Defaults
+	}
+
 	if f.configuredWithDataSources {
 		return Refreshed
 	}
 
-	return Cached
+	if f.daemonMode {
+		return Cached
+	}
+
+	return Defaults
 }
 
 //nolint:revive // DataSystem method.

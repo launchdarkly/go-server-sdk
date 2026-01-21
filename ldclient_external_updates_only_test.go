@@ -15,6 +15,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,6 +29,7 @@ type clientExternalUpdatesTestParams struct {
 func withClientExternalUpdatesTestParams(callback func(clientExternalUpdatesTestParams)) {
 	p := clientExternalUpdatesTestParams{}
 	p.store = datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+	p.store.Init([]ldstoretypes.Collection{})
 	p.mockLog = ldlogtest.NewMockLog()
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),

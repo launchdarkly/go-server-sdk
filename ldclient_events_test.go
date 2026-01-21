@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -293,8 +296,11 @@ func TestWithEventsDisabledDecorator(t *testing.T) {
 	doTest := func(name string, fn func(*LDClient) interfaces.LDClientInterface, shouldBeSent bool) {
 		t.Run(name, func(t *testing.T) {
 			events := &mocks.CapturingEventProcessor{}
+			store := datastore.NewInMemoryDataStore(ldlog.NewDisabledLoggers())
+			store.Init([]ldstoretypes.Collection{})
 			config := Config{
 				DataSource: ldcomponents.ExternalUpdatesOnly(),
+				DataStore:  mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store},
 				Events:     mocks.SingleComponentConfigurer[ldevents.EventProcessor]{Instance: events},
 			}
 			client, err := MakeCustomClient("", config, 0)
