@@ -43,8 +43,13 @@ type FDv2 struct {
 	// List of initializers that are capable of obtaining an initial payload of data.
 	initializers []subsystems.DataInitializer
 
-	// The primary synchronizer responsible for keeping data up-to-date.
-	primarySyncBuilder func() (subsystems.DataSynchronizer, error)
+	// Mutable list of synchronizer builders. Items are removed when they permanently fail.
+	// When reverting to FDv1, this list is replaced with a single FDv1 synchronizer.
+	synchronizerBuilders []func() (subsystems.DataSynchronizer, error)
+	currentSyncIndex     int
+
+	// FDv1 fallback builder, used only when a synchronizer requests revert to FDv1
+	fdv1FallbackBuilder func() (subsystems.DataSynchronizer, error)
 
 	// Boolean used to track whether the datasystem was originally configured
 	// with some sort of valid data source.
@@ -52,12 +57,6 @@ type FDv2 struct {
 	// We cannot check this at run time because synchronizers may be removed if
 	// they permanently fail.
 	configuredWithDataSources bool
-
-	// The secondary synchronizer, in case the primary is unavailable.
-	secondarySyncBuilder func() (subsystems.DataSynchronizer, error)
-
-	// The fdv1 fallback synchronizer, in case we have to fall back to fdv1.
-	fdv1SyncBuilder func() (subsystems.DataSynchronizer, error)
 
 	// Whether the SDK should make use of persistent store/initializers/synchronizers or not.
 	disabled bool
@@ -139,10 +138,11 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	}
 
 	fdv2.initializers = cfg.Initializers
-	fdv2.primarySyncBuilder = cfg.Synchronizers.PrimaryBuilder
-	fdv2.secondarySyncBuilder = cfg.Synchronizers.SecondaryBuilder
-	fdv2.fdv1SyncBuilder = cfg.Synchronizers.FDv1FallbackBuilder
+	fdv2.synchronizerBuilders = cfg.Synchronizers.SynchronizerBuilders
+	fdv2.currentSyncIndex = 0
+	fdv2.fdv1FallbackBuilder = cfg.Synchronizers.FDv1FallbackBuilder
 	fdv2.disabled = disabled
+
 	fdv2.fallbackCond = func(status interfaces.DataSourceStatus) bool {
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted &&
 			time.Since(status.StateSince) > 1*time.Minute
@@ -162,7 +162,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
 	}
 
-	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || fdv2.primarySyncBuilder != nil
+	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || len(fdv2.synchronizerBuilders) > 0
 
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
@@ -263,9 +263,8 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
-	// If the SDK was configured with no synchronizer, then (assuming no initializer succeeded, which would have
-	// already closed the channel), we should close it now so that MakeClient unblocks.
-	if f.primarySyncBuilder == nil {
+	// If no synchronizers configured, close ready channel and return
+	if len(f.synchronizerBuilders) == 0 {
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -279,82 +278,82 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		})
 
 		for {
-			primarySync, err := f.primarySyncBuilder()
+			// Check if we've run out of synchronizers
+			if len(f.synchronizerBuilders) == 0 {
+				f.loggers.Warn("No more synchronizers available")
+				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+				return
+			}
+
+			// Ensure currentSyncIndex is within bounds (shouldn't happen with proper logic)
+			if f.currentSyncIndex >= len(f.synchronizerBuilders) {
+				f.currentSyncIndex = 0
+			}
+
+			// Build synchronizer
+			sync, err := f.synchronizerBuilders[f.currentSyncIndex]()
 			if err != nil {
-				f.loggers.Errorf("Failed to build the primary synchronizer: %v", err)
-				return
-			}
-
-			f.loggers.Debugf("Primary synchronizer %s is starting", primarySync.Name())
-			resultChan := primarySync.Sync(f.store)
-			removeSync, fallbackv1, err := f.consumeSynchronizerResults(ctx, resultChan, f.fallbackCond, closeWhenReady)
-
-			if err := primarySync.Close(); err != nil {
-				f.loggers.Errorf("Primary synchronizer %s failed to gracefully close: %v", primarySync.Name(), err)
-			}
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-
-			if removeSync {
-				f.primarySyncBuilder = f.secondarySyncBuilder
-				f.secondarySyncBuilder = nil
-
-				if fallbackv1 {
-					f.primarySyncBuilder = f.fdv1SyncBuilder
-				}
-
-				if f.primarySyncBuilder == nil {
-					f.loggers.Debugf("No more synchronizers available, closing the channel")
-					f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
-					f.readyOnce.Do(func() {
-						close(closeWhenReady)
-					})
-					return
-				}
-			} else {
-				f.loggers.Debugf("Fallback condition met")
-			}
-
-			if f.secondarySyncBuilder == nil {
+				f.loggers.Errorf("Failed to build synchronizer at index %d: %v", f.currentSyncIndex, err)
+				// Remove the failed builder from the list
+				f.synchronizerBuilders = append(
+					f.synchronizerBuilders[:f.currentSyncIndex],
+					f.synchronizerBuilders[f.currentSyncIndex+1:]...)
+				// Don't increment currentSyncIndex - it now points to the next synchronizer
 				continue
 			}
 
-			secondarySync, err := f.secondarySyncBuilder()
-			if err != nil {
-				f.loggers.Errorf("Failed to build the secondary synchronizer: %v", err)
-				return
-			}
-			f.loggers.Debugf("Secondary synchronizer %s is starting", secondarySync.Name())
+			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.currentSyncIndex, sync.Name())
+			resultChan := sync.Sync(f.store)
+			removeSync, revertToFDv1, action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
 
-			resultChan = secondarySync.Sync(f.store)
-			removeSync, fallbackv1, err = f.consumeSynchronizerResults(ctx, resultChan, f.recoveryCond, closeWhenReady)
-
-			if err := secondarySync.Close(); err != nil {
-				f.loggers.Errorf("Secondary synchronizer %s failed to gracefully close: %v", secondarySync.Name(), err)
+			if err := sync.Close(); err != nil {
+				f.loggers.Errorf("Synchronizer %s failed to close: %v", sync.Name(), err)
 			}
+
 			if errors.Is(err, context.Canceled) {
 				return
 			}
 
-			if removeSync {
-				f.secondarySyncBuilder = nil
-
-				if fallbackv1 {
-					f.primarySyncBuilder = f.fdv1SyncBuilder
-
-					if f.primarySyncBuilder == nil {
-						f.loggers.Debugf("No more synchronizers available, closing the channel")
-						f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
-						f.readyOnce.Do(func() {
-							close(closeWhenReady)
-						})
-						return
-					}
+			// Handle revert to FDv1
+			if revertToFDv1 {
+				if f.fdv1FallbackBuilder != nil {
+					f.loggers.Warn("Reverting to FDv1 protocol")
+					// Replace entire list with single FDv1 synchronizer
+					f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
+					f.currentSyncIndex = 0
+					continue
 				}
+				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
+				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+				return
 			}
 
-			f.loggers.Debugf("Recovery condition met")
+			// Handle permanent removal
+			if removeSync {
+				f.loggers.Warnf("Permanently removing synchronizer at index %d", f.currentSyncIndex)
+				f.synchronizerBuilders = append(
+					f.synchronizerBuilders[:f.currentSyncIndex],
+					f.synchronizerBuilders[f.currentSyncIndex+1:]...)
+				// Don't increment currentSyncIndex - it now points to the next synchronizer
+				continue
+			}
+
+			// Handle action based on conditions
+			switch action {
+			case syncRecover:
+				// Recovery: jump back to index 0
+				f.loggers.Info("Recovery condition met, returning to first synchronizer")
+				f.currentSyncIndex = 0
+			case syncFallback:
+				// Fallback: move to next index
+				f.loggers.Info("Fallback condition met, trying next synchronizer")
+				f.currentSyncIndex++
+			case syncStay:
+				// No action needed, continue with current synchronizer
+				continue
+			}
+
+			// Check for cancellation before next iteration
 			select {
 			case <-ctx.Done():
 				return
@@ -364,25 +363,32 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 	})
 }
 
+type syncAction int
+
+const (
+	syncStay syncAction = iota
+	syncFallback
+	syncRecover
+)
+
 func (f *FDv2) consumeSynchronizerResults(
 	ctx context.Context,
 	resultChan <-chan subsystems.DataSynchronizerResult,
-	cond func(status interfaces.DataSourceStatus) bool,
 	closeWhenReady chan<- struct{},
-) (bool, bool, error) {
+) (removeSync bool, revertToFDv1 bool, action syncAction, err error) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return false, false, ctx.Err()
+			return false, false, syncStay, ctx.Err()
 		case result, ok := <-resultChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
 			// probably fall back.
 			if !ok {
-				return false, false, nil
+				return false, false, syncFallback, nil
 			}
 
 			if result.EnvironmentID.IsDefined() {
@@ -404,15 +410,30 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
 				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
-				return true, result.RevertToFDv1, nil
+				return true, result.RevertToFDv1, syncStay, nil
 			}
 		case <-ticker.C:
+			// If there's only one synchronizer, don't check conditions
+			if len(f.synchronizerBuilders) == 1 {
+				continue
+			}
+
 			status := f.getStatus()
 			f.loggers.Debugf("Data source status used to evaluate condition: %s", status.String())
-			if cond(status) {
-				return false, false, nil
+
+			// Check fallback condition first (things are bad)
+			if f.fallbackCond(status) {
+				f.loggers.Debugf("Fallback condition met")
+				return false, false, syncFallback, nil
 			}
-			f.loggers.Debugf("Condition check succeeded, continue with current synchronizer")
+
+			// If not at index 0, also check recovery condition (things are good)
+			if f.currentSyncIndex > 0 && f.recoveryCond(status) {
+				f.loggers.Debugf("Recovery condition met")
+				return false, false, syncRecover, nil
+			}
+
+			f.loggers.Debugf("No condition met, continue with current synchronizer")
 		}
 	}
 }

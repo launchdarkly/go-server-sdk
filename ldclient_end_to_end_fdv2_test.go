@@ -200,7 +200,12 @@ func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
 		expectedStreamError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
 		expectedPollError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
 		assert.Equal(t, []string{expectedStreamError, expectedPollError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+		assert.Equal(t, []string{
+			"Permanently removing synchronizer at index 0",
+			"Permanently removing synchronizer at index 0",
+			"No more synchronizers available",
+			initializationFailedErrorMessage,
+		}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -280,7 +285,11 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 
 		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
 		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+		assert.Equal(t, []string{
+			"Permanently removing synchronizer at index 0",
+			"No more synchronizers available",
+			initializationFailedErrorMessage,
+		}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -383,7 +392,6 @@ func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
 					).
 					Synchronizers(
 						ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
-						nil,
 					),
 			}
 

@@ -395,53 +395,37 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			dataSystemBuilder.Initializers(initializers...)
 		}
 
-		if config.DataSystem.Synchronizers != nil {
+		if config.DataSystem.Synchronizers != nil && len(*config.DataSystem.Synchronizers) > 0 {
 			var fdv1Fallback *ldcomponents.FDv1PollingDataSourceBuilderV2
-			primary, err := makeSynchronizerConfig(config.DataSystem.Synchronizers.Primary, config, &ret)
-			if err != nil {
-				return ret, err
-			}
+			synchronizers := make([]subsystems.ComponentConfigurer[subsystems.DataSynchronizer], 0, len(*config.DataSystem.Synchronizers))
 
-			if config.DataSystem.Synchronizers.Primary.Polling != nil {
-				fdv1Fallback = ldcomponents.FDv1PollingDataSourceV2()
-				if config.DataSystem.Synchronizers.Primary.Polling.PollIntervalMS != nil {
-					fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*config.DataSystem.Synchronizers.Primary.Polling.PollIntervalMS))
-				}
-				if config.DataSystem.Synchronizers.Primary.Polling.BaseURI != "" {
-					fdv1Fallback.BaseURI(config.DataSystem.Synchronizers.Primary.Polling.BaseURI)
-				}
-				if config.DataSystem.PayloadFilter != nil {
-					fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
-				}
-			}
-
-			var secondary subsystems.ComponentConfigurer[subsystems.DataSynchronizer]
-			if config.DataSystem.Synchronizers.Secondary != nil {
-				secondary, err = makeSynchronizerConfig(*config.DataSystem.Synchronizers.Secondary, config, &ret)
+			for _, syncConfig := range *config.DataSystem.Synchronizers {
+				builder, err := makeSynchronizerConfig(syncConfig, config, &ret)
 				if err != nil {
 					return ret, err
 				}
+				synchronizers = append(synchronizers, builder)
 
-				if fdv1Fallback == nil && config.DataSystem.Synchronizers.Secondary.Polling != nil {
+				// Set up FDv1 fallback from the last polling synchronizer we find (matches Python behavior)
+				if syncConfig.Polling != nil {
 					fdv1Fallback = ldcomponents.FDv1PollingDataSourceV2()
-					if config.DataSystem.Synchronizers.Secondary.Polling.PollIntervalMS != nil {
-						fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*config.DataSystem.Synchronizers.Secondary.Polling.PollIntervalMS))
+					if syncConfig.Polling.PollIntervalMS != nil {
+						fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*syncConfig.Polling.PollIntervalMS))
 					}
-					if config.DataSystem.Synchronizers.Secondary.Polling.BaseURI != "" {
-						fdv1Fallback.BaseURI(config.DataSystem.Synchronizers.Secondary.Polling.BaseURI)
+					if syncConfig.Polling.BaseURI != "" {
+						fdv1Fallback.BaseURI(syncConfig.Polling.BaseURI)
 					}
 					if config.DataSystem.PayloadFilter != nil {
 						fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
 					}
 				}
-
 			}
 
 			if fdv1Fallback != nil {
 				dataSystemBuilder.FDv1CompatibleSynchronizer(fdv1Fallback)
 			}
 
-			dataSystemBuilder.Synchronizers(primary, secondary)
+			dataSystemBuilder.Synchronizers(synchronizers...)
 		}
 
 		if config.DataSystem.Store != nil && config.DataSystem.Store.PersistentDataStore != nil {
