@@ -141,7 +141,8 @@ func DataSystem() *DataSystemModes {
 // DataStore configures the SDK with an optional data store. The store allows the SDK to serve flag
 // values before becoming connected to LaunchDarkly.
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore],
-	storeMode ss.DataStoreMode) *DataSystemConfigurationBuilder {
+	storeMode ss.DataStoreMode,
+) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
 	d.storeMode = storeMode
 	return d
@@ -151,7 +152,8 @@ func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[
 // complete payloads of flag data. The SDK will run the initializers in the order they are specified,
 // stopping when one successfully returns data.
 func (d *DataSystemConfigurationBuilder) Initializers(
-	initializers ...ss.ComponentConfigurer[ss.DataInitializer]) *DataSystemConfigurationBuilder {
+	initializers ...ss.ComponentConfigurer[ss.DataInitializer],
+) *DataSystemConfigurationBuilder {
 	d.initializerBuilders = initializers
 	return d
 }
@@ -160,7 +162,8 @@ func (d *DataSystemConfigurationBuilder) Initializers(
 // The SDK tries them in order, falling back to the next synchronizer if one fails.
 // When a synchronizer fails and recovery conditions are met, the SDK returns to the first synchronizer.
 func (d *DataSystemConfigurationBuilder) Synchronizers(
-	synchronizers ...ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
+	synchronizers ...ss.ComponentConfigurer[ss.DataSynchronizer],
+) *DataSystemConfigurationBuilder {
 	d.synchronizerBuilders = synchronizers
 	return d
 }
@@ -168,7 +171,8 @@ func (d *DataSystemConfigurationBuilder) Synchronizers(
 // FDv1CompatibleSynchronizer configures the SDK with a fallback synchronizer that is compatible
 // with the Flag Delivery v1 API.
 func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
-	fallback ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
+	fallback ss.ComponentConfigurer[ss.DataSynchronizer],
+) *DataSystemConfigurationBuilder {
 	d.fdv1FallbackBuilder = fallback
 	return d
 }
@@ -200,7 +204,12 @@ func (d *DataSystemConfigurationBuilder) Build(
 	}
 
 	// Build synchronizer list
-	for _, builder := range d.synchronizerBuilders {
+	for i, builder := range d.synchronizerBuilders {
+		if builder == nil {
+			return ss.DataSystemConfiguration{},
+				fmt.Errorf("synchronizer %d is nil", i)
+		}
+
 		// Capture builder in closure to avoid loop variable issues
 		b := builder
 		conf.Synchronizers.SynchronizerBuilders = append(
