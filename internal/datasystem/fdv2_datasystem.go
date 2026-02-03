@@ -304,7 +304,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.currentSyncIndex, sync.Name())
 			resultChan := sync.Sync(f.store)
-			removeSync, revertToFDv1, action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
+			action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
 
 			if err := sync.Close(); err != nil {
 				f.loggers.Errorf("Synchronizer %s failed to close: %v", sync.Name(), err)
@@ -314,8 +314,9 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				return
 			}
 
-			// Handle revert to FDv1
-			if revertToFDv1 {
+			// Handle action based on conditions
+			switch action {
+			case syncFDv1:
 				if f.fdv1FallbackBuilder != nil {
 					f.loggers.Warn("Reverting to FDv1 protocol")
 					// Replace entire list with single FDv1 synchronizer
@@ -326,20 +327,13 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
 				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
 				return
-			}
-
-			// Handle permanent removal
-			if removeSync {
+			case syncRemove:
 				f.loggers.Warnf("Permanently removing synchronizer at index %d", f.currentSyncIndex)
 				f.synchronizerBuilders = append(
 					f.synchronizerBuilders[:f.currentSyncIndex],
 					f.synchronizerBuilders[f.currentSyncIndex+1:]...)
 				// Don't increment currentSyncIndex - it now points to the next synchronizer
 				continue
-			}
-
-			// Handle action based on conditions
-			switch action {
 			case syncRecover:
 				// Recovery: jump back to index 0
 				f.loggers.Info("Recovery condition met, returning to first synchronizer")
@@ -348,9 +342,6 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				// Fallback: move to next index
 				f.loggers.Info("Fallback condition met, trying next synchronizer")
 				f.currentSyncIndex++
-			case syncStay:
-				// No action needed, continue with current synchronizer
-				continue
 			}
 
 			// Check for cancellation before next iteration
@@ -366,29 +357,30 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 type syncAction int
 
 const (
-	syncStay syncAction = iota
-	syncFallback
+	syncFallback syncAction = iota
 	syncRecover
+	syncRemove
+	syncFDv1
 )
 
 func (f *FDv2) consumeSynchronizerResults(
 	ctx context.Context,
 	resultChan <-chan subsystems.DataSynchronizerResult,
 	closeWhenReady chan<- struct{},
-) (removeSync bool, revertToFDv1 bool, action syncAction, err error) {
+) (action syncAction, err error) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return false, false, syncStay, ctx.Err()
+			return syncFallback, ctx.Err()
 		case result, ok := <-resultChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
 			// probably fall back.
 			if !ok {
-				return false, false, syncFallback, nil
+				return syncFallback, nil
 			}
 
 			if result.EnvironmentID.IsDefined() {
@@ -410,7 +402,10 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
 				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
-				return true, result.RevertToFDv1, syncStay, nil
+				if result.RevertToFDv1 {
+					return syncFDv1, nil
+				}
+				return syncRemove, nil
 			}
 		case <-ticker.C:
 			// If there's only one synchronizer, don't check conditions
@@ -424,13 +419,13 @@ func (f *FDv2) consumeSynchronizerResults(
 			// Check fallback condition first (things are bad)
 			if f.fallbackCond(status) {
 				f.loggers.Debugf("Fallback condition met")
-				return false, false, syncFallback, nil
+				return syncFallback, nil
 			}
 
 			// If not at index 0, also check recovery condition (things are good)
 			if f.currentSyncIndex > 0 && f.recoveryCond(status) {
 				f.loggers.Debugf("Recovery condition met")
-				return false, false, syncRecover, nil
+				return syncRecover, nil
 			}
 
 			f.loggers.Debugf("No condition met, continue with current synchronizer")
