@@ -1,7 +1,6 @@
 package ldcomponents
 
 import (
-	"errors"
 	"fmt"
 
 	ss "github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -12,8 +11,7 @@ type DataSystemConfigurationBuilder struct {
 	storeBuilder         ss.ComponentConfigurer[ss.DataStore]
 	storeMode            ss.DataStoreMode
 	initializerBuilders  []ss.ComponentConfigurer[ss.DataInitializer]
-	primarySyncBuilder   ss.ComponentConfigurer[ss.DataSynchronizer]
-	secondarySyncBuilder ss.ComponentConfigurer[ss.DataSynchronizer]
+	synchronizerBuilders []ss.ComponentConfigurer[ss.DataSynchronizer]
 	fdv1FallbackBuilder  ss.ComponentConfigurer[ss.DataSynchronizer]
 	config               ss.DataSystemConfiguration
 }
@@ -73,7 +71,7 @@ func (d *DataSystemModes) Streaming() *DataSystemConfigurationBuilder {
 	if d.endpoints.Polling != "" {
 		fallback.BaseURI(d.endpoints.Polling)
 	}
-	return d.Custom().Synchronizers(streaming, nil).FDv1CompatibleSynchronizer(fallback)
+	return d.Custom().Synchronizers(streaming).FDv1CompatibleSynchronizer(fallback)
 }
 
 // Polling configures the SDK to regularly poll an endpoint for flag/segment data in the background.
@@ -85,7 +83,7 @@ func (d *DataSystemModes) Polling() *DataSystemConfigurationBuilder {
 		polling.BaseURI(d.endpoints.Polling)
 		fallback.BaseURI(d.endpoints.Polling)
 	}
-	return d.Custom().Synchronizers(polling, nil).FDv1CompatibleSynchronizer(fallback)
+	return d.Custom().Synchronizers(polling).FDv1CompatibleSynchronizer(fallback)
 }
 
 // Daemon configures the SDK to read from a persistent store integration that is populated by Relay Proxy
@@ -143,7 +141,8 @@ func DataSystem() *DataSystemModes {
 // DataStore configures the SDK with an optional data store. The store allows the SDK to serve flag
 // values before becoming connected to LaunchDarkly.
 func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[ss.DataStore],
-	storeMode ss.DataStoreMode) *DataSystemConfigurationBuilder {
+	storeMode ss.DataStoreMode,
+) *DataSystemConfigurationBuilder {
 	d.storeBuilder = store
 	d.storeMode = storeMode
 	return d
@@ -153,25 +152,27 @@ func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[
 // complete payloads of flag data. The SDK will run the initializers in the order they are specified,
 // stopping when one successfully returns data.
 func (d *DataSystemConfigurationBuilder) Initializers(
-	initializers ...ss.ComponentConfigurer[ss.DataInitializer]) *DataSystemConfigurationBuilder {
+	initializers ...ss.ComponentConfigurer[ss.DataInitializer],
+) *DataSystemConfigurationBuilder {
 	d.initializerBuilders = initializers
 	return d
 }
 
-// Synchronizers configures the SDK with a primary and secondary synchronizer. The primary is responsible
-// for keeping the SDK's data up-to-date, and the SDK will fall back to the secondary in case of a
-// primary outage.
-func (d *DataSystemConfigurationBuilder) Synchronizers(primary,
-	secondary ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
-	d.primarySyncBuilder = primary
-	d.secondarySyncBuilder = secondary
+// Synchronizers configures the SDK with an ordered list of synchronizers.
+// The SDK tries them in order, falling back to the next synchronizer if one fails.
+// When a synchronizer fails and recovery conditions are met, the SDK returns to the first synchronizer.
+func (d *DataSystemConfigurationBuilder) Synchronizers(
+	synchronizers ...ss.ComponentConfigurer[ss.DataSynchronizer],
+) *DataSystemConfigurationBuilder {
+	d.synchronizerBuilders = synchronizers
 	return d
 }
 
 // FDv1CompatibleSynchronizer configures the SDK with a fallback synchronizer that is compatible
 // with the Flag Delivery v1 API.
 func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
-	fallback ss.ComponentConfigurer[ss.DataSynchronizer]) *DataSystemConfigurationBuilder {
+	fallback ss.ComponentConfigurer[ss.DataSynchronizer],
+) *DataSystemConfigurationBuilder {
 	d.fdv1FallbackBuilder = fallback
 	return d
 }
@@ -181,10 +182,7 @@ func (d *DataSystemConfigurationBuilder) Build(
 	context ss.ClientContext,
 ) (ss.DataSystemConfiguration, error) {
 	conf := d.config
-	if d.secondarySyncBuilder != nil && d.primarySyncBuilder == nil {
-		return ss.DataSystemConfiguration{}, errors.New("cannot have a secondary synchronizer without " +
-			"a primary synchronizer")
-	}
+
 	if d.storeBuilder != nil {
 		store, err := d.storeBuilder.Build(context)
 		if err != nil {
@@ -204,15 +202,22 @@ func (d *DataSystemConfigurationBuilder) Build(
 		}
 		conf.Initializers = append(conf.Initializers, initializer)
 	}
-	if d.primarySyncBuilder != nil {
-		conf.Synchronizers.PrimaryBuilder = func() (ss.DataSynchronizer, error) {
-			return d.primarySyncBuilder.Build(context)
+
+	// Build synchronizer list
+	for i, builder := range d.synchronizerBuilders {
+		if builder == nil {
+			return ss.DataSystemConfiguration{},
+				fmt.Errorf("synchronizer %d is nil", i)
 		}
-	}
-	if d.secondarySyncBuilder != nil {
-		conf.Synchronizers.SecondaryBuilder = func() (ss.DataSynchronizer, error) {
-			return d.secondarySyncBuilder.Build(context)
-		}
+
+		// Capture builder in closure to avoid loop variable issues
+		b := builder
+		conf.Synchronizers.SynchronizerBuilders = append(
+			conf.Synchronizers.SynchronizerBuilders,
+			func() (ss.DataSynchronizer, error) {
+				return b.Build(context)
+			},
+		)
 	}
 	if d.fdv1FallbackBuilder != nil {
 		conf.Synchronizers.FDv1FallbackBuilder = func() (ss.DataSynchronizer, error) {

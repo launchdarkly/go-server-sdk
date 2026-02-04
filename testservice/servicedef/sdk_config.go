@@ -53,10 +53,7 @@ type DataInitializer struct {
 	Polling *SDKConfigPollingParams `json:"polling,omitempty"`
 }
 
-type Synchronizers struct {
-	Primary   Synchronizer  `json:"primary"`
-	Secondary *Synchronizer `json:"secondary,omitempty"`
-}
+type Synchronizers []Synchronizer
 
 type Synchronizer struct {
 	Streaming *SDKConfigStreamingParams `json:"streaming,omitempty"`

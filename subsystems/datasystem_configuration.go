@@ -1,13 +1,15 @@
 package subsystems
 
-// SynchronizersConfiguration represents the config for the primary and secondary synchronizers.
+// SynchronizersConfiguration represents the config for synchronizers.
 type SynchronizersConfiguration struct {
-	// The builder for the synchronizer that is primarily active.
-	PrimaryBuilder func() (DataSynchronizer, error)
-	// A fallback builder for the synchronizer if the primary fails.
-	SecondaryBuilder func() (DataSynchronizer, error)
-	// A temporarily supported FDv1 fallback builder for the synchronizer as an
-	// alternative fallback option.
+	// SynchronizerBuilders is an ordered list of synchronizer builders.
+	// The system starts at index 0 and moves down the list on fallback or removal.
+	// On recovery (when not at index 0), the system jumps back to index 0.
+	SynchronizerBuilders []func() (DataSynchronizer, error)
+
+	// FDv1FallbackBuilder is a special fallback used only when a synchronizer
+	// returns RevertToFDv1=true. When activated, the system abandons the synchronizer list
+	// and switches to FDv1-only mode.
 	FDv1FallbackBuilder func() (DataSynchronizer, error)
 }
 
