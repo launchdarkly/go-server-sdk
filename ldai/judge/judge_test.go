@@ -738,6 +738,7 @@ func TestEvaluate_ErrorResponseIncludesJudgeConfigKey(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.Equal(t, "error-judge", result.JudgeConfigKey)
 }
+
 // Integration Tests - These verify end-to-end behavior and patterns not caught by unit tests
 
 // TestDoubleInterpolation_ReservedVariables verifies that the double interpolation pattern works:
