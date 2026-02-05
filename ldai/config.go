@@ -60,6 +60,27 @@ func (c *Config) CustomModelParam(key string) (ldvalue.Value, bool) {
 	return val, ok
 }
 
+// Mode returns the AI Config mode (e.g., "completion", "agent", "judge").
+func (c *Config) Mode() string {
+	return c.c.Mode
+}
+
+// EvaluationMetricKey returns the evaluation metric key for judge mode configs.
+func (c *Config) EvaluationMetricKey() string {
+	return c.c.EvaluationMetricKey
+}
+
+// EvaluationMetricKeys returns the deprecated array of evaluation metric keys.
+// Use EvaluationMetricKey instead.
+func (c *Config) EvaluationMetricKeys() []string {
+	return slices.Clone(c.c.EvaluationMetricKeys)
+}
+
+// JudgeConfiguration returns the judge configuration attached to this config, if any.
+func (c *Config) JudgeConfiguration() *datamodel.JudgeConfiguration {
+	return c.c.JudgeConfiguration
+}
+
 // AsLdValue is used internally.
 func (c *Config) AsLdValue() ldvalue.Value {
 	return ldvalue.FromJSONMarshal(c.c)
@@ -68,12 +89,16 @@ func (c *Config) AsLdValue() ldvalue.Value {
 // ConfigBuilder is used to define a default AI Config, returned when LaunchDarkly is unreachable or there
 // is an error evaluating the Config.
 type ConfigBuilder struct {
-	messages          []datamodel.Message
-	enabled           bool
-	providerName      string
-	modelName         string
-	modelParams       map[string]ldvalue.Value
-	modelCustomParams map[string]ldvalue.Value
+	messages             []datamodel.Message
+	enabled              bool
+	providerName         string
+	modelName            string
+	modelParams          map[string]ldvalue.Value
+	modelCustomParams    map[string]ldvalue.Value
+	mode                 string
+	evaluationMetricKey  string
+	evaluationMetricKeys []string
+	judgeConfiguration   *datamodel.JudgeConfiguration
 }
 
 // NewConfig returns a new ConfigBuilder. By default, the Config is disabled.
@@ -141,6 +166,31 @@ func (cb *ConfigBuilder) WithCustomModelParam(key string, value ldvalue.Value) *
 	return cb
 }
 
+// WithMode sets the AI Config mode (e.g., "completion", "agent", "judge").
+func (cb *ConfigBuilder) WithMode(mode string) *ConfigBuilder {
+	cb.mode = mode
+	return cb
+}
+
+// WithEvaluationMetricKey sets the evaluation metric key for judge mode configs.
+func (cb *ConfigBuilder) WithEvaluationMetricKey(key string) *ConfigBuilder {
+	cb.evaluationMetricKey = key
+	return cb
+}
+
+// WithEvaluationMetricKeys sets the deprecated array of evaluation metric keys.
+// Use WithEvaluationMetricKey instead.
+func (cb *ConfigBuilder) WithEvaluationMetricKeys(keys []string) *ConfigBuilder {
+	cb.evaluationMetricKeys = slices.Clone(keys)
+	return cb
+}
+
+// WithJudgeConfiguration sets the judge configuration for this config.
+func (cb *ConfigBuilder) WithJudgeConfiguration(judgeConfig *datamodel.JudgeConfiguration) *ConfigBuilder {
+	cb.judgeConfiguration = judgeConfig
+	return cb
+}
+
 // Build creates a Config from the current builder state.
 func (cb *ConfigBuilder) Build() Config {
 	return Config{
@@ -157,6 +207,10 @@ func (cb *ConfigBuilder) Build() Config {
 			Provider: datamodel.Provider{
 				Name: cb.providerName,
 			},
+			Mode:                 cb.mode,
+			EvaluationMetricKey:  cb.evaluationMetricKey,
+			EvaluationMetricKeys: slices.Clone(cb.evaluationMetricKeys),
+			JudgeConfiguration:   cb.judgeConfiguration,
 		},
 	}
 }

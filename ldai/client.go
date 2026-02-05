@@ -102,7 +102,11 @@ func (c *Client) Config(
 	builder := NewConfig().
 		WithModelName(parsed.Model.Name).
 		WithProviderName(parsed.Provider.Name).
-		WithEnabled(parsed.Meta.Enabled)
+		WithEnabled(parsed.Meta.Enabled).
+		WithMode(parsed.Mode).
+		WithEvaluationMetricKey(parsed.EvaluationMetricKey).
+		WithEvaluationMetricKeys(parsed.EvaluationMetricKeys).
+		WithJudgeConfiguration(parsed.JudgeConfiguration)
 
 	for k, v := range parsed.Model.Parameters {
 		builder.WithModelParam(k, v)
@@ -173,4 +177,14 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 		return "", err
 	}
 	return m.RenderString(variables)
+}
+
+func (c *Client) JudgeConfig(
+	key string,
+	context ldcontext.Context,
+	defaultValue Config,
+	variables map[string]interface{},
+) (Config, *Tracker) {
+	_ = c.sdk.TrackMetric("$ld:ai:judge:function:single", context, 1, ldvalue.String(key))
+	return c.Config(key, context, defaultValue, variables)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 )
 
 const (
@@ -339,4 +340,40 @@ func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (
 	}
 
 	return usage, nil
+}
+
+// TrackJudgeResponse tracks the evaluation scores from a judge response.
+func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
+	if !response.Success {
+		return nil
+	}
+
+	var failed bool
+	for metricKey, evalScore := range response.Evals {
+		if evalScore.Score < 0.0 || evalScore.Score > 1.0 {
+			t.logWarning("score %f for %s outside valid range [0.0, 1.0]", evalScore.Score, metricKey)
+		}
+
+		data := t.trackData
+		if response.JudgeConfigKey != "" {
+			builder := ldvalue.ObjectBuild()
+			for _, key := range t.trackData.Keys(nil) {
+				builder.Set(key, t.trackData.GetByKey(key))
+			}
+			data = builder.Set("judgeConfigKey", ldvalue.String(response.JudgeConfigKey)).Build()
+		}
+
+		t.logger.Debugf("Tracker: TrackMetric(eventName=%s, score=%f, judgeConfigKey=%s)",
+			metricKey, evalScore.Score, response.JudgeConfigKey)
+
+		if err := t.events.TrackMetric(metricKey, t.context, evalScore.Score, data); err != nil {
+			t.logWarning("error tracking metric %s: %v", metricKey, err)
+			failed = true
+		}
+	}
+
+	if failed {
+		return fmt.Errorf("error tracking evaluation scores")
+	}
+	return nil
 }

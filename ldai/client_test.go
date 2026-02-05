@@ -579,3 +579,81 @@ func TestInterpolation(t *testing.T) {
 		assert.Equal(t, "user_kind=<>,cat_kind=<>", result)
 	})
 }
+
+func TestParseJudgeSpecificFields(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"judgeConfiguration": {
+			"judges": [
+				{"key": "judge1", "samplingRate": 0.5},
+				{"key": "judge2", "samplingRate": 1.0}
+			]
+		},
+		"messages": [
+			{"content": "test", "role": "system"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge", cfg.Mode())
+	assert.Equal(t, "toxicity", cfg.EvaluationMetricKey())
+
+	judgeConfig := cfg.JudgeConfiguration()
+	require.NotNil(t, judgeConfig)
+	require.Len(t, judgeConfig.Judges, 2)
+	assert.Equal(t, "judge1", judgeConfig.Judges[0].Key)
+	assert.Equal(t, 0.5, judgeConfig.Judges[0].SamplingRate)
+	assert.Equal(t, "judge2", judgeConfig.Judges[1].Key)
+	assert.Equal(t, 1.0, judgeConfig.Judges[1].SamplingRate)
+}
+
+func TestParseEvaluationMetricKeys(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKeys": ["relevance", "accuracy"],
+		"messages": [
+			{"content": "test", "role": "system"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge", cfg.Mode())
+	assert.Equal(t, "", cfg.EvaluationMetricKey())
+	assert.Equal(t, []string{"relevance", "accuracy"}, cfg.EvaluationMetricKeys())
+}
+
+func TestParseEvaluationMetricKeyPriority(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"evaluationMetricKeys": ["relevance", "accuracy"],
+		"messages": [
+			{"content": "test", "role": "system"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge", cfg.Mode())
+	// Both fields should be parsed
+	assert.Equal(t, "toxicity", cfg.EvaluationMetricKey())
+	assert.Equal(t, []string{"relevance", "accuracy"}, cfg.EvaluationMetricKeys())
+}
