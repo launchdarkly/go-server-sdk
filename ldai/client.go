@@ -179,6 +179,7 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 	return m.RenderString(variables)
 }
 
+// JudgeConfig evaluates an AI Config, tracking it as a judge function. See Config for details.
 func (c *Client) JudgeConfig(
 	key string,
 	context ldcontext.Context,
