@@ -350,8 +350,6 @@ func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
 
 	var failed bool
 	for metricKey, evalScore := range response.Evals {
-		if evalScore.Score < 0.0 || evalScore.Score > 1.0 {
-
 		data := t.trackData
 		if response.JudgeConfigKey != "" {
 			builder := ldvalue.ObjectBuild()

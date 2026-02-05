@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/ldai"
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,7 @@ func (m *mockConfig) EvaluationMetricKeys() []string {
 
 type mockTracker struct {
 	judgeResponses []datamodel.JudgeResponse
-	usages         []TokenUsage
+	usages         []ldai.TokenUsage
 }
 
 func (m *mockTracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
@@ -50,7 +51,7 @@ func (m *mockTracker) TrackJudgeResponse(response datamodel.JudgeResponse) error
 	return nil
 }
 
-func (m *mockTracker) TrackUsage(usage TokenUsage) error {
+func (m *mockTracker) TrackUsage(usage ldai.TokenUsage) error {
 	m.usages = append(m.usages, usage)
 	return nil
 }
@@ -126,7 +127,7 @@ func TestEvaluate_Success(t *testing.T) {
 					},
 				},
 			},
-			Usage: TokenUsage{Total: 100, Input: 60, Output: 40},
+			Usage: ldai.TokenUsage{Total: 100, Input: 60, Output: 40},
 		},
 	}
 
@@ -675,7 +676,7 @@ func TestEvaluate_TokenUsageTracked(t *testing.T) {
 					},
 				},
 			},
-			Usage: TokenUsage{Total: 150, Input: 90, Output: 60},
+			Usage: ldai.TokenUsage{Total: 150, Input: 90, Output: 60},
 		},
 	}
 
@@ -707,7 +708,7 @@ func TestEvaluate_NoTokenUsageWhenZero(t *testing.T) {
 					},
 				},
 			},
-			Usage: TokenUsage{},
+			Usage: ldai.TokenUsage{},
 		},
 	}
 

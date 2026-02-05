@@ -7,6 +7,7 @@ import (
 
 	"github.com/alexkappa/mustache"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/ldai"
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
@@ -21,18 +22,12 @@ type Config interface {
 
 type Tracker interface {
 	TrackJudgeResponse(response datamodel.JudgeResponse) error
-	TrackUsage(usage TokenUsage) error
-}
-
-type TokenUsage struct {
-	Total  int
-	Input  int
-	Output int
+	TrackUsage(usage ldai.TokenUsage) error
 }
 
 type StructuredResponse struct {
 	Content map[string]interface{}
-	Usage   TokenUsage
+	Usage   ldai.TokenUsage
 }
 
 type Provider interface {
