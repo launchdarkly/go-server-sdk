@@ -657,3 +657,40 @@ func TestParseEvaluationMetricKeyPriority(t *testing.T) {
 	assert.Equal(t, "toxicity", cfg.EvaluationMetricKey())
 	assert.Equal(t, []string{"relevance", "accuracy"}, cfg.EvaluationMetricKeys())
 }
+
+func TestJudgeConfigurationImmutable(t *testing.T) {
+	// Test that mutations to JudgeConfiguration don't affect the Config
+	judgeConfig := &datamodel.JudgeConfiguration{
+		Judges: []datamodel.LDJudge{
+			{Key: "judge1", SamplingRate: 0.5},
+			{Key: "judge2", SamplingRate: 1.0},
+		},
+	}
+
+	builder := NewConfig().
+		Enable().
+		WithJudgeConfiguration(judgeConfig)
+	cfg := builder.Build()
+
+	// Mutate the original
+	judgeConfig.Judges[0].Key = "mutated"
+	judgeConfig.Judges = append(judgeConfig.Judges, datamodel.LDJudge{Key: "judge3", SamplingRate: 0.3})
+
+	// Config should not be affected
+	retrieved := cfg.JudgeConfiguration()
+	require.NotNil(t, retrieved)
+	require.Len(t, retrieved.Judges, 2)
+	assert.Equal(t, "judge1", retrieved.Judges[0].Key) // Should still be original value
+	assert.Equal(t, "judge2", retrieved.Judges[1].Key)
+
+	// Mutate the retrieved config
+	retrieved.Judges[0].Key = "mutated_again"
+	retrieved.Judges = append(retrieved.Judges, datamodel.LDJudge{Key: "judge4", SamplingRate: 0.4})
+
+	// Config should still not be affected
+	retrieved2 := cfg.JudgeConfiguration()
+	require.NotNil(t, retrieved2)
+	require.Len(t, retrieved2.Judges, 2)
+	assert.Equal(t, "judge1", retrieved2.Judges[0].Key) // Should still be original value
+	assert.Equal(t, "judge2", retrieved2.Judges[1].Key)
+}

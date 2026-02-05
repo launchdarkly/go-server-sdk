@@ -77,8 +77,14 @@ func (c *Config) EvaluationMetricKeys() []string {
 }
 
 // JudgeConfiguration returns the judge configuration attached to this config, if any.
+// Returns a defensive copy to prevent mutations.
 func (c *Config) JudgeConfiguration() *datamodel.JudgeConfiguration {
-	return c.c.JudgeConfiguration
+	if c.c.JudgeConfiguration == nil {
+		return nil
+	}
+	return &datamodel.JudgeConfiguration{
+		Judges: slices.Clone(c.c.JudgeConfiguration.Judges),
+	}
 }
 
 // AsLdValue is used internally.
@@ -186,13 +192,27 @@ func (cb *ConfigBuilder) WithEvaluationMetricKeys(keys []string) *ConfigBuilder 
 }
 
 // WithJudgeConfiguration sets the judge configuration for this config.
+// The provided judgeConfig is defensively copied.
 func (cb *ConfigBuilder) WithJudgeConfiguration(judgeConfig *datamodel.JudgeConfiguration) *ConfigBuilder {
-	cb.judgeConfiguration = judgeConfig
+	if judgeConfig == nil {
+		cb.judgeConfiguration = nil
+		return cb
+	}
+	cb.judgeConfiguration = &datamodel.JudgeConfiguration{
+		Judges: slices.Clone(judgeConfig.Judges),
+	}
 	return cb
 }
 
 // Build creates a Config from the current builder state.
 func (cb *ConfigBuilder) Build() Config {
+	var judgeConfig *datamodel.JudgeConfiguration
+	if cb.judgeConfiguration != nil {
+		judgeConfig = &datamodel.JudgeConfiguration{
+			Judges: slices.Clone(cb.judgeConfiguration.Judges),
+		}
+	}
+
 	return Config{
 		c: datamodel.Config{
 			Messages: slices.Clone(cb.messages),
@@ -210,7 +230,7 @@ func (cb *ConfigBuilder) Build() Config {
 			Mode:                 cb.mode,
 			EvaluationMetricKey:  cb.evaluationMetricKey,
 			EvaluationMetricKeys: slices.Clone(cb.evaluationMetricKeys),
-			JudgeConfiguration:   cb.judgeConfiguration,
+			JudgeConfiguration:   judgeConfig,
 		},
 	}
 }
