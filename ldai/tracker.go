@@ -351,8 +351,6 @@ func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
 	var failed bool
 	for metricKey, evalScore := range response.Evals {
 		if evalScore.Score < 0.0 || evalScore.Score > 1.0 {
-			t.logWarning("score %f for %s outside valid range [0.0, 1.0]", evalScore.Score, metricKey)
-		}
 
 		data := t.trackData
 		if response.JudgeConfigKey != "" {
@@ -362,9 +360,6 @@ func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
 			}
 			data = builder.Set("judgeConfigKey", ldvalue.String(response.JudgeConfigKey)).Build()
 		}
-
-		t.logger.Debugf("Tracker: TrackMetric(eventName=%s, score=%f, judgeConfigKey=%s)",
-			metricKey, evalScore.Score, response.JudgeConfigKey)
 
 		if err := t.events.TrackMetric(metricKey, t.context, evalScore.Score, data); err != nil {
 			t.logWarning("error tracking metric %s: %v", metricKey, err)
