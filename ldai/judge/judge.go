@@ -212,9 +212,15 @@ func getMetricKey(config Config, logger interfaces.LDLoggers, configKey string) 
 	keys := config.EvaluationMetricKeys()
 	for _, key := range keys {
 		if trimmed := strings.TrimSpace(key); trimmed != "" {
+			if logger != nil {
+				logger.Warnf("Judge config %q: using deprecated evaluationMetricKeys; use evaluationMetricKey instead", configKey)
+			}
 			return trimmed, nil
 		}
 	}
 
+	if configKey != "" {
+		return "", fmt.Errorf("judge config %q: missing evaluationMetricKey", configKey)
+	}
 	return "", fmt.Errorf("missing evaluationMetricKey")
 }

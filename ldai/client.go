@@ -71,7 +71,17 @@ func (c *Client) Config(
 	variables map[string]interface{},
 ) (Config, *Tracker) {
 	_ = c.sdk.TrackMetric("$ld:ai:config:function:single", context, 1, ldvalue.String(key))
+	return c.evaluateConfig(key, context, defaultValue, variables)
+}
 
+// evaluateConfig fetches and interpolates an AI Config without emitting any metric.
+// Callers (Config, JudgeConfig) are meant to emit their own metric before calling this.
+func (c *Client) evaluateConfig(
+	key string,
+	context ldcontext.Context,
+	defaultValue Config,
+	variables map[string]interface{},
+) (Config, *Tracker) {
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
 	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
@@ -211,5 +221,5 @@ func (c *Client) JudgeConfig(
 	extendedVariables["message_history"] = "{{message_history}}"
 	extendedVariables["response_to_evaluate"] = "{{response_to_evaluate}}"
 
-	return c.Config(key, context, defaultValue, extendedVariables)
+	return c.evaluateConfig(key, context, defaultValue, extendedVariables)
 }

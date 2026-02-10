@@ -329,6 +329,42 @@ func TestConfigMethodTracking(t *testing.T) {
 	assert.ElementsMatch(t, expectedEvents, mockSDK.events)
 }
 
+// TestJudgeConfigMethodTracking verifies that JudgeConfig emits only the judge metric,
+// not the config metric, so judge evaluations are not double-counted on the dashboard.
+func TestJudgeConfigMethodTracking(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"messages": [{"content": "test", "role": "system"}]
+	}`)
+	mockSDK := newMockSDK(json, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultConfig := Disabled()
+	context := ldcontext.New("user-key")
+	configKey := "judge-config-key"
+
+	config, tracker := client.JudgeConfig(configKey, context, defaultConfig, nil)
+
+	require.NotNil(t, config)
+	require.NotNil(t, tracker)
+
+	// Only the judge metric should be emitted; evaluateConfig does not emit any metric.
+	expectedEvents := []mockEvent{
+		{
+			eventName:   "$ld:ai:judge:function:single",
+			context:     context,
+			metricValue: 1,
+			data:        ldvalue.String(configKey),
+		},
+	}
+	assert.ElementsMatch(t, expectedEvents, mockSDK.events,
+		"JudgeConfig must not emit $ld:ai:config:function:single to avoid double-counting")
+}
+
 func TestCanSetModelParameters(t *testing.T) {
 	client, err := NewClient(newMockSDK(nil, nil))
 	require.NoError(t, err)
