@@ -5,7 +5,7 @@
 
 ### Features
 
-* add AI Config judge support ([#345](https://github.com/launchdarkly/go-server-sdk/issues/345)) ([4a9d03d](https://github.com/launchdarkly/go-server-sdk/commit/4a9d03d947147eff2506adc3aa0e1322ce4fa3d9))
+* Add AI Config judge support ([#345](https://github.com/launchdarkly/go-server-sdk/issues/345)) ([4a9d03d](https://github.com/launchdarkly/go-server-sdk/commit/4a9d03d947147eff2506adc3aa0e1322ce4fa3d9))
 
 ## [0.7.2](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.7.1...ldai/v0.7.2) (2025-09-02)
 
