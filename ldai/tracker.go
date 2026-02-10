@@ -348,17 +348,18 @@ func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
 		return nil
 	}
 
+	// Build the data object once, since it's constant across all iterations
+	data := t.trackData
+	if response.JudgeConfigKey != "" {
+		builder := ldvalue.ObjectBuild()
+		for _, key := range t.trackData.Keys(nil) {
+			builder.Set(key, t.trackData.GetByKey(key))
+		}
+		data = builder.Set("judgeConfigKey", ldvalue.String(response.JudgeConfigKey)).Build()
+	}
+
 	var failed bool
 	for metricKey, evalScore := range response.Evals {
-		data := t.trackData
-		if response.JudgeConfigKey != "" {
-			builder := ldvalue.ObjectBuild()
-			for _, key := range t.trackData.Keys(nil) {
-				builder.Set(key, t.trackData.GetByKey(key))
-			}
-			data = builder.Set("judgeConfigKey", ldvalue.String(response.JudgeConfigKey)).Build()
-		}
-
 		if err := t.events.TrackMetric(metricKey, t.context, evalScore.Score, data); err != nil {
 			t.logWarning("error tracking metric %s: %v", metricKey, err)
 			failed = true

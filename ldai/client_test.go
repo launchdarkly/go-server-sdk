@@ -694,3 +694,52 @@ func TestJudgeConfigurationImmutable(t *testing.T) {
 	assert.Equal(t, "judge1", retrieved2.Judges[0].Key) // Should still be original value
 	assert.Equal(t, "judge2", retrieved2.Judges[1].Key)
 }
+
+// TestJudgeConfig_PreservesReservedPlaceholders verifies that JudgeConfig injects reserved variables
+// so that {{message_history}} and {{response_to_evaluate}} are preserved for the second interpolation
+// pass during Judge.Evaluate(). Without this, Config's first Mustache pass would render them as empty.
+func TestJudgeConfig_PreservesReservedPlaceholders(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"messages": [
+			{"content": "You are a judge.", "role": "system"},
+			{"content": "Input: {{message_history}}\nOutput: {{response_to_evaluate}}", "role": "user"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
+
+	msgs := cfg.Messages()
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "You are a judge.", msgs[0].Content)
+	assert.Contains(t, msgs[1].Content, "{{message_history}}", "JudgeConfig must preserve placeholder for second interpolation")
+	assert.Contains(t, msgs[1].Content, "{{response_to_evaluate}}", "JudgeConfig must preserve placeholder for second interpolation")
+	assert.Equal(t, "Input: {{message_history}}\nOutput: {{response_to_evaluate}}", msgs[1].Content)
+}
+
+// TestConfig_WithoutReservedVarsWipesJudgePlaceholders documents that Config (without reserved vars)
+// renders {{message_history}} and {{response_to_evaluate}} as empty when used for judge templates.
+func TestConfig_WithoutReservedVarsWipesJudgePlaceholders(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"messages": [
+			{"content": "Input: {{message_history}}\nOutput: {{response_to_evaluate}}", "role": "user"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	msgs := cfg.Messages()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "Input: \nOutput: ", msgs[0].Content, "Config without reserved vars renders placeholders as empty")
+}

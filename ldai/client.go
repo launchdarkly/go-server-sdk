@@ -180,6 +180,13 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 }
 
 // JudgeConfig evaluates an AI Config, tracking it as a judge function. See Config for details.
+//
+// This method extends the provided variables with reserved judge variables:
+// - "message_history": "{{message_history}}"
+// - "response_to_evaluate": "{{response_to_evaluate}}"
+//
+// These literal placeholder strings preserve the Mustache templates through the first interpolation
+// (during config fetch), allowing Judge.Evaluate() to perform a second interpolation with actual values.
 func (c *Client) JudgeConfig(
 	key string,
 	context ldcontext.Context,
@@ -187,5 +194,22 @@ func (c *Client) JudgeConfig(
 	variables map[string]interface{},
 ) (Config, *Tracker) {
 	_ = c.sdk.TrackMetric("$ld:ai:judge:function:single", context, 1, ldvalue.String(key))
-	return c.Config(key, context, defaultValue, variables)
+
+	// Extend variables with reserved judge placeholders
+	extendedVariables := make(map[string]interface{})
+	for k, v := range variables {
+		// Warn if user tries to override reserved variables
+		if k == "message_history" || k == "response_to_evaluate" {
+			c.logger.Warnf("AI Config '%s': variable '%s' is reserved by judge and will be ignored", key, k)
+			continue
+		}
+		extendedVariables[k] = v
+	}
+
+	// Inject reserved variables as literal placeholder strings
+	// These will be preserved through the first interpolation and resolved during Judge.Evaluate()
+	extendedVariables["message_history"] = "{{message_history}}"
+	extendedVariables["response_to_evaluate"] = "{{response_to_evaluate}}"
+
+	return c.Config(key, context, defaultValue, extendedVariables)
 }
