@@ -661,7 +661,7 @@ func TestParseEvaluationMetricKeyPriority(t *testing.T) {
 func TestJudgeConfigurationImmutable(t *testing.T) {
 	// Test that mutations to JudgeConfiguration don't affect the Config
 	judgeConfig := &datamodel.JudgeConfiguration{
-		Judges: []datamodel.LDJudge{
+		Judges: []datamodel.Judge{
 			{Key: "judge1", SamplingRate: 0.5},
 			{Key: "judge2", SamplingRate: 1.0},
 		},
@@ -674,7 +674,7 @@ func TestJudgeConfigurationImmutable(t *testing.T) {
 
 	// Mutate the original
 	judgeConfig.Judges[0].Key = "mutated"
-	judgeConfig.Judges = append(judgeConfig.Judges, datamodel.LDJudge{Key: "judge3", SamplingRate: 0.3})
+	judgeConfig.Judges = append(judgeConfig.Judges, datamodel.Judge{Key: "judge3", SamplingRate: 0.3})
 
 	// Config should not be affected
 	retrieved := cfg.JudgeConfiguration()
@@ -685,7 +685,7 @@ func TestJudgeConfigurationImmutable(t *testing.T) {
 
 	// Mutate the retrieved config
 	retrieved.Judges[0].Key = "mutated_again"
-	retrieved.Judges = append(retrieved.Judges, datamodel.LDJudge{Key: "judge4", SamplingRate: 0.4})
+	retrieved.Judges = append(retrieved.Judges, datamodel.Judge{Key: "judge4", SamplingRate: 0.4})
 
 	// Config should still not be affected
 	retrieved2 := cfg.JudgeConfiguration()

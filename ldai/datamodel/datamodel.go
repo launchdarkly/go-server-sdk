@@ -86,11 +86,11 @@ type Config struct {
 // JudgeConfiguration defines the configuration for judges attached to a config.
 type JudgeConfiguration struct {
 	// Judges is a list of judges to evaluate this config's outputs.
-	Judges []LDJudge `json:"judges,omitempty"`
+	Judges []Judge `json:"judges,omitempty"`
 }
 
-// LDJudge defines a single judge reference with key and sampling rate.
-type LDJudge struct {
+// Judge defines a single judge reference with key and sampling rate.
+type Judge struct {
 	// Key is the judge config key.
 	Key string `json:"key"`
 

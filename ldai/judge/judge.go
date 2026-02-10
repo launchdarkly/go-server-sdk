@@ -71,16 +71,10 @@ func New(config Config, tracker Tracker, provider Provider, configKey string, lo
 
 func (j *Judge) Evaluate(input, output string, samplingRate float64) (*datamodel.JudgeResponse, error) {
 	if len(j.config.Messages()) == 0 {
-		if j.logger != nil {
-			j.logger.Warnf("Judge '%s': config must include messages", j.judgeConfigKey)
-		}
 		return nil, nil
 	}
 
 	if samplingRate < 1.0 && rand.Float64() > samplingRate {
-		if j.logger != nil {
-			j.logger.Debugf("Judge '%s': evaluation skipped due to sampling rate: %.2f", j.judgeConfigKey, samplingRate)
-		}
 		return nil, nil
 	}
 
@@ -89,9 +83,6 @@ func (j *Judge) Evaluate(input, output string, samplingRate float64) (*datamodel
 
 	response, err := j.provider.InvokeStructuredModel(messages, schema)
 	if err != nil {
-		if j.logger != nil {
-			j.logger.Errorf("Judge '%s': evaluation failed: %v", j.judgeConfigKey, err)
-		}
 		return &datamodel.JudgeResponse{
 			Evals:          map[string]datamodel.EvalScore{},
 			Success:        false,
@@ -141,27 +132,14 @@ func (j *Judge) buildMessages(input, output string) []datamodel.Message {
 	messages := j.config.Messages()
 	result := make([]datamodel.Message, len(messages))
 
-	if j.logger != nil {
-		j.logger.Debugf("Judge '%s': Building messages with input length=%d, output length=%d", j.judgeConfigKey, len(input), len(output))
-		for i, msg := range messages {
-			j.logger.Debugf("Judge '%s': Template %d [%s]: %q", j.judgeConfigKey, i+1, msg.Role, msg.Content)
-		}
-	}
-
 	for i, msg := range messages {
 		m := mustache.New()
 		if err := m.ParseString(msg.Content); err != nil {
-			if j.logger != nil {
-				j.logger.Debugf("Judge '%s': failed to parse template: %v", j.judgeConfigKey, err)
-			}
 			result[i] = datamodel.Message{Content: msg.Content, Role: msg.Role}
 			continue
 		}
 		content, err := m.RenderString(vars)
 		if err != nil {
-			if j.logger != nil {
-				j.logger.Debugf("Judge '%s': failed to render template: %v", j.judgeConfigKey, err)
-			}
 			result[i] = datamodel.Message{Content: msg.Content, Role: msg.Role}
 			continue
 		}
@@ -174,9 +152,6 @@ func (j *Judge) buildMessages(input, output string) []datamodel.Message {
 func (j *Judge) parseResponse(data map[string]interface{}) *datamodel.JudgeResponse {
 	evaluations, ok := data["evaluations"].(map[string]interface{})
 	if !ok {
-		if j.logger != nil {
-			j.logger.Warnf("Judge '%s': invalid response - missing or invalid evaluations object", j.judgeConfigKey)
-		}
 		return &datamodel.JudgeResponse{
 			Evals:          map[string]datamodel.EvalScore{},
 			Success:        false,
@@ -187,9 +162,6 @@ func (j *Judge) parseResponse(data map[string]interface{}) *datamodel.JudgeRespo
 
 	evalData, ok := evaluations[j.metricKey].(map[string]interface{})
 	if !ok {
-		if j.logger != nil {
-			j.logger.Warnf("Judge '%s': missing evaluation for metric key: %s", j.judgeConfigKey, j.metricKey)
-		}
 		return &datamodel.JudgeResponse{
 			Evals:          map[string]datamodel.EvalScore{},
 			Success:        false,
@@ -200,10 +172,6 @@ func (j *Judge) parseResponse(data map[string]interface{}) *datamodel.JudgeRespo
 
 	score, ok := evalData["score"].(float64)
 	if !ok || score < 0 || score > 1 {
-		if j.logger != nil {
-			j.logger.Warnf("Judge '%s': invalid score for %s: %v. Score must be a number between 0 and 1 inclusive",
-				j.judgeConfigKey, j.metricKey, evalData["score"])
-		}
 		return &datamodel.JudgeResponse{
 			Evals:          map[string]datamodel.EvalScore{},
 			Success:        false,
@@ -214,20 +182,12 @@ func (j *Judge) parseResponse(data map[string]interface{}) *datamodel.JudgeRespo
 
 	reasoning, ok := evalData["reasoning"].(string)
 	if !ok {
-		if j.logger != nil {
-			j.logger.Warnf("Judge '%s': invalid reasoning for %s: %v. Reasoning must be a string",
-				j.judgeConfigKey, j.metricKey, evalData["reasoning"])
-		}
 		return &datamodel.JudgeResponse{
 			Evals:          map[string]datamodel.EvalScore{},
 			Success:        false,
 			Error:          "invalid reasoning",
 			JudgeConfigKey: j.judgeConfigKey,
 		}
-	}
-
-	if j.logger != nil {
-		j.logger.Debugf("Judge '%s': Parsed score=%f for metric=%s", j.judgeConfigKey, score, j.metricKey)
 	}
 
 	return &datamodel.JudgeResponse{
