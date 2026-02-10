@@ -329,6 +329,42 @@ func TestConfigMethodTracking(t *testing.T) {
 	assert.ElementsMatch(t, expectedEvents, mockSDK.events)
 }
 
+// TestJudgeConfigMethodTracking verifies that JudgeConfig emits only the judge metric,
+// not the config metric, so judge evaluations are not double-counted on the dashboard.
+func TestJudgeConfigMethodTracking(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"messages": [{"content": "test", "role": "system"}]
+	}`)
+	mockSDK := newMockSDK(json, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	defaultConfig := Disabled()
+	context := ldcontext.New("user-key")
+	configKey := "judge-config-key"
+
+	config, tracker := client.JudgeConfig(configKey, context, defaultConfig, nil)
+
+	require.NotNil(t, config)
+	require.NotNil(t, tracker)
+
+	// Only the judge metric should be emitted; evaluateConfig does not emit any metric.
+	expectedEvents := []mockEvent{
+		{
+			eventName:   "$ld:ai:judge:function:single",
+			context:     context,
+			metricValue: 1,
+			data:        ldvalue.String(configKey),
+		},
+	}
+	assert.ElementsMatch(t, expectedEvents, mockSDK.events,
+		"JudgeConfig must not emit $ld:ai:config:function:single to avoid double-counting")
+}
+
 func TestCanSetModelParameters(t *testing.T) {
 	client, err := NewClient(newMockSDK(nil, nil))
 	require.NoError(t, err)
@@ -578,4 +614,168 @@ func TestInterpolation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "user_kind=<>,cat_kind=<>", result)
 	})
+}
+
+func TestParseJudgeSpecificFields(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"judgeConfiguration": {
+			"judges": [
+				{"key": "judge1", "samplingRate": 0.5},
+				{"key": "judge2", "samplingRate": 1.0}
+			]
+		},
+		"messages": [
+			{"content": "test", "role": "system"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge", cfg.Mode())
+	assert.Equal(t, "toxicity", cfg.EvaluationMetricKey())
+
+	judgeConfig := cfg.JudgeConfiguration()
+	require.NotNil(t, judgeConfig)
+	require.Len(t, judgeConfig.Judges, 2)
+	assert.Equal(t, "judge1", judgeConfig.Judges[0].Key)
+	assert.Equal(t, 0.5, judgeConfig.Judges[0].SamplingRate)
+	assert.Equal(t, "judge2", judgeConfig.Judges[1].Key)
+	assert.Equal(t, 1.0, judgeConfig.Judges[1].SamplingRate)
+}
+
+func TestParseEvaluationMetricKeys(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKeys": ["relevance", "accuracy"],
+		"messages": [
+			{"content": "test", "role": "system"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge", cfg.Mode())
+	assert.Equal(t, "", cfg.EvaluationMetricKey())
+	assert.Equal(t, []string{"relevance", "accuracy"}, cfg.EvaluationMetricKeys())
+}
+
+func TestParseEvaluationMetricKeyPriority(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"evaluationMetricKeys": ["relevance", "accuracy"],
+		"messages": [
+			{"content": "test", "role": "system"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge", cfg.Mode())
+	// Both fields should be parsed
+	assert.Equal(t, "toxicity", cfg.EvaluationMetricKey())
+	assert.Equal(t, []string{"relevance", "accuracy"}, cfg.EvaluationMetricKeys())
+}
+
+func TestJudgeConfigurationImmutable(t *testing.T) {
+	// Test that mutations to JudgeConfiguration don't affect the Config
+	judgeConfig := &datamodel.JudgeConfiguration{
+		Judges: []datamodel.Judge{
+			{Key: "judge1", SamplingRate: 0.5},
+			{Key: "judge2", SamplingRate: 1.0},
+		},
+	}
+
+	builder := NewConfig().
+		Enable().
+		WithJudgeConfiguration(judgeConfig)
+	cfg := builder.Build()
+
+	// Mutate the original
+	judgeConfig.Judges[0].Key = "mutated"
+	judgeConfig.Judges = append(judgeConfig.Judges, datamodel.Judge{Key: "judge3", SamplingRate: 0.3})
+
+	// Config should not be affected
+	retrieved := cfg.JudgeConfiguration()
+	require.NotNil(t, retrieved)
+	require.Len(t, retrieved.Judges, 2)
+	assert.Equal(t, "judge1", retrieved.Judges[0].Key) // Should still be original value
+	assert.Equal(t, "judge2", retrieved.Judges[1].Key)
+
+	// Mutate the retrieved config
+	retrieved.Judges[0].Key = "mutated_again"
+	retrieved.Judges = append(retrieved.Judges, datamodel.Judge{Key: "judge4", SamplingRate: 0.4})
+
+	// Config should still not be affected
+	retrieved2 := cfg.JudgeConfiguration()
+	require.NotNil(t, retrieved2)
+	require.Len(t, retrieved2.Judges, 2)
+	assert.Equal(t, "judge1", retrieved2.Judges[0].Key) // Should still be original value
+	assert.Equal(t, "judge2", retrieved2.Judges[1].Key)
+}
+
+// TestJudgeConfig_PreservesReservedPlaceholders verifies that JudgeConfig injects reserved variables
+// so that {{message_history}} and {{response_to_evaluate}} are preserved for the second interpolation
+// pass during Judge.Evaluate(). Without this, Config's first Mustache pass would render them as empty.
+func TestJudgeConfig_PreservesReservedPlaceholders(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"messages": [
+			{"content": "You are a judge.", "role": "system"},
+			{"content": "Input: {{message_history}}\nOutput: {{response_to_evaluate}}", "role": "user"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
+
+	msgs := cfg.Messages()
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "You are a judge.", msgs[0].Content)
+	assert.Contains(t, msgs[1].Content, "{{message_history}}", "JudgeConfig must preserve placeholder for second interpolation")
+	assert.Contains(t, msgs[1].Content, "{{response_to_evaluate}}", "JudgeConfig must preserve placeholder for second interpolation")
+	assert.Equal(t, "Input: {{message_history}}\nOutput: {{response_to_evaluate}}", msgs[1].Content)
+}
+
+// TestConfig_WithoutReservedVarsWipesJudgePlaceholders documents that Config (without reserved vars)
+// renders {{message_history}} and {{response_to_evaluate}} as empty when used for judge templates.
+func TestConfig_WithoutReservedVarsWipesJudgePlaceholders(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"messages": [
+			{"content": "Input: {{message_history}}\nOutput: {{response_to_evaluate}}", "role": "user"}
+		]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+
+	msgs := cfg.Messages()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "Input: \nOutput: ", msgs[0].Content, "Config without reserved vars renders placeholders as empty")
 }

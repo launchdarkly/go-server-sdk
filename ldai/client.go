@@ -71,7 +71,17 @@ func (c *Client) Config(
 	variables map[string]interface{},
 ) (Config, *Tracker) {
 	_ = c.sdk.TrackMetric("$ld:ai:config:function:single", context, 1, ldvalue.String(key))
+	return c.evaluateConfig(key, context, defaultValue, variables)
+}
 
+// evaluateConfig fetches and interpolates an AI Config without emitting any metric.
+// Callers (Config, JudgeConfig) are meant to emit their own metric before calling this.
+func (c *Client) evaluateConfig(
+	key string,
+	context ldcontext.Context,
+	defaultValue Config,
+	variables map[string]interface{},
+) (Config, *Tracker) {
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
 	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
@@ -102,7 +112,11 @@ func (c *Client) Config(
 	builder := NewConfig().
 		WithModelName(parsed.Model.Name).
 		WithProviderName(parsed.Provider.Name).
-		WithEnabled(parsed.Meta.Enabled)
+		WithEnabled(parsed.Meta.Enabled).
+		WithMode(parsed.Mode).
+		WithEvaluationMetricKey(parsed.EvaluationMetricKey).
+		WithEvaluationMetricKeys(parsed.EvaluationMetricKeys).
+		WithJudgeConfiguration(parsed.JudgeConfiguration)
 
 	for k, v := range parsed.Model.Parameters {
 		builder.WithModelParam(k, v)
@@ -173,4 +187,39 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 		return "", err
 	}
 	return m.RenderString(variables)
+}
+
+// JudgeConfig evaluates an AI Config, tracking it as a judge function. See Config for details.
+//
+// This method extends the provided variables with reserved judge variables:
+// - "message_history": "{{message_history}}"
+// - "response_to_evaluate": "{{response_to_evaluate}}"
+//
+// These literal placeholder strings preserve the Mustache templates through the first interpolation
+// (during config fetch), allowing Judge.Evaluate() to perform a second interpolation with actual values.
+func (c *Client) JudgeConfig(
+	key string,
+	context ldcontext.Context,
+	defaultValue Config,
+	variables map[string]interface{},
+) (Config, *Tracker) {
+	_ = c.sdk.TrackMetric("$ld:ai:judge:function:single", context, 1, ldvalue.String(key))
+
+	// Extend variables with reserved judge placeholders
+	extendedVariables := make(map[string]interface{})
+	for k, v := range variables {
+		// Warn if user tries to override reserved variables
+		if k == "message_history" || k == "response_to_evaluate" {
+			c.logger.Warnf("AI Config '%s': variable '%s' is reserved by judge and will be ignored", key, k)
+			continue
+		}
+		extendedVariables[k] = v
+	}
+
+	// Inject reserved variables as literal placeholder strings
+	// These will be preserved through the first interpolation and resolved during Judge.Evaluate()
+	extendedVariables["message_history"] = "{{message_history}}"
+	extendedVariables["response_to_evaluate"] = "{{response_to_evaluate}}"
+
+	return c.evaluateConfig(key, context, defaultValue, extendedVariables)
 }
