@@ -152,14 +152,10 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		return interruptedAtRuntime || cannotInitialize
 	}
 	fdv2.recoveryCond = func(status interfaces.DataSourceStatus) bool {
-		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted &&
-			time.Since(status.StateSince) > 1*time.Minute
 		healthyForTooLong := status.State == interfaces.DataSourceStateValid &&
 			time.Since(status.StateSince) > 5*time.Minute
-		cannotInitialize := status.State == interfaces.DataSourceStateInitializing &&
-			time.Since(status.StateSince) > 10*time.Second
 
-		return interruptedAtRuntime || healthyForTooLong || cannotInitialize
+		return healthyForTooLong
 	}
 
 	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || len(fdv2.synchronizerBuilders) > 0
