@@ -39,8 +39,9 @@ import (
 const defaultStartWaitTime = 5 * time.Second
 
 type SDKClientEntity struct {
-	sdk    *ld.LDClient
-	logger *log.Logger
+	sdk       *ld.LDClient
+	logger    *log.Logger
+	listeners *listenerRegistry
 }
 
 func NewSDKClientEntity(params servicedef.CreateInstanceParams) (*SDKClientEntity, error) {
@@ -71,11 +72,13 @@ func NewSDKClientEntity(params servicedef.CreateInstanceParams) (*SDKClientEntit
 		return nil, err
 	}
 	c.sdk = sdk
+	c.listeners = newListenerRegistry(sdk.GetFlagTracker())
 
 	return c, nil
 }
 
 func (c *SDKClientEntity) Close() {
+	c.listeners.closeAll()
 	_ = c.sdk.Close()
 	c.logger.Println("Test ended")
 	c.logger.SetOutput(io.Discard)
@@ -130,6 +133,20 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 		return servicedef.MigrationVariationResponse{Result: string(stage)}, nil
 	case servicedef.CommandMigrationOperation:
 		return c.migrationOperation(*params.MigrationOperation)
+	case servicedef.CommandRegisterFlagChangeListener:
+		p := params.RegisterFlagChangeListener
+		c.listeners.registerFlagChangeListener(p.ListenerID, p.FlagKey, p.CallbackURI)
+		return nil, nil
+	case servicedef.CommandRegisterFlagValueChangeListener:
+		p := params.RegisterFlagValueChangeListener
+		c.listeners.registerFlagValueChangeListener(p.ListenerID, p.FlagKey, p.Context, p.DefaultValue, p.CallbackURI)
+		return nil, nil
+	case servicedef.CommandUnregisterListener:
+		p := params.UnregisterListener
+		if !c.listeners.unregister(p.ListenerID) {
+			return nil, BadRequestError{Message: fmt.Sprintf("no listener with id %q", p.ListenerID)}
+		}
+		return nil, nil
 	default:
 		return nil, BadRequestError{Message: fmt.Sprintf("unknown command %q", params.Command)}
 	}
