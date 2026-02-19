@@ -90,7 +90,7 @@ func createDataSource(
 		factory = ldcomponents.StreamingDataSource()
 	}
 	contextCopy := *context
-	contextCopy.BasicClientContext.DataSourceUpdateSink = dataSourceUpdateSink
+	contextCopy.DataSourceUpdateSink = dataSourceUpdateSink
 	return factory.Build(&contextCopy)
 }
 

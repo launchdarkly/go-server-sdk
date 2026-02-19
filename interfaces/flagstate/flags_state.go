@@ -203,7 +203,7 @@ func (b *AllFlagsBuilder) AddFlag(flagKey string, flag FlagState) *AllFlagsBuild
 	// include them or 2. they must be included because of experimentation
 	if b.options.detailsOnlyIfTracked {
 		if !flag.TrackEvents && !flag.TrackReason &&
-			!(flag.DebugEventsUntilDate != 0 && flag.DebugEventsUntilDate > ldtime.UnixMillisNow()) {
+			(flag.DebugEventsUntilDate == 0 || flag.DebugEventsUntilDate <= ldtime.UnixMillisNow()) {
 			flag.OmitDetails = true
 		}
 	}
