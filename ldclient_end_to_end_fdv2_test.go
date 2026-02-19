@@ -64,7 +64,8 @@ func TestFDV2DefaultIsTwoPhaseInit(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
@@ -104,7 +105,8 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
 		assertNoMoreRequests(t, pollV2SyncReqCh)
 		assertNoMoreRequests(t, streamV2SyncReqCh)
@@ -144,7 +146,8 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
@@ -238,7 +241,8 @@ func TestFDV2StreamingSynchronizeReconnectsWithNonFatalError(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
@@ -402,7 +406,8 @@ func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
 			require.NoError(t, err)
 			defer client.Close()
 
-			assert.Equal(t, string(interfaces.DataSourceStateValid), string(client.GetDataSourceStatusProvider().GetStatus().State))
+			reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+			require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
 			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 			assert.True(t, value)
