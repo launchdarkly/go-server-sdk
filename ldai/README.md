@@ -1,6 +1,8 @@
 LaunchDarkly Server-side AI SDK for Go
 ==============================================
 
+[![Actions Status](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml/badge.svg?branch=v7)](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml)
+
 > [!CAUTION]
 > This AI SDK is in pre-release and not subject to backwards compatibility guarantees. The API may change based on feedback.
 >
@@ -11,8 +13,6 @@ LaunchDarkly Server-side AI SDK for Go
 [changelog]: https://github.com/launchdarkly/go-server-sdk/blob/v7/ldai/CHANGELOG.md
 [python-ai-sdk]: https://github.com/launchdarkly/python-server-sdk-ai/tree/main/packages/sdk/server-ai
 [node-ai-sdk]: https://github.com/launchdarkly/js-core/tree/main/packages/sdk/server-ai
-
-[![Actions Status](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml/badge.svg?branch=v7)](https://github.com/launchdarkly/go-server-sdk/actions/workflows/ldai-ci.yml)
 
 LaunchDarkly overview
 -------------------------
