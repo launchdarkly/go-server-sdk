@@ -67,9 +67,24 @@ func TestNewClientReturnsErrorWhenSDKIsNil(t *testing.T) {
 }
 
 func TestNewClient(t *testing.T) {
-	client, err := NewClient(newMockSDK(nil, nil))
+	mockSDK := newMockSDK(nil, nil)
+	client, err := NewClient(mockSDK)
 	require.NoError(t, err)
 	require.NotNil(t, client)
+
+	// Verify SDK info event was fired on construction.
+	require.Len(t, mockSDK.events, 1)
+	evt := mockSDK.events[0]
+	assert.Equal(t, "$ld:ai:sdk:info", evt.eventName)
+	assert.Equal(t, float64(1), evt.metricValue)
+	assert.Equal(t, "launchdarkly-go-server-sdk-ai", evt.data.GetByKey("aiSdkName").StringValue())
+	assert.Equal(t, Version, evt.data.GetByKey("aiSdkVersion").StringValue())
+	assert.Equal(t, "go", evt.data.GetByKey("aiSdkLanguage").StringValue())
+
+	// Verify the context is anonymous with kind ld_ai.
+	assert.Equal(t, "ld-internal-tracking", evt.context.Key())
+	assert.True(t, evt.context.Anonymous())
+	assert.Equal(t, ldcontext.Kind("ld_ai"), evt.context.Kind())
 }
 
 func TestEvalErrorReturnsDefault(t *testing.T) {
@@ -302,11 +317,47 @@ func TestCanSetDefaultConfigFields(t *testing.T) {
 	assert.Equal(t, datamodel.System, msg[1].Role)
 }
 
-func TestConfigMethodTracking(t *testing.T) {
+func TestCompletionConfigMethodTracking(t *testing.T) {
 	mockSDK := newMockSDK(nil, nil)
 	client, err := NewClient(mockSDK)
 	require.NoError(t, err)
 	require.NotNil(t, client)
+
+	// Clear the SDK info event from construction.
+	mockSDK.events = nil
+
+	defaultConfig := NewConfig().WithEnabled(false).Build()
+	context := ldcontext.New("user-key")
+	configKey := "test-config-key"
+
+	config, tracker := client.CompletionConfig(configKey, context, defaultConfig, nil)
+
+	require.NotNil(t, config)
+	require.NotNil(t, tracker)
+
+	expectedData := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(configKey)).Build()
+	expectedEvents := []mockEvent{
+		{
+			eventName:   "$ld:ai:usage:completion-config",
+			context:     context,
+			metricValue: 1,
+			data:        expectedData,
+		},
+	}
+
+	assert.ElementsMatch(t, expectedEvents, mockSDK.events)
+}
+
+// TestDeprecatedConfigDelegatesToCompletionConfig verifies the deprecated Config method delegates
+// to CompletionConfig and emits the same usage event.
+func TestDeprecatedConfigDelegatesToCompletionConfig(t *testing.T) {
+	mockSDK := newMockSDK(nil, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	// Clear the SDK info event from construction.
+	mockSDK.events = nil
 
 	defaultConfig := NewConfig().WithEnabled(false).Build()
 	context := ldcontext.New("user-key")
@@ -317,12 +368,13 @@ func TestConfigMethodTracking(t *testing.T) {
 	require.NotNil(t, config)
 	require.NotNil(t, tracker)
 
+	expectedData := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(configKey)).Build()
 	expectedEvents := []mockEvent{
 		{
-			eventName:   "$ld:ai:config:function:single",
+			eventName:   "$ld:ai:usage:completion-config",
 			context:     context,
 			metricValue: 1,
-			data:        ldvalue.String(configKey),
+			data:        expectedData,
 		},
 	}
 
@@ -330,7 +382,7 @@ func TestConfigMethodTracking(t *testing.T) {
 }
 
 // TestJudgeConfigMethodTracking verifies that JudgeConfig emits only the judge metric,
-// not the config metric, so judge evaluations are not double-counted on the dashboard.
+// not the completion-config metric, so judge evaluations are not double-counted on the dashboard.
 func TestJudgeConfigMethodTracking(t *testing.T) {
 	json := []byte(`{
 		"_ldMeta": {"variationKey": "1", "enabled": true},
@@ -343,6 +395,9 @@ func TestJudgeConfigMethodTracking(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
+	// Clear the SDK info event from construction.
+	mockSDK.events = nil
+
 	defaultConfig := Disabled()
 	context := ldcontext.New("user-key")
 	configKey := "judge-config-key"
@@ -353,16 +408,17 @@ func TestJudgeConfigMethodTracking(t *testing.T) {
 	require.NotNil(t, tracker)
 
 	// Only the judge metric should be emitted; evaluateConfig does not emit any metric.
+	expectedData := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(configKey)).Build()
 	expectedEvents := []mockEvent{
 		{
-			eventName:   "$ld:ai:judge:function:single",
+			eventName:   "$ld:ai:usage:judge-config",
 			context:     context,
 			metricValue: 1,
-			data:        ldvalue.String(configKey),
+			data:        expectedData,
 		},
 	}
 	assert.ElementsMatch(t, expectedEvents, mockSDK.events,
-		"JudgeConfig must not emit $ld:ai:config:function:single to avoid double-counting")
+		"JudgeConfig must not emit $ld:ai:usage:completion-config to avoid double-counting")
 }
 
 func TestCanSetModelParameters(t *testing.T) {

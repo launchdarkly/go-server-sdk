@@ -40,16 +40,43 @@ type Client struct {
 	logger interfaces.LDLoggers
 }
 
+const (
+	// usageCompletionConfig is the event key for completion config usage tracking.
+	usageCompletionConfig = "$ld:ai:usage:completion-config"
+	// usageJudgeConfig is the event key for judge config usage tracking.
+	usageJudgeConfig = "$ld:ai:usage:judge-config"
+	// sdkInfoEvent is the event key for SDK info tracking.
+	sdkInfoEvent = "$ld:ai:sdk:info"
+)
+
 // NewClient creates a new AI Client. The provided SDK interface must not be nil. The client will use the provided SDK's
 // loggers to log warnings and errors.
+//
+// Upon construction, the client fires a single $ld:ai:sdk:info tracking event containing SDK metadata.
 func NewClient(sdk ServerSDK) (*Client, error) {
 	if sdk == nil {
 		return nil, fmt.Errorf("sdk must not be nil")
 	}
-	return &Client{
+	c := &Client{
 		sdk:    sdk,
 		logger: sdk.Loggers(),
-	}, nil
+	}
+	c.trackSDKInfo()
+	return c, nil
+}
+
+func (c *Client) trackSDKInfo() {
+	ctx, err := ldcontext.NewBuilder("ld-internal-tracking").Kind("ld_ai").Anonymous(true).TryBuild()
+	if err != nil {
+		c.logger.Warnf("AI Client: failed to build SDK info context: %v", err)
+		return
+	}
+	data := ldvalue.ObjectBuild().
+		Set("aiSdkName", ldvalue.String("launchdarkly-go-server-sdk-ai")).
+		Set("aiSdkVersion", ldvalue.String(Version)).
+		Set("aiSdkLanguage", ldvalue.String("go")).
+		Build()
+	_ = c.sdk.TrackMetric(sdkInfoEvent, ctx, 1, data)
 }
 
 func (c *Client) logConfigWarning(key string, format string, args ...interface{}) {
@@ -57,21 +84,34 @@ func (c *Client) logConfigWarning(key string, format string, args ...interface{}
 	c.logger.Warnf(prefix+format, args...)
 }
 
-// Config evaluates an AI Config named by a given key for the given context.
+// CompletionConfig evaluates an AI Completion Config named by a given key for the given context.
 //
 // The config's messages will undergo Mustache template interpolation using the provided variables, which may be
 // nil. If the config cannot be evaluated or LaunchDarkly is unreachable, the default value is returned. Note that
 // the messages in the default will not undergo template interpolation.
 //
 // To send analytic events to LaunchDarkly related to the AI Config, call methods on the returned Tracker.
+func (c *Client) CompletionConfig(
+	key string,
+	context ldcontext.Context,
+	defaultValue Config,
+	variables map[string]interface{},
+) (Config, *Tracker) {
+	data := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(key)).Build()
+	_ = c.sdk.TrackMetric(usageCompletionConfig, context, 1, data)
+	return c.evaluateConfig(key, context, defaultValue, variables)
+}
+
+// Config evaluates an AI Config named by a given key for the given context.
+//
+// Deprecated: Use CompletionConfig instead.
 func (c *Client) Config(
 	key string,
 	context ldcontext.Context,
 	defaultValue Config,
 	variables map[string]interface{},
 ) (Config, *Tracker) {
-	_ = c.sdk.TrackMetric("$ld:ai:config:function:single", context, 1, ldvalue.String(key))
-	return c.evaluateConfig(key, context, defaultValue, variables)
+	return c.CompletionConfig(key, context, defaultValue, variables)
 }
 
 // evaluateConfig fetches and interpolates an AI Config without emitting any metric.
@@ -189,7 +229,7 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 	return m.RenderString(variables)
 }
 
-// JudgeConfig evaluates an AI Config, tracking it as a judge function. See Config for details.
+// JudgeConfig evaluates an AI Config, tracking it as a judge function. See CompletionConfig for details.
 //
 // This method extends the provided variables with reserved judge variables:
 // - "message_history": "{{message_history}}"
@@ -203,7 +243,8 @@ func (c *Client) JudgeConfig(
 	defaultValue Config,
 	variables map[string]interface{},
 ) (Config, *Tracker) {
-	_ = c.sdk.TrackMetric("$ld:ai:judge:function:single", context, 1, ldvalue.String(key))
+	data := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(key)).Build()
+	_ = c.sdk.TrackMetric(usageJudgeConfig, context, 1, data)
 
 	// Extend variables with reserved judge placeholders
 	extendedVariables := make(map[string]interface{})
