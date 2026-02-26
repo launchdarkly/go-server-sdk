@@ -224,7 +224,8 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 	return m.RenderString(variables)
 }
 
-// JudgeConfig evaluates an AI Config, tracking it as a judge function. See CompletionConfig for details.
+// JudgeConfig retrieves and processes a Judge AI Config based on the provided key, LaunchDarkly context, and
+// variables. This includes the model configuration and the customized messages for evaluation.
 //
 // This method extends the provided variables with reserved judge variables:
 // - "message_history": "{{message_history}}"
@@ -232,6 +233,8 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 //
 // These literal placeholder strings preserve the Mustache templates through the first interpolation
 // (during config fetch), allowing Judge.Evaluate() to perform a second interpolation with actual values.
+//
+// To send analytic events to LaunchDarkly related to the AI Config, call methods on the returned Tracker.
 func (c *Client) JudgeConfig(
 	key string,
 	context ldcontext.Context,
