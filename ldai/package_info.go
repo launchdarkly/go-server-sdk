@@ -3,7 +3,7 @@ package ldai
 
 const (
 	// Version is the current version string of the ldai package. This is updated by our release scripts.
-	Version = "0.8.0" // {{ x-release-please-version }}
+	Version = "0.8.1" // {{ x-release-please-version }}
 
 	// SDKName is the canonical name of this AI SDK package.
 	SDKName = "go-server-sdk/ldai"
