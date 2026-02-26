@@ -56,22 +56,23 @@ func NewClient(sdk ServerSDK) (*Client, error) {
 		sdk:    sdk,
 		logger: sdk.Loggers(),
 	}
-	c.trackSDKInfo()
+	if err := c.trackSDKInfo(); err != nil {
+		c.logger.Warnf("AI Client: failed to track SDK info: %v", err)
+	}
 	return c, nil
 }
 
-func (c *Client) trackSDKInfo() {
+func (c *Client) trackSDKInfo() error {
 	ctx, err := ldcontext.NewBuilder("ld-internal-tracking").Kind("ld_ai").Anonymous(true).TryBuild()
 	if err != nil {
-		c.logger.Warnf("AI Client: failed to build SDK info context: %v", err)
-		return
+		return err
 	}
 	data := ldvalue.ObjectBuild().
 		Set("aiSdkName", ldvalue.String(SDKName)).
 		Set("aiSdkVersion", ldvalue.String(Version)).
 		Set("aiSdkLanguage", ldvalue.String(SDKLanguage)).
 		Build()
-	_ = c.sdk.TrackMetric(sdkInfoEvent, ctx, 1, data)
+	return c.sdk.TrackMetric(sdkInfoEvent, ctx, 1, data)
 }
 
 func (c *Client) logConfigWarning(key string, format string, args ...interface{}) {
