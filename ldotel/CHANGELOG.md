@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.0...ldotel/v1.3.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* Bump minimum go to 1.24 ([#325](https://github.com/launchdarkly/go-server-sdk/issues/325)) ([6e2cebf](https://github.com/launchdarkly/go-server-sdk/commit/6e2cebf0e650d5abd805fc1845e36dfc5b7ff00c))
+
 ## [1.3.0](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.2.0...ldotel/v1.3.0) (2025-07-17)
 
 
