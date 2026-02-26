@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.14.6](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.5...v7.14.6) (2026-02-26)
+
+
+### Bug Fixes
+
+* Expand data system config to allow for list of synchronizers ([#343](https://github.com/launchdarkly/go-server-sdk/issues/343)) ([0956ce9](https://github.com/launchdarkly/go-server-sdk/commit/0956ce9202c9796f19670a94a11785bca59b4acd))
+* improves fallback behavior when using custom data system configuration ([#348](https://github.com/launchdarkly/go-server-sdk/issues/348)) ([4f5b1e9](https://github.com/launchdarkly/go-server-sdk/commit/4f5b1e9be34446547072263d940384a8bce7b10e))
+
 ## [7.14.5](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.4...v7.14.5) (2026-01-16)
 
 
