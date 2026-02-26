@@ -67,9 +67,9 @@ func (c *Client) trackSDKInfo() {
 		return
 	}
 	data := ldvalue.ObjectBuild().
-		Set("aiSdkName", ldvalue.String("launchdarkly-go-server-sdk-ai")).
+		Set("aiSdkName", ldvalue.String(SDKName)).
 		Set("aiSdkVersion", ldvalue.String(Version)).
-		Set("aiSdkLanguage", ldvalue.String("go")).
+		Set("aiSdkLanguage", ldvalue.String(SDKLanguage)).
 		Build()
 	_ = c.sdk.TrackMetric(sdkInfoEvent, ctx, 1, data)
 }
