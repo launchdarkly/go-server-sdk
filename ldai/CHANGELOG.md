@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.8.0...ldai/v0.8.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* Improve usage reporting ([#353](https://github.com/launchdarkly/go-server-sdk/issues/353)) ([0146f76](https://github.com/launchdarkly/go-server-sdk/commit/0146f762af466f7ab7d997bbd57135eb1fcb0930))
+
 ## [0.8.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.7.2...ldai/v0.8.0) (2026-02-10)
 
 
