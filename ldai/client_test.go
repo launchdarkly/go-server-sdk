@@ -77,7 +77,7 @@ func TestNewClient(t *testing.T) {
 	evt := mockSDK.events[0]
 	assert.Equal(t, "$ld:ai:sdk:info", evt.eventName)
 	assert.Equal(t, float64(1), evt.metricValue)
-	assert.Equal(t, "launchdarkly-go-server-sdk-ai", evt.data.GetByKey("aiSdkName").StringValue())
+	assert.Equal(t, "go-server-sdk/ldai", evt.data.GetByKey("aiSdkName").StringValue())
 	assert.Equal(t, Version, evt.data.GetByKey("aiSdkVersion").StringValue())
 	assert.Equal(t, "go", evt.data.GetByKey("aiSdkLanguage").StringValue())
 
