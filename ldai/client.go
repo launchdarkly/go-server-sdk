@@ -41,18 +41,13 @@ type Client struct {
 }
 
 const (
-	// usageCompletionConfig is the event key for completion config usage tracking.
+	sdkInfoEvent          = "$ld:ai:sdk:info"
 	usageCompletionConfig = "$ld:ai:usage:completion-config"
-	// usageJudgeConfig is the event key for judge config usage tracking.
-	usageJudgeConfig = "$ld:ai:usage:judge-config"
-	// sdkInfoEvent is the event key for SDK info tracking.
-	sdkInfoEvent = "$ld:ai:sdk:info"
+	usageJudgeConfig      = "$ld:ai:usage:judge-config"
 )
 
 // NewClient creates a new AI Client. The provided SDK interface must not be nil. The client will use the provided SDK's
 // loggers to log warnings and errors.
-//
-// Upon construction, the client fires a single $ld:ai:sdk:info tracking event containing SDK metadata.
 func NewClient(sdk ServerSDK) (*Client, error) {
 	if sdk == nil {
 		return nil, fmt.Errorf("sdk must not be nil")
