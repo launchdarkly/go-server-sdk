@@ -6,7 +6,7 @@ const (
 	Version = "0.8.0" // {{ x-release-please-version }}
 
 	// SDKName is the canonical name of this AI SDK package.
-	SDKName = "launchdarkly-go-server-sdk-ai"
+	SDKName = "go-server-sdk/ldai"
 
 	// SDKLanguage is the programming language of this AI SDK.
 	SDKLanguage = "go"
