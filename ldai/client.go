@@ -79,7 +79,8 @@ func (c *Client) logConfigWarning(key string, format string, args ...interface{}
 	c.logger.Warnf(prefix+format, args...)
 }
 
-// CompletionConfig evaluates an AI Completion Config named by a given key for the given context.
+// CompletionConfig retrieves and processes a Completion AI Config based on the provided key, LaunchDarkly context,
+// and variables. This includes the model configuration and the customized messages.
 //
 // The config's messages will undergo Mustache template interpolation using the provided variables, which may be
 // nil. If the config cannot be evaluated or LaunchDarkly is unreachable, the default value is returned. Note that
