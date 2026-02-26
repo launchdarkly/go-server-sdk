@@ -41,7 +41,6 @@
     "ldmiddleware" : {
       "package-name": "ldmiddleware",
       "release-type" : "go",
-      "release-as": "0.1.0",
       "tag-separator": "/",
       "versioning" : "default",
       "extra-files" : [
