@@ -18,27 +18,36 @@ type listenerEntry struct {
 // listenerRegistry manages all active flag change listener registrations for a single
 // SDK client entity. It is safe to use from multiple goroutines.
 type listenerRegistry struct {
-	mu      sync.Mutex
-	entries map[string]*listenerEntry // keyed by listenerId
-	tracker interfaces.FlagTracker
+	mu        sync.Mutex
+	listeners map[string]*listenerEntry // keyed by listenerId
+	tracker   interfaces.FlagTracker
 }
 
 func newListenerRegistry(tracker interfaces.FlagTracker) *listenerRegistry {
 	return &listenerRegistry{
-		entries: make(map[string]*listenerEntry),
-		tracker: tracker,
+		listeners: make(map[string]*listenerEntry),
+		tracker:   tracker,
 	}
 }
 
-// registerFlagChangeListener subscribes to general flag configuration changes. If flagKey
-// is non-empty, only events for that specific flag are forwarded to the callback URI.
-func (r *listenerRegistry) registerFlagChangeListener(listenerID, flagKey, callbackURI string) {
-	ch := r.tracker.AddFlagChangeListener()
+// storeListener registers a new listener entry under listenerID, cancelling any
+// previously registered listener with the same ID. Returns the new entry's context.
+func (r *listenerRegistry) storeListener(listenerID string) context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	r.mu.Lock()
-	r.entries[listenerID] = &listenerEntry{cancel: cancel}
+	if old, exists := r.listeners[listenerID]; exists {
+		old.cancel()
+	}
+	r.listeners[listenerID] = &listenerEntry{cancel: cancel}
 	r.mu.Unlock()
+	return ctx
+}
+
+// registerFlagChangeListener subscribes to general flag configuration changes.
+// All flag change events are forwarded to the callback URI.
+func (r *listenerRegistry) registerFlagChangeListener(listenerID, callbackURI string) {
+	ch := r.tracker.AddFlagChangeListener()
+	ctx := r.storeListener(listenerID)
 
 	svc := callbackService{baseURL: callbackURI}
 	go func() {
@@ -50,9 +59,6 @@ func (r *listenerRegistry) registerFlagChangeListener(listenerID, flagKey, callb
 			case event, ok := <-ch:
 				if !ok {
 					return
-				}
-				if flagKey != "" && event.Key != flagKey {
-					continue
 				}
 				_ = svc.post("", servicedef.ListenerNotification{
 					ListenerID: listenerID,
@@ -73,11 +79,7 @@ func (r *listenerRegistry) registerFlagValueChangeListener(
 	callbackURI string,
 ) {
 	ch := r.tracker.AddFlagValueChangeListener(flagKey, evalCtx, defaultValue)
-	ctx, cancel := context.WithCancel(context.Background())
-
-	r.mu.Lock()
-	r.entries[listenerID] = &listenerEntry{cancel: cancel}
-	r.mu.Unlock()
+	ctx := r.storeListener(listenerID)
 
 	svc := callbackService{baseURL: callbackURI}
 	go func() {
@@ -107,9 +109,9 @@ func (r *listenerRegistry) registerFlagValueChangeListener(
 // registry. Returns false if no listener with that ID was found.
 func (r *listenerRegistry) unregister(listenerID string) bool {
 	r.mu.Lock()
-	entry, ok := r.entries[listenerID]
+	entry, ok := r.listeners[listenerID]
 	if ok {
-		delete(r.entries, listenerID)
+		delete(r.listeners, listenerID)
 	}
 	r.mu.Unlock()
 
@@ -122,11 +124,11 @@ func (r *listenerRegistry) unregister(listenerID string) bool {
 // closeAll stops all active listener goroutines. Called when the SDK client entity closes.
 func (r *listenerRegistry) closeAll() {
 	r.mu.Lock()
-	entries := r.entries
-	r.entries = make(map[string]*listenerEntry)
+	listeners := r.listeners
+	r.listeners = make(map[string]*listenerEntry)
 	r.mu.Unlock()
 
-	for _, entry := range entries {
+	for _, entry := range listeners {
 		entry.cancel()
 	}
 }

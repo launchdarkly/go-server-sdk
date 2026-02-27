@@ -190,10 +190,9 @@ type HookExecutionTrackPayload struct {
 }
 
 // RegisterFlagChangeListenerParams defines parameters for registering a general flag change listener.
-// FlagKey may be empty to listen for changes to any flag, or non-empty to filter to a specific flag.
+// The listener will be notified whenever any flag's configuration changes.
 type RegisterFlagChangeListenerParams struct {
 	ListenerID  string `json:"listenerId"`
-	FlagKey     string `json:"flagKey"`
 	CallbackURI string `json:"callbackUri"`
 }
 

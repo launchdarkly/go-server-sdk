@@ -30,6 +30,7 @@ const (
 	CapabilityPersistentDataStoreConsul   = "persistent-data-store-consul"
 	CapabilityPersistentDataStoreDynamoDB = "persistent-data-store-dynamodb"
 	CapabilityFlagChangeListeners         = "flag-change-listeners"
+	CapabilityFlagValueChangeListeners    = "flag-value-change-listeners"
 )
 
 type StatusRep struct {

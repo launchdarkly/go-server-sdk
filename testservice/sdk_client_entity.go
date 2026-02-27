@@ -135,7 +135,7 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 		return c.migrationOperation(*params.MigrationOperation)
 	case servicedef.CommandRegisterFlagChangeListener:
 		p := params.RegisterFlagChangeListener
-		c.listeners.registerFlagChangeListener(p.ListenerID, p.FlagKey, p.CallbackURI)
+		c.listeners.registerFlagChangeListener(p.ListenerID, p.CallbackURI)
 		return nil, nil
 	case servicedef.CommandRegisterFlagValueChangeListener:
 		p := params.RegisterFlagValueChangeListener
