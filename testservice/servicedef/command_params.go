@@ -8,18 +8,21 @@ import (
 )
 
 const (
-	CommandEvaluateFlag             = "evaluate"
-	CommandEvaluateAllFlags         = "evaluateAll"
-	CommandIdentifyEvent            = "identifyEvent"
-	CommandCustomEvent              = "customEvent"
-	CommandAliasEvent               = "aliasEvent"
-	CommandFlushEvents              = "flushEvents"
-	CommandGetBigSegmentStoreStatus = "getBigSegmentStoreStatus"
-	CommandContextBuild             = "contextBuild"
-	CommandContextConvert           = "contextConvert"
-	CommandSecureModeHash           = "secureModeHash"
-	CommandMigrationVariation       = "migrationVariation"
-	CommandMigrationOperation       = "migrationOperation"
+	CommandEvaluateFlag                    = "evaluate"
+	CommandEvaluateAllFlags                = "evaluateAll"
+	CommandIdentifyEvent                   = "identifyEvent"
+	CommandCustomEvent                     = "customEvent"
+	CommandAliasEvent                      = "aliasEvent"
+	CommandFlushEvents                     = "flushEvents"
+	CommandGetBigSegmentStoreStatus        = "getBigSegmentStoreStatus"
+	CommandContextBuild                    = "contextBuild"
+	CommandContextConvert                  = "contextConvert"
+	CommandSecureModeHash                  = "secureModeHash"
+	CommandMigrationVariation              = "migrationVariation"
+	CommandMigrationOperation              = "migrationOperation"
+	CommandRegisterFlagChangeListener      = "registerFlagChangeListener"
+	CommandRegisterFlagValueChangeListener = "registerFlagValueChangeListener"
+	CommandUnregisterListener              = "unregisterListener"
 )
 
 type ValueType string
@@ -33,16 +36,19 @@ const (
 )
 
 type CommandParams struct {
-	Command            string                    `json:"command"`
-	Evaluate           *EvaluateFlagParams       `json:"evaluate,omitempty"`
-	EvaluateAll        *EvaluateAllFlagsParams   `json:"evaluateAll,omitempty"`
-	CustomEvent        *CustomEventParams        `json:"customEvent,omitempty"`
-	IdentifyEvent      *IdentifyEventParams      `json:"identifyEvent,omitempty"`
-	ContextBuild       *ContextBuildParams       `json:"contextBuild,omitempty"`
-	ContextConvert     *ContextConvertParams     `json:"contextConvert,omitempty"`
-	SecureModeHash     *SecureModeHashParams     `json:"secureModeHash,omitempty"`
-	MigrationVariation *MigrationVariationParams `json:"migrationVariation,omitempty"`
-	MigrationOperation *MigrationOperationParams `json:"migrationOperation,omitempty"`
+	Command                         string                                  `json:"command"`
+	Evaluate                        *EvaluateFlagParams                     `json:"evaluate,omitempty"`
+	EvaluateAll                     *EvaluateAllFlagsParams                 `json:"evaluateAll,omitempty"`
+	CustomEvent                     *CustomEventParams                      `json:"customEvent,omitempty"`
+	IdentifyEvent                   *IdentifyEventParams                    `json:"identifyEvent,omitempty"`
+	ContextBuild                    *ContextBuildParams                     `json:"contextBuild,omitempty"`
+	ContextConvert                  *ContextConvertParams                   `json:"contextConvert,omitempty"`
+	SecureModeHash                  *SecureModeHashParams                   `json:"secureModeHash,omitempty"`
+	MigrationVariation              *MigrationVariationParams               `json:"migrationVariation,omitempty"`
+	MigrationOperation              *MigrationOperationParams               `json:"migrationOperation,omitempty"`
+	RegisterFlagChangeListener      *RegisterFlagChangeListenerParams       `json:"registerFlagChangeListener,omitempty"`      //nolint:lll
+	RegisterFlagValueChangeListener *RegisterFlagValueChangeListenerParams  `json:"registerFlagValueChangeListener,omitempty"` //nolint:lll
+	UnregisterListener              *UnregisterListenerParams               `json:"unregisterListener,omitempty"`
 }
 
 type EvaluateFlagParams struct {
@@ -180,5 +186,39 @@ type HookExecutionEvaluationPayload struct {
 
 type HookExecutionTrackPayload struct {
 	TrackSeriesContext TrackSeriesContext `json:"trackSeriesContext,omitempty"`
-	Stage              HookStage          `json:"stage,omitempty"`
+	Stage              HookStage         `json:"stage,omitempty"`
+}
+
+// RegisterFlagChangeListenerParams defines parameters for registering a general flag change listener.
+// The listener will be notified whenever any flag's configuration changes.
+type RegisterFlagChangeListenerParams struct {
+	ListenerID  string `json:"listenerId"`
+	CallbackURI string `json:"callbackUri"`
+}
+
+// RegisterFlagValueChangeListenerParams defines parameters for registering a flag value change listener.
+// The listener fires when the evaluated value of FlagKey changes for the given Context.
+type RegisterFlagValueChangeListenerParams struct {
+	ListenerID   string            `json:"listenerId"`
+	FlagKey      string            `json:"flagKey"`
+	Context      ldcontext.Context `json:"context"`
+	DefaultValue ldvalue.Value     `json:"defaultValue"`
+	CallbackURI  string            `json:"callbackUri"`
+}
+
+// UnregisterListenerParams defines parameters for unregistering a previously registered listener.
+// Works for both flag change and flag value change listeners.
+type UnregisterListenerParams struct {
+	ListenerID string `json:"listenerId"`
+}
+
+// ListenerNotification is the JSON payload POSTed by the test service to a callback URI when a
+// listener fires. OldValue and NewValue are only present for value-change notifications
+// (registerFlagValueChangeListener); they are nil for general flag-change notifications
+// (registerFlagChangeListener).
+type ListenerNotification struct {
+	ListenerID string         `json:"listenerId"`
+	FlagKey    string         `json:"flagKey"`
+	OldValue   *ldvalue.Value `json:"oldValue,omitempty"`
+	NewValue   *ldvalue.Value `json:"newValue,omitempty"`
 }
