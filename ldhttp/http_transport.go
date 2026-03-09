@@ -190,7 +190,7 @@ func NewHTTPTransport(options ...TransportOption) (*http.Transport, *net.Dialer,
 	transport := newDefaultTransport()
 	transport.DialContext = dialer.DialContext
 	if extraOptions.caCerts != nil {
-		transport.TLSClientConfig = &tls.Config{RootCAs: extraOptions.caCerts} //nolint:gosec // not setting TLS.MinVersion
+		transport.TLSClientConfig = &tls.Config{RootCAs: extraOptions.caCerts}
 	}
 	if extraOptions.proxyURL != nil {
 		transport.Proxy = http.ProxyURL(extraOptions.proxyURL)
