@@ -18,7 +18,7 @@ jobs:
         # Perform a GET request to endoflife.date for the Go language. The response
         # contains all Go releases; we're interested in the 0'th and 1'th (latest and penultimate.)
       - name: Fetch officially supported Go versions
-        uses: JamesIves/fetch-api-data-action@396ebea7d13904824f85b892b1616985f847301c
+        uses: JamesIves/fetch-api-data-action@396ebea7d13904824f85b892b1616985f847301c # v2.2.4
         with:
           endpoint: https://endoflife.date/api/go.json
           configuration: '{ "method": "GET" }'
@@ -63,7 +63,7 @@ jobs:
 
       - name: Create pull request
         if: steps.update-go-versions.outcome == 'success'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           add-paths: |
