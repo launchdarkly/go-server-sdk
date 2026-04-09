@@ -16,6 +16,9 @@ import (
 // Defines the Mustache variable name used to access the provided context.
 const ldContextVariable = "ldctx"
 
+// JudgePlaceholderMessageHistory and JudgePlaceholderResponseToEvaluate are the literal placeholder
+// strings shared between JudgeConfig (pass 1) and Judge.buildMessages (pass 2). Both must use the
+// same values or substitution silently fails.
 const (
 	JudgePlaceholderMessageHistory     = "{{message_history}}"
 	JudgePlaceholderResponseToEvaluate = "{{response_to_evaluate}}"
@@ -85,11 +88,11 @@ func (c *Client) logConfigWarning(key string, format string, args ...interface{}
 	c.logger.Warnf(prefix+format, args...)
 }
 
-// The config's messages will undergo Mustache template interpolation using the provided variables, which may be
-// nil. If the config cannot be evaluated or LaunchDarkly is unreachable, the default value is returned. Note that
-// the messages in the default will not undergo template interpolation.
+// CompletionConfig retrieves an AI Config and interpolates its message templates using the provided
+// variables. Returns the default value if the config cannot be evaluated. Template interpolation is
+// not applied to the default value's messages.
 //
-// To send analytic events to LaunchDarkly related to the AI Config, call methods on the returned Tracker.
+// To send analytic events to LaunchDarkly, call methods on the returned Tracker.
 func (c *Client) CompletionConfig(
 	key string,
 	context ldcontext.Context,
@@ -228,6 +231,11 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 	return m.RenderString(variables)
 }
 
+// JudgeConfig retrieves a Judge AI Config and interpolates its message templates. The reserved
+// variables message_history and response_to_evaluate are preserved as literal placeholders for
+// substitution by Judge.buildMessages during evaluation.
+//
+// To send analytic events to LaunchDarkly, call methods on the returned Tracker.
 func (c *Client) JudgeConfig(
 	key string,
 	context ldcontext.Context,
