@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/alexkappa/mustache"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/ldai"
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
@@ -124,26 +123,18 @@ func (j *Judge) GetProvider() Provider {
 }
 
 func (j *Judge) buildMessages(input, output string) []datamodel.Message {
-	vars := map[string]interface{}{
-		"message_history":      input,
-		"response_to_evaluate": output,
-	}
+	// Use string replacement to prevent context attributes like {{=[ ]=}}) from
+	// influencing judge template parsing.
+	replacer := strings.NewReplacer(
+		ldai.JudgePlaceholderMessageHistory, input,
+		ldai.JudgePlaceholderResponseToEvaluate, output,
+	)
 
 	messages := j.config.Messages()
 	result := make([]datamodel.Message, len(messages))
 
 	for i, msg := range messages {
-		m := mustache.New()
-		if err := m.ParseString(msg.Content); err != nil {
-			result[i] = datamodel.Message{Content: msg.Content, Role: msg.Role}
-			continue
-		}
-		content, err := m.RenderString(vars)
-		if err != nil {
-			result[i] = datamodel.Message{Content: msg.Content, Role: msg.Role}
-			continue
-		}
-		result[i] = datamodel.Message{Content: content, Role: msg.Role}
+		result[i] = datamodel.Message{Content: replacer.Replace(msg.Content), Role: msg.Role}
 	}
 
 	return result

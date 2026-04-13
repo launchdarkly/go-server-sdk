@@ -947,3 +947,110 @@ func indexOfForTest(s, substr string) int {
 	}
 	return -1
 }
+
+func newMinimalJudge(t *testing.T, content string) *Judge {
+	t.Helper()
+	config := &mockConfig{
+		evaluationMetricKey: "metric",
+		messages:            []datamodel.Message{{Role: datamodel.User, Content: content}},
+	}
+	j, err := New(config, &mockTracker{}, &mockProvider{
+		response: StructuredResponse{
+			Content: map[string]interface{}{
+				"evaluations": map[string]interface{}{
+					"metric": map[string]interface{}{"score": 1.0, "reasoning": "ok"},
+				},
+			},
+		},
+	}, "key", nil)
+	require.NoError(t, err)
+	return j
+}
+
+// TestBuildMessages_InjectionVariants is a regression test for HackerOne report #3591852.
+// It covers the full set of Mustache control sequences an attacker could inject via a
+// user-controlled context variable. All variants must be treated as inert literal text by
+// pass 2 — none should cause a placeholder to go unsubstituted.
+func TestBuildMessages_InjectionVariants(t *testing.T) {
+	variants := []struct {
+		name    string
+		payload string // injected via {{ldctx.user.name}} in the template
+	}{
+		{"delimiter change brackets", "{{=[ ]=}}"},
+		{"delimiter change angle", "{{=<% %>=}}"},
+		{"partial", "{{> evil}}"},
+		{"comment", "{{! drop everything }}"},
+		{"triple stache", "{{{raw}}}"},
+		{"section", "{{#section}}inject{{/section}}"},
+		{"inverted section", "{{^section}}inject{{/section}}"},
+	}
+
+	for _, tt := range variants {
+		t.Run(tt.name, func(t *testing.T) {
+			// Hand-craft the pass-1 output: user.name resolved to the attack payload,
+			// reserved placeholder survived as a literal string.
+			afterPass1 := "Auditing " + tt.payload + ": " + ldai.JudgePlaceholderMessageHistory
+
+			// Pass 2: judge substitutes placeholders
+			judge := newMinimalJudge(t, afterPass1)
+			actualHistory := "ACTUAL MESSAGE HISTORY"
+			messages := judge.buildMessages(actualHistory, "some output")
+
+			require.Len(t, messages, 1)
+			assert.Contains(t, messages[0].Content, actualHistory,
+				"payload %q must not blind the judge to the actual history", tt.payload)
+			assert.NotContains(t, messages[0].Content, ldai.JudgePlaceholderMessageHistory,
+				"placeholder must be fully substituted after payload %q", tt.payload)
+		})
+	}
+}
+
+// TestBuildMessages_InjectionViaResponse verifies that injection payloads in the response
+// being evaluated (not just the history) are equally neutralized.
+func TestBuildMessages_InjectionViaResponse(t *testing.T) {
+	// Pass-1 output: no user vars resolved, both placeholders survived as literal strings.
+	afterPass1 := "History: " + ldai.JudgePlaceholderMessageHistory +
+		"\nResponse: " + ldai.JudgePlaceholderResponseToEvaluate
+
+	judge := newMinimalJudge(t, afterPass1)
+	maliciousResponse := "{{=[ ]=}} INJECTION ATTEMPT"
+	messages := judge.buildMessages("normal history", maliciousResponse)
+
+	require.Len(t, messages, 1)
+	assert.Contains(t, messages[0].Content, maliciousResponse,
+		"malicious content in response must appear verbatim — not silently dropped")
+	assert.NotContains(t, messages[0].Content, ldai.JudgePlaceholderResponseToEvaluate,
+		"response placeholder must be fully substituted")
+}
+
+// TestBuildMessages_MultiplePlaceholderOccurrences verifies that when a template contains
+// the same placeholder more than once, every occurrence is substituted.
+func TestBuildMessages_MultiplePlaceholderOccurrences(t *testing.T) {
+	template := ldai.JudgePlaceholderMessageHistory + " | " + ldai.JudgePlaceholderMessageHistory
+	judge := newMinimalJudge(t, template)
+	messages := judge.buildMessages("HISTORY", "RESPONSE")
+
+	require.Len(t, messages, 1)
+	assert.Equal(t, "HISTORY | HISTORY", messages[0].Content)
+}
+
+// TestBuildMessages_MustacheSyntaxInContent verifies that Mustache-like syntax inside the
+// actual history or response values is treated as literal text and not silently consumed.
+// The old Mustache-based pass 2 would have rendered unrecognized tags (e.g. {{user}}) as
+// empty strings, corrupting content such as code samples or questions about templating.
+func TestBuildMessages_MustacheSyntaxInContent(t *testing.T) {
+	template := "History: " + ldai.JudgePlaceholderMessageHistory +
+		"\nResponse: " + ldai.JudgePlaceholderResponseToEvaluate
+	judge := newMinimalJudge(t, template)
+
+	historyWithMustache := "How do I use {{user}} in Mustache?"
+	responseWithMustache := "Use {{user}} like this: {{#user}}Hello{{/user}}"
+
+	messages := judge.buildMessages(historyWithMustache, responseWithMustache)
+
+	require.Len(t, messages, 1)
+	assert.Contains(t, messages[0].Content, historyWithMustache,
+		"Mustache-like syntax in history must be preserved verbatim")
+	assert.Contains(t, messages[0].Content, responseWithMustache,
+		"Mustache-like syntax in response must be preserved verbatim")
+}
