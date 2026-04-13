@@ -123,10 +123,8 @@ func (j *Judge) GetProvider() Provider {
 }
 
 func (j *Judge) buildMessages(input, output string) []datamodel.Message {
-	// Use literal string replacement instead of a template engine to prevent
-	// template injection: attacker-controlled values from pass 1 (e.g. Mustache
-	// delimiter-change tags like {{=[ ]=}}) would otherwise be interpreted as
-	// control syntax by a second Mustache pass, blinding the judge.
+	// Use string replacement to prevent context attributes like {{=[ ]=}}) from
+	// influencing judge template parsing.
 	replacer := strings.NewReplacer(
 		ldai.JudgePlaceholderMessageHistory, input,
 		ldai.JudgePlaceholderResponseToEvaluate, output,
