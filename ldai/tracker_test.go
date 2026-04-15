@@ -47,8 +47,9 @@ func TestTracker_NewDoesNotPanicWithConfig(t *testing.T) {
 	})
 }
 
-func makeTrackData(configKey, variationKey string, version int, config *Config) ldvalue.Value {
+func makeTrackData(configKey, variationKey string, version int, config *Config, runId string) ldvalue.Value {
 	return ldvalue.ObjectBuild().
+		Set("runId", ldvalue.String(runId)).
 		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(configKey)).
 		Set("version", ldvalue.Int(version)).
@@ -57,18 +58,27 @@ func makeTrackData(configKey, variationKey string, version int, config *Config) 
 		Build()
 }
 
+func extractRunId(t *testing.T, events *mockEvents) string {
+	t.Helper()
+	require.NotEmpty(t, events.events, "expected at least one event to extract runId")
+	runId := events.events[0].data.GetByKey("runId").StringValue()
+	require.NotEmpty(t, runId, "expected runId to be non-empty")
+	return runId
+}
+
 func TestTracker_TrackSuccess(t *testing.T) {
 	events := newMockEvents()
 	config := &Config{}
 	tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
 	assert.NoError(t, tracker.TrackSuccess())
 
+	runId := extractRunId(t, events)
 	expectedEvents := []trackEvent{
 		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 1, config),
+			data:        makeTrackData("key", "variationKey", 1, config, runId),
 		},
 	}
 
@@ -81,12 +91,13 @@ func TestTracker_TrackError(t *testing.T) {
 	tracker := newTracker("key", "variationKey", 2, events, config, ldcontext.New("key"), nil)
 	assert.NoError(t, tracker.TrackError())
 
+	runId := extractRunId(t, events)
 	expectedEvents := []trackEvent{
 		{
 			name:        "$ld:ai:generation:error",
 			context:     ldcontext.New("key"),
 			metricValue: 1.0,
-			data:        makeTrackData("key", "variationKey", 2, config),
+			data:        makeTrackData("key", "variationKey", 2, config, runId),
 		},
 	}
 
@@ -115,30 +126,31 @@ func TestTracker_TrackRequest(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResponse, r)
 
+	runId := extractRunId(t, events)
 	expectedEvents := []trackEvent{
 		{
 			name:        "$ld:ai:generation:success",
 			context:     ldcontext.New("key"),
 			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3, config),
+			data:        makeTrackData("key", "variationKey", 3, config, runId),
 		},
 		{
 			name:        "$ld:ai:duration:total",
 			context:     ldcontext.New("key"),
 			metricValue: 10.0,
-			data:        makeTrackData("key", "variationKey", 3, config),
+			data:        makeTrackData("key", "variationKey", 3, config, runId),
 		},
 		{
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 1,
-			data:        makeTrackData("key", "variationKey", 3, config),
+			data:        makeTrackData("key", "variationKey", 3, config, runId),
 		},
 		{
 			name:        "$ld:ai:tokens:ttf",
 			context:     ldcontext.New("key"),
 			metricValue: 42.0,
-			data:        makeTrackData("key", "variationKey", 3, config),
+			data:        makeTrackData("key", "variationKey", 3, config, runId),
 		},
 	}
 
@@ -209,40 +221,62 @@ func TestTracker_TrackDuration(t *testing.T) {
 
 	assert.NoError(t, tracker.TrackDuration(time.Millisecond*10))
 
+	runId := extractRunId(t, events)
 	expectedEvent := trackEvent{
 		name:        "$ld:ai:duration:total",
 		context:     ldcontext.New("key"),
 		metricValue: 10.0,
-		data:        makeTrackData("key", "variationKey", 6, config),
+		data:        makeTrackData("key", "variationKey", 6, config, runId),
 	}
 
 	assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
 }
 
 func TestTracker_TrackFeedback(t *testing.T) {
-	events := newMockEvents()
-	config := &Config{}
-	tracker := newTracker("key", "variationKey", 7, events, config, ldcontext.New("key"), nil)
+	t.Run("positive feedback", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 7, events, config, ldcontext.New("key"), nil)
 
-	assert.NoError(t, tracker.TrackFeedback(FeedbackPositive))
-	assert.NoError(t, tracker.TrackFeedback(FeedbackNegative))
-	assert.Error(t, tracker.TrackFeedback("not a valid feedback value"))
+		assert.NoError(t, tracker.TrackFeedback(FeedbackPositive))
 
-	expectedPositiveEvent := trackEvent{
-		name:        "$ld:ai:feedback:user:positive",
-		context:     ldcontext.New("key"),
-		metricValue: 1.0,
-		data:        makeTrackData("key", "variationKey", 7, config),
-	}
+		runId := extractRunId(t, events)
+		expectedEvent := trackEvent{
+			name:        "$ld:ai:feedback:user:positive",
+			context:     ldcontext.New("key"),
+			metricValue: 1.0,
+			data:        makeTrackData("key", "variationKey", 7, config, runId),
+		}
 
-	expectedNegativeEvent := trackEvent{
-		name:        "$ld:ai:feedback:user:negative",
-		context:     ldcontext.New("key"),
-		metricValue: 1.0,
-		data:        makeTrackData("key", "variationKey", 7, config),
-	}
+		assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
+	})
 
-	assert.ElementsMatch(t, []trackEvent{expectedPositiveEvent, expectedNegativeEvent}, events.events)
+	t.Run("negative feedback", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 7, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackFeedback(FeedbackNegative))
+
+		runId := extractRunId(t, events)
+		expectedEvent := trackEvent{
+			name:        "$ld:ai:feedback:user:negative",
+			context:     ldcontext.New("key"),
+			metricValue: 1.0,
+			data:        makeTrackData("key", "variationKey", 7, config, runId),
+		}
+
+		assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
+	})
+
+	t.Run("invalid feedback returns error", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 7, events, config, ldcontext.New("key"), nil)
+
+		assert.Error(t, tracker.TrackFeedback("not a valid feedback value"))
+		assert.Empty(t, events.events)
+	})
 }
 
 func TestTracker_TrackUsage(t *testing.T) {
@@ -255,11 +289,12 @@ func TestTracker_TrackUsage(t *testing.T) {
 			Total: 42,
 		}))
 
+		runId := extractRunId(t, events)
 		expectedEvent := trackEvent{
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 42.0,
-			data:        makeTrackData("key", "variationKey", 8, config),
+			data:        makeTrackData("key", "variationKey", 8, config, runId),
 		}
 
 		assert.ElementsMatch(t, []trackEvent{expectedEvent}, events.events)
@@ -276,25 +311,26 @@ func TestTracker_TrackUsage(t *testing.T) {
 			Output: 22,
 		}))
 
+		runId := extractRunId(t, events)
 		expectedTotal := trackEvent{
 			name:        "$ld:ai:tokens:total",
 			context:     ldcontext.New("key"),
 			metricValue: 42.0,
-			data:        makeTrackData("key", "variationKey", 9, config),
+			data:        makeTrackData("key", "variationKey", 9, config, runId),
 		}
 
 		expectedInput := trackEvent{
 			name:        "$ld:ai:tokens:input",
 			context:     ldcontext.New("key"),
 			metricValue: 20.0,
-			data:        makeTrackData("key", "variationKey", 9, config),
+			data:        makeTrackData("key", "variationKey", 9, config, runId),
 		}
 
 		expectedOutput := trackEvent{
 			name:        "$ld:ai:tokens:output",
 			context:     ldcontext.New("key"),
 			metricValue: 22.0,
-			data:        makeTrackData("key", "variationKey", 9, config),
+			data:        makeTrackData("key", "variationKey", 9, config, runId),
 		}
 
 		assert.ElementsMatch(t, []trackEvent{expectedTotal, expectedInput, expectedOutput}, events.events)
@@ -315,7 +351,7 @@ func TestTracker_GetSummary(t *testing.T) {
 		assert.True(t, summary.TimeToFirstToken.IsNone())
 	})
 
-	t.Run("latest duration is returned", func(t *testing.T) {
+	t.Run("first duration is returned", func(t *testing.T) {
 		events := newMockEvents()
 		tracker := newTracker("key", "variationKey", 11, events, &Config{}, ldcontext.New("key"), nil)
 
@@ -325,10 +361,10 @@ func TestTracker_GetSummary(t *testing.T) {
 		summary := tracker.GetSummary()
 
 		assert.True(t, summary.Duration.IsSome())
-		assert.Equal(t, time.Millisecond*20, summary.Duration.Unwrap())
+		assert.Equal(t, time.Millisecond*10, summary.Duration.Unwrap())
 	})
 
-	t.Run("latest feedback is returned", func(t *testing.T) {
+	t.Run("first feedback is returned", func(t *testing.T) {
 		events := newMockEvents()
 		tracker := newTracker("key", "variationKey", 12, events, &Config{}, ldcontext.New("key"), nil)
 
@@ -338,7 +374,7 @@ func TestTracker_GetSummary(t *testing.T) {
 		summary := tracker.GetSummary()
 
 		assert.True(t, summary.Feedback.IsSome())
-		assert.Equal(t, FeedbackNegative, summary.Feedback.Unwrap())
+		assert.Equal(t, FeedbackPositive, summary.Feedback.Unwrap())
 	})
 
 	t.Run("success status tracked correctly", func(t *testing.T) {
@@ -351,13 +387,6 @@ func TestTracker_GetSummary(t *testing.T) {
 
 		assert.True(t, summary.Success.IsSome())
 		assert.True(t, summary.Success.Unwrap())
-
-		_ = tracker.TrackError()
-
-		summary = tracker.GetSummary()
-
-		assert.True(t, summary.Success.IsSome())
-		assert.False(t, summary.Success.Unwrap())
 	})
 
 	t.Run("time to first token is returned", func(t *testing.T) {
@@ -388,5 +417,133 @@ func TestTracker_GetSummary(t *testing.T) {
 
 		assert.True(t, summary.Tokens.IsSome())
 		assert.Equal(t, usage, summary.Tokens.Unwrap())
+	})
+}
+
+func TestTracker_RunIdPresentInTrackData(t *testing.T) {
+	events := newMockEvents()
+	config := &Config{}
+	tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+	_ = tracker.TrackSuccess()
+
+	require.NotEmpty(t, events.events)
+	data := events.events[0].data
+	runId := data.GetByKey("runId").StringValue()
+	assert.NotEmpty(t, runId, "runId should be present and non-empty in track data")
+}
+
+func TestTracker_AtMostOnce(t *testing.T) {
+	t.Run("TrackDuration only tracks once", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackDuration(10*time.Millisecond))
+		assert.NoError(t, tracker.TrackDuration(20*time.Millisecond))
+
+		count := 0
+		for _, e := range events.events {
+			if e.name == "$ld:ai:duration:total" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "TrackDuration should only emit one event")
+	})
+
+	t.Run("TrackTimeToFirstToken only tracks once", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackTimeToFirstToken(10*time.Millisecond))
+		assert.NoError(t, tracker.TrackTimeToFirstToken(20*time.Millisecond))
+
+		count := 0
+		for _, e := range events.events {
+			if e.name == "$ld:ai:tokens:ttf" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "TrackTimeToFirstToken should only emit one event")
+	})
+
+	t.Run("TrackUsage only tracks once", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackUsage(TokenUsage{Total: 10}))
+		assert.NoError(t, tracker.TrackUsage(TokenUsage{Total: 20}))
+
+		count := 0
+		for _, e := range events.events {
+			if e.name == "$ld:ai:tokens:total" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "TrackUsage should only emit one event")
+	})
+
+	t.Run("TrackFeedback only tracks once", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackFeedback(FeedbackPositive))
+		assert.NoError(t, tracker.TrackFeedback(FeedbackNegative))
+
+		count := 0
+		for _, e := range events.events {
+			if e.name == "$ld:ai:feedback:user:positive" || e.name == "$ld:ai:feedback:user:negative" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "TrackFeedback should only emit one event")
+	})
+
+	t.Run("TrackSuccess only tracks once", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackSuccess())
+		assert.NoError(t, tracker.TrackSuccess())
+
+		count := 0
+		for _, e := range events.events {
+			if e.name == "$ld:ai:generation:success" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "TrackSuccess should only emit one event")
+	})
+
+	t.Run("TrackError only tracks once", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackError())
+		assert.NoError(t, tracker.TrackError())
+
+		count := 0
+		for _, e := range events.events {
+			if e.name == "$ld:ai:generation:error" {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "TrackError should only emit one event")
+	})
+
+	t.Run("TrackSuccess then TrackError only tracks success", func(t *testing.T) {
+		events := newMockEvents()
+		config := &Config{}
+		tracker := newTracker("key", "variationKey", 1, events, config, ldcontext.New("key"), nil)
+
+		assert.NoError(t, tracker.TrackSuccess())
+		assert.NoError(t, tracker.TrackError())
+
+		assert.Equal(t, 1, len(events.events))
+		assert.Equal(t, "$ld:ai:generation:success", events.events[0].name)
 	})
 }

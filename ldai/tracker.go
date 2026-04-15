@@ -1,6 +1,7 @@
 package ldai
 
 import (
+	"crypto/rand"
 	"fmt"
 	"time"
 
@@ -26,6 +27,14 @@ const (
 	//nolint:gosec
 	tokenOutput = "$ld:ai:tokens:output"
 )
+
+func newRunID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
 
 // TokenUsage represents the token usage returned by a model provider for a specific request.
 type TokenUsage struct {
@@ -110,6 +119,7 @@ type Stopwatch interface {
 // Unless otherwise noted, the Tracker's method are not safe for concurrent use.
 type Tracker struct {
 	key       string
+	runID     string
 	config    *Config
 	context   ldcontext.Context
 	events    EventSink
@@ -168,7 +178,10 @@ func newTrackerWithStopwatch(
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
 
+	runID := newRunID()
+
 	trackData := ldvalue.ObjectBuild().
+		Set("runId", ldvalue.String(runID)).
 		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(key)).
 		Set("version", ldvalue.Int(version)).
@@ -178,6 +191,7 @@ func newTrackerWithStopwatch(
 
 	return &Tracker{
 		key:       key,
+		runID:     runID,
 		config:    config,
 		trackData: trackData,
 		events:    events,
@@ -196,6 +210,10 @@ func (t *Tracker) logWarning(format string, args ...interface{}) {
 // tracked here. See also TrackRequest.
 // The duration in milliseconds must fit within a float64.
 func (t *Tracker) TrackDuration(dur time.Duration) error {
+	if t.duration.IsSome() {
+		t.logWarning("Duration has already been tracked for this execution.")
+		return nil
+	}
 	t.duration = ldcommon.Some(dur)
 	return t.events.TrackMetric(duration, t.context, float64(dur.Milliseconds()), t.trackData)
 }
@@ -203,6 +221,10 @@ func (t *Tracker) TrackDuration(dur time.Duration) error {
 // TrackFeedback tracks the feedback provided by a user for a model evaluation. If the feedback is not
 // FeedbackPositive or FeedbackNegative, returns an error and does not track anything.
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
+	if t.feedback.IsSome() {
+		t.logWarning("Feedback has already been tracked for this execution.")
+		return nil
+	}
 	switch feedback {
 	case FeedbackPositive:
 		t.feedback = ldcommon.Some(feedback)
@@ -217,6 +239,10 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 
 // TrackSuccess tracks a successful model evaluation.
 func (t *Tracker) TrackSuccess() error {
+	if t.success.IsSome() {
+		t.logWarning("Success/error has already been tracked for this execution.")
+		return nil
+	}
 	t.success = ldcommon.Some(true)
 
 	return t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData)
@@ -224,6 +250,10 @@ func (t *Tracker) TrackSuccess() error {
 
 // TrackError tracks an unsuccessful model evaluation.
 func (t *Tracker) TrackError() error {
+	if t.success.IsSome() {
+		t.logWarning("Success/error has already been tracked for this execution.")
+		return nil
+	}
 	t.success = ldcommon.Some(false)
 
 	return t.events.TrackMetric(generationError, t.context, 1, t.trackData)
@@ -231,12 +261,21 @@ func (t *Tracker) TrackError() error {
 
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
+	if t.timeToFirstToken.IsSome() {
+		t.logWarning("Time to first token has already been tracked for this execution.")
+		return nil
+	}
 	t.timeToFirstToken = ldcommon.Some(dur)
 	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
 // TrackUsage tracks the token usage for a model evaluation.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
+	if t.tokens.IsSome() {
+		t.logWarning("Usage has already been tracked for this execution.")
+		return nil
+	}
+
 	if usage.Set() {
 		t.tokens = ldcommon.Some(usage)
 	}
