@@ -1,6 +1,8 @@
 package ldai
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -96,7 +98,10 @@ func TestEvalErrorReturnsDefault(t *testing.T) {
 
 	cfg, tracker := client.Config("key", ldcontext.New("user"), defaultVal, nil)
 	assert.NotNil(t, tracker)
-	assert.Equal(t, defaultVal, cfg)
+	assert.Equal(t, defaultVal.Enabled(), cfg.Enabled())
+	assert.Equal(t, defaultVal.Messages(), cfg.Messages())
+	assert.Equal(t, defaultVal.ModelName(), cfg.ModelName())
+	assert.Equal(t, defaultVal.ProviderName(), cfg.ProviderName())
 }
 
 func TestParseMultipleMessages(t *testing.T) {
@@ -834,4 +839,237 @@ func TestConfig_WithoutReservedVarsWipesJudgePlaceholders(t *testing.T) {
 	msgs := cfg.Messages()
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "Input: \nOutput: ", msgs[0].Content, "Config without reserved vars renders placeholders as empty")
+}
+
+func TestCreateTracker_ManuallyBuiltConfig_ReturnsNil(t *testing.T) {
+	cfg := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
+	assert.Nil(t, cfg.CreateTracker(), "manually built config should not have a tracker factory")
+}
+
+func TestCreateTracker_DisabledConfig_ReturnsNil(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": false},
+		"messages": [{"content": "hello", "role": "user"}]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+
+	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+	assert.False(t, cfg.Enabled())
+	assert.Nil(t, cfg.CreateTracker(), "disabled config should not have a tracker factory")
+}
+
+func TestCreateTracker_EnabledConfig_ReturnsTracker(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"model": {"name": "gpt-4"},
+		"provider": {"name": "openai"},
+		"messages": [{"content": "hello", "role": "user"}]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+
+	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+	assert.True(t, cfg.Enabled())
+
+	tracker := cfg.CreateTracker()
+	require.NotNil(t, tracker, "enabled config should have a tracker factory")
+}
+
+func TestCreateTracker_FreshRunIdPerCall(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"messages": [{"content": "hello", "role": "user"}]
+	}`)
+
+	mockSDK := newMockSDK(json, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+
+	// Clear SDK info event
+	mockSDK.events = nil
+
+	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+
+	tracker1 := cfg.CreateTracker()
+	tracker2 := cfg.CreateTracker()
+	require.NotNil(t, tracker1)
+	require.NotNil(t, tracker2)
+
+	// Each tracker should be able to track independently. Track success on both to emit events.
+	_ = tracker1.TrackSuccess()
+	_ = tracker2.TrackSuccess()
+
+	// Filter out the usage event; we only want the generation events.
+	var genEvents []mockEvent
+	for _, e := range mockSDK.events {
+		if e.eventName == "$ld:ai:generation:success" {
+			genEvents = append(genEvents, e)
+		}
+	}
+
+	require.Len(t, genEvents, 2, "each tracker should emit its own event")
+
+	runId1 := genEvents[0].data.GetByKey("runId").StringValue()
+	runId2 := genEvents[1].data.GetByKey("runId").StringValue()
+	assert.NotEmpty(t, runId1)
+	assert.NotEmpty(t, runId2)
+	assert.NotEqual(t, runId1, runId2, "each tracker must have a unique runId")
+}
+
+func TestCreateTracker_TrackerHasCorrectMetadata(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "var-1", "enabled": true, "version": 5},
+		"model": {"name": "gpt-4"},
+		"provider": {"name": "openai"},
+		"messages": [{"content": "hello", "role": "user"}]
+	}`)
+
+	mockSDK := newMockSDK(json, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+
+	// Clear SDK info event
+	mockSDK.events = nil
+
+	cfg, _ := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
+
+	tracker := cfg.CreateTracker()
+	require.NotNil(t, tracker)
+
+	_ = tracker.TrackSuccess()
+
+	// Filter for the generation event (skip usage event)
+	var genEvent *mockEvent
+	for i, e := range mockSDK.events {
+		if e.eventName == "$ld:ai:generation:success" {
+			genEvent = &mockSDK.events[i]
+			break
+		}
+	}
+	require.NotNil(t, genEvent)
+
+	data := genEvent.data
+	assert.Equal(t, "my-config", data.GetByKey("configKey").StringValue())
+	assert.Equal(t, "var-1", data.GetByKey("variationKey").StringValue())
+	assert.Equal(t, 5, data.GetByKey("version").IntValue())
+	assert.Equal(t, "openai", data.GetByKey("providerName").StringValue())
+	assert.Equal(t, "gpt-4", data.GetByKey("modelName").StringValue())
+	assert.NotEmpty(t, data.GetByKey("runId").StringValue())
+}
+
+func TestCreateTracker_JudgeConfigHasFactory(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "1", "enabled": true},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"messages": [{"content": "test", "role": "system"}]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+
+	cfg, _ := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
+	assert.True(t, cfg.Enabled())
+
+	tracker := cfg.CreateTracker()
+	require.NotNil(t, tracker, "enabled judge config should have a tracker factory")
+}
+
+func TestClient_CreateTracker_RoundTrip(t *testing.T) {
+	configJSON := []byte(`{
+		"_ldMeta": {"variationKey": "var-1", "enabled": true, "version": 5},
+		"model": {"name": "gpt-4"},
+		"provider": {"name": "openai"},
+		"messages": [{"content": "hello", "role": "user"}]
+	}`)
+
+	mockSDK := newMockSDK(configJSON, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+
+	// Clear SDK info event
+	mockSDK.events = nil
+
+	cfg, _ := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
+	originalTracker := cfg.CreateTracker()
+	require.NotNil(t, originalTracker)
+
+	token := originalTracker.ResumptionToken()
+	require.NotEmpty(t, token)
+
+	// Reconstruct from token with a different context
+	newContext := ldcontext.New("other-user")
+	reconstructed, err := client.CreateTracker(token, newContext)
+	require.NoError(t, err)
+	require.NotNil(t, reconstructed)
+
+	// The reconstructed tracker should produce the same resumption token
+	assert.Equal(t, token, reconstructed.ResumptionToken())
+
+	// Track feedback on the reconstructed tracker and verify it uses the original runId
+	_ = originalTracker.TrackSuccess()
+	_ = reconstructed.TrackFeedback(FeedbackPositive)
+
+	var successEvent, feedbackEvent *mockEvent
+	for i, e := range mockSDK.events {
+		switch e.eventName {
+		case "$ld:ai:generation:success":
+			successEvent = &mockSDK.events[i]
+		case "$ld:ai:feedback:user:positive":
+			feedbackEvent = &mockSDK.events[i]
+		}
+	}
+	require.NotNil(t, successEvent)
+	require.NotNil(t, feedbackEvent)
+
+	// Both events should share the same runId
+	originalRunId := successEvent.data.GetByKey("runId").StringValue()
+	reconstructedRunId := feedbackEvent.data.GetByKey("runId").StringValue()
+	assert.Equal(t, originalRunId, reconstructedRunId, "reconstructed tracker must reuse the original runId")
+
+	// Reconstructed tracker should use the new context
+	assert.Equal(t, newContext, feedbackEvent.context)
+
+	// Verify metadata preserved
+	assert.Equal(t, "my-config", feedbackEvent.data.GetByKey("configKey").StringValue())
+	assert.Equal(t, "var-1", feedbackEvent.data.GetByKey("variationKey").StringValue())
+	assert.Equal(t, 5, feedbackEvent.data.GetByKey("version").IntValue())
+
+	// modelName and providerName should be empty on reconstructed tracker
+	assert.Equal(t, "", feedbackEvent.data.GetByKey("modelName").StringValue())
+	assert.Equal(t, "", feedbackEvent.data.GetByKey("providerName").StringValue())
+}
+
+func TestClient_CreateTracker_InvalidToken(t *testing.T) {
+	mockSDK := newMockSDK(nil, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+
+	t.Run("invalid base64", func(t *testing.T) {
+		_, err := client.CreateTracker("not-valid-base64!!!", ldcontext.New("user"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid resumption token")
+	})
+
+	t.Run("valid base64 but invalid JSON", func(t *testing.T) {
+		token := base64.RawURLEncoding.EncodeToString([]byte("not json"))
+		_, err := client.CreateTracker(token, ldcontext.New("user"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid resumption token")
+	})
+
+	t.Run("valid token with missing fields uses zero values", func(t *testing.T) {
+		payload, _ := json.Marshal(map[string]interface{}{"runId": "test-run"})
+		token := base64.RawURLEncoding.EncodeToString(payload)
+		tracker, err := client.CreateTracker(token, ldcontext.New("user"))
+		require.NoError(t, err)
+		require.NotNil(t, tracker)
+
+		// Should work with partial data
+		resumeToken := tracker.ResumptionToken()
+		assert.NotEmpty(t, resumeToken)
+	})
 }

@@ -2,6 +2,8 @@ package ldai
 
 import (
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -115,17 +117,27 @@ type Stopwatch interface {
 	Stop() time.Duration
 }
 
+// resumptionPayload is the JSON structure encoded into a resumption token.
+type resumptionPayload struct {
+	RunID        string `json:"runId"`
+	ConfigKey    string `json:"configKey"`
+	VariationKey string `json:"variationKey"`
+	Version      int    `json:"version"`
+}
+
 // Tracker is used to track metrics for AI Config evaluation.
 // Unless otherwise noted, the Tracker's method are not safe for concurrent use.
 type Tracker struct {
-	key       string
-	runID     string
-	config    *Config
-	context   ldcontext.Context
-	events    EventSink
-	trackData ldvalue.Value
-	logger    interfaces.LDLoggers
-	stopwatch Stopwatch
+	key          string
+	runID        string
+	variationKey string
+	version      int
+	config       *Config
+	context      ldcontext.Context
+	events       EventSink
+	trackData    ldvalue.Value
+	logger       interfaces.LDLoggers
+	stopwatch    Stopwatch
 
 	duration         ldcommon.Option[time.Duration]
 	feedback         ldcommon.Option[Feedback]
@@ -149,9 +161,10 @@ func (d *defaultStopwatch) Stop() time.Duration {
 	return time.Since(d.start)
 }
 
-// newTracker creates a new Tracker with the specified key, event sink, config, context, and loggers.
+// newTracker creates a new Tracker with the specified runID, key, event sink, config, context, and loggers.
 func newTracker(
 	key string,
+	runID string,
 	variationKey string,
 	version int,
 	events EventSink,
@@ -159,13 +172,14 @@ func newTracker(
 	ctx ldcontext.Context,
 	loggers interfaces.LDLoggers,
 ) *Tracker {
-	return newTrackerWithStopwatch(key, variationKey, version, events, config, ctx, loggers, &defaultStopwatch{})
+	return newTrackerWithStopwatch(key, runID, variationKey, version, events, config, ctx, loggers, &defaultStopwatch{})
 }
 
-// newTrackerWithStopwatch creates a new Tracker with the specified key, event sink, config, context, loggers, and
-// stopwatch. This method is used for testing purposes.
+// newTrackerWithStopwatch creates a new Tracker with the specified runID, key, event sink, config, context, loggers,
+// and stopwatch. This method is used for testing purposes.
 func newTrackerWithStopwatch(
 	key string,
+	runID string,
 	variationKey string,
 	version int,
 	events EventSink,
@@ -178,8 +192,6 @@ func newTrackerWithStopwatch(
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
 
-	runID := newRunID()
-
 	trackData := ldvalue.ObjectBuild().
 		Set("runId", ldvalue.String(runID)).
 		Set("variationKey", ldvalue.String(variationKey)).
@@ -190,20 +202,36 @@ func newTrackerWithStopwatch(
 		Build()
 
 	return &Tracker{
-		key:       key,
-		runID:     runID,
-		config:    config,
-		trackData: trackData,
-		events:    events,
-		context:   ctx,
-		logger:    loggers,
-		stopwatch: stopwatch,
+		key:          key,
+		runID:        runID,
+		variationKey: variationKey,
+		version:      version,
+		config:       config,
+		trackData:    trackData,
+		events:       events,
+		context:      ctx,
+		logger:       loggers,
+		stopwatch:    stopwatch,
 	}
 }
 
 func (t *Tracker) logWarning(format string, args ...interface{}) {
 	prefix := "AI Config tracker for '" + t.key + "': "
 	t.logger.Warnf(prefix+format, args...)
+}
+
+// ResumptionToken returns a URL-safe Base64-encoded token that can be used to reconstruct a tracker
+// in a different process (e.g., for deferred feedback). The token contains the runId, configKey,
+// variationKey, and version. It does not contain modelName or providerName.
+func (t *Tracker) ResumptionToken() string {
+	payload := resumptionPayload{
+		RunID:        t.runID,
+		ConfigKey:    t.key,
+		VariationKey: t.variationKey,
+		Version:      t.version,
+	}
+	jsonBytes, _ := json.Marshal(payload)
+	return base64.RawURLEncoding.EncodeToString(jsonBytes)
 }
 
 // TrackDuration tracks the duration of a task. For example, the duration of a model evaluation request may be

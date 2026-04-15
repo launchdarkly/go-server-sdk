@@ -1,6 +1,7 @@
 package ldai
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -116,6 +117,46 @@ func (c *Client) Config(
 	return c.CompletionConfig(key, context, defaultValue, variables)
 }
 
+// CreateTracker reconstructs a Tracker from a resumption token and the given context.
+// This is used for cross-process scenarios (e.g., deferred feedback) where the original tracker
+// is no longer available but its runId must be reused. The token is obtained from Tracker.ResumptionToken().
+// The reconstructed tracker will have empty modelName and providerName since these are not included
+// in the token.
+func (c *Client) CreateTracker(token string, context ldcontext.Context) (*Tracker, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid resumption token: %w", err)
+	}
+	var payload resumptionPayload
+	if err := json.Unmarshal(decoded, &payload); err != nil {
+		return nil, fmt.Errorf("invalid resumption token: %w", err)
+	}
+
+	trackData := ldvalue.ObjectBuild().
+		Set("runId", ldvalue.String(payload.RunID)).
+		Set("variationKey", ldvalue.String(payload.VariationKey)).
+		Set("configKey", ldvalue.String(payload.ConfigKey)).
+		Set("version", ldvalue.Int(payload.Version)).
+		Set("providerName", ldvalue.String("")).
+		Set("modelName", ldvalue.String("")).
+		Build()
+
+	emptyConfig := Disabled()
+
+	return &Tracker{
+		key:          payload.ConfigKey,
+		runID:        payload.RunID,
+		variationKey: payload.VariationKey,
+		version:      payload.Version,
+		config:       &emptyConfig,
+		trackData:    trackData,
+		events:       c.sdk,
+		context:      context,
+		logger:       c.logger,
+		stopwatch:    &defaultStopwatch{},
+	}, nil
+}
+
 // evaluateConfig fetches and interpolates an AI Config without emitting any metric.
 // Callers (Config, JudgeConfig) are meant to emit their own metric before calling this.
 func (c *Client) evaluateConfig(
@@ -130,13 +171,13 @@ func (c *Client) evaluateConfig(
 	// empty object.)
 	if result.Type() != ldvalue.ObjectType {
 		c.logConfigWarning(key, "unmarshalling failed, expected JSON object but got %s", result.Type().String())
-		return defaultValue, newTracker(key, "", 1, c.sdk, &defaultValue, context, c.logger)
+		return defaultValue, newTracker(key, newRunID(), "", 1, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
 		c.logConfigWarning(key, "unmarshalling failed: %v", err)
-		return defaultValue, newTracker(key, "", 1, c.sdk, &defaultValue, context, c.logger)
+		return defaultValue, newTracker(key, newRunID(), "", 1, c.sdk, &defaultValue, context, c.logger)
 	}
 
 	mergedVariables := map[string]interface{}{
@@ -186,7 +227,14 @@ func (c *Client) evaluateConfig(
 		version = *parsed.Meta.Version
 	}
 
-	return cfg, newTracker(key, parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
+	if cfg.Enabled() {
+		variationKey := parsed.Meta.VariationKey
+		cfg.trackerFactory = func() *Tracker {
+			return newTracker(key, newRunID(), variationKey, version, c.sdk, &cfg, context, c.logger)
+		}
+	}
+
+	return cfg, newTracker(key, newRunID(), parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {

@@ -11,7 +11,8 @@ import (
 
 // Config represents an AI Config.
 type Config struct {
-	c datamodel.Config
+	c              datamodel.Config
+	trackerFactory func() *Tracker
 }
 
 // VariationKey is used internally by LaunchDarkly.
@@ -85,6 +86,16 @@ func (c *Config) JudgeConfiguration() *datamodel.JudgeConfiguration {
 	return &datamodel.JudgeConfiguration{
 		Judges: slices.Clone(c.c.JudgeConfiguration.Judges),
 	}
+}
+
+// CreateTracker creates a new Tracker with a fresh runId for tracking metrics related to this
+// AI Config evaluation. Each call returns a new, independent Tracker instance.
+// Returns nil if the config is disabled or was not obtained via the Client.
+func (c *Config) CreateTracker() *Tracker {
+	if c.trackerFactory == nil {
+		return nil
+	}
+	return c.trackerFactory()
 }
 
 // AsLdValue is used internally.
