@@ -406,6 +406,8 @@ func (t *Tracker) TrackTokens(usage TokenUsage) error {
 	return nil
 }
 
+// TrackUsage tracks token usage.
+//
 // Deprecated: Use TrackTokens instead.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	return t.TrackTokens(usage)
