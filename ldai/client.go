@@ -171,13 +171,13 @@ func (c *Client) evaluateConfig(
 	// empty object.)
 	if result.Type() != ldvalue.ObjectType {
 		c.logConfigWarning(key, "unmarshalling failed, expected JSON object but got %s", result.Type().String())
-		return defaultValue, newTracker(key, newRunID(), "", 1, c.sdk, &defaultValue, context, c.logger)
+		return defaultValue, newTracker(c.sdk, newRunID(), key, "", 1, context, &defaultValue, c.logger)
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
 		c.logConfigWarning(key, "unmarshalling failed: %v", err)
-		return defaultValue, newTracker(key, newRunID(), "", 1, c.sdk, &defaultValue, context, c.logger)
+		return defaultValue, newTracker(c.sdk, newRunID(), key, "", 1, context, &defaultValue, c.logger)
 	}
 
 	mergedVariables := map[string]interface{}{
@@ -230,11 +230,11 @@ func (c *Client) evaluateConfig(
 	if cfg.Enabled() {
 		variationKey := parsed.Meta.VariationKey
 		cfg.trackerFactory = func() *Tracker {
-			return newTracker(key, newRunID(), variationKey, version, c.sdk, &cfg, context, c.logger)
+			return newTracker(c.sdk, newRunID(), key, variationKey, version, context, &cfg, c.logger)
 		}
 	}
 
-	return cfg, newTracker(key, newRunID(), parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
+	return cfg, newTracker(c.sdk, newRunID(), key, parsed.Meta.VariationKey, version, context, &cfg, c.logger)
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {

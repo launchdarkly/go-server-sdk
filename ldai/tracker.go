@@ -121,7 +121,7 @@ type Stopwatch interface {
 type resumptionPayload struct {
 	RunID        string `json:"runId"`
 	ConfigKey    string `json:"configKey"`
-	VariationKey string `json:"variationKey"`
+	VariationKey string `json:"variationKey,omitempty"`
 	Version      int    `json:"version"`
 }
 
@@ -163,28 +163,28 @@ func (d *defaultStopwatch) Stop() time.Duration {
 
 // newTracker creates a new Tracker with the specified runID, key, event sink, config, context, and loggers.
 func newTracker(
-	key string,
+	events EventSink,
 	runID string,
+	key string,
 	variationKey string,
 	version int,
-	events EventSink,
-	config *Config,
 	ctx ldcontext.Context,
+	config *Config,
 	loggers interfaces.LDLoggers,
 ) *Tracker {
-	return newTrackerWithStopwatch(key, runID, variationKey, version, events, config, ctx, loggers, &defaultStopwatch{})
+	return newTrackerWithStopwatch(events, runID, key, variationKey, version, ctx, config, loggers, &defaultStopwatch{})
 }
 
 // newTrackerWithStopwatch creates a new Tracker with the specified runID, key, event sink, config, context, loggers,
 // and stopwatch. This method is used for testing purposes.
 func newTrackerWithStopwatch(
-	key string,
+	events EventSink,
 	runID string,
+	key string,
 	variationKey string,
 	version int,
-	events EventSink,
-	config *Config,
 	ctx ldcontext.Context,
+	config *Config,
 	loggers interfaces.LDLoggers,
 	stopwatch Stopwatch,
 ) *Tracker {
