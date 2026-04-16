@@ -234,6 +234,46 @@ func (t *Tracker) ResumptionToken() string {
 	return base64.RawURLEncoding.EncodeToString(jsonBytes)
 }
 
+// TrackerFromResumptionToken reconstructs a Tracker from a resumption token and the given context.
+// This is used for cross-process scenarios (e.g., deferred feedback) where the original tracker
+// is no longer available but its runId must be reused. The token is obtained from Tracker.ResumptionToken().
+// The reconstructed tracker will have empty modelName and providerName since these are not included
+// in the token.
+func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.Context) (*Tracker, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid resumption token: %w", err)
+	}
+	var payload resumptionPayload
+	if err := json.Unmarshal(decoded, &payload); err != nil {
+		return nil, fmt.Errorf("invalid resumption token: %w", err)
+	}
+
+	trackData := ldvalue.ObjectBuild().
+		Set("runId", ldvalue.String(payload.RunID)).
+		Set("variationKey", ldvalue.String(payload.VariationKey)).
+		Set("configKey", ldvalue.String(payload.ConfigKey)).
+		Set("version", ldvalue.Int(payload.Version)).
+		Set("providerName", ldvalue.String("")).
+		Set("modelName", ldvalue.String("")).
+		Build()
+
+	emptyConfig := Disabled()
+
+	return &Tracker{
+		key:          payload.ConfigKey,
+		runID:        payload.RunID,
+		variationKey: payload.VariationKey,
+		version:      payload.Version,
+		config:       &emptyConfig,
+		trackData:    trackData,
+		events:       sdk,
+		context:      context,
+		logger:       sdk.Loggers(),
+		stopwatch:    &defaultStopwatch{},
+	}, nil
+}
+
 // TrackDuration tracks the duration of a task. For example, the duration of a model evaluation request may be
 // tracked here. See also TrackRequest.
 // The duration in milliseconds must fit within a float64.

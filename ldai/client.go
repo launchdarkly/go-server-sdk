@@ -1,7 +1,6 @@
 package ldai
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -118,43 +117,9 @@ func (c *Client) Config(
 }
 
 // CreateTracker reconstructs a Tracker from a resumption token and the given context.
-// This is used for cross-process scenarios (e.g., deferred feedback) where the original tracker
-// is no longer available but its runId must be reused. The token is obtained from Tracker.ResumptionToken().
-// The reconstructed tracker will have empty modelName and providerName since these are not included
-// in the token.
+// This delegates to TrackerFromResumptionToken. See that function for details.
 func (c *Client) CreateTracker(token string, context ldcontext.Context) (*Tracker, error) {
-	decoded, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return nil, fmt.Errorf("invalid resumption token: %w", err)
-	}
-	var payload resumptionPayload
-	if err := json.Unmarshal(decoded, &payload); err != nil {
-		return nil, fmt.Errorf("invalid resumption token: %w", err)
-	}
-
-	trackData := ldvalue.ObjectBuild().
-		Set("runId", ldvalue.String(payload.RunID)).
-		Set("variationKey", ldvalue.String(payload.VariationKey)).
-		Set("configKey", ldvalue.String(payload.ConfigKey)).
-		Set("version", ldvalue.Int(payload.Version)).
-		Set("providerName", ldvalue.String("")).
-		Set("modelName", ldvalue.String("")).
-		Build()
-
-	emptyConfig := Disabled()
-
-	return &Tracker{
-		key:          payload.ConfigKey,
-		runID:        payload.RunID,
-		variationKey: payload.VariationKey,
-		version:      payload.Version,
-		config:       &emptyConfig,
-		trackData:    trackData,
-		events:       c.sdk,
-		context:      context,
-		logger:       c.logger,
-		stopwatch:    &defaultStopwatch{},
-	}, nil
+	return TrackerFromResumptionToken(token, c.sdk, context)
 }
 
 // evaluateConfig fetches and interpolates an AI Config without emitting any metric.
