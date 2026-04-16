@@ -50,14 +50,16 @@ func TestTracker_NewDoesNotPanicWithConfig(t *testing.T) {
 }
 
 func makeTrackData(configKey, variationKey string, version int, config *Config, runId string) ldvalue.Value {
-	return ldvalue.ObjectBuild().
+	builder := ldvalue.ObjectBuild().
 		Set("runId", ldvalue.String(runId)).
-		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(configKey)).
 		Set("version", ldvalue.Int(version)).
 		Set("providerName", ldvalue.String(config.ProviderName())).
-		Set("modelName", ldvalue.String(config.ModelName())).
-		Build()
+		Set("modelName", ldvalue.String(config.ModelName()))
+	if variationKey != "" {
+		builder.Set("variationKey", ldvalue.String(variationKey))
+	}
+	return builder.Build()
 }
 
 func extractRunId(t *testing.T, events *mockEvents) string {

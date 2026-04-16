@@ -192,14 +192,16 @@ func newTrackerWithStopwatch(
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
 
-	trackData := ldvalue.ObjectBuild().
+	builder := ldvalue.ObjectBuild().
 		Set("runId", ldvalue.String(runID)).
-		Set("variationKey", ldvalue.String(variationKey)).
 		Set("configKey", ldvalue.String(key)).
 		Set("version", ldvalue.Int(version)).
 		Set("providerName", ldvalue.String(config.ProviderName())).
-		Set("modelName", ldvalue.String(config.ModelName())).
-		Build()
+		Set("modelName", ldvalue.String(config.ModelName()))
+	if variationKey != "" {
+		builder.Set("variationKey", ldvalue.String(variationKey))
+	}
+	trackData := builder.Build()
 
 	return &Tracker{
 		key:          key,
@@ -249,14 +251,16 @@ func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.C
 		return nil, fmt.Errorf("invalid resumption token: %w", err)
 	}
 
-	trackData := ldvalue.ObjectBuild().
+	builder := ldvalue.ObjectBuild().
 		Set("runId", ldvalue.String(payload.RunID)).
-		Set("variationKey", ldvalue.String(payload.VariationKey)).
 		Set("configKey", ldvalue.String(payload.ConfigKey)).
 		Set("version", ldvalue.Int(payload.Version)).
 		Set("providerName", ldvalue.String("")).
-		Set("modelName", ldvalue.String("")).
-		Build()
+		Set("modelName", ldvalue.String(""))
+	if payload.VariationKey != "" {
+		builder.Set("variationKey", ldvalue.String(payload.VariationKey))
+	}
+	trackData := builder.Build()
 
 	emptyConfig := Disabled()
 
