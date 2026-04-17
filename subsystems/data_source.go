@@ -45,9 +45,12 @@ type DataSelector interface {
 type DataInitializer interface {
 	// Name returns the name of the data initializer.
 	Name() string
-	// Fetch returns a Basis, or an error if the Basis could not be retrieved. If the context has expired,
-	// return the context's error.
-	Fetch(ds DataSelector, ctx context.Context) (*Basis, error)
+	// Fetch returns a Basis, or an error if the Basis could not be retrieved. If the context has
+	// expired, it returns the context's error. If the LaunchDarkly server has instructed the SDK
+	// to fall back to the FDv1 protocol (via the x-ld-fd-fallback response header), fallbackToFDv1
+	// is true; in that case the Basis is nil and err may be nil or carry the underlying HTTP
+	// error for logging. Callers should branch on fallbackToFDv1 before err.
+	Fetch(ds DataSelector, ctx context.Context) (basis *Basis, fallbackToFDv1 bool, err error)
 }
 
 // DataSynchronizerResult represents the results of a Synchronizer's ongoing Sync method.

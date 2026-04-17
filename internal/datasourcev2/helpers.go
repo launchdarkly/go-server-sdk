@@ -12,6 +12,16 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
+// fdv1FallbackHeader is the response header LaunchDarkly uses to instruct an SDK to abandon the
+// FDv2 protocol and fall back to FDv1.
+const fdv1FallbackHeader = "X-LD-FD-Fallback"
+
+// isFDv1FallbackRequested reports whether the response headers signal that the SDK should revert
+// to the FDv1 protocol.
+func isFDv1FallbackRequested(h http.Header) bool {
+	return h.Get(fdv1FallbackHeader) == "true"
+}
+
 type httpStatusError struct {
 	Message string
 	Code    int

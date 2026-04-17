@@ -116,6 +116,54 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 	})
 }
 
+// When the polling initializer receives x-ld-fd-fallback from the server, the SDK should skip any
+// remaining FDv2 synchronizers and switch to the FDv1 polling synchronizer directly — without ever
+// attempting the FDv2 streaming synchronizer.
+func TestFDV2CanFallBackToV1FromInitializer(t *testing.T) {
+	dataV1 := ldservices.NewServerSDKData().Flags(alwaysFalseFlag)
+
+	header := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+
+	// FDv2 polling initializer: returns 500 + fallback header. Must trigger revert to FDv1 before
+	// the FDv2 streaming synchronizer is ever dialed.
+	pollV2InitRecordingHandler, pollV2InitReqCh := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
+	// FDv1 polling synchronizer: returns valid FDv1 data.
+	pollV1SyncRecordingHandler, pollV1SyncReqCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(dataV1))
+	// FDv2 streaming synchronizer: should never be hit. If it is, the test will surface it via
+	// streamV2SyncReqCh.
+	streamHandler, streamV2SyncReqCh := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
+
+	handler := httphelpers.SequentialHandler(pollV2InitRecordingHandler, pollV1SyncRecordingHandler, streamHandler)
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Default(),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+
+		<-pollV2InitReqCh
+		<-pollV1SyncReqCh
+
+		require.NoError(t, err)
+		defer client.Close()
+
+		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+		require.True(t, reached, "timed out waiting for data source to reach VALID state")
+
+		assertNoMoreRequests(t, streamV2SyncReqCh)
+
+		value, _ := client.BoolVariation(alwaysFalseFlag.Key, testUser, true)
+		assert.False(t, value)
+	})
+}
+
 func TestFDV2StreamingSynchronizer(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 

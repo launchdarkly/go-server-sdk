@@ -21,6 +21,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var alwaysTrueFlag = ldbuilders.NewFlagBuilder("always-true-flag").SingleVariation(ldvalue.Bool(true)).Build()
@@ -40,7 +41,7 @@ func TestPollingProcessorInitializerCanMakeSuccessfulRequest(t *testing.T) {
 		)
 		defer processor.Close()
 
-		basis, err := processor.Fetch(ds, context.Background())
+		basis, _, err := processor.Fetch(ds, context.Background())
 		assert.NoError(t, err)
 		assert.Len(t, basis.ChangeSet.Changes(), 1)
 		assert.Equal(t, basis.ChangeSet.IntentCode(), subsystems.IntentTransferFull)
@@ -67,7 +68,7 @@ func TestPollingProcessorInitializerAppendsFilterParameter(t *testing.T) {
 			},
 		)
 		defer processor.Close()
-		_, err := processor.Fetch(ds, context.Background())
+		_, _, err := processor.Fetch(ds, context.Background())
 		assert.NoError(t, err)
 
 		r := <-requestsCh
@@ -90,7 +91,7 @@ func TestPollingProcessorInitializerAppendsBasisParameter(t *testing.T) {
 		defer processor.Close()
 
 		ds := mocks.NewMockDataSelector(subsystems.NewSelector("test-state", 1))
-		_, err := processor.Fetch(ds, context.Background())
+		_, _, err := processor.Fetch(ds, context.Background())
 		assert.NoError(t, err)
 
 		r := <-requestsCh
@@ -115,7 +116,7 @@ func TestPollingProcessorSynchronizerAppendsFilterParameter(t *testing.T) {
 		)
 		defer processor.Close()
 
-		_, err := processor.Fetch(ds, context.Background())
+		_, _, err := processor.Fetch(ds, context.Background())
 		assert.NoError(t, err)
 
 		r := <-requestsCh
@@ -258,6 +259,83 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
 		assert.True(t, result.RevertToFDv1)
+	})
+}
+
+func TestPollingProcessorInitializerHandlesFallbackOnSuccessfulResponse(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NewSelector("test-state", 1))
+
+	// Wrap the valid 200 handler to inject X-LD-FD-Fallback alongside a well-formed payload.
+	underlying := ldservices.ServerSidePollingV2ServiceHandler(data)
+	fallbackOn200 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-LD-FD-Fallback", "true")
+		underlying.ServeHTTP(w, r)
+	})
+
+	httphelpers.WithServer(fallbackOn200, func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		defer processor.Close()
+
+		basis, fallback, err := processor.Fetch(ds, context.Background())
+		assert.True(t, fallback)
+		assert.NoError(t, err)
+		// Even when the server signals fallback, a valid payload in the same response
+		// should still be surfaced so the caller can apply it before switching protocols.
+		require.NotNil(t, basis)
+		assert.Len(t, basis.ChangeSet.Changes(), 1)
+		assert.Equal(t, "test-state", basis.ChangeSet.Selector().State())
+	})
+}
+
+func TestPollingProcessorInitializerHandlesFallbackOnErrorResponse(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	fallbackHeader := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, fallbackHeader, nil))
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		defer processor.Close()
+
+		basis, fallback, err := processor.Fetch(ds, context.Background())
+		assert.Nil(t, basis)
+		assert.True(t, fallback)
+		assert.Error(t, err, "underlying HTTP error should still be surfaced alongside the fallback signal")
+	})
+}
+
+func TestPollingProcessorInitializerErrorWithoutFallbackHeaderReturnsRegularError(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(500))
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		defer processor.Close()
+
+		basis, fallback, err := processor.Fetch(ds, context.Background())
+		assert.Nil(t, basis)
+		assert.False(t, fallback)
+		assert.Error(t, err)
 	})
 }
 

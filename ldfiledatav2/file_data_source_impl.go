@@ -135,7 +135,7 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 	return resultChan
 }
 
-func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, error) {
+func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
 	changeSetChan := fs.changeSetBroadcaster.AddListener()
 	statusChan := fs.statusBroadcaster.AddListener()
 
@@ -178,7 +178,7 @@ func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context)
 
 	wg.Wait()
 
-	return basis, err
+	return basis, false, err
 }
 
 // Reload tells the data source to immediately attempt to reread all of the configured source files

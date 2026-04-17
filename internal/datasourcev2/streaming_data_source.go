@@ -106,8 +106,8 @@ func (sp *StreamProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (sp *StreamProcessor) Fetch(ds subsystems.DataSelector, _ context.Context) (*subsystems.Basis, error) {
-	return nil, errors.New("StreamProcessor does not implement Fetch capability")
+func (sp *StreamProcessor) Fetch(ds subsystems.DataSelector, _ context.Context) (*subsystems.Basis, bool, error) {
+	return nil, false, errors.New("StreamProcessor does not implement Fetch capability")
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -353,7 +353,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				Time:       time.Now(),
 			}
 
-			if se.Header.Get("X-LD-FD-Fallback") == "true" {
+			if isFDv1FallbackRequested(se.Header) {
 				resultChan <- subsystems.DataSynchronizerResult{
 					State:         interfaces.DataSourceStateOff,
 					Error:         errorInfo,

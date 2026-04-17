@@ -205,7 +205,16 @@ func (f *FDv2) launchTask(task func()) {
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
-	f.runInitializers(ctx, closeWhenReady)
+	if f.runInitializers(ctx, closeWhenReady) {
+		if f.fdv1FallbackBuilder != nil {
+			f.loggers.Warn("Reverting to FDv1 protocol")
+			f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
+			f.currentSyncIndex = 0
+		} else {
+			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
+			f.synchronizerBuilders = nil
+		}
+	}
 
 	if f.configuredWithDataSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
 		f.launchTask(func() {
@@ -235,12 +244,33 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) {
+// runInitializers runs each configured initializer in order until one succeeds, the context is
+// cancelled, or an initializer signals a revert to FDv1. Returns true if an initializer signalled
+// a revert to FDv1. If fallback is signalled alongside a valid Basis, that Basis is applied before
+// returning so evaluations can serve the server-provided data while the FDv1 synchronizer spins up.
+func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) (fallbackToFDv1 bool) {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
-		basis, err := initializer.Fetch(f.store, ctx)
+		basis, fallback, err := initializer.Fetch(f.store, ctx)
 		if errors.Is(err, context.Canceled) {
-			return
+			return false
+		}
+		if fallback {
+			if err != nil {
+				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol: %v", initializer.Name(), err)
+			} else {
+				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol", initializer.Name())
+			}
+			if basis != nil {
+				f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
+				f.store.Apply(basis.ChangeSet, basis.Persist)
+				if basis.ChangeSet.Selector().IsDefined() {
+					f.readyOnce.Do(func() {
+						close(closeWhenReady)
+					})
+				}
+			}
+			return true
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
@@ -253,9 +283,10 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			f.readyOnce.Do(func() {
 				close(closeWhenReady)
 			})
-			return
+			return false
 		}
 	}
+	return false
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {

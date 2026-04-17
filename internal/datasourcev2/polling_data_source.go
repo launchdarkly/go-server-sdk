@@ -68,13 +68,14 @@ func (pp *PollingProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (pp *PollingProcessor) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, error) {
+func (pp *PollingProcessor) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
+	fallback := isFDv1FallbackRequested(headers)
 	if err != nil {
-		return nil, err
+		return nil, fallback, err
 	}
 	environmentID := internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
-	return &subsystems.Basis{ChangeSet: *changeSet, Persist: true, EnvironmentID: environmentID}, nil
+	return &subsystems.Basis{ChangeSet: *changeSet, Persist: true, EnvironmentID: environmentID}, fallback, nil
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -116,7 +117,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 							Time:       time.Now(),
 						}
 
-						if hse.Header.Get("X-LD-FD-Fallback") == "true" {
+						if isFDv1FallbackRequested(hse.Header) {
 							resultChan <- subsystems.DataSynchronizerResult{
 								State:         interfaces.DataSourceStateOff,
 								Error:         errorInfo,
