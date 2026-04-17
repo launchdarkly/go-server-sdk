@@ -846,7 +846,7 @@ func TestCreateTracker_ManuallyBuiltConfig_ReturnsNil(t *testing.T) {
 	assert.Nil(t, cfg.CreateTracker(), "manually built config should not have a tracker factory")
 }
 
-func TestCreateTracker_DisabledConfig_ReturnsNil(t *testing.T) {
+func TestCreateTracker_DisabledConfig_ReturnsTracker(t *testing.T) {
 	json := []byte(`{
 		"_ldMeta": {"variationKey": "1", "enabled": false},
 		"messages": [{"content": "hello", "role": "user"}]
@@ -857,7 +857,7 @@ func TestCreateTracker_DisabledConfig_ReturnsNil(t *testing.T) {
 
 	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 	assert.False(t, cfg.Enabled())
-	assert.Nil(t, cfg.CreateTracker(), "disabled config should not have a tracker factory")
+	assert.NotNil(t, cfg.CreateTracker(), "disabled config should still have a tracker factory")
 }
 
 func TestCreateTracker_EnabledConfig_ReturnsTracker(t *testing.T) {

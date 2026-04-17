@@ -192,11 +192,9 @@ func (c *Client) evaluateConfig(
 		version = *parsed.Meta.Version
 	}
 
-	if cfg.Enabled() {
-		variationKey := parsed.Meta.VariationKey
-		cfg.trackerFactory = func() *Tracker {
-			return newTracker(c.sdk, newRunID(), key, variationKey, version, context, &cfg, c.logger)
-		}
+	variationKey := parsed.Meta.VariationKey
+	cfg.trackerFactory = func() *Tracker {
+		return newTracker(c.sdk, newRunID(), key, variationKey, version, context, &cfg, c.logger)
 	}
 
 	return cfg, newTracker(c.sdk, newRunID(), key, parsed.Meta.VariationKey, version, context, &cfg, c.logger)

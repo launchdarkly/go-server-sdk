@@ -90,7 +90,7 @@ func (c *Config) JudgeConfiguration() *datamodel.JudgeConfiguration {
 
 // CreateTracker creates a new Tracker with a fresh runId for tracking metrics related to this
 // AI Config evaluation. Each call returns a new, independent Tracker instance.
-// Returns nil if the config is disabled or was not obtained via the Client.
+// Returns nil if the config was not obtained via the Client.
 func (c *Config) CreateTracker() *Tracker {
 	if c.trackerFactory == nil {
 		return nil
