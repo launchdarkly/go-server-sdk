@@ -205,7 +205,7 @@ func (f *FDv2) launchTask(task func()) {
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
-	if f.runInitializers(ctx, closeWhenReady) {
+	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback {
 		if f.fdv1FallbackBuilder != nil {
 			f.loggers.Warn("Reverting to FDv1 protocol")
 			f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
@@ -213,7 +213,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 		} else {
 			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
 			f.synchronizerBuilders = nil
-			f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+			f.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 		}
 	}
 
@@ -246,19 +246,29 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 }
 
 // runInitializers runs each configured initializer in order until one succeeds, the context is
-// cancelled, or an initializer signals a revert to FDv1. Returns true if an initializer signalled
-// a revert to FDv1. If fallback is signalled alongside a valid Basis, that Basis is applied before
-// returning so evaluations can serve the server-provided data while the FDv1 synchronizer spins up.
-func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}) (fallbackToFDv1 bool) {
+// cancelled, or an initializer signals a revert to FDv1. Returns (fallbackToFDv1, errorInfo):
+// fallbackToFDv1 is true when an initializer asked the SDK to switch to FDv1; errorInfo describes
+// the underlying error for status reporting when no FDv1 fallback is configured (empty when the
+// fallback accompanied a successful response). If fallback is signalled alongside a valid Basis,
+// that Basis is applied before returning so evaluations can serve the server-provided data while
+// the FDv1 synchronizer spins up.
+func (f *FDv2) runInitializers(
+	ctx context.Context, closeWhenReady chan struct{},
+) (fallbackToFDv1 bool, errorInfo interfaces.DataSourceErrorInfo) {
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, fallback, err := initializer.Fetch(f.store, ctx)
 		if errors.Is(err, context.Canceled) {
-			return false
+			return false, interfaces.DataSourceErrorInfo{}
 		}
 		if fallback {
 			if err != nil {
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol: %v", initializer.Name(), err)
+				errorInfo = interfaces.DataSourceErrorInfo{
+					Kind:    interfaces.DataSourceErrorKindUnknown,
+					Message: err.Error(),
+					Time:    time.Now(),
+				}
 			} else {
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol", initializer.Name())
 			}
@@ -272,7 +282,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 					})
 				}
 			}
-			return true
+			return true, errorInfo
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
@@ -285,10 +295,10 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 			f.readyOnce.Do(func() {
 				close(closeWhenReady)
 			})
-			return false
+			return false, interfaces.DataSourceErrorInfo{}
 		}
 	}
-	return false
+	return false, interfaces.DataSourceErrorInfo{}
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {

@@ -148,10 +148,15 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T
 		// status to Off — if it stays at Initializing, MakeCustomClient treats it as an init
 		// failure and we see initializationFailedErrorMessage here. Either way the status field
 		// should end up Off, so assert that directly.
+		status := client.GetDataSourceStatusProvider().GetStatus()
 		assert.Equal(t,
 			interfaces.DataSourceStateOff,
-			client.GetDataSourceStatusProvider().GetStatus().State,
+			status.State,
 			"status should transition to Off when initializer fallback requested but no FDv1 fallback configured")
+		// The underlying initializer error must be preserved on the Off status so programmatic
+		// monitors can see why the data source shut down, not just that it did.
+		assert.NotEqual(t, interfaces.DataSourceErrorInfo{}, status.LastError,
+			"LastError should carry the initializer error that accompanied the fallback signal")
 		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 
 		assert.Contains(t, logCapture.GetOutput(ldlog.Warn),
