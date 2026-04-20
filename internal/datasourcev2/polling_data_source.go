@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -107,8 +108,13 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				close(resultChan)
 				return
 			case <-ticker.C:
-				fallback, err := pp.poll(ctx, ds, resultChan)
+				fallbackEnvID, fallback, err := pp.poll(ctx, ds, resultChan)
 				if err == nil && fallback {
+					resultChan <- subsystems.DataSynchronizerResult{
+						State:         interfaces.DataSourceStateOff,
+						RevertToFDv1:  true,
+						EnvironmentID: fallbackEnvID,
+					}
 					return
 				}
 				if err != nil {
@@ -176,17 +182,18 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 	return resultChan
 }
 
-// poll performs a single polling request. It returns (fallback, err). A non-nil err indicates the
-// request failed; the caller handles it per the existing error path. fallback=true indicates the
-// server requested a revert to FDv1 via x-ld-fd-fallback: true on a SUCCESSFUL response; in that
-// case poll has already emitted a Valid result with any accompanying ChangeSet, and has also
-// emitted an Off/RevertToFDv1 result. The caller should exit the sync goroutine.
+// poll performs a single polling request. On success it emits a Valid result with any
+// accompanying ChangeSet. It returns (environmentID, fallback, err) where fallback=true indicates
+// the response headers carried x-ld-fd-fallback: true; in that case the caller is responsible
+// for emitting the Off/RevertToFDv1 signal and exiting the sync goroutine. A non-nil err means
+// the request failed and no Valid result was emitted; the caller handles it per the existing
+// error path.
 func (pp *PollingProcessor) poll(
 	ctx context.Context, ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult,
-) (bool, error) {
+) (ldvalue.OptionalString, bool, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
-		return false, err
+		return ldvalue.OptionalString{}, false, err
 	}
 
 	environmentID := internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
@@ -196,16 +203,7 @@ func (pp *PollingProcessor) poll(
 		EnvironmentID: environmentID,
 	}
 
-	if isFDv1FallbackRequested(headers) {
-		resultChan <- subsystems.DataSynchronizerResult{
-			State:         interfaces.DataSourceStateOff,
-			RevertToFDv1:  true,
-			EnvironmentID: environmentID,
-		}
-		return true, nil
-	}
-
-	return false, nil
+	return environmentID, isFDv1FallbackRequested(headers), nil
 }
 
 //nolint:revive // no doc comment for standard method
