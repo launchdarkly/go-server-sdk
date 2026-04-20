@@ -107,7 +107,11 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				close(resultChan)
 				return
 			case <-ticker.C:
-				if err := pp.poll(ctx, ds, resultChan); err != nil {
+				fallback, err := pp.poll(ctx, ds, resultChan)
+				if err == nil && fallback {
+					return
+				}
+				if err != nil {
 					if hse, ok := err.(httpStatusError); ok {
 						environmentID := internal.NewInitMetadataFromHeaders(hse.Header).GetEnvironmentID()
 
@@ -172,21 +176,36 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 	return resultChan
 }
 
+// poll performs a single polling request. It returns (fallback, err). A non-nil err indicates the
+// request failed; the caller handles it per the existing error path. fallback=true indicates the
+// server requested a revert to FDv1 via x-ld-fd-fallback: true on a SUCCESSFUL response; in that
+// case poll has already emitted a Valid result with any accompanying ChangeSet, and has also
+// emitted an Off/RevertToFDv1 result. The caller should exit the sync goroutine.
 func (pp *PollingProcessor) poll(
 	ctx context.Context, ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult,
-) error {
+) (bool, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
-		return err
+		return false, err
 	}
 
+	environmentID := internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
 	resultChan <- subsystems.DataSynchronizerResult{
 		ChangeSet:     changeSet,
 		State:         interfaces.DataSourceStateValid,
-		EnvironmentID: internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
+		EnvironmentID: environmentID,
 	}
 
-	return nil
+	if isFDv1FallbackRequested(headers) {
+		resultChan <- subsystems.DataSynchronizerResult{
+			State:         interfaces.DataSourceStateOff,
+			RevertToFDv1:  true,
+			EnvironmentID: environmentID,
+		}
+		return true, nil
+	}
+
+	return false, nil
 }
 
 //nolint:revive // no doc comment for standard method

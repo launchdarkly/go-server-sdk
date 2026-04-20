@@ -236,6 +236,42 @@ func TestPollingProcessorSynchronizerHandlesInvalidJSON(t *testing.T) {
 	})
 }
 
+func TestPollingProcessorSynchronizerHandlesFallbackOnSuccessfulResponse(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NewSelector("test-state", 1))
+
+	// Wrap the valid 200 handler so the response also carries x-ld-fd-fallback: true.
+	underlying := ldservices.ServerSidePollingV2ServiceHandler(data)
+	fallbackOnSuccess := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-LD-FD-Fallback", "true")
+		underlying.ServeHTTP(w, r)
+	})
+
+	httphelpers.WithServer(fallbackOnSuccess, func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		defer processor.Close()
+
+		resultChan := processor.Sync(ds)
+
+		// First result: valid payload applied before switching protocols.
+		first := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateValid, first.State)
+		require.NotNil(t, first.ChangeSet)
+		assert.Len(t, first.ChangeSet.Changes(), 1)
+
+		// Second result: FDv1 fallback.
+		second := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateOff, second.State)
+		assert.True(t, second.RevertToFDv1)
+	})
+}
+
 func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 

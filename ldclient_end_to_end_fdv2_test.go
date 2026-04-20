@@ -159,6 +159,58 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T
 	})
 }
 
+// When the streaming synchronizer receives a 200 response that carries both a valid SSE payload
+// AND the x-ld-fd-fallback header, the SDK should apply the payload and then revert to FDv1.
+// Without this behavior, the stream stays open against the FDv2 endpoint indefinitely.
+func TestFDV2CanFallBackToV1FromStreamingSuccess(t *testing.T) {
+	dataV1 := ldservices.NewServerSDKData().Flags(alwaysFalseFlag)
+	dataV2 := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(dataV2.ToPutObjects()).
+		WithTransferred("state", 1)
+
+	streamV2Handler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	streamV2WithFallback := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-LD-FD-Fallback", "true")
+		streamV2Handler.ServeHTTP(w, r)
+	})
+
+	// Init phase: FDv2 poll returns 500. Sync phase: FDv2 stream returns valid SSE + fallback
+	// header. FDv1 fallback phase: FDv1 poll returns the V1 data (always-false flag).
+	pollV2InitHandler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(500))
+	streamRecordingHandler, streamV2ReqCh := httphelpers.RecordingHandler(streamV2WithFallback)
+	pollV1SyncHandler, pollV1SyncReqCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(dataV1))
+
+	handler := httphelpers.SequentialHandler(pollV2InitHandler, streamRecordingHandler, pollV1SyncHandler)
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Default(),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		<-streamV2ReqCh
+		<-pollV1SyncReqCh
+		require.NoError(t, err)
+		defer client.Close()
+
+		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
+		require.True(t, reached, "timed out waiting for data source to reach VALID state")
+
+		// FDv1 data should win: alwaysFalseFlag is true-defaulted to check it flipped to false.
+		value, _ := client.BoolVariation(alwaysFalseFlag.Key, testUser, true)
+		assert.False(t, value)
+	})
+}
+
 // When the polling initializer receives x-ld-fd-fallback from the server, the SDK should skip any
 // remaining FDv2 synchronizers and switch to the FDv1 polling synchronizer directly — without ever
 // attempting the FDv2 streaming synchronizer.

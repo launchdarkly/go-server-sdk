@@ -186,6 +186,48 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 	})
 }
 
+func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("updated-state", 2)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	// Wrap the valid SSE handler so the response carries x-ld-fd-fallback: true.
+	fallbackOnSuccess := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-LD-FD-Fallback", "true")
+		streamHandler.ServeHTTP(w, r)
+	})
+
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	httphelpers.WithServer(fallbackOnSuccess, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		defer sp.Close()
+		resultChan := sp.Sync(ds)
+
+		// First result: the valid payload is still applied before we switch protocols.
+		first := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateValid, first.State)
+		assert.NotNil(t, first.ChangeSet)
+		assert.Len(t, first.ChangeSet.Changes(), 1)
+
+		// Second result: FDv1 fallback.
+		second := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateOff, second.State)
+		assert.True(t, second.RevertToFDv1)
+	})
+}
+
 func TestStreamingProcessorPreClosingShouldShutdownImmediately(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401)) // we don't care about getting valid stream data
