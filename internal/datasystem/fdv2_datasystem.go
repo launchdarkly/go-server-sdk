@@ -266,6 +266,7 @@ func (f *FDv2) runInitializers(ctx context.Context, closeWhenReady chan struct{}
 				f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
 				f.store.Apply(basis.ChangeSet, basis.Persist)
 				if basis.ChangeSet.Selector().IsDefined() {
+					f.loggers.Infof("Applied payload from %s before falling back to FDv1", initializer.Name())
 					f.readyOnce.Do(func() {
 						close(closeWhenReady)
 					})
