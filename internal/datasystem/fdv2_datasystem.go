@@ -213,6 +213,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 		} else {
 			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
 			f.synchronizerBuilders = nil
+			f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
 		}
 	}
 

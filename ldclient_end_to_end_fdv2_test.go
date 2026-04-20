@@ -116,6 +116,49 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 	})
 }
 
+// When an initializer requests FDv1 fallback but no FDv1 fallback is configured, the data source
+// status must transition to Off rather than staying stuck at Initializing. This mirrors the
+// synchronizer-triggered path when fdv1FallbackBuilder is nil.
+func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T) {
+	header := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		// Custom data system: a polling initializer, no synchronizers, no FDv1 fallback.
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().Initializers(
+				ldcomponents.PollingDataSourceV2().BaseURI(server.URL).AsInitializer(),
+			),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
+
+		<-requestsCh
+
+		// With no FDv1 fallback configured, an initializer-triggered fallback must transition the
+		// status to Off — if it stays at Initializing, MakeCustomClient treats it as an init
+		// failure and we see initializationFailedErrorMessage here. Either way the status field
+		// should end up Off, so assert that directly.
+		assert.Equal(t,
+			interfaces.DataSourceStateOff,
+			client.GetDataSourceStatusProvider().GetStatus().State,
+			"status should transition to Off when initializer fallback requested but no FDv1 fallback configured")
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+
+		assert.Contains(t, logCapture.GetOutput(ldlog.Warn),
+			"Initializer requested FDv1 fallback but none configured")
+	})
+}
+
 // When the polling initializer receives x-ld-fd-fallback from the server, the SDK should skip any
 // remaining FDv2 synchronizers and switch to the FDv1 polling synchronizer directly — without ever
 // attempting the FDv2 streaming synchronizer.
