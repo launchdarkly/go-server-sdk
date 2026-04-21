@@ -122,6 +122,15 @@ func (c *Client) CreateTracker(token string, context ldcontext.Context) (*Tracke
 	return TrackerFromResumptionToken(token, c.sdk, context)
 }
 
+// returnDefault sets a tracker factory on a copy of def (so CreateTracker always works) and
+// returns it along with an initial tracker. Used for all error-path returns in evaluateConfig.
+func (c *Client) returnDefault(key string, context ldcontext.Context, def Config) (Config, *Tracker) {
+	def.trackerFactory = func() *Tracker {
+		return newTracker(c.sdk, newRunID(), key, "", 1, context, &def, c.logger)
+	}
+	return def, newTracker(c.sdk, newRunID(), key, "", 1, context, &def, c.logger)
+}
+
 // evaluateConfig fetches and interpolates an AI Config without emitting any metric.
 // Callers (Config, JudgeConfig) are meant to emit their own metric before calling this.
 func (c *Client) evaluateConfig(
@@ -136,13 +145,13 @@ func (c *Client) evaluateConfig(
 	// empty object.)
 	if result.Type() != ldvalue.ObjectType {
 		c.logConfigWarning(key, "unmarshalling failed, expected JSON object but got %s", result.Type().String())
-		return defaultValue, newTracker(c.sdk, newRunID(), key, "", 1, context, &defaultValue, c.logger)
+		return c.returnDefault(key, context, defaultValue)
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
 		c.logConfigWarning(key, "unmarshalling failed: %v", err)
-		return defaultValue, newTracker(c.sdk, newRunID(), key, "", 1, context, &defaultValue, c.logger)
+		return c.returnDefault(key, context, defaultValue)
 	}
 
 	mergedVariables := map[string]interface{}{
@@ -180,7 +189,7 @@ func (c *Client) evaluateConfig(
 			c.logConfigWarning(key,
 				"malformed message at index %d: %v", i, err,
 			)
-			return defaultValue, &Tracker{}
+			return c.returnDefault(key, context, defaultValue)
 		}
 		builder.WithMessage(content, msg.Role)
 	}
