@@ -196,7 +196,10 @@ func TestParseInvalidConfigReturnsDefault(t *testing.T) {
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
 
 			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
-			assert.Equal(t, defaultVal, cfg)
+			// Verify config data matches the default
+			assert.Equal(t, defaultVal.AsLdValue(), cfg.AsLdValue())
+			// Verify CreateTracker() now works (returnDefault always injects a factory)
+			assert.NotNil(t, cfg.CreateTracker())
 
 			sdk.log.AssertMessageMatch(t, true, ldlog.Warn, "AI Config 'key':")
 		})
