@@ -16,8 +16,8 @@ import (
 // FDv2 protocol and fall back to FDv1.
 const fdv1FallbackHeader = "X-LD-FD-Fallback"
 
-// isFDv1FallbackRequested reports whether the response headers signal that the SDK should revert
-// to the FDv1 protocol.
+// isFDv1FallbackRequested reports whether the response headers signal that the SDK should fall
+// back to the FDv1 protocol.
 func isFDv1FallbackRequested(h http.Header) bool {
 	return h.Get(fdv1FallbackHeader) == "true"
 }

@@ -165,7 +165,7 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T
 }
 
 // When the streaming synchronizer receives a 200 response that carries both a valid SSE payload
-// AND the x-ld-fd-fallback header, the SDK should apply the payload and then revert to FDv1.
+// AND the x-ld-fd-fallback header, the SDK should apply the payload and then fall back to FDv1.
 // Without this behavior, the stream stays open against the FDv2 endpoint indefinitely.
 func TestFDV2CanFallBackToV1FromStreamingSuccess(t *testing.T) {
 	dataV1 := ldservices.NewServerSDKData().Flags(alwaysFalseFlag)
@@ -210,7 +210,7 @@ func TestFDV2CanFallBackToV1FromStreamingSuccess(t *testing.T) {
 		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
 		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
-		// Status becomes Valid as soon as the FDv2 stream applies its payload (with RevertToFDv1
+		// Status becomes Valid as soon as the FDv2 stream applies its payload (with FallbackToFDv1
 		// riding along on the same result), which happens before FDv1 has fetched its own data.
 		// Poll until the flag value reflects FDv1 data to verify the handoff completed.
 		assert.Eventually(t, func() bool {
@@ -230,7 +230,7 @@ func TestFDV2CanFallBackToV1FromInitializer(t *testing.T) {
 		"X-LD-FD-Fallback": []string{"true"},
 	}
 
-	// FDv2 polling initializer: returns 500 + fallback header. Must trigger revert to FDv1 before
+	// FDv2 polling initializer: returns 500 + fallback header. Must trigger fallback to FDv1 before
 	// the FDv2 streaming synchronizer is ever dialed.
 	pollV2InitRecordingHandler, pollV2InitReqCh := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
 	// FDv1 polling synchronizer: returns valid FDv1 data.

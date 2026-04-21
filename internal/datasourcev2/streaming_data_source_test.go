@@ -182,7 +182,7 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		assert.True(t, result.RevertToFDv1)
+		assert.True(t, result.FallbackToFDv1)
 	})
 }
 
@@ -215,13 +215,13 @@ func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
 		defer sp.Close()
 		resultChan := sp.Sync(ds)
 
-		// A single Valid result carries both the payload and the RevertToFDv1 signal — the
+		// A single Valid result carries both the payload and the FallbackToFDv1 signal — the
 		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
 		result := <-resultChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		assert.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		assert.True(t, result.RevertToFDv1)
+		assert.True(t, result.FallbackToFDv1)
 	})
 }
 

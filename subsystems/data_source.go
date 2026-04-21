@@ -55,11 +55,11 @@ type DataInitializer interface {
 
 // DataSynchronizerResult represents the results of a Synchronizer's ongoing Sync method.
 type DataSynchronizerResult struct {
-	ChangeSet     *ChangeSet
-	State         interfaces.DataSourceState
-	Error         interfaces.DataSourceErrorInfo
-	RevertToFDv1  bool
-	EnvironmentID ldvalue.OptionalString
+	ChangeSet      *ChangeSet
+	State          interfaces.DataSourceState
+	Error          interfaces.DataSourceErrorInfo
+	FallbackToFDv1 bool
+	EnvironmentID  ldvalue.OptionalString
 }
 
 // DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.

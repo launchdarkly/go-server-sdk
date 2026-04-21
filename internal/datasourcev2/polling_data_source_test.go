@@ -259,13 +259,13 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnSuccessfulResponse(t *test
 
 		resultChan := processor.Sync(ds)
 
-		// A single Valid result carries both the payload and the RevertToFDv1 signal — the
+		// A single Valid result carries both the payload and the FallbackToFDv1 signal — the
 		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
 		result := <-resultChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		require.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		assert.True(t, result.RevertToFDv1)
+		assert.True(t, result.FallbackToFDv1)
 	})
 }
 
@@ -293,7 +293,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnMalformedBody(t *testing.T
 
 		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 		assert.Equal(t, interfaces.DataSourceErrorKindInvalidData, result.Error.Kind)
-		assert.True(t, result.RevertToFDv1)
+		assert.True(t, result.FallbackToFDv1)
 	})
 }
 
@@ -319,7 +319,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		assert.True(t, result.RevertToFDv1)
+		assert.True(t, result.FallbackToFDv1)
 	})
 }
 

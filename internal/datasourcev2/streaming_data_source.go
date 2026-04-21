@@ -232,9 +232,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					}
 
 					resultChan <- subsystems.DataSynchronizerResult{
-						State:         interfaces.DataSourceStateValid,
-						EnvironmentID: environmentID,
-						RevertToFDv1:  fallbackRequested,
+						State:          interfaces.DataSourceStateValid,
+						EnvironmentID:  environmentID,
+						FallbackToFDv1: fallbackRequested,
 					}
 					payloadApplied = true
 					break
@@ -301,10 +301,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				}
 
 				resultChan <- subsystems.DataSynchronizerResult{
-					ChangeSet:     changeSet,
-					State:         interfaces.DataSourceStateValid,
-					EnvironmentID: environmentID,
-					RevertToFDv1:  fallbackRequested,
+					ChangeSet:      changeSet,
+					State:          interfaces.DataSourceStateValid,
+					EnvironmentID:  environmentID,
+					FallbackToFDv1: fallbackRequested,
 				}
 				payloadApplied = true
 
@@ -317,7 +317,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			}
 
 			// Once a payload has been applied with a pending FDv1 fallback signal, the Valid
-			// result emitted above carries RevertToFDv1=true; close the stream so we stop
+			// result emitted above carries FallbackToFDv1=true; close the stream so we stop
 			// consuming. Events that don't complete a payload leave payloadApplied false so we
 			// keep consuming (fallbackRequested persists across iterations).
 			if fallbackRequested && payloadApplied {
@@ -385,10 +385,10 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 
 			if isFDv1FallbackRequested(se.Header) {
 				resultChan <- subsystems.DataSynchronizerResult{
-					State:         interfaces.DataSourceStateOff,
-					Error:         errorInfo,
-					RevertToFDv1:  true,
-					EnvironmentID: environmentID,
+					State:          interfaces.DataSourceStateOff,
+					Error:          errorInfo,
+					FallbackToFDv1: true,
+					EnvironmentID:  environmentID,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}
 			}

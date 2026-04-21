@@ -223,7 +223,7 @@ func (fs *fileDataSource) reload() {
 				Message:    err.Error(),
 				Time:       time.Time{},
 			},
-			RevertToFDv1: false,
+			FallbackToFDv1: false,
 		})
 		fs.loggers.Error(err)
 	}

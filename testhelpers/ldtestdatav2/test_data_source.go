@@ -328,8 +328,8 @@ func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.
 	statusChan := d.owner.statusBroadcaster.AddListener()
 
 	result := subsystems.DataSynchronizerResult{
-		State:        interfaces.DataSourceStateInitializing,
-		RevertToFDv1: false,
+		State:          interfaces.DataSourceStateInitializing,
+		FallbackToFDv1: false,
 	}
 
 	go func() {

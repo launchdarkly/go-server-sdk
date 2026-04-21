@@ -110,8 +110,8 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				result, err := pp.poll(ctx, ds)
 
 				// When the server requested FDv1 fallback, dispatch the result as-is — poll has
-				// already populated State (Valid on success, Off on error) and RevertToFDv1=true.
-				if result.RevertToFDv1 {
+				// already populated State (Valid on success, Off on error) and FallbackToFDv1=true.
+				if result.FallbackToFDv1 {
 					resultChan <- result
 					return
 				}
@@ -150,7 +150,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 }
 
 // poll performs a single polling request and builds a DataSynchronizerResult describing the
-// outcome. The result's RevertToFDv1 flag is always populated from the x-ld-fd-fallback response
+// outcome. The result's FallbackToFDv1 flag is always populated from the x-ld-fd-fallback response
 // header, whether or not the request succeeded — a 500 or a malformed-JSON body can still carry
 // the fallback signal.
 //
@@ -166,8 +166,8 @@ func (pp *PollingProcessor) poll(
 ) (subsystems.DataSynchronizerResult, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
 	result := subsystems.DataSynchronizerResult{
-		EnvironmentID: internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
-		RevertToFDv1:  isFDv1FallbackRequested(headers),
+		EnvironmentID:  internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
+		FallbackToFDv1: isFDv1FallbackRequested(headers),
 	}
 
 	if err == nil {
