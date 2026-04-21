@@ -259,16 +259,13 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnSuccessfulResponse(t *test
 
 		resultChan := processor.Sync(ds)
 
-		// First result: valid payload applied before switching protocols.
-		first := <-resultChan
-		assert.Equal(t, interfaces.DataSourceStateValid, first.State)
-		require.NotNil(t, first.ChangeSet)
-		assert.Len(t, first.ChangeSet.Changes(), 1)
-
-		// Second result: FDv1 fallback.
-		second := <-resultChan
-		assert.Equal(t, interfaces.DataSourceStateOff, second.State)
-		assert.True(t, second.RevertToFDv1)
+		// A single Valid result carries both the payload and the RevertToFDv1 signal — the
+		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
+		result := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
+		require.NotNil(t, result.ChangeSet)
+		assert.Len(t, result.ChangeSet.Changes(), 1)
+		assert.True(t, result.RevertToFDv1)
 	})
 }
 

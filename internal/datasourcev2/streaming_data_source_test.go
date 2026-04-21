@@ -215,16 +215,13 @@ func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
 		defer sp.Close()
 		resultChan := sp.Sync(ds)
 
-		// First result: the valid payload is still applied before we switch protocols.
-		first := <-resultChan
-		assert.Equal(t, interfaces.DataSourceStateValid, first.State)
-		assert.NotNil(t, first.ChangeSet)
-		assert.Len(t, first.ChangeSet.Changes(), 1)
-
-		// Second result: FDv1 fallback.
-		second := <-resultChan
-		assert.Equal(t, interfaces.DataSourceStateOff, second.State)
-		assert.True(t, second.RevertToFDv1)
+		// A single Valid result carries both the payload and the RevertToFDv1 signal — the
+		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
+		result := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
+		assert.NotNil(t, result.ChangeSet)
+		assert.Len(t, result.ChangeSet.Changes(), 1)
+		assert.True(t, result.RevertToFDv1)
 	})
 }
 

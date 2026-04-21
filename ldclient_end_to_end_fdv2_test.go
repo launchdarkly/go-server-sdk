@@ -210,9 +210,13 @@ func TestFDV2CanFallBackToV1FromStreamingSuccess(t *testing.T) {
 		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
 		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
-		// FDv1 data should win: alwaysFalseFlag is true-defaulted to check it flipped to false.
-		value, _ := client.BoolVariation(alwaysFalseFlag.Key, testUser, true)
-		assert.False(t, value)
+		// Status becomes Valid as soon as the FDv2 stream applies its payload (with RevertToFDv1
+		// riding along on the same result), which happens before FDv1 has fetched its own data.
+		// Poll until the flag value reflects FDv1 data to verify the handoff completed.
+		assert.Eventually(t, func() bool {
+			value, _ := client.BoolVariation(alwaysFalseFlag.Key, testUser, true)
+			return value == false
+		}, time.Second*2, time.Millisecond*10, "expected FDv1 data (value=false) to replace FDv2 data")
 	})
 }
 

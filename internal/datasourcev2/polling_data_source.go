@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -108,13 +107,10 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				close(resultChan)
 				return
 			case <-ticker.C:
-				fallbackEnvID, fallback, err := pp.poll(ctx, ds, resultChan)
+				fallback, err := pp.poll(ctx, ds, resultChan)
 				if err == nil && fallback {
-					resultChan <- subsystems.DataSynchronizerResult{
-						State:         interfaces.DataSourceStateOff,
-						RevertToFDv1:  true,
-						EnvironmentID: fallbackEnvID,
-					}
+					// poll already emitted a Valid result carrying RevertToFDv1=true; the
+					// consumer will apply any ChangeSet and then switch to the FDv1 fallback.
 					return
 				}
 				if err != nil {
@@ -182,28 +178,29 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 	return resultChan
 }
 
-// poll performs a single polling request. On success it emits a Valid result with any
-// accompanying ChangeSet. It returns (environmentID, fallback, err) where fallback=true indicates
-// the response headers carried x-ld-fd-fallback: true; in that case the caller is responsible
-// for emitting the Off/RevertToFDv1 signal and exiting the sync goroutine. A non-nil err means
-// the request failed and no Valid result was emitted; the caller handles it per the existing
-// error path.
+// poll performs a single polling request and emits a Valid result on success. It returns
+// (fallback, err). fallback=true indicates the response headers carried x-ld-fd-fallback: true;
+// the emitted Valid result has RevertToFDv1=true set, so the consumer will apply any ChangeSet
+// and then switch to the FDv1 fallback synchronizer. The caller should exit the sync goroutine
+// on fallback=true. A non-nil err means the request failed and no Valid result was emitted; the
+// caller handles it per the existing error path.
 func (pp *PollingProcessor) poll(
 	ctx context.Context, ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult,
-) (ldvalue.OptionalString, bool, error) {
+) (bool, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
-		return ldvalue.OptionalString{}, false, err
+		return false, err
 	}
 
-	environmentID := internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
+	fallback := isFDv1FallbackRequested(headers)
 	resultChan <- subsystems.DataSynchronizerResult{
 		ChangeSet:     changeSet,
 		State:         interfaces.DataSourceStateValid,
-		EnvironmentID: environmentID,
+		EnvironmentID: internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
+		RevertToFDv1:  fallback,
 	}
 
-	return environmentID, isFDv1FallbackRequested(headers), nil
+	return fallback, nil
 }
 
 //nolint:revive // no doc comment for standard method

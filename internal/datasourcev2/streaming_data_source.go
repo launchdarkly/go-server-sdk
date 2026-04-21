@@ -234,6 +234,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					resultChan <- subsystems.DataSynchronizerResult{
 						State:         interfaces.DataSourceStateValid,
 						EnvironmentID: environmentID,
+						RevertToFDv1:  fallbackRequested,
 					}
 					payloadApplied = true
 					break
@@ -303,6 +304,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					ChangeSet:     changeSet,
 					State:         interfaces.DataSourceStateValid,
 					EnvironmentID: environmentID,
+					RevertToFDv1:  fallbackRequested,
 				}
 				payloadApplied = true
 
@@ -314,16 +316,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				stream.Restart()
 			}
 
-			// Honor a pending FDv1 fallback signal once a payload has been applied this
-			// iteration — evaluations can now serve the server-provided data while FDv1 takes
-			// over. Events that don't complete a payload (ServerIntent with a transfer code,
-			// PutObject, DeleteObject, etc.) leave payloadApplied false so we keep consuming.
+			// Once a payload has been applied with a pending FDv1 fallback signal, the Valid
+			// result emitted above carries RevertToFDv1=true; close the stream so we stop
+			// consuming. Events that don't complete a payload leave payloadApplied false so we
+			// keep consuming (fallbackRequested persists across iterations).
 			if fallbackRequested && payloadApplied {
-				resultChan <- subsystems.DataSynchronizerResult{
-					State:         interfaces.DataSourceStateOff,
-					RevertToFDv1:  true,
-					EnvironmentID: environmentID,
-				}
 				stream.Close()
 				return
 			}

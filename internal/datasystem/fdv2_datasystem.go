@@ -446,6 +446,14 @@ func (f *FDv2) consumeSynchronizerResults(
 				}
 				return syncRemove, nil
 			}
+
+			// RevertToFDv1 may ride along on a Valid or Interrupted result too — e.g. a
+			// successful response whose headers also requested the fallback. The Valid/
+			// Interrupted branches above already applied any ChangeSet and updated status;
+			// now hand control to the FDv1 fallback synchronizer.
+			if result.RevertToFDv1 {
+				return syncFDv1, nil
+			}
 		case <-ticker.C:
 			// If there's only one synchronizer, don't check conditions
 			if len(f.synchronizerBuilders) == 1 {
