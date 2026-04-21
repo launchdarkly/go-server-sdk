@@ -107,78 +107,41 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				close(resultChan)
 				return
 			case <-ticker.C:
-				fallback, err := pp.poll(ctx, ds, resultChan)
-				if err == nil && fallback {
-					// poll already emitted a Valid result carrying RevertToFDv1=true; the
-					// consumer will apply any ChangeSet and then switch to the FDv1 fallback.
+				result, err := pp.poll(ctx, ds)
+
+				// When the server requested FDv1 fallback, dispatch the result as-is — poll has
+				// already populated State (Valid on success, Off on error) and RevertToFDv1=true.
+				if result.RevertToFDv1 {
+					resultChan <- result
 					return
 				}
-				if err != nil {
-					if hse, ok := err.(httpStatusError); ok {
-						environmentID := internal.NewInitMetadataFromHeaders(hse.Header).GetEnvironmentID()
 
-						errorInfo := interfaces.DataSourceErrorInfo{
-							Kind:       interfaces.DataSourceErrorKindErrorResponse,
-							StatusCode: hse.Code,
-							Time:       time.Now(),
-						}
-
-						if fallback {
-							resultChan <- subsystems.DataSynchronizerResult{
-								State:         interfaces.DataSourceStateOff,
-								Error:         errorInfo,
-								RevertToFDv1:  true,
-								EnvironmentID: environmentID,
-							}
-							return
-						}
-
-						recoverable := checkIfErrorIsRecoverableAndLog(
-							pp.loggers,
-							httpErrorDescription(hse.Code),
-							pollingErrorContext,
-							hse.Code,
-							pollingWillRetryMessage,
-						)
-						if recoverable {
-							resultChan <- subsystems.DataSynchronizerResult{
-								State:         interfaces.DataSourceStateInterrupted,
-								Error:         errorInfo,
-								EnvironmentID: environmentID,
-							}
-						} else {
-							resultChan <- subsystems.DataSynchronizerResult{
-								State:         interfaces.DataSourceStateOff,
-								Error:         errorInfo,
-								EnvironmentID: environmentID,
-							}
-							return
-						}
-					} else {
-						errorInfo := interfaces.DataSourceErrorInfo{
-							Kind:    interfaces.DataSourceErrorKindNetworkError,
-							Message: err.Error(),
-							Time:    time.Now(),
-						}
-						if _, ok := err.(malformedJSONError); ok {
-							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
-						}
-						if fallback {
-							resultChan <- subsystems.DataSynchronizerResult{
-								State:        interfaces.DataSourceStateOff,
-								Error:        errorInfo,
-								RevertToFDv1: true,
-							}
-							return
-						}
-						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
-						resultChan <- subsystems.DataSynchronizerResult{
-							State: interfaces.DataSourceStateInterrupted,
-							Error: errorInfo,
-						}
-					}
+				if err == nil {
+					resultChan <- result
 					continue
 				}
+
+				// Non-fallback error: the caller may downgrade Off → Interrupted when the error
+				// is recoverable. Log at the appropriate level.
+				if hse, ok := err.(httpStatusError); ok {
+					if checkIfErrorIsRecoverableAndLog(
+						pp.loggers,
+						httpErrorDescription(hse.Code),
+						pollingErrorContext,
+						hse.Code,
+						pollingWillRetryMessage,
+					) {
+						result.State = interfaces.DataSourceStateInterrupted
+						resultChan <- result
+						continue
+					}
+					resultChan <- result // poll set State=Off
+					return
+				}
+
+				checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
+				result.State = interfaces.DataSourceStateInterrupted
+				resultChan <- result
 			}
 		}
 	}()
@@ -186,31 +149,51 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 	return resultChan
 }
 
-// poll performs a single polling request and emits a Valid result on success. It returns
-// (fallback, err), where fallback reflects the x-ld-fd-fallback response header whether or not
-// the request succeeded — a 500 response or a malformed-JSON body can still carry the fallback
-// signal, and callers must honor it. On success with fallback=true, the emitted Valid result
-// has RevertToFDv1=true set so the consumer will apply any ChangeSet before switching to FDv1.
-// A non-nil err means the request failed and no Valid result was emitted; the caller handles
-// it per the existing error path but should emit an Off/RevertToFDv1 result when fallback=true
-// rather than retrying.
+// poll performs a single polling request and builds a DataSynchronizerResult describing the
+// outcome. The result's RevertToFDv1 flag is always populated from the x-ld-fd-fallback response
+// header, whether or not the request succeeded — a 500 or a malformed-JSON body can still carry
+// the fallback signal.
+//
+// On success: result.State = Valid, result.ChangeSet populated, err = nil.
+// On error: result.State = Off (the safer default), result.Error populated with Kind/Message/
+// StatusCode as appropriate, err returned so the caller can apply context-specific logic
+// (e.g. downgrade Off → Interrupted when the HTTP error is recoverable).
+//
+// The caller is responsible for publishing the result to its channel; poll does not touch any
+// resultChan so it can be unit-tested in isolation.
 func (pp *PollingProcessor) poll(
-	ctx context.Context, ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult,
-) (bool, error) {
+	ctx context.Context, ds subsystems.DataSelector,
+) (subsystems.DataSynchronizerResult, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
-	fallback := isFDv1FallbackRequested(headers)
-	if err != nil {
-		return fallback, err
-	}
-
-	resultChan <- subsystems.DataSynchronizerResult{
-		ChangeSet:     changeSet,
-		State:         interfaces.DataSourceStateValid,
+	result := subsystems.DataSynchronizerResult{
 		EnvironmentID: internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
-		RevertToFDv1:  fallback,
+		RevertToFDv1:  isFDv1FallbackRequested(headers),
 	}
 
-	return fallback, nil
+	if err == nil {
+		result.ChangeSet = changeSet
+		result.State = interfaces.DataSourceStateValid
+		return result, nil
+	}
+
+	result.State = interfaces.DataSourceStateOff
+	if hse, ok := err.(httpStatusError); ok {
+		result.Error = interfaces.DataSourceErrorInfo{
+			Kind:       interfaces.DataSourceErrorKindErrorResponse,
+			StatusCode: hse.Code,
+			Time:       time.Now(),
+		}
+	} else {
+		result.Error = interfaces.DataSourceErrorInfo{
+			Kind:    interfaces.DataSourceErrorKindNetworkError,
+			Message: err.Error(),
+			Time:    time.Now(),
+		}
+		if _, ok := err.(malformedJSONError); ok {
+			result.Error.Kind = interfaces.DataSourceErrorKindInvalidData
+		}
+	}
+	return result, err
 }
 
 //nolint:revive // no doc comment for standard method
