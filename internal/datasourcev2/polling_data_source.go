@@ -123,7 +123,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 							Time:       time.Now(),
 						}
 
-						if isFDv1FallbackRequested(hse.Header) {
+						if fallback {
 							resultChan <- subsystems.DataSynchronizerResult{
 								State:         interfaces.DataSourceStateOff,
 								Error:         errorInfo,
@@ -163,6 +163,14 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 						if _, ok := err.(malformedJSONError); ok {
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
+						if fallback {
+							resultChan <- subsystems.DataSynchronizerResult{
+								State:        interfaces.DataSourceStateOff,
+								Error:        errorInfo,
+								RevertToFDv1: true,
+							}
+							return
+						}
 						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
 						resultChan <- subsystems.DataSynchronizerResult{
 							State: interfaces.DataSourceStateInterrupted,
@@ -179,20 +187,22 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 }
 
 // poll performs a single polling request and emits a Valid result on success. It returns
-// (fallback, err). fallback=true indicates the response headers carried x-ld-fd-fallback: true;
-// the emitted Valid result has RevertToFDv1=true set, so the consumer will apply any ChangeSet
-// and then switch to the FDv1 fallback synchronizer. The caller should exit the sync goroutine
-// on fallback=true. A non-nil err means the request failed and no Valid result was emitted; the
-// caller handles it per the existing error path.
+// (fallback, err), where fallback reflects the x-ld-fd-fallback response header whether or not
+// the request succeeded — a 500 response or a malformed-JSON body can still carry the fallback
+// signal, and callers must honor it. On success with fallback=true, the emitted Valid result
+// has RevertToFDv1=true set so the consumer will apply any ChangeSet before switching to FDv1.
+// A non-nil err means the request failed and no Valid result was emitted; the caller handles
+// it per the existing error path but should emit an Off/RevertToFDv1 result when fallback=true
+// rather than retrying.
 func (pp *PollingProcessor) poll(
 	ctx context.Context, ds subsystems.DataSelector, resultChan chan<- subsystems.DataSynchronizerResult,
 ) (bool, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
+	fallback := isFDv1FallbackRequested(headers)
 	if err != nil {
-		return false, err
+		return fallback, err
 	}
 
-	fallback := isFDv1FallbackRequested(headers)
 	resultChan <- subsystems.DataSynchronizerResult{
 		ChangeSet:     changeSet,
 		State:         interfaces.DataSourceStateValid,

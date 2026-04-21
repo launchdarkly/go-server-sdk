@@ -269,6 +269,34 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnSuccessfulResponse(t *test
 	})
 }
 
+func TestPollingProcessorSynchronizerHandlesFallbackOnMalformedBody(t *testing.T) {
+	// 200 OK with invalid JSON and the fallback header — a non-httpStatusError error path that
+	// must still honor the fallback signal rather than treating the parse failure as a retry.
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	fallbackHeader := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(200, fallbackHeader, []byte("not json")))
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		defer processor.Close()
+
+		resultChan := processor.Sync(ds)
+		result := <-resultChan
+
+		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+		assert.Equal(t, interfaces.DataSourceErrorKindInvalidData, result.Error.Kind)
+		assert.True(t, result.RevertToFDv1)
+	})
+}
+
 func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
