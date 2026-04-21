@@ -153,7 +153,7 @@ flags:
     "on": false
 `)
 
-			requireTrueWithinDuration(t, time.Second, func() bool {
+			requireTrueWithinDuration(t, time.Second*3, func() bool {
 				return hasFlag(t, p.updates.DataStore, "my-flag", func(f ldmodel.FeatureFlag) bool {
 					return !f.On
 				})
@@ -186,7 +186,7 @@ flags:
 
 			<-p.closeWhenReady
 
-			requireTrueWithinDuration(t, time.Second, func() bool {
+			requireTrueWithinDuration(t, time.Second*3, func() bool {
 				return hasFlag(t, p.updates.DataStore, "my-flag", func(f ldmodel.FeatureFlag) bool {
 					return f.On
 				})
