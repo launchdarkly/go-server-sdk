@@ -109,7 +109,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 			case <-ticker.C:
 				result, err := pp.poll(ctx, ds)
 
-				// When the server requested FDv1 fallback, dispatch the result as-is — poll has
+				// When the server requested FDv1 fallback, dispatch the result as-is -- poll has
 				// already populated State (Valid on success, Off on error) and FallbackToFDv1=true.
 				if result.FallbackToFDv1 {
 					resultChan <- result
@@ -121,7 +121,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 					continue
 				}
 
-				// Non-fallback error: the caller may downgrade Off → Interrupted when the error
+				// Non-fallback error: the caller may downgrade Off --> Interrupted when the error
 				// is recoverable. Log at the appropriate level.
 				if hse, ok := err.(httpStatusError); ok {
 					if checkIfErrorIsRecoverableAndLog(
@@ -151,13 +151,13 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 
 // poll performs a single polling request and builds a DataSynchronizerResult describing the
 // outcome. The result's FallbackToFDv1 flag is always populated from the x-ld-fd-fallback response
-// header, whether or not the request succeeded — a 500 or a malformed-JSON body can still carry
+// header, whether or not the request succeeded -- a 500 or a malformed-JSON body can still carry
 // the fallback signal.
 //
 // On success: result.State = Valid, result.ChangeSet populated, err = nil.
 // On error: result.State = Off (the safer default), result.Error populated with Kind/Message/
 // StatusCode as appropriate, err returned so the caller can apply context-specific logic
-// (e.g. downgrade Off → Interrupted when the HTTP error is recoverable).
+// (e.g. downgrade Off --> Interrupted when the HTTP error is recoverable).
 //
 // The caller is responsible for publishing the result to its channel; poll does not touch any
 // resultChan so it can be unit-tested in isolation.

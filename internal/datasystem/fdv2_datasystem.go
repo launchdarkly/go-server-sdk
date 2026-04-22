@@ -447,7 +447,7 @@ func (f *FDv2) consumeSynchronizerResults(
 				return syncRemove, nil
 			}
 
-			// FallbackToFDv1 may ride along on a Valid or Interrupted result too — e.g. a
+			// FallbackToFDv1 may ride along on a Valid or Interrupted result too -- e.g. a
 			// successful response whose headers also requested the fallback. The Valid/
 			// Interrupted branches above already applied any ChangeSet and updated status;
 			// now hand control to the FDv1 fallback synchronizer.
