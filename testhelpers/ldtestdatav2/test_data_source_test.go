@@ -53,7 +53,7 @@ func TestCanBeUsedAsInitializer(t *testing.T) {
 	assert.NoError(t, err)
 
 	selector := mocks.NewMockDataSelector(subsystems.NoSelector())
-	basis, err := initializer.Fetch(selector, context.Background())
+	basis, _, err := initializer.Fetch(selector, context.Background())
 	assert.NoError(t, err)
 
 	changes := basis.ChangeSet.Changes()
@@ -70,7 +70,7 @@ func TestCanBeUsedAsInitializer(t *testing.T) {
 
 	td.Update(td.Flag("flag1").On(false))
 
-	basis, err = initializer.Fetch(selector, context.Background())
+	basis, _, err = initializer.Fetch(selector, context.Background())
 	assert.NoError(t, err)
 
 	changes = basis.ChangeSet.Changes()

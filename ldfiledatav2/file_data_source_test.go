@@ -284,8 +284,9 @@ func TestSuccessfullyLoadsJsonFlagsAsInitializer(t *testing.T) {
 		initializer, err := factory.AsInitializer().Build(subsystems.BasicClientContext{})
 		assert.NoError(t, err)
 
-		basis, err := initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
+		basis, fallback, err := initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
 		assert.NoError(t, err)
+		assert.False(t, fallback)
 		assert.NotNil(t, basis)
 
 		assert.Len(t, basis.ChangeSet.Changes(), 2)
@@ -310,7 +311,7 @@ func TestInitializerReturnsErrorIfFileDoesNotExist(t *testing.T) {
 		initializer, err := factory.AsInitializer().Build(subsystems.BasicClientContext{})
 		assert.NoError(t, err)
 
-		_, err = initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
+		_, _, err = initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
 		assert.Error(t, err)
 	})
 }

@@ -106,8 +106,8 @@ func (sp *StreamProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (sp *StreamProcessor) Fetch(ds subsystems.DataSelector, _ context.Context) (*subsystems.Basis, error) {
-	return nil, errors.New("StreamProcessor does not implement Fetch capability")
+func (sp *StreamProcessor) Fetch(ds subsystems.DataSelector, _ context.Context) (*subsystems.Basis, bool, error) {
+	return nil, false, errors.New("StreamProcessor does not implement Fetch capability")
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -126,6 +126,38 @@ func (sp *StreamProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.Da
 	return resultChan
 }
 
+// reportMalformedEvent logs a malformed-event error and pushes an Interrupted result on resultChan.
+// Callers are responsible for resetting their own change-set builder and triggering a restart.
+func (sp *StreamProcessor) reportMalformedEvent(
+	event es.Event,
+	err error,
+	environmentID ldvalue.OptionalString,
+	resultChan chan<- subsystems.DataSynchronizerResult,
+) {
+	if event == nil {
+		sp.loggers.Errorf(
+			"Received streaming events with malformed JSON data (%s); will restart stream",
+			err,
+		)
+	} else {
+		sp.loggers.Errorf(
+			"Received streaming \"%s\" event with malformed JSON data (%s); will restart stream",
+			event.Event(),
+			err,
+		)
+	}
+
+	resultChan <- subsystems.DataSynchronizerResult{
+		State: interfaces.DataSourceStateInterrupted,
+		Error: interfaces.DataSourceErrorInfo{
+			Kind:    interfaces.DataSourceErrorKindInvalidData,
+			Message: err.Error(),
+			Time:    time.Now(),
+		},
+		EnvironmentID: environmentID,
+	}
+}
+
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- subsystems.DataSynchronizerResult) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
@@ -139,6 +171,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 
 	changeSetBuilder := subsystems.NewChangeSetBuilder()
 	environmentID := ldvalue.OptionalString{}
+	// fallbackRequested is set when the server's response headers carry x-ld-fd-fallback: true.
+	// We finish applying the current payload before emitting the fallback signal, so evaluations
+	// can serve the server-provided data while FDv1 takes over.
+	fallbackRequested := false
 
 	for {
 		select {
@@ -156,39 +192,20 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			sp.logConnectionResult(true)
 
 			shouldRestart := false
+			payloadApplied := false
 
 			if eventWithHeaders, ok := event.(es.EventWithHeaders); ok {
-				environmentID = internal.NewInitMetadataFromHeaders(eventWithHeaders.Headers()).GetEnvironmentID()
+				headers := eventWithHeaders.Headers()
+				environmentID = internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
+				if isFDv1FallbackRequested(headers) {
+					fallbackRequested = true
+				}
 			}
 
 			gotMalformedEvent := func(event es.Event, err error) {
 				// The protocol should "forget" anything that happens upon receiving an error.
 				changeSetBuilder = subsystems.NewChangeSetBuilder()
-
-				if event == nil {
-					sp.loggers.Errorf(
-						"Received streaming events with malformed JSON data (%s); will restart stream",
-						err,
-					)
-				} else {
-					sp.loggers.Errorf(
-						"Received streaming \"%s\" event with malformed JSON data (%s); will restart stream",
-						event.Event(),
-						err,
-					)
-				}
-
-				errorInfo := interfaces.DataSourceErrorInfo{
-					Kind:    interfaces.DataSourceErrorKindInvalidData,
-					Message: err.Error(),
-					Time:    time.Now(),
-				}
-				resultChan <- subsystems.DataSynchronizerResult{
-					State:         interfaces.DataSourceStateInterrupted,
-					Error:         errorInfo,
-					EnvironmentID: environmentID,
-				}
-
+				sp.reportMalformedEvent(event, err, environmentID, resultChan)
 				shouldRestart = true // scenario 1 in error handling comments at top of file
 			}
 
@@ -215,9 +232,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					}
 
 					resultChan <- subsystems.DataSynchronizerResult{
-						State:         interfaces.DataSourceStateValid,
-						EnvironmentID: environmentID,
+						State:          interfaces.DataSourceStateValid,
+						EnvironmentID:  environmentID,
+						FallbackToFDv1: fallbackRequested,
 					}
+					payloadApplied = true
 					break
 				}
 
@@ -282,10 +301,12 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				}
 
 				resultChan <- subsystems.DataSynchronizerResult{
-					ChangeSet:     changeSet,
-					State:         interfaces.DataSourceStateValid,
-					EnvironmentID: environmentID,
+					ChangeSet:      changeSet,
+					State:          interfaces.DataSourceStateValid,
+					EnvironmentID:  environmentID,
+					FallbackToFDv1: fallbackRequested,
 				}
+				payloadApplied = true
 
 			default:
 				sp.loggers.Infof("Unexpected event found in stream: %s", event.Event())
@@ -293,6 +314,15 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 
 			if shouldRestart {
 				stream.Restart()
+			}
+
+			// Once a payload has been applied with a pending FDv1 fallback signal, the Valid
+			// result emitted above carries FallbackToFDv1=true; close the stream so we stop
+			// consuming. Events that don't complete a payload leave payloadApplied false so we
+			// keep consuming (fallbackRequested persists across iterations).
+			if fallbackRequested && payloadApplied {
+				stream.Close()
+				return
 			}
 
 		case <-sp.halt:
@@ -353,12 +383,12 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				Time:       time.Now(),
 			}
 
-			if se.Header.Get("X-LD-FD-Fallback") == "true" {
+			if isFDv1FallbackRequested(se.Header) {
 				resultChan <- subsystems.DataSynchronizerResult{
-					State:         interfaces.DataSourceStateOff,
-					Error:         errorInfo,
-					RevertToFDv1:  true,
-					EnvironmentID: environmentID,
+					State:          interfaces.DataSourceStateOff,
+					Error:          errorInfo,
+					FallbackToFDv1: true,
+					EnvironmentID:  environmentID,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}
 			}

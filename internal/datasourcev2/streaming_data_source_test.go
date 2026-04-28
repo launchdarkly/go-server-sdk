@@ -60,8 +60,9 @@ func TestStreamingDoesNotWorkAsInitializer(t *testing.T) {
 	)
 
 	defer sp.Close()
-	basis, err := sp.Fetch(ds, context.Background())
+	basis, fallback, err := sp.Fetch(ds, context.Background())
 	assert.Nil(t, basis)
+	assert.False(t, fallback)
 	assert.NotNil(t, err)
 }
 
@@ -181,7 +182,46 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		assert.True(t, result.RevertToFDv1)
+		assert.True(t, result.FallbackToFDv1)
+	})
+}
+
+func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("updated-state", 2)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	// Wrap the valid SSE handler so the response carries x-ld-fd-fallback: true.
+	fallbackOnSuccess := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-LD-FD-Fallback", "true")
+		streamHandler.ServeHTTP(w, r)
+	})
+
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	httphelpers.WithServer(fallbackOnSuccess, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.StreamConfig{
+				URI:                   ts.URL,
+				InitialReconnectDelay: time.Millisecond * 50,
+			},
+		)
+
+		defer sp.Close()
+		resultChan := sp.Sync(ds)
+
+		// A single Valid result carries both the payload and the FallbackToFDv1 signal -- the
+		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
+		result := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
+		assert.NotNil(t, result.ChangeSet)
+		assert.Len(t, result.ChangeSet.Changes(), 1)
+		assert.True(t, result.FallbackToFDv1)
 	})
 }
 

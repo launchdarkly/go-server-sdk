@@ -316,8 +316,9 @@ func (d *testDataSourceImpl) Name() string {
 	return "TestDataSynchronizer"
 }
 
-func (d *testDataSourceImpl) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, error) {
-	return d.owner.makeBasis()
+func (d *testDataSourceImpl) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
+	basis, err := d.owner.makeBasis()
+	return basis, false, err
 }
 
 func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
@@ -327,8 +328,8 @@ func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.
 	statusChan := d.owner.statusBroadcaster.AddListener()
 
 	result := subsystems.DataSynchronizerResult{
-		State:        interfaces.DataSourceStateInitializing,
-		RevertToFDv1: false,
+		State:          interfaces.DataSourceStateInitializing,
+		FallbackToFDv1: false,
 	}
 
 	go func() {
