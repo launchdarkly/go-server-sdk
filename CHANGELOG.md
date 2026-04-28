@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.14.7](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.6...v7.14.7) (2026-04-28)
+
+
+### Bug Fixes
+
+* Honor x-ld-fd-fallback header in fdv2 initializer phase (SDK-2203) ([#365](https://github.com/launchdarkly/go-server-sdk/issues/365)) ([82d0b98](https://github.com/launchdarkly/go-server-sdk/commit/82d0b9898b46e29842be15f1f70359732d2a4761))
+
 ## [7.14.6](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.5...v7.14.6) (2026-02-26)
 
 
