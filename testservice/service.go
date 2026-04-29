@@ -50,6 +50,7 @@ var capabilities = []string{
 	servicedef.CapabilityPersistentDataStoreDynamoDB,
 	servicedef.CapabilityFlagChangeListeners,
 	servicedef.CapabilityFlagValueChangeListeners,
+	servicedef.CapabilityFDv1Fallback,
 }
 
 // gets the specified environment variable, or the default if not set
