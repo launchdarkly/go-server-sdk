@@ -38,11 +38,12 @@ const (
 )
 
 type DataSystem struct {
-	Store         *DataStore        `json:"store,omitempty"`
-	StoreMode     DataStoreMode     `json:"storeMode"`
-	Initializers  []DataInitializer `json:"initializers"`
-	Synchronizers *Synchronizers    `json:"synchronizers,omitempty"`
-	PayloadFilter *string           `json:"payloadFilter,omitempty"`
+	Store         *DataStore              `json:"store,omitempty"`
+	StoreMode     DataStoreMode           `json:"storeMode"`
+	Initializers  []DataInitializer       `json:"initializers"`
+	Synchronizers *Synchronizers          `json:"synchronizers,omitempty"`
+	FDv1Fallback  *SDKConfigPollingParams `json:"fdv1Fallback,omitempty"`
+	PayloadFilter *string                 `json:"payloadFilter,omitempty"`
 }
 
 type DataStore struct {

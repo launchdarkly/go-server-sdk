@@ -31,6 +31,7 @@ const (
 	CapabilityPersistentDataStoreDynamoDB = "persistent-data-store-dynamodb"
 	CapabilityFlagChangeListeners         = "flag-change-listeners"
 	CapabilityFlagValueChangeListeners    = "flag-value-change-listeners"
+	CapabilityFDv1Fallback                = "fdv1-fallback"
 )
 
 type StatusRep struct {

@@ -413,7 +413,6 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 		}
 
 		if config.DataSystem.Synchronizers != nil && len(*config.DataSystem.Synchronizers) > 0 {
-			var fdv1Fallback *ldcomponents.FDv1PollingDataSourceBuilderV2
 			synchronizers := make([]subsystems.ComponentConfigurer[subsystems.DataSynchronizer], 0, len(*config.DataSystem.Synchronizers))
 
 			for _, syncConfig := range *config.DataSystem.Synchronizers {
@@ -422,27 +421,26 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 					return ret, err
 				}
 				synchronizers = append(synchronizers, builder)
-
-				// Set up FDv1 fallback from the last polling synchronizer we find (matches Python behavior)
-				if syncConfig.Polling != nil {
-					fdv1Fallback = ldcomponents.FDv1PollingDataSourceV2()
-					if syncConfig.Polling.PollIntervalMS != nil {
-						fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*syncConfig.Polling.PollIntervalMS))
-					}
-					if syncConfig.Polling.BaseURI != "" {
-						fdv1Fallback.BaseURI(syncConfig.Polling.BaseURI)
-					}
-					if config.DataSystem.PayloadFilter != nil {
-						fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
-					}
-				}
-			}
-
-			if fdv1Fallback != nil {
-				dataSystemBuilder.FDv1CompatibleSynchronizer(fdv1Fallback)
 			}
 
 			dataSystemBuilder.Synchronizers(synchronizers...)
+		}
+
+		// FDv1Fallback configures the SDK's FDv1 Fallback Synchronizer — engaged only in
+		// response to a server-directed FDv1 Fallback Directive, separate from the FDv2
+		// Primary/Fallback synchronizer chain above.
+		if config.DataSystem.FDv1Fallback != nil {
+			fdv1Fallback := ldcomponents.FDv1PollingDataSourceV2()
+			if config.DataSystem.FDv1Fallback.PollIntervalMS != nil {
+				fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*config.DataSystem.FDv1Fallback.PollIntervalMS))
+			}
+			if config.DataSystem.FDv1Fallback.BaseURI != "" {
+				fdv1Fallback.BaseURI(config.DataSystem.FDv1Fallback.BaseURI)
+			}
+			if config.DataSystem.PayloadFilter != nil {
+				fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
+			}
+			dataSystemBuilder.FDv1CompatibleSynchronizer(fdv1Fallback)
 		}
 
 		if config.DataSystem.Store != nil && config.DataSystem.Store.PersistentDataStore != nil {
