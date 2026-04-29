@@ -303,7 +303,6 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 				reader = strings.NewReader(*val)
 			}
 			response, err := http.Post(endpoint, "application/json", reader)
-
 			if err != nil {
 				return nil, err
 			}
@@ -328,7 +327,6 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 				reader = strings.NewReader(*val)
 			}
 			response, err := http.Post(endpoint, "application/json", reader)
-
 			if err != nil {
 				return nil, err
 			}
@@ -360,7 +358,6 @@ func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationPara
 	builder.Write(writeEndpoint(p.OldEndpoint), writeEndpoint(p.NewEndpoint))
 
 	migrator, err := builder.Build()
-
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +423,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			dataSystemBuilder.Synchronizers(synchronizers...)
 		}
 
-		// FDv1Fallback configures the SDK's FDv1 Fallback Synchronizer — engaged only in
+		// FDv1Fallback configures the SDK's FDv1 Fallback Synchronizer -- engaged only in
 		// response to a server-directed FDv1 Fallback Directive, separate from the FDv2
 		// Primary/Fallback synchronizer chain above.
 		if config.DataSystem.FDv1Fallback != nil {
