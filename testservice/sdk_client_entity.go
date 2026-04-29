@@ -409,6 +409,14 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			dataSystemBuilder.Initializers(initializers...)
 		}
 
+		// Prefer the explicit FDv1Fallback config (sdk-test-harness PR #336+); fall back to
+		// the legacy convention of deriving an FDv1 fallback URL from a polling synchronizer
+		// in the synchronizer list, which is what older harness releases (<= v2.35.0) send.
+		var fdv1FallbackPolling *servicedef.SDKConfigPollingParams
+		if config.DataSystem.FDv1Fallback != nil {
+			fdv1FallbackPolling = config.DataSystem.FDv1Fallback
+		}
+
 		if config.DataSystem.Synchronizers != nil && len(*config.DataSystem.Synchronizers) > 0 {
 			synchronizers := make([]subsystems.ComponentConfigurer[subsystems.DataSynchronizer], 0, len(*config.DataSystem.Synchronizers))
 
@@ -418,6 +426,10 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 					return ret, err
 				}
 				synchronizers = append(synchronizers, builder)
+
+				if fdv1FallbackPolling == nil && syncConfig.Polling != nil {
+					fdv1FallbackPolling = syncConfig.Polling
+				}
 			}
 
 			dataSystemBuilder.Synchronizers(synchronizers...)
@@ -426,13 +438,13 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 		// FDv1Fallback configures the SDK's FDv1 Fallback Synchronizer -- engaged only in
 		// response to a server-directed FDv1 Fallback Directive, separate from the FDv2
 		// Primary/Fallback synchronizer chain above.
-		if config.DataSystem.FDv1Fallback != nil {
+		if fdv1FallbackPolling != nil {
 			fdv1Fallback := ldcomponents.FDv1PollingDataSourceV2()
-			if config.DataSystem.FDv1Fallback.PollIntervalMS != nil {
-				fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*config.DataSystem.FDv1Fallback.PollIntervalMS))
+			if fdv1FallbackPolling.PollIntervalMS != nil {
+				fdv1Fallback.PollInterval(time.Millisecond * time.Duration(*fdv1FallbackPolling.PollIntervalMS))
 			}
-			if config.DataSystem.FDv1Fallback.BaseURI != "" {
-				fdv1Fallback.BaseURI(config.DataSystem.FDv1Fallback.BaseURI)
+			if fdv1FallbackPolling.BaseURI != "" {
+				fdv1Fallback.BaseURI(fdv1FallbackPolling.BaseURI)
 			}
 			if config.DataSystem.PayloadFilter != nil {
 				fdv1Fallback.PayloadFilter(*config.DataSystem.PayloadFilter)
