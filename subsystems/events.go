@@ -207,9 +207,7 @@ func (e Error) Name() EventName {
 // Do not use it.
 // You have been warned.
 type Goodbye struct {
-	Reason      string `json:"reason"`
-	Silent      bool   `json:"silent"`
-	Catastrophe bool   `json:"catastrophe"`
+	Reason string `json:"reason"`
 }
 
 //nolint:revive // Event method.
