@@ -264,9 +264,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					break
 				}
 
-				if !goodbye.Silent {
-					sp.loggers.Errorf("SSE server received error: %s (%v)", goodbye.Reason, goodbye.Catastrophe)
-				}
+				sp.loggers.Infof("SSE server sent goodbye: %s", goodbye.Reason)
 			case subsystems.EventError:
 				var errorData subsystems.Error
 				err := json.Unmarshal([]byte(event.Data()), &errorData)

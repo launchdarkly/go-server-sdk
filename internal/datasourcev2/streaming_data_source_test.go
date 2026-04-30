@@ -754,9 +754,7 @@ func TestStreamingDataSourceIgnoresGoodbye(t *testing.T) {
 			protocol.WithPutObjects([]subsystems.PutObject{change})
 
 			protocol.WithGoodbye(subsystems.Goodbye{
-				Reason:      "for testing reason",
-				Silent:      false,
-				Catastrophe: false,
+				Reason: "for testing reason",
 			})
 
 			// Push a change through the data source
