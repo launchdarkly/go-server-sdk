@@ -152,6 +152,7 @@ func (c *Client) evaluateConfig(
 	}
 
 	builder := NewConfig().
+		withVariationKey(parsed.Meta.VariationKey).
 		WithModelName(parsed.Model.Name).
 		WithProviderName(parsed.Provider.Name).
 		WithEnabled(parsed.Meta.Enabled).
@@ -159,6 +160,10 @@ func (c *Client) evaluateConfig(
 		WithEvaluationMetricKey(parsed.EvaluationMetricKey).
 		WithEvaluationMetricKeys(parsed.EvaluationMetricKeys).
 		WithJudgeConfiguration(parsed.JudgeConfiguration)
+
+	if parsed.Meta.Version != nil {
+		builder.withVersion(*parsed.Meta.Version)
+	}
 
 	for k, v := range parsed.Model.Parameters {
 		builder.WithModelParam(k, v)
@@ -181,12 +186,7 @@ func (c *Client) evaluateConfig(
 
 	cfg := builder.Build()
 
-	version := 1
-	if parsed.Meta.Version != nil {
-		version = *parsed.Meta.Version
-	}
-
-	return cfg, newTracker(key, parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
+	return cfg, newTracker(key, cfg.VariationKey(), cfg.Version(), c.sdk, &cfg, context, c.logger)
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {

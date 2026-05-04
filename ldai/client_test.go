@@ -99,6 +99,138 @@ func TestEvalErrorReturnsDefault(t *testing.T) {
 	assert.Equal(t, defaultVal, cfg)
 }
 
+func TestConfigVariationKeyAndVersionArePopulated(t *testing.T) {
+	tests := []struct {
+		name             string
+		json             []byte
+		wantVariationKey string
+		wantVersion      int
+	}{
+		{
+			name: "both variationKey and version present",
+			json: []byte(`{
+				"_ldMeta": {"variationKey": "my-variation", "enabled": true, "version": 3},
+				"messages": [{"content": "hello", "role": "user"}]
+			}`),
+			wantVariationKey: "my-variation",
+			wantVersion:      3,
+		},
+		{
+			name: "variationKey present, version omitted defaults to 1",
+			json: []byte(`{
+				"_ldMeta": {"variationKey": "only-key", "enabled": true},
+				"messages": [{"content": "hello", "role": "user"}]
+			}`),
+			wantVariationKey: "only-key",
+			wantVersion:      1,
+		},
+		{
+			name: "both omitted",
+			json: []byte(`{
+				"_ldMeta": {"enabled": true},
+				"messages": [{"content": "hello", "role": "user"}]
+			}`),
+			wantVariationKey: "",
+			wantVersion:      1,
+		},
+		{
+			name: "empty _ldMeta object",
+			json: []byte(`{
+				"_ldMeta": {},
+				"messages": [{"content": "hello", "role": "user"}]
+			}`),
+			wantVariationKey: "",
+			wantVersion:      1,
+		},
+		{
+			name: "version is 1 explicitly",
+			json: []byte(`{
+				"_ldMeta": {"variationKey": "v1-explicit", "enabled": true, "version": 1},
+				"messages": [{"content": "hello", "role": "user"}]
+			}`),
+			wantVariationKey: "v1-explicit",
+			wantVersion:      1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient(newMockSDK(tt.json, nil))
+			require.NoError(t, err)
+
+			cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+
+			assert.Equal(t, tt.wantVariationKey, cfg.VariationKey())
+			assert.Equal(t, tt.wantVersion, cfg.Version())
+		})
+	}
+}
+
+func TestConfigVariationKeyMatchesTrackerEvents(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "test-variation", "enabled": true, "version": 7},
+		"model": {"name": "gpt-4"},
+		"provider": {"name": "OpenAI"},
+		"messages": [{"content": "test", "role": "system"}]
+	}`)
+
+	mockSDK := newMockSDK(json, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+
+	// Clear SDK info event from construction.
+	mockSDK.events = nil
+
+	cfg, tracker := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
+
+	// Config should expose the correct variation key and version.
+	assert.Equal(t, "test-variation", cfg.VariationKey())
+	assert.Equal(t, 7, cfg.Version())
+
+	// Tracker should emit events with the same variation key and version.
+	require.NotNil(t, tracker)
+	_ = tracker.TrackSuccess()
+
+	// Events: [0] = completion-config, [1] = generation:success
+	require.Len(t, mockSDK.events, 2)
+	successEvent := mockSDK.events[1]
+	assert.Equal(t, "$ld:ai:generation:success", successEvent.eventName)
+	assert.Equal(t, "test-variation", successEvent.data.GetByKey("variationKey").StringValue())
+	assert.Equal(t, 7, successEvent.data.GetByKey("version").IntValue())
+	assert.Equal(t, "my-config", successEvent.data.GetByKey("configKey").StringValue())
+}
+
+func TestJudgeConfigVariationKeyIsPopulated(t *testing.T) {
+	json := []byte(`{
+		"_ldMeta": {"variationKey": "judge-var", "enabled": true, "version": 2},
+		"mode": "judge",
+		"evaluationMetricKey": "toxicity",
+		"messages": [{"content": "evaluate this", "role": "system"}]
+	}`)
+
+	client, err := NewClient(newMockSDK(json, nil))
+	require.NoError(t, err)
+
+	cfg, _ := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
+
+	assert.Equal(t, "judge-var", cfg.VariationKey())
+	assert.Equal(t, 2, cfg.Version())
+}
+
+func TestDefaultConfigHasEmptyVariationKey(t *testing.T) {
+	// When the SDK returns the default (e.g. evaluation error), VariationKey and Version
+	// should have their zero/default values since the default Config is builder-created
+	// without metadata.
+	client, err := NewClient(newMockSDK(nil, errors.New("offline")))
+	require.NoError(t, err)
+
+	defaultVal := NewConfig().Enable().WithMessage("fallback", datamodel.User).Build()
+	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
+
+	assert.Equal(t, "", cfg.VariationKey())
+	assert.Equal(t, 1, cfg.Version())
+}
+
 func TestParseMultipleMessages(t *testing.T) {
 	json := []byte(`{
 		"_ldMeta": {"variationKey": "1", "enabled": true},

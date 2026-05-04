@@ -97,6 +97,8 @@ func (c *Config) AsLdValue() ldvalue.Value {
 type ConfigBuilder struct {
 	messages             []datamodel.Message
 	enabled              bool
+	variationKey         string
+	version              *int
 	providerName         string
 	modelName            string
 	modelParams          map[string]ldvalue.Value
@@ -143,6 +145,18 @@ func (cb *ConfigBuilder) Enable() *ConfigBuilder {
 // Disable disables the config.
 func (cb *ConfigBuilder) Disable() *ConfigBuilder {
 	return cb.WithEnabled(false)
+}
+
+// withVariationKey sets the variation key. This is used internally by LaunchDarkly.
+func (cb *ConfigBuilder) withVariationKey(variationKey string) *ConfigBuilder {
+	cb.variationKey = variationKey
+	return cb
+}
+
+// withVersion sets the version. This is used internally by LaunchDarkly.
+func (cb *ConfigBuilder) withVersion(version int) *ConfigBuilder {
+	cb.version = &version
+	return cb
 }
 
 // WithModelName sets the model name associated with the config.
@@ -217,7 +231,9 @@ func (cb *ConfigBuilder) Build() Config {
 		c: datamodel.Config{
 			Messages: slices.Clone(cb.messages),
 			Meta: datamodel.Meta{
-				Enabled: cb.enabled,
+				VariationKey: cb.variationKey,
+				Enabled:      cb.enabled,
+				Version:      cb.version,
 			},
 			Model: datamodel.Model{
 				Name:       cb.modelName,
