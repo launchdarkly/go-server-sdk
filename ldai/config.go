@@ -233,7 +233,7 @@ func (cb *ConfigBuilder) Build() Config {
 			Meta: datamodel.Meta{
 				VariationKey: cb.variationKey,
 				Enabled:      cb.enabled,
-				Version:      cb.version,
+				Version:      copyIntPtr(cb.version),
 			},
 			Model: datamodel.Model{
 				Name:       cb.modelName,
@@ -249,4 +249,12 @@ func (cb *ConfigBuilder) Build() Config {
 			JudgeConfiguration:   judgeConfig,
 		},
 	}
+}
+
+func copyIntPtr(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }

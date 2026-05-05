@@ -151,6 +151,15 @@ func TestConfigVariationKeyAndVersionArePopulated(t *testing.T) {
 			wantVariationKey: "v1-explicit",
 			wantVersion:      1,
 		},
+		{
+			name: "version is 0 explicitly",
+			json: []byte(`{
+				"_ldMeta": {"variationKey": "v0-explicit", "enabled": true, "version": 0},
+				"messages": [{"content": "hello", "role": "user"}]
+			}`),
+			wantVariationKey: "v0-explicit",
+			wantVersion:      0,
+		},
 	}
 
 	for _, tt := range tests {
