@@ -82,6 +82,12 @@ type Store struct {
 	// Identifies the current data.
 	selector subsystems.Selector
 
+	// If the configured persistent store carries an in-process cache, this lets
+	// us tell it to drop that cache once the in-memory store becomes the source
+	// of truth. nil if the persistent store is not a wrapper with a cache, or if
+	// no persistent store is configured.
+	cacheDropper interface{ DropCache() }
+
 	mu sync.RWMutex
 
 	loggers ldlog.Loggers
@@ -147,6 +153,9 @@ func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems
 		impl:           persistent,
 		mode:           mode,
 		statusProvider: statusProvider,
+	}
+	if dropper, ok := persistent.(interface{ DropCache() }); ok {
+		s.cacheDropper = dropper
 	}
 
 	s.active = s.persistentStore.impl
@@ -232,6 +241,13 @@ func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsyst
 	s.selector = selector
 
 	s.active = s.memoryStore
+
+	// Drop the persistent-store cache before the persistent Init below: the
+	// in-memory store is now the source of truth, and the wrapper's Init would
+	// otherwise rebuild the cache we are about to discard.
+	if s.cacheDropper != nil {
+		s.cacheDropper.DropCache()
+	}
 
 	if s.shouldPersist() {
 		//nolint:godox
