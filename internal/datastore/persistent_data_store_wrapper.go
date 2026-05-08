@@ -76,7 +76,7 @@ func (w *persistentDataStoreWrapper) Init(allData []st.Collection) error {
 	if c != nil {
 		c.Flush()
 	}
-	if err != nil && !(c != nil && w.cacheTTL < 0) {
+	if err != nil && (c == nil || w.cacheTTL >= 0) {
 		// If the underlying store failed to do the update, and we've got an expiring cache, then:
 		// 1) We shouldn't update the cache, and
 		// 2) We shouldn't be considered initialized.
@@ -191,7 +191,7 @@ func (w *persistentDataStoreWrapper) Upsert(
 	// but then suddenly fall back to old data when the cache expires. The exception is infinite-TTL
 	// mode, where we keep the cache in sync regardless so it can repopulate the store after a recovered
 	// outage.
-	if err != nil && !(c != nil && infinite) {
+	if err != nil && (c == nil || !infinite) {
 		return updated, err
 	}
 	if c == nil {
@@ -318,11 +318,6 @@ func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 		// in infinite cache mode, we set it even if the database update failed.
 	}
 	return true
-}
-
-// hasInfiniteCache returns true if the wrapper currently holds a cache configured with infinite TTL.
-func (w *persistentDataStoreWrapper) hasInfiniteCache() bool {
-	return w.cache.Load() != nil && w.cacheTTL < 0
 }
 
 func dataStoreCacheKey(kind st.DataKind, key string) string {
