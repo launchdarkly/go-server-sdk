@@ -32,9 +32,8 @@ const (
 )
 
 // newRunID returns a fresh UUIDv4 that LaunchDarkly uses to group all metric
-// events emitted by one Tracker into a single AI run, so latency, token usage,
-// and success/error can be analyzed together. Each call to CreateTracker on
-// the AI Config mints a new runId.
+// events emitted by one Tracker into a single AI run, so they can be analyzed
+// together. Each call to CreateTracker on the AI Config mints a new runId.
 func newRunID() string {
 	return uuid.New().String()
 }
@@ -126,13 +125,13 @@ type resumptionPayload struct {
 	Version      int    `json:"version"`
 }
 
-// Tracker is used to track metrics for AI Config evaluation.
-// Unless otherwise noted, the Tracker's method are not safe for concurrent use.
+// Tracker records metrics for a single AI run.
+// Unless otherwise noted, the Tracker's methods are not safe for concurrent use.
 //
-// All events a Tracker emits — duration, token usage, success/error, time-to-first-token,
-// and feedback — share a runId (a UUIDv4) so LaunchDarkly can correlate them in metrics
-// views as a single AI run. Each Tracker is single-use; call CreateTracker on the AI Config
-// to start a new run. A ResumptionToken preserves the runId, so events emitted by a Tracker
+// All events a Tracker emits share a runId (a UUIDv4) so LaunchDarkly can
+// correlate them in metrics views. See individual track methods for their
+// specific semantics. Call CreateTracker on the AI Config to start a new run.
+// A ResumptionToken preserves the runId, so events emitted by a Tracker
 // reconstructed in another process correlate with the original run.
 type Tracker struct {
 	key          string
@@ -288,6 +287,8 @@ func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.C
 // TrackDuration tracks the duration of a task. For example, the duration of a model evaluation request may be
 // tracked here. See also TrackRequest.
 // The duration in milliseconds must fit within a float64.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackDuration(dur time.Duration) error {
 	if t.duration.IsSome() {
 		t.logWarning("Skipping TrackDuration: duration already recorded on this tracker. "+
@@ -300,6 +301,8 @@ func (t *Tracker) TrackDuration(dur time.Duration) error {
 
 // TrackFeedback tracks the feedback provided by a user for a model evaluation. If the feedback is not
 // FeedbackPositive or FeedbackNegative, returns an error and does not track anything.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	if t.feedback.IsSome() {
 		t.logWarning("Skipping TrackFeedback: feedback already recorded on this tracker. "+
@@ -319,6 +322,9 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 }
 
 // TrackSuccess tracks a successful model evaluation.
+//
+// Records at most once per Tracker. TrackSuccess and TrackError share state;
+// only one of the two can record per Tracker, and subsequent calls are ignored.
 func (t *Tracker) TrackSuccess() error {
 	if t.success.IsSome() {
 		t.logWarning("Skipping TrackSuccess: success/error already recorded on this tracker. "+
@@ -331,6 +337,9 @@ func (t *Tracker) TrackSuccess() error {
 }
 
 // TrackError tracks an unsuccessful model evaluation.
+//
+// Records at most once per Tracker. TrackSuccess and TrackError share state;
+// only one of the two can record per Tracker, and subsequent calls are ignored.
 func (t *Tracker) TrackError() error {
 	if t.success.IsSome() {
 		t.logWarning("Skipping TrackError: success/error already recorded on this tracker. "+
@@ -343,6 +352,8 @@ func (t *Tracker) TrackError() error {
 }
 
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
 	if t.timeToFirstToken.IsSome() {
 		t.logWarning("Skipping TrackTimeToFirstToken: time-to-first-token already recorded on this tracker. "+
@@ -354,6 +365,8 @@ func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
 }
 
 // TrackUsage tracks the token usage for a model evaluation.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	if t.tokens.IsSome() {
 		t.logWarning("Skipping TrackUsage: token usage already recorded on this tracker. "+
@@ -404,7 +417,6 @@ func measureDurationOfTask[T any, A any](
 }
 
 // GetSummary returns a summary of all metrics that have been tracked using this tracker.
-// If the same metric has been tracked multiple times, this returns the most recent value.
 func (t *Tracker) GetSummary() MetricSummary {
 	return MetricSummary{
 		Duration:         t.duration,
@@ -428,6 +440,10 @@ func (t *Tracker) GetSummary() MetricSummary {
 //  2. Any metrics that were that set in the ProviderResponse
 //     2a) If Latency was not set in the ProviderResponse's Metrics field, an automatically measured duration.
 //  3. Any token usage that was set in the ProviderResponse.
+//
+// Because each inner metric is at-most-once per Tracker, calling TrackRequest
+// twice on the same Tracker will run the task again but produce no additional
+// metric events.
 func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (ProviderResponse, error) {
 	usage, duration, err := measureDurationOfTask(t.stopwatch, t.config, task)
 	if err != nil {
@@ -467,6 +483,9 @@ func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (
 }
 
 // TrackJudgeResponse tracks the evaluation scores from a judge response.
+//
+// May be called multiple times per Tracker; each call records the scores from
+// the given response.
 func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
 	if !response.Success {
 		return nil
