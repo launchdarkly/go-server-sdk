@@ -31,6 +31,10 @@ const (
 	tokenOutput = "$ld:ai:tokens:output"
 )
 
+// newRunID returns a fresh UUIDv4 that LaunchDarkly uses to group all metric
+// events emitted by one Tracker into a single AI run, so latency, token usage,
+// and success/error can be analyzed together. Each call to CreateTracker on
+// the AI Config mints a new runId.
 func newRunID() string {
 	return uuid.New().String()
 }
@@ -124,6 +128,12 @@ type resumptionPayload struct {
 
 // Tracker is used to track metrics for AI Config evaluation.
 // Unless otherwise noted, the Tracker's method are not safe for concurrent use.
+//
+// All events a Tracker emits — duration, token usage, success/error, time-to-first-token,
+// and feedback — share a runId (a UUIDv4) so LaunchDarkly can correlate them in metrics
+// views as a single AI run. Each Tracker is single-use; call CreateTracker on the AI Config
+// to start a new run. A ResumptionToken preserves the runId, so events emitted by a Tracker
+// reconstructed in another process correlate with the original run.
 type Tracker struct {
 	key          string
 	runID        string

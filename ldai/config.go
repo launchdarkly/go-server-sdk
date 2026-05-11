@@ -88,8 +88,11 @@ func (c *Config) JudgeConfiguration() *datamodel.JudgeConfiguration {
 	}
 }
 
-// CreateTracker creates a new Tracker with a fresh runId for tracking metrics related to this
-// AI Config evaluation. Each call returns a new, independent Tracker instance.
+// CreateTracker returns a new Tracker for a fresh AI Config evaluation. Each call mints a
+// new runId (a UUIDv4) that LaunchDarkly uses to correlate the run's events — duration,
+// token usage, success/error, and feedback — in metrics views. Call this once per AI Config
+// evaluation; metrics from different runIds cannot be combined.
+//
 // Returns nil if the config was not obtained via the Client.
 func (c *Config) CreateTracker() *Tracker {
 	if c.trackerFactory == nil {
