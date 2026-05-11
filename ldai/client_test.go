@@ -96,8 +96,8 @@ func TestEvalErrorReturnsDefault(t *testing.T) {
 
 	defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
 
-	cfg, tracker := client.Config("key", ldcontext.New("user"), defaultVal, nil)
-	assert.NotNil(t, tracker)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
+	assert.NotNil(t, cfg.CreateTracker())
 	assert.Equal(t, defaultVal.Enabled(), cfg.Enabled())
 	assert.Equal(t, defaultVal.Messages(), cfg.Messages())
 	assert.Equal(t, defaultVal.ModelName(), cfg.ModelName())
@@ -117,7 +117,7 @@ func TestParseMultipleMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 
 	assert.ElementsMatch(t, cfg.Messages(), []datamodel.Message{
 		{Content: "hello", Role: datamodel.User},
@@ -143,7 +143,7 @@ func TestParseModelName(t *testing.T) {
 			require.NotNil(t, client)
 
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
-			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 			assert.Equal(t, test.expected, cfg.ModelName())
 		})
@@ -167,7 +167,7 @@ func TestParseProviderName(t *testing.T) {
 			require.NotNil(t, client)
 
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
-			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 			assert.Equal(t, test.expected, cfg.ProviderName())
 		})
@@ -195,7 +195,7 @@ func TestParseInvalidConfigReturnsDefault(t *testing.T) {
 
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
 
-			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 			// Verify config data matches the default
 			assert.Equal(t, defaultVal.AsLdValue(), cfg.AsLdValue())
 			// Verify CreateTracker() now works (returnDefault always injects a factory)
@@ -225,7 +225,7 @@ func TestParseDisabledConfigs(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
-			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 			// We *shouldn't* be getting the default value, because these are all valid configs that should
 			// be parsed as disabled.
@@ -255,7 +255,7 @@ func TestParseModelParams(t *testing.T) {
 			require.NotNil(t, client)
 
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
-			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 			for k, v := range test.expected {
 				p, ok := cfg.ModelParam(k)
@@ -288,7 +288,7 @@ func TestParseCustomModelParams(t *testing.T) {
 			require.NotNil(t, client)
 
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
-			cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 			for k, v := range test.expected {
 				p, ok := cfg.CustomModelParam(k)
@@ -311,7 +311,7 @@ func TestCanSetDefaultConfigFields(t *testing.T) {
 		WithProviderName("provider").
 		WithModelName("model").Build()
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 	assert.True(t, cfg.Enabled())
 	assert.Equal(t, "provider", cfg.ProviderName())
@@ -338,43 +338,9 @@ func TestCompletionConfigMethodTracking(t *testing.T) {
 	context := ldcontext.New("user-key")
 	configKey := "test-config-key"
 
-	config, tracker := client.CompletionConfig(configKey, context, defaultConfig, nil)
+	config := client.CompletionConfig(configKey, context, defaultConfig, nil)
 
-	require.NotNil(t, config)
-	require.NotNil(t, tracker)
-
-	expectedData := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(configKey)).Build()
-	expectedEvents := []mockEvent{
-		{
-			eventName:   "$ld:ai:usage:completion-config",
-			context:     context,
-			metricValue: 1,
-			data:        expectedData,
-		},
-	}
-
-	assert.ElementsMatch(t, expectedEvents, mockSDK.events)
-}
-
-// TestDeprecatedConfigDelegatesToCompletionConfig verifies the deprecated Config method delegates
-// to CompletionConfig and emits the same usage event.
-func TestDeprecatedConfigDelegatesToCompletionConfig(t *testing.T) {
-	mockSDK := newMockSDK(nil, nil)
-	client, err := NewClient(mockSDK)
-	require.NoError(t, err)
-	require.NotNil(t, client)
-
-	// Clear the SDK info event from construction.
-	mockSDK.events = nil
-
-	defaultConfig := NewConfig().WithEnabled(false).Build()
-	context := ldcontext.New("user-key")
-	configKey := "test-config-key"
-
-	config, tracker := client.Config(configKey, context, defaultConfig, nil)
-
-	require.NotNil(t, config)
-	require.NotNil(t, tracker)
+	require.NotNil(t, config.CreateTracker())
 
 	expectedData := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(configKey)).Build()
 	expectedEvents := []mockEvent{
@@ -410,10 +376,9 @@ func TestJudgeConfigMethodTracking(t *testing.T) {
 	context := ldcontext.New("user-key")
 	configKey := "judge-config-key"
 
-	config, tracker := client.JudgeConfig(configKey, context, defaultConfig, nil)
+	config := client.JudgeConfig(configKey, context, defaultConfig, nil)
 
-	require.NotNil(t, config)
-	require.NotNil(t, tracker)
+	require.NotNil(t, config.CreateTracker())
 
 	// Only the judge metric should be emitted; evaluateConfig does not emit any metric.
 	expectedData := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(configKey)).Build()
@@ -435,7 +400,7 @@ func TestCanSetModelParameters(t *testing.T) {
 	require.NotNil(t, client)
 
 	defaultVal := NewConfig().WithModelParam("foo", ldvalue.String("bar")).Build()
-	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 	t.Run("param is present", func(t *testing.T) {
 		p, ok := cfg.ModelParam("foo")
@@ -456,7 +421,7 @@ func TestCanSetCustomModelParameters(t *testing.T) {
 	require.NotNil(t, client)
 
 	defaultVal := NewConfig().WithCustomModelParam("foo", ldvalue.String("bar")).Build()
-	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 	t.Run("param is present", func(t *testing.T) {
 		p, ok := cfg.CustomModelParam("foo")
@@ -480,7 +445,7 @@ func TestNormalAndCustomParamsDoNotInterfere(t *testing.T) {
 		WithModelParam("foo", ldvalue.String("bar")).
 		WithCustomModelParam("foo", ldvalue.String("baz")).Build()
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 	foo1, ok := cfg.ModelParam("foo")
 	require.True(t, ok)
@@ -499,7 +464,7 @@ func TestCannotOverwriteMessages(t *testing.T) {
 	defaultVal := NewConfig().
 		WithMessage("hello", datamodel.Assistant).Build()
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), defaultVal, nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
 
 	cfg.Messages()[0].Content = "changed"
 	cfg.Messages()[0].Role = datamodel.User
@@ -518,7 +483,7 @@ func eval(t *testing.T, prompt string, ctx ldcontext.Context, variables map[stri
 
 	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
-	cfg, _ := client.Config("key", ctx, Disabled(), variables)
+	cfg := client.CompletionConfig("key", ctx, Disabled(), variables)
 	if len(cfg.Messages()) == 0 {
 		return "", errors.New("no messages interpolated")
 	}
@@ -700,7 +665,7 @@ func TestParseJudgeSpecificFields(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 
 	assert.Equal(t, "judge", cfg.Mode())
 	assert.Equal(t, "toxicity", cfg.EvaluationMetricKey())
@@ -728,7 +693,7 @@ func TestParseEvaluationMetricKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 
 	assert.Equal(t, "judge", cfg.Mode())
 	assert.Equal(t, "", cfg.EvaluationMetricKey())
@@ -750,7 +715,7 @@ func TestParseEvaluationMetricKeyPriority(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 
 	assert.Equal(t, "judge", cfg.Mode())
 	// Both fields should be parsed
@@ -813,7 +778,7 @@ func TestJudgeConfig_PreservesReservedPlaceholders(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, _ := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
 
 	msgs := cfg.Messages()
 	require.Len(t, msgs, 2)
@@ -837,7 +802,7 @@ func TestConfig_WithoutReservedVarsWipesJudgePlaceholders(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
-	cfg, _ := client.Config("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 
 	msgs := cfg.Messages()
 	require.Len(t, msgs, 1)
@@ -858,7 +823,7 @@ func TestCreateTracker_DisabledConfig_ReturnsTracker(t *testing.T) {
 	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
 
-	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 	assert.False(t, cfg.Enabled())
 	assert.NotNil(t, cfg.CreateTracker(), "disabled config should still have a tracker factory")
 }
@@ -874,7 +839,7 @@ func TestCreateTracker_EnabledConfig_ReturnsTracker(t *testing.T) {
 	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
 
-	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 	assert.True(t, cfg.Enabled())
 
 	tracker := cfg.CreateTracker()
@@ -894,7 +859,7 @@ func TestCreateTracker_FreshRunIdPerCall(t *testing.T) {
 	// Clear SDK info event
 	mockSDK.events = nil
 
-	cfg, _ := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("key", ldcontext.New("user"), Disabled(), nil)
 
 	tracker1 := cfg.CreateTracker()
 	tracker2 := cfg.CreateTracker()
@@ -937,7 +902,7 @@ func TestCreateTracker_TrackerHasCorrectMetadata(t *testing.T) {
 	// Clear SDK info event
 	mockSDK.events = nil
 
-	cfg, _ := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
 
 	tracker := cfg.CreateTracker()
 	require.NotNil(t, tracker)
@@ -974,7 +939,7 @@ func TestCreateTracker_JudgeConfigHasFactory(t *testing.T) {
 	client, err := NewClient(newMockSDK(json, nil))
 	require.NoError(t, err)
 
-	cfg, _ := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.JudgeConfig("judge-key", ldcontext.New("user"), Disabled(), nil)
 	assert.True(t, cfg.Enabled())
 
 	tracker := cfg.CreateTracker()
@@ -996,7 +961,7 @@ func TestClient_CreateTracker_RoundTrip(t *testing.T) {
 	// Clear SDK info event
 	mockSDK.events = nil
 
-	cfg, _ := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
+	cfg := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
 	originalTracker := cfg.CreateTracker()
 	require.NotNil(t, originalTracker)
 
