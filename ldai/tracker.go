@@ -283,7 +283,7 @@ func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.C
 // The duration in milliseconds must fit within a float64.
 func (t *Tracker) TrackDuration(dur time.Duration) error {
 	if t.duration.IsSome() {
-		t.logWarning("Duration has already been tracked for this execution. %s", t.trackData.JSONString())
+		t.logWarning("Skipping TrackDuration: duration already recorded on this tracker. Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
 	t.duration = ldcommon.Some(dur)
@@ -294,7 +294,7 @@ func (t *Tracker) TrackDuration(dur time.Duration) error {
 // FeedbackPositive or FeedbackNegative, returns an error and does not track anything.
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
 	if t.feedback.IsSome() {
-		t.logWarning("Feedback has already been tracked for this execution. %s", t.trackData.JSONString())
+		t.logWarning("Skipping TrackFeedback: feedback already recorded on this tracker. Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
 	switch feedback {
@@ -312,7 +312,7 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 // TrackSuccess tracks a successful model evaluation.
 func (t *Tracker) TrackSuccess() error {
 	if t.success.IsSome() {
-		t.logWarning("Success/error has already been tracked for this execution. %s", t.trackData.JSONString())
+		t.logWarning("Skipping TrackSuccess: success/error already recorded on this tracker. Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
 	t.success = ldcommon.Some(true)
@@ -323,7 +323,7 @@ func (t *Tracker) TrackSuccess() error {
 // TrackError tracks an unsuccessful model evaluation.
 func (t *Tracker) TrackError() error {
 	if t.success.IsSome() {
-		t.logWarning("Success/error has already been tracked for this execution. %s", t.trackData.JSONString())
+		t.logWarning("Skipping TrackError: success/error already recorded on this tracker. Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
 	t.success = ldcommon.Some(false)
@@ -334,7 +334,7 @@ func (t *Tracker) TrackError() error {
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
 	if t.timeToFirstToken.IsSome() {
-		t.logWarning("Time to first token has already been tracked for this execution. %s", t.trackData.JSONString())
+		t.logWarning("Skipping TrackTimeToFirstToken: time-to-first-token already recorded on this tracker. Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
 	t.timeToFirstToken = ldcommon.Some(dur)
@@ -344,7 +344,7 @@ func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
 // TrackUsage tracks the token usage for a model evaluation.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	if t.tokens.IsSome() {
-		t.logWarning("Usage has already been tracked for this execution. %s", t.trackData.JSONString())
+		t.logWarning("Skipping TrackUsage: token usage already recorded on this tracker. Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
 
