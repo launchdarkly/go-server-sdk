@@ -1,8 +1,12 @@
 package ldai
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 
 	ldcommon "github.com/launchdarkly/go-sdk-common/v3"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -26,6 +30,13 @@ const (
 	//nolint:gosec
 	tokenOutput = "$ld:ai:tokens:output"
 )
+
+// newRunID returns a fresh UUIDv4 that LaunchDarkly uses to group all metric
+// events emitted by one Tracker into a single AI run, so they can be analyzed
+// together. Each call to CreateTracker on the AI Config mints a new runId.
+func newRunID() string {
+	return uuid.New().String()
+}
 
 // TokenUsage represents the token usage returned by a model provider for a specific request.
 type TokenUsage struct {
@@ -106,16 +117,33 @@ type Stopwatch interface {
 	Stop() time.Duration
 }
 
-// Tracker is used to track metrics for AI Config evaluation.
-// Unless otherwise noted, the Tracker's method are not safe for concurrent use.
+// resumptionPayload is the JSON structure encoded into a resumption token.
+type resumptionPayload struct {
+	RunID        string `json:"runId"`
+	ConfigKey    string `json:"configKey"`
+	VariationKey string `json:"variationKey,omitempty"`
+	Version      int    `json:"version"`
+}
+
+// Tracker records metrics for a single AI run.
+// Unless otherwise noted, the Tracker's methods are not safe for concurrent use.
+//
+// All events a Tracker emits share a runId (a UUIDv4) so LaunchDarkly can
+// correlate them in metrics views. See individual track methods for their
+// specific semantics. Call CreateTracker on the AI Config to start a new run.
+// A ResumptionToken preserves the runId, so events emitted by a Tracker
+// reconstructed in another process correlate with the original run.
 type Tracker struct {
-	key       string
-	config    *Config
-	context   ldcontext.Context
-	events    EventSink
-	trackData ldvalue.Value
-	logger    interfaces.LDLoggers
-	stopwatch Stopwatch
+	key          string
+	runID        string
+	variationKey string
+	version      int
+	config       *Config
+	context      ldcontext.Context
+	events       EventSink
+	trackData    ldvalue.Value
+	logger       interfaces.LDLoggers
+	stopwatch    Stopwatch
 
 	duration         ldcommon.Option[time.Duration]
 	feedback         ldcommon.Option[Feedback]
@@ -139,28 +167,30 @@ func (d *defaultStopwatch) Stop() time.Duration {
 	return time.Since(d.start)
 }
 
-// newTracker creates a new Tracker with the specified key, event sink, config, context, and loggers.
+// newTracker creates a new Tracker with the specified runID, key, event sink, config, context, and loggers.
 func newTracker(
+	events EventSink,
+	runID string,
 	key string,
 	variationKey string,
 	version int,
-	events EventSink,
-	config *Config,
 	ctx ldcontext.Context,
+	config *Config,
 	loggers interfaces.LDLoggers,
 ) *Tracker {
-	return newTrackerWithStopwatch(key, variationKey, version, events, config, ctx, loggers, &defaultStopwatch{})
+	return newTrackerWithStopwatch(events, runID, key, variationKey, version, ctx, config, loggers, &defaultStopwatch{})
 }
 
-// newTrackerWithStopwatch creates a new Tracker with the specified key, event sink, config, context, loggers, and
-// stopwatch. This method is used for testing purposes.
+// newTrackerWithStopwatch creates a new Tracker with the specified runID, key, event sink, config, context, loggers,
+// and stopwatch. This method is used for testing purposes.
 func newTrackerWithStopwatch(
+	events EventSink,
+	runID string,
 	key string,
 	variationKey string,
 	version int,
-	events EventSink,
-	config *Config,
 	ctx ldcontext.Context,
+	config *Config,
 	loggers interfaces.LDLoggers,
 	stopwatch Stopwatch,
 ) *Tracker {
@@ -168,22 +198,28 @@ func newTrackerWithStopwatch(
 		panic("LaunchDarkly SDK programmer error: config must never be nil")
 	}
 
-	trackData := ldvalue.ObjectBuild().
-		Set("variationKey", ldvalue.String(variationKey)).
+	builder := ldvalue.ObjectBuild().
+		Set("runId", ldvalue.String(runID)).
 		Set("configKey", ldvalue.String(key)).
 		Set("version", ldvalue.Int(version)).
 		Set("providerName", ldvalue.String(config.ProviderName())).
-		Set("modelName", ldvalue.String(config.ModelName())).
-		Build()
+		Set("modelName", ldvalue.String(config.ModelName()))
+	if variationKey != "" {
+		builder.Set("variationKey", ldvalue.String(variationKey))
+	}
+	trackData := builder.Build()
 
 	return &Tracker{
-		key:       key,
-		config:    config,
-		trackData: trackData,
-		events:    events,
-		context:   ctx,
-		logger:    loggers,
-		stopwatch: stopwatch,
+		key:          key,
+		runID:        runID,
+		variationKey: variationKey,
+		version:      version,
+		config:       config,
+		trackData:    trackData,
+		events:       events,
+		context:      ctx,
+		logger:       loggers,
+		stopwatch:    stopwatch,
 	}
 }
 
@@ -192,17 +228,87 @@ func (t *Tracker) logWarning(format string, args ...interface{}) {
 	t.logger.Warnf(prefix+format, args...)
 }
 
+// ResumptionToken returns a URL-safe Base64-encoded token that can be used to reconstruct a tracker
+// in a different process (e.g., for deferred feedback). The token contains the runId, configKey,
+// variationKey, and version. It does not contain modelName or providerName.
+func (t *Tracker) ResumptionToken() string {
+	payload := resumptionPayload{
+		RunID:        t.runID,
+		ConfigKey:    t.key,
+		VariationKey: t.variationKey,
+		Version:      t.version,
+	}
+	jsonBytes, _ := json.Marshal(payload)
+	return base64.RawURLEncoding.EncodeToString(jsonBytes)
+}
+
+// TrackerFromResumptionToken reconstructs a Tracker from a resumption token and the given context.
+// This is used for cross-process scenarios (e.g., deferred feedback) where the original tracker
+// is no longer available but its runId must be reused. The token is obtained from Tracker.ResumptionToken().
+// The reconstructed tracker will have empty modelName and providerName since these are not included
+// in the token.
+func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.Context) (*Tracker, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, fmt.Errorf("invalid resumption token: %w", err)
+	}
+	var payload resumptionPayload
+	if err := json.Unmarshal(decoded, &payload); err != nil {
+		return nil, fmt.Errorf("invalid resumption token: %w", err)
+	}
+
+	builder := ldvalue.ObjectBuild().
+		Set("runId", ldvalue.String(payload.RunID)).
+		Set("configKey", ldvalue.String(payload.ConfigKey)).
+		Set("version", ldvalue.Int(payload.Version)).
+		Set("providerName", ldvalue.String("")).
+		Set("modelName", ldvalue.String(""))
+	if payload.VariationKey != "" {
+		builder.Set("variationKey", ldvalue.String(payload.VariationKey))
+	}
+	trackData := builder.Build()
+
+	emptyConfig := Disabled()
+
+	return &Tracker{
+		key:          payload.ConfigKey,
+		runID:        payload.RunID,
+		variationKey: payload.VariationKey,
+		version:      payload.Version,
+		config:       &emptyConfig,
+		trackData:    trackData,
+		events:       sdk,
+		context:      context,
+		logger:       sdk.Loggers(),
+		stopwatch:    &defaultStopwatch{},
+	}, nil
+}
+
 // TrackDuration tracks the duration of a task. For example, the duration of a model evaluation request may be
 // tracked here. See also TrackRequest.
 // The duration in milliseconds must fit within a float64.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackDuration(dur time.Duration) error {
+	if t.duration.IsSome() {
+		t.logWarning("Skipping TrackDuration: duration already recorded on this tracker. "+
+			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
+		return nil
+	}
 	t.duration = ldcommon.Some(dur)
 	return t.events.TrackMetric(duration, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
 // TrackFeedback tracks the feedback provided by a user for a model evaluation. If the feedback is not
 // FeedbackPositive or FeedbackNegative, returns an error and does not track anything.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackFeedback(feedback Feedback) error {
+	if t.feedback.IsSome() {
+		t.logWarning("Skipping TrackFeedback: feedback already recorded on this tracker. "+
+			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
+		return nil
+	}
 	switch feedback {
 	case FeedbackPositive:
 		t.feedback = ldcommon.Some(feedback)
@@ -216,27 +322,58 @@ func (t *Tracker) TrackFeedback(feedback Feedback) error {
 }
 
 // TrackSuccess tracks a successful model evaluation.
+//
+// Records at most once per Tracker. TrackSuccess and TrackError share state;
+// only one of the two can record per Tracker, and subsequent calls are ignored.
 func (t *Tracker) TrackSuccess() error {
+	if t.success.IsSome() {
+		t.logWarning("Skipping TrackSuccess: success/error already recorded on this tracker. "+
+			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
+		return nil
+	}
 	t.success = ldcommon.Some(true)
 
 	return t.events.TrackMetric(generationSuccess, t.context, 1, t.trackData)
 }
 
 // TrackError tracks an unsuccessful model evaluation.
+//
+// Records at most once per Tracker. TrackSuccess and TrackError share state;
+// only one of the two can record per Tracker, and subsequent calls are ignored.
 func (t *Tracker) TrackError() error {
+	if t.success.IsSome() {
+		t.logWarning("Skipping TrackError: success/error already recorded on this tracker. "+
+			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
+		return nil
+	}
 	t.success = ldcommon.Some(false)
 
 	return t.events.TrackMetric(generationError, t.context, 1, t.trackData)
 }
 
 // TrackTimeToFirstToken tracks the time to the first token of the streamed response.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
+	if t.timeToFirstToken.IsSome() {
+		t.logWarning("Skipping TrackTimeToFirstToken: time-to-first-token already recorded on this tracker. "+
+			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
+		return nil
+	}
 	t.timeToFirstToken = ldcommon.Some(dur)
 	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
 // TrackUsage tracks the token usage for a model evaluation.
+//
+// Records at most once per Tracker; further calls are ignored.
 func (t *Tracker) TrackUsage(usage TokenUsage) error {
+	if t.tokens.IsSome() {
+		t.logWarning("Skipping TrackUsage: token usage already recorded on this tracker. "+
+			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
+		return nil
+	}
+
 	if usage.Set() {
 		t.tokens = ldcommon.Some(usage)
 	}
@@ -280,7 +417,6 @@ func measureDurationOfTask[T any, A any](
 }
 
 // GetSummary returns a summary of all metrics that have been tracked using this tracker.
-// If the same metric has been tracked multiple times, this returns the most recent value.
 func (t *Tracker) GetSummary() MetricSummary {
 	return MetricSummary{
 		Duration:         t.duration,
@@ -304,6 +440,10 @@ func (t *Tracker) GetSummary() MetricSummary {
 //  2. Any metrics that were that set in the ProviderResponse
 //     2a) If Latency was not set in the ProviderResponse's Metrics field, an automatically measured duration.
 //  3. Any token usage that was set in the ProviderResponse.
+//
+// Because each inner metric is at-most-once per Tracker, calling TrackRequest
+// twice on the same Tracker will run the task again but produce no additional
+// metric events.
 func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (ProviderResponse, error) {
 	usage, duration, err := measureDurationOfTask(t.stopwatch, t.config, task)
 	if err != nil {
@@ -343,6 +483,9 @@ func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (
 }
 
 // TrackJudgeResponse tracks the evaluation scores from a judge response.
+//
+// May be called multiple times per Tracker; each call records the scores from
+// the given response.
 func (t *Tracker) TrackJudgeResponse(response datamodel.JudgeResponse) error {
 	if !response.Success {
 		return nil

@@ -750,7 +750,7 @@ func TestDoubleInterpolation_ReservedVariables(t *testing.T) {
 	// The config from LaunchDarkly has templates with {{message_history}} and {{response_to_evaluate}}
 	rawTemplate := "Input: {{message_history}}\nOutput: {{response_to_evaluate}}"
 
-	// Simulate first interpolation (done by client.Config when fetching judge config)
+	// Simulate first interpolation (done by client.JudgeConfig when fetching judge config)
 	// Variables passed should include literal placeholder strings
 	variablesForFirstInterpolation := map[string]interface{}{
 		"message_history":      "{{message_history}}",      // Literal string!
