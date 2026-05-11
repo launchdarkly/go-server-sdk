@@ -364,12 +364,12 @@ func (t *Tracker) TrackTimeToFirstToken(dur time.Duration) error {
 	return t.events.TrackMetric(timeToFirstToken, t.context, float64(dur.Milliseconds()), t.trackData)
 }
 
-// TrackUsage tracks the token usage for a model evaluation.
+// TrackTokens tracks the token usage for a model evaluation.
 //
 // Records at most once per Tracker; further calls are ignored.
-func (t *Tracker) TrackUsage(usage TokenUsage) error {
+func (t *Tracker) TrackTokens(usage TokenUsage) error {
 	if t.tokens.IsSome() {
-		t.logWarning("Skipping TrackUsage: token usage already recorded on this tracker. "+
+		t.logWarning("Skipping TrackTokens: token usage already recorded on this tracker. "+
 			"Call CreateTracker on the AI Config for a new run. %s", t.trackData.JSONString())
 		return nil
 	}
@@ -404,6 +404,13 @@ func (t *Tracker) TrackUsage(usage TokenUsage) error {
 	}
 
 	return nil
+}
+
+// TrackUsage tracks token usage.
+//
+// Deprecated: Use TrackTokens instead.
+func (t *Tracker) TrackUsage(usage TokenUsage) error {
+	return t.TrackTokens(usage)
 }
 
 func measureDurationOfTask[T any, A any](
@@ -475,8 +482,8 @@ func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (
 	}
 
 	if usage.Usage.Set() {
-		// TrackUsage logs errors.
-		_ = t.TrackUsage(usage.Usage)
+		// TrackTokens logs errors.
+		_ = t.TrackTokens(usage.Usage)
 	}
 
 	return usage, nil

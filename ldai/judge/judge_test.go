@@ -51,7 +51,7 @@ func (m *mockTracker) TrackJudgeResponse(response datamodel.JudgeResponse) error
 	return nil
 }
 
-func (m *mockTracker) TrackUsage(usage ldai.TokenUsage) error {
+func (m *mockTracker) TrackTokens(usage ldai.TokenUsage) error {
 	m.usages = append(m.usages, usage)
 	return nil
 }

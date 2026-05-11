@@ -21,7 +21,7 @@ type Config interface {
 
 type Tracker interface {
 	TrackJudgeResponse(response datamodel.JudgeResponse) error
-	TrackUsage(usage ldai.TokenUsage) error
+	TrackTokens(usage ldai.TokenUsage) error
 }
 
 type StructuredResponse struct {
@@ -91,7 +91,7 @@ func (j *Judge) Evaluate(input, output string, samplingRate float64) (*datamodel
 	}
 
 	if response.Usage.Total > 0 || response.Usage.Input > 0 || response.Usage.Output > 0 {
-		_ = j.tracker.TrackUsage(response.Usage)
+		_ = j.tracker.TrackTokens(response.Usage)
 	}
 
 	result := j.parseResponse(response.Content)

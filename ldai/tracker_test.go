@@ -283,13 +283,13 @@ func TestTracker_TrackFeedback(t *testing.T) {
 	})
 }
 
-func TestTracker_TrackUsage(t *testing.T) {
+func TestTracker_TrackTokens(t *testing.T) {
 	t.Run("only one field set, only one event", func(t *testing.T) {
 		events := newMockEvents()
 		config := &Config{}
 		tracker := newTracker(events, newRunID(), "key", "variationKey", 8, ldcontext.New("key"), config, nil)
 
-		assert.NoError(t, tracker.TrackUsage(TokenUsage{
+		assert.NoError(t, tracker.TrackTokens(TokenUsage{
 			Total: 42,
 		}))
 
@@ -309,7 +309,7 @@ func TestTracker_TrackUsage(t *testing.T) {
 		config := &Config{}
 		tracker := newTracker(events, newRunID(), "key", "variationKey", 9, ldcontext.New("key"), config, nil)
 
-		assert.NoError(t, tracker.TrackUsage(TokenUsage{
+		assert.NoError(t, tracker.TrackTokens(TokenUsage{
 			Total:  42,
 			Input:  20,
 			Output: 22,
@@ -415,7 +415,7 @@ func TestTracker_GetSummary(t *testing.T) {
 			Input:  40,
 			Output: 60,
 		}
-		_ = tracker.TrackUsage(usage)
+		_ = tracker.TrackTokens(usage)
 
 		summary := tracker.GetSummary()
 
@@ -471,13 +471,13 @@ func TestTracker_AtMostOnce(t *testing.T) {
 		assert.Equal(t, 1, count, "TrackTimeToFirstToken should only emit one event")
 	})
 
-	t.Run("TrackUsage only tracks once", func(t *testing.T) {
+	t.Run("TrackTokens only tracks once", func(t *testing.T) {
 		events := newMockEvents()
 		config := &Config{}
 		tracker := newTracker(events, newRunID(), "key", "variationKey", 1, ldcontext.New("key"), config, events.log.Loggers)
 
-		assert.NoError(t, tracker.TrackUsage(TokenUsage{Total: 10}))
-		assert.NoError(t, tracker.TrackUsage(TokenUsage{Total: 20}))
+		assert.NoError(t, tracker.TrackTokens(TokenUsage{Total: 10}))
+		assert.NoError(t, tracker.TrackTokens(TokenUsage{Total: 20}))
 
 		count := 0
 		for _, e := range events.events {
@@ -485,7 +485,7 @@ func TestTracker_AtMostOnce(t *testing.T) {
 				count++
 			}
 		}
-		assert.Equal(t, 1, count, "TrackUsage should only emit one event")
+		assert.Equal(t, 1, count, "TrackTokens should only emit one event")
 	})
 
 	t.Run("TrackFeedback only tracks once", func(t *testing.T) {
