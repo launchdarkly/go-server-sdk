@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhttp"
@@ -30,9 +31,14 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 		require.NoError(t, err)
 
 		headers := c.DefaultHeaders
-		assert.Len(t, headers, 2)
+		assert.Len(t, headers, 3)
 		assert.Equal(t, "test-key", headers.Get("Authorization"))
 		assert.Equal(t, "GoClient/"+internal.SDKVersion, headers.Get("User-Agent"))
+		// X-LaunchDarkly-Instance-Id must be a parseable v4 UUID.
+		instanceID := headers.Get("X-LaunchDarkly-Instance-Id")
+		parsed, parseErr := uuid.Parse(instanceID)
+		require.NoError(t, parseErr, "instance ID %q is not a parseable UUID", instanceID)
+		assert.Equal(t, uuid.Version(4), parsed.Version(), "instance ID must be UUID v4")
 
 		client := c.CreateHTTPClient()
 		assert.Equal(t, DefaultConnectTimeout, client.Timeout)
@@ -252,6 +258,33 @@ func TestHTTPConfigurationBuilder(t *testing.T) {
 			c, err := HTTPConfiguration().Build(bc)
 			require.NoError(t, err)
 			assert.Equal(t, "application-id/appid application-version/appver", c.DefaultHeaders.Get("X-LaunchDarkly-Tags"))
+		})
+	})
+
+	t.Run("instance id header", func(t *testing.T) {
+		t.Run("present and is uuid v4", func(t *testing.T) {
+			c, err := HTTPConfiguration().Build(basicConfig)
+			require.NoError(t, err)
+
+			values := c.DefaultHeaders.Values("X-LaunchDarkly-Instance-Id")
+			require.Len(t, values, 1, "exactly one instance id header should be set")
+
+			parsed, parseErr := uuid.Parse(values[0])
+			require.NoError(t, parseErr, "instance id must be a parseable UUID")
+			assert.Equal(t, uuid.Version(4), parsed.Version(), "instance id must be UUID v4")
+		})
+
+		t.Run("different across HTTP configurations", func(t *testing.T) {
+			// Each call to Build represents a new SDK instance; each must get its own GUID.
+			c1, err := HTTPConfiguration().Build(basicConfig)
+			require.NoError(t, err)
+			c2, err := HTTPConfiguration().Build(basicConfig)
+			require.NoError(t, err)
+			id1 := c1.DefaultHeaders.Get("X-LaunchDarkly-Instance-Id")
+			id2 := c2.DefaultHeaders.Get("X-LaunchDarkly-Instance-Id")
+			require.NotEmpty(t, id1)
+			require.NotEmpty(t, id2)
+			assert.NotEqual(t, id1, id2, "each SDK instance should generate its own instance id")
 		})
 	})
 
