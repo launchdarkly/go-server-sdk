@@ -47,10 +47,11 @@ Fetch a model configuration for a specific LaunchDarkly context:
 ```go
 // The default value 'ldai.Disabled()' be returned if LaunchDarkly is unavailable or the config
 // cannot be fetched. To customize the default value, use ldai.NewConfig().
-config, tracker := aiClient.Config("your-model-key", ldcontext.New("user-key"), ldai.Disabled(), nil)
+config := aiClient.CompletionConfig("your-model-key", ldcontext.New("user-key"), ldai.Disabled(), nil)
 
-// Access the methods on config, and optionally use the returned tracker to generate analytic events
-// related to usage of the model config.
+// Access the methods on config. To generate analytic events related to usage of the model config,
+// obtain a tracker by calling config.CreateTracker().
+tracker := config.CreateTracker()
 ```
 Learn more
 -----------

@@ -92,51 +92,54 @@ func (c *Client) logConfigWarning(key string, format string, args ...interface{}
 // variables. Returns the default value if the config cannot be evaluated. Template interpolation is
 // not applied to the default value's messages.
 //
-// To send analytic events to LaunchDarkly, call methods on the returned Tracker.
+// To send analytic events to LaunchDarkly, call CreateTracker on the returned Config to obtain a Tracker.
 func (c *Client) CompletionConfig(
 	key string,
 	context ldcontext.Context,
 	defaultValue Config,
 	variables map[string]interface{},
-) (Config, *Tracker) {
+) Config {
 	data := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(key)).Build()
 	_ = c.sdk.TrackMetric(usageCompletionConfig, context, 1, data)
 	return c.evaluateConfig(key, context, defaultValue, variables)
 }
 
-// Config evaluates an AI Config named by a given key for the given context.
-//
-// Deprecated: Use CompletionConfig instead.
-func (c *Client) Config(
-	key string,
-	context ldcontext.Context,
-	defaultValue Config,
-	variables map[string]interface{},
-) (Config, *Tracker) {
-	return c.CompletionConfig(key, context, defaultValue, variables)
+// CreateTracker reconstructs a Tracker from a resumption token and the given context.
+// This delegates to TrackerFromResumptionToken. See that function for details.
+func (c *Client) CreateTracker(token string, context ldcontext.Context) (*Tracker, error) {
+	return TrackerFromResumptionToken(token, c.sdk, context)
+}
+
+// returnDefault sets a tracker factory on a copy of def (so CreateTracker always works) and
+// returns the resulting Config. Used for all error-path returns in evaluateConfig.
+func (c *Client) returnDefault(key string, context ldcontext.Context, def Config) Config {
+	def.trackerFactory = func() *Tracker {
+		return newTracker(c.sdk, newRunID(), key, "", 1, context, &def, c.logger)
+	}
+	return def
 }
 
 // evaluateConfig fetches and interpolates an AI Config without emitting any metric.
-// Callers (Config, JudgeConfig) are meant to emit their own metric before calling this.
+// Callers (CompletionConfig, JudgeConfig) are meant to emit their own metric before calling this.
 func (c *Client) evaluateConfig(
 	key string,
 	context ldcontext.Context,
 	defaultValue Config,
 	variables map[string]interface{},
-) (Config, *Tracker) {
+) Config {
 	result, _ := c.sdk.JSONVariation(key, context, defaultValue.AsLdValue())
 
 	// The spec requires the config to at least be an object (although all properties are optional, so it may be an
 	// empty object.)
 	if result.Type() != ldvalue.ObjectType {
 		c.logConfigWarning(key, "unmarshalling failed, expected JSON object but got %s", result.Type().String())
-		return defaultValue, newTracker(key, "", 1, c.sdk, &defaultValue, context, c.logger)
+		return c.returnDefault(key, context, defaultValue)
 	}
 
 	var parsed datamodel.Config
 	if err := json.Unmarshal([]byte(result.JSONString()), &parsed); err != nil {
 		c.logConfigWarning(key, "unmarshalling failed: %v", err)
-		return defaultValue, newTracker(key, "", 1, c.sdk, &defaultValue, context, c.logger)
+		return c.returnDefault(key, context, defaultValue)
 	}
 
 	mergedVariables := map[string]interface{}{
@@ -174,7 +177,7 @@ func (c *Client) evaluateConfig(
 			c.logConfigWarning(key,
 				"malformed message at index %d: %v", i, err,
 			)
-			return defaultValue, &Tracker{}
+			return c.returnDefault(key, context, defaultValue)
 		}
 		builder.WithMessage(content, msg.Role)
 	}
@@ -186,7 +189,12 @@ func (c *Client) evaluateConfig(
 		version = *parsed.Meta.Version
 	}
 
-	return cfg, newTracker(key, parsed.Meta.VariationKey, version, c.sdk, &cfg, context, c.logger)
+	variationKey := parsed.Meta.VariationKey
+	cfg.trackerFactory = func() *Tracker {
+		return newTracker(c.sdk, newRunID(), key, variationKey, version, context, &cfg, c.logger)
+	}
+
+	return cfg
 }
 
 func getAllAttributes(context ldcontext.Context) map[string]interface{} {
@@ -235,13 +243,13 @@ func interpolateTemplate(template string, variables map[string]interface{}) (str
 // variables message_history and response_to_evaluate are preserved as literal placeholders for
 // substitution by Judge.buildMessages during evaluation.
 //
-// To send analytic events to LaunchDarkly, call methods on the returned Tracker.
+// To send analytic events to LaunchDarkly, call CreateTracker on the returned Config to obtain a Tracker.
 func (c *Client) JudgeConfig(
 	key string,
 	context ldcontext.Context,
 	defaultValue Config,
 	variables map[string]interface{},
-) (Config, *Tracker) {
+) Config {
 	data := ldvalue.ObjectBuild().Set("configKey", ldvalue.String(key)).Build()
 	_ = c.sdk.TrackMetric(usageJudgeConfig, context, 1, data)
 
