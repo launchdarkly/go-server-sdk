@@ -48,7 +48,7 @@ func TestTrackExecution(t *testing.T) {
 				loggers: &loggers,
 			}
 			execution.AfterTrack(gocontext.Background())
-			assert.Equal(t, []string{"b", "a"}, tracker.orderAfter)
+			assert.Equal(t, []string{"a", "b"}, tracker.orderAfter)
 		})
 
 		t.Run("run after track", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestTrackExecution(t *testing.T) {
 			mockLog := ldlogtest.NewMockLog()
 
 			hookA := sharedtest.NewTestHook("a")
-			// The hooks execute in reverse order, so we have an error in B and check that A still executes.
+			// hookA executes first and hookB second (forward order); an error in hookB should not prevent hookA from running.
 			hookA.AfterTrackInject = func(ctx gocontext.Context, tsc ldhooks.TrackSeriesContext) error {
 				return nil
 			}
