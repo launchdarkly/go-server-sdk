@@ -11,12 +11,6 @@ import (
 )
 
 // StreamingDataSourceBuilderV2 provides methods for configuring the streaming data source in v2 mode.
-//
-// This builder is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type StreamingDataSourceBuilderV2 struct {
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
@@ -24,13 +18,6 @@ type StreamingDataSourceBuilderV2 struct {
 }
 
 // StreamingDataSourceV2 returns a configurable factory for using streaming mode to get feature flag data.
-//
-// This builder is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
-//
 // By default, the SDK uses a streaming connection to receive feature flag data from LaunchDarkly. To use the
 // default behavior, you do not need to call this method.
 func StreamingDataSourceV2() *StreamingDataSourceBuilderV2 {

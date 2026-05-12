@@ -35,9 +35,6 @@ type ReadOnlyStore interface {
 
 // ReadOnlyDataStore represents a read-only data store that can be used to
 // retrieve any of the SDK's supported DataKinds.
-//
-// This field is not stable, and not subject to any backwards compatibility guarantees or semantic versioning.
-// It is not suitable for production usage. Do not use it. You have been warned.
 type ReadOnlyDataStore interface {
 	ReadOnlyStore
 

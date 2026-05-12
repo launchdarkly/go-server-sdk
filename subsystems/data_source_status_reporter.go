@@ -5,12 +5,6 @@ import (
 )
 
 // DataSourceStatusReporter allows a data source to report its status to the SDK.
-//
-// This interface is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type DataSourceStatusReporter interface {
 	// UpdateStatus informs the SDK of a change in the data source's status.
 	//
