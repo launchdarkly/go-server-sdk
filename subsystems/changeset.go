@@ -10,12 +10,6 @@ import (
 )
 
 // ChangeType specifies if an object is being upserted or deleted.
-//
-// This type is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type ChangeType string
 
 const (
@@ -27,12 +21,6 @@ const (
 )
 
 // Change represents a change to a piece of data, such as an update or deletion.
-//
-// This type is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type Change struct {
 	Action  ChangeType
 	Kind    ObjectKind
@@ -42,12 +30,6 @@ type Change struct {
 }
 
 // ChangeSet represents a list of changes to be applied.
-//
-// This type is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type ChangeSet struct {
 	intentCode IntentCode
 	changes    []Change
@@ -138,24 +120,12 @@ func toStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
 }
 
 // ChangeSetBuilder is a helper for constructing a ChangeSet.
-//
-// This type is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type ChangeSetBuilder struct {
 	intent  *ServerIntent
 	changes []Change
 }
 
 // NewChangeSetBuilder creates a new ChangeSetBuilder, which is empty by default.
-//
-// This function is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 func NewChangeSetBuilder() *ChangeSetBuilder {
 	return &ChangeSetBuilder{}
 }
@@ -165,12 +135,6 @@ func NewChangeSetBuilder() *ChangeSetBuilder {
 //
 // This is useful when data is already in Collection format (e.g., from file data sources
 // or offline mode) and avoids the overhead of converting Collections -> Changes -> Collections.
-//
-// This function is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 func NewChangeSetFromCollections(
 	intent ServerIntent,
 	selector Selector,

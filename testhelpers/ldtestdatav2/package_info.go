@@ -26,10 +26,4 @@
 //
 // If the same TestDataSource instance is used to configure multiple LDClient instances, any change
 // made to the data will propagate to all of the LDClients.
-//
-// WARNING: This particular implementation supports the upcoming flag delivery v2 format which is not
-// publicly available.
-//
-// This package is not stable, and not subject to any backwards compatibility guarantees or semantic versioning.
-// It is not suitable for production usage. Do not use it. You have been warned.
 package ldtestdatav2

@@ -1,12 +1,6 @@
 package subsystems
 
 // DataStoreMode represents the mode of operation of a Data Store in FDV2 mode.
-//
-// This enum is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type DataStoreMode int
 
 const (

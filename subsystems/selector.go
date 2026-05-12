@@ -6,12 +6,6 @@ import (
 )
 
 // Selector represents a particular snapshot of data.
-//
-// This type is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type Selector struct {
 	state   string
 	version int
@@ -33,12 +27,6 @@ func (s Selector) Name() EventName {
 }
 
 // NewSelector creates a new Selector from a state string and version.
-//
-// This function is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 func NewSelector(state string, version int) Selector {
 	return Selector{state: state, version: version}
 }

@@ -74,10 +74,4 @@
 //
 // If the data source encounters any error in any file-- malformed content, a missing file, or a
 // duplicate key-- it will not load flags from any of the files.
-//
-// WARNING: This particular implementation supports the upcoming flag delivery v2 format which is not
-// publicly available.
-//
-// This package is not stable, and not subject to any backwards compatibility guarantees or semantic versioning.
-// It is not suitable for production usage. Do not use it. You have been warned.
 package ldfiledatav2

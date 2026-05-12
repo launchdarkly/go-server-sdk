@@ -199,9 +199,6 @@ type Config struct {
 	// need to implement their own hooks.
 	Hooks []ldhooks.Hook
 
-	// This field is not stable, and not subject to any backwards compatibility guarantees or semantic versioning.
-	// It is not suitable for production usage. Do not use it. You have been warned.
-	//
 	// DataSystem configures how data (e.g. flags, segments) are retrieved by the SDK.
 	//
 	// Set this field only if you want to specify non-default values for any of the data system configuration,

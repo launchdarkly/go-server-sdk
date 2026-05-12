@@ -12,12 +12,6 @@ import (
 
 // FDv1PollingDataSourceBuilderV2 provides methods for configuring the polling
 // data source that relies on the fdv1 endpoints.
-//
-// This builder is not stable, and not subject to any backwards compatibility
-// guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type FDv1PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
@@ -26,12 +20,6 @@ type FDv1PollingDataSourceBuilderV2 struct {
 
 // FDv1PollingDataSourceV2 returns a configurable factory for using polling
 // mode to get feature flag data from the old fdv1 endpoint.
-//
-// This builder is not stable, and not subject to any backwards compatibility
-// guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 func FDv1PollingDataSourceV2() *FDv1PollingDataSourceBuilderV2 {
 	return &FDv1PollingDataSourceBuilderV2{
 		pollInterval: DefaultPollInterval,

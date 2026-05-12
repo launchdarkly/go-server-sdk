@@ -11,12 +11,6 @@ import (
 )
 
 // PollingDataSourceBuilderV2 provides methods for configuring the polling data source.
-//
-// This builder is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
 type PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
@@ -24,13 +18,6 @@ type PollingDataSourceBuilderV2 struct {
 }
 
 // PollingDataSourceV2 returns a configurable factory for using polling mode to get feature flag data.
-//
-// This builder is not stable, and not subject to any backwards
-// compatibility guarantees or semantic versioning. It is not suitable for production usage.
-//
-// Do not use it.
-// You have been warned.
-//
 // Polling is not the default behavior; by default, the SDK uses a streaming connection to receive feature flag
 // data from LaunchDarkly. In polling mode, the SDK instead makes a new HTTP request to LaunchDarkly at regular
 // intervals. HTTP caching allows it to avoid redundantly downloading data if there have been no changes, but
