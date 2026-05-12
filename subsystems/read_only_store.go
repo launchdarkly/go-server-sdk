@@ -35,7 +35,6 @@ type ReadOnlyStore interface {
 
 // ReadOnlyDataStore represents a read-only data store that can be used to
 // retrieve any of the SDK's supported DataKinds.
-//
 type ReadOnlyDataStore interface {
 	ReadOnlyStore
 
