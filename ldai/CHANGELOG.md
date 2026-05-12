@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.8.1...ldai/v0.9.0) (2026-05-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* Tracker no longer returned alongside AI Configs, use Config.CreateTracker() instead
+* Add per-execution runId, at-most-once tracking, and cross-process tracker resumption ([#363](https://github.com/launchdarkly/go-server-sdk/issues/363))
+
+### Features
+
+* Add per-execution runId, at-most-once tracking, and cross-process tracker resumption ([#363](https://github.com/launchdarkly/go-server-sdk/issues/363)) ([c11294f](https://github.com/launchdarkly/go-server-sdk/commit/c11294f4a5de402317aca9276e48a4094161adf7))
+* Rename TrackUsage to TrackTokens ([#364](https://github.com/launchdarkly/go-server-sdk/issues/364)) ([9b0863a](https://github.com/launchdarkly/go-server-sdk/commit/9b0863a0d7ab1c2dd366bebd1f916ba9eb4a7ad0))
+* Tracker no longer returned alongside AI Configs, use Config.CreateTracker() instead ([c11294f](https://github.com/launchdarkly/go-server-sdk/commit/c11294f4a5de402317aca9276e48a4094161adf7))
+
+
+### Bug Fixes
+
+* Prevent context attributes from influencing judge template parsing (SEC-8020) ([#361](https://github.com/launchdarkly/go-server-sdk/issues/361)) ([a14fc86](https://github.com/launchdarkly/go-server-sdk/commit/a14fc86e64c8f2e6555e7ece4ad08081d46c2067))
+
 ## [0.8.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.8.0...ldai/v0.8.1) (2026-02-26)
 
 
