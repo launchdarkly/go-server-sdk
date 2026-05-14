@@ -448,9 +448,8 @@ func (t *Tracker) GetSummary() MetricSummary {
 //     2a) If Latency was not set in the ProviderResponse's Metrics field, an automatically measured duration.
 //  3. Any token usage that was set in the ProviderResponse.
 //
-// Because each inner metric is at-most-once per Tracker, calling TrackRequest
-// twice on the same Tracker will run the task again but produce no additional
-// metric events.
+// Subsequent calls re-run the task but emit only metrics not already recorded
+// on this Tracker. Call CreateTracker on the AI Config to start a new run.
 func (t *Tracker) TrackRequest(task func(c *Config) (ProviderResponse, error)) (ProviderResponse, error) {
 	usage, duration, err := measureDurationOfTask(t.stopwatch, t.config, task)
 	if err != nil {
