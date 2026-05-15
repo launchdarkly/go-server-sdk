@@ -48,7 +48,7 @@ func TestTrackExecution(t *testing.T) {
 				loggers: &loggers,
 			}
 			execution.AfterTrack(gocontext.Background())
-			assert.Equal(t, []string{"b", "a"}, tracker.orderAfter)
+			assert.Equal(t, []string{"a", "b"}, tracker.orderAfter)
 		})
 
 		t.Run("run after track", func(t *testing.T) {
@@ -84,14 +84,14 @@ func TestTrackExecution(t *testing.T) {
 			mockLog := ldlogtest.NewMockLog()
 
 			hookA := sharedtest.NewTestHook("a")
-			// The hooks execute in reverse order, so we have an error in B and check that A still executes.
+			// The hooks execute in forward order, so we have an error in A and check that B still executes.
 			hookA.AfterTrackInject = func(ctx gocontext.Context, tsc ldhooks.TrackSeriesContext) error {
-				return nil
+				return errors.New("something bad")
 			}
 
 			hookB := sharedtest.NewTestHook("b")
 			hookB.AfterTrackInject = func(ctx gocontext.Context, tsc ldhooks.TrackSeriesContext) error {
-				return errors.New("something bad")
+				return nil
 			}
 
 			execution := TrackExecution{
@@ -103,7 +103,7 @@ func TestTrackExecution(t *testing.T) {
 
 			assert.Len(t, execution.hooks, 2)
 			assert.Equal(t, execution.context, ldhooks.NewTrackSeriesContext(ldContext, "test-event", nil, ldvalue.Null(), ldvalue.OptionalString{}))
-			assert.Equal(t, []string{"During tracking of event \"test-event\", an error was encountered in \"AfterTrack\" of the \"b\" hook: something bad"},
+			assert.Equal(t, []string{"During tracking of event \"test-event\", an error was encountered in \"AfterTrack\" of the \"a\" hook: something bad"},
 				mockLog.GetOutput(ldlog.Error))
 		})
 	})

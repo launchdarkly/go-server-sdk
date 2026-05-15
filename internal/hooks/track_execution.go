@@ -16,7 +16,7 @@ type TrackExecution struct {
 
 // AfterTrack executes the AfterTrack stage of registered hooks.
 func (t *TrackExecution) AfterTrack(ctx gocontext.Context) {
-	iterator := newIterator(true, t.hooks)
+	iterator := newIterator(false, t.hooks)
 	for iterator.hasNext() {
 		_, hook := iterator.getNext()
 		err := hook.AfterTrack(ctx, t.context)
