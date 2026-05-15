@@ -167,7 +167,7 @@ func TestHookRunner(t *testing.T) {
 			},
 		})
 
-		// AfterTrack should execute in reverse registration order.
-		assert.Equal(t, []string{"b", "a"}, tracker.orderAfter)
+		// AfterTrack should execute in registration order.
+		assert.Equal(t, []string{"a", "b"}, tracker.orderAfter)
 	})
 }
