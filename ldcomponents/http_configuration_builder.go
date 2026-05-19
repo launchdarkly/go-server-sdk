@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhttp"
@@ -17,8 +15,8 @@ import (
 )
 
 // instanceIDHeader is the HTTP header used to identify this SDK instance for the purpose of
-// estimating server-connection-minutes when polling. It contains a v4 UUID that is generated once
-// per SDK instance and remains constant for the lifetime of the client.
+// estimating server-connection-minutes when polling. The value comes from ClientContext, which
+// generates the UUID once when the LDClient is constructed.
 //
 // See: sdk-specs / SCMP-server-connection-minutes-polling.
 const instanceIDHeader = "X-LaunchDarkly-Instance-Id"
@@ -249,12 +247,13 @@ func (b *HTTPConfigurationBuilder) Build(
 	if tagsHeaderValue := buildTagsHeaderValue(clientContext); tagsHeaderValue != "" {
 		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
 	}
-	// Per SCMP-server-connection-minutes-polling, every polling request must carry a per-instance
-	// GUID v4. We attach it to the default headers (rather than only on the poller) so that it is
-	// also present on streaming and event requests; this matches the cross-SDK contract tests and
-	// keeps the GUID stable for the lifetime of the SDK instance, since DefaultHeaders is built
-	// once and never modified after construction.
-	headers.Set(instanceIDHeader, uuid.New().String())
+	// Per SCMP-server-connection-minutes-polling, every outbound request carries a per-instance
+	// UUID v4. The value originates on ClientContext (generated once when LDClient is
+	// constructed) so every subsystem -- HTTP, data source, events -- sees the same value for
+	// the lifetime of the SDK instance.
+	if instanceID := clientContext.GetInstanceID(); instanceID != "" {
+		headers.Set(instanceIDHeader, instanceID)
+	}
 
 	// For consistency with other SDKs, custom headers are allowed to overwrite headers such as
 	// User-Agent and Authorization.
