@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v4/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"

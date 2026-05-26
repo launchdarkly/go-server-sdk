@@ -1,6 +1,6 @@
 package datamodel
 
-import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+import "github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 
 // Meta defines the serialization format for config metadata.
 type Meta struct {

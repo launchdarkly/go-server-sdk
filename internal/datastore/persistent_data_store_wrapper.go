@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"

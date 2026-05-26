@@ -1,8 +1,8 @@
 package ldhooks
 
 import (
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v4/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 )
 
 // TrackSeriesContext contains contextual information for the execution of stages in the evaluation series.

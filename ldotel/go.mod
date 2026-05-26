@@ -3,8 +3,8 @@ module github.com/launchdarkly/go-server-sdk/ldotel
 go 1.24.0
 
 require (
-	github.com/launchdarkly/go-sdk-common/v3 v3.3.0
-	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1
+	github.com/launchdarkly/go-sdk-common/v4 v4.0.0-20260526225240-97f2812dbb86
+	github.com/launchdarkly/go-server-sdk-evaluation/v4 v4.0.0-20260526225518-f16d37cc6c94
 	github.com/launchdarkly/go-server-sdk/v7 v7.13.0
 	github.com/launchdarkly/go-test-helpers/v3 v3.1.0
 	github.com/stretchr/testify v1.9.0
@@ -19,18 +19,19 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f // indirect
-	github.com/josharian/intern v1.0.0 // indirect
 	github.com/launchdarkly/ccache v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.10.0 // indirect
-	github.com/launchdarkly/go-jsonstream/v3 v3.1.0 // indirect
-	github.com/launchdarkly/go-sdk-events/v3 v3.5.0 // indirect
+	github.com/launchdarkly/go-jsonstream/v4 v4.0.0-20260526224546-8bf6dec4a0c8 // indirect
+	github.com/launchdarkly/go-sdk-events/v3 v3.6.1-0.20260526230019-c1af04865d66 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
-	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// During v4 development, point at the parent's v4-bumped sources for ldotel's own tests.
+// Removed before tagging v4.0.0 — see Stage 5 of the SDK-2113 cascade plan.
+replace github.com/launchdarkly/go-server-sdk/v7 => ../

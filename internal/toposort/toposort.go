@@ -4,8 +4,8 @@ package toposort
 import (
 	"sort"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v4/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
