@@ -446,6 +446,115 @@ func (f *fakeStore) Close() error {
 	return nil
 }
 
+// fakeCacheDroppingStore is a fakeStore that also satisfies interface{ DropCache() },
+// so the Store coordinator's WithPersistence captures it as a cacheDropper.
+type fakeCacheDroppingStore struct {
+	fakeStore
+	dropCacheCalls int
+}
+
+func (f *fakeCacheDroppingStore) DropCache() {
+	f.dropCacheCalls++
+}
+
+func TestStore_CacheDroppedAfterFullPayload(t *testing.T) {
+	t.Run("DropCache is invoked once setBasis applies a full payload", func(t *testing.T) {
+		logCapture := ldlogtest.NewMockLog()
+		spy := &fakeCacheDroppingStore{}
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).
+			WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
+		defer store.Close()
+
+		assert.Equal(t, 0, spy.dropCacheCalls)
+
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+
+		store.Apply(*changeSet, true)
+
+		assert.Equal(t, 1, spy.dropCacheCalls, "DropCache should have been invoked once during setBasis")
+	})
+
+	t.Run("non-cache-dropping persistent stores are a no-op", func(t *testing.T) {
+		logCapture := ldlogtest.NewMockLog()
+		// fakeStore does NOT implement interface{ DropCache() }.
+		plain := &fakeStore{}
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).
+			WithPersistence(plain, subsystems.DataStoreModeReadWrite, nil)
+		defer store.Close()
+
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+			},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+
+		require.NotPanics(t, func() {
+			store.Apply(*changeSet, true)
+		})
+	})
+
+	t.Run("DropCache is not invoked for delta updates", func(t *testing.T) {
+		logCapture := ldlogtest.NewMockLog()
+		spy := &fakeCacheDroppingStore{}
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).
+			WithPersistence(spy, subsystems.DataStoreModeReadWrite, nil)
+		defer store.Close()
+
+		// First, prime the store with a full payload (setBasis) -- this should drop once.
+		fullBuilder := subsystems.NewChangeSetBuilder()
+		fullBuilder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 1,
+				Code:   subsystems.IntentTransferFull,
+			},
+		})
+		fullBuilder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		fullCS, err := fullBuilder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+		store.Apply(*fullCS, true)
+		require.Equal(t, 1, spy.dropCacheCalls)
+
+		// Now apply a delta -- this should not invoke DropCache again.
+		deltaBuilder := subsystems.NewChangeSetBuilder()
+		deltaBuilder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{
+				ID:     "state",
+				Target: 2,
+				Code:   subsystems.IntentTransferChanges,
+			},
+		})
+		deltaBuilder.AddPut(subsystems.FlagKind, "bar", 1, MinimalFlag("bar", 1))
+		deltaCS, err := deltaBuilder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+		store.Apply(*deltaCS, true)
+
+		assert.Equal(t, 1, spy.dropCacheCalls, "DropCache should only be invoked from setBasis, not from applyDelta")
+	})
+}
+
 // This matcher is required instead of calling ElementsMatch directly on two slices of collections because
 // the order of the collections, or the order within each collection, is not defined.
 func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, actual []ldstoretypes.Collection) {

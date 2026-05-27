@@ -69,12 +69,20 @@ type PersistentDataStoreBuilder struct {
 // If the value is zero, caching is disabled (equivalent to [PersistentDataStoreBuilder.NoCaching]).
 //
 // If the value is negative, data is cached forever (equivalent to [PersistentDataStoreBuilder.CacheForever]).
+//
+// Under FDv2 the persistent-store cache is automatically dropped once the in-memory store has been
+// initialized, so this setting only affects the brief bootstrap window before the first set of flag
+// data has been received. It is retained for backward compatibility and may be deprecated in a
+// future major version.
 func (b *PersistentDataStoreBuilder) CacheTime(cacheTime time.Duration) *PersistentDataStoreBuilder {
 	b.cacheTTL = cacheTime
 	return b
 }
 
 // CacheSeconds is a shortcut for calling [PersistentDataStoreBuilder.CacheTime] with a duration in seconds.
+//
+// Under FDv2 the persistent-store cache is automatically dropped once the in-memory store has been
+// initialized, so this setting only affects the brief bootstrap window. See [PersistentDataStoreBuilder.CacheTime].
 func (b *PersistentDataStoreBuilder) CacheSeconds(cacheSeconds int) *PersistentDataStoreBuilder {
 	return b.CacheTime(time.Duration(cacheSeconds) * time.Second)
 }
@@ -87,12 +95,20 @@ func (b *PersistentDataStoreBuilder) CacheSeconds(cacheSeconds int) *PersistentD
 // the database, and the current process loses connectivity to LaunchDarkly while other processes
 // are still receiving updates and writing them to the database, the current process will have
 // stale data.
+//
+// Under FDv2 the persistent-store cache is automatically dropped once the in-memory store has been
+// initialized, so this setting only affects the brief bootstrap window. It is retained for backward
+// compatibility and may be deprecated in a future major version.
 func (b *PersistentDataStoreBuilder) CacheForever() *PersistentDataStoreBuilder {
 	return b.CacheTime(-1 * time.Millisecond)
 }
 
 // NoCaching specifies that the SDK should not use an in-memory cache for the persistent data store.
 // This means that every feature flag evaluation will trigger a data store query.
+//
+// Under FDv2 the persistent-store cache is automatically dropped once the in-memory store has been
+// initialized, so this setting only affects the brief bootstrap window. It is retained for backward
+// compatibility and may be deprecated in a future major version.
 func (b *PersistentDataStoreBuilder) NoCaching() *PersistentDataStoreBuilder {
 	return b.CacheTime(0)
 }
