@@ -282,7 +282,7 @@ func (w *persistentDataStoreWrapper) Close() error {
 func (w *persistentDataStoreWrapper) DropCache() {
 	if c := w.cache.Swap(nil); c != nil {
 		c.Flush()
-		w.loggers.Debug("Persistent store cache dropped; in-memory store is now active")
+		w.loggers.Debug("Persistent store cache dropped")
 	}
 }
 

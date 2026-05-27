@@ -246,6 +246,7 @@ func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsyst
 	// in-memory store is now the source of truth, and the wrapper's Init would
 	// otherwise rebuild the cache we are about to discard.
 	if s.cacheDropper != nil {
+		s.loggers.Debug("In-memory store initialized; releasing persistent store cache")
 		s.cacheDropper.DropCache()
 	}
 
