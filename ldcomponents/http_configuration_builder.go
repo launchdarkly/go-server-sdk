@@ -14,6 +14,13 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
+// instanceIDHeader is the HTTP header used to identify this SDK instance for the purpose of
+// estimating server-connection-minutes when polling. The value comes from ClientContext, which
+// generates the UUID once when the LDClient is constructed.
+//
+// See: sdk-specs / SCMP-server-connection-minutes-polling.
+const instanceIDHeader = "X-LaunchDarkly-Instance-Id"
+
 // DefaultConnectTimeout is the HTTP connection timeout that is used if [HTTPConfigurationBuilder.ConnectTimeout]
 // is not set.
 const DefaultConnectTimeout = 3 * time.Second
@@ -239,6 +246,13 @@ func (b *HTTPConfigurationBuilder) Build(
 	}
 	if tagsHeaderValue := buildTagsHeaderValue(clientContext); tagsHeaderValue != "" {
 		headers.Add("X-LaunchDarkly-Tags", tagsHeaderValue)
+	}
+	// Per SCMP-server-connection-minutes-polling, every outbound request carries a per-instance
+	// UUID v4. The value originates on ClientContext (generated once when LDClient is
+	// constructed) so every subsystem -- HTTP, data source, events -- sees the same value for
+	// the lifetime of the SDK instance.
+	if instanceID := clientContext.GetInstanceID(); instanceID != "" {
+		headers.Set(instanceIDHeader, instanceID)
 	}
 
 	// For consistency with other SDKs, custom headers are allowed to overwrite headers such as

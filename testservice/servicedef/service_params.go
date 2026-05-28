@@ -32,6 +32,7 @@ const (
 	CapabilityFlagChangeListeners         = "flag-change-listeners"
 	CapabilityFlagValueChangeListeners    = "flag-value-change-listeners"
 	CapabilityFDv1Fallback                = "fdv1-fallback"
+	CapabilityInstanceID                  = "instance-id"
 )
 
 type StatusRep struct {

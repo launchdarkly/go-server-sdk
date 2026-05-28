@@ -4,6 +4,8 @@ import (
 	"errors"
 	"regexp"
 
+	"github.com/google/uuid"
+
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
@@ -25,8 +27,14 @@ func newClientContextFromConfig(
 		return nil, errors.New("SDK key contains invalid characters")
 	}
 
+	// Per SCMP-server-connection-minutes-polling, every outbound request must carry a
+	// per-instance UUID v4 in X-LaunchDarkly-Instance-Id. Generate it once here, at the point
+	// the client context is materialized, so it is stable for the lifetime of this LDClient and
+	// every subsystem built from this context (HTTP layer, data source, event sender) sees the
+	// same value.
 	basicConfig := subsystems.BasicClientContext{
 		SDKKey:           sdkKey,
+		InstanceID:       uuid.New().String(),
 		Offline:          config.Offline,
 		ServiceEndpoints: config.ServiceEndpoints,
 	}
