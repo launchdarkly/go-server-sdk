@@ -558,3 +558,78 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 		})
 	}
 }
+
+func TestCacheDrop(t *testing.T) {
+	t.Run("DropCache flushes the cache and prevents future cache hits", func(t *testing.T) {
+		core := mocks.NewMockPersistentDataStore()
+		w := makePersistentDataStoreWrapper(t, testCached, core)
+		defer w.Close()
+
+		// Prime the cache by reading a v1 item through the wrapper.
+		itemV1 := mocks.MockDataItem{Key: "item", Version: 1}
+		core.ForceSet(mocks.MockData, itemV1.Key, itemV1.ToSerializedItemDescriptor())
+		got, err := w.Get(mocks.MockData, itemV1.Key)
+		require.NoError(t, err)
+		require.Equal(t, itemV1.ToItemDescriptor(), got)
+
+		// Drop the cache.
+		w.(*persistentDataStoreWrapper).DropCache()
+
+		// Bypass the wrapper to put a v2 directly into the core. If the cache had
+		// still been live, the next Get would have served the stale v1.
+		itemV2 := mocks.MockDataItem{Key: "item", Version: 2}
+		core.ForceSet(mocks.MockData, itemV1.Key, itemV2.ToSerializedItemDescriptor())
+
+		got, err = w.Get(mocks.MockData, itemV1.Key)
+		require.NoError(t, err)
+		assert.Equal(t, itemV2.ToItemDescriptor(), got)
+	})
+
+	t.Run("DropCache is idempotent", func(t *testing.T) {
+		core := mocks.NewMockPersistentDataStore()
+		w := makePersistentDataStoreWrapper(t, testCached, core)
+		defer w.Close()
+
+		ww := w.(*persistentDataStoreWrapper)
+		ww.DropCache()
+		ww.DropCache()
+		ww.DropCache()
+		assert.Nil(t, ww.cache.Load())
+	})
+
+	t.Run("DropCache on a wrapper with no cache is a safe no-op", func(t *testing.T) {
+		core := mocks.NewMockPersistentDataStore()
+		w := makePersistentDataStoreWrapper(t, testUncached, core)
+		defer w.Close()
+
+		require.NotPanics(t, func() {
+			w.(*persistentDataStoreWrapper).DropCache()
+		})
+	})
+
+	t.Run("Upsert after DropCache writes through to the core", func(t *testing.T) {
+		core := mocks.NewMockPersistentDataStore()
+		w := makePersistentDataStoreWrapper(t, testCached, core)
+		defer w.Close()
+
+		w.(*persistentDataStoreWrapper).DropCache()
+
+		item := mocks.MockDataItem{Key: "item", Version: 1}
+		updated, err := w.Upsert(mocks.MockData, item.Key, item.ToItemDescriptor())
+		require.NoError(t, err)
+		assert.True(t, updated)
+		assert.Equal(t, item.ToSerializedItemDescriptor(), core.ForceGet(mocks.MockData, item.Key))
+	})
+
+	t.Run("Init after DropCache writes through to the core", func(t *testing.T) {
+		core := mocks.NewMockPersistentDataStore()
+		w := makePersistentDataStoreWrapper(t, testCached, core)
+		defer w.Close()
+
+		w.(*persistentDataStoreWrapper).DropCache()
+
+		item := mocks.MockDataItem{Key: "item", Version: 1}
+		require.NoError(t, w.Init(mocks.MakeMockDataSet(item)))
+		assert.Equal(t, item.ToSerializedItemDescriptor(), core.ForceGet(mocks.MockData, item.Key))
+	})
+}

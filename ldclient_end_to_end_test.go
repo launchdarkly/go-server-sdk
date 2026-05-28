@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v4/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v4/lduser"
@@ -197,6 +198,63 @@ func TestClientStartsInPollingMode(t *testing.T) {
 
 		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 		assert.Equal(t, []string{pollingModeWarningMessage}, logCapture.GetOutput(ldlog.Warn))
+	})
+}
+
+// TestPollingRequestsCarryInstanceIDHeader asserts the spec-required SCMP
+// X-LaunchDarkly-Instance-Id header is present on polling requests and that it is a v4 UUID.
+func TestPollingRequestsCarryInstanceIDHeader(t *testing.T) {
+	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+	httphelpers.WithServer(pollHandler, func(pollServer *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			DataSource:       ldcomponents.PollingDataSource(),
+			Events:           ldcomponents.NoEvents(),
+			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
+			ServiceEndpoints: interfaces.ServiceEndpoints{Polling: pollServer.URL},
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		r := <-requestsCh
+
+		instanceID := r.Request.Header.Get("X-LaunchDarkly-Instance-Id")
+		require.NotEmpty(t, instanceID, "X-LaunchDarkly-Instance-Id must be set on polling requests")
+		parsed, parseErr := uuid.Parse(instanceID)
+		require.NoError(t, parseErr, "instance id %q must be a parseable UUID", instanceID)
+		assert.Equal(t, uuid.Version(4), parsed.Version(), "instance id must be UUID v4")
+	})
+}
+
+// TestInstanceIDIsDifferentBetweenClients verifies the GUID is unique per SDK instance.
+func TestInstanceIDIsDifferentBetweenClients(t *testing.T) {
+	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
+	pollHandler, requestsCh := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(data))
+	httphelpers.WithServer(pollHandler, func(pollServer *httptest.Server) {
+		makeAndPoll := func() string {
+			config := Config{
+				DataSource:       ldcomponents.PollingDataSource(),
+				Events:           ldcomponents.NoEvents(),
+				Logging:          ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+				ServiceEndpoints: interfaces.ServiceEndpoints{Polling: pollServer.URL},
+			}
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			r := <-requestsCh
+			return r.Request.Header.Get("X-LaunchDarkly-Instance-Id")
+		}
+
+		id1 := makeAndPoll()
+		id2 := makeAndPoll()
+		assert.NotEmpty(t, id1)
+		assert.NotEmpty(t, id2)
+		assert.NotEqual(t, id1, id2, "each SDK instance should have a unique instance id")
 	})
 }
 

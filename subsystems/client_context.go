@@ -20,6 +20,11 @@ type ClientContext interface {
 	// GetApplicationInfo returns the configuration for application metadata.
 	GetApplicationInfo() interfaces.ApplicationInfo
 
+	// GetInstanceID returns the unique identifier for this SDK client instance, used in the
+	// X-LaunchDarkly-Instance-Id header on outbound requests. It is generated once per LDClient
+	// and stable for the client's lifetime.
+	GetInstanceID() string
+
 	// GetHTTP returns the configured HTTPConfiguration.
 	GetHTTP() HTTPConfiguration
 
@@ -56,6 +61,7 @@ type ClientContext interface {
 type BasicClientContext struct {
 	SDKKey                   string
 	ApplicationInfo          interfaces.ApplicationInfo
+	InstanceID               string
 	HTTP                     HTTPConfiguration
 	Logging                  LoggingConfiguration
 	Offline                  bool
@@ -68,6 +74,8 @@ type BasicClientContext struct {
 func (b BasicClientContext) GetSDKKey() string { return b.SDKKey } //nolint:revive
 
 func (b BasicClientContext) GetApplicationInfo() interfaces.ApplicationInfo { return b.ApplicationInfo } //nolint:revive
+
+func (b BasicClientContext) GetInstanceID() string { return b.InstanceID } //nolint:revive
 
 func (b BasicClientContext) GetHTTP() HTTPConfiguration { //nolint:revive
 	ret := b.HTTP

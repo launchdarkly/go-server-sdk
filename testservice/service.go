@@ -51,6 +51,7 @@ var capabilities = []string{
 	servicedef.CapabilityFlagChangeListeners,
 	servicedef.CapabilityFlagValueChangeListeners,
 	servicedef.CapabilityFDv1Fallback,
+	servicedef.CapabilityInstanceID,
 }
 
 // gets the specified environment variable, or the default if not set

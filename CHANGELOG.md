@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.15.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.7...v7.15.0) (2026-05-28)
+
+
+### Features
+
+* add X-LaunchDarkly-Instance-Id header (SDK-2350) ([#375](https://github.com/launchdarkly/go-server-sdk/issues/375)) ([67ebe5d](https://github.com/launchdarkly/go-server-sdk/commit/67ebe5d98c22c3db64ba4cb81812565a9193327c))
+* Drop persistent-store cache after FDv2 in-memory store init ([#373](https://github.com/launchdarkly/go-server-sdk/issues/373)) ([9a29b20](https://github.com/launchdarkly/go-server-sdk/commit/9a29b20ae463dbe0b7f688ae29663feba0ca56a5))
+
+
+### Bug Fixes
+
+* execute afterTrack hooks in registration order ([#379](https://github.com/launchdarkly/go-server-sdk/issues/379)) ([851d1d0](https://github.com/launchdarkly/go-server-sdk/commit/851d1d09b53f12498e4a65e214f03ba1f817e173))
+* remove non-spec Silent/Catastrophe fields from FDv2 Goodbye ([#369](https://github.com/launchdarkly/go-server-sdk/issues/369)) ([381cffe](https://github.com/launchdarkly/go-server-sdk/commit/381cffe2b405e447b85d261b6bf859112bea0273))
+
 ## [7.14.7](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.6...v7.14.7) (2026-04-28)
 
 
