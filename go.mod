@@ -8,11 +8,11 @@ require (
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f
 	github.com/launchdarkly/ccache v1.1.0
 	github.com/launchdarkly/eventsource v1.10.0
-	github.com/launchdarkly/go-jsonstream/v4 v4.0.0-20260526224546-8bf6dec4a0c8
+	github.com/launchdarkly/go-jsonstream/v4 v4.0.0
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.3
-	github.com/launchdarkly/go-sdk-common/v4 v4.0.0-20260526225240-97f2812dbb86
-	github.com/launchdarkly/go-sdk-events/v3 v3.6.1-0.20260526230019-c1af04865d66
-	github.com/launchdarkly/go-server-sdk-evaluation/v4 v4.0.0-20260526225518-f16d37cc6c94
+	github.com/launchdarkly/go-sdk-common/v4 v4.0.0
+	github.com/launchdarkly/go-sdk-events/v3 v3.6.1
+	github.com/launchdarkly/go-server-sdk-evaluation/v4 v4.0.0
 	github.com/launchdarkly/go-test-helpers/v3 v3.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.9.0
