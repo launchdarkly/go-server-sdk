@@ -7,7 +7,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"

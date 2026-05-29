@@ -3,7 +3,7 @@ package internal
 import (
 	"net/http"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 )
 
 // InitMetadata contains initialization metadata that is parsed from server response headers.

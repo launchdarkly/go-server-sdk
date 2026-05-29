@@ -7,7 +7,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
-	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-jsonstream/v4/jreader"
 )
 
 var (
