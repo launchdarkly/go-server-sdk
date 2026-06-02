@@ -157,8 +157,8 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 	t.Run("returns latest status", func(t *testing.T) {
 		timeBeforeStarting := time.Now()
 		clientListenersV2Test(func(p clientListenersV2TestParams) {
-			reached := p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 2*time.Second)
-			assert.True(t, reached, "timed out waiting for data source to reach VALID state")
+			validStateReached := p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 2*time.Second)
+			assert.True(t, validStateReached, "timed out waiting for data source to reach VALID state")
 
 			initialStatus := p.client.GetDataSourceStatusProvider().GetStatus()
 			assert.Equal(t, interfaces.DataSourceStateValid, initialStatus.State)
@@ -186,8 +186,8 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 	t.Run("sends latest status", func(t *testing.T) {
 		timeBeforeStarting := time.Now()
 		clientListenersV2Test(func(p clientListenersV2TestParams) {
-			reached := p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 2*time.Second)
-			assert.True(t, reached, "timed out waiting for data source to reach VALID state")
+			validStateReached := p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 2*time.Second)
+			assert.True(t, validStateReached, "timed out waiting for data source to reach VALID state")
 
 			initialStatus := p.client.GetDataSourceStatusProvider().GetStatus()
 			assert.Equal(t, interfaces.DataSourceStateValid, initialStatus.State)
