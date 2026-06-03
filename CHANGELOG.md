@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.15.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.0...v7.15.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* bump core deps to v4 and remove EasyJSON support ([#381](https://github.com/launchdarkly/go-server-sdk/issues/381)) ([35733e1](https://github.com/launchdarkly/go-server-sdk/commit/35733e101804fefbd404e96065b6547dffaa262a))
+
 ## [7.15.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.14.7...v7.15.0) (2026-05-28)
 
 
