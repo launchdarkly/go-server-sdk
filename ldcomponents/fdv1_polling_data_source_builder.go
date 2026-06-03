@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"

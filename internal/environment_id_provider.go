@@ -1,6 +1,6 @@
 package internal
 
-import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+import "github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 
 // EnvironmentIDProvider describes the interface for an object that can provide an EnvironmentID.
 type EnvironmentIDProvider interface {

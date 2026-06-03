@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v4/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -116,7 +116,7 @@ func (t *TestDataSynchronizer) UpdateStatus(
 // you can only replace it with an entirely new flag configuration.
 //
 // To construct an instance of ldmodel.FeatureFlag, rather than accessing the fields directly it is
-// recommended to use the builder API in [github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders].
+// recommended to use the builder API in [github.com/launchdarkly/go-server-sdk-evaluation/v4/ldbuilders].
 func (t *TestDataSynchronizer) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *TestDataSynchronizer {
 	t.updateInternal(
 		flag.Key,
@@ -145,7 +145,7 @@ func (t *TestDataSynchronizer) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *T
 // by just setting flag values.
 //
 // To construct an instance of ldmodel.Segment, rather than accessing the fields directly it is
-// recommended to use the builder API in [github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders].
+// recommended to use the builder API in [github.com/launchdarkly/go-server-sdk-evaluation/v4/ldbuilders].
 func (t *TestDataSynchronizer) UsePreconfiguredSegment(segment ldmodel.Segment) *TestDataSynchronizer {
 	t.lock.Lock()
 	oldItem := t.currentSegments[segment.Key]

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v4/ldattr"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"

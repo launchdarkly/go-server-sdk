@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/ldfiledatav2"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v4/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
