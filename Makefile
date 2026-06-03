@@ -183,6 +183,7 @@ go.work:
 	go work init ./
 	go work use ./ldotel
 	go work use ./ldai
+	go work use ./ldmiddleware
 	go work use ./testservice
 
 workspace-clean:
