@@ -8,10 +8,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.16.4
 	github.com/gorilla/mux v1.8.0
 	github.com/launchdarkly/go-sdk-common/v4 v4.0.0
-	github.com/launchdarkly/go-server-sdk-consul/v3 v3.0.1-0.20260529220209-bd16137ef5de
-	github.com/launchdarkly/go-server-sdk-dynamodb/v4 v4.0.2-0.20260529220218-686c3c4acd1b
-	github.com/launchdarkly/go-server-sdk-redis-go-redis v1.1.1-0.20260529220228-1d5a4aa09241
-	github.com/launchdarkly/go-server-sdk/v7 v7.15.1-0.20260529220055-f45511677931
+	github.com/launchdarkly/go-server-sdk-consul/v3 v3.0.1
+	github.com/launchdarkly/go-server-sdk-dynamodb/v4 v4.0.2
+	github.com/launchdarkly/go-server-sdk-redis-go-redis v1.1.1
+	github.com/launchdarkly/go-server-sdk/v7 v7.15.1
 )
 
 require (
