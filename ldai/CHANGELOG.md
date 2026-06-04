@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.9.0...ldai/v0.9.1) (2026-06-04)
+
+
+### Bug Fixes
+
+* update sub-modules to v4 deps ([#382](https://github.com/launchdarkly/go-server-sdk/issues/382)) ([d772d5b](https://github.com/launchdarkly/go-server-sdk/commit/d772d5bdac5b66d12cdfbeb85e09e93f8c71defb))
+
 ## [0.9.0](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.8.1...ldai/v0.9.0) (2026-05-11)
 
 
