@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.1...ldotel/v1.3.2) (2026-06-04)
+
+
+### Bug Fixes
+
+* update sub-modules to v4 deps ([#382](https://github.com/launchdarkly/go-server-sdk/issues/382)) ([d772d5b](https://github.com/launchdarkly/go-server-sdk/commit/d772d5bdac5b66d12cdfbeb85e09e93f8c71defb))
+
 ## [1.3.1](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.0...ldotel/v1.3.1) (2026-02-26)
 
 
