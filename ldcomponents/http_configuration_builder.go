@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhttp"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"

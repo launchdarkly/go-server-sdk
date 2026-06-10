@@ -3,7 +3,7 @@ package subsystems
 import (
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 // LoggingConfiguration encapsulates the SDK's general logging configuration.

@@ -8,11 +8,11 @@
 // [github.com/launchdarkly/go-server-sdk/v7/ldcomponents].
 //
 // The SDK also uses types from the go-sdk-common repository and its subpackages
-// ([github.com/launchdarkly/go-sdk-common/v4) that represent standard data structures
+// ([github.com/launchdarkly/go-sdk-common/v3) that represent standard data structures
 // in the LaunchDarkly model. All applications that evaluate feature flags will use the ldcontext
-// package ([github.com/launchdarkly/go-sdk-common/v4/ldcontext]); for some features such
+// package ([github.com/launchdarkly/go-sdk-common/v3/ldcontext]); for some features such
 // as custom attributes with complex data types, the ldvalue package is also helpful
-// ([github.com/launchdarkly/go-sdk-common/v4/ldvalue]).
+// ([github.com/launchdarkly/go-sdk-common/v3/ldvalue]).
 //
 // For more information and code examples, see the Go SDK Reference:
 // https://docs.launchdarkly.com/sdk/server-side/go

@@ -1,6 +1,6 @@
 package subsystems
 
-import "github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 
 // DiagnosticDescription is an optional interface for components to describe their own configuration.
 //

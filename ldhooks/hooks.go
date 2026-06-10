@@ -3,7 +3,7 @@ package ldhooks
 import (
 	"context"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 )
 
 // Implementation Note: The Unimplemented struct is provided to simplify hook implementation. It should always

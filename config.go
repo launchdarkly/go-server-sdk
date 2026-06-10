@@ -133,7 +133,7 @@ type Config struct {
 	// This example sets the minimum logging level to Warn, so Debug and Info messages will not be logged:
 	//
 	//     // example: enable logging only for Warn level and above
-	//     // (note: ldlog is github.com/launchdarkly/go-sdk-common/v4/ldlog)
+	//     // (note: ldlog is github.com/launchdarkly/go-sdk-common/v3/ldlog)
 	//     config.Logging = ldcomponents.Logging().MinLevel(ldlog.Warn)
 	Logging subsystems.ComponentConfigurer[subsystems.LoggingConfiguration]
 

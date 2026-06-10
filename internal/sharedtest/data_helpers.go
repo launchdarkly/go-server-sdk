@@ -3,7 +3,7 @@ package sharedtest
 import (
 	"sort"
 
-	"github.com/launchdarkly/go-server-sdk-evaluation/v4/ldmodel"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"

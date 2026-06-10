@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldcontext"
-	"github.com/launchdarkly/go-sdk-common/v4/ldmigration"
-	"github.com/launchdarkly/go-sdk-common/v4/ldsampling"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 )
 

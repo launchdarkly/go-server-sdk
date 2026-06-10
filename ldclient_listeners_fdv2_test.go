@@ -14,9 +14,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlogtest"
-	"github.com/launchdarkly/go-sdk-common/v4/lduser"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
