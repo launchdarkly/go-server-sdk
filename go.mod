@@ -34,11 +34,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-// v7.15.1 and v7.15.2 upgraded to the go-jsonstream/v4, go-sdk-common/v4, and
-// go-server-sdk-evaluation/v4 core libraries. Those /v4 major bumps are a breaking
-// change for customers (Go semantic import versioning), so these releases are
-// retracted in favor of a v3-only release. See SDK-2496.
-retract (
-	v7.15.1
-	v7.15.2
-)
+retract [v7.15.1, v7.15.2] // Introduced unintentional breaking changes; use version v7.15.3 or later.
