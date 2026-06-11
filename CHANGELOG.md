@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.15.4](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.3...v7.15.4) (2026-06-11)
+
+
+### Bug Fixes
+
+* **deps:** refresh submodule pins to released v3 tags ([#393](https://github.com/launchdarkly/go-server-sdk/issues/393)) ([eec0cb6](https://github.com/launchdarkly/go-server-sdk/commit/eec0cb6aab220a5a7694f36758e8196f5bb6916c))
+
 ## [7.15.3](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.2...v7.15.3) (2026-06-11)
 
 
