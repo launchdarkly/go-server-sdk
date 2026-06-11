@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/launchdarkly/go-server-sdk/compare/ldmiddleware/v0.1.2...ldmiddleware/v0.1.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* **deps:** refresh submodule pins to released v3 tags ([#393](https://github.com/launchdarkly/go-server-sdk/issues/393)) ([eec0cb6](https://github.com/launchdarkly/go-server-sdk/commit/eec0cb6aab220a5a7694f36758e8196f5bb6916c))
+
 ## [0.1.2](https://github.com/launchdarkly/go-server-sdk/compare/ldmiddleware/v0.1.1...ldmiddleware/v0.1.2) (2026-06-11)
 
 
