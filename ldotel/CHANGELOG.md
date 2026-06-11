@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.2...ldotel/v1.3.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* **deps:** revert root module, sub-modules, and testservice to v3 core libraries ([#392](https://github.com/launchdarkly/go-server-sdk/issues/392)) ([0c0b0e8](https://github.com/launchdarkly/go-server-sdk/commit/0c0b0e81d5ed9d34c07d59d8a69e94e055e9675c))
+
 ## [1.3.2](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.1...ldotel/v1.3.2) (2026-06-04)
 
 
