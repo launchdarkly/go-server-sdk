@@ -6,7 +6,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/google/uuid v1.1.1
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.15.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.15.3
 	github.com/stretchr/testify v1.9.0
 )
 
