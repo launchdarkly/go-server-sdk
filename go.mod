@@ -11,7 +11,7 @@ require (
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.1
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.3
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
-	github.com/launchdarkly/go-sdk-events/v3 v3.6.2-0.20260610185926-04050b02df99
+	github.com/launchdarkly/go-sdk-events/v3 v3.6.2
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1
 	github.com/launchdarkly/go-test-helpers/v3 v3.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
