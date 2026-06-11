@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/ldai"
 	"github.com/launchdarkly/go-server-sdk/ldai/datamodel"
 	"github.com/stretchr/testify/assert"

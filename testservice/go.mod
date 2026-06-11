@@ -8,10 +8,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.16.4
 	github.com/gorilla/mux v1.8.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
-	github.com/launchdarkly/go-server-sdk-consul/v3 v3.0.2-0.20260610190904-1d7ca8a82c04
-	github.com/launchdarkly/go-server-sdk-dynamodb/v4 v4.0.3-0.20260610191044-3d314dd18883
-	github.com/launchdarkly/go-server-sdk-redis-go-redis v1.1.2-0.20260610191041-0987c09f05e1
-	github.com/launchdarkly/go-server-sdk/v7 v7.15.3-0.20260610190543-b30d70b4623f
+	github.com/launchdarkly/go-server-sdk-consul/v3 v3.0.0
+	github.com/launchdarkly/go-server-sdk-dynamodb/v4 v4.0.1
+	github.com/launchdarkly/go-server-sdk-redis-go-redis v1.1.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.15.0
 )
 
 require (
@@ -45,7 +45,7 @@ require (
 	github.com/launchdarkly/ccache v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.10.0 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.1 // indirect
-	github.com/launchdarkly/go-sdk-events/v3 v3.6.2-0.20260610185926-04050b02df99 // indirect
+	github.com/launchdarkly/go-sdk-events/v3 v3.6.2 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
