@@ -7,8 +7,8 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
-	"github.com/launchdarkly/go-sdk-common/v4/lduser"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"

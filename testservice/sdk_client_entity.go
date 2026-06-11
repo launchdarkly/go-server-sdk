@@ -29,11 +29,11 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldcontext"
-	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
-	"github.com/launchdarkly/go-sdk-common/v4/ldmigration"
-	"github.com/launchdarkly/go-sdk-common/v4/ldreason"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
 const defaultStartWaitTime = 5 * time.Second

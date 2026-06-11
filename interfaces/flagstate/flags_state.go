@@ -3,10 +3,10 @@ package flagstate
 import (
 	"fmt"
 
-	"github.com/launchdarkly/go-jsonstream/v4/jwriter"
-	"github.com/launchdarkly/go-sdk-common/v4/ldreason"
-	"github.com/launchdarkly/go-sdk-common/v4/ldtime"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-jsonstream/v3/jwriter"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 
 	"maps"
 )

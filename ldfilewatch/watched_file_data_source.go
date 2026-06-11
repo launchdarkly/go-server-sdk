@@ -8,7 +8,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 const retryDuration = time.Second

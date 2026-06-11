@@ -3,8 +3,8 @@ package ldclient
 import (
 	"errors"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldmigration"
-	"github.com/launchdarkly/go-sdk-common/v4/ldsampling"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-sdk-common/v3/ldsampling"
 )
 
 // MigratorBuilder provides a mechanism to construct a Migrator instance.

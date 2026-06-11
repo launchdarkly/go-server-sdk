@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/launchdarkly/go-server-sdk-evaluation/v4/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )

@@ -13,9 +13,9 @@ import (
 
 	es "github.com/launchdarkly/eventsource"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
-	"github.com/launchdarkly/go-sdk-common/v4/ldtime"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"

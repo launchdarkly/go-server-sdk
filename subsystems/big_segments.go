@@ -4,8 +4,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldtime"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 )
 
 // BigSegmentsConfiguration encapsulates the SDK's configuration with regard to Big Segments.

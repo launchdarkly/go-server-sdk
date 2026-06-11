@@ -6,7 +6,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 )
 
 // dataStoreStatusPoller maintains the "last known available" state for a persistent data store and

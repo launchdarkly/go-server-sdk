@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
-	"github.com/launchdarkly/go-jsonstream/v4/jreader"
+	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 )
 
 type httpStatusError struct {

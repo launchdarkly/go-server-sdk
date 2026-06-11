@@ -4,11 +4,11 @@ import (
 	gocontext "context"
 	"testing"
 
-	"github.com/launchdarkly/go-sdk-common/v4/ldcontext"
-	"github.com/launchdarkly/go-sdk-common/v4/ldmigration"
-	"github.com/launchdarkly/go-sdk-common/v4/lduser"
-	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v4/ldbuilders"
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
+	"github.com/launchdarkly/go-sdk-common/v3/lduser"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/stretchr/testify/assert"
 )
