@@ -15,6 +15,7 @@
         "contexts": { "introduced": "6.0" },
         "eventCompression": { "introduced": "7.6" },
         "experimentation": { "introduced": "5.4" },
+        "fdv2": { "introduced": "7.15" },
         "fileDataSource": { "introduced": "4.4" },
         "flagChanges": { "introduced": "5.0" },
         "hooks": { "introduced": "7.3" },
