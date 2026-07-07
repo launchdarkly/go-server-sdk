@@ -12,6 +12,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSuccessfullyLoadsJsonFlags(t *testing.T) {
@@ -234,7 +235,16 @@ func TestRecoversFromInvalidDataWhenFileUpdated(t *testing.T) {
 
 			reloadCh <- struct{}{}
 
-			result = <-resultChan
+			// The failed initial load schedules automatic retries, so additional interrupted
+			// results may arrive before the reload that observes the corrected file.
+			deadline := time.After(5 * time.Second)
+			for result.State != interfaces.DataSourceStateValid {
+				select {
+				case result = <-resultChan:
+				case <-deadline:
+					require.FailNow(t, "timed out waiting for a valid result")
+				}
+			}
 			assert.NotNil(t, result.ChangeSet)
 			assert.Len(t, result.ChangeSet.Changes(), 1)
 			assert.Equal(t, "my-flag", result.ChangeSet.Changes()[0].Key)

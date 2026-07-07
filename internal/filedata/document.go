@@ -25,14 +25,33 @@ type Document struct {
 	Segments   *map[string]ldmodel.Segment
 }
 
+// ReadError indicates that one of the source files could not be read or parsed. It
+// distinguishes a per-file failure from a failure to merge the files' contents.
+type ReadError struct {
+	Err  error
+	Path string
+}
+
+func (e *ReadError) Error() string {
+	return fmt.Sprintf("%s [%s]", e.Err, e.Path)
+}
+
+func (e *ReadError) Unwrap() error {
+	return e.Err
+}
+
 // ReadFile reads and parses a single data file, which may be in JSON or YAML format.
 func ReadFile(path string) (Document, error) {
-	var data Document
-	var rawData []byte
-	var err error
-	if rawData, err = os.ReadFile(path); err != nil { //nolint:gosec // G304: ok to read file into variable
-		return data, fmt.Errorf("unable to read file: %s", err)
+	rawData, err := os.ReadFile(path) //nolint:gosec // G304: ok to read file into variable
+	if err != nil {
+		return Document{}, fmt.Errorf("unable to read file: %s", err)
 	}
+	return parseDocument(rawData)
+}
+
+func parseDocument(rawData []byte) (Document, error) {
+	var data Document
+	var err error
 	if detectJSON(rawData) {
 		err = json.Unmarshal(rawData, &data)
 	} else {
