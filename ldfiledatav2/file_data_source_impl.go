@@ -2,28 +2,17 @@ package ldfiledatav2
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
-
-	"gopkg.in/ghodss/yaml.v1"
 )
 
 type fileDataSource struct {
@@ -36,6 +25,7 @@ type fileDataSource struct {
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
+	reloader              *filedata.Reloader
 	loggers               ldlog.Loggers
 	closeReloaderCh       chan struct{}
 
@@ -49,7 +39,7 @@ func newFileDataSourceImpl(
 	duplicateKeysHandling DuplicateKeysHandling,
 	reloaderFactory ReloaderFactory,
 ) (subsystems.DataSynchronizer, error) {
-	abs, err := absFilePaths(filePaths)
+	abs, err := filedata.AbsFilePaths(filePaths)
 	if err != nil {
 		// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
 		return nil, err
@@ -89,9 +79,28 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 		return resultChan
 	}
 
-	fs.reload()
+	// Debouncing and automatic retries only matter when something can trigger further
+	// reloads; a source configured without a reloader loads exactly once.
+	var debounceDelay, retryDelay time.Duration
 	if fs.reloaderFactory != nil {
-		err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reload, fs.closeReloaderCh)
+		debounceDelay = filedata.DefaultDebounceDelay
+		retryDelay = filedata.DefaultRetryDelay
+	}
+	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
+		Paths:                 fs.absFilePaths,
+		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
+		Loggers:               fs.loggers,
+		Apply:                 fs.applyData,
+		OnError:               fs.handleError,
+		DebounceDelay:         debounceDelay,
+		RetryDelay:            retryDelay,
+		SkipUnchanged:         true,
+	})
+	fs.reloader.ReloadNow()
+
+	if fs.reloaderFactory != nil {
+		fs.closeReloaderCh = make(chan struct{})
+		err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reloader.Trigger, fs.closeReloaderCh)
 		if err != nil {
 			fs.loggers.Errorf("Unable to start reloader: %s\n", err)
 			result.State = interfaces.DataSourceStateOff
@@ -136,233 +145,78 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 }
 
 func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
-	changeSetChan := fs.changeSetBroadcaster.AddListener()
-	statusChan := fs.statusBroadcaster.AddListener()
-
-	changeset := subsystems.NewChangeSetBuilder().NoChanges()
-
-	var err error
-	basis := &subsystems.Basis{
-		ChangeSet: *changeset,
-		Persist:   false,
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		fs.reload()
-
-		defer wg.Done()
-
-		select {
-		case changeSet, ok := <-changeSetChan:
-			if !ok {
-				return
-			}
-			basis.ChangeSet = changeSet
-			return
-		case statusChange, ok := <-statusChan:
-			if !ok {
-				return
-			}
-
-			if statusChange.State != interfaces.DataSourceStateValid {
-				err = errors.New("data source did not receive change set")
-				return
-			}
-		default:
-			return
+	docs := make([]filedata.Document, 0, len(fs.absFilePaths))
+	for _, path := range fs.absFilePaths {
+		doc, err := filedata.ReadFile(path)
+		if err != nil {
+			return nil, false, &filedata.ReadError{Err: err, Path: path}
 		}
-	}()
-
-	wg.Wait()
-
-	return basis, false, err
+		docs = append(docs, doc)
+	}
+	merged, err := filedata.Merge(filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), docs...)
+	if err != nil {
+		return nil, false, err
+	}
+	changeSet, err := fs.makeChangeSet(merged)
+	if err != nil {
+		return nil, false, err
+	}
+	return &subsystems.Basis{
+		ChangeSet: *changeSet,
+		Persist:   false,
+	}, false, nil
 }
 
-// Reload tells the data source to immediately attempt to reread all of the configured source files
-// and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
-// be modified.
-func (fs *fileDataSource) reload() {
-	if fs.closeReloaderCh != nil {
-		fs.loggers.Info("Reloading flag data after detecting a change")
-	}
-
-	filesData := make([]fileData, 0)
-	for _, path := range fs.absFilePaths {
-		data, err := readFile(path)
-		if err == nil {
-			filesData = append(filesData, data)
-		} else {
-			fs.loggers.Errorf("Unable to load flags: %s [%s]", err, path)
-			fs.statusBroadcaster.Broadcast(interfaces.DataSynchronizerStatus{
-				State: interfaces.DataSourceStateInterrupted,
-				Error: interfaces.DataSourceErrorInfo{
-					Kind:       interfaces.DataSourceErrorKindUnknown,
-					StatusCode: 0,
-					Message:    err.Error(),
-					Time:       time.Time{},
-				},
-			})
-			return
-		}
-	}
-
-	fs.version++
-	changeSet, err := mergeFileData(fs.duplicateKeysHandling, fs.version, filesData...)
-
+func (fs *fileDataSource) applyData(merged filedata.MergeResult) {
+	changeSet, err := fs.makeChangeSet(merged)
 	if err == nil {
 		fs.changeSetBroadcaster.Broadcast(*changeSet)
 	} else {
-		fs.statusBroadcaster.Broadcast(interfaces.DataSynchronizerStatus{
-			State: interfaces.DataSourceStateInterrupted,
-			Error: interfaces.DataSourceErrorInfo{
-				Kind:       interfaces.DataSourceErrorKindInvalidData,
-				StatusCode: 0,
-				Message:    err.Error(),
-				Time:       time.Time{},
-			},
-			FallbackToFDv1: false,
-		})
-		fs.loggers.Error(err)
+		fs.handleError(err)
 	}
 }
 
-func absFilePaths(paths []string) ([]string, error) {
-	absPaths := make([]string, 0)
-	for _, p := range paths {
-		absPath, err := filepath.Abs(p)
-		if err != nil {
-			// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
-			return nil, fmt.Errorf("unable to determine absolute path for '%s'", p)
-		}
-		absPaths = append(absPaths, absPath)
+func (fs *fileDataSource) handleError(err error) {
+	errorKind := interfaces.DataSourceErrorKindInvalidData
+	var readErr *filedata.ReadError
+	if errors.As(err, &readErr) {
+		errorKind = interfaces.DataSourceErrorKindUnknown
 	}
-	return absPaths, nil
-}
-
-type fileData struct {
-	Flags      *map[string]ldmodel.FeatureFlag
-	FlagValues *map[string]ldvalue.Value
-	Segments   *map[string]ldmodel.Segment
-}
-
-func insertDataIntoCollection(
-	items *[]ldstoretypes.KeyedItemDescriptor,
-	seenKeys map[subsystems.ObjectKind]map[string]bool,
-	objectKind subsystems.ObjectKind,
-	key string,
-	data ldstoretypes.ItemDescriptor,
-	duplicateKeysHandling DuplicateKeysHandling,
-) error {
-	if _, exists := seenKeys[objectKind][key]; exists {
-		switch duplicateKeysHandling {
-		case DuplicateKeysIgnoreAllButFirst:
-			return nil
-		default:
-			return fmt.Errorf("%s '%s' is specified by multiple files", objectKind, key)
-		}
-	}
-
-	*items = append(*items, ldstoretypes.KeyedItemDescriptor{
-		Key:  key,
-		Item: data,
+	fs.statusBroadcaster.Broadcast(interfaces.DataSynchronizerStatus{
+		State: interfaces.DataSourceStateInterrupted,
+		Error: interfaces.DataSourceErrorInfo{
+			Kind:       errorKind,
+			StatusCode: 0,
+			Message:    err.Error(),
+			Time:       time.Time{},
+		},
+		FallbackToFDv1: false,
 	})
-	seenKeys[objectKind][key] = true
-
-	return nil
 }
 
-func readFile(path string) (fileData, error) {
-	var data fileData
-	var rawData []byte
-	var err error
-	if rawData, err = os.ReadFile(path); err != nil { //nolint:gosec // G304: ok to read file into variable
-		return data, fmt.Errorf("unable to read file: %s", err)
-	}
-	if detectJSON(rawData) {
-		err = json.Unmarshal(rawData, &data)
-	} else {
-		err = yaml.Unmarshal(rawData, &data)
-	}
-	if err != nil {
-		err = fmt.Errorf("error parsing file: %s", err)
-	}
-	return data, err
-}
-
-func detectJSON(rawData []byte) bool {
-	// A valid JSON file for our purposes must be an object, i.e. it must start with '{'
-	return strings.HasPrefix(strings.TrimLeftFunc(string(rawData), unicode.IsSpace), "{")
-}
-
-func mergeFileData(
-	duplicateKeysHandling DuplicateKeysHandling,
-	version int,
-	allFileData ...fileData,
-) (*subsystems.ChangeSet, error) {
+// makeChangeSet expresses a merged file data set as a full-transfer change set.
+func (fs *fileDataSource) makeChangeSet(merged filedata.MergeResult) (*subsystems.ChangeSet, error) {
+	fs.version++
 	intent := subsystems.ServerIntent{
 		Payload: subsystems.Payload{
 			ID:     "",
-			Target: version,
+			Target: fs.version,
 			Code:   subsystems.IntentTransferFull,
 			Reason: "payload-missing",
 		},
 	}
 
-	// Build collections directly instead of using ChangeSetBuilder
-	flagItems := make([]ldstoretypes.KeyedItemDescriptor, 0)
-	segmentItems := make([]ldstoretypes.KeyedItemDescriptor, 0)
-
-	seenKeys := map[subsystems.ObjectKind]map[string]bool{
-		subsystems.FlagKind:    {},
-		subsystems.SegmentKind: {},
-	}
-
-	for _, d := range allFileData {
-		if d.Flags != nil {
-			for key, f := range *d.Flags {
-				data := ldstoretypes.ItemDescriptor{Version: f.Version, Item: &f}
-				err := insertDataIntoCollection(&flagItems, seenKeys, subsystems.FlagKind, key, data, duplicateKeysHandling)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		if d.FlagValues != nil {
-			for key, value := range *d.FlagValues {
-				flag := makeFlagWithValue(key, value)
-				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
-				err := insertDataIntoCollection(&flagItems, seenKeys, subsystems.FlagKind, key, data, duplicateKeysHandling)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		if d.Segments != nil {
-			for key, s := range *d.Segments {
-				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
-				err := insertDataIntoCollection(&segmentItems, seenKeys, subsystems.SegmentKind, key, data, duplicateKeysHandling)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-
-	// Build collections
 	collections := make([]ldstoretypes.Collection, 0, 2)
-	if len(flagItems) > 0 {
+	if len(merged.Flags) > 0 {
 		collections = append(collections, ldstoretypes.Collection{
 			Kind:  ldstoreimpl.Features(),
-			Items: flagItems,
+			Items: merged.Flags,
 		})
 	}
-	if len(segmentItems) > 0 {
+	if len(merged.Segments) > 0 {
 		collections = append(collections, ldstoretypes.Collection{
 			Kind:  ldstoreimpl.Segments(),
-			Items: segmentItems,
+			Items: merged.Segments,
 		})
 	}
 
@@ -373,11 +227,6 @@ func mergeFileData(
 	return subsystems.NewChangeSetFromCollections(intent, subsystems.NoSelector(), collections)
 }
 
-func makeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {
-	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(ldvalue.CopyArbitraryValue(v)).Build()
-	return &flag
-}
-
 // Close is called automatically when the client is closed.
 func (fs *fileDataSource) Close() (err error) {
 	if swapped := fs.closed.CompareAndSwap(false, true); swapped {
@@ -385,6 +234,9 @@ func (fs *fileDataSource) Close() (err error) {
 
 		if fs.closeReloaderCh != nil {
 			close(fs.closeReloaderCh)
+		}
+		if fs.reloader != nil {
+			fs.reloader.Close()
 		}
 		return nil // already closed
 	}
