@@ -37,6 +37,7 @@ const (
 	CapabilityInstanceID                    = "instance-id"
 	CapabilityRetryConformanceFDv1Streaming = "retry-conformance-fdv1-streaming"
 	CapabilityRetryConformanceFDv1Polling   = "retry-conformance-fdv1-polling"
+	CapabilityFlagOverrides                 = "flag-overrides"
 )
 
 type StatusRep struct {
