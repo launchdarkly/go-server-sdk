@@ -790,9 +790,14 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
 	} else if client.dataSystem.DataAvailability() != datasystem.Refreshed {
-		if client.dataSystem.DataAvailability() == datasystem.Cached {
+		switch {
+		case client.dataSystem.DataAvailability() == datasystem.Cached:
 			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
-		} else {
+		case client.dataSystem.HasOverrides():
+			// The merged view holds only the override entries, so the state is valid but
+			// contains only the overridden flags.
+			client.loggers.Warn("Called AllFlagsState before client initialization; returning only flags from the override layer") //nolint:lll
+		default:
 			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
 			valid = false
 		}
@@ -1348,6 +1353,7 @@ func (client *LDClient) variationAndFlag(
 					Version:              flag.Version,
 					RequireFullEvent:     flag.TrackEvents,
 					DebugEventsUntilDate: flag.DebugEventsUntilDate,
+					IsOverride:           flag.IsOverride,
 				},
 				ldevents.Context(context),
 				result.Detail,
@@ -1394,7 +1400,9 @@ func (client *LDClient) evaluateInternal(
 	if client.dataSystem.DataAvailability() != datasystem.Refreshed {
 		if client.dataSystem.DataAvailability() == datasystem.Cached {
 			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store") //nolint:lll
-		} else {
+		} else if !client.dataSystem.HasFlagOverride(key) {
+			// A flag present in the override layer is served even though no data is available
+			// from LaunchDarkly; the store read below sees it through the override overlay.
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
 	}
