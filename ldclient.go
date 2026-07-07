@@ -93,6 +93,13 @@ type dataSystem interface {
 	// which means a data source provided flag data. The result is meaningful once the channel given
 	// to Start has been closed.
 	InitializationSucceeded() bool
+
+	// HasFlagOverride reports whether the flag override layer currently contains an entry
+	// for the given flag key. Always false when no override source is configured.
+	HasFlagOverride(key string) bool
+
+	// HasOverrides reports whether the flag override layer currently contains any entries.
+	HasOverrides() bool
 }
 
 var _ dataSystem = &datasystem.FDv1{}

@@ -8,6 +8,8 @@ import (
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
+var _ subsystems.OverrideSink = (*Sink)(nil)
+
 // Sink applies override layer replacements supplied by an override source, and notifies
 // flag-change listeners of the flags affected by each replacement.
 type Sink struct {
