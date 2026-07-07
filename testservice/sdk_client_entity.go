@@ -26,6 +26,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
+	"github.com/launchdarkly/go-server-sdk/v7/ldoverrides"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
@@ -490,8 +491,14 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			dataSystemBuilder.DataStore(builder, subsystems.DataStoreMode(config.DataSystem.StoreMode))
 		}
 
+		if config.Overrides != nil {
+			dataSystemBuilder.Overrides(makeOverridesConfig(config.Overrides))
+		}
+
 		sdkLog.Debugf("Data system configuration: %+v", dataSystemBuilder)
 		ret.DataSystem = dataSystemBuilder
+	} else if config.Overrides != nil {
+		return ret, errors.New("flag overrides require the data system to be configured")
 	} else {
 		if config.ServiceEndpoints != nil {
 			ret.ServiceEndpoints.Streaming = config.ServiceEndpoints.Streaming
@@ -647,6 +654,23 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 func asJSON(value interface{}) string {
 	ret, _ := json.Marshal(value)
 	return string(ret)
+}
+
+func makeOverridesConfig(params *servicedef.SDKConfigOverridesParams) *ldoverrides.FileSourceBuilder {
+	builder := ldoverrides.FileSource().FilePaths(params.FilePaths...)
+	if params.DuplicateKeysHandling != nil {
+		builder.DuplicateKeysHandling(ldoverrides.DuplicateKeysHandling(*params.DuplicateKeysHandling))
+	}
+	if params.Watch != nil {
+		builder.Watch(*params.Watch)
+	}
+	if params.Poll != nil {
+		builder.Poll(*params.Poll)
+	}
+	if params.PollIntervalMS != nil {
+		builder.PollInterval(time.Millisecond * time.Duration(*params.PollIntervalMS))
+	}
+	return builder
 }
 
 func makeSynchronizerConfig(synchronizer servicedef.Synchronizer, configParams servicedef.SDKConfigParams, config *ld.Config) (subsystems.ComponentConfigurer[subsystems.DataSynchronizer], error) {
