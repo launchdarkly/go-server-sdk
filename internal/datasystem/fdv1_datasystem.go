@@ -162,3 +162,15 @@ func (f *FDv1) TargetAvailability() DataAvailability {
 func (f *FDv1) Store() subsystems.ReadOnlyStore {
 	return f.dataStore
 }
+
+// HasFlagOverride always reports false: flag overrides are available only with the FDv2
+// data system.
+func (f *FDv1) HasFlagOverride(key string) bool {
+	return false
+}
+
+// HasOverrides always reports false: flag overrides are available only with the FDv2
+// data system.
+func (f *FDv1) HasOverrides() bool {
+	return false
+}
