@@ -1,4 +1,4 @@
-package datasystem
+package toposort_test
 
 import (
 	"strings"
@@ -145,14 +145,14 @@ func TestSortCollectionsLeavesItemsOfUnknownDataKindUnchanged(t *testing.T) {
 }
 
 func TestDependencyTrackerReturnsSingleValueResultForUnknownItem(t *testing.T) {
-	dt := newDependencyTracker()
+	dt := toposort.NewDependencyTracker()
 
 	// a change to any item with no known depenencies affects only itself
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag1", toposort.NewVertex(datakinds.Features, "flag1"))
 }
 
 func TestDependencyTrackerBuildsGraph(t *testing.T) {
-	dt := newDependencyTracker()
+	dt := toposort.NewDependencyTracker()
 
 	segment3 := ldbuilders.NewSegmentBuilder("segment3").Build()
 	segment2 := ldbuilders.NewSegmentBuilder("segment2").
@@ -182,10 +182,10 @@ func TestDependencyTrackerBuildsGraph(t *testing.T) {
 		Build()
 
 	for _, s := range []ldmodel.Segment{segment1, segment2, segment3} {
-		dt.updateDependenciesFrom(datakinds.Segments, s.Key, sharedtest.SegmentDescriptor(s))
+		dt.UpdateDependenciesFrom(datakinds.Segments, s.Key, sharedtest.SegmentDescriptor(s))
 	}
 	for _, f := range []ldmodel.FeatureFlag{flag1, flag2} {
-		dt.updateDependenciesFrom(datakinds.Features, f.Key, sharedtest.FlagDescriptor(f))
+		dt.UpdateDependenciesFrom(datakinds.Features, f.Key, sharedtest.FlagDescriptor(f))
 	}
 
 	// a change to flag1 affects only flag1
@@ -228,17 +228,17 @@ func TestDependencyTrackerBuildsGraph(t *testing.T) {
 }
 
 func TestDependencyTrackerUpdatesGraph(t *testing.T) {
-	dt := newDependencyTracker()
+	dt := toposort.NewDependencyTracker()
 
 	flag1 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag3", 0).
 		Build()
-	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
+	dt.UpdateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
 	flag2 := ldbuilders.NewFlagBuilder("flag2").
 		AddPrerequisite("flag3", 0).
 		Build()
-	dt.updateDependenciesFrom(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
+	dt.UpdateDependenciesFrom(datakinds.Features, flag2.Key, st.ItemDescriptor{Version: flag2.Version, Item: &flag2})
 
 	// at this point, a change to flag3 affects flag3, flag2, and flag1
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
@@ -251,7 +251,7 @@ func TestDependencyTrackerUpdatesGraph(t *testing.T) {
 	flag1v2 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag4", 0).
 		Build()
-	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1v2.Version, Item: &flag1v2})
+	dt.UpdateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1v2.Version, Item: &flag1v2})
 
 	// now, a change to flag3 affects flag3 and flag2
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
@@ -267,19 +267,19 @@ func TestDependencyTrackerUpdatesGraph(t *testing.T) {
 }
 
 func TestDependencyTrackerResetsGraph(t *testing.T) {
-	dt := newDependencyTracker()
+	dt := toposort.NewDependencyTracker()
 
 	flag1 := ldbuilders.NewFlagBuilder("flag1").
 		AddPrerequisite("flag3", 0).
 		Build()
-	dt.updateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
+	dt.UpdateDependenciesFrom(datakinds.Features, flag1.Key, st.ItemDescriptor{Version: flag1.Version, Item: &flag1})
 
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
 		toposort.NewVertex(datakinds.Features, "flag3"),
 		toposort.NewVertex(datakinds.Features, "flag1"),
 	)
 
-	dt.reset()
+	dt.Reset()
 
 	verifyDependencyAffectedItems(t, dt, datakinds.Features, "flag3",
 		toposort.NewVertex(datakinds.Features, "flag3"),
@@ -288,7 +288,7 @@ func TestDependencyTrackerResetsGraph(t *testing.T) {
 
 func verifyDependencyAffectedItems(
 	t *testing.T,
-	dt *dependencyTracker,
+	dt *toposort.DependencyTracker,
 	kind st.DataKind,
 	key string,
 	expected ...toposort.Vertex,
@@ -298,7 +298,7 @@ func verifyDependencyAffectedItems(
 		expectedSet.Add(value)
 	}
 	result := make(toposort.Neighbors)
-	dt.addAffectedItems(result, toposort.NewVertex(kind, key))
+	dt.AddAffectedItems(result, toposort.NewVertex(kind, key))
 	assert.Equal(t, expectedSet, result)
 }
 
@@ -354,4 +354,16 @@ func verifySortedData(t *testing.T, sortedData []st.Collection, inputData []st.C
 			}
 		}
 	}
+}
+
+func fullDataSetToMap(allData []st.Collection) map[st.DataKind]map[string]st.ItemDescriptor {
+	ret := make(map[st.DataKind]map[string]st.ItemDescriptor, len(allData))
+	for _, coll := range allData {
+		m := make(map[string]st.ItemDescriptor, len(coll.Items))
+		for _, item := range coll.Items {
+			m[item.Key] = item.Item
+		}
+		ret[coll.Kind] = m
+	}
+	return ret
 }
