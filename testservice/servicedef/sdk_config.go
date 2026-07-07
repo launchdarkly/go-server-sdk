@@ -18,6 +18,16 @@ type SDKConfigParams struct {
 	Hooks               *SDKConfigHooksParams               `json:"hooks,omitempty"`
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	DataSystem          *DataSystem                         `json:"dataSystem,omitempty"`
+	Overrides           *SDKConfigOverridesParams           `json:"overrides,omitempty"`
+}
+
+// SDKConfigOverridesParams configures a file-based flag override source.
+type SDKConfigOverridesParams struct {
+	FilePaths             []string `json:"filePaths"`
+	DuplicateKeysHandling *string  `json:"duplicateKeysHandling,omitempty"`
+	Watch                 *bool    `json:"watch,omitempty"`
+	Poll                  *bool    `json:"poll,omitempty"`
+	PollIntervalMS        *int     `json:"pollIntervalMs,omitempty"`
 }
 
 type SDKConfigServiceEndpointsParams struct {
