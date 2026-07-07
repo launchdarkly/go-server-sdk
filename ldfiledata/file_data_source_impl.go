@@ -17,6 +17,7 @@ type fileDataSource struct {
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
+	reloader              *filedata.Reloader
 	loggers               ldlog.Loggers
 	isInitialized         bool
 	readyCh               chan<- struct{}
@@ -55,7 +56,25 @@ func (fs *fileDataSource) IsInitialized() bool {
 
 func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 	fs.readyCh = closeWhenReady
-	fs.reload()
+
+	// Debouncing and automatic retries only matter when something can trigger further
+	// reloads; a source configured without a reloader loads exactly once.
+	var debounceDelay, retryDelay time.Duration
+	if fs.reloaderFactory != nil {
+		debounceDelay = filedata.DefaultDebounceDelay
+		retryDelay = filedata.DefaultRetryDelay
+	}
+	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
+		Paths:                 fs.absFilePaths,
+		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
+		Loggers:               fs.loggers,
+		Apply:                 fs.applyData,
+		OnError:               fs.handleError,
+		DebounceDelay:         debounceDelay,
+		RetryDelay:            retryDelay,
+		SkipUnchanged:         true,
+	})
+	fs.reloader.ReloadNow()
 
 	// If there is no reloader, then we signal readiness immediately regardless of whether the
 	// data load succeeded or failed.
@@ -65,58 +84,32 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 	}
 
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
-	// readiness signal will happen the first time we do get valid data (in reload).
+	// readiness signal will happen the first time we do get valid data (in applyData).
 	fs.closeReloaderCh = make(chan struct{})
-	err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reload, fs.closeReloaderCh)
+	err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reloader.Trigger, fs.closeReloaderCh)
 	if err != nil {
 		fs.loggers.Errorf("Unable to start reloader: %s\n", err)
 	}
 }
 
-// Reload tells the data source to immediately attempt to reread all of the configured source files
-// and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
-// be modified.
-func (fs *fileDataSource) reload() {
-	if fs.closeReloaderCh != nil {
-		fs.loggers.Info("Reloading flag data after detecting a change")
+func (fs *fileDataSource) applyData(merged filedata.MergeResult) {
+	storeData := []ldstoretypes.Collection{
+		{Kind: datakinds.Features, Items: merged.Flags},
+		{Kind: datakinds.Segments, Items: merged.Segments},
 	}
-	docs := make([]filedata.Document, 0)
-	for _, path := range fs.absFilePaths {
-		doc, err := filedata.ReadFile(path)
-		if err == nil {
-			docs = append(docs, doc)
-		} else {
-			fs.loggers.Errorf("Unable to load flags: %s [%s]", err, path)
-			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
-				interfaces.DataSourceErrorInfo{
-					Kind:    interfaces.DataSourceErrorKindInvalidData,
-					Message: err.Error(),
-					Time:    time.Now(),
-				})
-			return
-		}
+	if fs.dataSourceUpdates.Init(storeData) {
+		fs.signalStartComplete(true)
+		fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 	}
-	merged, err := filedata.Merge(filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), docs...)
-	if err == nil {
-		storeData := []ldstoretypes.Collection{
-			{Kind: datakinds.Features, Items: merged.Flags},
-			{Kind: datakinds.Segments, Items: merged.Segments},
-		}
-		if fs.dataSourceUpdates.Init(storeData) {
-			fs.signalStartComplete(true)
-			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-		}
-	} else {
-		fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
-			interfaces.DataSourceErrorInfo{
-				Kind:    interfaces.DataSourceErrorKindInvalidData,
-				Message: err.Error(),
-				Time:    time.Now(),
-			})
-	}
-	if err != nil {
-		fs.loggers.Error(err)
-	}
+}
+
+func (fs *fileDataSource) handleError(err error) {
+	fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
+		interfaces.DataSourceErrorInfo{
+			Kind:    interfaces.DataSourceErrorKindInvalidData,
+			Message: err.Error(),
+			Time:    time.Now(),
+		})
 }
 
 func (fs *fileDataSource) signalStartComplete(succeeded bool) {
@@ -133,6 +126,9 @@ func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
 		if fs.closeReloaderCh != nil {
 			close(fs.closeReloaderCh)
+		}
+		if fs.reloader != nil {
+			fs.reloader.Close()
 		}
 	})
 	return nil

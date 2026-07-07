@@ -3,7 +3,6 @@ package ldfiledatav2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +25,7 @@ type fileDataSource struct {
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
+	reloader              *filedata.Reloader
 	loggers               ldlog.Loggers
 	closeReloaderCh       chan struct{}
 
@@ -79,10 +79,28 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 		return resultChan
 	}
 
-	fs.reload()
+	// Debouncing and automatic retries only matter when something can trigger further
+	// reloads; a source configured without a reloader loads exactly once.
+	var debounceDelay, retryDelay time.Duration
+	if fs.reloaderFactory != nil {
+		debounceDelay = filedata.DefaultDebounceDelay
+		retryDelay = filedata.DefaultRetryDelay
+	}
+	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
+		Paths:                 fs.absFilePaths,
+		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
+		Loggers:               fs.loggers,
+		Apply:                 fs.applyData,
+		OnError:               fs.handleError,
+		DebounceDelay:         debounceDelay,
+		RetryDelay:            retryDelay,
+		SkipUnchanged:         true,
+	})
+	fs.reloader.ReloadNow()
+
 	if fs.reloaderFactory != nil {
 		fs.closeReloaderCh = make(chan struct{})
-		err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reload, fs.closeReloaderCh)
+		err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reloader.Trigger, fs.closeReloaderCh)
 		if err != nil {
 			fs.loggers.Errorf("Unable to start reloader: %s\n", err)
 			result.State = interfaces.DataSourceStateOff
@@ -127,7 +145,19 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 }
 
 func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
-	changeSet, err := fs.load()
+	docs := make([]filedata.Document, 0, len(fs.absFilePaths))
+	for _, path := range fs.absFilePaths {
+		doc, err := filedata.ReadFile(path)
+		if err != nil {
+			return nil, false, &filedata.ReadError{Err: err, Path: path}
+		}
+		docs = append(docs, doc)
+	}
+	merged, err := filedata.Merge(filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), docs...)
+	if err != nil {
+		return nil, false, err
+	}
+	changeSet, err := fs.makeChangeSet(merged)
 	if err != nil {
 		return nil, false, err
 	}
@@ -137,69 +167,35 @@ func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context)
 	}, false, nil
 }
 
-// Reload tells the data source to immediately attempt to reread all of the configured source files
-// and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
-// be modified.
-func (fs *fileDataSource) reload() {
-	if fs.closeReloaderCh != nil {
-		fs.loggers.Info("Reloading flag data after detecting a change")
-	}
-
-	changeSet, err := fs.load()
+func (fs *fileDataSource) applyData(merged filedata.MergeResult) {
+	changeSet, err := fs.makeChangeSet(merged)
 	if err == nil {
 		fs.changeSetBroadcaster.Broadcast(*changeSet)
 	} else {
-		fs.loggers.Errorf("Unable to load flags: %s", err)
-		errorKind := interfaces.DataSourceErrorKindInvalidData
-		var readErr *fileReadError
-		if errors.As(err, &readErr) {
-			errorKind = interfaces.DataSourceErrorKindUnknown
-		}
-		fs.statusBroadcaster.Broadcast(interfaces.DataSynchronizerStatus{
-			State: interfaces.DataSourceStateInterrupted,
-			Error: interfaces.DataSourceErrorInfo{
-				Kind:       errorKind,
-				StatusCode: 0,
-				Message:    err.Error(),
-				Time:       time.Time{},
-			},
-			FallbackToFDv1: false,
-		})
+		fs.handleError(err)
 	}
 }
 
-// fileReadError distinguishes a failure to read or parse one of the source files from a
-// failure to merge their contents.
-type fileReadError struct {
-	err  error
-	path string
-}
-
-func (e *fileReadError) Error() string {
-	return fmt.Sprintf("%s [%s]", e.err, e.path)
-}
-
-func (e *fileReadError) Unwrap() error {
-	return e.err
-}
-
-// load synchronously reads and merges all of the configured source files, returning the
-// result as a full-transfer change set.
-func (fs *fileDataSource) load() (*subsystems.ChangeSet, error) {
-	docs := make([]filedata.Document, 0)
-	for _, path := range fs.absFilePaths {
-		doc, err := filedata.ReadFile(path)
-		if err != nil {
-			return nil, &fileReadError{err: err, path: path}
-		}
-		docs = append(docs, doc)
+func (fs *fileDataSource) handleError(err error) {
+	errorKind := interfaces.DataSourceErrorKindInvalidData
+	var readErr *filedata.ReadError
+	if errors.As(err, &readErr) {
+		errorKind = interfaces.DataSourceErrorKindUnknown
 	}
+	fs.statusBroadcaster.Broadcast(interfaces.DataSynchronizerStatus{
+		State: interfaces.DataSourceStateInterrupted,
+		Error: interfaces.DataSourceErrorInfo{
+			Kind:       errorKind,
+			StatusCode: 0,
+			Message:    err.Error(),
+			Time:       time.Time{},
+		},
+		FallbackToFDv1: false,
+	})
+}
 
-	merged, err := filedata.Merge(filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), docs...)
-	if err != nil {
-		return nil, err
-	}
-
+// makeChangeSet expresses a merged file data set as a full-transfer change set.
+func (fs *fileDataSource) makeChangeSet(merged filedata.MergeResult) (*subsystems.ChangeSet, error) {
 	fs.version++
 	intent := subsystems.ServerIntent{
 		Payload: subsystems.Payload{
@@ -238,6 +234,9 @@ func (fs *fileDataSource) Close() (err error) {
 
 		if fs.closeReloaderCh != nil {
 			close(fs.closeReloaderCh)
+		}
+		if fs.reloader != nil {
+			fs.reloader.Close()
 		}
 		return nil // already closed
 	}
