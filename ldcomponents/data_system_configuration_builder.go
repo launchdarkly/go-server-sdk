@@ -8,12 +8,13 @@ import (
 
 // DataSystemConfigurationBuilder is a builder for configuring the SDK's data acquisition strategy.
 type DataSystemConfigurationBuilder struct {
-	storeBuilder         ss.ComponentConfigurer[ss.DataStore]
-	storeMode            ss.DataStoreMode
-	initializerBuilders  []ss.ComponentConfigurer[ss.DataInitializer]
-	synchronizerBuilders []ss.ComponentConfigurer[ss.DataSynchronizer]
-	fdv1FallbackBuilder  ss.ComponentConfigurer[ss.DataSynchronizer]
-	config               ss.DataSystemConfiguration
+	storeBuilder          ss.ComponentConfigurer[ss.DataStore]
+	storeMode             ss.DataStoreMode
+	initializerBuilders   []ss.ComponentConfigurer[ss.DataInitializer]
+	synchronizerBuilders  []ss.ComponentConfigurer[ss.DataSynchronizer]
+	fdv1FallbackBuilder   ss.ComponentConfigurer[ss.DataSynchronizer]
+	overrideSourceBuilder ss.ComponentConfigurer[ss.OverrideSource]
+	config                ss.DataSystemConfiguration
 }
 
 // Endpoints represents custom endpoints for LaunchDarkly streaming and polling services.
@@ -177,6 +178,22 @@ func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
 	return d
 }
 
+// Overrides configures the SDK with an override source, which supplies flag and segment
+// definitions that take precedence over data received from LaunchDarkly on a per-key basis.
+// Overrides let an operator force one or more flags to a known state on a running client,
+// whether or not the client can reach LaunchDarkly; flags not present in the override data
+// are unaffected.
+//
+// The override source is not a data source: it has no effect on the client's initialization
+// status or data source status, and configuring it changes nothing until the source
+// actually supplies an override.
+func (d *DataSystemConfigurationBuilder) Overrides(
+	source ss.ComponentConfigurer[ss.OverrideSource],
+) *DataSystemConfigurationBuilder {
+	d.overrideSourceBuilder = source
+	return d
+}
+
 // Build creates a DataSystemConfiguration from the configuration provided to the builder.
 func (d *DataSystemConfigurationBuilder) Build(
 	context ss.ClientContext,
@@ -223,6 +240,13 @@ func (d *DataSystemConfigurationBuilder) Build(
 		conf.Synchronizers.FDv1FallbackBuilder = func() (ss.DataSynchronizer, error) {
 			return d.fdv1FallbackBuilder.Build(context)
 		}
+	}
+	if d.overrideSourceBuilder != nil {
+		overrideSource, err := d.overrideSourceBuilder.Build(context)
+		if err != nil {
+			return ss.DataSystemConfiguration{}, err
+		}
+		conf.OverrideSource = overrideSource
 	}
 
 	return conf, nil

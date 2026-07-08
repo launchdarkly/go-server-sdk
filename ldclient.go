@@ -91,6 +91,13 @@ type dataSystem interface {
 
 	/// TargetAvailability indicates the ideal form of data available.
 	TargetAvailability() datasystem.DataAvailability
+
+	// HasFlagOverride reports whether the flag override layer currently contains an entry
+	// for the given flag key. Always false when no override source is configured.
+	HasFlagOverride(key string) bool
+
+	// HasOverrides reports whether the flag override layer currently contains any entries.
+	HasOverrides() bool
 }
 
 var _ dataSystem = &datasystem.FDv1{}

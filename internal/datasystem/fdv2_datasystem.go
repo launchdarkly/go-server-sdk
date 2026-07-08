@@ -11,6 +11,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/overrides"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -95,6 +96,15 @@ type FDv2 struct {
 
 	fallbackCond func(status interfaces.DataSourceStatus) bool
 	recoveryCond func(status interfaces.DataSourceStatus) bool
+
+	// The following are non-nil only when an override source is configured. The layer holds
+	// override entries, the overlay serves them in preference to the store's data at the
+	// store read boundary, and the source populates the layer at runtime. The override
+	// system is deliberately outside the initializer/synchronizer pipeline and never
+	// affects data availability, persistence, or the relay data destination.
+	overrideLayer  *overrides.Layer
+	overlay        *overrides.Overlay
+	overrideSource subsystems.OverrideSource
 }
 
 // NewFDv2 creates a new instance of the FDv2 data system. The first argument indicates if the system is enabled or
@@ -160,6 +170,12 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 
 	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || len(fdv2.synchronizerBuilders) > 0
 
+	if cfg.OverrideSource != nil && !disabled {
+		fdv2.overrideLayer = overrides.NewLayer()
+		fdv2.overlay = overrides.NewOverlay(store, fdv2.overrideLayer)
+		fdv2.overrideSource = cfg.OverrideSource
+	}
+
 	if cfg.Store != nil && !disabled {
 		// If there's a persistent Store, we should provide a status monitor and inform Store that it's present.
 		fdv2.dataStoreStatusProvider = datastore.NewDataStoreStatusProviderImpl(cfg.Store, dataStoreUpdateSink)
@@ -186,6 +202,17 @@ func (f *FDv2) Start(closeWhenReady chan struct{}) {
 		f.loggers.Infof("Data system is disabled, SDK will return application-defined default values")
 		close(closeWhenReady)
 		return
+	}
+	if f.overrideSource != nil {
+		// The source is started before the run loop so that a source that loads
+		// synchronously has its overrides in place before the client begins evaluating.
+		sink := overrides.NewSink(f.overrideLayer, f.store,
+			func(flagKey string) {
+				f.broadcasters.flagChangeEvent.Broadcast(interfaces.FlagChangeEvent{Key: flagKey})
+			},
+			f.broadcasters.flagChangeEvent.HasListeners,
+			f.loggers)
+		f.overrideSource.Start(sink)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	f.cancel = cancel
@@ -483,6 +510,9 @@ func (f *FDv2) consumeSynchronizerResults(
 // Stop shuts down the data system. It will close any active synchronizers. If initialization is in progress,
 // it will cancel the process gracefully.
 func (f *FDv2) Stop() error {
+	if f.overrideSource != nil {
+		_ = f.overrideSource.Close()
+	}
 	if f.cancel != nil {
 		f.cancel()
 	}
@@ -495,7 +525,21 @@ func (f *FDv2) Stop() error {
 
 //nolint:revive // DataSystem method.
 func (f *FDv2) Store() subsystems.ReadOnlyStore {
+	if f.overlay != nil {
+		return f.overlay
+	}
 	return f.store
+}
+
+// HasFlagOverride reports whether the override layer currently contains a flag entry for
+// the given key.
+func (f *FDv2) HasFlagOverride(key string) bool {
+	return f.overrideLayer != nil && f.overrideLayer.HasFlag(key)
+}
+
+// HasOverrides reports whether the override layer currently contains any entries.
+func (f *FDv2) HasOverrides() bool {
+	return f.overrideLayer != nil && !f.overrideLayer.IsEmpty()
 }
 
 //nolint:revive // DataSystem method.
