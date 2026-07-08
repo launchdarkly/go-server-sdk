@@ -231,6 +231,29 @@ func TestReloaderSkipUnchanged(t *testing.T) {
 	f.requireApplied(t)
 }
 
+func TestReloaderRecoveryAppliesEvenWhenContentUnchanged(t *testing.T) {
+	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
+		cfg.SkipUnchanged = true
+	})
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	// A reload fails; consumers hear OnError and may move to an interrupted state.
+	require.NoError(t, os.Remove(f.path))
+	f.reloader.Trigger()
+	f.requireErrored(t)
+
+	// The files come back with byte-identical content. The success must be applied despite
+	// SkipUnchanged, because only Apply tells the consumer the interruption is over.
+	f.write(t, `{"flagValues": {"flag1": true}}`)
+	f.reloader.Trigger()
+	f.requireApplied(t)
+
+	// Once recovered, identical content skips again.
+	f.reloader.Trigger()
+	f.requireQuiet(t, 100*time.Millisecond)
+}
+
 func TestReloaderAppliesEveryReloadWhenSkipUnchangedIsOff(t *testing.T) {
 	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, nil)
 	f.reloader.ReloadNow()
