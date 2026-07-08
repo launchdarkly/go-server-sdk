@@ -114,10 +114,17 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 		err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reloader.Trigger, fs.closeReloaderCh)
 		if err != nil {
 			fs.loggers.Errorf("Unable to start reloader: %s\n", err)
-			result.State = interfaces.DataSourceStateOff
-			resultChan <- result
-			close(resultChan)
-			return resultChan
+			// With no reloader there will never be another reload; stop the worker and
+			// detach this call's listeners so nothing accumulates behind them. The result
+			// must go on a buffered channel: the reader goroutine below was never started,
+			// so a send on resultChan would block forever.
+			fs.reloader.Close()
+			fs.changeSetBroadcaster.RemoveListener(changeSetChan)
+			fs.statusBroadcaster.RemoveListener(statusChan)
+			rejected := make(chan subsystems.DataSynchronizerResult, 1)
+			rejected <- subsystems.DataSynchronizerResult{State: interfaces.DataSourceStateOff}
+			close(rejected)
+			return rejected
 		}
 	}
 
