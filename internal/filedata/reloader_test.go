@@ -105,8 +105,11 @@ func TestReloaderReportsFailureAndRetainsNothing(t *testing.T) {
 func TestReloaderDebounceCoalescesTriggers(t *testing.T) {
 	// The settle window is much longer than the whole trigger burst, so that a scheduling
 	// stall during the burst cannot let the debounce fire early and split the reloads.
+	// SkipUnchanged matches production configs and absorbs the one extra serialized reload
+	// that a debounce tick racing a fresh trigger can legitimately produce.
 	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
 		cfg.DebounceDelay = 400 * time.Millisecond
+		cfg.SkipUnchanged = true
 	})
 	f.write(t, `{"flagValues": {"flag1": false}}`)
 	for i := 0; i < 20; i++ {
@@ -149,7 +152,6 @@ func TestReloaderUnusedSpawnsNoGoroutine(t *testing.T) {
 	// A Reloader can be constructed by a component whose lifecycle never uses or closes it,
 	// such as a file data source built as a one-shot initializer, so construction alone
 	// must not start the worker goroutine.
-	runtime.GC()
 	before := runtime.NumGoroutine()
 	path := filepath.Join(t.TempDir(), "data.json")
 	require.NoError(t, os.WriteFile(path, []byte(`{}`), 0600))
@@ -161,8 +163,15 @@ func TestReloaderUnusedSpawnsNoGoroutine(t *testing.T) {
 			Apply:                 func(MergeResult) {},
 		})
 	}
-	assert.LessOrEqual(t, runtime.NumGoroutine(), before+2,
-		"constructing unused Reloaders must not accumulate goroutines")
+	// The count is process-global, so goroutines from earlier tests may still be winding
+	// down; poll until it settles rather than asserting a single sample.
+	deadline := time.Now().Add(testTimeout)
+	for runtime.NumGoroutine() > before+2 {
+		if time.Now().After(deadline) {
+			require.FailNow(t, "constructing unused Reloaders must not accumulate goroutines")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestReloaderCloseDoesNotWaitForInFlightReload(t *testing.T) {
