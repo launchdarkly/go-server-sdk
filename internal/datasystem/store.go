@@ -58,7 +58,7 @@ type Store struct {
 
 	// Used to track dependencies between items in the store. This helps ensure
 	// we trigger the correct flag change notifications.
-	dependencyTracker *dependencyTracker
+	dependencyTracker *toposort.DependencyTracker
 
 	// Broadcaster for flag change events.
 	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent]
@@ -128,7 +128,7 @@ func NewStore(
 	s := &Store{
 		persistentStore:      nil,
 		memoryStore:          memorystorev2.New(loggers),
-		dependencyTracker:    newDependencyTracker(),
+		dependencyTracker:    toposort.NewDependencyTracker(),
 		flagChangeEvent:      flagChangeEvent,
 		changeSetBroadcaster: changeSet,
 		loggers:              loggers,
@@ -270,9 +270,9 @@ func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsy
 	affectedItems := make(toposort.Neighbors)
 	for _, collection := range collections {
 		for _, item := range collection.Items {
-			s.dependencyTracker.updateDependenciesFrom(collection.Kind, item.Key, item.Item)
+			s.dependencyTracker.UpdateDependenciesFrom(collection.Kind, item.Key, item.Item)
 			if hasListeners {
-				s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(collection.Kind, item.Key))
+				s.dependencyTracker.AddAffectedItems(affectedItems, toposort.NewVertex(collection.Kind, item.Key))
 			}
 		}
 	}
@@ -377,10 +377,10 @@ func (s *Store) IsInitialized() bool {
 // internal.datasource. This duplication will be removed when FDv1 support is
 // removed.
 func (s *Store) updateDependencyTrackerFromFullDataSet(allData []ldstoretypes.Collection) {
-	s.dependencyTracker.reset()
+	s.dependencyTracker.Reset()
 	for _, coll := range allData {
 		for _, item := range coll.Items {
-			s.dependencyTracker.updateDependenciesFrom(coll.Kind, item.Key, item.Item)
+			s.dependencyTracker.UpdateDependenciesFrom(coll.Kind, item.Key, item.Item)
 		}
 	}
 }
@@ -421,7 +421,7 @@ func (s *Store) computeChangedItemsForFullDataSet(
 
 			if haveOld || haveNew {
 				if !haveOld || !haveNew || oldItem.Version < newItem.Version {
-					s.dependencyTracker.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
+					s.dependencyTracker.AddAffectedItems(affectedItems, toposort.NewVertex(kind, key))
 				}
 			}
 		}
