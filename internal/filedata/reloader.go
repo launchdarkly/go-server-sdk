@@ -225,9 +225,13 @@ func (r *Reloader) reload() bool {
 		return true
 	}
 
+	// A success right after a failure must apply even when the content is unchanged since
+	// the last success: the consumer heard about the failure through OnError and may have
+	// moved to an interrupted state, and only Apply tells it things are good again.
+	recovering := r.lastErrorMsg != ""
 	r.lastErrorMsg = ""
 	hash := hasher.Sum(nil)
-	if r.cfg.SkipUnchanged && bytes.Equal(hash, r.lastGoodHash) {
+	if r.cfg.SkipUnchanged && !recovering && bytes.Equal(hash, r.lastGoodHash) {
 		return true
 	}
 	r.lastGoodHash = hash
