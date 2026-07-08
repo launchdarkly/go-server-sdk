@@ -325,3 +325,31 @@ func TestInitializerReturnsErrorIfFileDoesNotExist(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestCloseStopsReloader(t *testing.T) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		reloaderCloseCh := make(chan (<-chan struct{}), 1)
+		f := func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
+			reloaderCloseCh <- closeCh
+			return nil
+		}
+
+		factory := DataSource().FilePaths(filename).Reloader(f)
+		sync, err := factory.Build(subsystems.BasicClientContext{})
+		assert.NoError(t, err)
+
+		resultChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
+		<-resultChan
+
+		closeCh := <-reloaderCloseCh
+		assert.NoError(t, sync.Close())
+
+		// The channel given to the reloader must be closed, so that whatever goroutines the
+		// reloader started can terminate.
+		select {
+		case <-closeCh:
+		case <-time.After(time.Second):
+			assert.Fail(t, "reloader close channel was not closed by Close()")
+		}
+	})
+}

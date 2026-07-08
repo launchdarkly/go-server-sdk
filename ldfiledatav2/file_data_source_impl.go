@@ -19,15 +19,18 @@ type fileDataSource struct {
 	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
 	statusBroadcaster    *internal.Broadcaster[interfaces.DataSynchronizerStatus]
 	// NOTE: this is not really used anymore because file data sources at this
-	// moment will not report a selector.
-	version int
+	// moment will not report a selector. It is atomic because loads can happen
+	// concurrently from Fetch and from the reloader.
+	version atomic.Int64
 
 	absFilePaths          []string
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
 	reloader              *filedata.Reloader
 	loggers               ldlog.Loggers
-	closeReloaderCh       chan struct{}
+	// closeReloaderCh is created up front rather than when the reloader starts, so that
+	// Close never races with Sync assigning it.
+	closeReloaderCh chan struct{}
 
 	closed atomic.Bool
 	quit   chan struct{}
@@ -52,6 +55,7 @@ func newFileDataSourceImpl(
 		duplicateKeysHandling: duplicateKeysHandling,
 		reloaderFactory:       reloaderFactory,
 		loggers:               context.GetLogging().Loggers,
+		closeReloaderCh:       make(chan struct{}),
 		quit:                  make(chan struct{}),
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
@@ -99,7 +103,6 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 	fs.reloader.ReloadNow()
 
 	if fs.reloaderFactory != nil {
-		fs.closeReloaderCh = make(chan struct{})
 		err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reloader.Trigger, fs.closeReloaderCh)
 		if err != nil {
 			fs.loggers.Errorf("Unable to start reloader: %s\n", err)
@@ -196,11 +199,10 @@ func (fs *fileDataSource) handleError(err error) {
 
 // makeChangeSet expresses a merged file data set as a full-transfer change set.
 func (fs *fileDataSource) makeChangeSet(merged filedata.MergeResult) (*subsystems.ChangeSet, error) {
-	fs.version++
 	intent := subsystems.ServerIntent{
 		Payload: subsystems.Payload{
 			ID:     "",
-			Target: fs.version,
+			Target: int(fs.version.Add(1)),
 			Code:   subsystems.IntentTransferFull,
 			Reason: "payload-missing",
 		},
@@ -231,10 +233,7 @@ func (fs *fileDataSource) makeChangeSet(merged filedata.MergeResult) (*subsystem
 func (fs *fileDataSource) Close() (err error) {
 	if swapped := fs.closed.CompareAndSwap(false, true); swapped {
 		close(fs.quit)
-
-		if fs.closeReloaderCh != nil {
-			close(fs.closeReloaderCh)
-		}
+		close(fs.closeReloaderCh)
 		if fs.reloader != nil {
 			fs.reloader.Close()
 		}
