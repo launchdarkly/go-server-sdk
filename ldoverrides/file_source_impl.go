@@ -28,6 +28,9 @@ type fileOverrideSource struct {
 
 var _ subsystems.OverrideSource = (*fileOverrideSource)(nil)
 
+// Start relies on the OverrideSource lifecycle: the SDK calls Start at most once, before
+// any call to Close, from a single goroutine. The reloader and trigger sources are created
+// here rather than at build time because they need the sink.
 func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	f.reloader = filedata.NewReloader(filedata.ReloaderConfig{
 		Paths:                 f.paths,
