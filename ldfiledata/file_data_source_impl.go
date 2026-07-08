@@ -1,25 +1,15 @@
 package ldfiledata
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
-
-	"gopkg.in/ghodss/yaml.v1"
 )
 
 type fileDataSource struct {
@@ -32,7 +22,12 @@ type fileDataSource struct {
 	readyCh               chan<- struct{}
 	readyOnce             sync.Once
 	closeOnce             sync.Once
-	closeReloaderCh       chan struct{}
+	// closeReloaderCh is created up front rather than when the reloader starts, so that
+	// Close never races with Start assigning it.
+	closeReloaderCh chan struct{}
+	// reloaderStarted means reload calls may now come from the reloader, which is worth a
+	// log line; the initial load is not.
+	reloaderStarted bool
 }
 
 func newFileDataSourceImpl(
@@ -42,7 +37,7 @@ func newFileDataSourceImpl(
 	duplicateKeysHandling DuplicateKeysHandling,
 	reloaderFactory ReloaderFactory,
 ) (subsystems.DataSource, error) {
-	abs, err := absFilePaths(filePaths)
+	abs, err := filedata.AbsFilePaths(filePaths)
 	if err != nil {
 		// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
 		return nil, err
@@ -54,6 +49,7 @@ func newFileDataSourceImpl(
 		duplicateKeysHandling: duplicateKeysHandling,
 		reloaderFactory:       reloaderFactory,
 		loggers:               context.GetLogging().Loggers,
+		closeReloaderCh:       make(chan struct{}),
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil
@@ -76,7 +72,7 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
 	// readiness signal will happen the first time we do get valid data (in reload).
-	fs.closeReloaderCh = make(chan struct{})
+	fs.reloaderStarted = true
 	err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reload, fs.closeReloaderCh)
 	if err != nil {
 		fs.loggers.Errorf("Unable to start reloader: %s\n", err)
@@ -87,14 +83,14 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 // and update the feature flag state. If any file cannot be loaded or parsed, the flag state will not
 // be modified.
 func (fs *fileDataSource) reload() {
-	if fs.closeReloaderCh != nil {
+	if fs.reloaderStarted {
 		fs.loggers.Info("Reloading flag data after detecting a change")
 	}
-	filesData := make([]fileData, 0)
+	docs := make([]filedata.Document, 0)
 	for _, path := range fs.absFilePaths {
-		data, err := readFile(path)
+		doc, err := filedata.ReadFile(path)
 		if err == nil {
-			filesData = append(filesData, data)
+			docs = append(docs, doc)
 		} else {
 			fs.loggers.Errorf("Unable to load flags: %s [%s]", err, path)
 			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted,
@@ -106,8 +102,12 @@ func (fs *fileDataSource) reload() {
 			return
 		}
 	}
-	storeData, err := mergeFileData(fs.duplicateKeysHandling, filesData...)
+	merged, err := filedata.Merge(filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), docs...)
 	if err == nil {
+		storeData := []ldstoretypes.Collection{
+			{Kind: datakinds.Features, Items: merged.Flags},
+			{Kind: datakinds.Segments, Items: merged.Segments},
+		}
 		if fs.dataSourceUpdates.Init(storeData) {
 			fs.signalStartComplete(true)
 			fs.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
@@ -134,126 +134,10 @@ func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 	})
 }
 
-func absFilePaths(paths []string) ([]string, error) {
-	absPaths := make([]string, 0)
-	for _, p := range paths {
-		absPath, err := filepath.Abs(p)
-		if err != nil {
-			// COVERAGE: there's no reliable cross-platform way to simulate an invalid path in unit tests
-			return nil, fmt.Errorf("unable to determine absolute path for '%s'", p)
-		}
-		absPaths = append(absPaths, absPath)
-	}
-	return absPaths, nil
-}
-
-type fileData struct {
-	Flags      *map[string]ldmodel.FeatureFlag
-	FlagValues *map[string]ldvalue.Value
-	Segments   *map[string]ldmodel.Segment
-}
-
-func insertData(
-	all map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor,
-	kind ldstoretypes.DataKind,
-	key string,
-	data ldstoretypes.ItemDescriptor,
-	duplicateKeysHandling DuplicateKeysHandling,
-) error {
-	if _, exists := all[kind][key]; exists {
-		switch duplicateKeysHandling {
-		case DuplicateKeysIgnoreAllButFirst:
-			return nil
-		default:
-			return fmt.Errorf("%s '%s' is specified by multiple files", kind, key)
-		}
-	}
-	all[kind][key] = data
-	return nil
-}
-
-func readFile(path string) (fileData, error) {
-	var data fileData
-	var rawData []byte
-	var err error
-	if rawData, err = os.ReadFile(path); err != nil { //nolint:gosec // G304: ok to read file into variable
-		return data, fmt.Errorf("unable to read file: %s", err)
-	}
-	if detectJSON(rawData) {
-		err = json.Unmarshal(rawData, &data)
-	} else {
-		err = yaml.Unmarshal(rawData, &data)
-	}
-	if err != nil {
-		err = fmt.Errorf("error parsing file: %s", err)
-	}
-	return data, err
-}
-
-func detectJSON(rawData []byte) bool {
-	// A valid JSON file for our purposes must be an object, i.e. it must start with '{'
-	return strings.HasPrefix(strings.TrimLeftFunc(string(rawData), unicode.IsSpace), "{")
-}
-
-func mergeFileData(
-	duplicateKeysHandling DuplicateKeysHandling,
-	allFileData ...fileData,
-) ([]ldstoretypes.Collection, error) {
-	all := map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor{
-		datakinds.Features: {},
-		datakinds.Segments: {},
-	}
-	for _, d := range allFileData {
-		if d.Flags != nil {
-			for key, f := range *d.Flags {
-				ff := f
-				data := ldstoretypes.ItemDescriptor{Version: f.Version, Item: &ff}
-				if err := insertData(all, datakinds.Features, key, data, duplicateKeysHandling); err != nil {
-					return nil, err
-				}
-			}
-		}
-		if d.FlagValues != nil {
-			for key, value := range *d.FlagValues {
-				flag := makeFlagWithValue(key, value)
-				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
-				if err := insertData(all, datakinds.Features, key, data, duplicateKeysHandling); err != nil {
-					return nil, err
-				}
-			}
-		}
-		if d.Segments != nil {
-			for key, s := range *d.Segments {
-				ss := s
-				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &ss}
-				if err := insertData(all, datakinds.Segments, key, data, duplicateKeysHandling); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-	ret := []ldstoretypes.Collection{}
-	for kind, itemsMap := range all {
-		items := make([]ldstoretypes.KeyedItemDescriptor, 0, len(itemsMap))
-		for k, v := range itemsMap {
-			items = append(items, ldstoretypes.KeyedItemDescriptor{Key: k, Item: v})
-		}
-		ret = append(ret, ldstoretypes.Collection{Kind: kind, Items: items})
-	}
-	return ret, nil
-}
-
-func makeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {
-	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(ldvalue.CopyArbitraryValue(v)).Build()
-	return &flag
-}
-
 // Close is called automatically when the client is closed.
 func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
-		if fs.closeReloaderCh != nil {
-			close(fs.closeReloaderCh)
-		}
+		close(fs.closeReloaderCh)
 	})
 	return nil
 }
