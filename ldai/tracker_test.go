@@ -55,7 +55,11 @@ func makeTrackData(configKey, variationKey string, version int, config *Config, 
 		Set("configKey", ldvalue.String(configKey)).
 		Set("version", ldvalue.Int(version)).
 		Set("providerName", ldvalue.String(config.ProviderName())).
-		Set("modelName", ldvalue.String(config.ModelName()))
+		Set("modelName", ldvalue.String(config.ModelName())).
+		Set("modelVersion", ldvalue.Int(config.ModelVersion()))
+	if config.ModelKey() != "" {
+		builder.Set("modelKey", ldvalue.String(config.ModelKey()))
+	}
 	if variationKey != "" {
 		builder.Set("variationKey", ldvalue.String(variationKey))
 	}
@@ -579,9 +583,14 @@ func TestTracker_ResumptionToken(t *testing.T) {
 		assert.Equal(t, 3, payload.Version)
 	})
 
-	t.Run("does not include modelName or providerName", func(t *testing.T) {
+	t.Run("does not include modelName, providerName, modelKey, or modelVersion", func(t *testing.T) {
 		events := newMockEvents()
-		config := NewConfig().WithModelName("gpt-4").WithProviderName("openai").Build()
+		config := NewConfig().
+			WithModelName("gpt-4").
+			WithProviderName("openai").
+			WithModelKey("my-model").
+			WithModelVersion(2).
+			Build()
 		tracker := newTracker(events, newRunID(), "key", "var", 1, ldcontext.New("key"), &config, nil)
 
 		token := tracker.ResumptionToken()
@@ -593,7 +602,61 @@ func TestTracker_ResumptionToken(t *testing.T) {
 
 		_, hasModel := raw["modelName"]
 		_, hasProvider := raw["providerName"]
+		_, hasModelKey := raw["modelKey"]
+		_, hasModelVersion := raw["modelVersion"]
 		assert.False(t, hasModel, "token should not contain modelName")
 		assert.False(t, hasProvider, "token should not contain providerName")
+		assert.False(t, hasModelKey, "token should not contain modelKey")
+		assert.False(t, hasModelVersion, "token should not contain modelVersion")
 	})
+}
+
+func TestTracker_TrackDataIncludesModelKeyAndVersion(t *testing.T) {
+	t.Run("includes modelKey and modelVersion when set on config", func(t *testing.T) {
+		events := newMockEvents()
+		config := NewConfig().
+			WithModelName("gpt-4").
+			WithModelKey("my-model").
+			WithModelVersion(2).
+			Build()
+		tracker := newTracker(events, newRunID(), "key", "var", 1, ldcontext.New("key"), &config, nil)
+		assert.NoError(t, tracker.TrackSuccess())
+
+		require.Len(t, events.events, 1)
+		data := events.events[0].data
+		assert.Equal(t, "my-model", data.GetByKey("modelKey").StringValue())
+		assert.Equal(t, 2, data.GetByKey("modelVersion").IntValue())
+	})
+
+	t.Run("omits modelKey when empty but still includes modelVersion", func(t *testing.T) {
+		events := newMockEvents()
+		config := NewConfig().WithModelName("gpt-4").Build()
+		tracker := newTracker(events, newRunID(), "key", "var", 1, ldcontext.New("key"), &config, nil)
+		assert.NoError(t, tracker.TrackSuccess())
+
+		require.Len(t, events.events, 1)
+		data := events.events[0].data
+		assert.False(t, data.GetByKey("modelKey").IsDefined())
+		assert.Equal(t, 1, data.GetByKey("modelVersion").IntValue())
+	})
+}
+
+func TestTrackerFromResumptionToken_ModelKeyAndVersionDefaults(t *testing.T) {
+	mockSDK := newMockSDK(nil, nil)
+	config := NewConfig().
+		WithModelName("gpt-4").
+		WithModelKey("my-model").
+		WithModelVersion(2).
+		Build()
+	tracker := newTracker(mockSDK, newRunID(), "key", "var", 1, ldcontext.New("key"), &config, mockSDK.log.Loggers)
+
+	token := tracker.ResumptionToken()
+	reconstructed, err := TrackerFromResumptionToken(token, mockSDK, ldcontext.New("key"))
+	require.NoError(t, err)
+	assert.NoError(t, reconstructed.TrackSuccess())
+
+	require.Len(t, mockSDK.events, 1)
+	data := mockSDK.events[0].data
+	assert.False(t, data.GetByKey("modelKey").IsDefined())
+	assert.Equal(t, 1, data.GetByKey("modelVersion").IntValue())
 }
