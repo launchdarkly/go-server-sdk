@@ -32,8 +32,9 @@ type fileDataSource struct {
 	// Close never races with Sync assigning it.
 	closeReloaderCh chan struct{}
 
-	closed atomic.Bool
-	quit   chan struct{}
+	closed      atomic.Bool
+	syncStarted atomic.Bool
+	quit        chan struct{}
 }
 
 func newFileDataSourceImpl(
@@ -87,6 +88,17 @@ func (fs *fileDataSource) Name() string {
 }
 
 func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
+	// Sync starts the reloader and the file watcher and registers listeners for this
+	// call's result loop, so it can run at most once: a repeat would accumulate another
+	// watcher and listener pair feeding nothing. The rejection channel is buffered so an
+	// unread rejection cannot block.
+	if fs.closed.Load() || !fs.syncStarted.CompareAndSwap(false, true) {
+		rejected := make(chan subsystems.DataSynchronizerResult, 1)
+		rejected <- subsystems.DataSynchronizerResult{State: interfaces.DataSourceStateOff}
+		close(rejected)
+		return rejected
+	}
+
 	resultChan := make(chan subsystems.DataSynchronizerResult)
 
 	changeSetChan := fs.changeSetBroadcaster.AddListener()
@@ -94,13 +106,6 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 
 	result := subsystems.DataSynchronizerResult{
 		State: interfaces.DataSourceStateInitializing,
-	}
-
-	if fs.closed.Load() {
-		result.State = interfaces.DataSourceStateOff
-		resultChan <- result
-		close(resultChan)
-		return resultChan
 	}
 
 	fs.reloader.ReloadNow()

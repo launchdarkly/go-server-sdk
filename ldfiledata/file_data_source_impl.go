@@ -126,6 +126,11 @@ func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 }
 
 // Close is called automatically when the client is closed.
+//
+// Close does not wait for an in-flight reload, so a late applyData/handleError can still
+// reach dataSourceUpdates after Close returns. That is safe today because the SDK's status
+// broadcaster serializes Broadcast against its own Close with a lock; if that Broadcaster
+// discipline ever changes, this ordering needs revisiting.
 func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
 		close(fs.closeReloaderCh)
