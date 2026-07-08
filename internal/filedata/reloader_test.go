@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,8 +102,10 @@ func TestReloaderReportsFailureAndRetainsNothing(t *testing.T) {
 }
 
 func TestReloaderDebounceCoalescesTriggers(t *testing.T) {
+	// The settle window is much longer than the whole trigger burst, so that a scheduling
+	// stall during the burst cannot let the debounce fire early and split the reloads.
 	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
-		cfg.DebounceDelay = 20 * time.Millisecond
+		cfg.DebounceDelay = 400 * time.Millisecond
 	})
 	f.write(t, `{"flagValues": {"flag1": false}}`)
 	for i := 0; i < 20; i++ {
@@ -112,6 +115,71 @@ func TestReloaderDebounceCoalescesTriggers(t *testing.T) {
 	f.requireApplied(t)
 	// All of the triggers, arriving within the settle window, coalesced into one reload.
 	f.requireQuiet(t, 100*time.Millisecond)
+}
+
+func TestReloaderReportsIdenticalFailureOnlyOnce(t *testing.T) {
+	logCapture := ldlogtest.NewMockLog()
+	f := newReloaderFixture(t, `{"flagValues"`, func(cfg *ReloaderConfig) {
+		cfg.RetryDelay = 10 * time.Millisecond
+		cfg.Loggers = logCapture.Loggers
+	})
+	f.reloader.ReloadNow()
+	f.requireErrored(t)
+
+	// The automatic retries keep failing identically; the error is neither re-reported to
+	// OnError nor re-logged at error level.
+	f.requireQuiet(t, 200*time.Millisecond)
+	assert.Len(t, logCapture.GetOutput(ldlog.Error), 1)
+
+	// A different failure is a new report.
+	f.write(t, `{"flagValues": {bad}}`)
+	err := f.requireErrored(t)
+	assert.Contains(t, err.Error(), "error parsing file")
+
+	// Success re-arms reporting: the same failure recurring afterward is reported again.
+	f.write(t, `{"flagValues": {"flag1": true}}`)
+	f.requireApplied(t)
+	f.write(t, `{"flagValues"`)
+	f.reloader.Trigger()
+	f.requireErrored(t)
+}
+
+func TestReloaderCloseDoesNotWaitForInFlightReload(t *testing.T) {
+	applyEntered := make(chan struct{})
+	applyRelease := make(chan struct{})
+	path := filepath.Join(t.TempDir(), "data.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"flagValues": {"flag1": true}}`), 0600))
+
+	r := NewReloader(ReloaderConfig{
+		Paths:                 []string{path},
+		DuplicateKeysHandling: DuplicateKeysFail,
+		Loggers:               ldlog.NewDisabledLoggers(),
+		Apply: func(MergeResult) {
+			close(applyEntered)
+			<-applyRelease
+		},
+	})
+	defer close(applyRelease)
+
+	r.Trigger()
+	select {
+	case <-applyEntered:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for the reload to start")
+	}
+
+	// The reload is parked inside Apply; Close must return anyway, because a reload wedged
+	// in blocking I/O must not be able to wedge shutdown.
+	closed := make(chan struct{})
+	go func() {
+		r.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "Close blocked on an in-flight reload")
+	}
 }
 
 func TestReloaderRetriesAfterFailureWithoutFurtherTriggers(t *testing.T) {

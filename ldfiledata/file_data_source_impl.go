@@ -50,20 +50,13 @@ func newFileDataSourceImpl(
 		closeReloaderCh:       make(chan struct{}),
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
-	return fs, nil
-}
-
-func (fs *fileDataSource) IsInitialized() bool {
-	return fs.isInitialized
-}
-
-func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
-	fs.readyCh = closeWhenReady
 
 	// Debouncing and automatic retries only matter when something can trigger further
-	// reloads; a source configured without a reloader loads exactly once.
+	// reloads; a source configured without a reloader loads exactly once. Like
+	// closeReloaderCh, the Reloader is created up front so that Close never races an
+	// assignment made in Start.
 	var debounceDelay, retryDelay time.Duration
-	if fs.reloaderFactory != nil {
+	if reloaderFactory != nil {
 		debounceDelay = filedata.DefaultDebounceDelay
 		retryDelay = filedata.DefaultRetryDelay
 	}
@@ -77,6 +70,15 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 		RetryDelay:            retryDelay,
 		SkipUnchanged:         true,
 	})
+	return fs, nil
+}
+
+func (fs *fileDataSource) IsInitialized() bool {
+	return fs.isInitialized
+}
+
+func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
+	fs.readyCh = closeWhenReady
 	fs.reloader.ReloadNow()
 
 	// If there is no reloader, then we signal readiness immediately regardless of whether the
@@ -127,9 +129,7 @@ func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
 		close(fs.closeReloaderCh)
-		if fs.reloader != nil {
-			fs.reloader.Close()
-		}
+		fs.reloader.Close()
 	})
 	return nil
 }
