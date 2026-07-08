@@ -59,6 +59,26 @@ func newFileDataSourceImpl(
 		quit:                  make(chan struct{}),
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
+
+	// Debouncing and automatic retries only matter when something can trigger further
+	// reloads; a source configured without a reloader loads exactly once. Like
+	// closeReloaderCh, the Reloader is created up front so that Close never races an
+	// assignment made in Sync, and a repeated Sync cannot orphan an earlier instance.
+	var debounceDelay, retryDelay time.Duration
+	if reloaderFactory != nil {
+		debounceDelay = filedata.DefaultDebounceDelay
+		retryDelay = filedata.DefaultRetryDelay
+	}
+	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
+		Paths:                 fs.absFilePaths,
+		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
+		Loggers:               fs.loggers,
+		Apply:                 fs.applyData,
+		OnError:               fs.handleError,
+		DebounceDelay:         debounceDelay,
+		RetryDelay:            retryDelay,
+		SkipUnchanged:         true,
+	})
 	return fs, nil
 }
 
@@ -83,23 +103,6 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 		return resultChan
 	}
 
-	// Debouncing and automatic retries only matter when something can trigger further
-	// reloads; a source configured without a reloader loads exactly once.
-	var debounceDelay, retryDelay time.Duration
-	if fs.reloaderFactory != nil {
-		debounceDelay = filedata.DefaultDebounceDelay
-		retryDelay = filedata.DefaultRetryDelay
-	}
-	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
-		Paths:                 fs.absFilePaths,
-		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
-		Loggers:               fs.loggers,
-		Apply:                 fs.applyData,
-		OnError:               fs.handleError,
-		DebounceDelay:         debounceDelay,
-		RetryDelay:            retryDelay,
-		SkipUnchanged:         true,
-	})
 	fs.reloader.ReloadNow()
 
 	if fs.reloaderFactory != nil {
@@ -234,9 +237,7 @@ func (fs *fileDataSource) Close() (err error) {
 	if swapped := fs.closed.CompareAndSwap(false, true); swapped {
 		close(fs.quit)
 		close(fs.closeReloaderCh)
-		if fs.reloader != nil {
-			fs.reloader.Close()
-		}
+		fs.reloader.Close()
 		return nil // already closed
 	}
 

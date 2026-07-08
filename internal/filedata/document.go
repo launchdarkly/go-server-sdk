@@ -44,9 +44,13 @@ func (e *ReadError) Unwrap() error {
 func ReadFile(path string) (Document, error) {
 	rawData, err := os.ReadFile(path) //nolint:gosec // G304: ok to read file into variable
 	if err != nil {
-		return Document{}, fmt.Errorf("unable to read file: %s", err)
+		return Document{}, wrapReadError(err)
 	}
 	return parseDocument(rawData)
+}
+
+func wrapReadError(err error) error {
+	return fmt.Errorf("unable to read file: %s", err)
 }
 
 func parseDocument(rawData []byte) (Document, error) {
