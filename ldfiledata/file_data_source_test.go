@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
@@ -252,4 +253,30 @@ func requireSegment(t *testing.T, store subsystems.DataStore, key string) *ldmod
 	require.NoError(t, err)
 	require.NotNil(t, item.Item)
 	return item.Item.(*ldmodel.Segment)
+}
+
+func TestCloseStopsReloader(t *testing.T) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		reloaderCloseCh := make(chan (<-chan struct{}), 1)
+		f := func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
+			reloaderCloseCh <- closeCh
+			return nil
+		}
+
+		factory := DataSource().FilePaths(filename).Reloader(f)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+
+			closeCh := <-reloaderCloseCh
+			assert.NoError(t, p.dataSource.Close())
+
+			// The channel given to the reloader must be closed, so that whatever goroutines the
+			// reloader started can terminate.
+			select {
+			case <-closeCh:
+			case <-time.After(time.Second):
+				assert.Fail(t, "reloader close channel was not closed by Close()")
+			}
+		})
+	})
 }

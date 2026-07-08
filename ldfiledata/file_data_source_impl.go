@@ -23,7 +23,9 @@ type fileDataSource struct {
 	readyCh               chan<- struct{}
 	readyOnce             sync.Once
 	closeOnce             sync.Once
-	closeReloaderCh       chan struct{}
+	// closeReloaderCh is created up front rather than when the reloader starts, so that
+	// Close never races with Start assigning it.
+	closeReloaderCh chan struct{}
 }
 
 func newFileDataSourceImpl(
@@ -45,6 +47,7 @@ func newFileDataSourceImpl(
 		duplicateKeysHandling: duplicateKeysHandling,
 		reloaderFactory:       reloaderFactory,
 		loggers:               context.GetLogging().Loggers,
+		closeReloaderCh:       make(chan struct{}),
 	}
 	fs.loggers.SetPrefix("FileDataSource:")
 	return fs, nil
@@ -85,7 +88,6 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 
 	// If there is a reloader, and if we haven't yet successfully loaded data, then the
 	// readiness signal will happen the first time we do get valid data (in applyData).
-	fs.closeReloaderCh = make(chan struct{})
 	err := fs.reloaderFactory(fs.absFilePaths, fs.loggers, fs.reloader.Trigger, fs.closeReloaderCh)
 	if err != nil {
 		fs.loggers.Errorf("Unable to start reloader: %s\n", err)
@@ -124,9 +126,7 @@ func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 // Close is called automatically when the client is closed.
 func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
-		if fs.closeReloaderCh != nil {
-			close(fs.closeReloaderCh)
-		}
+		close(fs.closeReloaderCh)
 		if fs.reloader != nil {
 			fs.reloader.Close()
 		}

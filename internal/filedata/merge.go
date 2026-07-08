@@ -21,9 +21,13 @@ const (
 	DuplicateKeysIgnoreAllButFirst DuplicateKeysHandling = "ignore"
 )
 
-// MergeResult holds the merged items from one or more documents. Items appear in the order
-// they were first encountered, processing documents in the order they were given. Item
-// values are *ldmodel.FeatureFlag or *ldmodel.Segment.
+// MergeResult holds the merged items from one or more documents. Item values are
+// *ldmodel.FeatureFlag or *ldmodel.Segment.
+//
+// Ordering is deterministic at document granularity only: all of one document's items
+// precede the next document's, matching the order the documents were given, but the
+// relative order of items within a single document is unspecified. Consumers key items by
+// their Key and must not rely on within-document ordering.
 type MergeResult struct {
 	Flags    []ldstoretypes.KeyedItemDescriptor
 	Segments []ldstoretypes.KeyedItemDescriptor
