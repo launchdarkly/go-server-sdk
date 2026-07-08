@@ -105,11 +105,11 @@ func TestReloaderReportsFailureAndRetainsNothing(t *testing.T) {
 func TestReloaderDebounceCoalescesTriggers(t *testing.T) {
 	// The settle window is much longer than the whole trigger burst, so that a scheduling
 	// stall during the burst cannot let the debounce fire early and split the reloads.
-	// SkipUnchanged matches production configs and absorbs the one extra serialized reload
-	// that a debounce tick racing a fresh trigger can legitimately produce.
+	// SkipUnchanged stays off so that every reload is observable as an Apply: with it on,
+	// identical file contents would collapse even a completely broken debounce into a
+	// single Apply and the test would prove nothing.
 	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
 		cfg.DebounceDelay = 400 * time.Millisecond
-		cfg.SkipUnchanged = true
 	})
 	f.write(t, `{"flagValues": {"flag1": false}}`)
 	for i := 0; i < 20; i++ {
@@ -117,8 +117,20 @@ func TestReloaderDebounceCoalescesTriggers(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	f.requireApplied(t)
-	// All of the triggers, arriving within the settle window, coalesced into one reload.
-	f.requireQuiet(t, 100*time.Millisecond)
+	// The burst must coalesce into one reload, with a tolerance of one more: a debounce
+	// tick racing a fresh trigger can legitimately produce a single extra serialized
+	// reload, but anything beyond that means triggers are not being coalesced.
+	extraApplies := 0
+	deadline := time.After(600 * time.Millisecond)
+	for done := false; !done; {
+		select {
+		case <-f.applied:
+			extraApplies++
+		case <-deadline:
+			done = true
+		}
+	}
+	assert.LessOrEqual(t, extraApplies, 1, "trigger burst was not coalesced")
 }
 
 func TestReloaderReportsIdenticalFailureOnlyOnce(t *testing.T) {
