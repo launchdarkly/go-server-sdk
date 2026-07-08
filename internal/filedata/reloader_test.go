@@ -3,6 +3,7 @@ package filedata
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -144,11 +145,32 @@ func TestReloaderReportsIdenticalFailureOnlyOnce(t *testing.T) {
 	f.requireErrored(t)
 }
 
+func TestReloaderUnusedSpawnsNoGoroutine(t *testing.T) {
+	// A Reloader can be constructed by a component whose lifecycle never uses or closes it,
+	// such as a file data source built as a one-shot initializer, so construction alone
+	// must not start the worker goroutine.
+	runtime.GC()
+	before := runtime.NumGoroutine()
+	path := filepath.Join(t.TempDir(), "data.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{}`), 0600))
+	for range 50 {
+		NewReloader(ReloaderConfig{
+			Paths:                 []string{path},
+			DuplicateKeysHandling: DuplicateKeysFail,
+			Loggers:               ldlog.NewDisabledLoggers(),
+			Apply:                 func(MergeResult) {},
+		})
+	}
+	assert.LessOrEqual(t, runtime.NumGoroutine(), before+2,
+		"constructing unused Reloaders must not accumulate goroutines")
+}
+
 func TestReloaderCloseDoesNotWaitForInFlightReload(t *testing.T) {
 	applyEntered := make(chan struct{})
 	applyRelease := make(chan struct{})
 	path := filepath.Join(t.TempDir(), "data.json")
 	require.NoError(t, os.WriteFile(path, []byte(`{"flagValues": {"flag1": true}}`), 0600))
+	goroutinesBefore := runtime.NumGoroutine()
 
 	r := NewReloader(ReloaderConfig{
 		Paths:                 []string{path},
@@ -159,7 +181,6 @@ func TestReloaderCloseDoesNotWaitForInFlightReload(t *testing.T) {
 			<-applyRelease
 		},
 	})
-	defer close(applyRelease)
 
 	r.Trigger()
 	select {
@@ -179,6 +200,18 @@ func TestReloaderCloseDoesNotWaitForInFlightReload(t *testing.T) {
 	case <-closed:
 	case <-time.After(testTimeout):
 		require.FailNow(t, "Close blocked on an in-flight reload")
+	}
+
+	// Once the parked reload is released, the worker goroutine terminates rather than
+	// lingering past Close. Polled inline: spawning goroutines to poll would disturb the
+	// count being measured.
+	close(applyRelease)
+	deadline := time.Now().Add(testTimeout)
+	for runtime.NumGoroutine() > goroutinesBefore+1 {
+		if time.Now().After(deadline) {
+			require.FailNow(t, "worker goroutine did not exit after Close")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

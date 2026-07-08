@@ -66,6 +66,7 @@ type Reloader struct {
 	retryRequestCh chan struct{}
 	closeCh        chan struct{}
 	closeOnce      sync.Once
+	startOnce      sync.Once
 
 	// reloadMu serializes the actual load work between ReloadNow and the run goroutine.
 	reloadMu     sync.Mutex
@@ -73,23 +74,36 @@ type Reloader struct {
 	lastErrorMsg string
 }
 
-// NewReloader creates a started Reloader. The caller should perform the initial load with
+// NewReloader creates a Reloader. The caller should perform the initial load with
 // ReloadNow, route change signals to Trigger, and call Close when finished.
+//
+// The worker goroutine starts on the first ReloadNow or Trigger call rather than here:
+// a Reloader can be constructed by a component whose lifecycle never uses it (a file data
+// source built as a one-shot initializer, whose interface has no Close), and construction
+// alone must not leak a goroutine.
 func NewReloader(cfg ReloaderConfig) *Reloader {
-	r := &Reloader{
+	return &Reloader{
 		cfg:            cfg,
 		triggerCh:      make(chan struct{}, 1),
 		retryRequestCh: make(chan struct{}, 1),
 		closeCh:        make(chan struct{}),
 	}
-	go r.run()
-	return r
+}
+
+func (r *Reloader) ensureStarted() {
+	if r.isClosed() {
+		return
+	}
+	r.startOnce.Do(func() {
+		go r.run()
+	})
 }
 
 // ReloadNow synchronously loads the files and applies the result (or reports the failure).
 // It is used for the initial load; a failure here schedules the same automatic retry as a
 // failed triggered reload.
 func (r *Reloader) ReloadNow() {
+	r.ensureStarted()
 	if !r.reload() && r.cfg.RetryDelay > 0 {
 		select {
 		case r.retryRequestCh <- struct{}{}:
@@ -102,6 +116,7 @@ func (r *Reloader) ReloadNow() {
 // debounce delay. It never blocks; signals arriving while a reload is already pending are
 // coalesced.
 func (r *Reloader) Trigger() {
+	r.ensureStarted()
 	select {
 	case r.triggerCh <- struct{}{}:
 	default:

@@ -3,6 +3,7 @@ package ldfiledatav2
 import (
 	"context"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -351,5 +352,23 @@ func TestCloseStopsReloader(t *testing.T) {
 		case <-time.After(time.Second):
 			assert.Fail(t, "reloader close channel was not closed by Close()")
 		}
+	})
+}
+
+func TestInitializerBuildAndFetchLeaksNoGoroutines(t *testing.T) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		goroutinesBefore := runtime.NumGoroutine()
+
+		// A DataInitializer has no Close and the data system never tears one down, so
+		// building and fetching must not start anything that outlives the calls.
+		for i := 0; i < 20; i++ {
+			initializer, err := DataSource().FilePaths(filename).AsInitializer().Build(subsystems.BasicClientContext{})
+			assert.NoError(t, err)
+			_, _, err = initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
+			assert.NoError(t, err)
+		}
+
+		assert.LessOrEqual(t, runtime.NumGoroutine(), goroutinesBefore+2,
+			"initializer builds must not accumulate goroutines")
 	})
 }
