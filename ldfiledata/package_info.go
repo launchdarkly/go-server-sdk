@@ -43,7 +43,7 @@
 //	  "segments": {
 //	    "segment-key-1": {
 //	      "key": "segment-key-1",
-//	      "includes": [ "user-key-1" ]
+//	      "included": [ "user-key-1" ]
 //	    }
 //	  }
 //	}
