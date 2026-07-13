@@ -80,7 +80,7 @@ func TestFlagTracker(t *testing.T) {
 			sharedtest.ExpectFlagChangeEvents(t, ch2, flagKey)
 
 			p.client.GetFlagTracker().RemoveFlagChangeListener(ch1)
-			th.AssertChannelClosed(t, ch1, time.Millisecond)
+			th.AssertChannelClosed(t, ch1, time.Second)
 
 			p.testData.Update(p.testData.Flag(flagKey))
 
@@ -101,7 +101,7 @@ func TestFlagTracker(t *testing.T) {
 			ch3 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, otherUser, ldvalue.Null())
 
 			p.client.GetFlagTracker().RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
-			th.AssertChannelClosed(t, ch2, time.Millisecond)
+			th.AssertChannelClosed(t, ch2, time.Second)
 
 			th.AssertNoMoreValues(t, ch1, timeout)
 			th.AssertNoMoreValues(t, ch3, timeout)

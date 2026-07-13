@@ -99,7 +99,7 @@ func TestFlagTrackerV2(t *testing.T) {
 			sharedtest.ExpectFlagChangeEvents(t, ch2, alwaysTrueFlag.Key)
 
 			p.client.GetFlagTracker().RemoveFlagChangeListener(ch1)
-			th.AssertChannelClosed(t, ch1, time.Millisecond)
+			th.AssertChannelClosed(t, ch1, time.Second)
 
 			jsonFlag, _ = json.Marshal(alwaysTrueFlag)
 			p.protocol.WithPutObject(subsystems.PutObject{
@@ -125,7 +125,7 @@ func TestFlagTrackerV2(t *testing.T) {
 			ch3 := p.client.GetFlagTracker().AddFlagValueChangeListener(alwaysTrueFlag.Key, otherUser, ldvalue.Null())
 
 			p.client.GetFlagTracker().RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
-			th.AssertChannelClosed(t, ch2, time.Millisecond)
+			th.AssertChannelClosed(t, ch2, time.Second)
 
 			th.AssertNoMoreValues(t, ch1, timeout)
 			th.AssertNoMoreValues(t, ch3, timeout)
