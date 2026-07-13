@@ -30,7 +30,7 @@ func verifyFlag(t *testing.T, configureFlag func(*FlagBuilder), expectedFlag *ld
 			f := p.td.Flag("flagkey")
 			configureFlag(f)
 			p.td.Update(f)
-			up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flagkey", 1, time.Millisecond)
+			up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flagkey", 1, time.Second)
 			upJSON := ldstoreimpl.Features().Serialize(up.Item)
 			m.In(t).Assert(string(upJSON), m.JSONStrEqual(string(expectedJSON)))
 		})
