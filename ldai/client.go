@@ -156,15 +156,15 @@ func (c *Client) evaluateConfig(
 
 	builder := NewConfig().
 		WithModelName(parsed.Model.Name).
-		WithModelKey(parsed.Model.Key).
+		WithModelKey(parsed.Meta.ModelKey).
 		WithProviderName(parsed.Provider.Name).
 		WithEnabled(parsed.Meta.Enabled).
 		WithMode(parsed.Mode).
 		WithEvaluationMetricKey(parsed.EvaluationMetricKey).
 		WithEvaluationMetricKeys(parsed.EvaluationMetricKeys).
 		WithJudgeConfiguration(parsed.JudgeConfiguration)
-	if parsed.Model.Version != nil {
-		builder.WithModelVersion(*parsed.Model.Version)
+	if parsed.Meta.ModelVersion != nil {
+		builder.WithModelVersion(*parsed.Meta.ModelVersion)
 	}
 
 	for k, v := range parsed.Model.Parameters {

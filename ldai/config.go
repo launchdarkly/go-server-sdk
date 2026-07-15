@@ -52,15 +52,15 @@ func (c *Config) ModelName() string {
 // ModelKey returns the stable, unique key of the model (used for direct lookup; distinct from
 // ModelName, which is not guaranteed unique).
 func (c *Config) ModelKey() string {
-	return c.c.Model.Key
+	return c.c.Meta.ModelKey
 }
 
 // ModelVersion returns the pinned version of the model that this config variation references.
 func (c *Config) ModelVersion() int {
-	if c.c.Model.Version == nil {
+	if c.c.Meta.ModelVersion == nil {
 		return 1
 	}
-	return *c.c.Model.Version
+	return *c.c.Meta.ModelVersion
 }
 
 // ModelParam returns the model parameter named by key. The second parameter is true if the key exists.
@@ -259,12 +259,12 @@ func (cb *ConfigBuilder) Build() Config {
 		c: datamodel.Config{
 			Messages: slices.Clone(cb.messages),
 			Meta: datamodel.Meta{
-				Enabled: cb.enabled,
+				Enabled:      cb.enabled,
+				ModelKey:     cb.modelKey,
+				ModelVersion: cb.modelVersion,
 			},
 			Model: datamodel.Model{
 				Name:       cb.modelName,
-				Key:        cb.modelKey,
-				Version:    cb.modelVersion,
 				Parameters: maps.Clone(cb.modelParams),
 				Custom:     maps.Clone(cb.modelCustomParams),
 			},

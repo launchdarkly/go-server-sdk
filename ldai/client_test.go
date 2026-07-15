@@ -165,13 +165,13 @@ func TestParseModelKeyAndVersion(t *testing.T) {
 		},
 		{
 			name:            "modelKey and modelVersion set",
-			json:            []byte(`{"model": {"name": "gpt-4", "modelKey": "my-model", "modelVersion": 2}}`),
+			json:            []byte(`{"model": {"name": "gpt-4"}, "_ldMeta": {"modelKey": "my-model", "modelVersion": 2}}`),
 			expectedKey:     "my-model",
 			expectedVersion: 2,
 		},
 		{
 			name:            "modelVersion only",
-			json:            []byte(`{"model": {"name": "gpt-4", "modelVersion": 3}}`),
+			json:            []byte(`{"model": {"name": "gpt-4"}, "_ldMeta": {"modelVersion": 3}}`),
 			expectedKey:     "",
 			expectedVersion: 3,
 		},
@@ -194,8 +194,8 @@ func TestParseModelKeyAndVersion(t *testing.T) {
 
 func TestCreateTrackerStampsModelKeyAndVersionOnTrackData(t *testing.T) {
 	configJSON := []byte(`{
-		"_ldMeta": {"variationKey": "var-1", "enabled": true, "version": 1},
-		"model": {"name": "gpt-4", "modelKey": "my-model", "modelVersion": 2},
+		"_ldMeta": {"variationKey": "var-1", "enabled": true, "version": 1, "modelKey": "my-model", "modelVersion": 2},
+		"model": {"name": "gpt-4"},
 		"provider": {"name": "openai"},
 		"messages": [{"content": "hello", "role": "user"}]
 	}`)

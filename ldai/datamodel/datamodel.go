@@ -12,18 +12,18 @@ type Meta struct {
 
 	// Version is the version of the Variation.
 	Version *int `json:"version,omitempty"`
+
+	// ModelKey is the model's stable, unique key (distinct from Model.Name, which is not guaranteed unique).
+	ModelKey string `json:"modelKey,omitempty"`
+
+	// ModelVersion is the pinned version of the model that the variation references.
+	ModelVersion *int `json:"modelVersion,omitempty"`
 }
 
 // Model defines the serialization format for a model.
 type Model struct {
 	// Name identifies the model.
 	Name string `json:"name"`
-
-	// Key is the model's stable, unique key (distinct from Name, which is not guaranteed unique).
-	Key string `json:"modelKey,omitempty"`
-
-	// Version is the pinned version of the model that the variation references.
-	Version *int `json:"modelVersion,omitempty"`
 
 	// Parameters are the model parameters, generally provided by LaunchDarkly.
 	Parameters map[string]ldvalue.Value `json:"parameters,omitempty"`
