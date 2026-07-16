@@ -36,6 +36,7 @@ bump-min-go-version:
 	go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd ldotel && go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd ldai && go mod edit -go=$(MIN_GO_VERSION) go.mod
+	cd ldmiddleware && go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd testservice && go mod edit -go=$(MIN_GO_VERSION) go.mod
 	cd ./.github/variables && sed -i.bak "s#min=[^ ]*#min=$(MIN_GO_VERSION)#g" go-versions.env && rm go-versions.env.bak
 

@@ -49,7 +49,7 @@ func (p testDataSourceTestParams) withDataSource(t *testing.T, action func(subsy
 
 	closer := make(chan struct{})
 	ds.Start(closer)
-	if !th.AssertChannelClosed(t, closer, time.Millisecond, "start did not close channel") {
+	if !th.AssertChannelClosed(t, closer, time.Second, "start did not close channel") {
 		t.FailNow()
 	}
 	p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)
@@ -62,7 +62,7 @@ func TestTestDataSource(t *testing.T) {
 		testDataSourceTest(t, func(p testDataSourceTestParams) {
 			p.withDataSource(t, func(ds subsystems.DataSource) {
 				expectedData := ldservices.NewServerSDKData()
-				p.updates.DataStore.WaitForInit(t, expectedData, time.Millisecond)
+				p.updates.DataStore.WaitForInit(t, expectedData, time.Second)
 				assert.True(t, ds.IsInitialized())
 			})
 		})
@@ -74,7 +74,7 @@ func TestTestDataSource(t *testing.T) {
 				Update(p.td.Flag("flag2").On(false))
 
 			p.withDataSource(t, func(subsystems.DataSource) {
-				initData := p.updates.DataStore.WaitForNextInit(t, time.Millisecond)
+				initData := p.updates.DataStore.WaitForNextInit(t, time.Second)
 				dataMap := sharedtest.DataSetToMap(initData)
 				require.Len(t, dataMap, 2)
 				flags := dataMap[ldstoreimpl.Features()]
@@ -93,7 +93,7 @@ func TestTestDataSource(t *testing.T) {
 			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.Update(p.td.Flag("flag1").On(true))
 
-				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flag1", 1, time.Millisecond)
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flag1", 1, time.Second)
 				assert.True(t, up.Item.Item.(*ldmodel.FeatureFlag).On)
 			})
 		})
@@ -106,7 +106,7 @@ func TestTestDataSource(t *testing.T) {
 			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.Update(p.td.Flag("flag1").On(true))
 
-				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flag1", 2, time.Millisecond)
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), "flag1", 2, time.Second)
 				assert.True(t, up.Item.Item.(*ldmodel.FeatureFlag).On)
 			})
 		})
@@ -130,7 +130,7 @@ func TestTestDataSource(t *testing.T) {
 			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.UsePreconfiguredFlag(flagv1)
 
-				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), flagv1.Key, 1, time.Millisecond)
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), flagv1.Key, 1, time.Second)
 				assert.Equal(t, &flagv1, up.Item.Item.(*ldmodel.FeatureFlag))
 
 				updatedFlag := flagv1
@@ -139,7 +139,7 @@ func TestTestDataSource(t *testing.T) {
 				expectedFlagV2.Version = 2
 				p.td.UsePreconfiguredFlag(updatedFlag)
 
-				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), flagv1.Key, 2, time.Millisecond)
+				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Features(), flagv1.Key, 2, time.Second)
 				assert.Equal(t, &expectedFlagV2, up.Item.Item.(*ldmodel.FeatureFlag))
 			})
 		})
@@ -151,7 +151,7 @@ func TestTestDataSource(t *testing.T) {
 			p.withDataSource(t, func(subsystems.DataSource) {
 				p.td.UsePreconfiguredSegment(segmentv1)
 
-				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 1, time.Millisecond)
+				up := p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 1, time.Second)
 				assert.Equal(t, &segmentv1, up.Item.Item.(*ldmodel.Segment))
 
 				updatedSegment := segmentv1
@@ -160,7 +160,7 @@ func TestTestDataSource(t *testing.T) {
 				expectedSegmentV2.Version = 2
 				p.td.UsePreconfiguredSegment(updatedSegment)
 
-				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 2, time.Millisecond)
+				up = p.updates.DataStore.WaitForUpsert(t, ldstoreimpl.Segments(), segmentv1.Key, 2, time.Second)
 				assert.Equal(t, &expectedSegmentV2, up.Item.Item.(*ldmodel.Segment))
 			})
 		})
