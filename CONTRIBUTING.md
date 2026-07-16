@@ -23,8 +23,8 @@ The SDK is tested against three Go versions: the latest, penultimate, and a mini
 Whereas the latest and penultimate are updates on a regular cadence to track upstream Go releases, the minimum version
 may be bumped at the discretion of the SDK maintainers to take advantage of new features.
 
-Invoke the following make command, which will update `go.mod`, `ldotel/go.mod`, `ldai/go.mod`, `testservice/go.mod`, and 
-`.github/variables/go-versions.env` (pass the desired Go version):
+Invoke the following make command, which will update `go.mod`, `ldotel/go.mod`, `ldai/go.mod`, `ldmiddleware/go.mod`,
+`testservice/go.mod`, and `.github/variables/go-versions.env` (pass the desired Go version):
 ```shell
 make bump-min-go-version MIN_GO_VERSION=1.18
 ```
