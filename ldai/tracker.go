@@ -174,11 +174,14 @@ func newTracker(
 	key string,
 	variationKey string,
 	version int,
+	modelKey string,
+	modelVersion int,
 	ctx ldcontext.Context,
 	config *Config,
 	loggers interfaces.LDLoggers,
 ) *Tracker {
-	return newTrackerWithStopwatch(events, runID, key, variationKey, version, ctx, config, loggers, &defaultStopwatch{})
+	return newTrackerWithStopwatch(
+		events, runID, key, variationKey, version, modelKey, modelVersion, ctx, config, loggers, &defaultStopwatch{})
 }
 
 // newTrackerWithStopwatch creates a new Tracker with the specified runID, key, event sink, config, context, loggers,
@@ -189,6 +192,8 @@ func newTrackerWithStopwatch(
 	key string,
 	variationKey string,
 	version int,
+	modelKey string,
+	modelVersion int,
 	ctx ldcontext.Context,
 	config *Config,
 	loggers interfaces.LDLoggers,
@@ -204,9 +209,9 @@ func newTrackerWithStopwatch(
 		Set("version", ldvalue.Int(version)).
 		Set("providerName", ldvalue.String(config.ProviderName())).
 		Set("modelName", ldvalue.String(config.ModelName())).
-		Set("modelVersion", ldvalue.Int(config.ModelVersion()))
-	if config.ModelKey() != "" {
-		builder.Set("modelKey", ldvalue.String(config.ModelKey()))
+		Set("modelVersion", ldvalue.Int(modelVersion))
+	if modelKey != "" {
+		builder.Set("modelKey", ldvalue.String(modelKey))
 	}
 	if variationKey != "" {
 		builder.Set("variationKey", ldvalue.String(variationKey))

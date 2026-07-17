@@ -151,6 +151,9 @@ func TestParseModelName(t *testing.T) {
 }
 
 func TestParseModelKeyAndVersion(t *testing.T) {
+	// modelKey/modelVersion are intentionally not exposed on Config (they'd read as properties of
+	// the LLM itself, e.g. a version like "5.4"); the only place they surface is the tracker's
+	// stamped event data, mirroring variationKey/version.
 	tests := []struct {
 		name            string
 		json            []byte
@@ -179,15 +182,22 @@ func TestParseModelKeyAndVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client, err := NewClient(newMockSDK(test.json, nil))
+			mockSDK := newMockSDK(test.json, nil)
+			client, err := NewClient(mockSDK)
 			require.NoError(t, err)
 			require.NotNil(t, client)
+			mockSDK.events = nil
 
 			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
 			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
+			tracker := cfg.CreateTracker()
+			require.NotNil(t, tracker)
+			assert.NoError(t, tracker.TrackSuccess())
 
-			assert.Equal(t, test.expectedKey, cfg.ModelKey())
-			assert.Equal(t, test.expectedVersion, cfg.ModelVersion())
+			require.NotEmpty(t, mockSDK.events)
+			data := mockSDK.events[len(mockSDK.events)-1].data
+			assert.Equal(t, test.expectedKey, data.GetByKey("modelKey").StringValue())
+			assert.Equal(t, test.expectedVersion, data.GetByKey("modelVersion").IntValue())
 		})
 	}
 }

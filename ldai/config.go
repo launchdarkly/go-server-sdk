@@ -49,20 +49,6 @@ func (c *Config) ModelName() string {
 	return c.c.Model.Name
 }
 
-// ModelKey returns the stable, unique key of the model (used for direct lookup; distinct from
-// ModelName, which is not guaranteed unique).
-func (c *Config) ModelKey() string {
-	return c.c.Meta.ModelKey
-}
-
-// ModelVersion returns the pinned version of the model that this config variation references.
-func (c *Config) ModelVersion() int {
-	if c.c.Meta.ModelVersion == nil {
-		return 1
-	}
-	return *c.c.Meta.ModelVersion
-}
-
 // ModelParam returns the model parameter named by key. The second parameter is true if the key exists.
 func (c *Config) ModelParam(key string) (ldvalue.Value, bool) {
 	val, ok := c.c.Model.Parameters[key]
@@ -127,8 +113,6 @@ type ConfigBuilder struct {
 	enabled              bool
 	providerName         string
 	modelName            string
-	modelKey             string
-	modelVersion         *int
 	modelParams          map[string]ldvalue.Value
 	modelCustomParams    map[string]ldvalue.Value
 	mode                 string
@@ -178,18 +162,6 @@ func (cb *ConfigBuilder) Disable() *ConfigBuilder {
 // WithModelName sets the model name associated with the config.
 func (cb *ConfigBuilder) WithModelName(modelName string) *ConfigBuilder {
 	cb.modelName = modelName
-	return cb
-}
-
-// WithModelKey sets the stable, unique key of the model associated with the config.
-func (cb *ConfigBuilder) WithModelKey(modelKey string) *ConfigBuilder {
-	cb.modelKey = modelKey
-	return cb
-}
-
-// WithModelVersion sets the pinned version of the model associated with the config.
-func (cb *ConfigBuilder) WithModelVersion(modelVersion int) *ConfigBuilder {
-	cb.modelVersion = &modelVersion
 	return cb
 }
 
@@ -259,9 +231,7 @@ func (cb *ConfigBuilder) Build() Config {
 		c: datamodel.Config{
 			Messages: slices.Clone(cb.messages),
 			Meta: datamodel.Meta{
-				Enabled:      cb.enabled,
-				ModelKey:     cb.modelKey,
-				ModelVersion: cb.modelVersion,
+				Enabled: cb.enabled,
 			},
 			Model: datamodel.Model{
 				Name:       cb.modelName,

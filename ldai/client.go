@@ -114,7 +114,7 @@ func (c *Client) CreateTracker(token string, context ldcontext.Context) (*Tracke
 // returns the resulting Config. Used for all error-path returns in evaluateConfig.
 func (c *Client) returnDefault(key string, context ldcontext.Context, def Config) Config {
 	def.trackerFactory = func() *Tracker {
-		return newTracker(c.sdk, newRunID(), key, "", 1, context, &def, c.logger)
+		return newTracker(c.sdk, newRunID(), key, "", 1, "", 1, context, &def, c.logger)
 	}
 	return def
 }
@@ -156,16 +156,12 @@ func (c *Client) evaluateConfig(
 
 	builder := NewConfig().
 		WithModelName(parsed.Model.Name).
-		WithModelKey(parsed.Meta.ModelKey).
 		WithProviderName(parsed.Provider.Name).
 		WithEnabled(parsed.Meta.Enabled).
 		WithMode(parsed.Mode).
 		WithEvaluationMetricKey(parsed.EvaluationMetricKey).
 		WithEvaluationMetricKeys(parsed.EvaluationMetricKeys).
 		WithJudgeConfiguration(parsed.JudgeConfiguration)
-	if parsed.Meta.ModelVersion != nil {
-		builder.WithModelVersion(*parsed.Meta.ModelVersion)
-	}
 
 	for k, v := range parsed.Model.Parameters {
 		builder.WithModelParam(k, v)
@@ -193,9 +189,15 @@ func (c *Client) evaluateConfig(
 		version = *parsed.Meta.Version
 	}
 
+	modelVersion := 1
+	if parsed.Meta.ModelVersion != nil {
+		modelVersion = *parsed.Meta.ModelVersion
+	}
+
 	variationKey := parsed.Meta.VariationKey
+	modelKey := parsed.Meta.ModelKey
 	cfg.trackerFactory = func() *Tracker {
-		return newTracker(c.sdk, newRunID(), key, variationKey, version, context, &cfg, c.logger)
+		return newTracker(c.sdk, newRunID(), key, variationKey, version, modelKey, modelVersion, context, &cfg, c.logger)
 	}
 
 	return cfg
