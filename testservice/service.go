@@ -44,6 +44,7 @@ var capabilities = []string{
 	servicedef.CapabilityOmitAnonymousContexts,
 	servicedef.CapabilityEventGzip,
 	servicedef.CapabilityOptionalEventGzip,
+	servicedef.CapabilityPollingGzip,
 	servicedef.CapabilityClientPrereqEvents,
 	servicedef.CapabilityPersistentDataStoreRedis,
 	servicedef.CapabilityPersistentDataStoreConsul,

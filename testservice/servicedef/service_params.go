@@ -25,6 +25,7 @@ const (
 	CapabilityOmitAnonymousContexts       = "omit-anonymous-contexts"
 	CapabilityEventGzip                   = "event-gzip"
 	CapabilityOptionalEventGzip           = "optional-event-gzip"
+	CapabilityPollingGzip                 = "polling-gzip"
 	CapabilityClientPrereqEvents          = "client-prereq-events"
 	CapabilityPersistentDataStoreRedis    = "persistent-data-store-redis"
 	CapabilityPersistentDataStoreConsul   = "persistent-data-store-consul"
