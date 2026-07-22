@@ -90,6 +90,9 @@ func NewReloader(cfg ReloaderConfig) *Reloader {
 	}
 }
 
+// ensureStarted starts the worker goroutine on first use. The worker may not yet be
+// executing when this returns; that is fine, because the signal channels are buffered and
+// hold any signal until its select loop comes up.
 func (r *Reloader) ensureStarted() {
 	if r.isClosed() {
 		return
@@ -201,9 +204,11 @@ func (r *Reloader) run() {
 	}
 }
 
-// reload performs one full load of all configured files, returning true on success (including
-// a skipped no-op application). The whole set is re-read on every reload: entries are combined
-// across files in order, so a change to one file can alter which file wins for a key.
+// reload performs one full load of all configured files. It reports whether the load
+// succeeded, which is what decides whether a retry gets armed — so a skipped no-op
+// application counts as success. The whole set is re-read on every reload: entries are
+// combined across files in order, so a change to one file can alter which file wins for
+// a key.
 func (r *Reloader) reload() bool {
 	r.reloadMu.Lock()
 	defer r.reloadMu.Unlock()
@@ -217,6 +222,8 @@ func (r *Reloader) reload() bool {
 	docs := make([]Document, 0, len(r.cfg.Paths))
 	hasher := sha256.New()
 	for _, path := range r.cfg.Paths {
+		// One read feeds both the hash and the parse, so the skip-unchanged hash can never
+		// disagree with the content that was actually applied.
 		rawData, err := os.ReadFile(path) //nolint:gosec // G304: ok to read file into variable
 		if err != nil {
 			return r.fail(&ReadError{Err: wrapReadError(err), Path: path})
@@ -235,7 +242,11 @@ func (r *Reloader) reload() bool {
 		return r.fail(err)
 	}
 
-	// Close may have happened while the files were being read; deliver nothing in that case.
+	// Close may have happened while the files were being read; deliver nothing in that
+	// case. This check is deliberately not atomic with the delivery below: Close must never
+	// block on a lock shared with callbacks (blocked I/O or consumer backpressure could
+	// then wedge shutdown), so a reload that passes this check can rarely deliver just
+	// after Close returns — see the Close doc.
 	if r.isClosed() {
 		return true
 	}

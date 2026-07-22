@@ -133,6 +133,9 @@ func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 // discipline ever changes, this ordering needs revisiting.
 func (fs *fileDataSource) Close() (err error) {
 	fs.closeOnce.Do(func() {
+		// Two separate lifecycles: closeReloaderCh stops the change-signal source that the
+		// reloader factory started (e.g. a file watcher); reloader.Close stops the reload
+		// orchestrator that those signals fed.
 		close(fs.closeReloaderCh)
 		fs.reloader.Close()
 	})
