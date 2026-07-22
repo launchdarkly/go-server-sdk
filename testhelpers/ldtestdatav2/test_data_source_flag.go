@@ -400,7 +400,7 @@ func (f *FlagBuilder) createFlag(version int) ldmodel.FeatureFlag {
 		fb.AddRule(ldbuilders.NewRuleBuilder().
 			ID(fmt.Sprintf("rule%d", i)).
 			Variation(r.variation).
-			Clauses(r.clauses...),
+			Clauses(slices.Clone(r.clauses)...),
 		)
 	}
 	return fb.Build()
