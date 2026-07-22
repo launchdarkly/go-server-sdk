@@ -174,11 +174,14 @@ func newTracker(
 	key string,
 	variationKey string,
 	version int,
+	modelKey string,
+	modelVersion int,
 	ctx ldcontext.Context,
 	config *Config,
 	loggers interfaces.LDLoggers,
 ) *Tracker {
-	return newTrackerWithStopwatch(events, runID, key, variationKey, version, ctx, config, loggers, &defaultStopwatch{})
+	return newTrackerWithStopwatch(
+		events, runID, key, variationKey, version, modelKey, modelVersion, ctx, config, loggers, &defaultStopwatch{})
 }
 
 // newTrackerWithStopwatch creates a new Tracker with the specified runID, key, event sink, config, context, loggers,
@@ -189,6 +192,8 @@ func newTrackerWithStopwatch(
 	key string,
 	variationKey string,
 	version int,
+	modelKey string,
+	modelVersion int,
 	ctx ldcontext.Context,
 	config *Config,
 	loggers interfaces.LDLoggers,
@@ -203,7 +208,11 @@ func newTrackerWithStopwatch(
 		Set("configKey", ldvalue.String(key)).
 		Set("version", ldvalue.Int(version)).
 		Set("providerName", ldvalue.String(config.ProviderName())).
-		Set("modelName", ldvalue.String(config.ModelName()))
+		Set("modelName", ldvalue.String(config.ModelName())).
+		Set("modelVersion", ldvalue.Int(modelVersion))
+	if modelKey != "" {
+		builder.Set("modelKey", ldvalue.String(modelKey))
+	}
 	if variationKey != "" {
 		builder.Set("variationKey", ldvalue.String(variationKey))
 	}
@@ -230,7 +239,7 @@ func (t *Tracker) logWarning(format string, args ...interface{}) {
 
 // ResumptionToken returns a URL-safe Base64-encoded token that can be used to reconstruct a tracker
 // in a different process (e.g., for deferred feedback). The token contains the runId, configKey,
-// variationKey, and version. It does not contain modelName or providerName.
+// variationKey, and version. It does not contain modelName, providerName, modelKey, or modelVersion.
 func (t *Tracker) ResumptionToken() string {
 	payload := resumptionPayload{
 		RunID:        t.runID,
@@ -245,8 +254,8 @@ func (t *Tracker) ResumptionToken() string {
 // TrackerFromResumptionToken reconstructs a Tracker from a resumption token and the given context.
 // This is used for cross-process scenarios (e.g., deferred feedback) where the original tracker
 // is no longer available but its runId must be reused. The token is obtained from Tracker.ResumptionToken().
-// The reconstructed tracker will have empty modelName and providerName since these are not included
-// in the token.
+// The reconstructed tracker will have empty modelName, providerName, and modelKey, and modelVersion
+// defaults to 1, since these are not included in the token.
 func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.Context) (*Tracker, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil {
@@ -262,7 +271,8 @@ func TrackerFromResumptionToken(token string, sdk ServerSDK, context ldcontext.C
 		Set("configKey", ldvalue.String(payload.ConfigKey)).
 		Set("version", ldvalue.Int(payload.Version)).
 		Set("providerName", ldvalue.String("")).
-		Set("modelName", ldvalue.String(""))
+		Set("modelName", ldvalue.String("")).
+		Set("modelVersion", ldvalue.Int(1))
 	if payload.VariationKey != "" {
 		builder.Set("variationKey", ldvalue.String(payload.VariationKey))
 	}

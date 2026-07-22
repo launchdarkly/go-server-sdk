@@ -150,6 +150,82 @@ func TestParseModelName(t *testing.T) {
 	}
 }
 
+func TestParseModelKeyAndVersion(t *testing.T) {
+	// modelKey/modelVersion are intentionally not exposed on Config (they'd read as properties of
+	// the LLM itself, e.g. a version like "5.4"); the only place they surface is the tracker's
+	// stamped event data, mirroring variationKey/version.
+	tests := []struct {
+		name            string
+		json            []byte
+		expectedKey     string
+		expectedVersion int
+	}{
+		{
+			name:            "missing",
+			json:            []byte(`{"model": {"name": "gpt-4"}}`),
+			expectedKey:     "",
+			expectedVersion: 1,
+		},
+		{
+			name:            "modelKey and modelVersion set",
+			json:            []byte(`{"model": {"name": "gpt-4"}, "_ldMeta": {"modelKey": "my-model", "modelVersion": 2}}`),
+			expectedKey:     "my-model",
+			expectedVersion: 2,
+		},
+		{
+			name:            "modelVersion only",
+			json:            []byte(`{"model": {"name": "gpt-4"}, "_ldMeta": {"modelVersion": 3}}`),
+			expectedKey:     "",
+			expectedVersion: 3,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockSDK := newMockSDK(test.json, nil)
+			client, err := NewClient(mockSDK)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			mockSDK.events = nil
+
+			defaultVal := NewConfig().Enable().WithMessage("hello", datamodel.User).Build()
+			cfg := client.CompletionConfig("key", ldcontext.New("user"), defaultVal, nil)
+			tracker := cfg.CreateTracker()
+			require.NotNil(t, tracker)
+			assert.NoError(t, tracker.TrackSuccess())
+
+			require.NotEmpty(t, mockSDK.events)
+			data := mockSDK.events[len(mockSDK.events)-1].data
+			assert.Equal(t, test.expectedKey, data.GetByKey("modelKey").StringValue())
+			assert.Equal(t, test.expectedVersion, data.GetByKey("modelVersion").IntValue())
+		})
+	}
+}
+
+func TestCreateTrackerStampsModelKeyAndVersionOnTrackData(t *testing.T) {
+	configJSON := []byte(`{
+		"_ldMeta": {"variationKey": "var-1", "enabled": true, "version": 1, "modelKey": "my-model", "modelVersion": 2},
+		"model": {"name": "gpt-4"},
+		"provider": {"name": "openai"},
+		"messages": [{"content": "hello", "role": "user"}]
+	}`)
+
+	mockSDK := newMockSDK(configJSON, nil)
+	client, err := NewClient(mockSDK)
+	require.NoError(t, err)
+	mockSDK.events = nil
+
+	cfg := client.CompletionConfig("my-config", ldcontext.New("user"), Disabled(), nil)
+	tracker := cfg.CreateTracker()
+	require.NotNil(t, tracker)
+	assert.NoError(t, tracker.TrackSuccess())
+
+	require.NotEmpty(t, mockSDK.events)
+	data := mockSDK.events[len(mockSDK.events)-1].data
+	assert.Equal(t, "my-model", data.GetByKey("modelKey").StringValue())
+	assert.Equal(t, 2, data.GetByKey("modelVersion").IntValue())
+}
+
 func TestParseProviderName(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1009,6 +1085,8 @@ func TestClient_CreateTracker_RoundTrip(t *testing.T) {
 	// modelName and providerName should be empty on reconstructed tracker
 	assert.Equal(t, "", feedbackEvent.data.GetByKey("modelName").StringValue())
 	assert.Equal(t, "", feedbackEvent.data.GetByKey("providerName").StringValue())
+	assert.False(t, feedbackEvent.data.GetByKey("modelKey").IsDefined())
+	assert.Equal(t, 1, feedbackEvent.data.GetByKey("modelVersion").IntValue())
 }
 
 func TestClient_CreateTracker_InvalidToken(t *testing.T) {
