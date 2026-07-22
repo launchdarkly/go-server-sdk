@@ -247,6 +247,9 @@ func (fs *fileDataSource) makeChangeSet(merged filedata.MergeResult) (*subsystem
 // Close is called automatically when the client is closed.
 func (fs *fileDataSource) Close() (err error) {
 	if swapped := fs.closed.CompareAndSwap(false, true); swapped {
+		// Three separate lifecycles: quit stops the Sync result loop, closeReloaderCh stops
+		// the change-signal source that the reloader factory started (e.g. a file watcher),
+		// and reloader.Close stops the reload orchestrator that those signals fed.
 		close(fs.quit)
 		close(fs.closeReloaderCh)
 		fs.reloader.Close()
