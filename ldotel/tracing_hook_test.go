@@ -16,6 +16,7 @@ import (
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
@@ -24,6 +25,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func configureMemoryExporter() *tracetest.InMemoryExporter {
@@ -198,6 +201,36 @@ func TestSpanCreationWithoutParent(t *testing.T) {
 	assert.Len(t, exportedSpans, 1)
 	exportedSpan := exportedSpans[0]
 	assert.Equal(t, "LDClient.BoolVariation", exportedSpan.Name())
+}
+
+// spyingSpan wraps a no-op OpenTelemetry span so a test can observe whether
+// AddEvent was called, without depending on the SDK's recording span
+// implementation.
+type spyingSpan struct {
+	noop.Span
+	addEventCalled bool
+}
+
+func (s *spyingSpan) AddEvent(_ string, _ ...oteltrace.EventOption) {
+	s.addEventCalled = true
+}
+
+func TestAfterEvaluationSkipsEventWhenSpanIsNotRecording(t *testing.T) {
+	hook := NewTracingHook(WithValue())
+	seriesContext := ldhooks.NewEvaluationSeriesContext(
+		flagKey, ldcontext.New("test-context"), ldvalue.Bool(false), "LDClient.BoolVariationCtx", ldvalue.OptionalString{})
+	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 0, ldreason.NewEvalReasonFallthrough())
+	data := ldhooks.EmptyEvaluationSeriesData()
+
+	spy := &spyingSpan{}
+	ctx := oteltrace.ContextWithSpan(gocontext.Background(), spy)
+	assert.False(t, spy.IsRecording(), "precondition: span must be non-recording for this test to be meaningful")
+
+	result, err := hook.AfterEvaluation(ctx, seriesContext, data, detail)
+
+	assert.NoError(t, err)
+	assert.Equal(t, data, result)
+	assert.False(t, spy.addEventCalled, "AddEvent should not be called when the span is not recording")
 }
 
 func TestSpanEventsWithInExperiment(t *testing.T) {
@@ -414,4 +447,23 @@ func TestEnvironmentIDFromHookOptionsOverridesSeriesContext(t *testing.T) {
 		attributeSetID, _ := (&attributes).Value("feature_flag.set.id")
 		assert.Equal(t, "env-id-from-options", attributeSetID.AsString())
 	})
+}
+
+// BenchmarkAfterEvaluationNonRecording guards the non-recording early
+// return: without a recording span in the context the event would be
+// discarded, so AfterEvaluation must not pay to build it. This is the
+// common case for evaluations outside any trace, which run on every
+// variation call.
+func BenchmarkAfterEvaluationNonRecording(b *testing.B) {
+	hook := NewTracingHook(WithValue())
+	seriesContext := ldhooks.NewEvaluationSeriesContext(
+		flagKey, ldcontext.New("test-context"), ldvalue.Bool(false), "LDClient.BoolVariationCtx", ldvalue.OptionalString{})
+	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 0, ldreason.NewEvalReasonFallthrough())
+	data := ldhooks.EmptyEvaluationSeriesData()
+	ctx := gocontext.Background()
+
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _ = hook.AfterEvaluation(ctx, seriesContext, data, detail)
+	}
 }
