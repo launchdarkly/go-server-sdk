@@ -2,7 +2,7 @@ package datasourcev2
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -83,53 +83,14 @@ func (r *pollingRequester) Request(
 		return subsystems.NewChangeSetBuilder().NoChanges(), headers, nil
 	}
 
-	var payload subsystems.PollingPayload
-	if err = json.Unmarshal(body, &payload); err != nil {
+	changeSet, err := parsePollingPayload(ctx, body)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, headers, err
+		}
 		return nil, headers, malformedJSONError{err}
 	}
-
-	changeSet := subsystems.NewChangeSetBuilder()
-
-	for _, event := range payload.Events {
-		select {
-		case <-ctx.Done():
-			return nil, headers, ctx.Err()
-		default:
-			switch event.Name {
-			case subsystems.EventServerIntent:
-				var serverIntent subsystems.ServerIntent
-				err := json.Unmarshal(event.Data, &serverIntent)
-				if err != nil {
-					return nil, headers, err
-				}
-				if serverIntent.Payload.Code == subsystems.IntentNone {
-					return changeSet.NoChanges(), headers, nil
-				}
-				changeSet.Start(serverIntent)
-			case subsystems.EventPutObject:
-				var put subsystems.PutObject
-				if err := json.Unmarshal(event.Data, &put); err != nil {
-					return nil, headers, err
-				}
-				changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
-			case subsystems.EventDeleteObject:
-				var deleteObject subsystems.DeleteObject
-				if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
-					return nil, headers, err
-				}
-				changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
-			case subsystems.EventPayloadTransferred:
-				var selector subsystems.Selector
-				if err := json.Unmarshal(event.Data, &selector); err != nil {
-					return nil, headers, err
-				}
-				changeset, err := changeSet.Finish(selector)
-				return changeset, headers, err
-			}
-		}
-	}
-
-	return nil, headers, fmt.Errorf("didn't receive any known protocol events in polling payload")
+	return changeSet, headers, nil
 }
 
 func (r *pollingRequester) makeRequest(
