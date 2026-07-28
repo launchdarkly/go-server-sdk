@@ -147,6 +147,15 @@ func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.
 		}
 	}
 
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		// A non-recording span discards events (OpenTelemetry contract), so
+		// skip building the event's attributes. Evaluations without a span
+		// in the context hit this path, which can make the savings
+		// significant for high-volume callers.
+		return data, nil
+	}
+
 	attribs := []attribute.KeyValue{
 		featureFlagKey(seriesContext.FlagKey()),
 		featureFlagProviderName("LaunchDarkly"),
@@ -170,7 +179,6 @@ func (h TracingHook) AfterEvaluation(ctx context.Context, seriesContext ldhooks.
 		attribs = append(attribs, featureFlagSetID(id))
 	}
 
-	span := trace.SpanFromContext(ctx)
 	span.AddEvent(eventName, trace.WithAttributes(attribs...))
 	return data, nil
 }

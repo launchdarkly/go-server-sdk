@@ -16,6 +16,7 @@ import (
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldclient "github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
@@ -414,4 +415,23 @@ func TestEnvironmentIDFromHookOptionsOverridesSeriesContext(t *testing.T) {
 		attributeSetID, _ := (&attributes).Value("feature_flag.set.id")
 		assert.Equal(t, "env-id-from-options", attributeSetID.AsString())
 	})
+}
+
+// BenchmarkAfterEvaluationNonRecording guards the non-recording early
+// return: without a recording span in the context the event would be
+// discarded, so AfterEvaluation must not pay to build it. This is the
+// common case for evaluations outside any trace, which run on every
+// variation call.
+func BenchmarkAfterEvaluationNonRecording(b *testing.B) {
+	hook := NewTracingHook(WithValue())
+	seriesContext := ldhooks.NewEvaluationSeriesContext(
+		flagKey, ldcontext.New("test-context"), ldvalue.Bool(false), "LDClient.BoolVariationCtx", ldvalue.OptionalString{})
+	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 0, ldreason.NewEvalReasonFallthrough())
+	data := ldhooks.EmptyEvaluationSeriesData()
+	ctx := gocontext.Background()
+
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _ = hook.AfterEvaluation(ctx, seriesContext, data, detail)
+	}
 }
