@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.4...ldotel/v1.3.5) (2026-07-28)
+
+
+### Performance Improvements
+
+* **ldotel:** skip building the span event when no span will record it ([#427](https://github.com/launchdarkly/go-server-sdk/issues/427)) ([da070cc](https://github.com/launchdarkly/go-server-sdk/commit/da070cc803c705749b412d347cae2827834abd9c))
+
 ## [1.3.4](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.3...ldotel/v1.3.4) (2026-06-11)
 
 
