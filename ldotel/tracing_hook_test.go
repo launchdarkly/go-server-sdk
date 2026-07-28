@@ -25,6 +25,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func configureMemoryExporter() *tracetest.InMemoryExporter {
@@ -199,6 +201,36 @@ func TestSpanCreationWithoutParent(t *testing.T) {
 	assert.Len(t, exportedSpans, 1)
 	exportedSpan := exportedSpans[0]
 	assert.Equal(t, "LDClient.BoolVariation", exportedSpan.Name())
+}
+
+// spyingSpan wraps a no-op OpenTelemetry span so a test can observe whether
+// AddEvent was called, without depending on the SDK's recording span
+// implementation.
+type spyingSpan struct {
+	noop.Span
+	addEventCalled bool
+}
+
+func (s *spyingSpan) AddEvent(_ string, _ ...oteltrace.EventOption) {
+	s.addEventCalled = true
+}
+
+func TestAfterEvaluationSkipsEventWhenSpanIsNotRecording(t *testing.T) {
+	hook := NewTracingHook(WithValue())
+	seriesContext := ldhooks.NewEvaluationSeriesContext(
+		flagKey, ldcontext.New("test-context"), ldvalue.Bool(false), "LDClient.BoolVariationCtx", ldvalue.OptionalString{})
+	detail := ldreason.NewEvaluationDetail(ldvalue.Bool(true), 0, ldreason.NewEvalReasonFallthrough())
+	data := ldhooks.EmptyEvaluationSeriesData()
+
+	spy := &spyingSpan{}
+	ctx := oteltrace.ContextWithSpan(gocontext.Background(), spy)
+	assert.False(t, spy.IsRecording(), "precondition: span must be non-recording for this test to be meaningful")
+
+	result, err := hook.AfterEvaluation(ctx, seriesContext, data, detail)
+
+	assert.NoError(t, err)
+	assert.Equal(t, data, result)
+	assert.False(t, spy.addEventCalled, "AddEvent should not be called when the span is not recording")
 }
 
 func TestSpanEventsWithInExperiment(t *testing.T) {
