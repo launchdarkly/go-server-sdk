@@ -45,7 +45,7 @@ func parsePollingPayload(ctx context.Context, body []byte) (*subsystems.ChangeSe
 				return nil, ctx.Err()
 			default:
 			}
-			changeSet, done, err := readPollingEvent(&r, body, builder)
+			changeSet, done, err := readPollingEvent(&r, builder)
 			if err != nil {
 				return nil, err
 			}
@@ -64,87 +64,29 @@ func parsePollingPayload(ctx context.Context, body []byte) (*subsystems.ChangeSe
 // event completes the payload (server-intent "none" or payload-transferred), it returns the
 // resulting change set with done set to true.
 //
-// The common case dispatches on the event name and decodes the data in place as soon as it is
-// reached. If the data property appears before the event name, its raw bytes are captured
-// (zero-copy) and decoded once the name is known.
+// The event's data is captured verbatim and decoded once the whole event object has been read.
+// This keeps the decode independent of property order (the event name may follow the data) and
+// makes a duplicated data property resolve last-wins, exactly as the reflection-based decode does.
 func readPollingEvent(
 	r *jreader.Reader,
-	body []byte,
 	builder *subsystems.ChangeSetBuilder,
 ) (changeSet *subsystems.ChangeSet, done bool, err error) {
 	var name subsystems.EventName
-	var deferredData []byte
+	var data []byte
 	gotData := false
-	// dataInput must be the byte slice that dataReader was created over, so that offset-based
-	// span capture inside readPutObject can slice it.
-	dispatch := func(dataReader *jreader.Reader, dataInput []byte) error {
-		switch name {
-		case subsystems.EventServerIntent:
-			intent, err := readServerIntent(dataReader)
-			if err != nil {
-				return err
-			}
-			if intent.Payload.Code == subsystems.IntentNone {
-				changeSet, done = builder.NoChanges(), true
-				return nil
-			}
-			builder.Start(intent)
-		case subsystems.EventPutObject:
-			put, err := readPutObject(dataReader, dataInput)
-			if err != nil {
-				return err
-			}
-			put.addTo(builder)
-		case subsystems.EventDeleteObject:
-			deleteObject, err := readDeleteObject(dataReader)
-			if err != nil {
-				return err
-			}
-			builder.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
-		case subsystems.EventPayloadTransferred:
-			selector, err := readSelector(dataReader)
-			if err != nil {
-				return err
-			}
-			finished, err := builder.Finish(selector)
-			if err != nil {
-				return err
-			}
-			changeSet, done = finished, true
-		default:
-			// An unknown event name is ignored for forwards compatibility.
-			return dataReader.SkipValue()
-		}
-		return nil
-	}
 	for obj := r.Object(); obj.Next(); {
 		switch string(obj.Name()) {
 		case propEvent:
 			name = subsystems.EventName(r.String())
 		case propData:
 			gotData = true
-			if name == "" {
-				deferredData = r.RawValue()
-			} else if err := dispatch(r, body); err != nil {
-				return nil, false, err
-			}
+			data = r.RawValue()
 		default:
 			_ = r.SkipValue()
-		}
-		if done {
-			// The payload is complete; the rest of the input is intentionally left unread.
-			return changeSet, true, nil
 		}
 	}
 	if err := r.Error(); err != nil {
 		return nil, false, err
-	}
-	if deferredData != nil {
-		dataReader := jreader.NewReader(deferredData)
-		if err := dispatch(&dataReader, deferredData); err != nil {
-			return nil, false, err
-		}
-		return changeSet, done, nil
 	}
 	if !gotData {
 		switch name {
@@ -154,8 +96,47 @@ func readPollingEvent(
 			// malformed rather than silently dropping the event.
 			return nil, false, fmt.Errorf("polling payload event %q has no data", name)
 		}
+		return nil, false, nil
 	}
-	return changeSet, done, nil
+
+	dataReader := jreader.NewReader(data)
+	switch name {
+	case subsystems.EventServerIntent:
+		intent, err := readServerIntent(&dataReader)
+		if err != nil {
+			return nil, false, err
+		}
+		if intent.Payload.Code == subsystems.IntentNone {
+			return builder.NoChanges(), true, nil
+		}
+		builder.Start(intent)
+	case subsystems.EventPutObject:
+		put, err := readPutObject(&dataReader, data)
+		if err != nil {
+			return nil, false, err
+		}
+		put.addTo(builder)
+	case subsystems.EventDeleteObject:
+		deleteObject, err := readDeleteObject(&dataReader)
+		if err != nil {
+			return nil, false, err
+		}
+		builder.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
+	case subsystems.EventPayloadTransferred:
+		selector, err := readSelector(&dataReader)
+		if err != nil {
+			return nil, false, err
+		}
+		finished, err := builder.Finish(selector)
+		if err != nil {
+			return nil, false, err
+		}
+		return finished, true, nil
+	default:
+		// An unknown event name is ignored for forwards compatibility. RawValue already validated
+		// the data above.
+	}
+	return nil, false, nil
 }
 
 // parsePutObjectEventData decodes the data of a put-object event in a single pass, capturing the
@@ -185,7 +166,7 @@ func readPutObject(r *jreader.Reader, input []byte) (parsedPutObject, error) {
 		case propKey:
 			p.key = r.String()
 		case propVersion:
-			p.version = r.Int()
+			p.version = readInt(r)
 		case propObject:
 			if kind, recognized := p.kind.ToFDV1(); recognized {
 				// The kind is already known (LaunchDarkly services always write "kind" before

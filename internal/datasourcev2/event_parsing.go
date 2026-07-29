@@ -3,6 +3,7 @@ package datasourcev2
 import (
 	"encoding/json"
 	"errors"
+	"math"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -44,6 +45,19 @@ const (
 )
 
 const errNoKnownPollingEvents = "didn't receive any known protocol events in polling payload"
+
+// readInt reads a JSON number that must be an integer. jreader.Int coerces via int(Float64()),
+// which silently truncates a fractional number (for example 1.9 becomes 1). The FDv2 protocol's
+// version and target fields are integers, so a fractional value is a malformed payload and is
+// rejected here, matching the reflection-based decode used by the launchdarkly_easyjson build.
+func readInt(r *jreader.Reader) int {
+	f := r.Float64()
+	if f != math.Trunc(f) {
+		r.AddError(jreader.SyntaxError{Message: "expected integer, got fractional number"})
+		return 0
+	}
+	return int(f)
+}
 
 // parsedPutObject is the result of decoding a put-object event's data.
 type parsedPutObject struct {
@@ -100,7 +114,7 @@ func readServerIntent(r *jreader.Reader) (subsystems.ServerIntent, error) {
 				case propID:
 					intent.Payload.ID = r.String()
 				case propTarget:
-					intent.Payload.Target = r.Int()
+					intent.Payload.Target = readInt(r)
 				case propIntentCode:
 					intent.Payload.Code = subsystems.IntentCode(r.String())
 				case propReason:
@@ -141,7 +155,7 @@ func readDeleteObject(r *jreader.Reader) (subsystems.DeleteObject, error) {
 		case propKey:
 			d.Key = r.String()
 		case propVersion:
-			d.Version = r.Int()
+			d.Version = readInt(r)
 		default:
 			_ = r.SkipValue()
 		}
@@ -170,7 +184,7 @@ func readSelector(r *jreader.Reader) (subsystems.Selector, error) {
 			state = r.String()
 			gotState = true
 		case propVersion:
-			version = r.Int()
+			version = readInt(r)
 			gotVersion = true
 		default:
 			_ = r.SkipValue()

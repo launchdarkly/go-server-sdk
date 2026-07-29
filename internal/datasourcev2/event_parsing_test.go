@@ -417,6 +417,69 @@ func TestParsePollingPayloadMatchesReflectionReference(t *testing.T) {
 	assert.Equal(t, wantItems, gotItems)
 }
 
+// A protocol integer field (version, target) must reject a fractional JSON number rather than
+// silently truncating it. jreader.Int coerces via int(Float64()) -- so 1.9 would become 1 -- and
+// the single-pass decoder relies on readInt to reject it, matching the reflection-based decode
+// that the launchdarkly_easyjson build (and the pre-single-pass code) used. Both build variants
+// run this test.
+func TestFractionalIntegerProtocolFieldsAreRejected(t *testing.T) {
+	flagJSON := makeTestFlagJSON(t, "flagkey", 1)
+	cases := map[string]func() error{
+		"put-object version": func() error {
+			_, err := parsePutObjectEventData([]byte(fmt.Sprintf(
+				`{"kind":"flag","key":"flagkey","version":1.9,"object":%s}`, flagJSON)))
+			return err
+		},
+		"delete-object version": func() error {
+			_, err := parseDeleteObjectEventData([]byte(`{"kind":"flag","key":"k","version":1.9}`))
+			return err
+		},
+		"selector version": func() error {
+			_, err := parseSelectorEventData([]byte(`{"state":"s","version":1.9}`))
+			return err
+		},
+		"server-intent target": func() error {
+			_, err := parseServerIntentEventData([]byte(
+				`{"payloads":[{"id":"p1","target":1.9,"intentCode":"xfer-full","reason":"r"}]}`))
+			return err
+		},
+	}
+	for name, run := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Error(t, run())
+		})
+	}
+}
+
+// A polling event that carries the "data" property more than once (non-conformant, but handled for
+// parity with encoding/json) resolves last-wins: the event is applied exactly once, using the final
+// value. Both build variants run this test.
+func TestParsePollingPayloadDuplicateDataPropertyUsesLastValue(t *testing.T) {
+	flagJSON := makeTestFlagJSON(t, "flagkey", 1)
+	body := []byte(fmt.Sprintf(`{"events":[`+
+		`{"event":"server-intent","data":{"payloads":[{"id":"p1","target":1,"intentCode":"xfer-full","reason":"r"}]}},`+
+		`{"event":"put-object",`+
+		`"data":{"kind":"flag","key":"first","version":1,"object":%s},`+
+		`"data":{"kind":"flag","key":"last","version":1,"object":%s}},`+
+		`{"event":"payload-transferred","data":{"state":"s","version":1}}`+
+		`]}`, flagJSON, flagJSON))
+
+	changeSet, err := parsePollingPayload(context.Background(), body)
+	require.NoError(t, err)
+
+	changes := changeSet.Changes()
+	require.Len(t, changes, 1)
+	assert.Equal(t, "last", changes[0].Key)
+
+	collections, err := changeSet.Collections()
+	require.NoError(t, err)
+	total := 0
+	for _, coll := range collections {
+		total += len(coll.Items)
+	}
+	assert.Equal(t, 1, total)
+}
+
 func flattenCollectionsForComparison(collections []ldstoretypes.Collection) map[string]ldstoretypes.ItemDescriptor {
 	result := map[string]ldstoretypes.ItemDescriptor{}
 	for _, coll := range collections {
