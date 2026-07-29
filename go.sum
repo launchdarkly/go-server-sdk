@@ -19,8 +19,8 @@ github.com/launchdarkly/ccache v1.1.0 h1:voD1M+ZJXR3MREOKtBwgTF9hYHl1jg+vFKS/+VA
 github.com/launchdarkly/ccache v1.1.0/go.mod h1:TlxzrlnzvYeXiLHmesMuvoZetu4Z97cV1SsdqqBJi1Q=
 github.com/launchdarkly/eventsource v1.10.0 h1:H9Tp6AfGu/G2qzBJC26iperrvwhzdbiA/gx7qE2nDFI=
 github.com/launchdarkly/eventsource v1.10.0/go.mod h1:J3oa50bPvJesZqNAJtb5btSIo5N6roDWhiAS3IpsKck=
-github.com/launchdarkly/go-jsonstream/v3 v3.1.2-0.20260728165303-975e0be34b70 h1:Z4GlojB8T/d8jeAKFbEOpVYOOvCbIcNJYGeB0YIauiE=
-github.com/launchdarkly/go-jsonstream/v3 v3.1.2-0.20260728165303-975e0be34b70/go.mod h1:ZBjhKq8mhArCtqotGRGnteY6eXpNm1GaOdUSZHh+ZjM=
+github.com/launchdarkly/go-jsonstream/v3 v3.1.2-0.20260729181618-28aa1e35cda3 h1:wT4WhK2sqM4j0nJwa+eO7g+XCblsT5myDhiadFaXeA8=
+github.com/launchdarkly/go-jsonstream/v3 v3.1.2-0.20260729181618-28aa1e35cda3/go.mod h1:ZBjhKq8mhArCtqotGRGnteY6eXpNm1GaOdUSZHh+ZjM=
 github.com/launchdarkly/go-ntlm-proxy-auth v1.0.3 h1:i3V0N+R0Fd2nXfGEVKCBIZ8kyttZ+SRKvBG8cdcphO4=
 github.com/launchdarkly/go-ntlm-proxy-auth v1.0.3/go.mod h1:kU5uMfNSTpYE6fIzmAXjFxUdmnaDPUEQ5zKm3RVKUsY=
 github.com/launchdarkly/go-ntlmssp v1.0.3 h1:rFxOnnEJ2DzJ+NU0plhXqnldJUwn3wWJFTWKCmaiQdE=
