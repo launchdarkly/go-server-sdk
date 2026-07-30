@@ -553,3 +553,30 @@ func TestParsePutObjectEventDataDuplicateKind(t *testing.T) {
 		assert.JSONEq(t, string(flagJSON), string(p.object))
 	})
 }
+
+// A deeply nested value in an unknown/skipped field must be rejected as an error rather than
+// recursing until the stack overflows (a remote-crash DoS from untrusted input). The value exceeds
+// encoding/json's nesting cap; both build variants must return an error, not crash. Both build
+// variants run this test.
+func TestDeeplyNestedSkippedValueIsRejected(t *testing.T) {
+	const depth = 100000
+	nested := strings.Repeat("[", depth) + strings.Repeat("]", depth)
+
+	t.Run("polling top-level unknown property", func(t *testing.T) {
+		body := []byte(`{"junk":` + nested + `,"events":[]}`)
+		_, err := parsePollingPayload(context.Background(), body)
+		assert.Error(t, err)
+	})
+
+	t.Run("put-object unknown property", func(t *testing.T) {
+		data := []byte(`{"kind":"flag","junk":` + nested + `,"key":"k","version":1}`)
+		_, err := parsePutObjectEventData(data)
+		assert.Error(t, err)
+	})
+
+	t.Run("server-intent unknown property", func(t *testing.T) {
+		data := []byte(`{"junk":` + nested + `,"payloads":[{"id":"p1","intentCode":"xfer-full"}]}`)
+		_, err := parseServerIntentEventData(data)
+		assert.Error(t, err)
+	})
+}

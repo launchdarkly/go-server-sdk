@@ -58,6 +58,16 @@ func readInt(r *jreader.Reader) int {
 	return int(n)
 }
 
+// skipValue discards the next JSON value. It deliberately uses RawValue rather than
+// jreader.SkipValue: SkipValue recurses one stack frame per level of nesting with no depth limit,
+// so a deeply nested value in an unknown field of untrusted input could overflow the stack and
+// crash the process. RawValue scans the value iteratively and validates it with encoding/json,
+// whose nesting is capped -- turning an over-deep value into an error rather than a crash, matching
+// the encoding/json decode the SDK used before this parser.
+func skipValue(r *jreader.Reader) {
+	_ = r.RawValue()
+}
+
 // This file contains the single-pass payload decoders used by the default build. Each event --
 // and in particular each put-object's item JSON -- is scanned only once: scalars are read in
 // place, and a recognized item's model is decoded directly from the stream while its raw bytes
@@ -80,7 +90,7 @@ func parsePollingPayload(ctx context.Context, body []byte) (*subsystems.ChangeSe
 	r := jreader.NewReader(body)
 	for topObj := r.Object(); topObj.Next(); {
 		if string(topObj.Name()) != propEvents {
-			_ = r.SkipValue()
+			skipValue(&r)
 			continue
 		}
 		for arr := r.Array(); arr.Next(); {
@@ -126,7 +136,7 @@ func readPollingEvent(
 			gotData = true
 			data = r.RawValue()
 		default:
-			_ = r.SkipValue()
+			skipValue(r)
 		}
 	}
 	if err := r.Error(); err != nil {
@@ -237,7 +247,7 @@ func readPutObject(r *jreader.Reader, input []byte) (parsedPutObject, error) {
 				object = json.RawMessage(r.RawValue())
 			}
 		default:
-			_ = r.SkipValue()
+			skipValue(r)
 		}
 	}
 	if err := r.Error(); err != nil {
@@ -288,14 +298,14 @@ func readServerIntent(r *jreader.Reader) (subsystems.ServerIntent, error) {
 	gotPayload := false
 	for obj := r.Object(); obj.Next(); {
 		if string(obj.Name()) != propPayloads {
-			_ = r.SkipValue()
+			skipValue(r)
 			continue
 		}
 		for arr := r.Array(); arr.Next(); {
 			// The protocol allows more than one payload, but SDKs currently only support one;
 			// any additional payloads are skipped.
 			if gotPayload {
-				_ = r.SkipValue()
+				skipValue(r)
 				continue
 			}
 			for payloadObj := r.Object(); payloadObj.Next(); {
@@ -309,7 +319,7 @@ func readServerIntent(r *jreader.Reader) (subsystems.ServerIntent, error) {
 				case propReason:
 					intent.Payload.Reason = r.String()
 				default:
-					_ = r.SkipValue()
+					skipValue(r)
 				}
 			}
 			gotPayload = true
@@ -346,7 +356,7 @@ func readDeleteObject(r *jreader.Reader) (subsystems.DeleteObject, error) {
 		case propVersion:
 			d.Version = readInt(r)
 		default:
-			_ = r.SkipValue()
+			skipValue(r)
 		}
 	}
 	return d, r.Error()
@@ -380,7 +390,7 @@ func readSelector(r *jreader.Reader) (subsystems.Selector, error) {
 			version = r.Int()
 			gotVersion = true
 		default:
-			_ = r.SkipValue()
+			skipValue(r)
 		}
 	}
 	if err := r.Error(); err != nil {
@@ -403,7 +413,7 @@ func parseGoodbyeEventData(data []byte) (subsystems.Goodbye, error) {
 		if string(obj.Name()) == propReason {
 			goodbye.Reason = r.String()
 		} else {
-			_ = r.SkipValue()
+			skipValue(&r)
 		}
 	}
 	return goodbye, r.Error()
@@ -420,7 +430,7 @@ func parseErrorEventData(data []byte) (subsystems.Error, error) {
 		case propReason:
 			errorData.Reason = r.String()
 		default:
-			_ = r.SkipValue()
+			skipValue(&r)
 		}
 	}
 	return errorData, r.Error()
