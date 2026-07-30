@@ -417,38 +417,76 @@ func TestParsePollingPayloadMatchesReflectionReference(t *testing.T) {
 	assert.Equal(t, wantItems, gotItems)
 }
 
-// A protocol integer field (version, target) must reject a fractional JSON number rather than
-// silently truncating it. jreader.Int coerces via int(Float64()) -- so 1.9 would become 1 -- and
-// the single-pass decoder relies on readInt to reject it, matching the reflection-based decode
-// that the launchdarkly_easyjson build (and the pre-single-pass code) used. Both build variants
-// run this test.
-func TestFractionalIntegerProtocolFieldsAreRejected(t *testing.T) {
+// The scalar event decoders must accept and reject an integer field exactly as decoding the
+// corresponding subsystems type via encoding/json does -- encoding/json is what the
+// launchdarkly_easyjson build uses, so this is the parity contract between the two build variants.
+// The oracle is computed live from encoding/json into the same struct that build decodes into, so
+// per-type behavior is captured automatically: PutObject, DeleteObject, and Payload have plain int
+// fields and reject non-integers, while Selector reads its version through float64 and truncates.
+// Both build variants run this test.
+func TestScalarEventIntegerParsingMatchesEncodingJSON(t *testing.T) {
 	flagJSON := makeTestFlagJSON(t, "flagkey", 1)
-	cases := map[string]func() error{
-		"put-object version": func() error {
-			_, err := parsePutObjectEventData([]byte(fmt.Sprintf(
-				`{"kind":"flag","key":"flagkey","version":1.9,"object":%s}`, flagJSON)))
-			return err
-		},
-		"delete-object version": func() error {
-			_, err := parseDeleteObjectEventData([]byte(`{"kind":"flag","key":"k","version":1.9}`))
-			return err
-		},
-		"selector version": func() error {
-			_, err := parseSelectorEventData([]byte(`{"state":"s","version":1.9}`))
-			return err
-		},
-		"server-intent target": func() error {
-			_, err := parseServerIntentEventData([]byte(
-				`{"payloads":[{"id":"p1","target":1.9,"intentCode":"xfer-full","reason":"r"}]}`))
-			return err
-		},
+	values := []string{
+		"0", "1", "-1", "100", "2147483647", "-2147483648",
+		"9007199254740993",    // > 2^53, must round-trip exactly for the strict fields
+		"9223372036854775807", // MaxInt64
+		"9223372036854775808", // MaxInt64 + 1 (out of range)
+		"1e20", "-1e20",
+		"1.9", "1.0", "1e2", // non-integer literals
+		"null",
 	}
-	for name, run := range cases {
-		t.Run(name, func(t *testing.T) {
-			assert.Error(t, run())
-		})
-	}
+
+	t.Run("put-object version", func(t *testing.T) {
+		for _, v := range values {
+			data := []byte(fmt.Sprintf(`{"kind":"flag","key":"k","version":%s,"object":%s}`, v, flagJSON))
+			var oracle subsystems.PutObject
+			wantErr := json.Unmarshal(data, &oracle) != nil
+			p, err := parsePutObjectEventData(data)
+			require.Equalf(t, wantErr, err != nil, "version=%s: encoding/json err=%v, decoder err=%v", v, wantErr, err)
+			if !wantErr {
+				assert.Equalf(t, oracle.Version, p.version, "version=%s", v)
+			}
+		}
+	})
+
+	t.Run("delete-object version", func(t *testing.T) {
+		for _, v := range values {
+			data := []byte(fmt.Sprintf(`{"kind":"flag","key":"k","version":%s}`, v))
+			var oracle subsystems.DeleteObject
+			wantErr := json.Unmarshal(data, &oracle) != nil
+			d, err := parseDeleteObjectEventData(data)
+			require.Equalf(t, wantErr, err != nil, "version=%s: encoding/json err=%v, decoder err=%v", v, wantErr, err)
+			if !wantErr {
+				assert.Equalf(t, oracle.Version, d.Version, "version=%s", v)
+			}
+		}
+	})
+
+	t.Run("server-intent target", func(t *testing.T) {
+		for _, v := range values {
+			data := []byte(fmt.Sprintf(`{"payloads":[{"id":"p1","target":%s,"intentCode":"xfer-full","reason":"r"}]}`, v))
+			var oracle subsystems.ServerIntent
+			wantErr := json.Unmarshal(data, &oracle) != nil
+			intent, err := parseServerIntentEventData(data)
+			require.Equalf(t, wantErr, err != nil, "target=%s: encoding/json err=%v, decoder err=%v", v, wantErr, err)
+			if !wantErr {
+				assert.Equalf(t, oracle.Payload.Target, intent.Payload.Target, "target=%s", v)
+			}
+		}
+	})
+
+	t.Run("selector version", func(t *testing.T) {
+		for _, v := range values {
+			data := []byte(fmt.Sprintf(`{"state":"s","version":%s}`, v))
+			var oracle subsystems.Selector
+			wantErr := json.Unmarshal(data, &oracle) != nil
+			sel, err := parseSelectorEventData(data)
+			require.Equalf(t, wantErr, err != nil, "version=%s: encoding/json err=%v, decoder err=%v", v, wantErr, err)
+			if !wantErr {
+				assert.Equalf(t, oracle.Version(), sel.Version(), "version=%s", v)
+			}
+		}
+	})
 }
 
 // A polling event that carries the "data" property more than once (non-conformant, but handled for

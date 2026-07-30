@@ -93,3 +93,42 @@ func parsePutObjectEventData(data []byte) (parsedPutObject, error) {
 	p.item, p.hasItem = item, true
 	return p, nil
 }
+
+// The scalar event decoders below use encoding/json into the subsystems types. This is the
+// reflection decode the default build's jsonstream decoders are written to match; keeping it here
+// means the launchdarkly_easyjson build depends only on encoding/json for these events.
+
+// parseServerIntentEventData decodes the data of a server-intent event.
+func parseServerIntentEventData(data []byte) (subsystems.ServerIntent, error) {
+	var intent subsystems.ServerIntent
+	err := json.Unmarshal(data, &intent)
+	return intent, err
+}
+
+// parseDeleteObjectEventData decodes the data of a delete-object event.
+func parseDeleteObjectEventData(data []byte) (subsystems.DeleteObject, error) {
+	var deleteObject subsystems.DeleteObject
+	err := json.Unmarshal(data, &deleteObject)
+	return deleteObject, err
+}
+
+// parseSelectorEventData decodes the data of a payload-transferred event.
+func parseSelectorEventData(data []byte) (subsystems.Selector, error) {
+	var selector subsystems.Selector
+	err := json.Unmarshal(data, &selector)
+	return selector, err
+}
+
+// parseGoodbyeEventData decodes the data of a goodbye event.
+func parseGoodbyeEventData(data []byte) (subsystems.Goodbye, error) {
+	var goodbye subsystems.Goodbye
+	err := json.Unmarshal(data, &goodbye)
+	return goodbye, err
+}
+
+// parseErrorEventData decodes the data of an error event.
+func parseErrorEventData(data []byte) (subsystems.Error, error) {
+	var errorData subsystems.Error
+	err := json.Unmarshal(data, &errorData)
+	return errorData, err
+}

@@ -9,10 +9,54 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
+
+// JSON property names used by the single-pass event decoders.
+const (
+	propEvents     = "events"
+	propEvent      = "event"
+	propData       = "data"
+	propKind       = "kind"
+	propKey        = "key"
+	propVersion    = "version"
+	propObject     = "object"
+	propReason     = "reason"
+	propState      = "state"
+	propPayloads   = "payloads"
+	propID         = "id"
+	propTarget     = "target"
+	propIntentCode = "intentCode"
+	propPayloadID  = "payloadId"
+)
+
+// readInt reads a JSON number that must fit in a Go int, with the same acceptance rules as decoding
+// into an int via encoding/json (the reflection decode used by the launchdarkly_easyjson build for
+// the plain-int fields), so the two build variants stay in agreement. jreader.Int cannot be used:
+// it coerces via int(Float64()), which silently truncates a fractional number (1.9 -> 1), loses
+// precision beyond 2^53, and is implementation-defined out of range. Parsing the raw number literal
+// instead means a fractional value (1.9), exponent notation (1e2), or an out-of-range value is
+// rejected, large integers up to the int range are preserved exactly, and a JSON null yields the
+// zero value -- exactly as encoding/json does.
+func readInt(r *jreader.Reader) int {
+	raw := r.RawValue()
+	if r.Error() != nil {
+		return 0
+	}
+	if string(raw) == "null" {
+		// encoding/json leaves the zero value for a null; match that rather than erroring.
+		return 0
+	}
+	n, err := strconv.ParseInt(string(raw), 10, 0)
+	if err != nil {
+		r.AddError(jreader.SyntaxError{Message: "expected integer"})
+		return 0
+	}
+	return int(n)
+}
 
 // This file contains the single-pass payload decoders used by the default build. Each event --
 // and in particular each put-object's item JSON -- is scanned only once: scalars are read in
@@ -211,4 +255,158 @@ func readPutObject(r *jreader.Reader, input []byte) (parsedPutObject, error) {
 	// compatibility. No further validation is needed: RawValue already fully validated the
 	// bytes, so a malformed object has failed the payload above regardless of kind.
 	return p, nil
+}
+
+// parseServerIntentEventData decodes the data of a server-intent event. The intent is required to
+// have at least one payload (at index 0) at this time, matching subsystems.ServerIntent's decode.
+func parseServerIntentEventData(data []byte) (subsystems.ServerIntent, error) {
+	r := jreader.NewReader(data)
+	intent, err := readServerIntent(&r)
+	if err == nil {
+		err = r.Error()
+	}
+	return intent, err
+}
+
+func readServerIntent(r *jreader.Reader) (subsystems.ServerIntent, error) {
+	var intent subsystems.ServerIntent
+	gotPayload := false
+	for obj := r.Object(); obj.Next(); {
+		if string(obj.Name()) != propPayloads {
+			_ = r.SkipValue()
+			continue
+		}
+		for arr := r.Array(); arr.Next(); {
+			// The protocol allows more than one payload, but SDKs currently only support one;
+			// any additional payloads are skipped.
+			if gotPayload {
+				_ = r.SkipValue()
+				continue
+			}
+			for payloadObj := r.Object(); payloadObj.Next(); {
+				switch string(payloadObj.Name()) {
+				case propID:
+					intent.Payload.ID = r.String()
+				case propTarget:
+					intent.Payload.Target = readInt(r)
+				case propIntentCode:
+					intent.Payload.Code = subsystems.IntentCode(r.String())
+				case propReason:
+					intent.Payload.Reason = r.String()
+				default:
+					_ = r.SkipValue()
+				}
+			}
+			gotPayload = true
+		}
+	}
+	if err := r.Error(); err != nil {
+		return intent, err
+	}
+	if !gotPayload {
+		// It is a protocol error for the payload list to be missing or empty.
+		return intent, errors.New("changeset: server-intent event has no payloads")
+	}
+	return intent, nil
+}
+
+// parseDeleteObjectEventData decodes the data of a delete-object event.
+func parseDeleteObjectEventData(data []byte) (subsystems.DeleteObject, error) {
+	r := jreader.NewReader(data)
+	deleteObject, err := readDeleteObject(&r)
+	if err == nil {
+		err = r.Error()
+	}
+	return deleteObject, err
+}
+
+func readDeleteObject(r *jreader.Reader) (subsystems.DeleteObject, error) {
+	var d subsystems.DeleteObject
+	for obj := r.Object(); obj.Next(); {
+		switch string(obj.Name()) {
+		case propKind:
+			d.Kind = subsystems.ObjectKind(r.String())
+		case propKey:
+			d.Key = r.String()
+		case propVersion:
+			d.Version = readInt(r)
+		default:
+			_ = r.SkipValue()
+		}
+	}
+	return d, r.Error()
+}
+
+// parseSelectorEventData decodes the data of a payload-transferred event. Both the state and the
+// version are required.
+func parseSelectorEventData(data []byte) (subsystems.Selector, error) {
+	r := jreader.NewReader(data)
+	selector, err := readSelector(&r)
+	if err == nil {
+		err = r.Error()
+	}
+	return selector, err
+}
+
+func readSelector(r *jreader.Reader) (subsystems.Selector, error) {
+	var state string
+	var version int
+	gotState, gotVersion := false, false
+	for obj := r.Object(); obj.Next(); {
+		switch string(obj.Name()) {
+		case propState:
+			state = r.String()
+			gotState = true
+		case propVersion:
+			// subsystems.Selector's decode (the reflection reference for this event) reads version
+			// through float64 and truncates, so use the lenient jreader.Int here rather than the
+			// strict readInt used for the other integer fields, keeping the two builds in
+			// agreement. The value is deprecated and not used by consumers.
+			version = r.Int()
+			gotVersion = true
+		default:
+			_ = r.SkipValue()
+		}
+	}
+	if err := r.Error(); err != nil {
+		return subsystems.NoSelector(), err
+	}
+	if !gotState {
+		return subsystems.NoSelector(), errors.New("unmarshal selector: missing state field")
+	}
+	if !gotVersion {
+		return subsystems.NoSelector(), errors.New("unmarshal selector: missing version field")
+	}
+	return subsystems.NewSelector(state, version), nil
+}
+
+// parseGoodbyeEventData decodes the data of a goodbye event.
+func parseGoodbyeEventData(data []byte) (subsystems.Goodbye, error) {
+	r := jreader.NewReader(data)
+	var goodbye subsystems.Goodbye
+	for obj := r.Object(); obj.Next(); {
+		if string(obj.Name()) == propReason {
+			goodbye.Reason = r.String()
+		} else {
+			_ = r.SkipValue()
+		}
+	}
+	return goodbye, r.Error()
+}
+
+// parseErrorEventData decodes the data of an error event.
+func parseErrorEventData(data []byte) (subsystems.Error, error) {
+	r := jreader.NewReader(data)
+	var errorData subsystems.Error
+	for obj := r.Object(); obj.Next(); {
+		switch string(obj.Name()) {
+		case propPayloadID:
+			errorData.PayloadID = r.String()
+		case propReason:
+			errorData.Reason = r.String()
+		default:
+			_ = r.SkipValue()
+		}
+	}
+	return errorData, r.Error()
 }
