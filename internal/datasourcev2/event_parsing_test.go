@@ -527,3 +527,29 @@ func flattenCollectionsForComparison(collections []ldstoretypes.Collection) map[
 	}
 	return result
 }
+
+// A duplicated "kind" property (non-conformant, but json resolves it last-wins) must not leave the
+// parsed item typed as the earlier kind. The item and the stored kind must always agree: if the
+// final kind is recognized the item is (re-)parsed under it, and if the final kind is unrecognized
+// the object is kept raw with no item. Both build variants run this test.
+func TestParsePutObjectEventDataDuplicateKind(t *testing.T) {
+	flagJSON := makeTestFlagJSON(t, "dup", 5)
+
+	t.Run("later kind wins and item is re-typed", func(t *testing.T) {
+		data := []byte(fmt.Sprintf(`{"kind":"flag","object":%s,"key":"dup","version":5,"kind":"segment"}`, flagJSON))
+		p, err := parsePutObjectEventData(data)
+		require.NoError(t, err)
+		assert.Equal(t, subsystems.SegmentKind, p.kind)
+		require.True(t, p.hasItem)
+		assert.IsType(t, &ldmodel.Segment{}, p.item.Item)
+	})
+
+	t.Run("later unrecognized kind keeps object raw", func(t *testing.T) {
+		data := []byte(fmt.Sprintf(`{"kind":"flag","object":%s,"key":"dup","version":5,"kind":"future-kind"}`, flagJSON))
+		p, err := parsePutObjectEventData(data)
+		require.NoError(t, err)
+		assert.Equal(t, subsystems.ObjectKind("future-kind"), p.kind)
+		assert.False(t, p.hasItem)
+		assert.JSONEq(t, string(flagJSON), string(p.object))
+	})
+}

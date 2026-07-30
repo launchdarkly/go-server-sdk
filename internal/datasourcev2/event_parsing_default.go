@@ -203,6 +203,11 @@ const jsonWhitespace = " \t\r\n"
 func readPutObject(r *jreader.Reader, input []byte) (parsedPutObject, error) {
 	var p parsedPutObject
 	var object json.RawMessage
+	// decodedKind records the kind under which the item was eagerly model-decoded while reading
+	// the object, so that a "kind" property appearing after "object" (non-conformant, but json's
+	// last-wins behavior handles it) can be detected and the item re-parsed under the final kind
+	// rather than left mis-typed.
+	var decodedKind subsystems.ObjectKind
 	for obj := r.Object(); obj.Next(); {
 		switch string(obj.Name()) {
 		case propKind:
@@ -224,7 +229,7 @@ func readPutObject(r *jreader.Reader, input []byte) (parsedPutObject, error) {
 				}
 				span := bytes.Trim(input[start:r.Offset()], jsonWhitespace)
 				object = json.RawMessage(span[:len(span):len(span)])
-				p.item, p.hasItem = item, true
+				p.item, p.hasItem, decodedKind = item, true, p.kind
 			} else {
 				// The kind is unrecognized or has not been read yet, so the value cannot be
 				// model-decoded here; RawValue captures it with full validation, and if the
@@ -239,21 +244,31 @@ func readPutObject(r *jreader.Reader, input []byte) (parsedPutObject, error) {
 		return p, err
 	}
 	p.object = object
-	if p.hasItem || object == nil {
+	if object == nil {
 		return p, nil
 	}
-	if kind, recognized := p.kind.ToFDV1(); recognized {
-		// The object appeared before the kind; parse it now.
-		itemReader := jreader.NewReader(object)
-		item, err := kind.DeserializeFromJSONReader(&itemReader)
-		if err != nil {
-			return p, err
-		}
-		p.item, p.hasItem = item, true
+	kind, recognized := p.kind.ToFDV1()
+	if !recognized {
+		// The final kind is unrecognized -- either it was never a known kind, or a later "kind"
+		// property overrode an earlier recognized one. Keep the object raw and unparsed for
+		// forwards compatibility, discarding any item eagerly decoded under the earlier kind. The
+		// bytes were already validated (by the eager decode or by RawValue).
+		p.hasItem = false
+		return p, nil
 	}
-	// If the kind is unrecognized, the object is kept raw (and unparsed) for forwards
-	// compatibility. No further validation is needed: RawValue already fully validated the
-	// bytes, so a malformed object has failed the payload above regardless of kind.
+	if p.hasItem && decodedKind == p.kind {
+		// The item was already decoded under the final kind while reading the object.
+		return p, nil
+	}
+	// The object was captured before its kind was known, or a later "kind" changed the type after
+	// the object was decoded; parse the captured bytes under the final kind so that the stored item
+	// and kind always agree.
+	itemReader := jreader.NewReader(object)
+	item, err := kind.DeserializeFromJSONReader(&itemReader)
+	if err != nil {
+		return p, err
+	}
+	p.item, p.hasItem = item, true
 	return p, nil
 }
 
