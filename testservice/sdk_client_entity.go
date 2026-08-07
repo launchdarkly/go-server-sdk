@@ -27,6 +27,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/datasourcetest"
 	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -507,6 +508,14 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			if config.Streaming.InitialRetryDelayMS != nil {
 				builder.InitialReconnectDelay(time.Millisecond * time.Duration(*config.Streaming.InitialRetryDelayMS))
 			}
+			if config.Streaming.ExtendedInitialDelayMS != nil {
+				datasourcetest.WithStreamingExtendedInitialReconnectDelay(builder,
+					time.Millisecond*time.Duration(*config.Streaming.ExtendedInitialDelayMS))
+			}
+			if config.Streaming.ResetThresholdMS != nil {
+				datasourcetest.WithStreamingRetryResetInterval(builder,
+					time.Millisecond*time.Duration(*config.Streaming.ResetThresholdMS))
+			}
 			if config.Streaming.Filter.IsDefined() {
 				builder.PayloadFilter(config.Streaming.Filter.String())
 			}
@@ -518,6 +527,10 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 			builder := ldcomponents.PollingDataSource()
 			if config.Polling.PollIntervalMS != nil {
 				builder.PollInterval(time.Millisecond * time.Duration(*config.Polling.PollIntervalMS))
+			}
+			if config.Polling.ExtendedInitialDelayMS != nil {
+				datasourcetest.WithPollingExtendedInitialPollInterval(builder,
+					time.Millisecond*time.Duration(*config.Polling.ExtendedInitialDelayMS))
 			}
 			if config.Polling.Filter.IsDefined() {
 				builder.PayloadFilter(config.Polling.Filter.String())

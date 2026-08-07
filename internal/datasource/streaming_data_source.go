@@ -44,14 +44,17 @@ import (
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
 const (
-	putEvent                 = "put"
-	patchEvent               = "patch"
-	deleteEvent              = "delete"
-	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
-	streamMaxRetryDelay      = 30 * time.Second
-	streamRetryResetInterval = 60 * time.Second
-	streamJitterRatio        = 0.5
-	defaultStreamRetryDelay  = 1 * time.Second
+	putEvent    = "put"
+	patchEvent  = "patch"
+	deleteEvent = "delete"
+	// The LaunchDarkly stream should send a heartbeat comment every 3 minutes.
+	streamReadTimeout               = 5 * time.Minute
+	streamJitterRatio               = 0.5
+	streamRetryResetInterval        = 60 * time.Second
+	defaultStreamRetryDelay         = 1 * time.Second
+	streamMaxRetryDelay             = 30 * time.Second
+	defaultStreamExtendedRetryDelay = 5 * time.Minute
+	streamExtendedMaxRetryDelay     = 1 * time.Hour
 
 	streamingErrorContext     = "in stream connection"
 	streamingWillRetryMessage = "will retry"
@@ -60,9 +63,11 @@ const (
 // StreamConfig describes the configuration for a streaming data source. It is exported so that
 // it can be used in the StreamingDataSourceBuilder.
 type StreamConfig struct {
-	URI                   string
-	FilterKey             string
-	InitialReconnectDelay time.Duration
+	URI                           string
+	FilterKey                     string
+	InitialReconnectDelay         time.Duration
+	ExtendedInitialReconnectDelay time.Duration
+	RetryResetInterval            time.Duration
 }
 
 // StreamProcessor is the internal implementation of the streaming data source.
@@ -298,56 +303,80 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	if initialRetryDelay <= 0 { // COVERAGE: can't cause this condition in unit tests
 		initialRetryDelay = defaultStreamRetryDelay
 	}
+	extendedInitialDelay := sp.cfg.ExtendedInitialReconnectDelay
+	if extendedInitialDelay <= 0 {
+		extendedInitialDelay = defaultStreamExtendedRetryDelay
+	}
+	retryResetInterval := sp.cfg.RetryResetInterval
+	if retryResetInterval <= 0 {
+		retryResetInterval = streamRetryResetInterval
+	}
+
+	defaultCurve := es.NewRetryCurve(
+		es.RetryCurveBaseDelay(initialRetryDelay),
+		es.RetryCurveMaxDelay(streamMaxRetryDelay),
+		es.RetryCurveJitter(streamJitterRatio),
+	)
+
+	extendedCurve := es.NewRetryCurve(
+		es.RetryCurveBaseDelay(extendedInitialDelay),
+		es.RetryCurveMaxDelay(streamExtendedMaxRetryDelay),
+		es.RetryCurveJitter(streamJitterRatio),
+	)
 
 	errorHandler := func(err error) es.StreamErrorHandlerResult {
 		sp.logConnectionResult(false)
 
+		var class FailureClass
+		var errorInfo interfaces.DataSourceErrorInfo
+
 		if se, ok := err.(es.SubscriptionError); ok {
-			errorInfo := interfaces.DataSourceErrorInfo{
+			errorInfo = interfaces.DataSourceErrorInfo{
 				Kind:       interfaces.DataSourceErrorKindErrorResponse,
 				StatusCode: se.Code,
 				Time:       time.Now(),
 			}
-			recoverable := checkIfErrorIsRecoverableAndLog(
+			class = classifyAndLogHTTPFailure(
 				sp.loggers,
 				httpErrorDescription(se.Code),
 				streamingErrorContext,
 				se.Code,
 				streamingWillRetryMessage,
 			)
-			if recoverable {
-				sp.logConnectionStarted()
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
-				return es.StreamErrorHandlerResult{CloseNow: false}
+		} else {
+			errorInfo = interfaces.DataSourceErrorInfo{
+				Kind:    interfaces.DataSourceErrorKindNetworkError,
+				Message: err.Error(),
+				Time:    time.Now(),
 			}
-			sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
-			return es.StreamErrorHandlerResult{CloseNow: true}
+			class = classifyAndLogTransportFailure(
+				sp.loggers,
+				err,
+				streamingErrorContext,
+				streamingWillRetryMessage,
+			)
 		}
 
-		checkIfErrorIsRecoverableAndLog(
-			sp.loggers,
-			err.Error(),
-			streamingErrorContext,
-			0,
-			streamingWillRetryMessage,
-		)
-		errorInfo := interfaces.DataSourceErrorInfo{
-			Kind:    interfaces.DataSourceErrorKindNetworkError,
-			Message: err.Error(),
-			Time:    time.Now(),
-		}
 		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		sp.logConnectionStarted()
-		return es.StreamErrorHandlerResult{CloseNow: false}
+
+		// Per RETRY §1.2.1: no failure is permanently terminal. Unexpected failures
+		// engage the extended-regime curve; the library keeps retrying at extended
+		// cadence until a healthy-op reset (retryResetInterval of continuous
+		// connection) reverts.
+		result := es.StreamErrorHandlerResult{CloseNow: false}
+		if class == FailureClassUnexpected {
+			result.ActivateCurve = extendedCurve
+		}
+		return result
 	}
 
 	stream, err := es.SubscribeWithRequestAndOptions(req,
 		es.StreamOptionHTTPClient(sp.client),
 		es.StreamOptionReadTimeout(streamReadTimeout),
-		es.StreamOptionInitialRetry(initialRetryDelay),
-		es.StreamOptionUseBackoff(streamMaxRetryDelay),
-		es.StreamOptionUseJitter(streamJitterRatio),
-		es.StreamOptionRetryResetInterval(streamRetryResetInterval),
+		es.StreamOptionDefaultRetryCurve(defaultCurve),
+		es.StreamOptionRegisterRetryCurve(extendedCurve),
+		es.StreamOptionRetryResetInterval(retryResetInterval),
 		es.StreamOptionErrorHandler(errorHandler),
 		es.StreamOptionCanRetryFirstConnection(-1),
 		es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info)),

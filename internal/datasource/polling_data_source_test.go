@@ -27,7 +27,7 @@ func TestPollingProcessorClosingItShouldNotBlock(t *testing.T) {
 	r.RequestAllRespCh <- mocks.RequestAllResponse{}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, r, time.Minute)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, r, time.Minute, 0)
 
 		p.Close()
 
@@ -49,7 +49,7 @@ func TestPollingProcessorInitialization(t *testing.T) {
 	r.RequestAllRespCh <- resp
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, r, time.Millisecond*10)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, r, time.Millisecond*10, 0)
 		defer p.Close()
 
 		closeWhenReady := make(chan struct{})
@@ -116,7 +116,7 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
+		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, req, time.Millisecond*10, 0)
 		defer p.Close()
 		closeWhenReady := make(chan struct{})
 		p.Start(closeWhenReady)
@@ -141,10 +141,15 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 	})
 }
 
-func TestPollingProcessorUnrecoverableErrors(t *testing.T) {
+// Under the RETRY spec (SDK-2775), previously-terminal 4xx errors (401, 403, 404,
+// 405) engage an extended-regime backoff but keep polling indefinitely. The
+// processor transitions to Interrupted (not Off) and continues to poll. Replaces
+// the pre-RETRY TestPollingProcessorUnrecoverableErrors, which asserted the old
+// permanent-stop behavior.
+func TestPollingProcessorUnexpectedErrorsEngageExtendedRegimeAndKeepRetrying(t *testing.T) {
 	for _, statusCode := range []int{401, 403, 404, 405} {
 		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
-			testPollingProcessorUnrecoverableError(
+			testPollingProcessorUnexpectedError(
 				t,
 				httpStatusError{Code: statusCode},
 				func(errorInfo interfaces.DataSourceErrorInfo) {
@@ -156,7 +161,7 @@ func TestPollingProcessorUnrecoverableErrors(t *testing.T) {
 	}
 }
 
-func testPollingProcessorUnrecoverableError(
+func testPollingProcessorUnexpectedError(
 	t *testing.T,
 	err error,
 	verifyError func(interfaces.DataSourceErrorInfo),
@@ -164,23 +169,93 @@ func testPollingProcessorUnrecoverableError(
 	req := mocks.NewPollingRequester()
 	defer req.Close()
 
-	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
-	req.RequestAllRespCh <- mocks.RequestAllResponse{} // we shouldn't get a second request, but just in case
+	// Feed several consecutive failures so we can observe multiple retry attempts.
+	for i := 0; i < 5; i++ {
+		req.RequestAllRespCh <- mocks.RequestAllResponse{Err: err}
+	}
 
 	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
-		p := newPollingProcessor(sharedtest.BasicClientContext(), dataSourceUpdates, req, time.Millisecond*10)
+		// Both PollInterval and ExtendedInitialPollInterval are dialed down so we don't
+		// wait the extended-regime 5-minute default between the first failure and
+		// observing the second attempt. The extended regime engages internally; here
+		// its wait floor is dominated by these two knobs.
+		p := newPollingProcessor(
+			sharedtest.BasicClientContext(), dataSourceUpdates, req,
+			10*time.Millisecond, // PollInterval
+			20*time.Millisecond, // ExtendedInitialPollInterval
+		)
 		defer p.Close()
 		closeWhenReady := make(chan struct{})
 		p.Start(closeWhenReady)
 
-		// wait for first poll
+		// Wait for the first poll to fire.
 		<-req.PollsCh
 
-		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
+		// Initialization must not complete: no permanent stop, no successful poll.
+		select {
+		case <-closeWhenReady:
+			t.Fatal("closeWhenReady should not be closed — RETRY §1.2.1 forbids permanent stops on 4xx")
+		case <-time.After(500 * time.Millisecond):
+		}
 
-		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+		// Status reports the failure as Interrupted, not Off.
+		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 		verifyError(status.LastError)
-		assert.Len(t, req.PollsCh, 0)
+
+		// Confirm the polling processor kept polling — at least one additional poll
+		// attempt landed at the mock requester.
+		select {
+		case <-req.PollsCh:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("expected polling processor to retry after unexpected-classified error")
+		}
+	})
+}
+
+// After two consecutive successful polls, the processor must reset to the normal
+// regime: attempts=0, and subsequent waits equal PollInterval (not the extended
+// initial delay). This exercises the RETRY §1.8 polling binding, where the reset
+// condition is a fixed count of successful polls rather than a time threshold.
+func TestPollingResetsToNormalAfterTwoConsecutiveSuccesses(t *testing.T) {
+	req := mocks.NewPollingRequester()
+	defer req.Close()
+
+	// Sequence: fail (engages extended), succeed, succeed (triggers reset), then
+	// stay in normal regime. Followed by many placeholder successes so the loop
+	// doesn't block.
+	req.RequestAllRespCh <- mocks.RequestAllResponse{Err: httpStatusError{Code: 401}}
+	for i := 0; i < 10; i++ {
+		req.RequestAllRespCh <- mocks.RequestAllResponse{}
+	}
+
+	withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
+		p := newPollingProcessor(
+			sharedtest.BasicClientContext(), dataSourceUpdates, req,
+			10*time.Millisecond, // PollInterval
+			20*time.Millisecond, // ExtendedInitialPollInterval
+		)
+		defer p.Close()
+		closeWhenReady := make(chan struct{})
+		p.Start(closeWhenReady)
+
+		// Poll #1: failure. Extended regime engages internally.
+		<-req.PollsCh
+		// Poll #2: success. priorPollWasSuccessful flips true; regime not yet reset.
+		<-req.PollsCh
+		// Poll #3: second consecutive success — reset should fire (attempts=0, back to normal).
+		<-req.PollsCh
+		// Poll #4: normal regime. The wait between polls should be ~PollInterval (10ms), not
+		// the extended base. Bounding at 200ms keeps a big margin against goroutine
+		// scheduling variance while still catching a regression that would produce
+		// a many-second or many-minute wait.
+		startPoll4 := time.Now()
+		<-req.PollsCh
+		elapsed := time.Since(startPoll4)
+		assert.Less(t, elapsed, 200*time.Millisecond,
+			"after 2 consecutive successes the polling processor should be back at PollInterval cadence")
+
+		// Init completes on the first success.
+		waitForReadyWithTimeout(t, closeWhenReady, time.Second)
 	})
 }
 

@@ -16,12 +16,22 @@ const DefaultStreamingBaseURI = endpoints.DefaultStreamingBaseURI
 // DefaultInitialReconnectDelay is the default value for [StreamingDataSourceBuilder.InitialReconnectDelay].
 const DefaultInitialReconnectDelay = time.Second
 
+// DefaultExtendedInitialReconnectDelay is the default value for
+// [StreamingDataSourceBuilder.ExtendedInitialReconnectDelay].
+const DefaultExtendedInitialReconnectDelay = 5 * time.Minute
+
+// DefaultRetryResetInterval is the default value for
+// [StreamingDataSourceBuilder.RetryResetInterval].
+const DefaultRetryResetInterval = 60 * time.Second
+
 // StreamingDataSourceBuilder provides methods for configuring the streaming data source.
 //
 // See StreamingDataSource for usage.
 type StreamingDataSourceBuilder struct {
-	initialReconnectDelay time.Duration
-	filterKey             ldvalue.OptionalString
+	initialReconnectDelay         time.Duration
+	extendedInitialReconnectDelay time.Duration
+	retryResetInterval            time.Duration
+	filterKey                     ldvalue.OptionalString
 }
 
 // StreamingDataSource returns a configurable factory for using streaming mode to get feature flag data.
@@ -36,7 +46,9 @@ type StreamingDataSourceBuilder struct {
 //	}
 func StreamingDataSource() *StreamingDataSourceBuilder {
 	return &StreamingDataSourceBuilder{
-		initialReconnectDelay: DefaultInitialReconnectDelay,
+		initialReconnectDelay:         DefaultInitialReconnectDelay,
+		extendedInitialReconnectDelay: DefaultExtendedInitialReconnectDelay,
+		retryResetInterval:            DefaultRetryResetInterval,
 	}
 }
 
@@ -56,6 +68,47 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 		b.initialReconnectDelay = initialReconnectDelay
 	}
 	return b
+}
+
+// StreamingDataSourceBuilderInternal is an internal test-only accessor for a
+// StreamingDataSourceBuilder. It exposes knobs that are not part of the SDK's
+// stable public API and must not be used in production code — the LaunchDarkly
+// RETRY conformance test suite is the only intended caller.
+type StreamingDataSourceBuilderInternal struct{ builder *StreamingDataSourceBuilder }
+
+// Internal returns a test-only accessor for setting fields not exposed on the
+// public builder surface. This is not part of the SDK's stable public API and
+// must not be used in production code.
+func (b *StreamingDataSourceBuilder) Internal() StreamingDataSourceBuilderInternal {
+	return StreamingDataSourceBuilderInternal{builder: b}
+}
+
+// ExtendedInitialReconnectDelay sets the base delay for the extended-regime retry
+// curve that engages after RETRY-classified unexpected failures (401, 403, TLS/cert).
+// Values ≤ 0 are clamped to [DefaultExtendedInitialReconnectDelay].
+func (i StreamingDataSourceBuilderInternal) ExtendedInitialReconnectDelay(
+	delay time.Duration,
+) StreamingDataSourceBuilderInternal {
+	if delay <= 0 {
+		i.builder.extendedInitialReconnectDelay = DefaultExtendedInitialReconnectDelay
+	} else {
+		i.builder.extendedInitialReconnectDelay = delay
+	}
+	return i
+}
+
+// RetryResetInterval sets the threshold of continuous healthy stream operation
+// before the SDK resets its retry backoff to the normal regime.
+// Values ≤ 0 are clamped to [DefaultRetryResetInterval].
+func (i StreamingDataSourceBuilderInternal) RetryResetInterval(
+	interval time.Duration,
+) StreamingDataSourceBuilderInternal {
+	if interval <= 0 {
+		i.builder.retryResetInterval = DefaultRetryResetInterval
+	} else {
+		i.builder.retryResetInterval = interval
+	}
+	return i
 }
 
 // PayloadFilter sets the payload filter key for this streaming connection. The filter key
@@ -83,9 +136,11 @@ func (b *StreamingDataSourceBuilder) Build(context subsystems.ClientContext) (su
 		context.GetLogging().Loggers,
 	)
 	cfg := datasource.StreamConfig{
-		URI:                   configuredBaseURI,
-		InitialReconnectDelay: b.initialReconnectDelay,
-		FilterKey:             filterKey,
+		URI:                           configuredBaseURI,
+		InitialReconnectDelay:         b.initialReconnectDelay,
+		ExtendedInitialReconnectDelay: b.extendedInitialReconnectDelay,
+		RetryResetInterval:            b.retryResetInterval,
+		FilterKey:                     filterKey,
 	}
 	return datasource.NewStreamProcessor(
 		context,

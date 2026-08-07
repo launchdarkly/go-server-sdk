@@ -16,12 +16,17 @@ const DefaultPollingBaseURI = "https://app.launchdarkly.com"
 // DefaultPollInterval is the default value for [PollingDataSourceBuilder.PollInterval]. This is also the minimum value.
 const DefaultPollInterval = 30 * time.Second
 
+// DefaultExtendedInitialPollInterval is the default value for
+// [PollingDataSourceBuilder.ExtendedInitialPollInterval].
+const DefaultExtendedInitialPollInterval = 5 * time.Minute
+
 // PollingDataSourceBuilder provides methods for configuring the polling data source.
 //
 // See [PollingDataSource] for usage.
 type PollingDataSourceBuilder struct {
-	pollInterval time.Duration
-	filterKey    ldvalue.OptionalString
+	pollInterval                time.Duration
+	extendedInitialPollInterval time.Duration
+	filterKey                   ldvalue.OptionalString
 }
 
 // PollingDataSource returns a configurable factory for using polling mode to get feature flag data.
@@ -40,7 +45,8 @@ type PollingDataSourceBuilder struct {
 //	}
 func PollingDataSource() *PollingDataSourceBuilder {
 	return &PollingDataSourceBuilder{
-		pollInterval: DefaultPollInterval,
+		pollInterval:                DefaultPollInterval,
+		extendedInitialPollInterval: DefaultExtendedInitialPollInterval,
 	}
 }
 
@@ -64,6 +70,32 @@ func (b *PollingDataSourceBuilder) forcePollInterval(
 ) *PollingDataSourceBuilder {
 	b.pollInterval = pollInterval
 	return b
+}
+
+// PollingDataSourceBuilderInternal is an internal test-only accessor for a
+// PollingDataSourceBuilder. It exposes knobs that are not part of the SDK's
+// stable public API and must not be used in production code.
+type PollingDataSourceBuilderInternal struct{ builder *PollingDataSourceBuilder }
+
+// Internal returns a test-only accessor for setting fields not exposed on the
+// public builder surface. This is not part of the SDK's stable public API and
+// must not be used in production code.
+func (b *PollingDataSourceBuilder) Internal() PollingDataSourceBuilderInternal {
+	return PollingDataSourceBuilderInternal{builder: b}
+}
+
+// ExtendedInitialPollInterval sets the base delay for the extended-regime backoff
+// that engages after RETRY-classified unexpected failures (401, 403, TLS/cert).
+// Values ≤ 0 are clamped to [DefaultExtendedInitialPollInterval].
+func (i PollingDataSourceBuilderInternal) ExtendedInitialPollInterval(
+	delay time.Duration,
+) PollingDataSourceBuilderInternal {
+	if delay <= 0 {
+		i.builder.extendedInitialPollInterval = DefaultExtendedInitialPollInterval
+	} else {
+		i.builder.extendedInitialPollInterval = delay
+	}
+	return i
 }
 
 // PayloadFilter sets the filter key for the polling connection.
@@ -92,9 +124,10 @@ func (b *PollingDataSourceBuilder) Build(context subsystems.ClientContext) (subs
 		context.GetLogging().Loggers,
 	)
 	cfg := datasource.PollingConfig{
-		BaseURI:      configuredBaseURI,
-		PollInterval: b.pollInterval,
-		FilterKey:    filterKey,
+		BaseURI:                     configuredBaseURI,
+		PollInterval:                b.pollInterval,
+		ExtendedInitialPollInterval: b.extendedInitialPollInterval,
+		FilterKey:                   filterKey,
 	}
 	pp := datasource.NewPollingProcessor(context, context.GetDataSourceUpdateSink(), cfg)
 	return pp, nil

@@ -26,6 +26,7 @@ import (
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -248,10 +249,15 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 	})
 }
 
-func TestStreamProcessorUnrecoverableErrorsCauseStreamShutdown(t *testing.T) {
+// Under the RETRY spec (SDK-2775), 401 / 403 / other 4xx are no longer terminal —
+// they engage an extended-regime backoff but keep retrying indefinitely. The SDK
+// transitions to Interrupted (not Off) and does not close the initialization
+// channel. This test replaces the pre-RETRY TestStreamProcessorUnrecoverableErrors
+// CauseStreamShutdown, which asserted the old (permanent-stop) behavior.
+func TestStreamProcessorUnexpectedErrorsEngageExtendedRegimeAndKeepRetrying(t *testing.T) {
 	for _, status := range []int{401, 403, 404} {
 		t.Run(fmt.Sprintf("HTTP status %d", status), func(t *testing.T) {
-			testStreamProcessorUnrecoverableHTTPError(t, status)
+			testStreamProcessorUnexpectedHTTPError(t, status)
 		})
 	}
 }
@@ -378,10 +384,12 @@ func TestStreamProcessorStoreUpdateFailureWithoutStatusTracking(t *testing.T) {
 
 }
 
-func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
+func testStreamProcessorUnexpectedHTTPError(t *testing.T, statusCode int) {
 	mockLog := ldlogtest.NewMockLog()
 	defer mockLog.DumpIfTestFailed(t)
-	httphelpers.WithServer(httphelpers.HandlerWithStatus(statusCode), func(ts *httptest.Server) {
+	// Record the request stream so we can verify the SDK keeps retrying after the failure.
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(statusCode))
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
 		withMockDataSourceUpdates(func(dataSourceUpdates *mocks.MockDataSourceUpdates) {
 			id := ldevents.NewDiagnosticID(sharedtest.TestSDKKey)
 			diagnosticsManager := ldevents.NewDiagnosticsManager(id, ldvalue.Null(), ldvalue.Null(), time.Now(), nil)
@@ -393,22 +401,45 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 				DiagnosticsManager: diagnosticsManager,
 			}
 
-			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{URI: ts.URL, InitialReconnectDelay: time.Second})
+			// Short retry delays so we can observe at least two attempts within the
+			// assertion window. The extended-regime curve activates immediately on the
+			// first failure (per the RETRY spec — no grace period for initial-connection
+			// unexpected classifications), so we need to shorten ExtendedInitialReconnectDelay
+			// too, not just the normal InitialReconnectDelay.
+			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{
+				URI:                           ts.URL,
+				InitialReconnectDelay:         10 * time.Millisecond,
+				ExtendedInitialReconnectDelay: 20 * time.Millisecond,
+			})
 			defer sp.Close()
 
 			closeWhenReady := make(chan struct{})
-
 			sp.Start(closeWhenReady)
 
-			th.AssertChannelClosed(t, closeWhenReady, time.Second*3, "Initialization shouldn't block after this error")
+			// Initialization must not complete: no permanent stop, no successful put.
+			// The client's Start() would time out via StartWaitTimeMS in production; here
+			// we just assert the channel stays open.
+			select {
+			case <-closeWhenReady:
+				t.Fatal("closeWhenReady should not be closed — RETRY §1.2.1 forbids permanent stops on 4xx")
+			case <-time.After(time.Second):
+			}
 
-			event := diagnosticsManager.CreateStatsEventAndReset(0, 0, 0)
-			assert.Equal(t, 1, event.GetByKey("streamInits").Count())
-			assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
-
-			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateOff)
+			// The mock data source updates records the raw UpdateStatus calls made
+			// by the processor — so we see the Interrupted call the processor tried
+			// to make. (The real DataSourceUpdateSinkImpl would clamp it to
+			// Initializing since we never reached Valid; that's tested at the
+			// LDClient-level in the RETRY end-to-end tests. Here we just verify the
+			// processor emitted the correct call.)
+			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)
 			assert.Equal(t, statusCode, status.LastError.StatusCode)
+
+			// Confirm the SDK actually retried (at least a second request landed at the mock server).
+			// The initial-regime retry delay is 10ms above, so 500ms is plenty of budget.
+			require.Eventually(t, func() bool { return len(requestsCh) >= 2 },
+				500*time.Millisecond, 10*time.Millisecond,
+				"expected the SDK to retry after the unexpected-classified error")
 		})
 	})
 }
