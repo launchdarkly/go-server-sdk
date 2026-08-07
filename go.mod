@@ -35,8 +35,3 @@ require (
 )
 
 retract [v7.15.1, v7.15.2] // Introduced unintentional breaking changes; use version v7.15.3 or later.
-
-// TODO(SDK-2788): temporary local replace so this branch can build against the
-// unreleased RetryCurve API in eventsource PR #68. Remove after the eventsource
-// PR merges and a release with the API is tagged (>=1.12.0 expected).
-replace github.com/launchdarkly/eventsource => ../eventsource

@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/v7/testservice
 
-go 1.25.0
+go 1.24.0
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.17.5
@@ -56,12 +56,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/redis/go-redis/v9 v9.0.2 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 )
 
 replace github.com/launchdarkly/go-server-sdk/v7 => ../
-
-// TODO(SDK-2788): temporary local replace so this branch can build against the
-// unreleased RetryCurve API in eventsource PR #68. Remove when the eventsource
-// PR merges and a release with the API is tagged (>=1.12.0 expected).
-replace github.com/launchdarkly/eventsource => ../../eventsource
