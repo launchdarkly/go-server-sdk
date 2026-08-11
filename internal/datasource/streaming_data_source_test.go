@@ -402,7 +402,7 @@ func testStreamProcessorUnexpectedHTTPError(t *testing.T, statusCode int) {
 			}
 
 			// Short retry delays so we can observe at least two attempts within the
-			// assertion window. The extended-regime curve activates immediately on the
+			// assertion window. The extended-regime profile activates immediately on the
 			// first failure (per the RETRY spec — no grace period for initial-connection
 			// unexpected classifications), so we need to shorten ExtendedInitialReconnectDelay
 			// too, not just the normal InitialReconnectDelay.

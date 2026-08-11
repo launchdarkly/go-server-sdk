@@ -84,7 +84,7 @@ func (b *StreamingDataSourceBuilder) Internal() StreamingDataSourceBuilderIntern
 }
 
 // ExtendedInitialReconnectDelay sets the base delay for the extended-regime retry
-// curve that engages after RETRY-classified unexpected failures (401, 403, TLS/cert).
+// profile that engages after RETRY-classified unexpected failures (401, 403, TLS/cert).
 // Values ≤ 0 are clamped to [DefaultExtendedInitialReconnectDelay].
 func (i StreamingDataSourceBuilderInternal) ExtendedInitialReconnectDelay(
 	delay time.Duration,

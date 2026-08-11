@@ -26,7 +26,7 @@ func (e httpStatusError) Error() string {
 // FailureClass categorizes a data source failure per RETRY §1.5–§1.7. Under the
 // RETRY spec no failure is permanently terminal: every failure is either "normal"
 // (regular backoff and retry) or "unexpected" (extended backoff via a longer
-// retry curve or wait interval, still retrying indefinitely).
+// retry profile or wait interval, still retrying indefinitely).
 type FailureClass int
 
 const (

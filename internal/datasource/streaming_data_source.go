@@ -312,16 +312,16 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		retryResetInterval = streamRetryResetInterval
 	}
 
-	defaultCurve := es.NewRetryCurve(
-		es.RetryCurveBaseDelay(initialRetryDelay),
-		es.RetryCurveMaxDelay(streamMaxRetryDelay),
-		es.RetryCurveJitter(streamJitterRatio),
+	defaultProfile := es.NewRetryProfile(
+		es.RetryProfileBaseDelay(initialRetryDelay),
+		es.RetryProfileMaxDelay(streamMaxRetryDelay),
+		es.RetryProfileJitter(streamJitterRatio),
 	)
 
-	extendedCurve := es.NewRetryCurve(
-		es.RetryCurveBaseDelay(extendedInitialDelay),
-		es.RetryCurveMaxDelay(streamExtendedMaxRetryDelay),
-		es.RetryCurveJitter(streamJitterRatio),
+	extendedProfile := es.NewRetryProfile(
+		es.RetryProfileBaseDelay(extendedInitialDelay),
+		es.RetryProfileMaxDelay(streamExtendedMaxRetryDelay),
+		es.RetryProfileJitter(streamJitterRatio),
 	)
 
 	errorHandler := func(err error) es.StreamErrorHandlerResult {
@@ -361,12 +361,12 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		sp.logConnectionStarted()
 
 		// Per RETRY §1.2.1: no failure is permanently terminal. Unexpected failures
-		// engage the extended-regime curve; the library keeps retrying at extended
+		// engage the extended-regime profile; the library keeps retrying at extended
 		// cadence until a healthy-op reset (retryResetInterval of continuous
 		// connection) reverts.
 		result := es.StreamErrorHandlerResult{CloseNow: false}
 		if class == FailureClassUnexpected {
-			result.ActivateCurve = extendedCurve
+			result.ActivateProfile = extendedProfile
 		}
 		return result
 	}
@@ -374,8 +374,8 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	stream, err := es.SubscribeWithRequestAndOptions(req,
 		es.StreamOptionHTTPClient(sp.client),
 		es.StreamOptionReadTimeout(streamReadTimeout),
-		es.StreamOptionDefaultRetryCurve(defaultCurve),
-		es.StreamOptionRegisterRetryCurve(extendedCurve),
+		es.StreamOptionDefaultRetryProfile(defaultProfile),
+		es.StreamOptionRegisterRetryProfile(extendedProfile),
 		es.StreamOptionRetryResetInterval(retryResetInterval),
 		es.StreamOptionErrorHandler(errorHandler),
 		es.StreamOptionCanRetryFirstConnection(-1),

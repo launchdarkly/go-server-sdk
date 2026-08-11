@@ -19,7 +19,7 @@ import (
 )
 
 // WithStreamingExtendedInitialReconnectDelay overrides the RETRY-spec default
-// base delay for the streaming extended-regime retry curve. Test-only.
+// base delay for the streaming extended-regime retry profile. Test-only.
 func WithStreamingExtendedInitialReconnectDelay(
 	b *ldcomponents.StreamingDataSourceBuilder,
 	delay time.Duration,

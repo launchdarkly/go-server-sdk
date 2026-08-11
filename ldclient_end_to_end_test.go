@@ -115,7 +115,7 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		// Short reconnect delays so multiple attempts fit within the init wait window.
-		// Extended-regime curve activates immediately on 401 (unexpected), so we need
+		// Extended-regime profile activates immediately on 401 (unexpected), so we need
 		// to shorten its base too, not just the normal-regime InitialReconnectDelay.
 		streamingBuilder := ldcomponents.StreamingDataSource().InitialReconnectDelay(10 * time.Millisecond)
 		datasourcetest.WithStreamingExtendedInitialReconnectDelay(streamingBuilder, 20*time.Millisecond)
