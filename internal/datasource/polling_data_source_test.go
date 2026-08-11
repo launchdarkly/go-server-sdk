@@ -213,8 +213,8 @@ func testPollingProcessorUnexpectedError(
 }
 
 // After two consecutive successful polls, the processor must reset to the normal
-// regime: attempts=0, and subsequent waits equal PollInterval (not the extended
-// initial delay). This exercises the RETRY §1.8 polling binding, where the reset
+// regime: n=0, and subsequent waits equal PollInterval (not the extended initial
+// delay). This exercises the RETRY §1.8 polling binding, where the reset
 // condition is a fixed count of successful polls rather than a time threshold.
 func TestPollingResetsToNormalAfterTwoConsecutiveSuccesses(t *testing.T) {
 	req := mocks.NewPollingRequester()
@@ -242,7 +242,7 @@ func TestPollingResetsToNormalAfterTwoConsecutiveSuccesses(t *testing.T) {
 		<-req.PollsCh
 		// Poll #2: success. priorPollWasSuccessful flips true; regime not yet reset.
 		<-req.PollsCh
-		// Poll #3: second consecutive success — reset should fire (attempts=0, back to normal).
+		// Poll #3: second consecutive success — reset should fire (n=0, back to normal).
 		<-req.PollsCh
 		// Poll #4: normal regime. The wait between polls should be ~PollInterval (10ms), not
 		// the extended base. Bounding at 200ms keeps a big margin against goroutine
