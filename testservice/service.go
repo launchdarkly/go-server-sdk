@@ -41,6 +41,7 @@ var capabilities = []string{
 	servicedef.CapabilityAnonymousRedaction,
 	servicedef.CapabilityEvaluationHooks,
 	servicedef.CapabilityTrackHooks,
+	servicedef.CapabilityHookEnvironmentID,
 	servicedef.CapabilityOmitAnonymousContexts,
 	servicedef.CapabilityEventGzip,
 	servicedef.CapabilityOptionalEventGzip,
