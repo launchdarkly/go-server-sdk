@@ -2,7 +2,6 @@ package datasourcev2
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -214,8 +213,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				// Swallow the event and move on.
 			case subsystems.EventServerIntent:
 
-				var serverIntent subsystems.ServerIntent
-				err := json.Unmarshal([]byte(event.Data()), &serverIntent)
+				serverIntent, err := parseServerIntentEventData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
@@ -241,24 +239,21 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				}
 
 			case subsystems.EventPutObject:
-				var p subsystems.PutObject
-				err := json.Unmarshal([]byte(event.Data()), &p)
+				p, err := parsePutObjectEventData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
-				changeSetBuilder.AddPut(p.Kind, p.Key, p.Version, p.Object)
+				p.addTo(changeSetBuilder)
 			case subsystems.EventDeleteObject:
-				var d subsystems.DeleteObject
-				err := json.Unmarshal([]byte(event.Data()), &d)
+				d, err := parseDeleteObjectEventData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
 				}
 				changeSetBuilder.AddDelete(d.Kind, d.Key, d.Version)
 			case subsystems.EventGoodbye:
-				var goodbye subsystems.Goodbye
-				err := json.Unmarshal([]byte(event.Data()), &goodbye)
+				goodbye, err := parseGoodbyeEventData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
@@ -266,8 +261,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 
 				sp.loggers.Infof("SSE server sent goodbye: %s", goodbye.Reason)
 			case subsystems.EventError:
-				var errorData subsystems.Error
-				err := json.Unmarshal([]byte(event.Data()), &errorData)
+				errorData, err := parseErrorEventData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
@@ -284,8 +278,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				changeSetBuilder.Reset()
 
 			case subsystems.EventPayloadTransferred:
-				var selector subsystems.Selector
-				err := json.Unmarshal([]byte(event.Data()), &selector)
+				selector, err := parseSelectorEventData([]byte(event.Data()))
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break

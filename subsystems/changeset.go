@@ -122,7 +122,17 @@ func toStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
 // ChangeSetBuilder is a helper for constructing a ChangeSet.
 type ChangeSetBuilder struct {
 	intent  *ServerIntent
-	changes []Change
+	changes []changeRecord
+}
+
+// changeRecord is a Change plus, optionally, the already-parsed representation of the change's
+// object. When every put of a recognized kind carries a parsed item, the builder can assemble
+// the ChangeSet's collections directly at Finish time, so that Collections() does not need to
+// re-parse the raw JSON.
+type changeRecord struct {
+	change  Change
+	item    ldstoretypes.ItemDescriptor
+	hasItem bool
 }
 
 // NewChangeSetBuilder creates a new ChangeSetBuilder, which is empty by default.
@@ -265,11 +275,21 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 	if c.intent == nil {
 		return nil, errors.New("changeset: cannot complete without a server-intent")
 	}
-	changes := &ChangeSet{
+	var changes []Change
+	if c.changes != nil {
+		changes = make([]Change, 0, len(c.changes))
+		for _, record := range c.changes {
+			changes = append(changes, record.change)
+		}
+	}
+	changeSet := &ChangeSet{
 		intentCode: c.intent.Payload.Code,
 		selector:   selector,
-		changes:    c.changes,
+		changes:    changes,
 		mu:         &sync.Mutex{},
+	}
+	if collections, ok := collectionsFromRecords(c.changes); ok {
+		changeSet.collection = collections
 	}
 	c.changes = nil
 
@@ -279,17 +299,91 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 	if c.intent.Payload.Code == IntentTransferFull {
 		c.intent.Payload.Code = IntentTransferChanges
 	}
-	return changes, nil
+	return changeSet, nil
+}
+
+// collectionsFromRecords assembles storable collections from the builder's records without
+// parsing any JSON, if possible. This requires every put of a recognized kind to carry a
+// pre-parsed item; otherwise it returns (nil, false) and the ChangeSet falls back to parsing
+// lazily in Collections().
+func collectionsFromRecords(records []changeRecord) ([]ldstoretypes.Collection, bool) {
+	if records == nil {
+		return nil, false
+	}
+	for _, record := range records {
+		if record.change.Action == ChangeTypePut && !record.hasItem {
+			if _, recognized := record.change.Kind.ToFDV1(); recognized {
+				return nil, false
+			}
+		}
+	}
+	collections := make(kindMap)
+	for _, record := range records {
+		kind, ok := record.change.Kind.ToFDV1()
+		if !ok {
+			// Unrecognized kinds are not errors and are ignored for forwards compatibility.
+			continue
+		}
+		switch record.change.Action {
+		case ChangeTypePut:
+			collections[kind] = append(collections[kind], ldstoretypes.KeyedItemDescriptor{
+				Key:  record.change.Key,
+				Item: record.item,
+			})
+		case ChangeTypeDelete:
+			// A deletion is represented by a tombstone, which is an ItemDescriptor with a version and nil item.
+			collections[kind] = append(collections[kind], ldstoretypes.KeyedItemDescriptor{
+				Key:  record.change.Key,
+				Item: ldstoretypes.ItemDescriptor{Version: record.change.Version, Item: nil},
+			})
+		default:
+			// An unknown action isn't an error, and should be ignored for forwards compatibility.
+			continue
+		}
+	}
+	result := collections.flatten()
+	if result == nil {
+		result = []ldstoretypes.Collection{}
+	}
+	return result, true
 }
 
 // AddPut adds a new object to the changeset.
 func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, object json.RawMessage) *ChangeSetBuilder {
-	c.changes = append(c.changes, Change{
+	c.changes = append(c.changes, changeRecord{change: Change{
 		Action:  ChangeTypePut,
 		Kind:    kind,
 		Key:     key,
 		Version: version,
 		Object:  object,
+	}})
+
+	return c
+}
+
+// AddParsedPut adds a new object to the changeset, along with the already-parsed representation
+// of that object. The object parameter is the raw JSON of the item, exactly as it would be passed
+// to AddPut, and item is the result of deserializing those same bytes.
+//
+// Providing the parsed item up front allows the ChangeSet returned by Finish to assemble its
+// Collections() result directly, instead of re-parsing the raw JSON of every put.
+func (c *ChangeSetBuilder) AddParsedPut(
+	kind ObjectKind,
+	key string,
+	version int,
+	object json.RawMessage,
+	item ldstoretypes.ItemDescriptor,
+) *ChangeSetBuilder {
+	c.changes = append(c.changes, changeRecord{
+		change: Change{
+			Action:  ChangeTypePut,
+			Kind:    kind,
+			Key:     key,
+			Version: version,
+			Object:  object,
+		},
+		item:    item,
+		hasItem: true,
 	})
 
 	return c
@@ -297,12 +391,12 @@ func (c *ChangeSetBuilder) AddPut(kind ObjectKind, key string, version int, obje
 
 // AddDelete adds a deletion to the changeset.
 func (c *ChangeSetBuilder) AddDelete(kind ObjectKind, key string, version int) *ChangeSetBuilder {
-	c.changes = append(c.changes, Change{
+	c.changes = append(c.changes, changeRecord{change: Change{
 		Action:  ChangeTypeDelete,
 		Kind:    kind,
 		Key:     key,
 		Version: version,
-	})
+	}})
 
 	return c
 }
