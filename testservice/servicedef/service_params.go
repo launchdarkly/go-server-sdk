@@ -22,6 +22,7 @@ const (
 	CapabilityAnonymousRedaction            = "anonymous-redaction"
 	CapabilityEvaluationHooks               = "evaluation-hooks"
 	CapabilityTrackHooks                    = "track-hooks"
+	CapabilityHookEnvironmentID             = "hook-environment-id"
 	CapabilityOmitAnonymousContexts         = "omit-anonymous-contexts"
 	CapabilityEventGzip                     = "event-gzip"
 	CapabilityOptionalEventGzip             = "optional-event-gzip"
