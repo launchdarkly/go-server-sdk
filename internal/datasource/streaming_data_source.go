@@ -99,6 +99,9 @@ func NewStreamProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg StreamConfig,
 ) *StreamProcessor {
+	// streamReqCancel is stored on sp and invoked from Close(); gosec's
+	// G118 heuristic doesn't see the cross-scope call.
+	//nolint:gosec // G118: cancel invoked from Close()
 	streamReqCtx, streamReqCancel := gocontext.WithCancel(gocontext.Background())
 	sp := &StreamProcessor{
 		dataSourceUpdates: dataSourceUpdates,
@@ -275,7 +278,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 }
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, reqErr := http.NewRequestWithContext(sp.streamReqCtx, "GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
+	req, reqErr := http.NewRequestWithContext(
+		sp.streamReqCtx, "GET",
+		endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil,
+	)
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
