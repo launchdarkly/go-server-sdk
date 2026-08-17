@@ -72,7 +72,7 @@ func (b *StreamingDataSourceBuilder) InitialReconnectDelay(
 
 // StreamingDataSourceBuilderInternal is an internal test-only accessor for a
 // StreamingDataSourceBuilder. It exposes knobs that are not part of the SDK's
-// stable public API and must not be used in production code — the LaunchDarkly
+// stable public API and must not be used in production code -- the LaunchDarkly
 // RETRY conformance test suite is the only intended caller.
 type StreamingDataSourceBuilderInternal struct{ builder *StreamingDataSourceBuilder }
 

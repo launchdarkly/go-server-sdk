@@ -128,7 +128,7 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 		}
 
 		client, err := MakeCustomClient(testSdkKey, config, 500*time.Millisecond)
-		require.Error(t, err) // init timed out — no permanent stop, no successful put either
+		require.Error(t, err) // init timed out -- no permanent stop, no successful put either
 		require.NotNil(t, client)
 		defer client.Close()
 
@@ -138,7 +138,7 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 		// reached a Valid state, the SinkImpl keeps state as Initializing rather
 		// than transitioning to Interrupted (see maybeUpdateStatus's Initializing
 		// clamp), but LastError records the failure. The key assertion is
-		// "state is NOT Off" — no permanent stop.
+		// "state is NOT Off" -- no permanent stop.
 		require.Eventually(t, func() bool {
 			s := client.GetDataSourceStatusProvider().GetStatus()
 			return s.LastError.Kind == interfaces.DataSourceErrorKindErrorResponse &&
@@ -153,7 +153,7 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
 
-		// Confirm the client kept retrying — at least one additional request landed at the mock server.
+		// Confirm the client kept retrying -- at least one additional request landed at the mock server.
 		r := <-requestsCh
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		require.Eventually(t, func() bool { return len(requestsCh) >= 1 },
@@ -314,7 +314,7 @@ func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 		// Under RETRY the SDK does not permanently stop on 401. Since we never
 		// reached a Valid state, the SinkImpl keeps state as Initializing rather
 		// than transitioning to Interrupted. The key assertion is "state is NOT
-		// Off" — no permanent stop — and LastError records the failure.
+		// Off" -- no permanent stop -- and LastError records the failure.
 		require.Eventually(t, func() bool {
 			s := client.GetDataSourceStatusProvider().GetStatus()
 			return s.LastError.Kind == interfaces.DataSourceErrorKindErrorResponse &&
@@ -329,7 +329,7 @@ func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 		assert.False(t, value)
 
 		// Confirm the polling goroutine hit the server. Not asserting a second
-		// poll here — the polling B1 wait floor is PollInterval (30s default),
+		// poll here -- the polling B1 wait floor is PollInterval (30s default),
 		// so observing multiple polls at unit-test timescales requires the
 		// internal-constructor pathway used by polling_data_source_test.go.
 		r := <-requestsCh

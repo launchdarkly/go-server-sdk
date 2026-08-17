@@ -194,7 +194,7 @@ func testPollingProcessorUnexpectedError(
 		// Initialization must not complete: no permanent stop, no successful poll.
 		select {
 		case <-closeWhenReady:
-			t.Fatal("closeWhenReady should not be closed — RETRY §1.2.1 forbids permanent stops on 4xx")
+			t.Fatal("closeWhenReady should not be closed -- RETRY §1.2.1 forbids permanent stops on 4xx")
 		case <-time.After(500 * time.Millisecond):
 		}
 
@@ -202,7 +202,7 @@ func testPollingProcessorUnexpectedError(
 		status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 		verifyError(status.LastError)
 
-		// Confirm the polling processor kept polling — at least one additional poll
+		// Confirm the polling processor kept polling -- at least one additional poll
 		// attempt landed at the mock requester.
 		select {
 		case <-req.PollsCh:
@@ -242,7 +242,7 @@ func TestPollingResetsToNormalAfterTwoConsecutiveSuccesses(t *testing.T) {
 		<-req.PollsCh
 		// Poll #2: success. priorPollWasSuccessful flips true; regime not yet reset.
 		<-req.PollsCh
-		// Poll #3: second consecutive success — reset should fire (n=0, back to normal).
+		// Poll #3: second consecutive success -- reset should fire (n=0, back to normal).
 		<-req.PollsCh
 		// Poll #4: normal regime. The wait between polls should be ~PollInterval (10ms), not
 		// the extended base. Bounding at 200ms keeps a big margin against goroutine

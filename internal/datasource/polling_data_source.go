@@ -139,7 +139,9 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 						)
 						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					}
-					pp.strategy.OnFailure(class)
+					if pp.strategy.OnFailure(class) {
+						pp.loggers.Info("Classified failure as UNEXPECTED; engaging extended backoff.")
+					}
 				} else {
 					pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 					pp.setInitializedOnce.Do(func() {

@@ -23,7 +23,7 @@ func (e httpStatusError) Error() string {
 	return e.Message
 }
 
-// FailureClass categorizes a data source failure per RETRY §1.5–§1.7. Under the
+// FailureClass categorizes a data source failure per RETRY §1.5--§1.7. Under the
 // RETRY spec no failure is permanently terminal: every failure is either "normal"
 // (regular backoff and retry) or "unexpected" (extended backoff via a longer
 // retry profile or wait interval, still retrying indefinitely).
@@ -88,24 +88,16 @@ func httpErrorDescription(statusCode int) string {
 	return fmt.Sprintf("HTTP error %d%s", statusCode, message)
 }
 
-// classifyAndLogHTTPFailure classifies an HTTP failure per RETRY §1.6, logs it
-// at the appropriate level, and returns the classification for the caller to act
-// on. Never signals "give up permanently" — under the RETRY spec the caller must
-// continue retrying, though possibly with an extended backoff regime.
+// classifyAndLogHTTPFailure classifies an HTTP failure per RETRY §1.6, logs it,
+// and returns the classification for the caller to act on.
 func classifyAndLogHTTPFailure(
 	loggers ldlog.Loggers,
 	errorDesc, errorContext string,
 	statusCode int,
 	willRetryMessage string,
 ) FailureClass {
-	class := classifyHTTPFailure(statusCode)
-	if class == FailureClassUnexpected {
-		loggers.Errorf("Error %s (%s; will continue retrying with extended backoff): %s",
-			errorContext, willRetryMessage, errorDesc)
-	} else {
-		loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, errorDesc)
-	}
-	return class
+	loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, errorDesc)
+	return classifyHTTPFailure(statusCode)
 }
 
 // classifyAndLogTransportFailure classifies a transport-layer failure per RETRY
@@ -115,14 +107,8 @@ func classifyAndLogTransportFailure(
 	err error,
 	errorContext, willRetryMessage string,
 ) FailureClass {
-	class := classifyTransportFailure(err)
-	if class == FailureClassUnexpected {
-		loggers.Errorf("Error %s (%s; will continue retrying with extended backoff): %s",
-			errorContext, willRetryMessage, err.Error())
-	} else {
-		loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, err.Error())
-	}
-	return class
+	loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, err.Error())
+	return classifyTransportFailure(err)
 }
 
 func checkForHTTPError(statusCode int, url string) error {

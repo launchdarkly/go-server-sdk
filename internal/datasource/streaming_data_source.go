@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	gocontext "context"
 	"net/http"
 	"net/url"
 	"sync"
@@ -83,7 +84,8 @@ type StreamProcessor struct {
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
 	isInitialized              internal.AtomicBoolean
-	halt                       chan struct{}
+	streamReqCtx               gocontext.Context
+	streamReqCancel            gocontext.CancelFunc
 	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
@@ -97,11 +99,13 @@ func NewStreamProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg StreamConfig,
 ) *StreamProcessor {
+	streamReqCtx, streamReqCancel := gocontext.WithCancel(gocontext.Background())
 	sp := &StreamProcessor{
 		dataSourceUpdates: dataSourceUpdates,
 		headers:           context.GetHTTP().DefaultHeaders,
 		loggers:           context.GetLogging().Loggers,
-		halt:              make(chan struct{}),
+		streamReqCtx:      streamReqCtx,
+		streamReqCancel:   streamReqCancel,
 		cfg:               cfg,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
@@ -147,11 +151,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 		select {
 		case event, ok := <-stream.Events:
 			if !ok {
-				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
-				// only happens when we have received from sp.halt, in which case we return immediately
-				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
-				// this point. Still, in case the channel is somehow closed unexpectedly, we do want to
-				// terminate the loop.
+				// COVERAGE: stream.Events is only closed if the EventSource has been closed. That
+				// happens after sp.streamReqCtx is cancelled (via the AfterFunc bridge in eventsource),
+				// but our own sp.streamReqCtx.Done() arm below returns first-- so we should not
+				// actually reach this point. Still, in case the channel is somehow closed unexpectedly,
+				// we do want to terminate the loop.
 				return
 			}
 			sp.logConnectionResult(true)
@@ -264,15 +268,14 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 			}
 
-		case <-sp.halt:
-			stream.Close()
+		case <-sp.streamReqCtx.Done():
 			return
 		}
 	}
 }
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
+	req, reqErr := http.NewRequestWithContext(sp.streamReqCtx, "GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
@@ -324,6 +327,13 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		es.RetryProfileJitter(streamJitterRatio),
 	)
 
+	// loggedActivatedExtended gates the "engaging extended backoff" info log so
+	// it fires at most once per Subscribe cycle. The library handles the
+	// healthy-op reset back to normal internally (via
+	// StreamOptionRetryResetInterval); we don't observe it, so we don't
+	// re-log if the SDK re-transitions during a long-lived stream.
+	loggedActivatedExtended := false
+
 	errorHandler := func(err error) es.StreamErrorHandlerResult {
 		sp.logConnectionResult(false)
 
@@ -366,6 +376,10 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		// connection) reverts.
 		result := es.StreamErrorHandlerResult{CloseNow: false}
 		if class == FailureClassUnexpected {
+			if !loggedActivatedExtended {
+				sp.loggers.Info("Classified failure as UNEXPECTED; engaging extended backoff.")
+				loggedActivatedExtended = true
+			}
 			result.ActivateProfile = extendedProfile
 		}
 		return result
@@ -425,7 +439,7 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
-		close(sp.halt)
+		sp.streamReqCancel()
 		if sp.storeStatusCh != nil {
 			sp.dataSourceUpdates.GetDataStoreStatusProvider().RemoveStatusListener(sp.storeStatusCh)
 		}

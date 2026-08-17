@@ -18,12 +18,12 @@ const extendedPollMaxDelay = 1 * time.Hour
 //     exponent in T = initialDelay * 2^(n-1); resets on regime transition
 //     per RETRY §1.5.3 binding);
 //   - the current regime's (initialDelay, maxDelay), toggled by classification
-//     (RETRY §1.5–§1.7 via the caller's FailureClass);
+//     (RETRY §1.5--§1.7 via the caller's FailureClass);
 //   - the two-consecutive-success reset gate (RETRY §1.8 polling binding);
 //   - jitter (RETRY §1.4.3);
 //   - the PollInterval wait floor (RETRY §1.4.4 polling override).
 //
-// All state is owned and mutated by the polling run() goroutine only — no
+// All state is owned and mutated by the polling run() goroutine only -- no
 // locking required.
 type pollingStrategy struct {
 	normalInterval              time.Duration
@@ -33,6 +33,7 @@ type pollingStrategy struct {
 	priorPollWasSuccessful      bool
 	initialDelay                time.Duration
 	maxDelay                    time.Duration
+	inExtended                  bool
 }
 
 func newPollingStrategy(pollInterval, extendedInitialPollInterval time.Duration) *pollingStrategy {
@@ -52,10 +53,12 @@ func newPollingStrategy(pollInterval, extendedInitialPollInterval time.Duration)
 // is never faster than the customer-configured normal cadence.
 //
 // On the transition from normal into extended regime, n is reset to 1 so
-// that the first extended-regime wait uses the new initialDelay.
-func (s *pollingStrategy) OnFailure(class FailureClass) {
+// that the first extended-regime wait uses the new initialDelay. Returns
+// true iff this call transitioned the strategy from normal into extended
+// regime, so the caller can log a one-time notice.
+func (s *pollingStrategy) OnFailure(class FailureClass) (transitionedToExtended bool) {
 	s.priorPollWasSuccessful = false
-	if class == FailureClassUnexpected && s.initialDelay == s.normalInterval {
+	if class == FailureClassUnexpected && !s.inExtended {
 		// transition from normal into extended regime.
 		s.n = 1
 		s.initialDelay = s.extendedInitialPollInterval
@@ -66,20 +69,23 @@ func (s *pollingStrategy) OnFailure(class FailureClass) {
 		if s.maxDelay < s.normalInterval {
 			s.maxDelay = s.normalInterval
 		}
-		return
+		s.inExtended = true
+		return true
 	}
 	s.n++
+	return false
 }
 
 // OnSuccess updates the strategy state after a successful poll. Two consecutive
 // successes reset n and return the SDK to the normal regime (RETRY §1.8
 // polling binding). A single success is a necessary precondition but not
-// sufficient — any failure between the first and second success clears it.
+// sufficient -- any failure between the first and second success clears it.
 func (s *pollingStrategy) OnSuccess() {
 	if s.priorPollWasSuccessful {
 		s.n = 0
 		s.initialDelay = s.normalInterval
 		s.maxDelay = s.normalInterval
+		s.inExtended = false
 	}
 	s.priorPollWasSuccessful = true
 }
@@ -87,7 +93,7 @@ func (s *pollingStrategy) OnSuccess() {
 // NextWait returns the delay before the next poll attempt per RETRY §1.4.
 // Formula: T = initialDelay * 2^(n-1), clamped to maxDelay.
 // Jitter J is a uniform random in [0, T/2]. The final wait = max(PollInterval,
-// T − J) ensures the interval never drops below the caller's configured
+// T - J) ensures the interval never drops below the caller's configured
 // PollInterval.
 func (s *pollingStrategy) NextWait() time.Duration {
 	if s.n <= 0 {

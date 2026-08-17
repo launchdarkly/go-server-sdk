@@ -53,7 +53,7 @@ func TestPollingStrategy_ExtendedInitialClampedToPollInterval(t *testing.T) {
 // reset n to 1 so the first extended-regime wait uses the new initialDelay
 // (5min) directly, not initialDelay * 2^k where k is the count of prior
 // normal failures. Guards against conflating the two roles of a single
-// counter — formula input (this field, n; resets on regime transition per
+// counter -- formula input (this field, n; resets on regime transition per
 // RETRY §1.5.3 / streaming Confluence spec) and total-attempts observability
 // (a separate concept not tracked by this struct). Without this behavior, a
 // sequence of "normal, normal, unexpected" would inflate the first extended
@@ -62,7 +62,7 @@ func TestPollingStrategy_UnexpectedAfterNormalFailuresStartsAtInitialDelay(t *te
 	s := newPollingStrategy(30*time.Second, 5*time.Minute)
 
 	// Prior normal failures accumulate. Normal-regime NextWait is bounded by
-	// normalInterval regardless of n, so these aren't observable in delay —
+	// normalInterval regardless of n, so these aren't observable in delay --
 	// but they DO advance n.
 	s.OnFailure(FailureClassNormal)
 	s.OnFailure(FailureClassNormal)
@@ -85,9 +85,9 @@ func TestPollingStrategy_UnexpectedAfterNormalFailuresStartsAtInitialDelay(t *te
 }
 
 // Once in the extended regime, subsequent unexpected failures continue the
-// doubling from where n left off — they do NOT re-reset n to 1. The
+// doubling from where n left off -- they do NOT re-reset n to 1. The
 // reset-on-transition only fires on the first crossing from normal into
-// extended, detected via initialDelay == normalInterval.
+// extended, gated by the inExtended flag.
 func TestPollingStrategy_UnexpectedWhileAlreadyExtendedContinuesDoubling(t *testing.T) {
 	s := newPollingStrategy(30*time.Second, 5*time.Minute)
 
@@ -173,7 +173,7 @@ func TestPollingStrategy_TwoConsecutiveSuccessesReset(t *testing.T) {
 	assert.Equal(t, 30*time.Second, s.NextWait())
 }
 
-// A failure between two successes clears the reset gate — reset requires
+// A failure between two successes clears the reset gate -- reset requires
 // STRICTLY consecutive successes, so a first-then-fail-then-first pattern does
 // not fire the reset.
 func TestPollingStrategy_FailureClearsResetGate(t *testing.T) {
@@ -188,7 +188,7 @@ func TestPollingStrategy_FailureClearsResetGate(t *testing.T) {
 }
 
 // A single normal failure after a reset does not re-engage extended-regime
-// parameters — extended engagement requires an Unexpected classification.
+// parameters -- extended engagement requires an Unexpected classification.
 func TestPollingStrategy_NormalFailureAfterResetStaysNormal(t *testing.T) {
 	s := newPollingStrategy(30*time.Second, 5*time.Minute)
 	// Engage extended, then reset back to normal.
@@ -201,4 +201,117 @@ func TestPollingStrategy_NormalFailureAfterResetStaysNormal(t *testing.T) {
 	assert.Equal(t, 1, s.n)
 	assert.Equal(t, 30*time.Second, s.initialDelay, "normal failure must not engage extended regime")
 	assert.Equal(t, 30*time.Second, s.maxDelay)
+}
+
+// Regression: when PollInterval equals extendedInitialPollInterval (the default
+// combo of 5min/5min was the flagged customer config), the extended-regime
+// initialDelay clamps up to equal normalInterval. If transition detection
+// relies on that equality, every subsequent unexpected failure re-fires the
+// transition path and resets n to 1, and RETRY spec 1.4.1's doubling never
+// engages. Explicit regime state (inExtended) avoids the clamp collision.
+func TestPollingStrategy_ExtendedDoublingWhenClampedToPollInterval(t *testing.T) {
+	s := newPollingStrategy(5*time.Minute, 5*time.Minute)
+
+	// Drive five unexpected failures; n must advance monotonically.
+	for i, expectedN := range []int{1, 2, 3, 4, 5} {
+		s.OnFailure(FailureClassUnexpected)
+		assert.Equal(t, expectedN, s.n, "failure #%d: n did not advance", i+1)
+	}
+	assert.Equal(t, 5*time.Minute, s.initialDelay, "initialDelay clamped to PollInterval")
+	assert.Equal(t, time.Hour, s.maxDelay, "maxDelay is the extended ceiling")
+
+	// With n=5 the formula T = initialDelay * 2^4 = 80m, clamped to maxDelay=1h.
+	// Jitter subtracts up to T/2 = 30m, so wait is in [30m, 1h]. Floor at
+	// PollInterval=5m is well below and does not affect the result.
+	w := s.NextWait()
+	assert.GreaterOrEqual(t, w, 30*time.Minute)
+	assert.LessOrEqual(t, w, time.Hour)
+}
+
+// OnFailure returns true on the transition into extended, false on every
+// subsequent unexpected failure. The caller uses this signal to log
+// "engaging extended backoff" exactly once per transition.
+func TestPollingStrategy_OnFailureReturnsTrueOnceOnTransition(t *testing.T) {
+	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+
+	assert.True(t, s.OnFailure(FailureClassUnexpected), "first unexpected must signal transition")
+	assert.False(t, s.OnFailure(FailureClassUnexpected), "second unexpected must not re-signal transition")
+	assert.False(t, s.OnFailure(FailureClassUnexpected), "third unexpected must not re-signal transition")
+	assert.False(t, s.OnFailure(FailureClassNormal), "normal failure must not signal transition")
+}
+
+// Also test the clamped-config variant, since that's the specific bug scenario
+// where equality-based detection re-signalled transition on every unexpected.
+func TestPollingStrategy_OnFailureReturnsTrueOnceOnTransitionWhenClamped(t *testing.T) {
+	s := newPollingStrategy(5*time.Minute, 5*time.Minute)
+
+	assert.True(t, s.OnFailure(FailureClassUnexpected), "first unexpected must signal transition")
+	assert.False(t, s.OnFailure(FailureClassUnexpected), "second unexpected must not re-signal transition")
+	assert.False(t, s.OnFailure(FailureClassUnexpected), "third unexpected must not re-signal transition")
+}
+
+// After the two-consecutive-successes reset (RETRY §1.8), the strategy is
+// back in the normal regime and a subsequent unexpected failure is treated
+// as a new transition, signalling to the caller for a fresh log line.
+func TestPollingStrategy_OnSuccessResetAllowsRetransition(t *testing.T) {
+	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+
+	assert.True(t, s.OnFailure(FailureClassUnexpected), "initial transition")
+	assert.False(t, s.OnFailure(FailureClassUnexpected), "already in extended")
+
+	// Two consecutive successes: full reset per RETRY §1.8.
+	s.OnSuccess()
+	s.OnSuccess()
+
+	// Fresh unexpected failure must be treated as a new transition.
+	assert.True(t, s.OnFailure(FailureClassUnexpected), "post-reset unexpected must signal a fresh transition")
+}
+
+// Case B: PollInterval > extendedInitialPollInterval, but < extendedPollMaxDelay.
+// After transition, initialDelay is clamped up to PollInterval so the first
+// extended wait equals PollInterval (via the output floor). Doubling engages
+// visibly from n=2 and reaches the extended ceiling at n=4.
+func TestPollingStrategy_ExtendedDoublingWithModeratePollInterval(t *testing.T) {
+	s := newPollingStrategy(10*time.Minute, 5*time.Minute)
+
+	tests := []struct {
+		n                      int
+		lowerBound, upperBound time.Duration
+	}{
+		{1, 10 * time.Minute, 10 * time.Minute},                 // T=10m, jitter [0, 5m], wait ∈ [5m, 10m], floor 10m
+		{2, 10 * time.Minute, 20 * time.Minute},                 // T=20m, wait ∈ [10m, 20m]
+		{3, 20 * time.Minute, 40 * time.Minute},                 // T=40m, wait ∈ [20m, 40m]
+		{4, 30 * time.Minute, time.Hour},                        // T=80m -> capped to 1h, wait ∈ [30m, 60m]
+		{5, 30 * time.Minute, time.Hour},                        // still capped
+	}
+	for _, tc := range tests {
+		s.OnFailure(FailureClassUnexpected)
+		w := s.NextWait()
+		assert.GreaterOrEqual(t, w, tc.lowerBound, "n=%d lower bound", tc.n)
+		assert.LessOrEqual(t, w, tc.upperBound, "n=%d upper bound", tc.n)
+	}
+
+	// Confirm the delay bounds after transition:
+	assert.Equal(t, 10*time.Minute, s.initialDelay, "initialDelay clamped up to PollInterval")
+	assert.Equal(t, time.Hour, s.maxDelay, "maxDelay at extended ceiling")
+}
+
+// Case C: PollInterval > extendedPollMaxDelay. Both initialDelay and maxDelay
+// are clamped up to PollInterval, so the entire delay range collapses to
+// PollInterval and the doubling formula produces no observable variation.
+// Extended regime is behaviorally identical to normal regime for this config;
+// the transition-log signal still fires but the delay never changes.
+func TestPollingStrategy_ExtendedRegimeCollapsesWhenPollIntervalExceedsExtendedCeiling(t *testing.T) {
+	s := newPollingStrategy(2*time.Hour, 5*time.Minute)
+
+	// Multiple unexpected failures -- every wait must be exactly PollInterval.
+	for i := 1; i <= 6; i++ {
+		s.OnFailure(FailureClassUnexpected)
+		assert.Equal(t, 2*time.Hour, s.NextWait(),
+			"failure #%d: wait must collapse to PollInterval when PollInterval > extendedPollMaxDelay", i)
+	}
+
+	// Both bounds clamped up to PollInterval.
+	assert.Equal(t, 2*time.Hour, s.initialDelay, "initialDelay clamped up to PollInterval")
+	assert.Equal(t, 2*time.Hour, s.maxDelay, "maxDelay clamped up above extendedPollMaxDelay to PollInterval")
 }
