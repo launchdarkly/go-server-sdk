@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	pollingErrorContext     = "on polling request"
-	pollingWillRetryMessage = "will retry at next scheduled poll interval"
+	pollingErrorContext             = "on polling request"
+	pollingWillRetryMessage         = "will retry at next scheduled poll interval"
+	defaultExtendedInitialPollDelay = 5 * time.Minute
 )
 
 // PollingConfig describes the configuration for a polling data source. It is exported so that
@@ -59,9 +60,13 @@ func NewPollingProcessor(
 	cfg PollingConfig,
 ) *PollingProcessor {
 	httpRequester := NewPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
+	extendedInitialPollInterval := cfg.ExtendedInitialPollInterval
+	if extendedInitialPollInterval <= 0 {
+		extendedInitialPollInterval = defaultExtendedInitialPollDelay
+	}
 	return newPollingProcessor(
 		context, dataSourceUpdates, httpRequester,
-		cfg.PollInterval, cfg.ExtendedInitialPollInterval,
+		cfg.PollInterval, extendedInitialPollInterval,
 	)
 }
 

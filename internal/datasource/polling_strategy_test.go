@@ -9,14 +9,14 @@ import (
 
 // In the normal regime (no failures observed), NextWait returns exactly PollInterval.
 func TestPollingStrategy_NormalRegimeReturnsPollInterval(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	assert.Equal(t, 30*time.Second, s.NextWait())
 }
 
 // A normal-classified failure advances n but does not engage
 // the extended regime. Wait is still pinned to PollInterval by the wait floor.
 func TestPollingStrategy_NormalFailureDoesNotEngageExtended(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	s.OnFailure(FailureClassNormal)
 
 	assert.Equal(t, 1, s.n)
@@ -28,10 +28,10 @@ func TestPollingStrategy_NormalFailureDoesNotEngageExtended(t *testing.T) {
 // An unexpected-classified failure engages the extended regime: initialDelay
 // becomes the configured extended base and maxDelay becomes the RETRY-spec cap.
 func TestPollingStrategy_UnexpectedFailureEngagesExtended(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	s.OnFailure(FailureClassUnexpected)
 
-	assert.Equal(t, 5*time.Minute, s.initialDelay)
+	assert.Equal(t, defaultExtendedInitialPollDelay, s.initialDelay)
 	assert.Equal(t, time.Hour, s.maxDelay)
 }
 
@@ -40,7 +40,7 @@ func TestPollingStrategy_UnexpectedFailureEngagesExtended(t *testing.T) {
 // extended regime uses PollInterval as its base. Result: no observable
 // differentiation between regimes.
 func TestPollingStrategy_ExtendedInitialClampedToPollInterval(t *testing.T) {
-	s := newPollingStrategy(time.Hour, 5*time.Minute)
+	s := newPollingStrategy(time.Hour, defaultExtendedInitialPollDelay)
 	s.OnFailure(FailureClassUnexpected)
 
 	assert.Equal(t, time.Hour, s.initialDelay)
@@ -59,7 +59,7 @@ func TestPollingStrategy_ExtendedInitialClampedToPollInterval(t *testing.T) {
 // sequence of "normal, normal, unexpected" would inflate the first extended
 // wait to 20min or more (bounded by extendedPollMaxDelay).
 func TestPollingStrategy_UnexpectedAfterNormalFailuresStartsAtInitialDelay(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 
 	// Prior normal failures accumulate. Normal-regime NextWait is bounded by
 	// normalInterval regardless of n, so these aren't observable in delay --
@@ -74,14 +74,14 @@ func TestPollingStrategy_UnexpectedAfterNormalFailuresStartsAtInitialDelay(t *te
 	// initialDelay * 2^0 = initialDelay = 5min.
 	s.OnFailure(FailureClassUnexpected)
 	assert.Equal(t, 1, s.n, "n must reset to 1 on transition into extended regime")
-	assert.Equal(t, 5*time.Minute, s.initialDelay, "extended regime initialDelay engaged")
+	assert.Equal(t, defaultExtendedInitialPollDelay, s.initialDelay, "extended regime initialDelay engaged")
 	assert.Equal(t, time.Hour, s.maxDelay, "extended regime maxDelay engaged")
 
 	// First extended-regime wait: T = 5min * 2^0 = 5min, minus jitter in
 	// [0, T/2]. Actual wait is in [2.5min, 5min].
 	w := s.NextWait()
 	assert.GreaterOrEqual(t, w, 2*time.Minute+30*time.Second)
-	assert.LessOrEqual(t, w, 5*time.Minute)
+	assert.LessOrEqual(t, w, defaultExtendedInitialPollDelay)
 }
 
 // Once in the extended regime, subsequent unexpected failures continue the
@@ -89,7 +89,7 @@ func TestPollingStrategy_UnexpectedAfterNormalFailuresStartsAtInitialDelay(t *te
 // reset-on-transition only fires on the first crossing from normal into
 // extended, gated by the inExtended flag.
 func TestPollingStrategy_UnexpectedWhileAlreadyExtendedContinuesDoubling(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 
 	// Enter extended regime.
 	s.OnFailure(FailureClassUnexpected)
@@ -99,14 +99,14 @@ func TestPollingStrategy_UnexpectedWhileAlreadyExtendedContinuesDoubling(t *test
 	// initialDelay/maxDelay stay at extended values.
 	s.OnFailure(FailureClassUnexpected)
 	assert.Equal(t, 2, s.n, "second unexpected in extended increments, does not reset")
-	assert.Equal(t, 5*time.Minute, s.initialDelay)
+	assert.Equal(t, defaultExtendedInitialPollDelay, s.initialDelay)
 	assert.Equal(t, time.Hour, s.maxDelay)
 
 	// A normal failure while in extended also advances n without
 	// changing regime.
 	s.OnFailure(FailureClassNormal)
 	assert.Equal(t, 3, s.n, "normal failure in extended increments n")
-	assert.Equal(t, 5*time.Minute, s.initialDelay, "normal failure does not exit extended regime")
+	assert.Equal(t, defaultExtendedInitialPollDelay, s.initialDelay, "normal failure does not exit extended regime")
 	assert.Equal(t, time.Hour, s.maxDelay)
 }
 
@@ -114,18 +114,18 @@ func TestPollingStrategy_UnexpectedWhileAlreadyExtendedContinuesDoubling(t *test
 // extendedPollMaxDelay (1 hour). Jitter subtracts up to T/2, so each wait falls
 // in [T/2, T] before the (in these cases irrelevant) wait floor.
 func TestPollingStrategy_ExtendedDoubling(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 
 	tests := []struct {
 		n                      int
 		lowerBound, upperBound time.Duration
 	}{
-		{1, 2*time.Minute + 30*time.Second, 5 * time.Minute}, // T = 5m
-		{2, 5 * time.Minute, 10 * time.Minute},               // T = 10m
-		{3, 10 * time.Minute, 20 * time.Minute},              // T = 20m
-		{4, 20 * time.Minute, 40 * time.Minute},              // T = 40m
-		{5, 30 * time.Minute, time.Hour},                     // T capped at 60m
-		{6, 30 * time.Minute, time.Hour},                     // still capped
+		{1, 2*time.Minute + 30*time.Second, defaultExtendedInitialPollDelay}, // T = 5m
+		{2, 5 * time.Minute, 10 * time.Minute},                               // T = 10m
+		{3, 10 * time.Minute, 20 * time.Minute},                              // T = 20m
+		{4, 20 * time.Minute, 40 * time.Minute},                              // T = 40m
+		{5, 30 * time.Minute, time.Hour},                                     // T capped at 60m
+		{6, 30 * time.Minute, time.Hour},                                     // still capped
 	}
 	for _, tc := range tests {
 		s.OnFailure(FailureClassUnexpected)
@@ -150,19 +150,19 @@ func TestPollingStrategy_WaitFloorAtPollInterval(t *testing.T) {
 // The 2-consecutive-success reset gate: first success flips the gate flag but
 // does not clear n or exit the extended regime.
 func TestPollingStrategy_FirstSuccessDoesNotReset(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	s.OnFailure(FailureClassUnexpected)
 	s.OnSuccess()
 
 	assert.True(t, s.priorPollWasSuccessful, "reset gate should be armed")
 	assert.Equal(t, 1, s.n, "one success must not reset n")
-	assert.Equal(t, 5*time.Minute, s.initialDelay, "one success must not exit extended regime")
+	assert.Equal(t, defaultExtendedInitialPollDelay, s.initialDelay, "one success must not exit extended regime")
 }
 
 // Two consecutive successes clear n and return the strategy to the
 // normal regime (RETRY §1.8 polling binding).
 func TestPollingStrategy_TwoConsecutiveSuccessesReset(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	s.OnFailure(FailureClassUnexpected)
 	s.OnSuccess()
 	s.OnSuccess()
@@ -177,7 +177,7 @@ func TestPollingStrategy_TwoConsecutiveSuccessesReset(t *testing.T) {
 // STRICTLY consecutive successes, so a first-then-fail-then-first pattern does
 // not fire the reset.
 func TestPollingStrategy_FailureClearsResetGate(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	s.OnFailure(FailureClassUnexpected)
 	s.OnSuccess()                   // gate armed
 	s.OnFailure(FailureClassNormal) // gate cleared, n=2
@@ -190,7 +190,7 @@ func TestPollingStrategy_FailureClearsResetGate(t *testing.T) {
 // A single normal failure after a reset does not re-engage extended-regime
 // parameters -- extended engagement requires an Unexpected classification.
 func TestPollingStrategy_NormalFailureAfterResetStaysNormal(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 	// Engage extended, then reset back to normal.
 	s.OnFailure(FailureClassUnexpected)
 	s.OnSuccess()
@@ -210,7 +210,7 @@ func TestPollingStrategy_NormalFailureAfterResetStaysNormal(t *testing.T) {
 // transition path and resets n to 1, and RETRY spec 1.4.1's doubling never
 // engages. Explicit regime state (inExtended) avoids the clamp collision.
 func TestPollingStrategy_ExtendedDoublingWhenClampedToPollInterval(t *testing.T) {
-	s := newPollingStrategy(5*time.Minute, 5*time.Minute)
+	s := newPollingStrategy(5*time.Minute, defaultExtendedInitialPollDelay)
 
 	// Drive five unexpected failures; n must advance monotonically.
 	for i, expectedN := range []int{1, 2, 3, 4, 5} {
@@ -232,7 +232,7 @@ func TestPollingStrategy_ExtendedDoublingWhenClampedToPollInterval(t *testing.T)
 // subsequent unexpected failure. The caller uses this signal to log
 // "engaging extended backoff" exactly once per transition.
 func TestPollingStrategy_OnFailureReturnsTrueOnceOnTransition(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 
 	assert.True(t, s.OnFailure(FailureClassUnexpected), "first unexpected must signal transition")
 	assert.False(t, s.OnFailure(FailureClassUnexpected), "second unexpected must not re-signal transition")
@@ -243,7 +243,7 @@ func TestPollingStrategy_OnFailureReturnsTrueOnceOnTransition(t *testing.T) {
 // Also test the clamped-config variant, since that's the specific bug scenario
 // where equality-based detection re-signalled transition on every unexpected.
 func TestPollingStrategy_OnFailureReturnsTrueOnceOnTransitionWhenClamped(t *testing.T) {
-	s := newPollingStrategy(5*time.Minute, 5*time.Minute)
+	s := newPollingStrategy(5*time.Minute, defaultExtendedInitialPollDelay)
 
 	assert.True(t, s.OnFailure(FailureClassUnexpected), "first unexpected must signal transition")
 	assert.False(t, s.OnFailure(FailureClassUnexpected), "second unexpected must not re-signal transition")
@@ -254,7 +254,7 @@ func TestPollingStrategy_OnFailureReturnsTrueOnceOnTransitionWhenClamped(t *test
 // back in the normal regime and a subsequent unexpected failure is treated
 // as a new transition, signalling to the caller for a fresh log line.
 func TestPollingStrategy_OnSuccessResetAllowsRetransition(t *testing.T) {
-	s := newPollingStrategy(30*time.Second, 5*time.Minute)
+	s := newPollingStrategy(30*time.Second, defaultExtendedInitialPollDelay)
 
 	assert.True(t, s.OnFailure(FailureClassUnexpected), "initial transition")
 	assert.False(t, s.OnFailure(FailureClassUnexpected), "already in extended")
@@ -272,17 +272,17 @@ func TestPollingStrategy_OnSuccessResetAllowsRetransition(t *testing.T) {
 // extended wait equals PollInterval (via the output floor). Doubling engages
 // visibly from n=2 and reaches the extended ceiling at n=4.
 func TestPollingStrategy_ExtendedDoublingWithModeratePollInterval(t *testing.T) {
-	s := newPollingStrategy(10*time.Minute, 5*time.Minute)
+	s := newPollingStrategy(10*time.Minute, defaultExtendedInitialPollDelay)
 
 	tests := []struct {
 		n                      int
 		lowerBound, upperBound time.Duration
 	}{
-		{1, 10 * time.Minute, 10 * time.Minute},                 // T=10m, jitter [0, 5m], wait ∈ [5m, 10m], floor 10m
-		{2, 10 * time.Minute, 20 * time.Minute},                 // T=20m, wait ∈ [10m, 20m]
-		{3, 20 * time.Minute, 40 * time.Minute},                 // T=40m, wait ∈ [20m, 40m]
-		{4, 30 * time.Minute, time.Hour},                        // T=80m -> capped to 1h, wait ∈ [30m, 60m]
-		{5, 30 * time.Minute, time.Hour},                        // still capped
+		{1, 10 * time.Minute, 10 * time.Minute}, // T=10m, jitter [0, 5m], wait ∈ [5m, 10m], floor 10m
+		{2, 10 * time.Minute, 20 * time.Minute}, // T=20m, wait ∈ [10m, 20m]
+		{3, 20 * time.Minute, 40 * time.Minute}, // T=40m, wait ∈ [20m, 40m]
+		{4, 30 * time.Minute, time.Hour},        // T=80m -> capped to 1h, wait ∈ [30m, 60m]
+		{5, 30 * time.Minute, time.Hour},        // still capped
 	}
 	for _, tc := range tests {
 		s.OnFailure(FailureClassUnexpected)
@@ -302,7 +302,7 @@ func TestPollingStrategy_ExtendedDoublingWithModeratePollInterval(t *testing.T) 
 // Extended regime is behaviorally identical to normal regime for this config;
 // the transition-log signal still fires but the delay never changes.
 func TestPollingStrategy_ExtendedRegimeCollapsesWhenPollIntervalExceedsExtendedCeiling(t *testing.T) {
-	s := newPollingStrategy(2*time.Hour, 5*time.Minute)
+	s := newPollingStrategy(2*time.Hour, defaultExtendedInitialPollDelay)
 
 	// Multiple unexpected failures -- every wait must be exactly PollInterval.
 	for i := 1; i <= 6; i++ {

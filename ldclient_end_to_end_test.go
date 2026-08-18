@@ -15,9 +15,11 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/datasourcetest"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
@@ -117,8 +119,12 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 		// Short reconnect delays so multiple attempts fit within the init wait window.
 		// Extended-regime profile activates immediately on 401 (unexpected), so we need
 		// to shorten its base too, not just the normal-regime InitialReconnectDelay.
-		streamingBuilder := ldcomponents.StreamingDataSource().InitialReconnectDelay(10 * time.Millisecond)
-		datasourcetest.WithStreamingExtendedInitialReconnectDelay(streamingBuilder, 20*time.Millisecond)
+		// Uses a test-local bypass because the SDK's public streaming builder
+		// intentionally does not expose the extended-regime timing knobs.
+		streamingBuilder := &compressedStreamingBuilder{
+			initialReconnectDelay:         10 * time.Millisecond,
+			extendedInitialReconnectDelay: 20 * time.Millisecond,
+		}
 
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
@@ -295,7 +301,6 @@ func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 		logCapture := ldlogtest.NewMockLog()
 
 		pollingBuilder := ldcomponents.PollingDataSource()
-		datasourcetest.WithPollingExtendedInitialPollInterval(pollingBuilder, 20*time.Millisecond)
 
 		config := Config{
 			DataSource:       pollingBuilder,
@@ -448,4 +453,26 @@ func TestClientStartupTimesOut(t *testing.T) {
 		assert.Equal(t, []string{"Timeout encountered waiting for LaunchDarkly client initialization"}, logCapture.GetOutput(ldlog.Warn))
 		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 	})
+}
+
+// compressedStreamingBuilder is a test-only ComponentConfigurer that constructs
+// the streaming data source with compressed retry timings. It bypasses the SDK's
+// public builder because that builder intentionally does not expose the
+// extended-regime timing knobs.
+type compressedStreamingBuilder struct {
+	initialReconnectDelay         time.Duration
+	extendedInitialReconnectDelay time.Duration
+}
+
+func (b *compressedStreamingBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	baseURI := endpoints.SelectBaseURI(
+		context.GetServiceEndpoints(),
+		endpoints.StreamingService,
+		context.GetLogging().Loggers,
+	)
+	return datasource.NewStreamProcessor(context, context.GetDataSourceUpdateSink(), datasource.StreamConfig{
+		URI:                           baseURI,
+		InitialReconnectDelay:         b.initialReconnectDelay,
+		ExtendedInitialReconnectDelay: b.extendedInitialReconnectDelay,
+	}), nil
 }

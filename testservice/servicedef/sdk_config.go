@@ -62,18 +62,15 @@ type Synchronizer struct {
 }
 
 type SDKConfigStreamingParams struct {
-	BaseURI                string                      `json:"baseUri,omitempty"`
-	InitialRetryDelayMS    *ldtime.UnixMillisecondTime `json:"initialRetryDelayMs,omitempty"`
-	ExtendedInitialDelayMS *ldtime.UnixMillisecondTime `json:"extendedInitialDelayMs,omitempty"`
-	ResetThresholdMS       *ldtime.UnixMillisecondTime `json:"resetThresholdMs,omitempty"`
-	Filter                 ldvalue.OptionalString      `json:"filter,omitempty"`
+	BaseURI             string                      `json:"baseUri,omitempty"`
+	InitialRetryDelayMS *ldtime.UnixMillisecondTime `json:"initialRetryDelayMs,omitempty"`
+	Filter              ldvalue.OptionalString      `json:"filter,omitempty"`
 }
 
 type SDKConfigPollingParams struct {
-	BaseURI                string                      `json:"baseUri,omitempty"`
-	PollIntervalMS         *ldtime.UnixMillisecondTime `json:"pollIntervalMs,omitempty"`
-	ExtendedInitialDelayMS *ldtime.UnixMillisecondTime `json:"extendedInitialDelayMs,omitempty"`
-	Filter                 ldvalue.OptionalString      `json:"filter,omitempty"`
+	BaseURI        string                      `json:"baseUri,omitempty"`
+	PollIntervalMS *ldtime.UnixMillisecondTime `json:"pollIntervalMs,omitempty"`
+	Filter         ldvalue.OptionalString      `json:"filter,omitempty"`
 }
 
 type SDKConfigEventParams struct {
