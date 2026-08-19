@@ -55,8 +55,8 @@ func TestClassifyTransportFailure(t *testing.T) {
 
 func TestHTTPErrorDescription(t *testing.T) {
 	assert.Equal(t, "HTTP error 400", httpErrorDescription(400))
-	assert.Equal(t, "HTTP error 401 (authentication failed)", httpErrorDescription(401))
-	assert.Equal(t, "HTTP error 403 (authentication failed)", httpErrorDescription(403))
+	assert.Equal(t, "HTTP error 401 (invalid SDK key)", httpErrorDescription(401))
+	assert.Equal(t, "HTTP error 403 (invalid SDK key)", httpErrorDescription(403))
 	assert.Equal(t, "HTTP error 500", httpErrorDescription(500))
 }
 

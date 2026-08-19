@@ -16,8 +16,8 @@ type DataSourceStatusReporter interface {
 	// DataSourceStatusProvider.GetStatus(), and will trigger status change events to any
 	// registered listeners.
 	//
-	// A special case is that if newState is DataSourceStateInterrupted, but the previous state was
+	// A special case is that if newState is DataSourceStateInterrupted but the previous state was
 	// DataSourceStateInitializing, the state will remain at Initializing because Interrupted is
-	// only meaningful after a successful startup.
+	// only meaningful after a Valid state.
 	UpdateStatus(newState interfaces.DataSourceState, newError interfaces.DataSourceErrorInfo)
 }

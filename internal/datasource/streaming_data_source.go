@@ -37,10 +37,12 @@ import (
 // 2b. If the data store doesn't support status notifications (which is normally only true of the in-memory store)
 // then we don't know the significance of the error, but we must assume that updates have been lost, so we'll
 // restart the stream.
-// 3. If we receive an unrecoverable error like HTTP 401, we close the stream and don't retry, and set the state
-// to OFF. Any other HTTP error or network error causes a retry with backoff, with a state of INTERRUPTED.
+// 3. If we receive an HTTP or transport-level error, we classify it and continue retrying:
+// normal errors (400, 408, 429, 5xx, most I/O errors) use the default backoff profile; unexpected errors
+// (401, 403, other 4xx, TLS/cert failures) engage the extended-regime profile.
+// No HTTP status is terminal and in every case we set state to INTERRUPTED.
 // 4. We set the Future returned by start() to tell the client initialization logic that initialization has either
-// succeeded (we got an initial payload and successfully stored it) or permanently failed (we got a 401, etc.).
+// succeeded (we got an initial payload and successfully stored it) or permanently failed (unparseable base URI).
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 

@@ -109,8 +109,9 @@ type DataSourceStatus struct {
 	//     state, after previously having been either Initializing or Interrupted.
 	//   - For DataSourceStateInterrupted, it is the time that the data source most recently entered an
 	//     error state, after previously having been Valid.
-	//   - For DataSourceStateOff, it is the time that the data source encountered an unrecoverable error
-	//     or that the SDK was explicitly shut down.
+	//   - For DataSourceStateOff, it is the time that the SDK was explicitly shut down, or (rarely)
+	//     the time that the data source encountered a startup configuration error that prevented any
+	//     connection attempt.
 	StateSince time.Time
 
 	// LastError is information about the last error that the data source encountered, if any.
@@ -141,7 +142,7 @@ const (
 	// initialized.
 	//
 	// If it encounters an error that requires it to retry initialization, the state will remain at
-	// Initializing until it either succeeds and becomes DataSourceStateValid, or permanently fails and
+	// Initializing until it either succeeds and becomes DataSourceStateValid, or permanently stops and
 	// becomes DataSourceStateOff.
 	DataSourceStateInitializing DataSourceState = "INITIALIZING"
 
@@ -163,9 +164,8 @@ const (
 
 	// DataSourceStateOff indicates that the data source has been permanently shut down.
 	//
-	// This could be because it encountered an unrecoverable error (for instance, the LaunchDarkly service
-	// rejected the SDK key; an invalid SDK key will never become valid), or because the SDK client was
-	// explicitly shut down.
+	// This could be because the SDK client was explicitly shut down, or (rarely) because the
+	// data source encountered a startup configuration error that prevented any connection attempt.
 	DataSourceStateOff DataSourceState = "OFF"
 )
 

@@ -83,32 +83,50 @@ func classifyTransportFailure(err error) FailureClass {
 func httpErrorDescription(statusCode int) string {
 	message := ""
 	if statusCode == 401 || statusCode == 403 {
-		message = " (authentication failed)"
+		message = " (invalid SDK key)"
 	}
 	return fmt.Sprintf("HTTP error %d%s", statusCode, message)
 }
 
 // classifyAndLogHTTPFailure classifies an HTTP failure per RETRY §1.6, logs it,
-// and returns the classification for the caller to act on.
+// and returns the classification for the caller to act on. Unexpected
+// failures (401, 403, other 4xx) log at Error since they almost always
+// indicate a real customer-side problem (invalid or expired SDK key,
+// misconfiguration) even though the SDK will keep retrying; normal failures
+// (400, 408, 429, 5xx) log at Warn since they are typically transient.
 func classifyAndLogHTTPFailure(
 	loggers ldlog.Loggers,
 	errorDesc, errorContext string,
 	statusCode int,
 	willRetryMessage string,
 ) FailureClass {
-	loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, errorDesc)
-	return classifyHTTPFailure(statusCode)
+	class := classifyHTTPFailure(statusCode)
+	if class == FailureClassUnexpected {
+		loggers.Errorf("Error %s (%s): %s", errorContext, willRetryMessage, errorDesc)
+	} else {
+		loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, errorDesc)
+	}
+	return class
 }
 
 // classifyAndLogTransportFailure classifies a transport-layer failure per RETRY
-// §1.7, logs it, and returns the classification.
+// §1.7, logs it, and returns the classification. Unexpected failures (TLS
+// or certificate validation errors) log at Error since they almost always
+// indicate a real customer-side problem (misconfigured trust store,
+// expired cert) even though the SDK will keep retrying; other transport
+// failures log at Warn since they are typically transient.
 func classifyAndLogTransportFailure(
 	loggers ldlog.Loggers,
 	err error,
 	errorContext, willRetryMessage string,
 ) FailureClass {
-	loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, err.Error())
-	return classifyTransportFailure(err)
+	class := classifyTransportFailure(err)
+	if class == FailureClassUnexpected {
+		loggers.Errorf("Error %s (%s): %s", errorContext, willRetryMessage, err.Error())
+	} else {
+		loggers.Warnf("Error %s (%s): %s", errorContext, willRetryMessage, err.Error())
+	}
+	return class
 }
 
 func checkForHTTPError(statusCode int, url string) error {
