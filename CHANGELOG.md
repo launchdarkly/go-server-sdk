@@ -2,6 +2,16 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.15.6](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.5...v7.15.6) (2026-08-17)
+
+
+### Bug Fixes
+
+* Upgrade go-jsonstream to v3.1.2 for faster JSON parsing and serialization ([f2ec567](https://github.com/launchdarkly/go-server-sdk/commit/f2ec567f77ebeed7d49bed4edfc695504ac800f2))
+* Upgrade go-sdk-common to v3.5.1 ([f2ec567](https://github.com/launchdarkly/go-server-sdk/commit/f2ec567f77ebeed7d49bed4edfc695504ac800f2))
+* Upgrade go-sdk-events to v3.6.3 ([f2ec567](https://github.com/launchdarkly/go-server-sdk/commit/f2ec567f77ebeed7d49bed4edfc695504ac800f2))
+* Upgrade go-server-sdk-evaluation to v3.0.2 ([f2ec567](https://github.com/launchdarkly/go-server-sdk/commit/f2ec567f77ebeed7d49bed4edfc695504ac800f2))
+
 ## [7.15.5](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.4...v7.15.5) (2026-07-27)
 
 
