@@ -53,7 +53,7 @@ func newPollingStrategy(pollInterval, extendedInitialPollInterval time.Duration)
 //
 // On the transition from normal into extended regime, n is reset to 1 so
 // that the first extended-regime wait uses the new initialDelay. Returns
-// true iff this call transitioned the strategy from normal into extended
+// true if this call transitioned the strategy from normal into extended
 // regime, so the caller can log a one-time notice.
 func (s *pollingStrategy) OnFailure(class FailureClass) (transitionedToExtended bool) {
 	s.priorPollWasSuccessful = false
