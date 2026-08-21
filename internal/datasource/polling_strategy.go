@@ -6,22 +6,21 @@ import (
 	"time"
 )
 
-// extendedPollMaxDelay is the RETRY-spec extended-regime ceiling on the polling
-// backoff. Effective ceiling is max(extendedPollMaxDelay, PollInterval); see
+// extendedPollMaxDelay is the extended-regime ceiling on the polling backoff.
+// Effective ceiling is max(extendedPollMaxDelay, PollInterval); see
 // pollingStrategy.OnFailure.
 const extendedPollMaxDelay = 1 * time.Hour
 
-// pollingStrategy implements the RETRY §1.4 timing mechanics for the polling
-// data source. It owns:
+// pollingStrategy implements the timing mechanics for the polling data source.
+// It owns:
 //
-//   - the formula-input counter n (RETRY §1.4's "attempts", used as the
-//     exponent in T = initialDelay * 2^(n-1); resets on regime transition
-//     per RETRY §1.5.3 binding);
-//   - the current regime's (initialDelay, maxDelay), toggled by classification
-//     (RETRY §1.5--§1.7 via the caller's FailureClass);
-//   - the two-consecutive-success reset gate (RETRY §1.8 polling binding);
-//   - jitter (RETRY §1.4.3);
-//   - the PollInterval wait floor (RETRY §1.4.4 polling override).
+//   - the formula-input counter n (used as the exponent in
+//     T = initialDelay * 2^(n-1); resets on regime transition);
+//   - the current regime's (initialDelay, maxDelay), toggled by the caller's
+//     FailureClass classification;
+//   - the two-consecutive-success reset gate;
+//   - jitter;
+//   - the PollInterval wait floor.
 //
 // All state is owned and mutated by the polling run() goroutine only -- no
 // locking required.
@@ -77,9 +76,9 @@ func (s *pollingStrategy) OnFailure(class FailureClass) (transitionedToExtended 
 }
 
 // OnSuccess updates the strategy state after a successful poll. Two consecutive
-// successes reset n and return the SDK to the normal regime (RETRY §1.8
-// polling binding). A single success is a necessary precondition but not
-// sufficient -- any failure between the first and second success clears it.
+// successes reset n and return the SDK to the normal regime. A single success
+// is a necessary precondition but not sufficient -- any failure between the
+// first and second success clears it.
 func (s *pollingStrategy) OnSuccess() {
 	if s.priorPollWasSuccessful {
 		s.n = 0
@@ -90,7 +89,7 @@ func (s *pollingStrategy) OnSuccess() {
 	s.priorPollWasSuccessful = true
 }
 
-// NextWait returns the delay before the next poll attempt per RETRY §1.4.
+// NextWait returns the delay before the next poll attempt.
 // Formula: T = initialDelay * 2^(n-1), clamped to maxDelay.
 // Jitter J is a uniform random in [0, T/2]. The final wait = max(PollInterval,
 // T - J) ensures the interval never drops below the caller's configured

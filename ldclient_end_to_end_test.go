@@ -105,12 +105,9 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 	})
 }
 
-// Under the RETRY spec (SDK-2775), a 401 is no longer terminal: the client
-// times out waiting for initial data but the data source keeps retrying
-// indefinitely. Init returns the usual timeout error; the data source state is
-// Interrupted (not Off); the stream keeps hitting the server. Replaces the
-// pre-RETRY TestClientFailsToStartInStreamingModeWith401Error, which asserted
-// the old permanent-stop behavior.
+// On a 401 the client times out waiting for initial data but the data source
+// keeps retrying indefinitely. Init returns the usual timeout error; the data
+// source state is Interrupted (not Off); the stream keeps hitting the server.
 func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
@@ -140,11 +137,11 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 
 		assert.Equal(t, ErrInitializationTimeout, err)
 
-		// Under RETRY the SDK does not permanently stop on 401. Since we never
-		// reached a Valid state, the SinkImpl keeps state as Initializing rather
-		// than transitioning to Interrupted (see maybeUpdateStatus's Initializing
-		// clamp), but LastError records the failure. The key assertion is
-		// "state is NOT Off" -- no permanent stop.
+		// The SDK does not permanently stop on 401. Since we never reached a Valid
+		// state, the SinkImpl keeps state as Initializing rather than transitioning
+		// to Interrupted (see maybeUpdateStatus's Initializing clamp), but LastError
+		// records the failure. The key assertion is "state is NOT Off" -- no
+		// permanent stop.
 		require.Eventually(t, func() bool {
 			s := client.GetDataSourceStatusProvider().GetStatus()
 			return s.LastError.Kind == interfaces.DataSourceErrorKindErrorResponse &&
@@ -153,7 +150,7 @@ func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 			"data source should record the 401 as LastError")
 		assert.NotEqual(t, string(interfaces.DataSourceStateOff),
 			string(client.GetDataSourceStatusProvider().GetStatus().State),
-			"RETRY §1.2.1: no permanent stop on 401")
+			"no permanent stop on 401")
 
 		// Flag evaluation still works and returns defaults.
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
@@ -291,10 +288,8 @@ func TestInstanceIDIsDifferentBetweenClients(t *testing.T) {
 	})
 }
 
-// Under the RETRY spec (SDK-2775), a 401 is no longer terminal for polling
-// either: the goroutine keeps polling on the extended-regime cadence. Init
-// times out; state is Interrupted; the client kept polling. Replaces the
-// pre-RETRY TestClientFailsToStartInPollingModeWith401Error.
+// On a 401 the polling goroutine keeps polling on the extended-regime cadence.
+// Init times out; state is Interrupted; the client kept polling.
 func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(pollServer *httptest.Server) {
@@ -316,10 +311,10 @@ func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 
 		assert.Equal(t, ErrInitializationTimeout, err)
 
-		// Under RETRY the SDK does not permanently stop on 401. Since we never
-		// reached a Valid state, the SinkImpl keeps state as Initializing rather
-		// than transitioning to Interrupted. The key assertion is "state is NOT
-		// Off" -- no permanent stop -- and LastError records the failure.
+		// The SDK does not permanently stop on 401. Since we never reached a Valid
+		// state, the SinkImpl keeps state as Initializing rather than transitioning
+		// to Interrupted. The key assertion is "state is NOT Off" -- no permanent
+		// stop -- and LastError records the failure.
 		require.Eventually(t, func() bool {
 			s := client.GetDataSourceStatusProvider().GetStatus()
 			return s.LastError.Kind == interfaces.DataSourceErrorKindErrorResponse &&
@@ -328,7 +323,7 @@ func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 			"data source should record the 401 as LastError")
 		assert.NotEqual(t, string(interfaces.DataSourceStateOff),
 			string(client.GetDataSourceStatusProvider().GetStatus().State),
-			"RETRY §1.2.1: no permanent stop on 401")
+			"no permanent stop on 401")
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)

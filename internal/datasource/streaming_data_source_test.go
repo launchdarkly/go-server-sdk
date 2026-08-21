@@ -249,11 +249,9 @@ func TestStreamProcessorRecoverableErrorsCauseStreamRestart(t *testing.T) {
 	})
 }
 
-// Under the RETRY spec (SDK-2775), 401 / 403 / other 4xx are no longer terminal --
-// they engage an extended-regime backoff but keep retrying indefinitely. The SDK
-// transitions to Interrupted (not Off) and does not close the initialization
-// channel. This test replaces the pre-RETRY TestStreamProcessorUnrecoverableErrors
-// CauseStreamShutdown, which asserted the old (permanent-stop) behavior.
+// 401 / 403 / other 4xx engage an extended-regime backoff but keep retrying
+// indefinitely. The SDK transitions to Interrupted (not Off) and does not
+// close the initialization channel.
 func TestStreamProcessorUnexpectedErrorsEngageExtendedRegimeAndKeepRetrying(t *testing.T) {
 	for _, status := range []int{401, 403, 404} {
 		t.Run(fmt.Sprintf("HTTP status %d", status), func(t *testing.T) {
@@ -403,8 +401,8 @@ func testStreamProcessorUnexpectedHTTPError(t *testing.T, statusCode int) {
 
 			// Short retry delays so we can observe at least two attempts within the
 			// assertion window. The extended-regime profile activates immediately on the
-			// first failure (per the RETRY spec -- no grace period for initial-connection
-			// unexpected classifications), so we need to shorten ExtendedInitialReconnectDelay
+			// first failure (no grace period for initial-connection unexpected
+			// classifications), so we need to shorten ExtendedInitialReconnectDelay
 			// too, not just the normal InitialReconnectDelay.
 			sp := NewStreamProcessor(context, dataSourceUpdates, StreamConfig{
 				URI:                           ts.URL,
@@ -421,7 +419,7 @@ func testStreamProcessorUnexpectedHTTPError(t *testing.T, statusCode int) {
 			// we just assert the channel stays open.
 			select {
 			case <-closeWhenReady:
-				t.Fatal("closeWhenReady should not be closed -- RETRY §1.2.1 forbids permanent stops on 4xx")
+				t.Fatal("closeWhenReady should not be closed -- no permanent stops on 4xx")
 			case <-time.After(time.Second):
 			}
 
@@ -429,7 +427,7 @@ func testStreamProcessorUnexpectedHTTPError(t *testing.T, statusCode int) {
 			// by the processor -- so we see the Interrupted call the processor tried
 			// to make. (The real DataSourceUpdateSinkImpl would clamp it to
 			// Initializing since we never reached Valid; that's tested at the
-			// LDClient-level in the RETRY end-to-end tests. Here we just verify the
+			// LDClient-level end-to-end tests. Here we just verify the
 			// processor emitted the correct call.)
 			status := dataSourceUpdates.RequireStatusOf(t, interfaces.DataSourceStateInterrupted)
 			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)

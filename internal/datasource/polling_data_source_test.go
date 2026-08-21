@@ -141,11 +141,9 @@ func testPollingProcessorRecoverableError(t *testing.T, err error, verifyError f
 	})
 }
 
-// Under the RETRY spec (SDK-2775), previously-terminal 4xx errors (401, 403, 404,
-// 405) engage an extended-regime backoff but keep polling indefinitely. The
-// processor transitions to Interrupted (not Off) and continues to poll. Replaces
-// the pre-RETRY TestPollingProcessorUnrecoverableErrors, which asserted the old
-// permanent-stop behavior.
+// 4xx errors (401, 403, 404, 405) engage an extended-regime backoff but keep
+// polling indefinitely. The processor transitions to Interrupted (not Off)
+// and continues to poll.
 func TestPollingProcessorUnexpectedErrorsEngageExtendedRegimeAndKeepRetrying(t *testing.T) {
 	for _, statusCode := range []int{401, 403, 404, 405} {
 		t.Run(fmt.Sprintf("HTTP %d", statusCode), func(t *testing.T) {
@@ -194,7 +192,7 @@ func testPollingProcessorUnexpectedError(
 		// Initialization must not complete: no permanent stop, no successful poll.
 		select {
 		case <-closeWhenReady:
-			t.Fatal("closeWhenReady should not be closed -- RETRY §1.2.1 forbids permanent stops on 4xx")
+			t.Fatal("closeWhenReady should not be closed -- no permanent stops on 4xx")
 		case <-time.After(500 * time.Millisecond):
 		}
 
@@ -214,8 +212,8 @@ func testPollingProcessorUnexpectedError(
 
 // After two consecutive successful polls, the processor must reset to the normal
 // regime: n=0, and subsequent waits equal PollInterval (not the extended initial
-// delay). This exercises the RETRY §1.8 polling binding, where the reset
-// condition is a fixed count of successful polls rather than a time threshold.
+// delay). The reset condition is a fixed count of successful polls rather than
+// a time threshold.
 func TestPollingResetsToNormalAfterTwoConsecutiveSuccesses(t *testing.T) {
 	req := mocks.NewPollingRequester()
 	defer req.Close()

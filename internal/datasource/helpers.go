@@ -23,10 +23,10 @@ func (e httpStatusError) Error() string {
 	return e.Message
 }
 
-// FailureClass categorizes a data source failure per RETRY §1.5--§1.7. Under the
-// RETRY spec no failure is permanently terminal: every failure is either "normal"
-// (regular backoff and retry) or "unexpected" (extended backoff via a longer
-// retry profile or wait interval, still retrying indefinitely).
+// FailureClass categorizes a data source failure. No failure is permanently
+// terminal: every failure is either "normal" (regular backoff and retry) or
+// "unexpected" (extended backoff via a longer retry profile or wait interval,
+// still retrying indefinitely).
 type FailureClass int
 
 const (
@@ -39,8 +39,8 @@ const (
 )
 
 // classifyHTTPFailure returns the failure classification for an HTTP status code
-// received during a data source request, per RETRY §1.6. Called only when the
-// status indicates failure (non-2xx).
+// received during a data source request. Called only when the status indicates
+// failure (non-2xx).
 func classifyHTTPFailure(statusCode int) FailureClass {
 	if statusCode >= 400 && statusCode < 500 {
 		switch statusCode {
@@ -54,9 +54,9 @@ func classifyHTTPFailure(statusCode int) FailureClass {
 }
 
 // classifyTransportFailure returns the failure classification for a transport-layer
-// error (i.e., not an HTTP response, but a lower-level network or TLS failure)
-// per RETRY §1.7. TLS/certificate validation failures are treated as unexpected;
-// everything else is treated as normal.
+// error (i.e., not an HTTP response, but a lower-level network or TLS failure).
+// TLS/certificate validation failures are treated as unexpected; everything else
+// is treated as normal.
 func classifyTransportFailure(err error) FailureClass {
 	if err == nil {
 		return FailureClassNormal
@@ -88,12 +88,12 @@ func httpErrorDescription(statusCode int) string {
 	return fmt.Sprintf("HTTP error %d%s", statusCode, message)
 }
 
-// classifyAndLogHTTPFailure classifies an HTTP failure per RETRY §1.6, logs it,
-// and returns the classification for the caller to act on. Unexpected
-// failures (401, 403, other 4xx) log at Error since they almost always
-// indicate a real customer-side problem (invalid or expired SDK key,
-// misconfiguration) even though the SDK will keep retrying; normal failures
-// (400, 408, 429, 5xx) log at Warn since they are typically transient.
+// classifyAndLogHTTPFailure classifies an HTTP failure, logs it, and returns
+// the classification for the caller to act on. Unexpected failures (401, 403,
+// other 4xx) log at Error since they almost always indicate a real
+// customer-side problem (invalid or expired SDK key, misconfiguration) even
+// though the SDK will keep retrying; normal failures (400, 408, 429, 5xx) log
+// at Warn since they are typically transient.
 func classifyAndLogHTTPFailure(
 	loggers ldlog.Loggers,
 	errorDesc, errorContext string,
@@ -109,12 +109,12 @@ func classifyAndLogHTTPFailure(
 	return class
 }
 
-// classifyAndLogTransportFailure classifies a transport-layer failure per RETRY
-// §1.7, logs it, and returns the classification. Unexpected failures (TLS
-// or certificate validation errors) log at Error since they almost always
-// indicate a real customer-side problem (misconfigured trust store,
-// expired cert) even though the SDK will keep retrying; other transport
-// failures log at Warn since they are typically transient.
+// classifyAndLogTransportFailure classifies a transport-layer failure, logs it,
+// and returns the classification. Unexpected failures (TLS or certificate
+// validation errors) log at Error since they almost always indicate a real
+// customer-side problem (misconfigured trust store, expired cert) even though
+// the SDK will keep retrying; other transport failures log at Warn since they
+// are typically transient.
 func classifyAndLogTransportFailure(
 	loggers ldlog.Loggers,
 	err error,

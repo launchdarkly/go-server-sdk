@@ -93,8 +93,8 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
 	// Fires immediately for the first poll; Reset after each iteration to schedule
-	// the next. Under RETRY (SDK-2775), the interval between polls is dynamic per
-	// the pollingStrategy state machine, so we can't use a fixed-period Ticker.
+	// the next. The interval between polls is dynamic per the pollingStrategy
+	// state machine, so we can't use a fixed-period Ticker.
 	timer := time.NewTimer(0)
 
 	go func() {

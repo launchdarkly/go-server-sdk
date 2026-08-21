@@ -16,8 +16,8 @@ func TestHTTPStatusError(t *testing.T) {
 	assert.Equal(t, "message", error.Error())
 }
 
-// classifyHTTPFailure per RETRY §1.6: 400, 408, 429 are normal (transient
-// server-side conditions); all other 4xx are unexpected (durable client-side
+// classifyHTTPFailure: 400, 408, 429 are normal (transient server-side
+// conditions); all other 4xx are unexpected (durable client-side
 // misconfiguration); 5xx and everything else are normal.
 func TestClassifyHTTPFailure(t *testing.T) {
 	for i := 400; i < 500; i++ {
@@ -32,8 +32,8 @@ func TestClassifyHTTPFailure(t *testing.T) {
 	}
 }
 
-// classifyTransportFailure per RETRY §1.7: TLS/certificate validation failures
-// are unexpected; other transport-layer errors are normal.
+// classifyTransportFailure: TLS/certificate validation failures are unexpected;
+// other transport-layer errors are normal.
 func TestClassifyTransportFailure(t *testing.T) {
 	assert.Equal(t, FailureClassNormal, classifyTransportFailure(nil))
 	assert.Equal(t, FailureClassNormal, classifyTransportFailure(errors.New("boom")))

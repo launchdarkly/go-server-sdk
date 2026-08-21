@@ -378,10 +378,10 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		sp.logConnectionStarted()
 
-		// Per RETRY §1.2.1: no failure is permanently terminal. Unexpected failures
-		// engage the extended-regime profile; the library keeps retrying at extended
-		// cadence until a healthy-op reset (retryResetInterval of continuous
-		// connection) reverts.
+		// No failure is permanently terminal. Unexpected failures engage the
+		// extended-regime profile; the library keeps retrying at extended cadence
+		// until a healthy-op reset (retryResetInterval of continuous connection)
+		// reverts.
 		result := es.StreamErrorHandlerResult{CloseNow: false}
 		if class == FailureClassUnexpected {
 			if !loggedActivatedExtended {
