@@ -10,10 +10,12 @@ import (
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
 )
 
+// These property names also appear in the switch statements below. The goconst linter wants us to
+// define constants for them, but that makes code like this less clear.
 var (
-	putDataRequiredProperties    = []string{"data"}            //nolint:gochecknoglobals
-	patchDataRequiredProperties  = []string{"path", "data"}    //nolint:gochecknoglobals
-	deleteDataRequiredProperties = []string{"path", "version"} //nolint:gochecknoglobals
+	putDataRequiredProperties    = []string{"data"}            //nolint:gochecknoglobals,goconst
+	patchDataRequiredProperties  = []string{"path", "data"}    //nolint:gochecknoglobals,goconst
+	deleteDataRequiredProperties = []string{"path", "version"} //nolint:gochecknoglobals,goconst
 )
 
 // putData is the logical representation of the data in the "put" event. In the JSON representation,
@@ -83,9 +85,9 @@ func parsePutData(data []byte) (putData, error) {
 	r := jreader.NewReader(data)
 	for obj := r.Object().WithRequiredProperties(putDataRequiredProperties); obj.Next(); {
 		switch string(obj.Name()) {
-		case "path": //nolint:goconst // linter wants us to define constants, but that makes code like this less clear
+		case "path":
 			ret.Path = r.String()
-		case "data": //nolint:goconst
+		case "data":
 			ret.Data = parseAllStoreDataFromJSONReader(&r)
 		}
 	}

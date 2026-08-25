@@ -9,7 +9,7 @@ import (
 func AssertNotNil(i interface{}) {
 	if i != nil {
 		val := reflect.ValueOf(i)
-		if val.Kind() != reflect.Ptr || !val.IsNil() {
+		if val.Kind() != reflect.Pointer || !val.IsNil() {
 			return
 		}
 	}

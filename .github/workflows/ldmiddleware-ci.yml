@@ -33,7 +33,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
       - uses: ./.github/actions/unit-tests
         with:
-          lint: 'true'
+          lint: ${{ matrix.go-version == needs.go-versions.outputs.latest }}
           test-target: ldmiddleware-test
       - uses: ./.github/actions/coverage
         with:

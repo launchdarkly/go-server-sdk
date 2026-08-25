@@ -101,9 +101,7 @@ func NewStreamProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg StreamConfig,
 ) *StreamProcessor {
-	// streamReqCancel is stored on sp and invoked from Close(); gosec's
-	// G118 heuristic doesn't see the cross-scope call.
-	//nolint:gosec // G118: cancel invoked from Close()
+	// streamReqCancel is stored on sp and invoked from Close().
 	streamReqCtx, streamReqCancel := gocontext.WithCancel(gocontext.Background())
 	sp := &StreamProcessor{
 		dataSourceUpdates: dataSourceUpdates,

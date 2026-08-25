@@ -35,6 +35,13 @@ linters:
         - name: exported
           arguments:
             - disableStutteringCheck
+  exclusions:
+    rules:
+      # These files are reusable test suites for store implementations. The fixture keys repeat
+      # by design. Constants for them make the assertions harder to read.
+      - path: testhelpers/storetest/
+        linters:
+          - goconst
 
 formatters:
   enable:
