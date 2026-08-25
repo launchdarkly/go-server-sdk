@@ -15,8 +15,11 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
@@ -102,36 +105,63 @@ func TestClientStartsInStreamingMode(t *testing.T) {
 	})
 }
 
-func TestClientFailsToStartInStreamingModeWith401Error(t *testing.T) {
+// On a 401 the client times out waiting for initial data but the data source
+// keeps retrying indefinitely. Init returns the usual timeout error; the data
+// source state is Interrupted (not Off); the stream keeps hitting the server.
+func TestClientInStreamingModeWith401KeepsRetrying(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
+
+		// Short reconnect delays so multiple attempts fit within the init wait window.
+		// Extended-regime profile activates immediately on 401 (unexpected), so we need
+		// to shorten its base too, not just the normal-regime InitialReconnectDelay.
+		// Uses a test-local bypass because the SDK's public streaming builder
+		// intentionally does not expose the extended-regime timing knobs.
+		streamingBuilder := &compressedStreamingBuilder{
+			initialReconnectDelay:         10 * time.Millisecond,
+			extendedInitialReconnectDelay: 20 * time.Millisecond,
+		}
 
 		config := Config{
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Streaming: streamServer.URL},
+			DataSource:       streamingBuilder,
 		}
 
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-		require.Error(t, err)
+		client, err := MakeCustomClient(testSdkKey, config, 500*time.Millisecond)
+		require.Error(t, err) // init timed out -- no permanent stop, no successful put either
 		require.NotNil(t, client)
 		defer client.Close()
 
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		assert.Equal(t, ErrInitializationTimeout, err)
 
-		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		// The SDK does not permanently stop on 401. Since we never reached a Valid
+		// state, the SinkImpl keeps state as Initializing rather than transitioning
+		// to Interrupted (see maybeUpdateStatus's Initializing clamp), but LastError
+		// records the failure. The key assertion is "state is NOT Off" -- no
+		// permanent stop.
+		require.Eventually(t, func() bool {
+			s := client.GetDataSourceStatusProvider().GetStatus()
+			return s.LastError.Kind == interfaces.DataSourceErrorKindErrorResponse &&
+				s.LastError.StatusCode == 401
+		}, 2*time.Second, 10*time.Millisecond,
+			"data source should record the 401 as LastError")
+		assert.NotEqual(t, string(interfaces.DataSourceStateOff),
+			string(client.GetDataSourceStatusProvider().GetStatus().State),
+			"no permanent stop on 401")
 
+		// Flag evaluation still works and returns defaults.
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
 
+		// Confirm the client kept retrying -- at least one additional request landed at the mock server.
 		r := <-requestsCh
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
-		assertNoMoreRequests(t, requestsCh)
-
-		expectedError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
-		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
+		require.Eventually(t, func() bool { return len(requestsCh) >= 1 },
+			500*time.Millisecond, 10*time.Millisecond,
+			"expected the client to keep retrying after 401")
 	})
 }
 
@@ -258,37 +288,52 @@ func TestInstanceIDIsDifferentBetweenClients(t *testing.T) {
 	})
 }
 
-func TestClientFailsToStartInPollingModeWith401Error(t *testing.T) {
+// On a 401 the polling goroutine keeps polling on the extended-regime cadence.
+// Init times out; state is Interrupted; the client kept polling.
+func TestClientInPollingModeWith401KeepsRetrying(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(pollServer *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
 
+		pollingBuilder := ldcomponents.PollingDataSource()
+
 		config := Config{
-			DataSource:       ldcomponents.PollingDataSource(),
+			DataSource:       pollingBuilder,
 			Events:           ldcomponents.NoEvents(),
 			Logging:          ldcomponents.Logging().Loggers(logCapture.Loggers),
 			ServiceEndpoints: interfaces.ServiceEndpoints{Polling: pollServer.URL},
 		}
 
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-		require.Error(t, err)
+		client, err := MakeCustomClient(testSdkKey, config, 500*time.Millisecond)
+		require.Error(t, err) // init timed out
 		require.NotNil(t, client)
 		defer client.Close()
 
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		assert.Equal(t, ErrInitializationTimeout, err)
 
-		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		// The SDK does not permanently stop on 401. Since we never reached a Valid
+		// state, the SinkImpl keeps state as Initializing rather than transitioning
+		// to Interrupted. The key assertion is "state is NOT Off" -- no permanent
+		// stop -- and LastError records the failure.
+		require.Eventually(t, func() bool {
+			s := client.GetDataSourceStatusProvider().GetStatus()
+			return s.LastError.Kind == interfaces.DataSourceErrorKindErrorResponse &&
+				s.LastError.StatusCode == 401
+		}, 2*time.Second, 10*time.Millisecond,
+			"data source should record the 401 as LastError")
+		assert.NotEqual(t, string(interfaces.DataSourceStateOff),
+			string(client.GetDataSourceStatusProvider().GetStatus().State),
+			"no permanent stop on 401")
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
 
+		// Confirm the polling goroutine hit the server. Not asserting a second
+		// poll here -- the polling B1 wait floor is PollInterval (30s default),
+		// so observing multiple polls at unit-test timescales requires the
+		// internal-constructor pathway used by polling_data_source_test.go.
 		r := <-requestsCh
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
-		assertNoMoreRequests(t, requestsCh)
-
-		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
-		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{pollingModeWarningMessage, initializationFailedErrorMessage}, logCapture.GetOutput(ldlog.Warn))
 	})
 }
 
@@ -403,4 +448,26 @@ func TestClientStartupTimesOut(t *testing.T) {
 		assert.Equal(t, []string{"Timeout encountered waiting for LaunchDarkly client initialization"}, logCapture.GetOutput(ldlog.Warn))
 		assert.Len(t, logCapture.GetOutput(ldlog.Error), 0)
 	})
+}
+
+// compressedStreamingBuilder is a test-only ComponentConfigurer that constructs
+// the streaming data source with compressed retry timings. It bypasses the SDK's
+// public builder because that builder intentionally does not expose the
+// extended-regime timing knobs.
+type compressedStreamingBuilder struct {
+	initialReconnectDelay         time.Duration
+	extendedInitialReconnectDelay time.Duration
+}
+
+func (b *compressedStreamingBuilder) Build(context subsystems.ClientContext) (subsystems.DataSource, error) {
+	baseURI := endpoints.SelectBaseURI(
+		context.GetServiceEndpoints(),
+		endpoints.StreamingService,
+		context.GetLogging().Loggers,
+	)
+	return datasource.NewStreamProcessor(context, context.GetDataSourceUpdateSink(), datasource.StreamConfig{
+		URI:                           baseURI,
+		InitialReconnectDelay:         b.initialReconnectDelay,
+		ExtendedInitialReconnectDelay: b.extendedInitialReconnectDelay,
+	}), nil
 }

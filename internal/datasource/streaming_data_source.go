@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	gocontext "context"
 	"net/http"
 	"net/url"
 	"sync"
@@ -36,22 +37,27 @@ import (
 // 2b. If the data store doesn't support status notifications (which is normally only true of the in-memory store)
 // then we don't know the significance of the error, but we must assume that updates have been lost, so we'll
 // restart the stream.
-// 3. If we receive an unrecoverable error like HTTP 401, we close the stream and don't retry, and set the state
-// to OFF. Any other HTTP error or network error causes a retry with backoff, with a state of INTERRUPTED.
+// 3. If we receive an HTTP or transport-level error, we classify it and continue retrying:
+// normal errors (400, 408, 429, 5xx, most I/O errors) use the default backoff profile; unexpected errors
+// (401, 403, other 4xx, TLS/cert failures) engage the extended-regime profile.
+// No HTTP status is terminal and in every case we set state to INTERRUPTED.
 // 4. We set the Future returned by start() to tell the client initialization logic that initialization has either
-// succeeded (we got an initial payload and successfully stored it) or permanently failed (we got a 401, etc.).
+// succeeded (we got an initial payload and successfully stored it) or permanently failed (unparseable base URI).
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
 const (
-	putEvent                 = "put"
-	patchEvent               = "patch"
-	deleteEvent              = "delete"
-	streamReadTimeout        = 5 * time.Minute // the LaunchDarkly stream should send a heartbeat comment every 3 minutes
-	streamMaxRetryDelay      = 30 * time.Second
-	streamRetryResetInterval = 60 * time.Second
-	streamJitterRatio        = 0.5
-	defaultStreamRetryDelay  = 1 * time.Second
+	putEvent    = "put"
+	patchEvent  = "patch"
+	deleteEvent = "delete"
+	// The LaunchDarkly stream should send a heartbeat comment every 3 minutes.
+	streamReadTimeout               = 5 * time.Minute
+	streamJitterRatio               = 0.5
+	streamRetryResetInterval        = 60 * time.Second
+	defaultStreamRetryDelay         = 1 * time.Second
+	streamMaxRetryDelay             = 30 * time.Second
+	defaultStreamExtendedRetryDelay = 5 * time.Minute
+	streamExtendedMaxRetryDelay     = 1 * time.Hour
 
 	streamingErrorContext     = "in stream connection"
 	streamingWillRetryMessage = "will retry"
@@ -60,9 +66,11 @@ const (
 // StreamConfig describes the configuration for a streaming data source. It is exported so that
 // it can be used in the StreamingDataSourceBuilder.
 type StreamConfig struct {
-	URI                   string
-	FilterKey             string
-	InitialReconnectDelay time.Duration
+	URI                           string
+	FilterKey                     string
+	InitialReconnectDelay         time.Duration
+	ExtendedInitialReconnectDelay time.Duration
+	RetryResetInterval            time.Duration
 }
 
 // StreamProcessor is the internal implementation of the streaming data source.
@@ -78,7 +86,8 @@ type StreamProcessor struct {
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	loggers                    ldlog.Loggers
 	isInitialized              internal.AtomicBoolean
-	halt                       chan struct{}
+	streamReqCtx               gocontext.Context
+	streamReqCancel            gocontext.CancelFunc
 	storeStatusCh              <-chan interfaces.DataStoreStatus
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
@@ -92,11 +101,16 @@ func NewStreamProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	cfg StreamConfig,
 ) *StreamProcessor {
+	// streamReqCancel is stored on sp and invoked from Close(); gosec's
+	// G118 heuristic doesn't see the cross-scope call.
+	//nolint:gosec // G118: cancel invoked from Close()
+	streamReqCtx, streamReqCancel := gocontext.WithCancel(gocontext.Background())
 	sp := &StreamProcessor{
 		dataSourceUpdates: dataSourceUpdates,
 		headers:           context.GetHTTP().DefaultHeaders,
 		loggers:           context.GetLogging().Loggers,
-		halt:              make(chan struct{}),
+		streamReqCtx:      streamReqCtx,
+		streamReqCancel:   streamReqCancel,
 		cfg:               cfg,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
@@ -142,11 +156,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 		select {
 		case event, ok := <-stream.Events:
 			if !ok {
-				// COVERAGE: stream.Events is only closed if the EventSource has been closed. However, that
-				// only happens when we have received from sp.halt, in which case we return immediately
-				// after calling stream.Close(), terminating the for loop-- so we should not actually reach
-				// this point. Still, in case the channel is somehow closed unexpectedly, we do want to
-				// terminate the loop.
+				// COVERAGE: stream.Events is only closed if the EventSource has been closed. That
+				// happens after sp.streamReqCtx is cancelled (via the AfterFunc bridge in eventsource),
+				// but our own sp.streamReqCtx.Done() arm below returns first-- so we should not
+				// actually reach this point. Still, in case the channel is somehow closed unexpectedly,
+				// we do want to terminate the loop.
 				return
 			}
 			sp.logConnectionResult(true)
@@ -259,15 +273,17 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 			}
 
-		case <-sp.halt:
-			stream.Close()
+		case <-sp.streamReqCtx.Done():
 			return
 		}
 	}
 }
 
 func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
-	req, reqErr := http.NewRequest("GET", endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil)
+	req, reqErr := http.NewRequestWithContext(
+		sp.streamReqCtx, "GET",
+		endpoints.AddPath(sp.cfg.URI, endpoints.StreamingRequestPath), nil,
+	)
 	if reqErr != nil {
 		sp.loggers.Errorf(
 			"Unable to create a stream request; this is not a network problem, most likely a bad base URI: %s",
@@ -298,56 +314,91 @@ func (sp *StreamProcessor) subscribe(closeWhenReady chan<- struct{}) {
 	if initialRetryDelay <= 0 { // COVERAGE: can't cause this condition in unit tests
 		initialRetryDelay = defaultStreamRetryDelay
 	}
+	extendedInitialDelay := sp.cfg.ExtendedInitialReconnectDelay
+	if extendedInitialDelay <= 0 {
+		extendedInitialDelay = defaultStreamExtendedRetryDelay
+	}
+	retryResetInterval := sp.cfg.RetryResetInterval
+	if retryResetInterval <= 0 {
+		retryResetInterval = streamRetryResetInterval
+	}
+
+	defaultProfile := es.NewRetryProfile(
+		es.RetryProfileBaseDelay(initialRetryDelay),
+		es.RetryProfileMaxDelay(streamMaxRetryDelay),
+		es.RetryProfileJitter(streamJitterRatio),
+	)
+
+	extendedProfile := es.NewRetryProfile(
+		es.RetryProfileBaseDelay(extendedInitialDelay),
+		es.RetryProfileMaxDelay(streamExtendedMaxRetryDelay),
+		es.RetryProfileJitter(streamJitterRatio),
+	)
+
+	// loggedActivatedExtended gates the "engaging extended backoff" info log so
+	// it fires at most once per Subscribe cycle. The library handles the
+	// healthy-op reset back to normal internally (via
+	// StreamOptionRetryResetInterval); we don't observe it, so we don't
+	// re-log if the SDK re-transitions during a long-lived stream.
+	loggedActivatedExtended := false
 
 	errorHandler := func(err error) es.StreamErrorHandlerResult {
 		sp.logConnectionResult(false)
 
+		var class FailureClass
+		var errorInfo interfaces.DataSourceErrorInfo
+
 		if se, ok := err.(es.SubscriptionError); ok {
-			errorInfo := interfaces.DataSourceErrorInfo{
+			errorInfo = interfaces.DataSourceErrorInfo{
 				Kind:       interfaces.DataSourceErrorKindErrorResponse,
 				StatusCode: se.Code,
 				Time:       time.Now(),
 			}
-			recoverable := checkIfErrorIsRecoverableAndLog(
+			class = classifyAndLogHTTPFailure(
 				sp.loggers,
 				httpErrorDescription(se.Code),
 				streamingErrorContext,
 				se.Code,
 				streamingWillRetryMessage,
 			)
-			if recoverable {
-				sp.logConnectionStarted()
-				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
-				return es.StreamErrorHandlerResult{CloseNow: false}
+		} else {
+			errorInfo = interfaces.DataSourceErrorInfo{
+				Kind:    interfaces.DataSourceErrorKindNetworkError,
+				Message: err.Error(),
+				Time:    time.Now(),
 			}
-			sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
-			return es.StreamErrorHandlerResult{CloseNow: true}
+			class = classifyAndLogTransportFailure(
+				sp.loggers,
+				err,
+				streamingErrorContext,
+				streamingWillRetryMessage,
+			)
 		}
 
-		checkIfErrorIsRecoverableAndLog(
-			sp.loggers,
-			err.Error(),
-			streamingErrorContext,
-			0,
-			streamingWillRetryMessage,
-		)
-		errorInfo := interfaces.DataSourceErrorInfo{
-			Kind:    interfaces.DataSourceErrorKindNetworkError,
-			Message: err.Error(),
-			Time:    time.Now(),
-		}
 		sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		sp.logConnectionStarted()
-		return es.StreamErrorHandlerResult{CloseNow: false}
+
+		// No failure is permanently terminal. Unexpected failures engage the
+		// extended-regime profile; the library keeps retrying at extended cadence
+		// until a healthy-op reset (retryResetInterval of continuous connection)
+		// reverts.
+		result := es.StreamErrorHandlerResult{CloseNow: false}
+		if class == FailureClassUnexpected {
+			if !loggedActivatedExtended {
+				sp.loggers.Info("Classified failure as UNEXPECTED; engaging extended backoff.")
+				loggedActivatedExtended = true
+			}
+			result.ActivateProfile = extendedProfile
+		}
+		return result
 	}
 
 	stream, err := es.SubscribeWithRequestAndOptions(req,
 		es.StreamOptionHTTPClient(sp.client),
 		es.StreamOptionReadTimeout(streamReadTimeout),
-		es.StreamOptionInitialRetry(initialRetryDelay),
-		es.StreamOptionUseBackoff(streamMaxRetryDelay),
-		es.StreamOptionUseJitter(streamJitterRatio),
-		es.StreamOptionRetryResetInterval(streamRetryResetInterval),
+		es.StreamOptionDefaultRetryProfile(defaultProfile),
+		es.StreamOptionRegisterRetryProfile(extendedProfile),
+		es.StreamOptionRetryResetInterval(retryResetInterval),
 		es.StreamOptionErrorHandler(errorHandler),
 		es.StreamOptionCanRetryFirstConnection(-1),
 		es.StreamOptionLogger(sp.loggers.ForLevel(ldlog.Info)),
@@ -396,7 +447,7 @@ func (sp *StreamProcessor) logConnectionResult(success bool) {
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) Close() error {
 	sp.closeOnce.Do(func() {
-		close(sp.halt)
+		sp.streamReqCancel()
 		if sp.storeStatusCh != nil {
 			sp.dataSourceUpdates.GetDataStoreStatusProvider().RemoveStatusListener(sp.storeStatusCh)
 		}

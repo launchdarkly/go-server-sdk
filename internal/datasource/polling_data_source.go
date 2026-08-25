@@ -14,16 +14,18 @@ import (
 )
 
 const (
-	pollingErrorContext     = "on polling request"
-	pollingWillRetryMessage = "will retry at next scheduled poll interval"
+	pollingErrorContext             = "on polling request"
+	pollingWillRetryMessage         = "will retry at next scheduled poll interval"
+	defaultExtendedInitialPollDelay = 5 * time.Minute
 )
 
 // PollingConfig describes the configuration for a polling data source. It is exported so that
 // it can be used in the PollingDataSourceBuilder.
 type PollingConfig struct {
-	BaseURI      string
-	PollInterval time.Duration
-	FilterKey    string
+	BaseURI                     string
+	PollInterval                time.Duration
+	FilterKey                   string
+	ExtendedInitialPollInterval time.Duration
 }
 
 // Requester allows PollingProcessor to delegate fetching data to another component.
@@ -43,6 +45,7 @@ type PollingProcessor struct {
 	dataSourceUpdates  subsystems.DataSourceUpdateSink
 	requester          Requester
 	pollInterval       time.Duration
+	strategy           *pollingStrategy
 	loggers            ldlog.Loggers
 	setInitializedOnce sync.Once
 	isInitialized      internal.AtomicBoolean
@@ -57,7 +60,14 @@ func NewPollingProcessor(
 	cfg PollingConfig,
 ) *PollingProcessor {
 	httpRequester := NewPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
-	return newPollingProcessor(context, dataSourceUpdates, httpRequester, cfg.PollInterval)
+	extendedInitialPollInterval := cfg.ExtendedInitialPollInterval
+	if extendedInitialPollInterval <= 0 {
+		extendedInitialPollInterval = defaultExtendedInitialPollDelay
+	}
+	return newPollingProcessor(
+		context, dataSourceUpdates, httpRequester,
+		cfg.PollInterval, extendedInitialPollInterval,
+	)
 }
 
 func newPollingProcessor(
@@ -65,11 +75,13 @@ func newPollingProcessor(
 	dataSourceUpdates subsystems.DataSourceUpdateSink,
 	requester Requester,
 	pollInterval time.Duration,
+	extendedInitialPollInterval time.Duration,
 ) *PollingProcessor {
 	pp := &PollingProcessor{
 		dataSourceUpdates: dataSourceUpdates,
 		requester:         requester,
 		pollInterval:      pollInterval,
+		strategy:          newPollingStrategy(pollInterval, extendedInitialPollInterval),
 		loggers:           context.GetLogging().Loggers,
 		quit:              make(chan struct{}),
 	}
@@ -80,10 +92,13 @@ func newPollingProcessor(
 func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 	pp.loggers.Infof("Starting LaunchDarkly polling with interval: %+v", pp.pollInterval)
 
-	ticker := newTickerWithInitialTick(pp.pollInterval)
+	// Fires immediately for the first poll; Reset after each iteration to schedule
+	// the next. The interval between polls is dynamic per the pollingStrategy
+	// state machine, so we can't use a fixed-period Ticker.
+	timer := time.NewTimer(0)
 
 	go func() {
-		defer ticker.Stop()
+		defer timer.Stop()
 
 		var readyOnce sync.Once
 		notifyReady := func() {
@@ -98,28 +113,23 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 			select {
 			case <-pp.quit:
 				return
-			case <-ticker.C:
+			case <-timer.C:
 				if err := pp.poll(); err != nil {
+					var class FailureClass
 					if hse, ok := err.(httpStatusError); ok {
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:       interfaces.DataSourceErrorKindErrorResponse,
 							StatusCode: hse.Code,
 							Time:       time.Now(),
 						}
-						recoverable := checkIfErrorIsRecoverableAndLog(
+						class = classifyAndLogHTTPFailure(
 							pp.loggers,
 							httpErrorDescription(hse.Code),
 							pollingErrorContext,
 							hse.Code,
 							pollingWillRetryMessage,
 						)
-						if recoverable {
-							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
-						} else {
-							pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
-							notifyReady()
-							return
-						}
+						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					} else {
 						errorInfo := interfaces.DataSourceErrorInfo{
 							Kind:    interfaces.DataSourceErrorKindNetworkError,
@@ -129,17 +139,24 @@ func (pp *PollingProcessor) Start(closeWhenReady chan<- struct{}) {
 						if _, ok := err.(malformedJSONError); ok {
 							errorInfo.Kind = interfaces.DataSourceErrorKindInvalidData
 						}
-						checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
+						class = classifyAndLogTransportFailure(
+							pp.loggers, err, pollingErrorContext, pollingWillRetryMessage,
+						)
 						pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 					}
-					continue
+					if pp.strategy.OnFailure(class) {
+						pp.loggers.Info("Classified failure as UNEXPECTED; engaging extended backoff.")
+					}
+				} else {
+					pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+					pp.setInitializedOnce.Do(func() {
+						pp.isInitialized.Set(true)
+						pp.loggers.Info("First polling request successful")
+						notifyReady()
+					})
+					pp.strategy.OnSuccess()
 				}
-				pp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-				pp.setInitializedOnce.Do(func() {
-					pp.isInitialized.Set(true)
-					pp.loggers.Info("First polling request successful")
-					notifyReady()
-				})
+				timer.Reset(pp.strategy.NextWait())
 			}
 		}
 	}()
@@ -189,25 +206,4 @@ func (pp *PollingProcessor) GetPollInterval() time.Duration {
 // GetFilterKey returns the configured filter key, for testing.
 func (pp *PollingProcessor) GetFilterKey() string {
 	return pp.requester.FilterKey()
-}
-
-type tickerWithInitialTick struct {
-	*time.Ticker
-	C <-chan time.Time
-}
-
-func newTickerWithInitialTick(interval time.Duration) *tickerWithInitialTick {
-	c := make(chan time.Time)
-	ticker := time.NewTicker(interval)
-	t := &tickerWithInitialTick{
-		C:      c,
-		Ticker: ticker,
-	}
-	go func() {
-		c <- time.Now() // Ensure we do an initial poll immediately
-		for tt := range ticker.C {
-			c <- tt
-		}
-	}()
-	return t
 }

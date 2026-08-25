@@ -77,7 +77,7 @@ type dataSystem interface {
 	FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.FlagChangeEvent]
 
 	// Start starts the data system; the given channel will be closed when the system has reached an initial state
-	// (either permanently failed, e.g. due to bad auth, or succeeded, where Initialized() == true).
+	// (either permanently failed, e.g. due to invalid configuration, or succeeded, where Initialized() == true).
 	Start(closeWhenReady chan struct{})
 
 	// Stop halts the data system. Should be called when the client is closed to stop any long-running operations.
@@ -136,8 +136,7 @@ var (
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
 
 	// MakeClient and MakeCustomClient will return this error if the SDK detected an error that makes it
-	// impossible for a LaunchDarkly connection to succeed. Currently, the only such condition is if the
-	// SDK key is invalid, since an invalid SDK key will never become valid.
+	// impossible for a LaunchDarkly connection to succeed (e.g. an unparseable service URI).
 	ErrInitializationFailed = errors.New("LaunchDarkly client initialization failed")
 
 	// This error is returned by the Variation/VariationDetail methods if feature flags are not available
@@ -161,8 +160,8 @@ var (
 // uninitialized state, where feature flags will return default values-- and the error value is
 // [ErrInitializationTimeout]. In this case, it will still continue trying to connect in the background.
 //
-// If there was an unrecoverable error such that it cannot succeed by retrying-- for instance, the SDK key is
-// invalid-- it will return a client instance in an uninitialized state, and the error value is
+// If there was a startup configuration error such that no connection could be attempted-- for instance, an
+// unparseable service URI-- it will return a client instance in an uninitialized state, and the error value is
 // [ErrInitializationFailed].
 //
 // If you set waitFor to zero, the function will return immediately after creating the client instance, and
@@ -197,8 +196,8 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 // uninitialized state, where feature flags will return default values-- and the error value is
 // [ErrInitializationTimeout]. In this case, it will still continue trying to connect in the background.
 //
-// If there was an unrecoverable error such that it cannot succeed by retrying-- for instance, the SDK key is
-// invalid-- it will return a client instance in an uninitialized state, and the error value is
+// If there was a startup configuration error such that no connection could be attempted-- for instance, an
+// unparseable service URI-- it will return a client instance in an uninitialized state, and the error value is
 // [ErrInitializationFailed].
 //
 // If you set waitFor to zero, the function will return immediately after creating the client instance, and

@@ -1,6 +1,10 @@
 package datasource
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -12,13 +16,41 @@ func TestHTTPStatusError(t *testing.T) {
 	assert.Equal(t, "message", error.Error())
 }
 
-func TestIsHTTPErrorRecoverable(t *testing.T) {
+// classifyHTTPFailure: 400, 408, 429 are normal (transient server-side
+// conditions); all other 4xx are unexpected (durable client-side
+// misconfiguration); 5xx and everything else are normal.
+func TestClassifyHTTPFailure(t *testing.T) {
 	for i := 400; i < 500; i++ {
-		assert.Equal(t, i == 400 || i == 408 || i == 429, isHTTPErrorRecoverable(i), strconv.Itoa(i))
+		expected := FailureClassNormal
+		if !(i == 400 || i == 408 || i == 429) {
+			expected = FailureClassUnexpected
+		}
+		assert.Equal(t, expected, classifyHTTPFailure(i), strconv.Itoa(i))
 	}
 	for i := 500; i < 600; i++ {
-		assert.True(t, isHTTPErrorRecoverable(i))
+		assert.Equal(t, FailureClassNormal, classifyHTTPFailure(i), strconv.Itoa(i))
 	}
+}
+
+// classifyTransportFailure: TLS/certificate validation failures are unexpected;
+// other transport-layer errors are normal.
+func TestClassifyTransportFailure(t *testing.T) {
+	assert.Equal(t, FailureClassNormal, classifyTransportFailure(nil))
+	assert.Equal(t, FailureClassNormal, classifyTransportFailure(errors.New("boom")))
+
+	// TLS certificate errors.
+	assert.Equal(t, FailureClassUnexpected,
+		classifyTransportFailure(&tls.CertificateVerificationError{}))
+	assert.Equal(t, FailureClassUnexpected,
+		classifyTransportFailure(x509.UnknownAuthorityError{}))
+	assert.Equal(t, FailureClassUnexpected,
+		classifyTransportFailure(x509.HostnameError{Host: "example.invalid"}))
+	assert.Equal(t, FailureClassUnexpected,
+		classifyTransportFailure(x509.CertificateInvalidError{Reason: x509.Expired}))
+
+	// Wrapped errors are still classified correctly.
+	wrapped := fmt.Errorf("some wrapper: %w", x509.UnknownAuthorityError{})
+	assert.Equal(t, FailureClassUnexpected, classifyTransportFailure(wrapped))
 }
 
 func TestHTTPErrorDescription(t *testing.T) {
