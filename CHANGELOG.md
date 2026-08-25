@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.16.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.6...v7.16.0) (2026-08-25)
+
+
+### Features
+
+* conform FDv1 streaming and polling to RETRY spec ([#429](https://github.com/launchdarkly/go-server-sdk/issues/429)) ([f5fc1a3](https://github.com/launchdarkly/go-server-sdk/commit/f5fc1a33bc56cb78b7aa69916e621ef18a3c33b8))
+
 ## [7.15.6](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.5...v7.15.6) (2026-08-17)
 
 
