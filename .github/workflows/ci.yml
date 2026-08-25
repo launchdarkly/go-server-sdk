@@ -27,6 +27,7 @@ jobs:
     uses: ./.github/workflows/common_ci.yml
     with:
       go-version: ${{ matrix.go-version }}
+      lint: ${{ matrix.go-version == needs.go-versions.outputs.latest }}
 
   test-windows:
     name: ${{ format('Windows, Go {0}', matrix.go-version) }}
