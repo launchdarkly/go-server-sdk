@@ -1,4 +1,4 @@
-GOLANGCI_LINT_VERSION=v2.11.1
+GOLANGCI_LINT_VERSION=v2.13.1
 
 LINTER=./bin/golangci-lint
 LINTER_VERSION_FILE=./bin/.golangci-lint-version-$(GOLANGCI_LINT_VERSION)
@@ -166,9 +166,12 @@ benchmark-allocs:
 	@echo "You should see some benchmark result output; if you do not, you may have misspelled the benchmark name/regex"
 	@GODEBUG=allocfreetrace=1 LD_TEST_ALLOCATIONS= $(TEST_BINARY) -test.run=none -test.bench=$$BENCHMARK -test.benchmem -test.benchtime=1x 2>$(ALLOCATIONS_LOG)
 
+# We build the linter from source instead of downloading a release binary. golangci-lint embeds
+# go/types, so a prebuilt binary cannot analyze a Go release newer than the one that built it.
+# Building here means the linter always matches the toolchain that runs it.
 $(LINTER_VERSION_FILE):
 	rm -f $(LINTER)
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s $(GOLANGCI_LINT_VERSION)
+	GOWORK=off GOBIN=$(CURDIR)/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	touch $(LINTER_VERSION_FILE)
 
 lint: $(LINTER_VERSION_FILE) $(ALL_LINT_TARGETS)
