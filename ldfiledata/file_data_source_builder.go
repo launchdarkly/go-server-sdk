@@ -17,8 +17,13 @@ const (
 	// should fail if keys are duplicated across files. This is the default behavior.
 	DuplicateKeysFail DuplicateKeysHandling = "fail"
 
-	// DuplicateKeysIgnoreAllButFirst is an option for DataSourceBuilder.DuplicateKeysHandling, meaning that
+	// DuplicateKeysKeepFirst is an option for DataSourceBuilder.DuplicateKeysHandling, meaning that
 	// if keys are duplicated across files the first occurrence will be used.
+	DuplicateKeysKeepFirst DuplicateKeysHandling = "ignore"
+
+	// DuplicateKeysIgnoreAllButFirst is an older name for [DuplicateKeysKeepFirst].
+	//
+	// Deprecated: Use [DuplicateKeysKeepFirst] instead.
 	DuplicateKeysIgnoreAllButFirst DuplicateKeysHandling = "ignore"
 )
 
