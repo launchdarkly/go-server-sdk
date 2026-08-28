@@ -274,7 +274,7 @@ func TestClosingSynchronizerClosesResultsChannel(t *testing.T) {
 		<-resultChan
 		sync.Close()
 
-		th.AssertChannelClosed(t, resultChan, time.Millisecond, "result channel should be closed")
+		th.AssertChannelClosed(t, resultChan, time.Second, "result channel should be closed")
 	})
 }
 

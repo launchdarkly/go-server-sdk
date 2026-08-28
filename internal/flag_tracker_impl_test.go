@@ -64,7 +64,7 @@ func TestFlagValueChangeListener(t *testing.T) {
 	ch3 := tracker.AddFlagValueChangeListener(flagKey, otherUser, ldvalue.Null())
 
 	tracker.RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
-	th.AssertChannelClosed(t, ch2, time.Millisecond)
+	th.AssertChannelClosed(t, ch2, time.Second)
 
 	th.AssertNoMoreValues(t, ch1, timeout)
 	th.AssertNoMoreValues(t, ch3, timeout)

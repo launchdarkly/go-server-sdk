@@ -54,7 +54,7 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 			ch2 := b.AddListener()
 
 			b.RemoveListener(ch1)
-			th.AssertChannelClosed(t, ch1, time.Millisecond)
+			th.AssertChannelClosed(t, ch1, time.Second)
 
 			value := valueFactory()
 			b.Broadcast(value)

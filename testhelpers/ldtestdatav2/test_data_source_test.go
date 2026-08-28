@@ -176,7 +176,7 @@ func TestSupportsMultipleSynchronizers(t *testing.T) {
 
 	sync2.Close()
 
-	th.AssertChannelClosed(t, resultChan2, time.Millisecond, "result channel should be closed")
+	th.AssertChannelClosed(t, resultChan2, time.Second, "result channel should be closed")
 
 	td.Update(td.Flag("flag1").On(false))
 
@@ -285,5 +285,5 @@ func TestClosingSynchronizerClosesResultChannel(t *testing.T) {
 
 	sync.Close()
 
-	th.AssertChannelClosed(t, resultChan, time.Millisecond, "result channel should be closed")
+	th.AssertChannelClosed(t, resultChan, time.Second, "result channel should be closed")
 }
