@@ -162,7 +162,7 @@ func TestDuplicateKeysHandlingCanSuppressErrors(t *testing.T) {
 	th.WithTempFileData([]byte(file1Data), func(filename1 string) {
 		th.WithTempFileData([]byte(file2Data), func(filename2 string) {
 			factory := DataSource().FilePaths(filename1, filename2).
-				DuplicateKeysHandling(DuplicateKeysIgnoreAllButFirst)
+				DuplicateKeysHandling(DuplicateKeysKeepFirst)
 			withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
 				p.waitForStart()
 				require.True(t, p.dataSource.IsInitialized())

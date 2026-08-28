@@ -163,7 +163,7 @@ func TestIsInterruptedWhenLoadingConflictingFiles(t *testing.T) {
 func TestIsValidWhenLoadingConflictingFilesWhenIgnoringDuplicates(t *testing.T) {
 	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true, "version": 1}}}`), func(filename1 string) {
 		th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": false, "version": 2}, "your-flag": {"on": false}}}`), func(filename2 string) {
-			factory := DataSource().FilePaths(filename1, filename2).DuplicateKeysHandling(DuplicateKeysIgnoreAllButFirst)
+			factory := DataSource().FilePaths(filename1, filename2).DuplicateKeysHandling(DuplicateKeysKeepFirst)
 			sync, err := factory.Build(subsystems.BasicClientContext{})
 			assert.NoError(t, err)
 
