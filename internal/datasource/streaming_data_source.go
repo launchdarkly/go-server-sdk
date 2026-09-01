@@ -210,6 +210,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 							dataSourceUpdatesWithInitMetadata.SetEnvironmentID(initMetadata.GetEnvironmentID())
 						}
 					}
+					// Report the valid state before the readiness signal. A caller that wakes on
+					// the signal must observe the updated status.
+					sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
 					sp.setInitializedAndNotifyClient(true, closeWhenReady)
 				} else {
 					storeUpdateFailed("initial streaming data")

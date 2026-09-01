@@ -432,11 +432,13 @@ func (f *FDv2) consumeSynchronizerResults(
 					f.store.Apply(*result.ChangeSet, true)
 				}
 
+				// Report the valid state before the readiness signal. A caller that wakes on
+				// the signal must observe the updated status.
+				f.UpdateStatus(result.State, result.Error)
+
 				f.readyOnce.Do(func() {
 					close(closeWhenReady)
 				})
-
-				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateInterrupted:
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
