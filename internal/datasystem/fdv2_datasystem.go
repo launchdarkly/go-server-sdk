@@ -245,8 +245,11 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-// runInitializers runs each configured initializer in order until one succeeds, the context is
-// cancelled, or an initializer signals a fallback to FDv1. Returns (fallbackToFDv1, errorInfo):
+// runInitializers runs each configured initializer in order until one returns a basis with a
+// selector, the context is cancelled, or an initializer signals a fallback to FDv1. A basis
+// without a selector is applied to the store and the loop continues to the next initializer.
+// When all initializers have run, initialization is complete if any of them returned data,
+// even if that data had no selector. Returns (fallbackToFDv1, errorInfo):
 // fallbackToFDv1 is true when an initializer asked the SDK to switch to FDv1; errorInfo describes
 // the underlying error for status reporting when no FDv1 fallback is configured (empty when the
 // fallback accompanied a successful response). If fallback is signalled alongside a valid Basis,
@@ -255,6 +258,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
 ) (fallbackToFDv1 bool, errorInfo interfaces.DataSourceErrorInfo) {
+	obtainedData := false
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, fallback, err := initializer.Fetch(f.store, ctx)
@@ -275,12 +279,10 @@ func (f *FDv2) runInitializers(
 			if basis != nil {
 				f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
 				f.store.Apply(basis.ChangeSet, basis.Persist)
-				if basis.ChangeSet.Selector().IsDefined() {
-					f.loggers.Infof("Applied payload from %s before falling back to FDv1", initializer.Name())
-					f.readyOnce.Do(func() {
-						close(closeWhenReady)
-					})
-				}
+				f.loggers.Infof("Applied payload from %s before falling back to FDv1", initializer.Name())
+				f.readyOnce.Do(func() {
+					close(closeWhenReady)
+				})
 			}
 			return true, errorInfo
 		}
@@ -290,6 +292,7 @@ func (f *FDv2) runInitializers(
 		}
 		f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
 		f.store.Apply(basis.ChangeSet, basis.Persist)
+		obtainedData = true
 		if basis.ChangeSet.Selector().IsDefined() {
 			f.loggers.Infof("Initialized via %s", initializer.Name())
 			f.readyOnce.Do(func() {
@@ -297,6 +300,12 @@ func (f *FDv2) runInitializers(
 			})
 			return false, interfaces.DataSourceErrorInfo{}
 		}
+	}
+	if obtainedData {
+		f.loggers.Info("All initializers have run; initialization is complete with data that has no selector")
+		f.readyOnce.Do(func() {
+			close(closeWhenReady)
+		})
 	}
 	return false, interfaces.DataSourceErrorInfo{}
 }
@@ -514,11 +523,9 @@ func (f *FDv2) DataAvailability() DataAvailability {
 }
 
 //nolint:revive // DataSystem method.
-func (f *FDv2) TargetAvailability() DataAvailability {
-	if f.configuredWithDataSources {
-		return Refreshed
-	}
-
+func (f *FDv2) MinimumAvailability() DataAvailability {
+	// Initialization is successful when the data system has any data, even if that data
+	// has no selector. Synchronizers refresh the data after initialization.
 	return Cached
 }
 

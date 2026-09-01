@@ -154,7 +154,7 @@ func (f *FDv1) DataAvailability() DataAvailability {
 }
 
 //nolint:revive // Data system implementation.
-func (f *FDv1) TargetAvailability() DataAvailability {
+func (f *FDv1) MinimumAvailability() DataAvailability {
 	return Refreshed
 }
 

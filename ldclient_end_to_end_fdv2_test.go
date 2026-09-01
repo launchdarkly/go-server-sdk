@@ -525,7 +525,9 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 	})
 }
 
-func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
+// A file initializer returns data without a selector. Initialization completes with that data,
+// and the streaming synchronizer then refreshes it.
+func TestFDV2SynchronizerRefreshesDataAfterInitializerCompletesInit(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
@@ -561,10 +563,91 @@ func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
 			require.NoError(t, err)
 			defer client.Close()
 
+			assert.True(t, client.Initialized())
+
 			reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
 			require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
 			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+			assert.True(t, value)
+		})
+	})
+}
+
+// Initialization must complete when all initializers have run and any of them returned data,
+// even though that data has no selector. The synchronizer never delivers data, so a successful
+// (non-timeout) client start proves that the initializer data completed initialization.
+func TestFDV2InitializerDataWithoutSelectorCompletesInitialization(t *testing.T) {
+	hangingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	})
+
+	fileData := []byte(`{"flags": {"flag-from-file": {"on": true, "fallthrough": {"variation": 0}, ` +
+		`"variations": [true]}}, "segments": {}}`)
+
+	testHelpers.WithTempFileData(fileData, func(filename string) {
+		httphelpers.WithServer(hangingHandler, func(server *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+					).
+					Synchronizers(
+						ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+					),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+
+			value, _ := client.BoolVariation("flag-from-file", testUser, false)
+			assert.True(t, value)
+		})
+	})
+}
+
+// The first initializer returns data without a selector, so the loop continues to the next
+// initializer. The next initializer fails. Initialization must still complete with the data
+// from the first initializer.
+func TestFDV2InitializerDataIsRetainedWhenLaterInitializerFails(t *testing.T) {
+	hangingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	})
+
+	fileData := []byte(`{"flags": {"flag-from-file": {"on": true, "fallthrough": {"variation": 0}, ` +
+		`"variations": [true]}}, "segments": {}}`)
+
+	testHelpers.WithTempFileData(fileData, func(filename string) {
+		httphelpers.WithServer(hangingHandler, func(server *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+						ldfiledatav2.DataSource().FilePaths(filename+".does-not-exist").AsInitializer(),
+					).
+					Synchronizers(
+						ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+					),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+
+			value, _ := client.BoolVariation("flag-from-file", testUser, false)
 			assert.True(t, value)
 		})
 	})
