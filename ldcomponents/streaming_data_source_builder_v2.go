@@ -59,6 +59,10 @@ func (b *StreamingDataSourceBuilderV2) BaseURI(baseURI string) *StreamingDataSou
 // a smaller, known subset - then a payload filter may be setup in LaunchDarkly, and the filter's key specified here.
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
+//
+// Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
+// removed in a future release. Use [StreamingDataSourceBuilder.PayloadFilter] with the FDv1 data
+// source instead.
 func (b *StreamingDataSourceBuilderV2) PayloadFilter(filterKey string) *StreamingDataSourceBuilderV2 {
 	b.filterKey = ldvalue.NewOptionalString(filterKey)
 	return b

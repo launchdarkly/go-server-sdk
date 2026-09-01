@@ -64,6 +64,10 @@ func (b *PollingDataSourceBuilderV2) forcePollInterval(
 // a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
+//
+// Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
+// removed in a future release. Use [PollingDataSourceBuilder.PayloadFilter] with the FDv1 data
+// source instead.
 func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDataSourceBuilderV2 {
 	b.filterKey = ldvalue.NewOptionalString(filterKey)
 	return b
