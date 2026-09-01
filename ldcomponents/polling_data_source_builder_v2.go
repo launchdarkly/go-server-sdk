@@ -66,8 +66,8 @@ func (b *PollingDataSourceBuilderV2) forcePollInterval(
 // Evaluations for flags that aren't part of the filtered environment will return default values.
 //
 // Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
-// removed in a future release. Use [PollingDataSourceBuilder.PayloadFilter] with the FDv1 data
-// source instead.
+// removed in a future release. There is no replacement: payload filtering is only available with
+// the FDv1 data source.
 func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDataSourceBuilderV2 {
 	b.filterKey = ldvalue.NewOptionalString(filterKey)
 	return b
