@@ -46,12 +46,12 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		t.Run("build fails with empty payload filter", func(t *testing.T) {
+		t.Run("build succeeds with empty payload filter", func(t *testing.T) {
 			s := StreamingDataSourceV2()
 			clientContext := makeTestContextWithBaseURIs("base")
 			s.PayloadFilter("")
 			_, err := s.Build(clientContext)
-			assert.Error(t, err)
+			assert.NoError(t, err)
 		})
 
 		t.Run("build logs a deprecation warning when a payload filter is set", func(t *testing.T) {

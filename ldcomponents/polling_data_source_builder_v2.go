@@ -1,7 +1,6 @@
 package ldcomponents
 
 import (
-	"errors"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -79,9 +78,6 @@ func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDat
 func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet {
-		if filterKey == "" {
-			return nil, errors.New("payload filter key cannot be an empty string")
-		}
 		context.GetLogging().Loggers.Warn(deprecatedPayloadFilterMessage)
 	}
 	cfg := datasource.PollingConfig{

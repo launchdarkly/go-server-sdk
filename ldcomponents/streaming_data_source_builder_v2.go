@@ -1,7 +1,6 @@
 package ldcomponents
 
 import (
-	"errors"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
@@ -51,8 +50,7 @@ func (b *StreamingDataSourceBuilderV2) BaseURI(baseURI string) *StreamingDataSou
 	return b
 }
 
-// PayloadFilter sets the payload filter key for this streaming connection. The filter key
-// cannot be an empty string.
+// PayloadFilter sets the payload filter key for this streaming connection.
 //
 // Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
 // removed in a future release.
@@ -71,9 +69,6 @@ func (b *StreamingDataSourceBuilderV2) PayloadFilter(filterKey string) *Streamin
 func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	filterKey, wasSet := b.filterKey.Get()
 	if wasSet {
-		if filterKey == "" {
-			return nil, errors.New("payload filter key cannot be an empty string")
-		}
 		context.GetLogging().Loggers.Warn(deprecatedPayloadFilterMessage)
 	}
 	cfg := datasource.StreamConfig{
