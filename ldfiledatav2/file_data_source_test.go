@@ -2,7 +2,9 @@ package ldfiledatav2
 
 import (
 	"context"
+	"errors"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSuccessfullyLoadsJsonFlags(t *testing.T) {
@@ -234,7 +237,16 @@ func TestRecoversFromInvalidDataWhenFileUpdated(t *testing.T) {
 
 			reloadCh <- struct{}{}
 
-			result = <-resultChan
+			// The failed initial load schedules automatic retries, so additional interrupted
+			// results may arrive before the reload that observes the corrected file.
+			deadline := time.After(5 * time.Second)
+			for result.State != interfaces.DataSourceStateValid {
+				select {
+				case result = <-resultChan:
+				case <-deadline:
+					require.FailNow(t, "timed out waiting for a valid result")
+				}
+			}
 			assert.NotNil(t, result.ChangeSet)
 			assert.Len(t, result.ChangeSet.Changes(), 1)
 			assert.Equal(t, "my-flag", result.ChangeSet.Changes()[0].Key)
@@ -341,5 +353,76 @@ func TestCloseStopsReloader(t *testing.T) {
 		case <-time.After(time.Second):
 			assert.Fail(t, "reloader close channel was not closed by Close()")
 		}
+	})
+}
+
+func TestInitializerBuildAndFetchLeaksNoGoroutines(t *testing.T) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		goroutinesBefore := runtime.NumGoroutine()
+
+		// A DataInitializer has no Close and the data system never tears one down, so
+		// building and fetching must not start anything that outlives the calls.
+		for i := 0; i < 20; i++ {
+			initializer, err := DataSource().FilePaths(filename).AsInitializer().Build(subsystems.BasicClientContext{})
+			assert.NoError(t, err)
+			_, _, err = initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
+			assert.NoError(t, err)
+		}
+
+		assert.LessOrEqual(t, runtime.NumGoroutine(), goroutinesBefore+2,
+			"initializer builds must not accumulate goroutines")
+	})
+}
+
+func TestSyncReturnsOffWhenReloaderFactoryFails(t *testing.T) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		f := func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
+			return errors.New("no watches available")
+		}
+
+		factory := DataSource().FilePaths(filename).Reloader(f)
+		sync, err := factory.Build(subsystems.BasicClientContext{})
+		assert.NoError(t, err)
+		defer sync.Close()
+
+		// The failure must surface as an Off result rather than a hang.
+		results := make(chan subsystems.DataSynchronizerResult, 1)
+		go func() {
+			resultChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
+			results <- <-resultChan
+			_, stillOpen := <-resultChan
+			assert.False(t, stillOpen, "result channel should be closed after the rejection")
+		}()
+		select {
+		case result := <-results:
+			assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "Sync hung after the reloader factory failed")
+		}
+	})
+}
+
+func TestSecondSyncIsRejected(t *testing.T) {
+	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		sync, err := factory.Build(subsystems.BasicClientContext{})
+		assert.NoError(t, err)
+		defer sync.Close()
+
+		resultChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
+		result := <-resultChan
+		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
+
+		// Sync is single-use: a repeat is rejected with a single Off result and a closed
+		// channel, without disturbing the first Sync.
+		secondChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
+		select {
+		case second := <-secondChan:
+			assert.Equal(t, interfaces.DataSourceStateOff, second.State)
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "second Sync produced no result")
+		}
+		_, stillOpen := <-secondChan
+		assert.False(t, stillOpen, "second Sync's channel should be closed")
 	})
 }
