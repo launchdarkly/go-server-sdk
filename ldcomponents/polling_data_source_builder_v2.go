@@ -10,6 +10,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
+const deprecatedPayloadFilterMessage = "Payload filtering is not supported with the FDv2 data system;" +
+	" the configured payload filter will stop being applied in a future release"
+
 // PollingDataSourceBuilderV2 provides methods for configuring the polling data source.
 type PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
@@ -59,14 +62,14 @@ func (b *PollingDataSourceBuilderV2) forcePollInterval(
 
 // PayloadFilter sets the filter key for the polling connection.
 //
+// Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
+// removed in a future release.
+//
 // By default, the SDK is able to evaluate all flags in an environment. If this is undesirable -
 // for example, the environment contains thousands of flags, but this application only needs to evaluate
 // a smaller, known subset - then a filter may be setup in LaunchDarkly, and the filter's key specified here.
 //
 // Evaluations for flags that aren't part of the filtered environment will return default values.
-//
-// Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
-// removed in a future release.
 func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDataSourceBuilderV2 {
 	b.filterKey = ldvalue.NewOptionalString(filterKey)
 	return b
@@ -75,8 +78,11 @@ func (b *PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *PollingDat
 // Build is called internally by the SDK.
 func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	filterKey, wasSet := b.filterKey.Get()
-	if wasSet && filterKey == "" {
-		return nil, errors.New("payload filter key cannot be an empty string")
+	if wasSet {
+		if filterKey == "" {
+			return nil, errors.New("payload filter key cannot be an empty string")
+		}
+		context.GetLogging().Loggers.Warn(deprecatedPayloadFilterMessage)
 	}
 	cfg := datasource.PollingConfig{
 		BaseURI:      b.baseURI,
