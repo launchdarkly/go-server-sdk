@@ -298,8 +298,11 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 		require.NoError(t, err)
 		defer client.Close()
 
-		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
-		require.True(t, reached, "timed out waiting for data source to reach VALID state")
+		// A successful start must leave the data source in the valid state; the status update
+		// must not lag behind the readiness signal.
+		assert.Equal(t,
+			string(interfaces.DataSourceStateValid),
+			string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
