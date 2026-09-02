@@ -8,14 +8,9 @@ permissions: {}
 
 jobs:
   check-go-versions:
-    # The called workflow narrows check-go-eol to `contents: read`; a reusable workflow
-    # cannot grant itself more than the caller does, which is why the write scopes are here.
     permissions:
       contents: write
       pull-requests: write
-    # Reusable workflows in gh-actions are consumed at @main; release-please does not version
-    # them (see launchdarkly/gh-actions#51). The composite action that workflow calls is
-    # pinned to an exact release tag on that side.
     uses: launchdarkly/gh-actions/.github/workflows/sdk-go-versions.yml@main
     with:
       branches: '["v7"]'
