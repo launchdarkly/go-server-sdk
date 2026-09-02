@@ -165,6 +165,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			processedEvent := true
 			shouldRestart := false
+			becameInitialized := false
 
 			gotMalformedEvent := func(event es.Event, err error) {
 				sp.loggers.Errorf(
@@ -210,10 +211,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 							dataSourceUpdatesWithInitMetadata.SetEnvironmentID(initMetadata.GetEnvironmentID())
 						}
 					}
-					// Report the valid state before the readiness signal. A caller that wakes on
-					// the signal must observe the updated status.
-					sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-					sp.setInitializedAndNotifyClient(true, closeWhenReady)
+					becameInitialized = true
 				} else {
 					storeUpdateFailed("initial streaming data")
 				}
@@ -251,6 +249,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			if processedEvent {
 				sp.dataSourceUpdates.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+			}
+			// The readiness signal comes after the status update above. A caller that wakes on
+			// the signal must observe the valid status.
+			if becameInitialized {
+				sp.setInitializedAndNotifyClient(true, closeWhenReady)
 			}
 			if shouldRestart {
 				stream.Restart()
