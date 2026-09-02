@@ -373,6 +373,14 @@ func (s *Store) IsInitialized() bool {
 	return s.getActive().IsInitialized()
 }
 
+// MemoryStoreInitialized reports whether the memory store has received a basis from a data source.
+// Unlike IsInitialized, it never reflects data that was already present in a persistent store.
+func (s *Store) MemoryStoreInitialized() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.memoryStore.IsInitialized()
+}
+
 // updateDependencyTrackerFromFullDataSet is a copy of the implementation in
 // internal.datasource. This duplication will be removed when FDv1 support is
 // removed.

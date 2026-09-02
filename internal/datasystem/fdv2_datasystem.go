@@ -523,10 +523,15 @@ func (f *FDv2) DataAvailability() DataAvailability {
 }
 
 //nolint:revive // DataSystem method.
-func (f *FDv2) MinimumAvailability() DataAvailability {
-	// Initialization is successful when the data system has any data, even if that data
-	// has no selector. Synchronizers refresh the data after initialization.
-	return Cached
+func (f *FDv2) InitializationSucceeded() bool {
+	// Initialization requires that a data source provisioned the memory store. Data already
+	// present in a persistent store does not count: a store is not a data source. That data
+	// still counts as available for evaluations and for DataAvailability.
+	// A configuration with no data sources cannot receive data, so it is successful as-is.
+	if !f.configuredWithDataSources {
+		return true
+	}
+	return f.store.MemoryStoreInitialized()
 }
 
 //nolint:revive // DataSystem method.

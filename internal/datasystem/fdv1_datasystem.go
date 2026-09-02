@@ -154,8 +154,8 @@ func (f *FDv1) DataAvailability() DataAvailability {
 }
 
 //nolint:revive // Data system implementation.
-func (f *FDv1) MinimumAvailability() DataAvailability {
-	return Refreshed
+func (f *FDv1) InitializationSucceeded() bool {
+	return f.dataSource.IsInitialized()
 }
 
 //nolint:revive // Data system implementation.

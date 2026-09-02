@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldfiledatav2"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -610,6 +613,64 @@ func TestFDV2InitializerDataWithoutSelectorCompletesInitialization(t *testing.T)
 			value, _ := client.BoolVariation("flag-from-file", testUser, false)
 			assert.True(t, value)
 		})
+	})
+}
+
+// A persistent store is a data store, not a data source. Data that a previous SDK instance
+// persisted must not satisfy the initialization success signal when every configured data
+// source fails. The client still reports Initialized and serves the persisted data.
+func TestFDV2PopulatedPersistentStoreDoesNotSatisfyInitSuccess(t *testing.T) {
+	flag := alwaysTrueFlag
+	persistentStore := mocks.NewMockPersistentDataStore()
+	require.NoError(t, persistentStore.Init([]ldstoretypes.SerializedCollection{
+		{
+			Kind: datakinds.Features,
+			Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+				{
+					Key: flag.Key,
+					Item: ldstoretypes.SerializedItemDescriptor{
+						Version: flag.Version,
+						SerializedItem: datakinds.Features.Serialize(
+							ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}),
+					},
+				},
+			},
+		},
+	}))
+
+	// The initializer fails because its file does not exist; the streaming synchronizer fails
+	// permanently with a 401.
+	handler := httphelpers.HandlerWithStatus(401)
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Initializers(
+					ldfiledatav2.DataSource().FilePaths("does-not-exist.json").AsInitializer(),
+				).
+				Synchronizers(
+					ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+				).
+				DataStore(ldcomponents.PersistentDataStore(
+					mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: persistentStore},
+				), subsystems.DataStoreModeReadWrite),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+
+		// The persisted data is still available: the client reports Initialized and evaluates
+		// with the stored flag.
+		assert.True(t, client.Initialized())
+		value, _ := client.BoolVariation(flag.Key, testUser, false)
+		assert.True(t, value)
 	})
 }
 

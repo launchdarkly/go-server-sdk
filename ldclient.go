@@ -89,9 +89,9 @@ type dataSystem interface {
 	// DataAvailability indicates what form of data is available.
 	DataAvailability() datasystem.DataAvailability
 
-	// MinimumAvailability indicates the form of data that must be available for client
-	// initialization to be considered successful.
-	MinimumAvailability() datasystem.DataAvailability
+	// InitializationSucceeded reports whether the data system reached a successful initial
+	// state. The result is meaningful once the channel given to Start has been closed.
+	InitializationSucceeded() bool
 }
 
 var _ dataSystem = &datasystem.FDv1{}
@@ -371,7 +371,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		for {
 			select {
 			case <-closeWhenReady:
-				if client.dataSystem.DataAvailability().AtLeast(client.dataSystem.MinimumAvailability()) {
+				if client.dataSystem.InitializationSucceeded() {
 					loggers.Info("Initialized LaunchDarkly client")
 					return client, nil
 				}
