@@ -101,7 +101,8 @@ func TestFlagTracker(t *testing.T) {
 			ch3 := p.client.GetFlagTracker().AddFlagValueChangeListener(flagKey, otherUser, ldvalue.Null())
 
 			p.client.GetFlagTracker().RemoveFlagValueChangeListener(ch2) // just verifying that the remove method works
-			th.AssertChannelClosed(t, ch2, time.Millisecond)
+			// The value channel is closed by a forwarding goroutine, so allow time for it to run.
+			th.AssertChannelClosed(t, ch2, time.Second)
 
 			th.AssertNoMoreValues(t, ch1, timeout)
 			th.AssertNoMoreValues(t, ch3, timeout)
