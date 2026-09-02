@@ -89,8 +89,9 @@ type dataSystem interface {
 	// DataAvailability indicates what form of data is available.
 	DataAvailability() datasystem.DataAvailability
 
-	// InitializationSucceeded reports whether the data system reached a successful initial
-	// state. The result is meaningful once the channel given to Start has been closed.
+	// InitializationSucceeded reports whether the data system reached a successful initial state,
+	// which means a data source provided flag data. The result is meaningful once the channel given
+	// to Start has been closed.
 	InitializationSucceeded() bool
 }
 
@@ -136,8 +137,9 @@ var (
 	// continue trying to connect in the background.
 	ErrInitializationTimeout = errors.New("timeout encountered waiting for LaunchDarkly client initialization")
 
-	// MakeClient and MakeCustomClient will return this error if the SDK detected an error that makes it
-	// impossible for a LaunchDarkly connection to succeed (e.g. an unparseable service URI).
+	// MakeClient and MakeCustomClient will return this error if initialization failed permanently: every
+	// data source stopped without providing flag data (e.g. an unparseable service URI). Flag evaluations
+	// return default values, unless a persistent data store already contains flag data.
 	ErrInitializationFailed = errors.New("LaunchDarkly client initialization failed")
 
 	// This error is returned by the Variation/VariationDetail methods if feature flags are not available
@@ -155,15 +157,18 @@ var (
 // constructor will return when it successfully connects, or when the timeout set by the waitFor parameter
 // expires, whichever comes first.
 //
-// If the connection succeeded, the first return value is the client instance, and the error value is nil.
+// If initialization succeeded, the first return value is the client instance, and the error value is nil.
+// Initialization succeeds when a data source has provided flag data. The data does not have to come from
+// a connection to LaunchDarkly; for example, a file data source can provide it.
 //
-// If the timeout elapsed without a successful connection, it still returns a client instance-- in an
+// If the timeout elapsed before initialization succeeded, it still returns a client instance-- in an
 // uninitialized state, where feature flags will return default values-- and the error value is
-// [ErrInitializationTimeout]. In this case, it will still continue trying to connect in the background.
+// [ErrInitializationTimeout]. In this case, the data sources continue trying in the background.
 //
-// If there was a startup configuration error such that no connection could be attempted-- for instance, an
-// unparseable service URI-- it will return a client instance in an uninitialized state, and the error value is
-// [ErrInitializationFailed].
+// If initialization failed permanently-- for instance, every data source stopped without providing flag
+// data, or a service URI was unparseable-- it returns a client instance and the error value is
+// [ErrInitializationFailed]. Feature flags will return default values, unless a persistent data store
+// already contains flag data.
 //
 // If you set waitFor to zero, the function will return immediately after creating the client instance, and
 // do any further initialization in the background.
@@ -191,15 +196,18 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 // return when it successfully connects, or when the timeout set by the waitFor parameter expires, whichever
 // comes first.
 //
-// If the connection succeeded, the first return value is the client instance, and the error value is nil.
+// If initialization succeeded, the first return value is the client instance, and the error value is nil.
+// Initialization succeeds when a data source has provided flag data. The data does not have to come from
+// a connection to LaunchDarkly; for example, a file data source can provide it.
 //
-// If the timeout elapsed without a successful connection, it still returns a client instance-- in an
+// If the timeout elapsed before initialization succeeded, it still returns a client instance-- in an
 // uninitialized state, where feature flags will return default values-- and the error value is
-// [ErrInitializationTimeout]. In this case, it will still continue trying to connect in the background.
+// [ErrInitializationTimeout]. In this case, the data sources continue trying in the background.
 //
-// If there was a startup configuration error such that no connection could be attempted-- for instance, an
-// unparseable service URI-- it will return a client instance in an uninitialized state, and the error value is
-// [ErrInitializationFailed].
+// If initialization failed permanently-- for instance, every data source stopped without providing flag
+// data, or a service URI was unparseable-- it returns a client instance and the error value is
+// [ErrInitializationFailed]. Feature flags will return default values, unless a persistent data store
+// already contains flag data.
 //
 // If you set waitFor to zero, the function will return immediately after creating the client instance, and
 // do any further initialization in the background.

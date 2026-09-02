@@ -7,6 +7,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
@@ -14,6 +15,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,6 +62,44 @@ func TestMakeCustomClientWithFailedInitialization(t *testing.T) {
 
 	assert.NotNil(t, client)
 	assert.Equal(t, err, ErrInitializationFailed)
+}
+
+// A populated persistent store is a data store, not a data source. It does not make client
+// construction succeed when the data source never initializes. Evaluations still use its data.
+func TestMakeCustomClientWithPopulatedPersistentStoreAndFailedDataSource(t *testing.T) {
+	flag := alwaysTrueFlag
+	persistentStore := mocks.NewMockPersistentDataStore()
+	require.NoError(t, persistentStore.Init([]ldstoretypes.SerializedCollection{
+		{
+			Kind: datakinds.Features,
+			Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+				{
+					Key: flag.Key,
+					Item: ldstoretypes.SerializedItemDescriptor{
+						Version: flag.Version,
+						SerializedItem: datakinds.Features.Serialize(
+							ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}),
+					},
+				},
+			},
+		},
+	}))
+
+	client, err := MakeCustomClient(testSdkKey, Config{
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+		DataSource: mocks.DataSourceThatNeverInitializes(),
+		DataStore: ldcomponents.PersistentDataStore(
+			mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: persistentStore},
+		),
+		Events: ldcomponents.NoEvents(),
+	}, time.Second)
+
+	require.NotNil(t, client)
+	defer client.Close()
+	assert.Equal(t, ErrInitializationFailed, err)
+
+	value, _ := client.BoolVariation(flag.Key, testUser, false)
+	assert.True(t, value)
 }
 
 func TestInvalidCharacterInSDKKey(t *testing.T) {

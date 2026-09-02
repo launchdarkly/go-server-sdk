@@ -179,13 +179,14 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// Apply applies a changeset to the store. The changeset must be a valid set of changes that can be applied
-// to the store. If the changeset is not valid, an error will be logged and the changeset will not be applied.
-func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) {
+// Apply applies a changeset to the store. It reports whether the store received data. It reports
+// false when the changeset carries no data, or when the data is malformed. A malformed changeset is
+// logged and not applied.
+func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) bool {
 	collections, err := changeSet.Collections()
 	if err != nil {
 		s.loggers.Errorf("store: couldn't set basis due to malformed data: %v", err)
-		return
+		return false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -196,11 +197,12 @@ func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) {
 	case subsystems.IntentTransferChanges:
 		s.applyDelta(collections, changeSet.Selector(), persist)
 	case subsystems.IntentNone:
-		return
-		// No-op, no changes to apply.
+		// Nothing to apply.
+		return false
 	}
 
 	s.changeSetBroadcaster.Broadcast(changeSet)
+	return true
 }
 
 // setBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
@@ -371,14 +373,6 @@ func (s *Store) Get(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDe
 //nolint:revive // Implementation for ReadOnlyStore.
 func (s *Store) IsInitialized() bool {
 	return s.getActive().IsInitialized()
-}
-
-// MemoryStoreInitialized reports whether the memory store has received a basis from a data source.
-// Unlike IsInitialized, it never reflects data that was already present in a persistent store.
-func (s *Store) MemoryStoreInitialized() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.memoryStore.IsInitialized()
 }
 
 // updateDependencyTrackerFromFullDataSet is a copy of the implementation in

@@ -149,8 +149,10 @@ func (d *DataSystemConfigurationBuilder) DataStore(store ss.ComponentConfigurer[
 }
 
 // Initializers configures the SDK with one or more DataInitializers, which are responsible for fetching
-// complete payloads of flag data. The SDK will run the initializers in the order they are specified,
-// stopping when one successfully returns data.
+// complete payloads of flag data. The SDK runs the initializers in the order they are specified. It stops
+// when one returns data with a payload selector, or when all of them have run. Initialization is complete
+// once any initializer's data has been applied, even if that data has no selector; a synchronizer, if
+// configured, then refreshes the data.
 func (d *DataSystemConfigurationBuilder) Initializers(
 	initializers ...ss.ComponentConfigurer[ss.DataInitializer],
 ) *DataSystemConfigurationBuilder {
