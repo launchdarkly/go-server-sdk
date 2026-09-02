@@ -7,85 +7,15 @@ on:
 permissions: {}
 
 jobs:
-  check-go-eol:
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    outputs:
-      latest: ${{ steps.parse.outputs.latest }}
-      penultimate: ${{ steps.parse.outputs.penultimate }}
-    timeout-minutes: 2
-    steps:
-        # Perform a GET request to endoflife.date for the Go language. The response
-        # contains all Go releases; we're interested in the 0'th and 1'th (latest and penultimate.)
-      - name: Fetch officially supported Go versions
-        uses: JamesIves/fetch-api-data-action@396ebea7d13904824f85b892b1616985f847301c # v2.2.4
-        with:
-          endpoint: https://endoflife.date/api/go.json
-          configuration: '{ "method": "GET" }'
-          debug: true
-        # Parse the response JSON and insert into environment variables for the next step.
-      - name: Parse officially supported Go versions
-        id: parse
-        env:
-          FETCH_API_DATA: ${{ env.fetch-api-data }}
-        run: |
-          set -euo pipefail
-          latest=$(jq -r '.[0].cycle' <<< "$FETCH_API_DATA")
-          penultimate=$(jq -r '.[1].cycle' <<< "$FETCH_API_DATA")
-          for version in "$latest" "$penultimate"; do
-            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-              echo "Unexpected Go version string from endoflife.date: $version" >&2
-              exit 1
-            fi
-          done
-          echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          echo "penultimate=$penultimate" >> "$GITHUB_OUTPUT"
-
-
-  create-prs:
+  check-go-versions:
+    # The called workflow narrows check-go-eol to `contents: read`; a reusable workflow
+    # cannot grant itself more than the caller does, which is why the write scopes are here.
     permissions:
       contents: write
       pull-requests: write
-    needs: check-go-eol
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        branch: ["v7"]
-      fail-fast: false
-    env:
-      officialLatestVersion: ${{ needs.check-go-eol.outputs.latest }}
-      officialPenultimateVersion: ${{ needs.check-go-eol.outputs.penultimate }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ matrix.branch }}
-
-      - name: Get current Go versions
-        id: go-versions
-        run:  cat ./.github/variables/go-versions.env >> "$GITHUB_OUTPUT"
-
-      - name: Update go-versions.env and README.md
-        if: steps.go-versions.outputs.latest != env.officialLatestVersion
-        id: update-go-versions
-        run: |
-          set -euo pipefail
-          sed -i -e "s#latest=[^ ]*#latest=$officialLatestVersion#g" \
-                 -e "s#penultimate=[^ ]*#penultimate=$officialPenultimateVersion#g" \
-                  ./.github/variables/go-versions.env
-
-      - name: Create pull request
-        if: steps.update-go-versions.outcome == 'success'
-        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          add-paths: |
-            .github/variables/go-versions.env
-          branch: "launchdarklyreleasebot/update-to-go${{ env.officialLatestVersion }}-${{ matrix.branch }}"
-          author: "LaunchDarklyReleaseBot <LaunchDarklyReleaseBot@launchdarkly.com>"
-          committer: "LaunchDarklyReleaseBot <LaunchDarklyReleaseBot@launchdarkly.com>"
-          labels: ${{ matrix.branch }}
-          title: "ci: bump tested Go versions to ${{ env.officialLatestVersion }} and ${{ env.officialPenultimateVersion }}"
-          commit-message: "Bumps from Go ${{ steps.go-versions.outputs.latest }} -> ${{ env.officialLatestVersion }} and ${{ steps.go-versions.outputs.penultimate }} -> ${{ env.officialPenultimateVersion }}."
-          body: |
-            - [ ] I have triggered CI on this PR (either close & reopen this PR in Github UI, or `git commit -m "run ci" --allow-empty && git push`)
+    # Reusable workflows in gh-actions are consumed at @main; release-please does not version
+    # them (see launchdarkly/gh-actions#51). The composite action that workflow calls is
+    # pinned to an exact release tag on that side.
+    uses: launchdarkly/gh-actions/.github/workflows/sdk-go-versions.yml@main
+    with:
+      branches: '["v7"]'
