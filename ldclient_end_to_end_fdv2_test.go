@@ -1,16 +1,22 @@
 package ldclient
 
 import (
+	"context"
 	"crypto/x509"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldfiledatav2"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
@@ -525,7 +531,10 @@ func TestFDV2StreamingSynchronizerTimesOut(t *testing.T) {
 	})
 }
 
-func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
+// A file initializer returns data without a selector, and the streaming synchronizer later replaces
+// that data. This test checks the refresh. TestFDV2InitializerDataWithoutSelectorCompletesInitialization
+// checks that the initializer data alone completes initialization.
+func TestFDV2SynchronizerRefreshesDataAfterInitializerCompletesInit(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 
 	protocol := ldservicesv2.NewStreamingProtocol().
@@ -561,10 +570,404 @@ func TestFDV2FileInitializerWillDeferToFirstSynchronizer(t *testing.T) {
 			require.NoError(t, err)
 			defer client.Close()
 
-			reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
-			require.True(t, reached, "timed out waiting for data source to reach VALID state")
+			assert.True(t, client.Initialized())
 
+			// The status is already Valid from the initializer data, so wait for the synchronizer's
+			// data by observing the evaluation result.
+			assert.Eventually(t, func() bool {
+				value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+				return value
+			}, time.Second*5, time.Millisecond*20, "synchronizer did not replace the initializer data")
+		})
+	})
+}
+
+// Initialization must complete when all initializers have run and any of them returned data,
+// even though that data has no selector. The synchronizer never delivers data, so a successful
+// (non-timeout) client start proves that the initializer data completed initialization.
+func TestFDV2InitializerDataWithoutSelectorCompletesInitialization(t *testing.T) {
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		httphelpers.WithServer(hangingStreamHandler, func(server *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+					).
+					Synchronizers(
+						ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+					),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+			assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
+
+			value, _ := client.BoolVariation("flag-from-file", testUser, false)
+			assert.True(t, value)
+		})
+	})
+}
+
+// A persistent store is a data store, not a data source. Data that a previous SDK instance
+// persisted must not satisfy the initialization success signal when every configured data
+// source fails. The client still reports Initialized and serves the persisted data.
+func TestFDV2PopulatedPersistentStoreDoesNotSatisfyInitSuccess(t *testing.T) {
+	flag := alwaysTrueFlag
+	persistentStore := mocks.NewMockPersistentDataStore()
+	require.NoError(t, persistentStore.Init([]ldstoretypes.SerializedCollection{
+		{
+			Kind: datakinds.Features,
+			Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+				{
+					Key: flag.Key,
+					Item: ldstoretypes.SerializedItemDescriptor{
+						Version: flag.Version,
+						SerializedItem: datakinds.Features.Serialize(
+							ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}),
+					},
+				},
+			},
+		},
+	}))
+
+	// The initializer fails because its file does not exist; the streaming synchronizer fails
+	// permanently with a 401.
+	handler := httphelpers.HandlerWithStatus(401)
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Initializers(
+					ldfiledatav2.DataSource().FilePaths("does-not-exist.json").AsInitializer(),
+				).
+				Synchronizers(
+					ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+				).
+				DataStore(ldcomponents.PersistentDataStore(
+					mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: persistentStore},
+				), subsystems.DataStoreModeReadWrite),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+
+		// The persisted data is still available: the client reports Initialized and evaluates
+		// with the stored flag.
+		assert.True(t, client.Initialized())
+		value, _ := client.BoolVariation(flag.Key, testUser, false)
+		assert.True(t, value)
+	})
+}
+
+// The first initializer returns data without a selector, so the loop continues to the next
+// initializer. The next initializer fails. Initialization must still complete with the data
+// from the first initializer.
+func TestFDV2InitializerDataIsRetainedWhenLaterInitializerFails(t *testing.T) {
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		httphelpers.WithServer(hangingStreamHandler, func(server *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+						ldfiledatav2.DataSource().FilePaths(filename+".does-not-exist").AsInitializer(),
+					).
+					Synchronizers(
+						ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+					),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+			assert.True(t, logCapture.HasMessageMatch(ldlog.Warn, "Initializer FileDataSynchronizer failed"),
+				"the second initializer should have run and failed")
+
+			value, _ := client.BoolVariation("flag-from-file", testUser, false)
+			assert.True(t, value)
+		})
+	})
+}
+
+// hangingStreamHandler accepts a connection and never responds.
+var hangingStreamHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	<-r.Context().Done()
+})
+
+// fileDataWithOneFlag defines flag-from-file, which evaluates to true.
+var fileDataWithOneFlag = []byte(`{"flags": {"flag-from-file": {"on": true, "fallthrough": {"variation": 0}, ` +
+	`"variations": [true]}}, "segments": {}}`)
+
+// healthyStreamHandler serves alwaysTrueFlag as a full transfer with a selector.
+func healthyStreamHandler() http.Handler {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("state", 1)
+	handler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	return handler
+}
+
+// fetchInitializer is a DataInitializer with a canned Fetch result.
+type fetchInitializer struct {
+	name  string
+	fetch func(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error)
+}
+
+func (i *fetchInitializer) Name() string { return i.name }
+
+func (i *fetchInitializer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
+	return i.fetch(ds, ctx)
+}
+
+func initializerReturning(
+	name string,
+	fetch func(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error),
+) subsystems.ComponentConfigurer[subsystems.DataInitializer] {
+	return mocks.SingleComponentConfigurer[subsystems.DataInitializer]{
+		Instance: &fetchInitializer{name: name, fetch: fetch},
+	}
+}
+
+func noDataBasis() *subsystems.Basis {
+	return &subsystems.Basis{ChangeSet: *subsystems.NewChangeSetBuilder().NoChanges()}
+}
+
+func malformedBasis(t *testing.T) *subsystems.Basis {
+	builder := subsystems.NewChangeSetBuilder().Start(subsystems.ServerIntent{Payload: subsystems.Payload{
+		ID: "fake-id", Target: 1, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+	}})
+	builder.AddPut(subsystems.FlagKind, "bad", 1, json.RawMessage(`"this is not a flag object"`))
+	changeSet, err := builder.Finish(subsystems.NoSelector())
+	require.NoError(t, err)
+	return &subsystems.Basis{ChangeSet: *changeSet}
+}
+
+// An initializer that returns a basis with no data has not provided data. Initialization must
+// neither complete nor fail on that result; the synchronizer decides.
+func TestFDV2InitializerWithNoDataDefersToSynchronizer(t *testing.T) {
+	noData := initializerReturning("no-data",
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, bool, error) {
+			return noDataBasis(), false, nil
+		})
+
+	httphelpers.WithServer(healthyStreamHandler(), func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Initializers(noData).
+				Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(server.URL)),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.True(t, logCapture.HasMessageMatch(ldlog.Warn, "Initializer no-data returned no usable data"))
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
+	})
+}
+
+// An initializer whose data cannot be applied has not provided data. The synchronizer decides.
+func TestFDV2InitializerWithMalformedDataDefersToSynchronizer(t *testing.T) {
+	malformed := initializerReturning("malformed",
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, bool, error) {
+			return malformedBasis(t), false, nil
+		})
+
+	httphelpers.WithServer(healthyStreamHandler(), func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Initializers(malformed).
+				Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(server.URL)),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.True(t, logCapture.HasMessageMatch(ldlog.Warn, "Initializer malformed returned no usable data"))
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
+	})
+}
+
+// An initializer response that carries data and an FDv1 fallback directive completes
+// initialization with that data, before the FDv1 synchronizer has delivered anything.
+func TestFDV2FallbackDirectiveWithDataCompletesInitialization(t *testing.T) {
+	payload := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
+	header := http.Header{"X-LD-FD-Fallback": []string{"true"}}
+	pollHandler, pollRequests := httphelpers.RecordingHandler(httphelpers.HandlerWithJSONResponse(payload, header))
+
+	httphelpers.WithServer(pollHandler, func(pollServer *httptest.Server) {
+		httphelpers.WithServer(hangingStreamHandler, func(hangingServer *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(ldcomponents.PollingDataSourceV2().BaseURI(pollServer.URL).AsInitializer()).
+					Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(hangingServer.URL)).
+					FDv1CompatibleSynchronizer(ldcomponents.FDv1PollingDataSourceV2().BaseURI(hangingServer.URL)),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			<-pollRequests
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+			assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
 			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+			assert.True(t, value)
+		})
+	})
+}
+
+// An FDv1 fallback directive that arrives with a basis that has no data does not complete
+// initialization. The FDv1 synchronizer decides.
+func TestFDV2FallbackDirectiveWithNoDataDefersToFDv1Synchronizer(t *testing.T) {
+	dataV1 := ldservices.NewServerSDKData().Flags(alwaysFalseFlag)
+	fallbackWithNoData := initializerReturning("fallback-no-data",
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, bool, error) {
+			return noDataBasis(), true, nil
+		})
+	pollV1Handler, pollV1Requests := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(dataV1))
+
+	httphelpers.WithServer(pollV1Handler, func(pollV1Server *httptest.Server) {
+		httphelpers.WithServer(hangingStreamHandler, func(hangingServer *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(fallbackWithNoData).
+					Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(hangingServer.URL)).
+					FDv1CompatibleSynchronizer(ldcomponents.FDv1PollingDataSourceV2().BaseURI(pollV1Server.URL)),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			<-pollV1Requests
+			require.NoError(t, err)
+			defer client.Close()
+
+			value, _ := client.BoolVariation(alwaysFalseFlag.Key, testUser, true)
+			assert.False(t, value)
+		})
+	})
+}
+
+// A configuration with only initializers completes initialization from initializer data, even
+// though that data has no selector and no synchronizer will ever refresh it.
+func TestFDV2InitializerOnlyConfigurationCompletesInitialization(t *testing.T) {
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Initializers(ldfiledatav2.DataSource().FilePaths(filename).AsInitializer()),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.True(t, client.Initialized())
+		assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
+		value, _ := client.BoolVariation("flag-from-file", testUser, false)
+		assert.True(t, value)
+	})
+}
+
+// A synchronizer that delivers data without a selector completes initialization.
+func TestFDV2SelectorlessSynchronizerCompletesInitialization(t *testing.T) {
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Synchronizers(ldfiledatav2.DataSource().FilePaths(filename)),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.NoError(t, err)
+		defer client.Close()
+
+		assert.True(t, client.Initialized())
+		assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
+		value, _ := client.BoolVariation("flag-from-file", testUser, false)
+		assert.True(t, value)
+	})
+}
+
+// When an earlier initializer applied data and a later one signals an FDv1 fallback without data
+// of its own, initialization completes with the earlier data instead of waiting for the FDv1
+// synchronizer.
+func TestFDV2FallbackDirectiveAfterEarlierInitializerDataCompletesInitialization(t *testing.T) {
+	fallbackWithoutData := initializerReturning("fallback-without-data",
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, bool, error) {
+			return nil, true, errors.New("server requested fallback")
+		})
+
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		httphelpers.WithServer(hangingStreamHandler, func(hangingServer *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+						fallbackWithoutData,
+					).
+					Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(hangingServer.URL)).
+					FDv1CompatibleSynchronizer(ldcomponents.FDv1PollingDataSourceV2().BaseURI(hangingServer.URL)),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+			assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
+			value, _ := client.BoolVariation("flag-from-file", testUser, false)
 			assert.True(t, value)
 		})
 	})

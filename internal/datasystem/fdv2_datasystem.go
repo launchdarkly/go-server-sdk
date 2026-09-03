@@ -76,6 +76,10 @@ type FDv2 struct {
 	// To ensure the channel is closed only once, we use a sync.Once wrapping the close() call.
 	readyOnce sync.Once
 
+	// Set when a data source provides data that is applied to the store. This drives
+	// InitializationSucceeded. Data already present in a persistent store does not set it.
+	dataApplied internal.AtomicBoolean
+
 	// These broadcasters are mainly to satisfy the existing SDK contract with users to provide status updates for
 	// the data source, data store, and flag change events. These may be different in fdv2, but we attempt to implement
 	// them for now.
@@ -245,16 +249,27 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-// runInitializers runs each configured initializer in order until one succeeds, the context is
-// cancelled, or an initializer signals a fallback to FDv1. Returns (fallbackToFDv1, errorInfo):
-// fallbackToFDv1 is true when an initializer asked the SDK to switch to FDv1; errorInfo describes
-// the underlying error for status reporting when no FDv1 fallback is configured (empty when the
-// fallback accompanied a successful response). If fallback is signalled alongside a valid Basis,
-// that Basis is applied before returning so evaluations can serve the server-provided data while
-// the FDv1 synchronizer spins up.
+// runInitializers runs each configured initializer in order, stopping early when one provides a
+// basis with a selector, the context is cancelled, or an initializer signals a fallback to FDv1.
+// A basis without a selector is applied to the store and the loop continues to the next
+// initializer.
+//
+// Once all initializers have run, initialization is complete if any initializer's data was
+// applied to the store, even if that data had no selector. A basis that carries no data, or data
+// that cannot be applied, does not count; the synchronizers then decide readiness.
+//
+// fallbackToFDv1 is true when an initializer asked the SDK to switch to FDv1. If the fallback is
+// signalled alongside a basis, that basis is applied before returning, so evaluations can serve
+// the server-provided data while the FDv1 synchronizer spins up. If any initializer's data was
+// applied by then, initialization is complete before returning.
+//
+// errorInfo describes the underlying error for status reporting when no FDv1 fallback is
+// configured. It is empty when the fallback accompanied a successful response.
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
 ) (fallbackToFDv1 bool, errorInfo interfaces.DataSourceErrorInfo) {
+	// Name of the last initializer whose data was applied to the store.
+	appliedFrom := ""
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, fallback, err := initializer.Fetch(f.store, ctx)
@@ -272,15 +287,12 @@ func (f *FDv2) runInitializers(
 			} else {
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol", initializer.Name())
 			}
-			if basis != nil {
-				f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
-				f.store.Apply(basis.ChangeSet, basis.Persist)
-				if basis.ChangeSet.Selector().IsDefined() {
-					f.loggers.Infof("Applied payload from %s before falling back to FDv1", initializer.Name())
-					f.readyOnce.Do(func() {
-						close(closeWhenReady)
-					})
-				}
+			if basis != nil && f.applyBasis(*basis, initializer.Name()) {
+				appliedFrom = initializer.Name()
+			}
+			if appliedFrom != "" {
+				f.loggers.Infof("Initialized via %s before falling back to FDv1", appliedFrom)
+				f.completeInitialization(closeWhenReady)
 			}
 			return true, errorInfo
 		}
@@ -288,17 +300,43 @@ func (f *FDv2) runInitializers(
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
 			continue
 		}
-		f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
-		f.store.Apply(basis.ChangeSet, basis.Persist)
+		if !f.applyBasis(*basis, initializer.Name()) {
+			continue
+		}
+		appliedFrom = initializer.Name()
 		if basis.ChangeSet.Selector().IsDefined() {
 			f.loggers.Infof("Initialized via %s", initializer.Name())
-			f.readyOnce.Do(func() {
-				close(closeWhenReady)
-			})
+			f.completeInitialization(closeWhenReady)
 			return false, interfaces.DataSourceErrorInfo{}
 		}
 	}
+	if appliedFrom != "" {
+		f.loggers.Infof("Initialized via %s; the data has no selector", appliedFrom)
+		f.completeInitialization(closeWhenReady)
+	}
 	return false, interfaces.DataSourceErrorInfo{}
+}
+
+// applyBasis applies an initializer's basis to the store. It reports whether the store received
+// data. A basis with no data, or with data that cannot be applied, is reported as false.
+func (f *FDv2) applyBasis(basis subsystems.Basis, initializerName string) bool {
+	f.environmentIDProvider.SetEnvironmentID(basis.EnvironmentID)
+	if !f.store.Apply(basis.ChangeSet, basis.Persist) {
+		f.loggers.Warnf("Initializer %s returned no usable data", initializerName)
+		return false
+	}
+	f.dataApplied.Set(true)
+	return true
+}
+
+// completeInitialization marks initialization as complete from the initializer phase. The status
+// update comes before the readiness signal, so a caller that wakes on the signal observes the
+// valid status.
+func (f *FDv2) completeInitialization(closeWhenReady chan struct{}) {
+	f.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
+	f.readyOnce.Do(func() {
+		close(closeWhenReady)
+	})
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
@@ -428,8 +466,8 @@ func (f *FDv2) consumeSynchronizerResults(
 
 			switch result.State {
 			case interfaces.DataSourceStateValid:
-				if result.ChangeSet != nil {
-					f.store.Apply(*result.ChangeSet, true)
+				if result.ChangeSet != nil && f.store.Apply(*result.ChangeSet, true) {
+					f.dataApplied.Set(true)
 				}
 
 				// Report the valid state before the readiness signal. A caller that wakes on
@@ -514,12 +552,15 @@ func (f *FDv2) DataAvailability() DataAvailability {
 }
 
 //nolint:revive // DataSystem method.
-func (f *FDv2) TargetAvailability() DataAvailability {
-	if f.configuredWithDataSources {
-		return Refreshed
+func (f *FDv2) InitializationSucceeded() bool {
+	// Initialization requires that a data source provided data that was applied to the store.
+	// Data already present in a persistent store does not count: a store is not a data source.
+	// That data still counts as available for evaluations and for DataAvailability.
+	// A configuration with no data sources cannot receive data, so it is successful as-is.
+	if !f.configuredWithDataSources {
+		return true
 	}
-
-	return Cached
+	return f.dataApplied.Get()
 }
 
 //nolint:revive // DataSystem method.
