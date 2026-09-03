@@ -4,7 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasourcev2"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 
@@ -43,12 +46,29 @@ func TestStreamingDataSourceV2Builder(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		t.Run("build fails with empty payload filter", func(t *testing.T) {
+		t.Run("build succeeds with empty payload filter", func(t *testing.T) {
 			s := StreamingDataSourceV2()
 			clientContext := makeTestContextWithBaseURIs("base")
 			s.PayloadFilter("")
 			_, err := s.Build(clientContext)
-			assert.Error(t, err)
+			assert.NoError(t, err)
+		})
+
+		t.Run("build logs a deprecation warning when a payload filter is set", func(t *testing.T) {
+			mockLog := ldlogtest.NewMockLog()
+			clientContext := makeTestContextWithBaseURIs("base")
+			clientContext.Logging = subsystems.LoggingConfiguration{Loggers: mockLog.Loggers}
+
+			_, err := StreamingDataSourceV2().PayloadFilter("microservice-1").Build(clientContext)
+			require.NoError(t, err)
+			mockLog.AssertMessageMatch(t, true, ldlog.Warn, "Payload filtering is not supported")
+
+			mockLog2 := ldlogtest.NewMockLog()
+			clientContext.Logging = subsystems.LoggingConfiguration{Loggers: mockLog2.Loggers}
+
+			_, err = StreamingDataSourceV2().Build(clientContext)
+			require.NoError(t, err)
+			mockLog2.AssertMessageMatch(t, false, ldlog.Warn, "Payload filtering is not supported")
 		})
 	})
 
