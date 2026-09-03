@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -932,5 +933,42 @@ func TestFDV2SelectorlessSynchronizerCompletesInitialization(t *testing.T) {
 		assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
 		value, _ := client.BoolVariation("flag-from-file", testUser, false)
 		assert.True(t, value)
+	})
+}
+
+// When an earlier initializer applied data and a later one signals an FDv1 fallback without data
+// of its own, initialization completes with the earlier data instead of waiting for the FDv1
+// synchronizer.
+func TestFDV2FallbackDirectiveAfterEarlierInitializerDataCompletesInitialization(t *testing.T) {
+	fallbackWithoutData := initializerReturning("fallback-without-data",
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, bool, error) {
+			return nil, true, errors.New("server requested fallback")
+		})
+
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		httphelpers.WithServer(hangingStreamHandler, func(hangingServer *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(
+						ldfiledatav2.DataSource().FilePaths(filename).AsInitializer(),
+						fallbackWithoutData,
+					).
+					Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(hangingServer.URL)).
+					FDv1CompatibleSynchronizer(ldcomponents.FDv1PollingDataSourceV2().BaseURI(hangingServer.URL)),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.True(t, client.Initialized())
+			assert.Equal(t, interfaces.DataSourceStateValid, client.GetDataSourceStatusProvider().GetStatus().State)
+			value, _ := client.BoolVariation("flag-from-file", testUser, false)
+			assert.True(t, value)
+		})
 	})
 }

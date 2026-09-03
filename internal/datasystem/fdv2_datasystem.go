@@ -249,17 +249,22 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 	}
 }
 
-// runInitializers runs each configured initializer in order until one provides a basis with a
-// selector, the context is cancelled, or an initializer signals a fallback to FDv1. A basis
-// without a selector is applied to the store and the loop continues to the next initializer.
-// When all initializers have run, initialization is complete if any initializer's data was
-// applied to the store, even if that data had no selector. A basis that carries no data, or
-// data that cannot be applied, does not count; the synchronizers then decide.
-// Returns (fallbackToFDv1, errorInfo): fallbackToFDv1 is true when an initializer asked the SDK
-// to switch to FDv1; errorInfo describes the underlying error for status reporting when no FDv1
-// fallback is configured (empty when the fallback accompanied a successful response). If fallback
-// is signalled alongside a basis, that basis is applied before returning so evaluations can serve
-// the server-provided data while the FDv1 synchronizer spins up.
+// runInitializers runs each configured initializer in order, stopping early when one provides a
+// basis with a selector, the context is cancelled, or an initializer signals a fallback to FDv1.
+// A basis without a selector is applied to the store and the loop continues to the next
+// initializer.
+//
+// Once all initializers have run, initialization is complete if any initializer's data was
+// applied to the store, even if that data had no selector. A basis that carries no data, or data
+// that cannot be applied, does not count; the synchronizers then decide readiness.
+//
+// fallbackToFDv1 is true when an initializer asked the SDK to switch to FDv1. If the fallback is
+// signalled alongside a basis, that basis is applied before returning, so evaluations can serve
+// the server-provided data while the FDv1 synchronizer spins up. If any initializer's data was
+// applied by then, initialization is complete before returning.
+//
+// errorInfo describes the underlying error for status reporting when no FDv1 fallback is
+// configured. It is empty when the fallback accompanied a successful response.
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
 ) (fallbackToFDv1 bool, errorInfo interfaces.DataSourceErrorInfo) {
@@ -283,7 +288,10 @@ func (f *FDv2) runInitializers(
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol", initializer.Name())
 			}
 			if basis != nil && f.applyBasis(*basis, initializer.Name()) {
-				f.loggers.Infof("Applied payload from %s before falling back to FDv1", initializer.Name())
+				appliedFrom = initializer.Name()
+			}
+			if appliedFrom != "" {
+				f.loggers.Infof("Initialized via %s before falling back to FDv1", appliedFrom)
 				f.completeInitialization(closeWhenReady)
 			}
 			return true, errorInfo
