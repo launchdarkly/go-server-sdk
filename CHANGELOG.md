@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.17.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.16.0...v7.17.0) (2026-09-03)
+
+
+### Features
+
+* Add DuplicateKeysKeepFirst and deprecate DuplicateKeysIgnoreAllButFirst ([#437](https://github.com/launchdarkly/go-server-sdk/issues/437)) ([27d31a4](https://github.com/launchdarkly/go-server-sdk/commit/27d31a49ddc6cfe97b90a5d4bb63a0cd3871c421))
+* Complete initialization when initializers return data without a selector ([#441](https://github.com/launchdarkly/go-server-sdk/issues/441)) ([a8432b7](https://github.com/launchdarkly/go-server-sdk/commit/a8432b78ecdc3c6289b003e963ab2f7e857df1f8))
+* deprecate FDv2 payload filter builder methods ([#440](https://github.com/launchdarkly/go-server-sdk/issues/440)) ([fac8693](https://github.com/launchdarkly/go-server-sdk/commit/fac86932559cac781ee187ee9e84b298751296d9))
+
+
+### Bug Fixes
+
+* Report data source Valid status before signaling readiness ([#442](https://github.com/launchdarkly/go-server-sdk/issues/442)) ([9dd6b4e](https://github.com/launchdarkly/go-server-sdk/commit/9dd6b4ea82c46cfa1414573657e8dd182f08ba57))
+
 ## [7.16.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.15.6...v7.16.0) (2026-08-25)
 
 
