@@ -12,12 +12,6 @@ type Meta struct {
 
 	// Version is the version of the Variation.
 	Version *int `json:"version,omitempty"`
-
-	// ModelKey is the model's stable, unique key (distinct from Model.Name, which is not guaranteed unique).
-	ModelKey string `json:"modelKey,omitempty"`
-
-	// ModelVersion is the pinned version of the model that the variation references.
-	ModelVersion *int `json:"modelVersion,omitempty"`
 }
 
 // Model defines the serialization format for a model.
