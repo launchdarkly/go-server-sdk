@@ -1,3 +1,4 @@
+// Deprecated: this module has moved to github.com/launchdarkly/go-server-sdk-ai.
 module github.com/launchdarkly/go-server-sdk/ldai
 
 go 1.24.0
