@@ -3,11 +3,6 @@
 ## [0.9.4](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.9.3...ldai/v0.9.4) (2026-09-08)
 
 
-### Features
-
-* **ldai:** stamp modelKey and modelVersion on AI usage events (AIC-2850) ([#414](https://github.com/launchdarkly/go-server-sdk/issues/414)) ([bd4ce7a](https://github.com/launchdarkly/go-server-sdk/commit/bd4ce7a1ea1ade2b71d15b956b706cf6677063e2))
-
-
 ### Bug Fixes
 
 * Deprecate the ldai module ahead of its move to go-server-sdk-ai- [#444](https://github.com/launchdarkly/go-server-sdk/issues/444) ([32eca54](https://github.com/launchdarkly/go-server-sdk/commit/32eca546037200753efcd87451af96c455a31ba0))
