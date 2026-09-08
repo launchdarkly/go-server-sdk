@@ -7,6 +7,10 @@ import "github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 // The SDK uses a simplified JSON representation of its configuration when recording diagnostics data.
 // Any component type that implements ComponentConfigurer may choose to contribute values to this
 // representation, although the SDK may or may not use them.
+//
+// The SDK also accepts a DescribeConfiguration method that takes no parameters. Use that form if
+// the description does not depend on the client context, as is true for a persistent store that
+// reports only the name of its database.
 type DiagnosticDescription interface {
 	// DescribeConfiguration should return a JSON value or ldvalue.Null().
 	//
