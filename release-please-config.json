@@ -27,16 +27,6 @@
         "package_info.go"
       ]
     },
-    "ldai" : {
-      "package-name": "ldai",
-      "release-type" : "go",
-      "bump-minor-pre-major" : true,
-      "tag-separator": "/",
-      "versioning" : "default",
-      "extra-files" : [
-        "package_info.go"
-      ]
-    },
     "ldmiddleware" : {
       "package-name": "ldmiddleware",
       "release-type" : "go",
