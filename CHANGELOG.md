@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.17.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.17.0...v7.17.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* Accept DescribeConfiguration without a client context ([#445](https://github.com/launchdarkly/go-server-sdk/issues/445)) ([12d780e](https://github.com/launchdarkly/go-server-sdk/commit/12d780ecab940f9ec43c65af5151a9448f19c605))
+
 ## [7.17.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.16.0...v7.17.0) (2026-09-03)
 
 
