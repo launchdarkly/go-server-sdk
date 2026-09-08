@@ -88,6 +88,10 @@ func TestPersistentDataStoreBuilder(t *testing.T) {
 
 		f2 := PersistentDataStore(&mockPersistentDataStoreFactoryWithDescription{ldvalue.String("MyDatabase")})
 		assert.Equal(t, ldvalue.String("MyDatabase"), f2.DescribeConfiguration(basicClientContext()))
+
+		// The persistent store integrations describe themselves without the context parameter.
+		f3 := PersistentDataStore(&mockPersistentDataStoreFactoryWithDescriptionNoContext{ldvalue.String("MyDatabase")})
+		assert.Equal(t, ldvalue.String("MyDatabase"), f3.DescribeConfiguration(basicClientContext()))
 	})
 }
 
@@ -115,5 +119,19 @@ func (m *mockPersistentDataStoreFactoryWithDescription) Build(
 }
 
 func (m *mockPersistentDataStoreFactoryWithDescription) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
+	return m.description
+}
+
+type mockPersistentDataStoreFactoryWithDescriptionNoContext struct {
+	description ldvalue.Value
+}
+
+func (m *mockPersistentDataStoreFactoryWithDescriptionNoContext) Build(
+	context subsystems.ClientContext,
+) (subsystems.PersistentDataStore, error) {
+	return nil, nil
+}
+
+func (m *mockPersistentDataStoreFactoryWithDescriptionNoContext) DescribeConfiguration() ldvalue.Value {
 	return m.description
 }

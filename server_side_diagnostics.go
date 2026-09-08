@@ -5,6 +5,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/diagnostics"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
@@ -60,8 +61,8 @@ var allowedDiagnosticComponentProperties = map[string]ldvalue.ValueType{ //nolin
 // Attempts to add relevant configuration properties, if any, from a customizable component:
 //   - If the component does not implement DiagnosticDescription, set the defaultPropertyName property to
 //     "custom".
-//   - If it does implement DiagnosticDescription or DiagnosticDescriptionExt, call the corresponding
-//     interface method to get a value.
+//   - If it does implement DiagnosticDescription, or the same method without the context
+//     parameter, call that method to get a value.
 //   - If the value is a string, then set the defaultPropertyName property to that value.
 //   - If the value is an object, then copy all of its properties as long as they are ones we recognize
 //     and have the expected type.
@@ -75,10 +76,7 @@ func mergeComponentProperties(
 	if component == nil {
 		component = defaultComponent
 	}
-	var componentDesc ldvalue.Value
-	if dd, ok := component.(subsystems.DiagnosticDescription); ok {
-		componentDesc = dd.DescribeConfiguration(context)
-	}
+	componentDesc := diagnostics.DescribeConfiguration(component, context)
 	if !componentDesc.IsNull() {
 		if componentDesc.Type() == ldvalue.StringType && defaultPropertyName != "" {
 			builder.Set(defaultPropertyName, componentDesc)

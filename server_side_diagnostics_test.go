@@ -62,6 +62,11 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		func(b *ldvalue.ObjectBuilder) { b.SetString("dataStoreType", "Foo") })
 	doTest(func(c *Config) { c.DataStore = customStoreFactoryWithoutDiagnosticDescription{} },
 		func(b *ldvalue.ObjectBuilder) { b.SetString("dataStoreType", "custom") })
+	doTest(func(c *Config) { c.DataStore = customStoreFactoryWithNoContextDescription{name: "Foo"} },
+		func(b *ldvalue.ObjectBuilder) { b.SetString("dataStoreType", "Foo") })
+	doTest(func(c *Config) {
+		c.DataStore = ldcomponents.PersistentDataStore(customPersistentStoreFactoryWithNoContextDescription{name: "Foo"})
+	}, func(b *ldvalue.ObjectBuilder) { b.SetString("dataStoreType", "Foo") })
 
 	// data source configuration
 	doTest(func(c *Config) { c.DataSource = ldcomponents.StreamingDataSource() }, func(b *ldvalue.ObjectBuilder) {})
@@ -154,6 +159,36 @@ func (c customStoreFactoryForDiagnostics) DescribeConfiguration(context subsyste
 }
 
 func (c customStoreFactoryForDiagnostics) Build(context subsystems.ClientContext) (subsystems.DataStore, error) {
+	return nil, errors.New("not implemented")
+}
+
+// customStoreFactoryWithNoContextDescription describes itself without the context parameter, as
+// the persistent store integrations do.
+type customStoreFactoryWithNoContextDescription struct {
+	name string
+}
+
+func (c customStoreFactoryWithNoContextDescription) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String(c.name)
+}
+
+func (c customStoreFactoryWithNoContextDescription) Build(context subsystems.ClientContext) (subsystems.DataStore, error) {
+	return nil, errors.New("not implemented")
+}
+
+// customPersistentStoreFactoryWithNoContextDescription is the same shape behind
+// ldcomponents.PersistentDataStore, which is how the integrations are actually configured.
+type customPersistentStoreFactoryWithNoContextDescription struct {
+	name string
+}
+
+func (c customPersistentStoreFactoryWithNoContextDescription) DescribeConfiguration() ldvalue.Value {
+	return ldvalue.String(c.name)
+}
+
+func (c customPersistentStoreFactoryWithNoContextDescription) Build(
+	context subsystems.ClientContext,
+) (subsystems.PersistentDataStore, error) {
 	return nil, errors.New("not implemented")
 }
 

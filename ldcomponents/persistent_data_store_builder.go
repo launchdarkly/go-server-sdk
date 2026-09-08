@@ -5,6 +5,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/diagnostics"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -125,8 +126,8 @@ func (b *PersistentDataStoreBuilder) Build(clientContext subsystems.ClientContex
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *PersistentDataStoreBuilder) DescribeConfiguration(context subsystems.ClientContext) ldvalue.Value {
-	if dd, ok := b.persistentDataStoreFactory.(subsystems.DiagnosticDescription); ok {
-		return dd.DescribeConfiguration(context)
+	if description := diagnostics.DescribeConfiguration(b.persistentDataStoreFactory, context); !description.IsNull() {
+		return description
 	}
 	return ldvalue.String("custom")
 }
