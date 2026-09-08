@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.4](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.9.3...ldai/v0.9.4) (2026-09-08)
+
+
+### Bug Fixes
+
+* Deprecate the ldai module ahead of its move to go-server-sdk-ai- [#444](https://github.com/launchdarkly/go-server-sdk/issues/444) ([32eca54](https://github.com/launchdarkly/go-server-sdk/commit/32eca546037200753efcd87451af96c455a31ba0))
+
 ## [0.9.3](https://github.com/launchdarkly/go-server-sdk/compare/ldai/v0.9.2...ldai/v0.9.3) (2026-06-11)
 
 
