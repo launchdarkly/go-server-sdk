@@ -350,3 +350,28 @@ func TestReloaderDoesNothingAfterClose(t *testing.T) {
 	f.reloader.Trigger()
 	f.requireQuiet(t, 50*time.Millisecond)
 }
+
+func TestReloaderDebounceWindowIsExtendedByEachTrigger(t *testing.T) {
+	// The debounce is a settle window: each trigger moves the deadline out again. A
+	// stream of notifications spaced closer together than the window must produce no
+	// reload while the stream continues, and exactly one reload after it stops. The
+	// burst in TestReloaderDebounceCoalescesTriggers fits inside one window, so it
+	// cannot tell a settle window from a fixed window.
+	const window = 250 * time.Millisecond
+	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
+		cfg.DebounceDelay = window
+	})
+
+	stop := time.Now().Add(5 * window)
+	for time.Now().Before(stop) {
+		f.reloader.Trigger()
+		time.Sleep(window / 5)
+	}
+	select {
+	case <-f.applied:
+		require.Fail(t, "a reload ran while change notifications were still arriving")
+	default:
+	}
+	f.requireApplied(t)
+	f.requireQuiet(t, 2*window)
+}
