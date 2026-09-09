@@ -126,9 +126,9 @@ func (r *Reloader) Trigger() {
 	}
 }
 
-// Close stops the reloader. It does not wait for a reload that is already in progress —
+// Close stops the reloader. It does not wait for a reload that is already in progress --
 // one wedged in a blocking file read (an unresponsive network mount, for example) must not
-// be able to wedge shutdown — so such a reload may still deliver its result through Apply
+// be able to wedge shutdown -- so such a reload may still deliver its result through Apply
 // or OnError shortly after Close returns; consumers must tolerate that, as they always
 // have for late reloads. A reload that has not yet reached its callbacks when Close is
 // called will not invoke them.
@@ -205,7 +205,7 @@ func (r *Reloader) run() {
 }
 
 // reload performs one full load of all configured files. It reports whether the load
-// succeeded, which is what decides whether a retry gets armed — so a skipped no-op
+// succeeded, which is what decides whether a retry gets armed -- so a skipped no-op
 // application counts as success. The whole set is re-read on every reload: entries are
 // combined across files in order, so a change to one file can alter which file wins for
 // a key.
@@ -246,7 +246,7 @@ func (r *Reloader) reload() bool {
 	// case. This check is deliberately not atomic with the delivery below: Close must never
 	// block on a lock shared with callbacks (blocked I/O or consumer backpressure could
 	// then wedge shutdown), so a reload that passes this check can rarely deliver just
-	// after Close returns — see the Close doc.
+	// after Close returns -- see the Close doc.
 	if r.isClosed() {
 		return true
 	}
