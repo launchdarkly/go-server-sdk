@@ -16,6 +16,10 @@
 // client starts up. At that point, if any file does not exist or cannot be parsed, the data source
 // will log an error and will not load any data.
 //
+// Do not configure the file data source together with a persistent data store. The file
+// data source is not intended for that use, and it does not retry a store write that
+// fails.
+//
 // Files may contain either JSON or YAML; if the first non-whitespace character is '{', the file is parsed
 // as JSON, otherwise it is parsed as YAML. The file data should consist of an object with up to three
 // properties:
