@@ -1059,3 +1059,27 @@ func TestEvalUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsInitialize
 	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
 	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "using last known values")
 }
+
+func TestEvalLogsCachedDataWarningOnlyOncePerClient(t *testing.T) {
+	mockLoggers := ldlogtest.NewMockLog()
+	flag := ldbuilders.NewFlagBuilder(evalFlagKey).SingleVariation(ldvalue.Bool(true)).Build()
+	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
+	_ = store.Init(nil)
+	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
+
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
+		c.DataStore = mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
+		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
+	})
+	defer client.Close()
+
+	for i := 0; i < 3; i++ {
+		value, err := client.BoolVariation(flag.Key, evalTestUser, false)
+		assert.NoError(t, err)
+		assert.True(t, value)
+	}
+
+	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
+	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "using last known values")
+}

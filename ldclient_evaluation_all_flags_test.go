@@ -227,6 +227,30 @@ func TestAllFlagsStateUsesStoreAndLogsWarningIfClientIsNotInitializedButStoreIsI
 	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "using last known values")
 }
 
+func TestAllFlagsStateLogsCachedDataWarningOnlyOncePerClient(t *testing.T) {
+	mockLoggers := ldlogtest.NewMockLog()
+	flag := ldbuilders.NewFlagBuilder(evalFlagKey).SingleVariation(ldvalue.Bool(true)).Build()
+	store := datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers())
+	_ = store.Init(nil)
+	_, _ = store.Upsert(datakinds.Features, flag.Key, sharedtest.FlagDescriptor(flag))
+
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
+		c.DataStore = mocks.SingleComponentConfigurer[subsystems.DataStore]{Instance: store}
+		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
+	})
+	defer client.Close()
+
+	for i := 0; i < 3; i++ {
+		state := client.AllFlagsState(evalTestUser)
+		assert.True(t, state.IsValid())
+		assert.Len(t, state.ToValuesMap(), 1)
+	}
+
+	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
+	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "using last known values")
+}
+
 func TestAllFlagsStateReturnsInvalidStateIfStoreReturnsError(t *testing.T) {
 	myError := errors.New("sorry")
 	store := mocks.NewCapturingDataStore(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
