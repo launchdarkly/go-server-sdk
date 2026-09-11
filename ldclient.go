@@ -128,6 +128,10 @@ type LDClient struct {
 	logEvaluationErrors              bool
 	offline                          bool
 	hookRunner                       *hooks.Runner
+
+	// Each flag records that the SDK has logged the matching cached-data warning for this client.
+	evalCachedDataWarningLogged     internal.AtomicBoolean
+	allFlagsCachedDataWarningLogged internal.AtomicBoolean
 }
 
 // Initialization errors
@@ -792,7 +796,9 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		valid = false
 	} else if client.dataSystem.DataAvailability() != datasystem.Refreshed {
 		if client.dataSystem.DataAvailability() == datasystem.Cached {
-			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store")
+			if !client.allFlagsCachedDataWarningLogged.GetAndSet(true) {
+				client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store. This message is logged once.") //nolint:lll
+			}
 		} else {
 			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
 			valid = false
@@ -1394,7 +1400,9 @@ func (client *LDClient) evaluateInternal(
 
 	if client.dataSystem.DataAvailability() != datasystem.Refreshed {
 		if client.dataSystem.DataAvailability() == datasystem.Cached {
-			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store") //nolint:lll
+			if !client.evalCachedDataWarningLogged.GetAndSet(true) {
+				client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store. This message is logged once.") //nolint:lll
+			}
 		} else {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
