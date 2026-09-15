@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0.1.0",
+  "schemaVersion": "0.4.0",
   "vectors": [
     {
       "description": "An override takes precedence over LaunchDarkly data for the same flag key",
@@ -30,8 +30,8 @@
       "expect": {
         "value": "override-value",
         "variationIndex": 0,
-        "reason": { "kind": "OFF", "isOverride": true },
-        "summaryOverride": true
+        "reason": { "kind": "OFF", "overrideAffected": true },
+        "summaryOverrideAffected": true
       }
     },
     {
@@ -53,8 +53,8 @@
       "expect": {
         "value": "override-value",
         "variationIndex": 0,
-        "reason": { "kind": "OFF", "isOverride": true },
-        "summaryOverride": true
+        "reason": { "kind": "OFF", "overrideAffected": true },
+        "summaryOverrideAffected": true
       }
     },
     {
@@ -87,7 +87,7 @@
         "value": "ld-value",
         "variationIndex": 1,
         "reason": { "kind": "FALLTHROUGH" },
-        "summaryOverride": false
+        "summaryOverrideAffected": false
       }
     },
     {
@@ -156,8 +156,8 @@
       "expect": {
         "value": "eu-value",
         "variationIndex": 1,
-        "reason": { "kind": "RULE_MATCH", "ruleIndex": 0, "ruleId": "rule-eu", "isOverride": true },
-        "summaryOverride": true
+        "reason": { "kind": "RULE_MATCH", "ruleIndex": 0, "ruleId": "rule-eu", "overrideAffected": true },
+        "summaryOverrideAffected": true
       }
     },
     {
@@ -212,12 +212,12 @@
       "expect": {
         "value": "member-value",
         "variationIndex": 1,
-        "reason": { "kind": "RULE_MATCH", "ruleIndex": 0, "ruleId": "rule-seg", "isOverride": true },
-        "summaryOverride": true
+        "reason": { "kind": "RULE_MATCH", "ruleIndex": 0, "ruleId": "rule-seg", "overrideAffected": true },
+        "summaryOverrideAffected": true
       }
     },
     {
-      "description": "A non-overridden flag is not marked even when it matches via an overridden segment",
+      "description": "A flag is marked overrideAffected when it matches via an overridden segment",
       "group": "marking",
       "launchDarklyData": {
         "initialized": true,
@@ -275,12 +275,12 @@
       "expect": {
         "value": "member-value",
         "variationIndex": 1,
-        "reason": { "kind": "RULE_MATCH", "ruleIndex": 0, "ruleId": "rule-seg" },
-        "summaryOverride": false
+        "reason": { "kind": "RULE_MATCH", "ruleIndex": 0, "ruleId": "rule-seg", "overrideAffected": true },
+        "summaryOverrideAffected": true
       }
     },
     {
-      "description": "A malformed override flag returns the caller default with an error reason",
+      "description": "A malformed override flag returns the caller default with an error reason and is marked overrideAffected",
       "group": "error-handling",
       "launchDarklyData": {
         "initialized": true,
@@ -308,7 +308,8 @@
       "expect": {
         "value": "fallback",
         "variationIndex": null,
-        "reason": { "kind": "ERROR", "errorKind": "MALFORMED_FLAG" }
+        "reason": { "kind": "ERROR", "errorKind": "MALFORMED_FLAG", "overrideAffected": true },
+        "summaryOverrideAffected": true
       }
     }
   ]

@@ -32,7 +32,7 @@ import (
 const overrideVectorsPath = "testdata/override-vectors/vectors.json"
 
 // The vectors' semantics are versioned; a schema change means this runner needs review.
-const supportedOverrideVectorSchema = "0.1.0"
+const supportedOverrideVectorSchema = "0.4.0"
 
 type overrideVectorFile struct {
 	SchemaVersion string           `json:"schemaVersion"`
@@ -58,10 +58,10 @@ type overrideVector struct {
 		DefaultValue ldvalue.Value   `json:"defaultValue"`
 	} `json:"evaluate"`
 	Expect struct {
-		Value           ldvalue.Value            `json:"value"`
-		VariationIndex  ldvalue.Value            `json:"variationIndex"`
-		Reason          map[string]ldvalue.Value `json:"reason"`
-		SummaryOverride ldvalue.Value            `json:"summaryOverride"`
+		Value                   ldvalue.Value            `json:"value"`
+		VariationIndex          ldvalue.Value            `json:"variationIndex"`
+		Reason                  map[string]ldvalue.Value `json:"reason"`
+		SummaryOverrideAffected ldvalue.Value            `json:"summaryOverrideAffected"`
 	} `json:"expect"`
 }
 
@@ -186,20 +186,24 @@ func runOverrideVector(t *testing.T, vector overrideVector) {
 
 	assertVectorReason(t, vector.Expect.Reason, detail.Reason)
 
-	if !vector.Expect.SummaryOverride.IsNull() {
+	// summaryOverrideAffected is the marking the client hands to the event processor for this
+	// evaluation. The event processor keys individual-event suppression and the summary counter
+	// marker on that scalar, not on the reason.
+	if !vector.Expect.SummaryOverrideAffected.IsNull() {
 		var evalData []ldevents.EvaluationData
 		for _, e := range events.Events {
 			if ed, ok := e.(ldevents.EvaluationData); ok && ed.Key == vector.Evaluate.FlagKey {
 				evalData = append(evalData, ed)
 			}
 		}
-		require.Len(t, evalData, 1, "expected exactly one evaluation event for the flag")
-		assert.Equal(t, vector.Expect.SummaryOverride.BoolValue(), evalData[0].IsOverride, "summaryOverride")
+		require.Len(t, evalData, 1, "expected exactly one evaluation record for the flag")
+		assert.Equal(t, vector.Expect.SummaryOverrideAffected.BoolValue(), evalData[0].OverrideAffected,
+			"summaryOverrideAffected")
 	}
 }
 
 // assertVectorReason compares the actual reason against only the fields present in the
-// expected reason, per the vectors' comparison rules. isOverride collapses tri-state: an
+// expected reason, per the vectors' comparison rules. overrideAffected collapses tri-state: an
 // expected reason that omits it requires the actual reason to report false (never
 // serialized) or omit it.
 func assertVectorReason(t *testing.T, expected map[string]ldvalue.Value, actual interface{ MarshalJSON() ([]byte, error) }) {
@@ -212,9 +216,9 @@ func assertVectorReason(t *testing.T, expected map[string]ldvalue.Value, actual 
 	for field, expectedValue := range expected {
 		assert.Equal(t, expectedValue, actualFields[field], "reason field %q", field)
 	}
-	if _, present := expected["isOverride"]; !present {
-		if actualValue, ok := actualFields["isOverride"]; ok {
-			assert.False(t, actualValue.BoolValue(), "isOverride must be false or omitted")
+	if _, present := expected["overrideAffected"]; !present {
+		if actualValue, ok := actualFields["overrideAffected"]; ok {
+			assert.False(t, actualValue.BoolValue(), "overrideAffected must be false or omitted")
 		}
 	}
 }
