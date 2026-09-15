@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -709,6 +710,141 @@ func TestFDV2InitializerDataIsRetainedWhenLaterInitializerFails(t *testing.T) {
 }
 
 // hangingStreamHandler accepts a connection and never responds.
+// Data from a selector-less initializer, such as a file or a snapshot, completes initialization.
+// The client does not log the cached-data warning while the synchronizer has not delivered data.
+func TestFDV2SelectorlessInitializerDataDoesNotLogCachedDataWarning(t *testing.T) {
+	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {
+		httphelpers.WithServer(hangingStreamHandler, func(server *httptest.Server) {
+			logCapture := ldlogtest.NewMockLog()
+
+			config := Config{
+				Events:  ldcomponents.NoEvents(),
+				Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+				DataSystem: ldcomponents.DataSystem().Custom().
+					Initializers(ldfiledatav2.DataSource().FilePaths(filename).AsInitializer()).
+					Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(server.URL)),
+			}
+
+			client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+			require.NoError(t, err)
+			defer client.Close()
+			require.True(t, client.Initialized())
+
+			for i := 0; i < 2; i++ {
+				value, err := client.BoolVariation("flag-from-file", testUser, false)
+				assert.NoError(t, err)
+				assert.True(t, value)
+			}
+			state := client.AllFlagsState(testUser)
+			assert.True(t, state.IsValid())
+			assert.Len(t, state.ToValuesMap(), 1)
+
+			assert.Equal(t, 0, countWarningsContaining(logCapture, "using last known values"))
+		})
+	})
+}
+
+// A populated persistent store keeps evaluations working before any data source has provided
+// data. The client logs the cached-data warning in this state.
+func TestFDV2PersistentStoreDataLogsCachedDataWarningBeforeAnyDataSourceProvidesData(t *testing.T) {
+	persistentStore := persistentStoreWithAlwaysTrueFlag(t)
+
+	httphelpers.WithServer(hangingStreamHandler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().
+				Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(server.URL)).
+				DataStore(ldcomponents.PersistentDataStore(
+					mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: persistentStore},
+				), subsystems.DataStoreModeReadWrite),
+		}
+
+		client, err := MakeCustomClient(testSdkKey, config, time.Millisecond*200)
+		require.NotNil(t, client)
+		defer client.Close()
+		assert.Equal(t, ErrInitializationTimeout, err)
+		assert.True(t, client.Initialized())
+
+		for i := 0; i < 2; i++ {
+			value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+			assert.True(t, value)
+		}
+		state := client.AllFlagsState(testUser)
+		assert.True(t, state.IsValid())
+
+		assert.Equal(t, 1, countWarningsContaining(logCapture,
+			"Feature flag evaluation called before LaunchDarkly client initialization completed"))
+		assert.Equal(t, 1, countWarningsContaining(logCapture,
+			"Called AllFlagsState before client initialization; using last known values"))
+	})
+}
+
+// In daemon mode the SDK has no data sources, so initialization succeeds as-is. Evaluations use
+// the persistent store without a cached-data warning.
+func TestFDV2DaemonModeDoesNotLogCachedDataWarning(t *testing.T) {
+	persistentStore := persistentStoreWithAlwaysTrueFlag(t)
+	logCapture := ldlogtest.NewMockLog()
+
+	config := Config{
+		Events:  ldcomponents.NoEvents(),
+		Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+		DataSystem: ldcomponents.DataSystem().Daemon(ldcomponents.PersistentDataStore(
+			mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: persistentStore},
+		)),
+	}
+
+	client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+	require.NoError(t, err)
+	defer client.Close()
+	require.True(t, client.Initialized())
+
+	for i := 0; i < 2; i++ {
+		value, err := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.NoError(t, err)
+		assert.True(t, value)
+	}
+	state := client.AllFlagsState(testUser)
+	assert.True(t, state.IsValid())
+
+	assert.Equal(t, 0, countWarningsContaining(logCapture, "using last known values"))
+}
+
+// persistentStoreWithAlwaysTrueFlag returns a mock persistent store that already holds alwaysTrueFlag.
+func persistentStoreWithAlwaysTrueFlag(t *testing.T) *mocks.MockPersistentDataStore {
+	flag := alwaysTrueFlag
+	persistentStore := mocks.NewMockPersistentDataStore()
+	require.NoError(t, persistentStore.Init([]ldstoretypes.SerializedCollection{
+		{
+			Kind: datakinds.Features,
+			Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+				{
+					Key: flag.Key,
+					Item: ldstoretypes.SerializedItemDescriptor{
+						Version: flag.Version,
+						SerializedItem: datakinds.Features.Serialize(
+							ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}),
+					},
+				},
+			},
+		},
+	}))
+	return persistentStore
+}
+
+// countWarningsContaining returns how many captured warnings contain the given text.
+func countWarningsContaining(logCapture *ldlogtest.MockLog, text string) int {
+	count := 0
+	for _, line := range logCapture.GetOutput(ldlog.Warn) {
+		if strings.Contains(line, text) {
+			count++
+		}
+	}
+	return count
+}
+
 var hangingStreamHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	<-r.Context().Done()
 })
