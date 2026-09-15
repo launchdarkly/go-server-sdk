@@ -17,10 +17,10 @@ const (
 	// segment key appears in more than one file.
 	DuplicateKeysFail DuplicateKeysHandling = "fail"
 
-	// DuplicateKeysIgnoreAllButFirst is an option for FileSourceBuilder.DuplicateKeysHandling,
-	// meaning that when the same key appears in more than one file, only the entry from the
-	// earliest-configured file is used.
-	DuplicateKeysIgnoreAllButFirst DuplicateKeysHandling = "ignore"
+	// DuplicateKeysKeepFirst is an option for FileSourceBuilder.DuplicateKeysHandling, meaning
+	// that when the same key appears in more than one file, the entry from the first configured
+	// file is kept and the others are discarded.
+	DuplicateKeysKeepFirst DuplicateKeysHandling = "ignore"
 )
 
 const (

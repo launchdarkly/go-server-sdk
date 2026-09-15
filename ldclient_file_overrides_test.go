@@ -52,7 +52,7 @@ func TestFileOverridesEndToEnd(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(`{"flagValues": {"overridden-flag": false}}`), 0600))
 	require.Eventually(t, func() bool {
 		_, detail, _ := client.BoolVariationDetail("overridden-flag", evalTestUser, true)
-		return detail.Reason.IsOverride() && detail.Value.BoolValue() == false
+		return detail.Reason.IsOverrideAffected() && !detail.Value.BoolValue()
 	}, 10*time.Second, 50*time.Millisecond)
 
 	// The override is removed; the not-initialized short-circuit returns.
