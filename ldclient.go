@@ -1341,7 +1341,11 @@ func (client *LDClient) variationAndFlag(
 		result.Detail.Value = defaultVal
 		result.Detail.VariationIndex = ldvalue.OptionalInt{}
 	} else if checkType && defaultVal.Type() != ldvalue.NullType && result.Detail.Value.Type() != defaultVal.Type() {
+		// The type mismatch replaces the reason. The evaluation read the same definitions, so
+		// the new reason keeps the override-affected marking.
 		result.Detail = newEvaluationError(defaultVal, ldreason.EvalErrorWrongType)
+		result.Detail.Reason = ldreason.NewEvalReasonFromReasonWithOverrideAffected(
+			result.Detail.Reason, result.OverrideAffected)
 	}
 
 	if !eventsScope.disabled {
@@ -1360,7 +1364,7 @@ func (client *LDClient) variationAndFlag(
 					Version:              flag.Version,
 					RequireFullEvent:     flag.TrackEvents,
 					DebugEventsUntilDate: flag.DebugEventsUntilDate,
-					IsOverride:           flag.IsOverride,
+					OverrideAffected:     result.OverrideAffected,
 				},
 				ldevents.Context(context),
 				result.Detail,
