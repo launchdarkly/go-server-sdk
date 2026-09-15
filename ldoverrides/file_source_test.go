@@ -124,7 +124,7 @@ func TestFileSourceMergesFilesInConfiguredOrder(t *testing.T) {
 	writeFile(t, path2, `{"flags": {"flag1": {"key": "flag1", "version": 2}}}`)
 
 	_, sink := buildFileSource(t, func(b *FileSourceBuilder) {
-		b.FilePaths(path1, path2).DuplicateKeysHandling(DuplicateKeysIgnoreAllButFirst)
+		b.FilePaths(path1, path2).DuplicateKeysHandling(DuplicateKeysKeepFirst)
 	})
 
 	flags := flagsByKey(t, sink.requireSnapshot(t))

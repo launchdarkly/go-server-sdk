@@ -15,7 +15,10 @@
 //	        Overrides(ldoverrides.FileSource().FilePaths("/etc/ld/overrides.json")),
 //	}
 //
-// Evaluations served from an override are marked: the evaluation reason's IsOverride
-// method reports true, and analytics events aggregate them into separate summary counters
-// so they are distinguishable in LaunchDarkly.
+// An evaluation that an override affects is marked. The marking is direct or transitive: it
+// applies when the evaluated flag, a prerequisite at any depth, or a segment read during the
+// evaluation came from the override layer. The evaluation reason's IsOverrideAffected method
+// reports the marking. Marked evaluations appear in analytics summary events only, under
+// separate counters, so LaunchDarkly can distinguish them. They produce no individual
+// evaluation events.
 package ldoverrides
