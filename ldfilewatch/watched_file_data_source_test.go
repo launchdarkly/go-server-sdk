@@ -1,6 +1,7 @@
 package ldfilewatch
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -232,6 +233,39 @@ flags:
 				})
 			})
 			assert.True(t, p.dataSource.IsInitialized())
+		})
+	})
+}
+
+// A burst of rapid writes must not stall the watcher: the last content is applied, and a later
+// change is still detected. Consuming notifications and adding watches on one goroutine used
+// to deadlock the Windows watcher backend under such bursts.
+func TestNewWatchedFileSurvivesNotificationBursts(t *testing.T) {
+	contents := func(n int) string { return fmt.Sprintf(`{"flagValues": {"n": %d}}`, n) }
+	hasValue := func(p fileDataSourceTestParams, n int) bool {
+		return hasFlag(t, p.updates.DataStore, "n", func(f ldmodel.FeatureFlag) bool {
+			return len(f.Variations) == 1 && f.Variations[0].IntValue() == n
+		})
+	}
+	withTempDir(func(tempDir string) {
+		filename := makeTempFile(tempDir, contents(0))
+		defer os.Remove(filename)
+
+		factory := ldfiledata.DataSource().
+			FilePaths(filename).
+			Reloader(WatchFiles)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, hasValue(p, 0))
+
+			for round := 1; round <= 3; round++ {
+				for i := 0; i < 300; i++ {
+					require.NoError(t, os.WriteFile(filename, []byte(contents(i)), 0600))
+				}
+				final := round * 1000
+				require.NoError(t, os.WriteFile(filename, []byte(contents(final)), 0600))
+				requireTrueWithinDuration(t, 5*time.Second, func() bool { return hasValue(p, final) })
+			}
 		})
 	})
 }
