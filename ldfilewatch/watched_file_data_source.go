@@ -52,9 +52,9 @@ func (fw *fileWatcher) run(closeCh <-chan struct{}) {
 	// The pump goroutine is the only reader of the watcher's channels. The only operation that
 	// can block it is a send to changeCh, and that send never waits. So the watcher backend can
 	// always deliver. This matters on Windows: the backend services Add and Close requests on the
-	// goroutine that delivers events. If the goroutine that consumes events also calls Add while
-	// a notification is pending, both wait forever and the data source freezes. A burst of writes
-	// to a watched file causes exactly that.
+	// goroutine that delivers events, and its event channel holds a bounded number of events.
+	// If the goroutine that consumes events calls Add while that channel is full, both wait
+	// forever and the data source freezes. A burst of writes to a watched file can fill it.
 	changeCh := make(chan struct{}, 1)
 	pumpDone := make(chan struct{})
 	go fw.pump(changeCh, pumpDone)

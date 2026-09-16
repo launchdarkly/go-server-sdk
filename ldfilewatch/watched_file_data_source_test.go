@@ -238,8 +238,7 @@ flags:
 }
 
 // A burst of rapid writes must not stall the watcher: the last content is applied, and a later
-// change is still detected. Consuming notifications and adding watches on one goroutine used
-// to deadlock the Windows watcher backend under such bursts.
+// change is still detected.
 func TestNewWatchedFileSurvivesNotificationBursts(t *testing.T) {
 	contents := func(n int) string { return fmt.Sprintf(`{"flagValues": {"n": %d}}`, n) }
 	hasValue := func(p fileDataSourceTestParams, n int) bool {
