@@ -132,6 +132,9 @@ type LDClient struct {
 	// Each flag records that the SDK has logged the matching cached-data warning for this client.
 	evalCachedDataWarningLogged     internal.AtomicBoolean
 	allFlagsCachedDataWarningLogged internal.AtomicBoolean
+	// overridesConfigured is true when the data system was built with an override source. The
+	// value is fixed at construction.
+	overridesConfigured bool
 }
 
 // Initialization errors
@@ -268,6 +271,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			return nil, err
 		}
 		client.dataSystem = system
+		client.overridesConfigured = system.OverrideSourceConfigured()
 	}
 
 	bigSegments := config.BigSegments
@@ -779,6 +783,9 @@ func (client *LDClient) Loggers() interfaces.LDLoggers {
 	return client.loggers
 }
 
+const allFlagsStateNotAvailableMessage = "Called AllFlagsState before client initialization. " +
+	"Data store not available; returning empty state"
+
 // AllFlagsState returns an object that encapsulates the state of all feature flags for a given evaluation.
 // context. This includes the flag values, and also metadata that can be used on the front end.
 //
@@ -791,6 +798,7 @@ func (client *LDClient) Loggers() interfaces.LDLoggers {
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/all-flags#go
 func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flagstate.Option) flagstate.AllFlags {
 	valid := true
+	overridesOnly := false
 	if client.IsOffline() {
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
@@ -800,12 +808,12 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 			if !client.allFlagsCachedDataWarningLogged.GetAndSet(true) {
 				client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store. This message is logged once.") //nolint:lll
 			}
-		case client.dataSystem.HasOverrides():
-			// The merged view holds only the override entries, so the state is valid but
-			// contains only the overridden flags.
-			client.loggers.Warn("Called AllFlagsState before client initialization; returning only flags from the override layer") //nolint:lll
+		case client.overridesConfigured:
+			// No data from LaunchDarkly is available. The store read below returns only the
+			// entries that the override layer holds. The result decides the state.
+			overridesOnly = true
 		default:
-			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
+			client.loggers.Warn(allFlagsStateNotAvailableMessage)
 			valid = false
 		}
 	}
@@ -818,6 +826,13 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	if err != nil {
 		client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 		return flagstate.AllFlags{}
+	}
+	if overridesOnly {
+		if len(items) == 0 {
+			client.loggers.Warn(allFlagsStateNotAvailableMessage)
+			return flagstate.AllFlags{}
+		}
+		client.loggers.Warn("Called AllFlagsState before client initialization; returning only flags from the override layer") //nolint:lll
 	}
 
 	clientSideOnly := false
@@ -1395,28 +1410,32 @@ func (client *LDClient) evaluateInternal(
 	var feature *ldmodel.FeatureFlag
 	var storeErr error
 	var ok bool
+	noLaunchDarklyData := false
 
 	evalErrorResult := func(
 		errKind ldreason.EvalErrorKind,
-		flag *ldmodel.FeatureFlag,
 		err error,
 	) (ldeval.Result, *ldmodel.FeatureFlag, error) {
 		detail := newEvaluationError(defaultVal, errKind)
 		if client.logEvaluationErrors {
 			client.loggers.Warn(err)
 		}
-		return ldeval.Result{Detail: detail}, flag, err
+		return ldeval.Result{Detail: detail}, nil, err
 	}
 
 	if client.dataSystem.DataAvailability() != datasystem.Refreshed {
-		if client.dataSystem.DataAvailability() == datasystem.Cached {
+		switch {
+		case client.dataSystem.DataAvailability() == datasystem.Cached:
 			if !client.evalCachedDataWarningLogged.GetAndSet(true) {
 				client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store. This message is logged once.") //nolint:lll
 			}
-		} else if !client.dataSystem.HasFlagOverride(key) {
-			// A flag present in the override layer is served even though no data is available
-			// from LaunchDarkly. The store read below sees it through the override overlay.
-			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
+		case !client.overridesConfigured:
+			return evalErrorResult(ldreason.EvalErrorClientNotReady, ErrClientNotInitialized)
+		default:
+			// No data from LaunchDarkly is available. The store read below still finds an entry
+			// that the override layer holds, and the SDK serves it. A miss returns the
+			// not-ready default.
+			noLaunchDarklyData = true
 		}
 	}
 
@@ -1431,7 +1450,7 @@ func (client *LDClient) evaluateInternal(
 	if itemDesc.Item != nil {
 		feature, ok = itemDesc.Item.(*ldmodel.FeatureFlag)
 		if !ok {
-			return evalErrorResult(ldreason.EvalErrorException, nil,
+			return evalErrorResult(ldreason.EvalErrorException,
 				fmt.Errorf(
 					"unexpected data type (%T) found in store for feature key: %s. Returning default value",
 					itemDesc.Item,
@@ -1439,7 +1458,10 @@ func (client *LDClient) evaluateInternal(
 				))
 		}
 	} else {
-		return evalErrorResult(ldreason.EvalErrorFlagNotFound, nil,
+		if noLaunchDarklyData {
+			return evalErrorResult(ldreason.EvalErrorClientNotReady, ErrClientNotInitialized)
+		}
+		return evalErrorResult(ldreason.EvalErrorFlagNotFound,
 			fmt.Errorf("unknown feature key: %s. Verify that this feature key exists. Returning default value", key))
 	}
 

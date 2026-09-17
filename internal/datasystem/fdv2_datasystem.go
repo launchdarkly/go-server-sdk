@@ -571,6 +571,12 @@ func (f *FDv2) Store() subsystems.ReadOnlyStore {
 	return f.store
 }
 
+// OverrideSourceConfigured reports whether the data system was built with an override source.
+// The value is fixed at construction.
+func (f *FDv2) OverrideSourceConfigured() bool {
+	return f.overrideSource != nil
+}
+
 //nolint:revive // DataSystem method.
 func (f *FDv2) DataAvailability() DataAvailability {
 	if f.store.Selector().IsDefined() {
