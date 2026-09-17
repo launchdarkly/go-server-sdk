@@ -6,6 +6,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -18,7 +19,7 @@ type fileDataSource struct {
 	duplicateKeysHandling DuplicateKeysHandling
 	reloaderFactory       ReloaderFactory
 	loggers               ldlog.Loggers
-	isInitialized         bool
+	isInitialized         internal.AtomicBoolean
 	readyCh               chan<- struct{}
 	readyOnce             sync.Once
 	closeOnce             sync.Once
@@ -56,7 +57,7 @@ func newFileDataSourceImpl(
 }
 
 func (fs *fileDataSource) IsInitialized() bool {
-	return fs.isInitialized
+	return fs.isInitialized.Get()
 }
 
 func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
@@ -66,7 +67,7 @@ func (fs *fileDataSource) Start(closeWhenReady chan<- struct{}) {
 	// If there is no reloader, then we signal readiness immediately regardless of whether the
 	// data load succeeded or failed.
 	if fs.reloaderFactory == nil {
-		fs.signalStartComplete(fs.isInitialized)
+		fs.signalStartComplete(fs.isInitialized.Get())
 		return
 	}
 
@@ -127,7 +128,7 @@ func (fs *fileDataSource) reload() {
 
 func (fs *fileDataSource) signalStartComplete(succeeded bool) {
 	fs.readyOnce.Do(func() {
-		fs.isInitialized = succeeded
+		fs.isInitialized.Set(succeeded)
 		if fs.readyCh != nil {
 			close(fs.readyCh)
 		}
