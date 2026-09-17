@@ -1,0 +1,106 @@
+name: Nightly Contract Tests
+
+# Runs the full contract test suite with -enable-long-running-tests, which the
+# per-PR CI deliberately omits: these tests wait on real RETRY backoff timing
+# and take roughly an hour.
+#
+# This job is EXPECTED TO FAIL on exactly one test until the FDv2 fix lands:
+#   streaming/fdv2/permanent fallback with recovery
+# On permanent synchronizer removal the SDK does not reset its data source
+# status, so the intended 10-second "cannot initialize" fallback never fires and
+# the client times out before reaching a healthy synchronizer. More than one
+# failure means something new broke; check the uploaded JUnit results.
+#
+# The suppression files are intentionally empty. They exist so a suppression can
+# be added as a one-line change rather than requiring the -skip-from plumbing to
+# be worked out first. Prefer fixing a failing test over suppressing it; any
+# entry added here should reference a ticket and be temporary. The files must
+# exist even when empty -- the harness hard-errors on a missing -skip-from path.
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # every day at 4am UTC
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run contract tests on'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  go-versions:
+    uses: launchdarkly/gh-actions/.github/workflows/sdk-go-version-matrix.yml@main
+
+  nightly-contract-tests:
+    name: ${{ format('Contract Tests, Go {0}', needs.go-versions.outputs.latest) }}
+    runs-on: ubuntu-latest
+    needs: go-versions
+    # The long-running tests are almost entirely wall-clock waiting, so this job
+    # runs roughly an hour. A regression that stops retrying makes each scenario
+    # burn its full timeout instead of returning early, so leave headroom --
+    # while staying well under the 6-hour default that would otherwise apply.
+    timeout-minutes: 120
+    env:
+      TEST_SERVICE_PORT: 10000
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Setup Go ${{ needs.go-versions.outputs.latest }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.go-versions.outputs.latest }}
+
+      - name: Make workspace
+        run: make workspace
+
+      - name: Build test service
+        run: make build-contract-tests
+
+      - name: Start test service in background
+        run: make start-contract-test-service-bg
+
+      - name: Create JUnit output directory
+        run: mkdir -p junit
+
+      - name: Run SDK contract test v2
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        with:
+          test_service_port: ${{ env.TEST_SERVICE_PORT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          debug_logging: 'true'
+          stop_service: 'false'
+          enable_persistence_tests: 'false'
+          extra_params: '-skip-from=testservice/test-suppressions.txt -enable-long-running-tests -junit junit/contract-tests-v2.xml'
+
+      - name: Run SDK contract test v3
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        with:
+          test_service_port: ${{ env.TEST_SERVICE_PORT }}
+          version: 'v3'
+          branch: 'v3'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          debug_logging: 'true'
+          enable_persistence_tests: 'false'
+          extra_params: '-skip-from=testservice/test-suppressions-fdv2.txt -enable-long-running-tests -junit junit/contract-tests-v3.xml'
+
+      - name: Upload contract test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-test-results
+          path: junit/
+          if-no-files-found: warn
+
+      - name: Upload test service logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-test-service-log
+          path: /tmp/sdk-contract-test-service.log
+          if-no-files-found: warn
