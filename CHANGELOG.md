@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.18.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.17.1...v7.18.0) (2026-09-17)
+
+
+### Features
+
+* **internal:** add reload orchestration with debouncing and failure retry to file data loading ([#406](https://github.com/launchdarkly/go-server-sdk/issues/406)) ([778569e](https://github.com/launchdarkly/go-server-sdk/commit/778569e3d8490d1e271e92afbbdd3c839bd25209))
+
+
+### Bug Fixes
+
+* Make the file data source's initialized flag safe to read concurrently ([#452](https://github.com/launchdarkly/go-server-sdk/issues/452)) ([5bf0434](https://github.com/launchdarkly/go-server-sdk/commit/5bf0434cffcf22dcc8824f324135194634b0ab41))
+
 ## [7.17.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.17.0...v7.17.1) (2026-09-15)
 
 
