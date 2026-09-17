@@ -26,12 +26,12 @@ import (
 
 // This test runs the test vectors published with the OVERRIDE spec (copied verbatim from
 // sdk-specs/specs/OVERRIDE-sdk-flag-overrides/test-vectors/vectors.json). Each vector sets up
-// LaunchDarkly data, an override layer, and an initialization state, evaluates one flag
-// through the full client stack, and checks the result, reason, and per-evaluation summary
-// contribution.
+// LaunchDarkly data, an override layer, and an initialization state. The test evaluates one
+// flag through the full client stack, and checks the result, reason, and per-evaluation
+// summary contribution.
 const overrideVectorsPath = "testdata/override-vectors/vectors.json"
 
-// The vectors' semantics are versioned; a schema change means this runner needs review.
+// The vectors' semantics are versioned. A schema change means this runner needs review.
 const supportedOverrideVectorSchema = "0.4.0"
 
 type overrideVectorFile struct {
@@ -151,9 +151,9 @@ func runOverrideVector(t *testing.T, vector overrideVector) {
 		require.NoError(t, err)
 		dataSystem = dataSystem.Initializers(&vectorInitializer{changeSet: changeSet})
 	} else {
-		// With no sources at all the client would consider cached data available rather
-		// than applying its not-initialized handling, so configure a synchronizer that
-		// never delivers anything.
+		// With no sources at all, the client would consider cached data available rather
+		// than applying its not-initialized handling. A synchronizer that never delivers
+		// anything avoids that.
 		dataSystem = dataSystem.Synchronizers(newHangingSynchronizer())
 	}
 
