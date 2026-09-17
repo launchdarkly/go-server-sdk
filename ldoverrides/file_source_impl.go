@@ -48,9 +48,9 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	})
 
 	// The initial load happens synchronously, so overrides present in the files are in
-	// effect by the time the client constructor returns. A failure here is not fatal: the
-	// client runs with no overrides, the failure is logged, and the retry (plus any watch
-	// or poll signal) recovers once the files are readable.
+	// effect by the time the client constructor returns. A failure here is not fatal. The
+	// client runs with no overrides and the failure is logged. The retry (plus any watch or
+	// poll signal) recovers once the files are readable.
 	f.reloader.ReloadNow()
 
 	if f.watch {
