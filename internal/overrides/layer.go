@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
-	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -68,17 +67,6 @@ func (l *Layer) All(kind st.DataKind) map[string]st.ItemDescriptor {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.contents[kind]
-}
-
-// HasFlag reports whether the layer contains a flag entry for the given key.
-func (l *Layer) HasFlag(key string) bool {
-	if l.IsEmpty() {
-		return false
-	}
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	_, ok := l.contents[datakinds.Features][key]
-	return ok
 }
 
 // IsEmpty reports whether the layer contains no entries. It is a single atomic read, so the

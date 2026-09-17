@@ -101,23 +101,29 @@ func TestLayerMarksCopiesWithoutMutatingSource(t *testing.T) {
 	assert.True(t, storedSegment.Item.(*ldmodel.Segment).IsOverride)
 }
 
+// layerHasFlag reports whether the layer holds a flag entry for the key.
+func layerHasFlag(layer *Layer, key string) bool {
+	_, ok := layer.Get(datakinds.Features, key)
+	return ok
+}
+
 func TestLayerReplacementSemantics(t *testing.T) {
 	layer := NewLayer()
 	assert.True(t, layer.IsEmpty())
-	assert.False(t, layer.HasFlag("flag1"))
+	assert.False(t, layerHasFlag(layer, "flag1"))
 
 	layer.SetAll([]st.Collection{flagCollection(ldbuilders.NewFlagBuilder("flag1").Build())})
 	assert.False(t, layer.IsEmpty())
-	assert.True(t, layer.HasFlag("flag1"))
+	assert.True(t, layerHasFlag(layer, "flag1"))
 
 	// A replacement is a full snapshot: entries absent from it are removed.
 	layer.SetAll([]st.Collection{flagCollection(ldbuilders.NewFlagBuilder("flag2").Build())})
-	assert.False(t, layer.HasFlag("flag1"))
-	assert.True(t, layer.HasFlag("flag2"))
+	assert.False(t, layerHasFlag(layer, "flag1"))
+	assert.True(t, layerHasFlag(layer, "flag2"))
 
 	layer.SetAll(nil)
 	assert.True(t, layer.IsEmpty())
-	assert.False(t, layer.HasFlag("flag2"))
+	assert.False(t, layerHasFlag(layer, "flag2"))
 }
 
 func TestOverlayGetPrecedence(t *testing.T) {
@@ -335,7 +341,7 @@ func TestSinkSkipsDiffWorkWithoutListeners(t *testing.T) {
 	f.listen = false
 
 	f.sink.SetOverrides([]st.Collection{flagCollection(ldbuilders.NewFlagBuilder("flag1").Build())})
-	assert.True(t, f.layer.HasFlag("flag1"))
+	assert.True(t, layerHasFlag(f.layer, "flag1"))
 	assert.Empty(t, f.notified)
 }
 
