@@ -34,7 +34,10 @@ type DataSourceDescriptor struct {
 	Protocol DataSourceProtocol
 	// Transport is how the component obtains data, if known.
 	Transport DataSourceTransport
-	// Name is the component's name, for example "StreamingDataSourceV2".
+	// Name is the component's name. Built-in components have a default name, for example
+	// "StreamingDataSourceV2", which the configuration builders let an application replace so that
+	// two components of the same type can be told apart, such as a polling initializer that reads from
+	// LaunchDarkly and one that reads from a Relay Proxy.
 	Name string
 }
 

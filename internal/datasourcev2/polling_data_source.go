@@ -31,8 +31,16 @@ type PollingRequester interface {
 // This type is exported from internal so that the PollingDataSourceBuilder tests can verify its
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
+// DefaultPollingDataSourceName is the name of the FDv2 polling component when none is configured.
+const DefaultPollingDataSourceName = "PollingDataSourceV2"
+
+// DefaultFDv1PollingDataSourceName is the name of the FDv1 fallback polling component when none is
+// configured.
+const DefaultFDv1PollingDataSourceName = "FDv1PollingDataSource"
+
 type PollingProcessor struct {
 	requester    PollingRequester
+	name         string
 	pollInterval time.Duration
 	loggers      ldlog.Loggers
 	isClosed     atomic.Bool
@@ -45,16 +53,22 @@ func NewPollingProcessor(
 	cfg datasource.PollingConfig,
 ) *PollingProcessor {
 	httpRequester := newPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey)
-	return newPollingProcessor(context, httpRequester, cfg.PollInterval)
+	return newPollingProcessor(context, httpRequester, cfg.PollInterval, cfg.Name, DefaultPollingDataSourceName)
 }
 
 func newPollingProcessor(
 	context subsystems.ClientContext,
 	requester PollingRequester,
 	pollInterval time.Duration,
+	name string,
+	defaultName string,
 ) *PollingProcessor {
+	if name == "" {
+		name = defaultName
+	}
 	pp := &PollingProcessor{
 		requester:    requester,
+		name:         name,
 		pollInterval: pollInterval,
 		loggers:      context.GetLogging().Loggers,
 		quit:         make(chan struct{}),
@@ -62,9 +76,9 @@ func newPollingProcessor(
 	return pp
 }
 
-//nolint:revive // DataInitializer method.
+// Name returns the configured name of this component, or its default name.
 func (pp *PollingProcessor) Name() string {
-	return "PollingDataSourceV2"
+	return pp.name
 }
 
 // Describe identifies this component as the FDv2 polling synchronizer, or as the FDv1 fallback when
@@ -77,7 +91,6 @@ func (pp *PollingProcessor) Describe() interfaces.DataSourceDescriptor {
 	}
 	if _, ok := pp.requester.(*fdv1ToFDv2Requester); ok {
 		descriptor.Protocol = interfaces.DataSourceProtocolFDv1
-		descriptor.Name = "FDv1PollingDataSource"
 	}
 	return descriptor
 }

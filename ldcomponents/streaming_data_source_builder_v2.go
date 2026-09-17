@@ -14,6 +14,7 @@ type StreamingDataSourceBuilderV2 struct {
 	initialReconnectDelay time.Duration
 	filterKey             ldvalue.OptionalString
 	baseURI               string
+	name                  string
 }
 
 // StreamingDataSourceV2 returns a configurable factory for using streaming mode to get feature flag data.
@@ -50,6 +51,15 @@ func (b *StreamingDataSourceBuilderV2) BaseURI(baseURI string) *StreamingDataSou
 	return b
 }
 
+// Name sets a name for this component. The name appears in log messages and in the data source
+// telemetry that hooks receive, so it can tell apart two components of the same type.
+//
+// The default name is "StreamingDataSourceV2". An empty name keeps the default.
+func (b *StreamingDataSourceBuilderV2) Name(name string) *StreamingDataSourceBuilderV2 {
+	b.name = name
+	return b
+}
+
 // PayloadFilter sets the payload filter key for this streaming connection.
 //
 // Deprecated: Payload filtering is not supported with the FDv2 data system and this method will be
@@ -75,6 +85,7 @@ func (b *StreamingDataSourceBuilderV2) Build(context subsystems.ClientContext) (
 		URI:                   b.baseURI,
 		InitialReconnectDelay: b.initialReconnectDelay,
 		FilterKey:             filterKey,
+		Name:                  b.name,
 	}
 	return datasourcev2.NewStreamProcessor(
 		context,

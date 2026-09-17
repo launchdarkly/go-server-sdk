@@ -17,6 +17,7 @@ type PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
 	baseURI      string
+	name         string
 }
 
 // PollingDataSourceV2 returns a configurable factory for using polling mode to get feature flag data.
@@ -46,6 +47,16 @@ func (b *PollingDataSourceBuilderV2) PollInterval(pollInterval time.Duration) *P
 // BaseURI sets the base URI for the polling connection.
 func (b *PollingDataSourceBuilderV2) BaseURI(baseURI string) *PollingDataSourceBuilderV2 {
 	b.baseURI = baseURI
+	return b
+}
+
+// Name sets a name for this component. The name appears in log messages and in the data source
+// telemetry that hooks receive, so it can tell apart two components of the same type, for example a
+// polling initializer that reads from LaunchDarkly and one that reads from a Relay Proxy.
+//
+// The default name is "PollingDataSourceV2". An empty name keeps the default.
+func (b *PollingDataSourceBuilderV2) Name(name string) *PollingDataSourceBuilderV2 {
+	b.name = name
 	return b
 }
 
@@ -84,6 +95,7 @@ func (b *PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (su
 		BaseURI:      b.baseURI,
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
+		Name:         b.name,
 	}
 	return datasourcev2.NewPollingProcessor(context, cfg), nil
 }

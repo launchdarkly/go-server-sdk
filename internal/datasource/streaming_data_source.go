@@ -71,6 +71,9 @@ type StreamConfig struct {
 	InitialReconnectDelay         time.Duration
 	ExtendedInitialReconnectDelay time.Duration
 	RetryResetInterval            time.Duration
+	// Name is an optional name for the component, used in logs and telemetry. Empty means the
+	// component's default name.
+	Name string
 }
 
 // StreamProcessor is the internal implementation of the streaming data source.

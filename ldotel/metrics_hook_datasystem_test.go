@@ -71,7 +71,8 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 		Events: ldcomponents.NoEvents(),
 		DataSystem: ldcomponents.DataSystem().Custom().
 			Initializers(
-				ldcomponents.PollingDataSourceV2().BaseURI(failingPoll.URL).AsInitializer(),
+				// A configured name tells two polling initializers apart in telemetry and logs.
+				ldcomponents.PollingDataSourceV2().BaseURI(failingPoll.URL).Name("relay-poll").AsInitializer(),
 				ldcomponents.PollingDataSourceV2().BaseURI(healthyPoll.URL).AsInitializer(),
 			).
 			Synchronizers(ldcomponents.StreamingDataSourceV2().BaseURI(stream.URL)),
@@ -89,6 +90,11 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 		attribute.String(attrDataSourceProtocol, "fdv2"),
 		attribute.String(attrDataSourceTransport, "polling"),
 	}
+	relayPolling := []attribute.KeyValue{
+		attribute.String(attrDataSourceName, "relay-poll"),
+		attribute.String(attrDataSourceProtocol, "fdv2"),
+		attribute.String(attrDataSourceTransport, "polling"),
+	}
 	streaming := []attribute.KeyValue{
 		attribute.String(attrDataSourceName, "StreamingDataSourceV2"),
 		attribute.String(attrDataSourceProtocol, "fdv2"),
@@ -97,6 +103,8 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 
 	attempts := requireMetric(t, rm, metricInitializerAttempts)
 	assert.Equal(t, int64(1), sumInt64(t, attempts,
+		append(relayPolling, attribute.String(attrInitializerOutcome, string(ldhooks.InitializerOutcomeFailed)))...))
+	assert.Equal(t, int64(0), sumInt64(t, attempts,
 		append(polling, attribute.String(attrInitializerOutcome, string(ldhooks.InitializerOutcomeFailed)))...))
 	assert.Equal(t, int64(1), sumInt64(t, attempts,
 		append(polling, attribute.String(attrInitializerOutcome, string(ldhooks.InitializerOutcomeSucceeded)))...))

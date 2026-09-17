@@ -67,5 +67,5 @@ func NewFDv1PollingProcessor(
 		requester: datasource.NewPollingRequester(context, context.GetHTTP().CreateHTTPClient(), cfg.BaseURI, cfg.FilterKey),
 		loggers:   context.GetLogging().Loggers,
 	}
-	return newPollingProcessor(context, requester, cfg.PollInterval)
+	return newPollingProcessor(context, requester, cfg.PollInterval, cfg.Name, DefaultFDv1PollingDataSourceName)
 }

@@ -63,8 +63,12 @@ const (
 // This type is exported from internal so that the StreamingDataSourceBuilder tests can verify its
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
+// DefaultStreamingDataSourceName is the name of the FDv2 streaming synchronizer when none is configured.
+const DefaultStreamingDataSourceName = "StreamingDataSourceV2"
+
 type StreamProcessor struct {
 	cfg                        datasource.StreamConfig
+	name                       string
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
@@ -85,6 +89,10 @@ func NewStreamProcessor(
 		loggers: context.GetLogging().Loggers,
 		halt:    make(chan struct{}),
 		cfg:     cfg,
+		name:    cfg.Name,
+	}
+	if sp.name == "" {
+		sp.name = DefaultStreamingDataSourceName
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -100,9 +108,9 @@ func NewStreamProcessor(
 	return sp
 }
 
-//nolint:revive // DataInitializer method.
+// Name returns the configured name of this component, or DefaultStreamingDataSourceName.
 func (sp *StreamProcessor) Name() string {
-	return "StreamingDataSourceV2"
+	return sp.name
 }
 
 // Describe identifies this component as the FDv2 streaming synchronizer.

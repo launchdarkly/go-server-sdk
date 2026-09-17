@@ -26,6 +26,9 @@ type PollingConfig struct {
 	PollInterval                time.Duration
 	FilterKey                   string
 	ExtendedInitialPollInterval time.Duration
+	// Name is an optional name for the component, used in logs and telemetry. Empty means the
+	// component's default name.
+	Name string
 }
 
 // Requester allows PollingProcessor to delegate fetching data to another component.

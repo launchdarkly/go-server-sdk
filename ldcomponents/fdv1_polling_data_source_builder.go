@@ -16,6 +16,7 @@ type FDv1PollingDataSourceBuilderV2 struct {
 	pollInterval time.Duration
 	filterKey    ldvalue.OptionalString
 	baseURI      string
+	name         string
 }
 
 // FDv1PollingDataSourceV2 returns a configurable factory for using polling
@@ -53,6 +54,15 @@ func (b *FDv1PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *FDv1Po
 	return b
 }
 
+// Name sets a name for this component. The name appears in log messages and in the data source
+// telemetry that hooks receive.
+//
+// The default name is "FDv1PollingDataSource". An empty name keeps the default.
+func (b *FDv1PollingDataSourceBuilderV2) Name(name string) *FDv1PollingDataSourceBuilderV2 {
+	b.name = name
+	return b
+}
+
 // Build is called internally by the SDK.
 func (b *FDv1PollingDataSourceBuilderV2) Build(context subsystems.ClientContext) (subsystems.DataSynchronizer, error) {
 	context.GetLogging().Loggers.Warn(
@@ -65,6 +75,7 @@ func (b *FDv1PollingDataSourceBuilderV2) Build(context subsystems.ClientContext)
 		BaseURI:      b.baseURI,
 		PollInterval: b.pollInterval,
 		FilterKey:    filterKey,
+		Name:         b.name,
 	}
 	return datasourcev2.NewFDv1PollingProcessor(context, cfg), nil
 }
