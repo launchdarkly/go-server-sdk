@@ -9,8 +9,8 @@ import (
 
 // TestOverrideSource is a simple programmatic OverrideSource for testing the override
 // system without any file machinery. It also serves as a reference for the seam an
-// override source implements: Start delivers the initial data synchronously, and
-// SetOverrides pushes replacement snapshots to the sink at any time afterward.
+// override source implements. Start delivers the initial data synchronously. SetOverrides
+// pushes replacement snapshots to the sink at any time afterward.
 type TestOverrideSource struct {
 	mu          sync.Mutex
 	sink        subsystems.OverrideSink
@@ -47,7 +47,7 @@ func (t *TestOverrideSource) SetOverrides(data []ldstoretypes.Collection) {
 	}
 }
 
-// Close marks the source closed; subsequent SetOverrides calls are ignored.
+// Close marks the source closed. Subsequent SetOverrides calls are ignored.
 func (t *TestOverrideSource) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()

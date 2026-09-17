@@ -102,10 +102,10 @@ type FDv2 struct {
 	recoveryCond func(status interfaces.DataSourceStatus) bool
 
 	// The following are non-nil only when an override source is configured. The layer holds
-	// override entries, the overlay serves them in preference to the store's data at the
-	// store read boundary, and the source populates the layer at runtime. The override
-	// system is deliberately outside the initializer/synchronizer pipeline and never
-	// affects data availability, persistence, or the relay data destination.
+	// override entries. The overlay serves them in preference to the store's data at the
+	// store read boundary. The source populates the layer at runtime. The override system is
+	// deliberately outside the initializer/synchronizer pipeline and never affects data
+	// availability, persistence, or the relay data destination.
 	overrideLayer  *overrides.Layer
 	overlay        *overrides.Overlay
 	overrideSource subsystems.OverrideSource
