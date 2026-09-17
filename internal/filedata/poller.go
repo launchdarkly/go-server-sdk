@@ -13,16 +13,18 @@ type fileState struct {
 	size    int64
 }
 
-// Poller detects changes to a set of files by examining them on a fixed interval, as an
-// alternative or supplement to filesystem change notifications for environments where those
-// are unavailable or unreliable. A change to any file's modification time or size — including
-// the file appearing or disappearing — invokes the onChange callback. A file that cannot be
-// examined is treated as absent, so a file becoming temporarily unreadable and recovering is
-// also detected.
+// Poller detects changes to a set of files by examining them on a fixed interval. Use it
+// where file system change notifications are not available or not reliable, alone or
+// together with them. A change to the modification time or the size of any file invokes
+// the onChange callback. A file that appears or disappears is also a change. A file that
+// os.Stat cannot examine counts as absent.
 //
-// Detection is deliberately generous: onChange may be invoked for changes that do not alter
-// the effective data, and consumers are expected to feed it into a Reloader, whose debouncing
-// and skip-unchanged handling absorb the excess.
+// The poller samples the files once per interval and compares only modification time and
+// size. A rewrite that keeps both values is not detected.
+//
+// Detection is generous. onChange can run for a change that does not alter the effective
+// data. Feed it into a Reloader, whose debouncing and skip-unchanged handling absorb the
+// excess.
 type Poller struct {
 	paths     []string
 	interval  time.Duration
@@ -33,8 +35,8 @@ type Poller struct {
 	closeOnce sync.Once
 }
 
-// NewPoller creates a started Poller. The initial observation happens immediately, so only
-// changes after creation invoke onChange. Call Close to stop it.
+// NewPoller creates a started Poller. It examines the files once before it returns, so
+// only later changes invoke onChange. Call Close to stop it.
 func NewPoller(paths []string, interval time.Duration, onChange func()) *Poller {
 	p := &Poller{
 		paths:    paths,
@@ -48,11 +50,13 @@ func NewPoller(paths []string, interval time.Duration, onChange func()) *Poller 
 	return p
 }
 
-// Close stops the poller. The onChange callback will not be invoked after Close returns.
+// Close stops the poller. It does not wait for an examination or a callback that is in
+// progress. A file system that does not respond must not block shutdown. As a result,
+// onChange can run one more time shortly after Close returns. Consumers tolerate a late
+// call, as they do for a late reload.
 func (p *Poller) Close() {
 	p.closeOnce.Do(func() {
 		close(p.closeCh)
-		<-p.doneCh
 	})
 }
 
