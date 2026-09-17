@@ -296,10 +296,10 @@ func TestSinkSegmentOverrideFansOutToDependentFlags(t *testing.T) {
 }
 
 func TestSinkPrerequisiteFanOutUsesOldAndNewViews(t *testing.T) {
-	// The override for "parent" declares a prerequisite on "prereq"; the base definition of
+	// The override for "parent" declares a prerequisite on "prereq". The base definition of
 	// "parent" has no prerequisites. When the override is removed, the dependency edge only
-	// exists in the old merged view, and "parent" must still be notified when "prereq"
-	// changes in the same replacement.
+	// exists in the old merged view. "parent" must still be notified when "prereq" changes
+	// in the same replacement.
 	parentOverride := ldbuilders.NewFlagBuilder("parent").Version(1).
 		AddPrerequisite("prereq", 0).Build()
 	base := &fakeBaseStore{
@@ -314,8 +314,8 @@ func TestSinkPrerequisiteFanOutUsesOldAndNewViews(t *testing.T) {
 	f.sink.SetOverrides([]st.Collection{flagCollection(parentOverride)})
 	assert.Equal(t, []string{"parent"}, f.takeNotified())
 
-	// Replace the layer with an override of the prerequisite only: "parent"'s override is
-	// removed (a change) and "prereq" is added (a change); fan-out through the old view's
+	// Replace the layer with an override of the prerequisite only. The "parent" override is
+	// removed (a change) and "prereq" is added (a change). Fan-out through the old view's
 	// edge also reaches "parent".
 	f.sink.SetOverrides([]st.Collection{flagCollection(
 		ldbuilders.NewFlagBuilder("prereq").Version(99).Build(),

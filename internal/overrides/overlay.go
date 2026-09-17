@@ -5,10 +5,10 @@ import (
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
-// Overlay merges an override Layer over a base store: a read for a key returns the override
-// entry when one exists and the base entry otherwise. Placing the overlay at the store read
-// boundary is what makes targeting rules, prerequisites, and segment matches behave
-// identically for overridden and ordinary data — they are the same reads through the same
+// Overlay merges an override Layer over a base store. A read for a key returns the override
+// entry when one exists, and the base entry otherwise. The overlay sits at the store read
+// boundary. That placement makes targeting rules, prerequisites, and segment matches behave
+// identically for overridden and ordinary data. They are the same reads through the same
 // boundary.
 type Overlay struct {
 	base  subsystems.ReadOnlyStore
@@ -32,9 +32,9 @@ func (o *Overlay) Get(kind st.DataKind, key string) (st.ItemDescriptor, error) {
 	return o.base.Get(kind, key)
 }
 
-// GetAll returns the union of the base store's items and the layer's items, with the
-// override entry winning for any key present in both (including keys the base holds as
-// deleted-item tombstones).
+// GetAll returns the union of the base store's items and the layer's items. The override
+// entry wins for any key present in both. This includes keys the base holds as deleted-item
+// tombstones.
 func (o *Overlay) GetAll(kind st.DataKind) ([]st.KeyedItemDescriptor, error) {
 	baseItems, err := o.base.GetAll(kind)
 	if err != nil {

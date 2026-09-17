@@ -11,8 +11,8 @@ import (
 var diffKinds = []st.DataKind{datakinds.Features, datakinds.Segments} //nolint:gochecknoglobals
 
 // computeAffectedFlags returns the keys of all flags whose merged-view evaluation may have
-// changed when the override layer was replaced: the flags whose override entries were
-// added, removed, or changed, plus — through dependency fan-out — every flag that depends,
+// changed when the override layer was replaced. The result includes the flags whose override
+// entries were added, removed, or changed. Dependency fan-out adds every flag that depends,
 // directly or transitively, on any added, removed, or changed entry of either kind.
 func computeAffectedFlags(
 	oldOverrides, newOverrides layerContents,
@@ -24,9 +24,9 @@ func computeAffectedFlags(
 	}
 
 	// Dependency edges are computed over both the old and the new merged views, because a
-	// replacement can rewire dependencies: removing a flag override, for example, restores
-	// the LaunchDarkly definition's prerequisite edges, and flags that depended on the
-	// override's references only exist as dependents in the old view.
+	// replacement can rewire dependencies. For example, removing a flag override restores the
+	// prerequisite edges of the LaunchDarkly definition. Flags that depended on the override's
+	// references exist as dependents only in the old view.
 	oldTracker := newTrackerFromView(oldMerged)
 	newTracker := newTrackerFromView(newMerged)
 	affected := make(toposort.Neighbors)
@@ -45,11 +45,11 @@ func computeAffectedFlags(
 }
 
 // diffOverrides returns a vertex for each key whose override entry differs between the two
-// layer snapshots. An added or removed entry is always a change even when its content is
-// identical to the underlying LaunchDarkly data, because the override marker alone changes
-// the served entry. Entries present in both snapshots are compared by their serialized
-// form: the layer is rebuilt wholesale on every update, so pointer or version comparison
-// would report every retained entry as changed.
+// layer snapshots. An added or removed entry is always a change, even when its content
+// matches the underlying LaunchDarkly data. The override marker alone changes the served
+// entry. Entries present in both snapshots are compared by their serialized form. The layer
+// is rebuilt wholesale on every update, so pointer or version comparison would report every
+// retained entry as changed.
 func diffOverrides(oldOverrides, newOverrides layerContents) []toposort.Vertex {
 	var seeds []toposort.Vertex
 	for _, kind := range diffKinds {
@@ -82,7 +82,7 @@ func itemsEqual(kind st.DataKind, a, b st.ItemDescriptor) bool {
 type mergedView map[st.DataKind]map[string]st.ItemDescriptor
 
 // snapshotMergedView captures the merged view of a base store and a layer snapshot. A base
-// read failure for a kind yields just the overrides for that kind, which degrades the
+// read failure for a kind yields just the overrides for that kind. This degrades the
 // dependency fan-out but never loses the directly changed keys.
 func snapshotMergedView(base interface {
 	GetAll(st.DataKind) ([]st.KeyedItemDescriptor, error)

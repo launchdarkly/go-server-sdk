@@ -47,7 +47,7 @@ func (s *Sink) SetOverrides(data []st.Collection) {
 	defer s.mu.Unlock()
 
 	// Computing affected flags requires snapshots of the merged view before and after the
-	// replacement; skip all of that work when nothing is listening.
+	// replacement. Skip all of that work when nothing is listening.
 	if !s.hasListeners() {
 		s.layer.SetAll(data)
 		return

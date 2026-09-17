@@ -1,6 +1,6 @@
-// Package overrides implements the flag/segment override layer: a runtime-mutable
-// collection of flag and segment definitions, supplied by an override source, that takes
-// precedence over LaunchDarkly data at evaluation time.
+// Package overrides implements the flag/segment override layer. The layer is a runtime-mutable
+// collection of flag and segment definitions, supplied by an override source. Those
+// definitions take precedence over LaunchDarkly data at evaluation time.
 package overrides
 
 import (
@@ -27,11 +27,11 @@ func NewLayer() *Layer {
 	return &Layer{contents: layerContents{}}
 }
 
-// SetAll atomically replaces the entire layer contents; an empty or nil slice clears it.
-// Every reader treats the stored entities as immutable, and sources may retain the entities
-// they supplied, so each flag or segment is stored as a marked copy rather than marking the
-// caller's value. Returns the previous and new contents (the returned maps must not be
-// modified).
+// SetAll atomically replaces the entire layer contents. An empty or nil slice clears the
+// layer. Every reader treats the stored entities as immutable, and sources may retain the
+// entities they supplied. For that reason, each flag or segment is stored as a marked copy.
+// The caller's value is never marked. Returns the previous and new contents. The returned
+// maps must not be modified.
 func (l *Layer) SetAll(data []st.Collection) (previous, current layerContents) {
 	replacement := layerContents{}
 	count := 0
@@ -88,9 +88,10 @@ func (l *Layer) IsEmpty() bool {
 }
 
 // markedCopy returns the item with its entity replaced by a copy carrying the override
-// marker. The copies are also re-preprocessed defensively: entities that came from the
-// standard deserialization or builders already are, but the sink cannot know how an
-// override source constructed them, and preprocessing is idempotent.
+// marker. The copies are also re-preprocessed defensively. Entities that came from the
+// standard deserialization or builders are already preprocessed, but the sink cannot know
+// how an override source constructed them. Preprocessing is idempotent, so the repeat is
+// safe.
 func markedCopy(item st.ItemDescriptor) st.ItemDescriptor {
 	switch entity := item.Item.(type) {
 	case *ldmodel.FeatureFlag:
