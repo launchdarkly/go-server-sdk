@@ -58,12 +58,19 @@ func overrideFlagData(flags ...ldmodel.FeatureFlag) []st.Collection {
 	return []st.Collection{coll}
 }
 
+// assertNoOverrideFor checks that a read through the data system's store finds no entry for the key.
+func assertNoOverrideFor(t *testing.T, system *FDv2, key string) {
+	t.Helper()
+	item, err := system.Store().Get(datakinds.Features, key)
+	require.NoError(t, err)
+	assert.Nil(t, item.Item)
+}
+
 func TestFDv2WithoutOverrideSourceServesRawStore(t *testing.T) {
 	system := makeOverrideTestFDv2(t, false, nil)
 	_, isRawStore := system.Store().(*Store)
 	assert.True(t, isRawStore, "Store() should be the raw store when no override source is configured")
-	assert.False(t, system.HasOverrides())
-	assert.False(t, system.HasFlagOverride("anything"))
+	assertNoOverrideFor(t, system, "anything")
 }
 
 func TestFDv2WithOverrideSourceServesOverlay(t *testing.T) {
@@ -74,15 +81,13 @@ func TestFDv2WithOverrideSourceServesOverlay(t *testing.T) {
 	_, isOverlay := system.Store().(*overrides.Overlay)
 	assert.True(t, isOverlay, "Store() should be the overlay when an override source is configured")
 
-	// The source is not started (and the layer is empty) until Start.
-	assert.False(t, system.HasOverrides())
+	// The source is not started until Start, so the layer is empty.
+	assertNoOverrideFor(t, system, "flag1")
 
 	startAndWait(t, system)
 
 	assert.True(t, source.IsStarted())
-	assert.True(t, system.HasOverrides())
-	assert.True(t, system.HasFlagOverride("flag1"))
-	assert.False(t, system.HasFlagOverride("flag2"))
+	assertNoOverrideFor(t, system, "flag2")
 
 	item, err := system.Store().Get(datakinds.Features, "flag1")
 	require.NoError(t, err)
@@ -135,13 +140,7 @@ func TestFDv2DisabledDoesNotStartOverrideSource(t *testing.T) {
 	startAndWait(t, system)
 
 	assert.False(t, source.IsStarted())
-	assert.False(t, system.HasOverrides())
+	assertNoOverrideFor(t, system, "flag1")
 	_, isRawStore := system.Store().(*Store)
 	assert.True(t, isRawStore)
-}
-
-func TestFDv1HasNoOverrides(t *testing.T) {
-	system := &FDv1{}
-	assert.False(t, system.HasFlagOverride("anything"))
-	assert.False(t, system.HasOverrides())
 }
