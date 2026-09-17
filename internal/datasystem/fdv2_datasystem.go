@@ -571,17 +571,6 @@ func (f *FDv2) Store() subsystems.ReadOnlyStore {
 	return f.store
 }
 
-// HasFlagOverride reports whether the override layer currently contains a flag entry for
-// the given key.
-func (f *FDv2) HasFlagOverride(key string) bool {
-	return f.overrideLayer != nil && f.overrideLayer.HasFlag(key)
-}
-
-// HasOverrides reports whether the override layer currently contains any entries.
-func (f *FDv2) HasOverrides() bool {
-	return f.overrideLayer != nil && !f.overrideLayer.IsEmpty()
-}
-
 //nolint:revive // DataSystem method.
 func (f *FDv2) DataAvailability() DataAvailability {
 	if f.store.Selector().IsDefined() {
