@@ -149,7 +149,7 @@ func TestFileSourceStartsWithMissingFile(t *testing.T) {
 
 	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
 
-	// No snapshot at startup; the client runs with no overrides.
+	// No snapshot at startup. The client runs with no overrides.
 	sink.requireNoSnapshot(t, 200*time.Millisecond)
 
 	// Once the file appears, the watch (or the failure retry) picks it up unprompted.

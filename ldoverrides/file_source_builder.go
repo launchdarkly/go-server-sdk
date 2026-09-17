@@ -12,14 +12,14 @@ import (
 type DuplicateKeysHandling string
 
 const (
-	// DuplicateKeysFail is an option for FileSourceBuilder.DuplicateKeysHandling, meaning that
-	// a reload fails (leaving the previously loaded overrides in effect) if the same flag or
-	// segment key appears in more than one file.
+	// DuplicateKeysFail is an option for FileSourceBuilder.DuplicateKeysHandling. With this
+	// option, a reload fails if the same flag or segment key appears in more than one file.
+	// The previously loaded overrides stay in effect.
 	DuplicateKeysFail DuplicateKeysHandling = "fail"
 
-	// DuplicateKeysKeepFirst is an option for FileSourceBuilder.DuplicateKeysHandling, meaning
-	// that when the same key appears in more than one file, the entry from the first configured
-	// file is kept and the others are discarded.
+	// DuplicateKeysKeepFirst is an option for FileSourceBuilder.DuplicateKeysHandling. With
+	// this option, when the same key appears in more than one file, the entry from the first
+	// configured file is kept. The others are discarded.
 	DuplicateKeysKeepFirst DuplicateKeysHandling = "ignore"
 )
 
@@ -47,23 +47,23 @@ type FileSourceBuilder struct {
 	pollInterval          time.Duration
 }
 
-// FileSource returns a builder for a file-based override source, which reads flag and
+// FileSource returns a builder for a file-based override source. The source reads flag and
 // segment overrides from one or more local files and reloads them as the files change.
 //
 // The files use the same document format as the file data sources (ldfiledata and
-// ldfiledatav2): a JSON or YAML document with optional "flags", "flagValues", and
-// "segments" members. "flagValues" entries are expanded into full flag definitions that
+// ldfiledatav2). Each file is a JSON or YAML document with optional "flags", "flagValues",
+// and "segments" members. "flagValues" entries are expanded into full flag definitions that
 // return the given value for every context. When multiple files are configured, their
-// entries are combined; the configured order determines which file wins under the
+// entries are combined. The configured order determines which file wins under the
 // duplicate-key handling.
 //
 // A reload replaces the entire override set, so removing an entry from the files removes
-// the override. A file that is missing or cannot be parsed makes that whole reload fail,
-// leaving the previously loaded overrides in effect; the source logs the failure, retries
-// after a short delay, and recovers on its own once the files are readable again. At
-// startup, failing to load simply means the client runs with no overrides.
+// the override. A file that is missing or cannot be parsed makes that whole reload fail.
+// The previously loaded overrides stay in effect. The source logs the failure, retries after
+// a short delay, and recovers on its own once the files are readable again. At startup,
+// failing to load simply means the client runs with no overrides.
 //
-// By default the source watches the files for changes using filesystem notifications; see
+// By default the source watches the files for changes using filesystem notifications. See
 // Watch and Poll for environments where notifications are unavailable or unreliable.
 func FileSource() *FileSourceBuilder {
 	return &FileSourceBuilder{
@@ -89,9 +89,9 @@ func (b *FileSourceBuilder) DuplicateKeysHandling(handling DuplicateKeysHandling
 }
 
 // Watch enables or disables reloading in response to filesystem change notifications. It
-// is enabled by default. Disable it on filesystems where notifications do not work (in
-// which case enable Poll instead); both may be enabled together, in which case whichever
-// signal arrives first causes the reload.
+// is enabled by default. Disable it on filesystems where notifications do not work, and
+// enable Poll instead. Both may be enabled together. In that case, whichever signal arrives
+// first causes the reload.
 func (b *FileSourceBuilder) Watch(enabled bool) *FileSourceBuilder {
 	b.watch = enabled
 	return b
@@ -99,7 +99,7 @@ func (b *FileSourceBuilder) Watch(enabled bool) *FileSourceBuilder {
 
 // Poll enables or disables examining the files for changes on a fixed interval. It is
 // disabled by default. Polling is useful where filesystem notifications are unavailable or
-// unreliable, such as some network filesystems, container mounts, and directories whose
+// unreliable. Examples are some network filesystems, container mounts, and directories whose
 // contents are swapped via symlinks (as Kubernetes does for mounted ConfigMaps).
 func (b *FileSourceBuilder) Poll(enabled bool) *FileSourceBuilder {
 	b.poll = enabled
@@ -107,7 +107,7 @@ func (b *FileSourceBuilder) Poll(enabled bool) *FileSourceBuilder {
 }
 
 // PollInterval sets the interval used when polling is enabled. The default is
-// DefaultPollInterval; an interval below MinimumPollInterval is raised to the minimum.
+// DefaultPollInterval. An interval below MinimumPollInterval is raised to the minimum.
 func (b *FileSourceBuilder) PollInterval(interval time.Duration) *FileSourceBuilder {
 	b.pollInterval = interval
 	return b
