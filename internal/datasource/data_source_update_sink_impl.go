@@ -31,6 +31,20 @@ type DataSourceUpdateSinkImpl struct {
 	lastStoreUpdateFailed       bool
 	lock                        sync.Mutex
 	environmentID               ldvalue.OptionalString
+	statusObserver              internal.DataSourceStatusObserver
+	descriptor                  intf.DataSourceDescriptor
+}
+
+// SetStatusObserver registers an observer that is called synchronously on each status change.
+// It must be called before the data source starts.
+func (d *DataSourceUpdateSinkImpl) SetStatusObserver(observer internal.DataSourceStatusObserver) {
+	d.statusObserver = observer
+}
+
+// SetDescriptor records which data source component reports through this sink. It must be called
+// before the data source starts.
+func (d *DataSourceUpdateSinkImpl) SetDescriptor(descriptor intf.DataSourceDescriptor) {
+	d.descriptor = descriptor
 }
 
 // NewDataSourceUpdateSinkImpl creates the internal implementation of DataSourceUpdateSink.
@@ -151,15 +165,18 @@ func (d *DataSourceUpdateSinkImpl) UpdateStatus(
 	if newState == "" {
 		return
 	}
-	if statusToBroadcast, changed := d.maybeUpdateStatus(newState, newError); changed {
+	if oldStatus, statusToBroadcast, changed := d.maybeUpdateStatus(newState, newError); changed {
 		d.dataSourceStatusBroadcaster.Broadcast(statusToBroadcast)
+		if d.statusObserver != nil {
+			d.statusObserver.OnDataSourceStatusChanged(oldStatus, statusToBroadcast, d.descriptor)
+		}
 	}
 }
 
 func (d *DataSourceUpdateSinkImpl) maybeUpdateStatus(
 	newState intf.DataSourceState,
 	newError intf.DataSourceErrorInfo,
-) (intf.DataSourceStatus, bool) {
+) (intf.DataSourceStatus, intf.DataSourceStatus, bool) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
@@ -170,7 +187,7 @@ func (d *DataSourceUpdateSinkImpl) maybeUpdateStatus(
 	}
 
 	if newState == oldStatus.State && newError.Kind == "" {
-		return intf.DataSourceStatus{}, false
+		return oldStatus, intf.DataSourceStatus{}, false
 	}
 
 	stateSince := oldStatus.StateSince
@@ -189,7 +206,7 @@ func (d *DataSourceUpdateSinkImpl) maybeUpdateStatus(
 
 	d.outageTracker.trackDataSourceState(newState, newError)
 
-	return d.currentStatus, true
+	return oldStatus, d.currentStatus, true
 }
 
 //nolint:revive // no doc comment for standard method

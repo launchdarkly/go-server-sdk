@@ -188,6 +188,15 @@ func (pp *PollingProcessor) Close() error {
 	return nil
 }
 
+// Describe identifies this component as the FDv1 polling data source.
+func (pp *PollingProcessor) Describe() interfaces.DataSourceDescriptor {
+	return interfaces.DataSourceDescriptor{
+		Protocol:  interfaces.DataSourceProtocolFDv1,
+		Transport: interfaces.DataSourceTransportPolling,
+		Name:      "PollingDataSource",
+	}
+}
+
 //nolint:revive // no doc comment for standard method
 func (pp *PollingProcessor) IsInitialized() bool {
 	return pp.isInitialized.Get()

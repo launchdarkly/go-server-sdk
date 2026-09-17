@@ -125,6 +125,15 @@ func NewStreamProcessor(
 	return sp
 }
 
+// Describe identifies this component as the FDv1 streaming data source.
+func (sp *StreamProcessor) Describe() interfaces.DataSourceDescriptor {
+	return interfaces.DataSourceDescriptor{
+		Protocol:  interfaces.DataSourceProtocolFDv1,
+		Transport: interfaces.DataSourceTransportStreaming,
+		Name:      "StreamingDataSource",
+	}
+}
+
 //nolint:revive // no doc comment for standard method
 func (sp *StreamProcessor) IsInitialized() bool {
 	return sp.isInitialized.Get()

@@ -67,6 +67,21 @@ func (pp *PollingProcessor) Name() string {
 	return "PollingDataSourceV2"
 }
 
+// Describe identifies this component as the FDv2 polling synchronizer, or as the FDv1 fallback when
+// it polls the FDv1 endpoint.
+func (pp *PollingProcessor) Describe() interfaces.DataSourceDescriptor {
+	descriptor := interfaces.DataSourceDescriptor{
+		Protocol:  interfaces.DataSourceProtocolFDv2,
+		Transport: interfaces.DataSourceTransportPolling,
+		Name:      pp.Name(),
+	}
+	if _, ok := pp.requester.(*fdv1ToFDv2Requester); ok {
+		descriptor.Protocol = interfaces.DataSourceProtocolFDv1
+		descriptor.Name = "FDv1PollingDataSource"
+	}
+	return descriptor
+}
+
 //nolint:revive // DataInitializer method.
 func (pp *PollingProcessor) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
 	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())

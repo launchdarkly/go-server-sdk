@@ -104,6 +104,7 @@ func (b *EventProcessorBuilder) Build(
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		eventsConfig.DiagnosticsManager = cci.DiagnosticsManager
+		eventsConfig.EventMetrics = cci.EventMetrics
 	}
 	return ldevents.NewDefaultEventProcessor(eventsConfig), nil
 }

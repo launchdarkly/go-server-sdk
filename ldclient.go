@@ -252,6 +252,40 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	client.offline = config.Offline
 
+	// Prepare environment metatadata for plugins
+	environmentMetadata := ldplugins.EnvironmentMetadata{
+		Sdk: ldplugins.SdkMetadata{
+			Name:           "GoClient",
+			Version:        internal.SDKVersion,
+			WrapperName:    clientContext.HTTP.WrapperName,
+			WrapperVersion: clientContext.HTTP.WrapperVersion,
+		},
+		SdkKey: client.sdkKey,
+		Application: ldplugins.ApplicationMetadata{
+			ID:      config.ApplicationInfo.ApplicationID,
+			Version: config.ApplicationInfo.ApplicationVersion,
+		},
+	}
+
+	allHooks := config.Hooks
+
+	// Append plugin hooks to hooks from config
+	for _, plugin := range config.Plugins {
+		hooks := plugin.GetHooks(environmentMetadata)
+		allHooks = append(allHooks, hooks...)
+	}
+
+	// The hook runner is created before the data system and the event processor so that hooks with
+	// data source status or event delivery handlers can observe those components from the start.
+	// The environment ID is read from the data system lazily, at evaluation time.
+	client.hookRunner = hooks.NewRunner(loggers, allHooks, lazyEnvironmentIDProvider{client: client})
+	if client.hookRunner.HasDataSourceHandlers() {
+		clientContext.DataSourceStatusObserver = client.hookRunner
+	}
+	if client.hookRunner.HasEventDeliveryHandlers() {
+		clientContext.EventMetrics = hooks.NewEventMetricsAdapter(client.hookRunner)
+	}
+
 	if config.DataSystem == nil {
 		system, err := datasystem.NewFDv1(config.Offline, config.DataStore, config.DataSource, clientContext)
 		if err != nil {
@@ -330,31 +364,6 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 			return value
 		},
 	)
-
-	// Prepare environment metatadata for plugins
-	environmentMetadata := ldplugins.EnvironmentMetadata{
-		Sdk: ldplugins.SdkMetadata{
-			Name:           "GoClient",
-			Version:        internal.SDKVersion,
-			WrapperName:    clientContext.HTTP.WrapperName,
-			WrapperVersion: clientContext.HTTP.WrapperVersion,
-		},
-		SdkKey: client.sdkKey,
-		Application: ldplugins.ApplicationMetadata{
-			ID:      config.ApplicationInfo.ApplicationID,
-			Version: config.ApplicationInfo.ApplicationVersion,
-		},
-	}
-
-	allHooks := config.Hooks
-
-	// Append plugin hooks to hooks from config
-	for _, plugin := range config.Plugins {
-		hooks := plugin.GetHooks(environmentMetadata)
-		allHooks = append(allHooks, hooks...)
-	}
-
-	client.hookRunner = hooks.NewRunner(loggers, allHooks, client.dataSystem.EnvironmentIDProvider())
 
 	clientValid = true
 

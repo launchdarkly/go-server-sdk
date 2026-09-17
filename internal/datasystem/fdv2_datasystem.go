@@ -11,6 +11,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -97,6 +98,23 @@ type FDv2 struct {
 	mu     sync.Mutex
 	status interfaces.DataSourceStatus
 
+	// statusObserver, if non-nil, is called synchronously on each status change and lifecycle event.
+	statusObserver internal.DataSourceStatusObserver
+
+	// startTime is when Start was called. It anchors the initialization duration.
+	startTime time.Time
+
+	// currentSource identifies the component whose status is being reported. Protected by mu.
+	currentSource interfaces.DataSourceDescriptor
+
+	// reportedSource is the source most recently passed to the observer. A status that is
+	// unchanged but comes from a different source is still reported. Protected by mu.
+	reportedSource interfaces.DataSourceDescriptor
+
+	// nextSyncReason is the reason the next synchronizer will start. Only the synchronizer task
+	// and the run task, which precedes it, touch this field.
+	nextSyncReason ldhooks.SynchronizerChangeReason
+
 	fallbackCond func(status interfaces.DataSourceStatus) bool
 	recoveryCond func(status interfaces.DataSourceStatus) bool
 }
@@ -126,6 +144,8 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		broadcasters:             bcasters,
 		dataSourceStatusProvider: &dataStatusProvider{},
 		environmentIDProvider:    &environmentIDProvider{},
+		statusObserver:           clientContext.DataSourceStatusObserver,
+		nextSyncReason:           ldhooks.SynchronizerChangeReasonInitial,
 	}
 
 	// Unfortunate circular reference.
@@ -191,6 +211,7 @@ func (f *FDv2) Start(closeWhenReady chan struct{}) {
 		close(closeWhenReady)
 		return
 	}
+	f.startTime = time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	f.cancel = cancel
 	f.launchTask(func() {
@@ -214,6 +235,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 			f.loggers.Warn("Falling back to FDv1 protocol")
 			f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
 			f.currentSyncIndex = 0
+			f.nextSyncReason = ldhooks.SynchronizerChangeReasonFDv1Fallback
 		} else {
 			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
 			f.synchronizerBuilders = nil
@@ -268,12 +290,17 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
 ) (fallbackToFDv1 bool, errorInfo interfaces.DataSourceErrorInfo) {
-	// Name of the last initializer whose data was applied to the store.
+	// Name and descriptor of the last initializer whose data was applied to the store.
 	appliedFrom := ""
+	var appliedSource interfaces.DataSourceDescriptor
 	for _, initializer := range f.initializers {
+		source := subsystems.DescribeDataSource(initializer)
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
+		startedAt := time.Now()
 		basis, fallback, err := initializer.Fetch(f.store, ctx)
+		elapsed := time.Since(startedAt)
 		if errors.Is(err, context.Canceled) {
+			f.reportInitializer(source, ldhooks.InitializerOutcomeCancelled, err, elapsed, false)
 			return false, interfaces.DataSourceErrorInfo{}
 		}
 		if fallback {
@@ -287,34 +314,89 @@ func (f *FDv2) runInitializers(
 			} else {
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol", initializer.Name())
 			}
-			if basis != nil && f.applyBasis(*basis, initializer.Name()) {
+			applied := basis != nil && f.applyBasis(*basis, initializer.Name())
+			if applied {
 				appliedFrom = initializer.Name()
+				appliedSource = source
 			}
+			f.reportInitializer(source, ldhooks.InitializerOutcomeFallback, err, elapsed, applied)
 			if appliedFrom != "" {
 				f.loggers.Infof("Initialized via %s before falling back to FDv1", appliedFrom)
-				f.completeInitialization(closeWhenReady)
+				f.completeInitialization(closeWhenReady, appliedSource)
 			}
 			return true, errorInfo
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
+			f.reportInitializer(source, ldhooks.InitializerOutcomeFailed, err, elapsed, false)
 			continue
 		}
 		if !f.applyBasis(*basis, initializer.Name()) {
+			f.reportInitializer(source, ldhooks.InitializerOutcomeNoData, nil, elapsed, false)
 			continue
 		}
 		appliedFrom = initializer.Name()
+		appliedSource = source
 		if basis.ChangeSet.Selector().IsDefined() {
 			f.loggers.Infof("Initialized via %s", initializer.Name())
-			f.completeInitialization(closeWhenReady)
+			f.reportInitializer(source, ldhooks.InitializerOutcomeSucceeded, nil, elapsed, true)
+			f.completeInitialization(closeWhenReady, source)
 			return false, interfaces.DataSourceErrorInfo{}
 		}
+		f.reportInitializer(source, ldhooks.InitializerOutcomeSucceededWithoutSelector, nil, elapsed, true)
 	}
 	if appliedFrom != "" {
 		f.loggers.Infof("Initialized via %s; the data has no selector", appliedFrom)
-		f.completeInitialization(closeWhenReady)
+		f.completeInitialization(closeWhenReady, appliedSource)
 	}
 	return false, interfaces.DataSourceErrorInfo{}
+}
+
+// reportInitializer tells the observer, if any, how one initializer attempt ended.
+func (f *FDv2) reportInitializer(
+	source interfaces.DataSourceDescriptor,
+	outcome ldhooks.InitializerOutcome,
+	err error,
+	elapsed time.Duration,
+	applied bool,
+) {
+	if f.statusObserver != nil {
+		f.statusObserver.OnInitializerCompleted(ldhooks.NewInitializerContext(source, outcome, err, elapsed, applied))
+	}
+}
+
+// reportSynchronizerChange tells the observer, if any, that the active synchronizer changed.
+func (f *FDv2) reportSynchronizerChange(
+	previous, current interfaces.DataSourceDescriptor,
+	reason ldhooks.SynchronizerChangeReason,
+) {
+	if f.statusObserver != nil {
+		f.statusObserver.OnSynchronizerChanged(
+			ldhooks.NewSynchronizerChangeContext(previous, current, reason, f.getStatus().LastError))
+	}
+}
+
+// markReady closes the readiness channel once and reports the end of initialization.
+func (f *FDv2) markReady(closeWhenReady chan<- struct{}, source interfaces.DataSourceDescriptor, succeeded bool) {
+	f.readyOnce.Do(func() {
+		close(closeWhenReady)
+		if f.statusObserver != nil {
+			f.statusObserver.OnInitializationCompleted(
+				ldhooks.NewInitializationContext(source, time.Since(f.startTime), succeeded))
+		}
+	})
+}
+
+func (f *FDv2) setCurrentSource(source interfaces.DataSourceDescriptor) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.currentSource = source
+}
+
+func (f *FDv2) getCurrentSource() interfaces.DataSourceDescriptor {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.currentSource
 }
 
 // applyBasis applies an initializer's basis to the store. It reports whether the store received
@@ -332,33 +414,32 @@ func (f *FDv2) applyBasis(basis subsystems.Basis, initializerName string) bool {
 // completeInitialization marks initialization as complete from the initializer phase. The status
 // update comes before the readiness signal, so a caller that wakes on the signal observes the
 // valid status.
-func (f *FDv2) completeInitialization(closeWhenReady chan struct{}) {
+func (f *FDv2) completeInitialization(closeWhenReady chan<- struct{}, source interfaces.DataSourceDescriptor) {
+	f.setCurrentSource(source)
 	f.UpdateStatus(interfaces.DataSourceStateValid, interfaces.DataSourceErrorInfo{})
-	f.readyOnce.Do(func() {
-		close(closeWhenReady)
-	})
+	f.markReady(closeWhenReady, source, true)
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
 	// If no synchronizers configured, close ready channel and return
 	if len(f.synchronizerBuilders) == 0 {
-		f.readyOnce.Do(func() {
-			close(closeWhenReady)
-		})
+		f.markReady(closeWhenReady, f.getCurrentSource(), f.dataApplied.Get())
 		return
 	}
 
 	f.launchTask(func() {
 		// Ensure we stop waiting for initialization if we exit, even if initialization fails
-		defer f.readyOnce.Do(func() {
-			close(closeWhenReady)
-		})
+		defer func() {
+			f.markReady(closeWhenReady, f.getCurrentSource(), f.dataApplied.Get())
+		}()
 
 		for {
 			// Check if we've run out of synchronizers
 			if len(f.synchronizerBuilders) == 0 {
 				f.loggers.Warn("No more synchronizers available")
 				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+				f.reportSynchronizerChange(f.getCurrentSource(), interfaces.DataSourceDescriptor{},
+					ldhooks.SynchronizerChangeReasonExhausted)
 				return
 			}
 
@@ -380,6 +461,14 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 
 			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.currentSyncIndex, sync.Name())
+			source := subsystems.DescribeDataSource(sync)
+			previousSource := f.getCurrentSource()
+			if f.nextSyncReason == ldhooks.SynchronizerChangeReasonInitial {
+				// The first synchronizer follows the initializer phase, not another synchronizer.
+				previousSource = interfaces.DataSourceDescriptor{}
+			}
+			f.setCurrentSource(source)
+			f.reportSynchronizerChange(previousSource, source, f.nextSyncReason)
 			resultChan := sync.Sync(f.store)
 			action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
 
@@ -399,12 +488,16 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 					// Replace entire list with single FDv1 synchronizer
 					f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
 					f.currentSyncIndex = 0
+					f.nextSyncReason = ldhooks.SynchronizerChangeReasonFDv1Fallback
 					continue
 				}
 				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
 				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+				f.reportSynchronizerChange(f.getCurrentSource(), interfaces.DataSourceDescriptor{},
+					ldhooks.SynchronizerChangeReasonExhausted)
 				return
 			case syncRemove:
+				f.nextSyncReason = ldhooks.SynchronizerChangeReasonRemoved
 				f.loggers.Warnf("Permanently removing synchronizer at index %d", f.currentSyncIndex)
 				f.synchronizerBuilders = append(
 					f.synchronizerBuilders[:f.currentSyncIndex],
@@ -415,10 +508,12 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				// Recovery: jump back to index 0
 				f.loggers.Info("Recovery condition met, returning to first synchronizer")
 				f.currentSyncIndex = 0
+				f.nextSyncReason = ldhooks.SynchronizerChangeReasonRecover
 			case syncFallback:
 				// Fallback: move to next index
 				f.loggers.Info("Fallback condition met, trying next synchronizer")
 				f.currentSyncIndex++
+				f.nextSyncReason = ldhooks.SynchronizerChangeReasonFallback
 			}
 
 			// Check for cancellation before next iteration
@@ -474,9 +569,7 @@ func (f *FDv2) consumeSynchronizerResults(
 				// the signal must observe the updated status.
 				f.UpdateStatus(result.State, result.Error)
 
-				f.readyOnce.Do(func() {
-					close(closeWhenReady)
-				})
+				f.markReady(closeWhenReady, f.getCurrentSource(), true)
 			case interfaces.DataSourceStateInterrupted:
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
@@ -591,7 +684,7 @@ func (f *FDv2) Offline() bool {
 //nolint:revive // DataSourceStatusReporter method.
 func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	previous := f.status
 
 	changed := false
 	if state != f.status.State {
@@ -604,9 +697,17 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 		f.status.LastError = err
 		changed = true
 	}
+	current := f.status
+	source := f.currentSource
+	sourceChanged := source != f.reportedSource
+	f.reportedSource = source
+	f.mu.Unlock()
 
 	if changed {
-		f.broadcasters.dataSourceStatus.Broadcast(f.status)
+		f.broadcasters.dataSourceStatus.Broadcast(current)
+	}
+	if (changed || sourceChanged) && f.statusObserver != nil {
+		f.statusObserver.OnDataSourceStatusChanged(previous, current, source)
 	}
 }
 

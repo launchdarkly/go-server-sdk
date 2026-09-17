@@ -17,6 +17,14 @@ type Runner struct {
 	hooks                 []ldhooks.Hook
 	loggers               ldlog.Loggers
 	environmentIDProvider internal.EnvironmentIDProvider
+
+	// Hooks that implement the optional handler interfaces, resolved once at construction.
+	statusHandlers         []namedHandler[ldhooks.DataSourceStatusHandler]
+	initializerHandlers    []namedHandler[ldhooks.InitializerHandler]
+	synchronizerHandlers   []namedHandler[ldhooks.SynchronizerHandler]
+	initializationHandlers []namedHandler[ldhooks.InitializationHandler]
+	flushHandlers          []namedHandler[ldhooks.EventFlushHandler]
+	droppedHandlers        []namedHandler[ldhooks.EventsDroppedHandler]
 }
 
 // NewRunner creates a new hook runner.
@@ -26,9 +34,15 @@ func NewRunner(
 	environmentIDProvider internal.EnvironmentIDProvider,
 ) *Runner {
 	return &Runner{
-		loggers:               loggers,
-		hooks:                 hooks,
-		environmentIDProvider: environmentIDProvider,
+		loggers:                loggers,
+		hooks:                  hooks,
+		environmentIDProvider:  environmentIDProvider,
+		statusHandlers:         collectHandlers[ldhooks.DataSourceStatusHandler](hooks),
+		initializerHandlers:    collectHandlers[ldhooks.InitializerHandler](hooks),
+		synchronizerHandlers:   collectHandlers[ldhooks.SynchronizerHandler](hooks),
+		initializationHandlers: collectHandlers[ldhooks.InitializationHandler](hooks),
+		flushHandlers:          collectHandlers[ldhooks.EventFlushHandler](hooks),
+		droppedHandlers:        collectHandlers[ldhooks.EventsDroppedHandler](hooks),
 	}
 }
 

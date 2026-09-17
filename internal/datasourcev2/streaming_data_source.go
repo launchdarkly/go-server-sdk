@@ -105,6 +105,15 @@ func (sp *StreamProcessor) Name() string {
 	return "StreamingDataSourceV2"
 }
 
+// Describe identifies this component as the FDv2 streaming synchronizer.
+func (sp *StreamProcessor) Describe() interfaces.DataSourceDescriptor {
+	return interfaces.DataSourceDescriptor{
+		Protocol:  interfaces.DataSourceProtocolFDv2,
+		Transport: interfaces.DataSourceTransportStreaming,
+		Name:      sp.Name(),
+	}
+}
+
 //nolint:revive // DataInitializer method.
 func (sp *StreamProcessor) Fetch(ds subsystems.DataSelector, _ context.Context) (*subsystems.Basis, bool, error) {
 	return nil, false, errors.New("StreamProcessor does not implement Fetch capability")

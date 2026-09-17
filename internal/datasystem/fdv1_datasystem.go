@@ -59,12 +59,16 @@ func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsy
 		clientContext.GetLogging().LogDataSourceOutageAsErrorAfter,
 		clientContext.GetLogging().Loggers,
 	)
+	if clientContext.DataSourceStatusObserver != nil {
+		dataSourceUpdateSink.SetStatusObserver(clientContext.DataSourceStatusObserver)
+	}
 
 	dataSource, err := createDataSource(clientContext, dataSourceFactory, dataSourceUpdateSink)
 	if err != nil {
 		return nil, err
 	}
 	system.dataSource = dataSource
+	dataSourceUpdateSink.SetDescriptor(subsystems.DescribeDataSource(dataSource))
 	system.dataSourceStatusProvider = datasource.NewDataSourceStatusProviderImpl(
 		system.dataSourceStatusBroadcaster,
 		dataSourceUpdateSink,
