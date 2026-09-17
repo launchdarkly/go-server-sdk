@@ -1415,7 +1415,7 @@ func (client *LDClient) evaluateInternal(
 			}
 		} else if !client.dataSystem.HasFlagOverride(key) {
 			// A flag present in the override layer is served even though no data is available
-			// from LaunchDarkly; the store read below sees it through the override overlay.
+			// from LaunchDarkly. The store read below sees it through the override overlay.
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
 		}
 	}
