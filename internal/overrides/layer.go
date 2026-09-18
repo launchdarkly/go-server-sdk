@@ -27,10 +27,14 @@ func NewLayer() *Layer {
 }
 
 // SetAll atomically replaces the entire layer contents. An empty or nil slice clears the
-// layer. Every reader treats the stored entities as immutable, and sources may retain the
-// entities they supplied. For that reason, each flag or segment is stored as a marked copy.
-// The caller's value is never marked. Returns the previous and new contents. The returned
-// maps must not be modified.
+// layer.
+//
+// Each flag or segment is stored as a marked shallow copy. The copy shares its nested slices
+// with the caller's entity, and the layer never writes to them. The caller's value is never
+// marked. A source may retain the entities it supplied and supply them again. It must not
+// modify them after it supplied them.
+//
+// Returns the previous and new contents. The returned maps must not be modified.
 func (l *Layer) SetAll(data []st.Collection) (previous, current layerContents) {
 	replacement := layerContents{}
 	count := 0
@@ -75,22 +79,20 @@ func (l *Layer) IsEmpty() bool {
 	return !l.nonEmpty.Load()
 }
 
-// markedCopy returns the item with its entity replaced by a copy carrying the override
-// marker. The copies are also re-preprocessed defensively. Entities that came from the
-// standard deserialization or builders are already preprocessed, but the sink cannot know
-// how an override source constructed them. Preprocessing is idempotent, so the repeat is
-// safe.
+// markedCopy returns a shallow copy of the entity with the override marker set. The copy
+// shares its nested slices with the source entity and does not write to them. Entities from
+// ldmodel deserialization or the ldbuilders package carry their preprocessing caches. An
+// entity built without them still evaluates correctly, because the evaluator falls back to
+// scanning the values.
 func markedCopy(item st.ItemDescriptor) st.ItemDescriptor {
 	switch entity := item.Item.(type) {
 	case *ldmodel.FeatureFlag:
 		flag := *entity
 		flag.IsOverride = true
-		ldmodel.PreprocessFlag(&flag)
 		item.Item = &flag
 	case *ldmodel.Segment:
 		segment := *entity
 		segment.IsOverride = true
-		ldmodel.PreprocessSegment(&segment)
 		item.Item = &segment
 	}
 	return item

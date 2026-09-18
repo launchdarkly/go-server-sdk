@@ -101,6 +101,37 @@ func TestLayerMarksCopiesWithoutMutatingSource(t *testing.T) {
 	assert.True(t, storedSegment.Item.(*ldmodel.Segment).IsOverride)
 }
 
+// A source may retain the entities it supplies and supply them again. The layer must not
+// write into them. If it did, a retained entity that evaluation reads would race with the
+// next snapshot. The race detector observes any such write.
+func TestLayerDoesNotWriteIntoRetainedEntities(t *testing.T) {
+	flag := ldbuilders.NewFlagBuilder("flag1").Version(1).
+		Variations(ldvalue.Bool(false), ldvalue.Bool(true)).
+		AddTarget(0, "user-a", "user-b").
+		AddRule(ldbuilders.NewRuleBuilder().ID("r").Variation(0).
+			Clauses(ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("x"), ldvalue.String("y")))).
+		Build()
+	layer := NewLayer()
+	layer.SetAll([]st.Collection{flagCollection(flag)})
+	stored, ok := layer.Get(datakinds.Features, "flag1")
+	require.True(t, ok)
+	storedFlag := requireFlag(t, stored)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			layer.SetAll([]st.Collection{flagCollection(flag)})
+		}
+	}()
+	for i := 0; i < 200; i++ {
+		clause := &storedFlag.Rules[0].Clauses[0]
+		assert.True(t, ldmodel.EvaluatorAccessors.ClauseFindValue(clause, ldvalue.String("x")))
+		assert.True(t, ldmodel.EvaluatorAccessors.TargetFindKey(&storedFlag.Targets[0], "user-a"))
+	}
+	<-done
+}
+
 // layerHasFlag reports whether the layer holds a flag entry for the key.
 func layerHasFlag(layer *Layer, key string) bool {
 	_, ok := layer.Get(datakinds.Features, key)
