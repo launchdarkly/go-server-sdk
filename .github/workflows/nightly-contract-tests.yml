@@ -1,22 +1,5 @@
 name: Nightly Contract Tests
 
-# Runs the full contract test suite with -enable-long-running-tests, which the
-# per-PR CI deliberately omits: these tests wait on real RETRY backoff timing
-# and take roughly an hour.
-#
-# This job is EXPECTED TO FAIL on exactly one test until the FDv2 fix lands:
-#   streaming/fdv2/permanent fallback with recovery
-# On permanent synchronizer removal the SDK does not reset its data source
-# status, so the intended 10-second "cannot initialize" fallback never fires and
-# the client times out before reaching a healthy synchronizer. More than one
-# failure means something new broke; check the uploaded JUnit results.
-#
-# The suppression files are intentionally empty. They exist so a suppression can
-# be added as a one-line change rather than requiring the -skip-from plumbing to
-# be worked out first. Prefer fixing a failing test over suppressing it; any
-# entry added here should reference a ticket and be temporary. The files must
-# exist even when empty -- the harness hard-errors on a missing -skip-from path.
-
 on:
   schedule:
     - cron: "0 4 * * *" # every day at 4am UTC
@@ -43,9 +26,6 @@ jobs:
     # burn its full timeout instead of returning early, so leave headroom --
     # while staying well under the 6-hour default that would otherwise apply.
     timeout-minutes: 120
-    env:
-      TEST_SERVICE_PORT: 10000
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,7 +51,7 @@ jobs:
       - name: Run SDK contract test v2
         uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
         with:
-          test_service_port: ${{ env.TEST_SERVICE_PORT }}
+          test_service_port: '10000'
           token: ${{ secrets.GITHUB_TOKEN }}
           debug_logging: 'true'
           stop_service: 'false'
@@ -81,7 +61,7 @@ jobs:
       - name: Run SDK contract test v3
         uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
         with:
-          test_service_port: ${{ env.TEST_SERVICE_PORT }}
+          test_service_port: '10000'
           version: 'v3'
           branch: 'v3'
           token: ${{ secrets.GITHUB_TOKEN }}
