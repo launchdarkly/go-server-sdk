@@ -35,13 +35,19 @@ func (o *Overlay) Get(kind st.DataKind, key string) (st.ItemDescriptor, error) {
 // GetAll returns the union of the base store's items and the layer's items. The override
 // entry wins for any key present in both. This includes keys the base holds as deleted-item
 // tombstones.
+//
+// When the base store fails and the layer holds entries, the result is the layer's entries
+// alone, with no error. A per-key read serves those entries whatever the state of the base,
+// so an all-flags read does the same. When the layer is empty, the base error is returned.
 func (o *Overlay) GetAll(kind st.DataKind) ([]st.KeyedItemDescriptor, error) {
 	baseItems, err := o.base.GetAll(kind)
-	if err != nil {
-		return nil, err
-	}
 	overrideItems := o.layer.All(kind)
-	if len(overrideItems) == 0 {
+	if err != nil {
+		if len(overrideItems) == 0 {
+			return nil, err
+		}
+		baseItems = nil
+	} else if len(overrideItems) == 0 {
 		return baseItems, nil
 	}
 
