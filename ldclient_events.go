@@ -77,6 +77,7 @@ func newEventsScope(client *LDClient, withReasons bool) eventsScope {
 					Version:              params.PrerequisiteFlag.Version,
 					RequireFullEvent:     params.PrerequisiteFlag.TrackEvents,
 					DebugEventsUntilDate: params.PrerequisiteFlag.DebugEventsUntilDate,
+					OverrideAffected:     params.PrerequisiteResult.OverrideAffected,
 				},
 				ldevents.Context(params.Context),
 				params.PrerequisiteResult.Detail,
