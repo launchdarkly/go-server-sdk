@@ -661,11 +661,8 @@ func makeOverridesConfig(params *servicedef.SDKConfigOverridesParams) *ldoverrid
 	if params.DuplicateKeysHandling != nil {
 		builder.DuplicateKeysHandling(ldoverrides.DuplicateKeysHandling(*params.DuplicateKeysHandling))
 	}
-	if params.Watch != nil {
-		builder.Watch(*params.Watch)
-	}
-	if params.Poll != nil {
-		builder.Poll(*params.Poll)
+	if params.ChangeDetection != nil {
+		builder.ChangeDetection(ldoverrides.ChangeDetection(*params.ChangeDetection))
 	}
 	if params.PollIntervalMS != nil {
 		builder.PollInterval(time.Millisecond * time.Duration(*params.PollIntervalMS))

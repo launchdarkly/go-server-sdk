@@ -25,8 +25,7 @@ type SDKConfigParams struct {
 type SDKConfigOverridesParams struct {
 	FilePaths             []string `json:"filePaths"`
 	DuplicateKeysHandling *string  `json:"duplicateKeysHandling,omitempty"`
-	Watch                 *bool    `json:"watch,omitempty"`
-	Poll                  *bool    `json:"poll,omitempty"`
+	ChangeDetection       *string  `json:"changeDetection,omitempty"`
 	PollIntervalMS        *int     `json:"pollIntervalMs,omitempty"`
 }
 
