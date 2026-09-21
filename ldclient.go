@@ -132,6 +132,9 @@ type LDClient struct {
 	// Each flag records that the SDK has logged the matching cached-data warning for this client.
 	evalCachedDataWarningLogged     internal.AtomicBoolean
 	allFlagsCachedDataWarningLogged internal.AtomicBoolean
+	// allFlagsOverridesOnlyWarningLogged is set after the first warning that AllFlagsState
+	// returned only override entries before initialization.
+	allFlagsOverridesOnlyWarningLogged internal.AtomicBoolean
 	// overridesConfigured is true when the data system was built with an override source. The
 	// value is fixed at construction.
 	overridesConfigured bool
@@ -832,7 +835,9 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 			client.loggers.Warn(allFlagsStateNotAvailableMessage)
 			return flagstate.AllFlags{}
 		}
-		client.loggers.Warn("Called AllFlagsState before client initialization; returning only flags from the override layer") //nolint:lll
+		if !client.allFlagsOverridesOnlyWarningLogged.GetAndSet(true) {
+			client.loggers.Warn("Called AllFlagsState before client initialization; returning only flags from the override layer. This message is logged once.") //nolint:lll
+		}
 	}
 
 	clientSideOnly := false

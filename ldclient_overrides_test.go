@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -82,8 +83,18 @@ func makeUninitializedClientWithOverrides(
 	events ldevents.EventProcessor,
 ) *LDClient {
 	t.Helper()
+	return makeUninitializedClientWithOverridesAndLog(t, source, events, ldlogtest.NewMockLog())
+}
+
+func makeUninitializedClientWithOverridesAndLog(
+	t *testing.T,
+	source *sharedtest.TestOverrideSource,
+	events ldevents.EventProcessor,
+	mockLog *ldlogtest.MockLog,
+) *LDClient {
+	t.Helper()
 	config := Config{
-		Logging: ldcomponents.Logging().Loggers(ldlogtest.NewMockLog().Loggers),
+		Logging: ldcomponents.Logging().Loggers(mockLog.Loggers),
 		DataSystem: ldcomponents.DataSystem().Custom().
 			Synchronizers(newHangingSynchronizer()).
 			Overrides(source),
@@ -150,6 +161,24 @@ func TestAllFlagsStateContainsOnlyOverridesWhenClientIsNotInitialized(t *testing
 	values := state.ToValuesMap()
 	require.Len(t, values, 1)
 	assert.Equal(t, ldvalue.Bool(true), values["overridden-flag"])
+}
+
+func TestAllFlagsStateOverridesOnlyWarningIsLoggedOnce(t *testing.T) {
+	source := sharedtest.NewTestOverrideSource(
+		overrideTestFlagData(singleValueFlag("overridden-flag", ldvalue.Bool(true))))
+	mockLog := ldlogtest.NewMockLog()
+	client := makeUninitializedClientWithOverridesAndLog(t, source, nil, mockLog)
+
+	require.True(t, client.AllFlagsState(evalTestUser).IsValid())
+	require.True(t, client.AllFlagsState(evalTestUser).IsValid())
+
+	var matching []string
+	for _, line := range mockLog.GetOutput(ldlog.Warn) {
+		if strings.Contains(line, "returning only flags from the override layer") {
+			matching = append(matching, line)
+		}
+	}
+	assert.Len(t, matching, 1)
 }
 
 func TestAllFlagsStateIsInvalidWhenNotInitializedAndOverrideLayerIsEmpty(t *testing.T) {
