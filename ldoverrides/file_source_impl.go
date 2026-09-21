@@ -15,8 +15,7 @@ import (
 type fileOverrideSource struct {
 	paths                 []string
 	duplicateKeysHandling filedata.DuplicateKeysHandling
-	watch                 bool
-	poll                  bool
+	changeDetection       ChangeDetection
 	pollInterval          time.Duration
 	loggers               ldlog.Loggers
 
@@ -49,18 +48,18 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 
 	// The initial load happens synchronously, so overrides present in the files are in
 	// effect by the time the client constructor returns. A failure here is not fatal. The
-	// client runs with no overrides and the failure is logged. The retry (plus any watch or
-	// poll signal) recovers once the files are readable.
+	// client runs with no overrides and the failure is logged. The retry, plus the change
+	// signal, recovers once the files are readable.
 	f.reloader.ReloadNow()
 
-	if f.watch {
+	switch f.changeDetection {
+	case Watching:
 		f.closeWatchCh = make(chan struct{})
 		if err := ldfilewatch.WatchFiles(f.paths, f.loggers, f.reloader.Trigger, f.closeWatchCh); err != nil {
 			// COVERAGE: constructing a watcher only fails under unusual OS conditions
 			f.loggers.Errorf("Unable to watch override files: %s", err)
 		}
-	}
-	if f.poll {
+	case Polling:
 		f.poller = filedata.NewPoller(f.paths, f.pollInterval, f.reloader.Trigger)
 	}
 }

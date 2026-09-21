@@ -23,11 +23,29 @@ const (
 	DuplicateKeysKeepFirst DuplicateKeysHandling = "ignore"
 )
 
+// ChangeDetection is a parameter type used with FileSourceBuilder.ChangeDetection. It
+// selects how the source learns that a file changed.
+type ChangeDetection string
+
+const (
+	// Polling is an option for FileSourceBuilder.ChangeDetection. The source examines the
+	// files on a fixed interval and reloads when the modification time or the size of a file
+	// changes. Polling works on every file system, including network mounts and directories
+	// whose contents are swapped through symbolic links, as Kubernetes does for mounted
+	// ConfigMaps. It is the default.
+	Polling ChangeDetection = "polling"
+
+	// Watching is an option for FileSourceBuilder.ChangeDetection. The source reloads in
+	// response to file system change notifications. It reacts faster than polling. It
+	// depends on notifications, which some file systems do not deliver reliably.
+	Watching ChangeDetection = "watching"
+)
+
 const (
 	// DefaultPollInterval is the interval at which the file source examines the files for
-	// changes when polling is enabled and no interval was specified. Because the source reads
-	// local files rather than contacting a service, a short interval keeps an override
-	// responsive during an incident at negligible cost.
+	// changes in Polling mode when no interval was specified. Because the source reads local
+	// files rather than contacting a service, a short interval keeps an override responsive
+	// during an incident at negligible cost.
 	DefaultPollInterval = time.Second
 
 	// MinimumPollInterval is the shortest allowed polling interval. A configured interval
@@ -42,8 +60,7 @@ const (
 type FileSourceBuilder struct {
 	filePaths             []string
 	duplicateKeysHandling DuplicateKeysHandling
-	watch                 bool
-	poll                  bool
+	changeDetection       ChangeDetection
 	pollInterval          time.Duration
 }
 
@@ -63,12 +80,12 @@ type FileSourceBuilder struct {
 // a short delay, and recovers on its own once the files are readable again. At startup,
 // failing to load simply means the client runs with no overrides.
 //
-// By default the source watches the files for changes using filesystem notifications. See
-// Watch and Poll for environments where notifications are unavailable or unreliable.
+// By default the source polls the files for changes once per second. See ChangeDetection
+// and PollInterval.
 func FileSource() *FileSourceBuilder {
 	return &FileSourceBuilder{
 		duplicateKeysHandling: DuplicateKeysFail,
-		watch:                 true,
+		changeDetection:       Polling,
 		pollInterval:          DefaultPollInterval,
 	}
 }
@@ -88,26 +105,16 @@ func (b *FileSourceBuilder) DuplicateKeysHandling(handling DuplicateKeysHandling
 	return b
 }
 
-// Watch enables or disables reloading in response to filesystem change notifications. It
-// is enabled by default. Disable it on filesystems where notifications do not work, and
-// enable Poll instead. Both may be enabled together. In that case, whichever signal arrives
-// first causes the reload.
-func (b *FileSourceBuilder) Watch(enabled bool) *FileSourceBuilder {
-	b.watch = enabled
+// ChangeDetection selects how the source detects file changes. The default is Polling. The
+// two modes are alternatives, so setting one replaces the other.
+func (b *FileSourceBuilder) ChangeDetection(mode ChangeDetection) *FileSourceBuilder {
+	b.changeDetection = mode
 	return b
 }
 
-// Poll enables or disables examining the files for changes on a fixed interval. It is
-// disabled by default. Polling is useful where filesystem notifications are unavailable or
-// unreliable. Examples are some network filesystems, container mounts, and directories whose
-// contents are swapped via symlinks (as Kubernetes does for mounted ConfigMaps).
-func (b *FileSourceBuilder) Poll(enabled bool) *FileSourceBuilder {
-	b.poll = enabled
-	return b
-}
-
-// PollInterval sets the interval used when polling is enabled. The default is
-// DefaultPollInterval. An interval below MinimumPollInterval is raised to the minimum.
+// PollInterval sets the interval between examinations of the files in Polling mode. Watching
+// mode ignores it. The default is DefaultPollInterval. An interval below MinimumPollInterval
+// is raised to the minimum.
 func (b *FileSourceBuilder) PollInterval(interval time.Duration) *FileSourceBuilder {
 	b.pollInterval = interval
 	return b
@@ -124,11 +131,18 @@ func (b *FileSourceBuilder) Build(context subsystems.ClientContext) (subsystems.
 		return nil, err
 	}
 
+	switch b.changeDetection {
+	case Polling, Watching:
+	default:
+		return nil, fmt.Errorf("unrecognized change detection mode %q for the file-based override source",
+			string(b.changeDetection))
+	}
+
 	loggers := context.GetLogging().Loggers
 	loggers.SetPrefix("FileOverrideSource:")
 
 	pollInterval := b.pollInterval
-	if b.poll && pollInterval < MinimumPollInterval {
+	if b.changeDetection == Polling && pollInterval < MinimumPollInterval {
 		loggers.Warnf("Poll interval %s is below the minimum; using %s", pollInterval, MinimumPollInterval)
 		pollInterval = MinimumPollInterval
 	}
@@ -136,8 +150,7 @@ func (b *FileSourceBuilder) Build(context subsystems.ClientContext) (subsystems.
 	return &fileOverrideSource{
 		paths:                 paths,
 		duplicateKeysHandling: filedata.DuplicateKeysHandling(b.duplicateKeysHandling),
-		watch:                 b.watch,
-		poll:                  b.poll,
+		changeDetection:       b.changeDetection,
 		pollInterval:          pollInterval,
 		loggers:               loggers,
 	}, nil

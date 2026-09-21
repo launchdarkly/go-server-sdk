@@ -158,11 +158,11 @@ func TestFileSourceStartsWithMissingFile(t *testing.T) {
 	require.Len(t, flags, 1)
 }
 
-func TestFileSourceWatchModeReloadsOnChange(t *testing.T) {
+func TestFileSourceWatchingModeReloadsOnChange(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
 
-	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
+	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path).ChangeDetection(Watching) })
 	sink.requireSnapshot(t)
 
 	writeFile(t, path, `{"flagValues": {"flag1": true, "flag2": false}}`)
@@ -175,12 +175,12 @@ func TestFileSourceWatchModeReloadsOnChange(t *testing.T) {
 	require.Len(t, flags, 0)
 }
 
-func TestFileSourcePollModeReloadsOnChange(t *testing.T) {
+func TestFileSourcePollingModeReloadsOnChange(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
 
 	_, sink := buildFileSource(t, func(b *FileSourceBuilder) {
-		b.FilePaths(path).Watch(false).Poll(true).PollInterval(MinimumPollInterval)
+		b.FilePaths(path).ChangeDetection(Polling).PollInterval(MinimumPollInterval)
 	})
 	sink.requireSnapshot(t)
 
@@ -198,7 +198,7 @@ func TestFileSourceRetainsLastGoodDataAcrossMalformedEdit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
 
-	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
+	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path).ChangeDetection(Watching) })
 	sink.requireSnapshot(t)
 
 	// A malformed edit produces no snapshot: the previously applied overrides stay in
@@ -212,11 +212,32 @@ func TestFileSourceRetainsLastGoodDataAcrossMalformedEdit(t *testing.T) {
 	require.Len(t, flags, 1)
 }
 
+func TestFileSourcePollsByDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	writeFile(t, path, `{}`)
+
+	source, err := FileSource().FilePaths(path).Build(sharedtest.BasicClientContext())
+	require.NoError(t, err)
+	impl, ok := source.(*fileOverrideSource)
+	require.True(t, ok)
+	assert.Equal(t, Polling, impl.changeDetection)
+	assert.Equal(t, DefaultPollInterval, impl.pollInterval)
+}
+
+func TestFileSourceRejectsUnknownChangeDetection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	writeFile(t, path, `{}`)
+
+	_, err := FileSource().FilePaths(path).ChangeDetection("notify").Build(sharedtest.BasicClientContext())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "notify")
+}
+
 func TestFileSourcePollIntervalIsClamped(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	writeFile(t, path, `{}`)
 
-	builder := FileSource().FilePaths(path).Poll(true).PollInterval(time.Millisecond)
+	builder := FileSource().FilePaths(path).PollInterval(time.Millisecond)
 	source, err := builder.Build(sharedtest.BasicClientContext())
 	require.NoError(t, err)
 	impl, ok := source.(*fileOverrideSource)
@@ -228,9 +249,7 @@ func TestFileSourceCloseIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	writeFile(t, path, `{}`)
 
-	source, _ := buildFileSource(t, func(b *FileSourceBuilder) {
-		b.FilePaths(path).Poll(true)
-	})
+	source, _ := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
 	require.NoError(t, source.Close())
 	require.NoError(t, source.Close())
 }
