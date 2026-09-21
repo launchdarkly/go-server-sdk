@@ -2,9 +2,11 @@ package overrides
 
 import (
 	"errors"
+	"reflect"
 	"sort"
 	"testing"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
@@ -101,35 +103,87 @@ func TestLayerMarksCopiesWithoutMutatingSource(t *testing.T) {
 	assert.True(t, storedSegment.Item.(*ldmodel.Segment).IsOverride)
 }
 
-// A source may retain the entities it supplies and supply them again. The layer must not
-// write into them. If it did, a retained entity that evaluation reads would race with the
-// next snapshot. The race detector observes any such write.
-func TestLayerDoesNotWriteIntoRetainedEntities(t *testing.T) {
-	flag := ldbuilders.NewFlagBuilder("flag1").Version(1).
-		Variations(ldvalue.Bool(false), ldvalue.Bool(true)).
-		AddTarget(0, "user-a", "user-b").
-		AddRule(ldbuilders.NewRuleBuilder().ID("r").Variation(0).
-			Clauses(ldbuilders.Clause("name", ldmodel.OperatorIn, ldvalue.String("x"), ldvalue.String("y")))).
-		Build()
-	layer := NewLayer()
-	layer.SetAll([]st.Collection{flagCollection(flag)})
-	stored, ok := layer.Get(datakinds.Features, "flag1")
-	require.True(t, ok)
-	storedFlag := requireFlag(t, stored)
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for i := 0; i < 200; i++ {
-			layer.SetAll([]st.Collection{flagCollection(flag)})
-		}
-	}()
-	for i := 0; i < 200; i++ {
-		clause := &storedFlag.Rules[0].Clauses[0]
-		assert.True(t, ldmodel.EvaluatorAccessors.ClauseFindValue(clause, ldvalue.String("x")))
-		assert.True(t, ldmodel.EvaluatorAccessors.TargetFindKey(&storedFlag.Targets[0], "user-a"))
+// rawOverrideFlag builds a flag by struct literal, so it carries no preprocessing caches. The
+// builders and the deserializer would add them. Without caches, any write by the layer into
+// the entity's rules, clauses, or targets is visible as a new cache.
+func rawOverrideFlag() ldmodel.FeatureFlag {
+	return ldmodel.FeatureFlag{
+		Key:        "flag1",
+		Version:    1,
+		On:         true,
+		Variations: []ldvalue.Value{ldvalue.Bool(false), ldvalue.Bool(true)},
+		Targets:    []ldmodel.Target{{Variation: 1, Values: []string{"user-a", "user-b"}}},
+		Rules: []ldmodel.FlagRule{{
+			ID: "rule",
+			Clauses: []ldmodel.Clause{{
+				Attribute: ldattr.NewLiteralRef("name"),
+				Op:        ldmodel.OperatorIn,
+				Values:    []ldvalue.Value{ldvalue.String("x"), ldvalue.String("y")},
+			}},
+			VariationOrRollout: ldmodel.VariationOrRollout{Variation: ldvalue.NewOptionalInt(1)},
+		}},
+		Fallthrough: ldmodel.VariationOrRollout{Variation: ldvalue.NewOptionalInt(0)},
 	}
-	<-done
+}
+
+// rawOverrideSegment is the segment counterpart of rawOverrideFlag.
+func rawOverrideSegment() ldmodel.Segment {
+	return ldmodel.Segment{
+		Key:              "segment1",
+		Version:          1,
+		IncludedContexts: []ldmodel.SegmentTarget{{ContextKind: "user", Values: []string{"user-a"}}},
+		ExcludedContexts: []ldmodel.SegmentTarget{{ContextKind: "user", Values: []string{"user-z"}}},
+		Rules: []ldmodel.SegmentRule{{
+			ID: "rule",
+			Clauses: []ldmodel.Clause{{
+				Attribute: ldattr.NewLiteralRef("name"),
+				Op:        ldmodel.OperatorIn,
+				Values:    []ldvalue.Value{ldvalue.String("x"), ldvalue.String("y")},
+			}},
+		}},
+	}
+}
+
+// A source may retain the entities it supplies. The layer must not write into them, not even
+// into the unexported cache fields of their nested rules, clauses, and targets.
+func TestLayerDoesNotWriteIntoRetainedEntities(t *testing.T) {
+	// Step 1: the source builds its entities and keeps them. A pristine twin of each is built
+	// the same way and is never handed to the layer.
+	suppliedFlag, pristineFlag := rawOverrideFlag(), rawOverrideFlag()
+	suppliedSegment, pristineSegment := rawOverrideSegment(), rawOverrideSegment()
+	require.True(t, reflect.DeepEqual(suppliedFlag, pristineFlag))
+	require.True(t, reflect.DeepEqual(suppliedSegment, pristineSegment))
+
+	// Step 2: the source supplies the entities. The layer stores marked copies.
+	layer := NewLayer()
+	layer.SetAll([]st.Collection{flagCollection(suppliedFlag), segmentCollection(suppliedSegment)})
+
+	// Step 3: the supplied entities still equal their twins. The deep comparison covers every
+	// field, including the unexported caches inside the shared rules, clauses, and targets.
+	assert.True(t, reflect.DeepEqual(suppliedFlag, pristineFlag), "the layer wrote into the supplied flag")
+	assert.True(t, reflect.DeepEqual(suppliedSegment, pristineSegment), "the layer wrote into the supplied segment")
+
+	// Step 4: the stored copies are marked.
+	storedFlagItem, ok := layer.Get(datakinds.Features, "flag1")
+	require.True(t, ok)
+	storedFlag := requireFlag(t, storedFlagItem)
+	assert.True(t, storedFlag.IsOverride)
+	storedSegmentItem, ok := layer.Get(datakinds.Segments, "segment1")
+	require.True(t, ok)
+	storedSegment, ok := storedSegmentItem.Item.(*ldmodel.Segment)
+	require.True(t, ok)
+	assert.True(t, storedSegment.IsOverride)
+
+	// Step 5: the stored copies evaluate without caches. The accessors scan the values.
+	accessors := ldmodel.EvaluatorAccessors
+	assert.True(t, accessors.ClauseFindValue(&storedFlag.Rules[0].Clauses[0], ldvalue.String("y")))
+	assert.False(t, accessors.ClauseFindValue(&storedFlag.Rules[0].Clauses[0], ldvalue.String("z")))
+	assert.True(t, accessors.TargetFindKey(&storedFlag.Targets[0], "user-b"))
+	assert.False(t, accessors.TargetFindKey(&storedFlag.Targets[0], "user-c"))
+	assert.True(t, accessors.SegmentTargetFindKey(&storedSegment.IncludedContexts[0], "user-a"))
+	assert.False(t, accessors.SegmentTargetFindKey(&storedSegment.IncludedContexts[0], "user-z"))
+	assert.True(t, accessors.SegmentTargetFindKey(&storedSegment.ExcludedContexts[0], "user-z"))
+	assert.True(t, accessors.ClauseFindValue(&storedSegment.Rules[0].Clauses[0], ldvalue.String("x")))
 }
 
 // layerHasFlag reports whether the layer holds a flag entry for the key.
