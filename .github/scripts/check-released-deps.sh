@@ -6,8 +6,9 @@
 #   - pseudo-versions:     vX.Y.Z-0.<timestamp>-<sha> (a commit, not a release)
 #   - tagged pre-releases: vX.Y.Z-rc1, vX.Y.Z-alpha.pub.N, ...
 #   - `replace` of a LaunchDarkly module: any left-hand-side target, versioned
-#     or not, regardless of the replacement; plus a non-final LaunchDarkly
-#     pin on a replace's target side.
+#     or not, whether single-line or in a `replace ( ... )` block, regardless
+#     of the replacement; plus a non-final LaunchDarkly pin on a replace's
+#     target side.
 #
 # Non-LaunchDarkly dependencies are not validated: third-party modules
 # legitimately use pseudo-versions and +incompatible suffixes.
@@ -25,13 +26,21 @@ for f in "$@"; do
   findings=$(awk -v file="$f" '
     { sub(/\/\/.*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, "") }   # strip comments/indent
     $1 == "module" || $1 == "go" || $1 == "toolchain" || $1 == "retract" { next }
+    # Track the parenthesized `replace ( ... )` block form: entries inside it
+    # start with the module path, not the keyword. Update state before the
+    # LaunchDarkly filter, so keyword-only block lines are not dropped first.
+    $1 == "replace" && $2 == "(" { inReplace = 1; next }
+    $1 == ")" && inReplace { inReplace = 0; next }
     $0 !~ /github\.com\/launchdarkly\// { next }
     {
       n = split($0, tok, /[[:space:]]+/)
       # Any replace of a LaunchDarkly module is a redirect away from the
-      # released dependency, whatever the target. Check the left-hand path
-      # itself, before its version, so versioned replaces cannot slip through.
-      if (tok[1] == "replace" && tok[2] ~ /^github\.com\/launchdarkly\//) {
+      # released dependency, whatever the target. The left-hand path sits at
+      # tok[1] inside a replace block and at tok[2] on a single-line
+      # directive; check it before its optional version, so versioned
+      # replaces, grouped or not, cannot slip through.
+      left = inReplace ? tok[1] : (tok[1] == "replace" ? tok[2] : "")
+      if (left ~ /^github\.com\/launchdarkly\//) {
         print file ": " $0 " (LaunchDarkly modules must not be replaced on release branches)"
         next
       }
