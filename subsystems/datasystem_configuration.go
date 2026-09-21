@@ -24,4 +24,8 @@ type DataSystemConfiguration struct {
 	Initializers []DataInitializer
 	// Synchronizers keep the SDK's data up-to-date continuously.
 	Synchronizers SynchronizersConfiguration
+	// OverrideSource, if non-nil, supplies flag and segment overrides that take precedence
+	// over LaunchDarkly data at evaluation time. It is not part of the initializer or
+	// synchronizer pipeline and does not affect the client's initialization status.
+	OverrideSource OverrideSource
 }
