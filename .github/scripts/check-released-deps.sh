@@ -5,8 +5,9 @@
 # Flags:
 #   - pseudo-versions:     vX.Y.Z-0.<timestamp>-<sha> (a commit, not a release)
 #   - tagged pre-releases: vX.Y.Z-rc1, vX.Y.Z-alpha.pub.N, ...
-#   - `replace` directives that redirect a LaunchDarkly module to a directory
-#     or to an unreleased version.
+#   - `replace` of a LaunchDarkly module: any left-hand-side target, versioned
+#     or not, regardless of the replacement; plus a non-final LaunchDarkly
+#     pin on a replace's target side.
 #
 # Non-LaunchDarkly dependencies are not validated: third-party modules
 # legitimately use pseudo-versions and +incompatible suffixes.
@@ -27,15 +28,16 @@ for f in "$@"; do
     $0 !~ /github\.com\/launchdarkly\// { next }
     {
       n = split($0, tok, /[[:space:]]+/)
+      # Any replace of a LaunchDarkly module is a redirect away from the
+      # released dependency, whatever the target. Check the left-hand path
+      # itself, before its version, so versioned replaces cannot slip through.
+      if (tok[1] == "replace" && tok[2] ~ /^github\.com\/launchdarkly\//) {
+        print file ": " $0 " (LaunchDarkly modules must not be replaced on release branches)"
+        next
+      }
       for (i = 1; i <= n; i++) {
         if (tok[i] !~ /^github\.com\/launchdarkly\//) continue
         path = tok[i]; j = i + 1
-        if (j <= n && tok[j] == "=>") {                # replace redirect
-          j++
-          if (j <= n && tok[j] ~ /^github\.com\/launchdarkly\//) j++
-          if (j > n || tok[j] !~ /^v[0-9]+\.[0-9]+\.[0-9]+$/) print file ": " $0 " (not a released version)"
-          break
-        }
         if (j > n || tok[j] !~ /^v[0-9]+\.[0-9]+\.[0-9]+$/) {
           print file ": " path " " (j <= n ? tok[j] : "(no version)") " (not a released version)"
         }
