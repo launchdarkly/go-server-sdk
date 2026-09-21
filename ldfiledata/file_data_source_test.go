@@ -3,6 +3,7 @@ package ldfiledata
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -278,5 +279,49 @@ func TestCloseStopsReloader(t *testing.T) {
 				assert.Fail(t, "reloader close channel was not closed by Close()")
 			}
 		})
+	})
+}
+
+// IsInitialized is read on every evaluation. A load that succeeds after Start has returned
+// sets the initialized flag from the goroutine that performs the reload. The two must be
+// safe together.
+func TestIsInitializedIsSafeToReadWhileALateLoadCompletes(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "flags.json")
+	require.NoError(t, os.WriteFile(filename, []byte(`{"flags"`), 0600))
+
+	var reload func()
+	reloadReady := make(chan struct{})
+	f := func(paths []string, loggers ldlog.Loggers, r func(), closeCh <-chan struct{}) error {
+		reload = r
+		close(reloadReady)
+		return nil
+	}
+	factory := DataSource().FilePaths(filename).Reloader(f)
+	withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+		p.dataSource.Start(p.closeWhenReady)
+		<-reloadReady
+		require.False(t, p.dataSource.IsInitialized())
+
+		stopReading := make(chan struct{})
+		readingDone := make(chan struct{})
+		go func() {
+			defer close(readingDone)
+			for {
+				select {
+				case <-stopReading:
+					return
+				default:
+					_ = p.dataSource.IsInitialized()
+				}
+			}
+		}()
+
+		require.NoError(t, os.WriteFile(filename, []byte(`{"flags": {"my-flag": {"on": true}}}`), 0600))
+		reload()
+		<-p.closeWhenReady
+
+		close(stopReading)
+		<-readingDone
+		assert.True(t, p.dataSource.IsInitialized())
 	})
 }
