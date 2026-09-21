@@ -46,21 +46,28 @@ func requireStopped(t *testing.T, p *Poller) {
 	}
 }
 
-// writeFileWithNewModTime rewrites a file and guarantees the observed (modTime, size) state
-// differs from the previous state, so the poller must detect it regardless of filesystem
-// timestamp granularity.
-func writeFileWithNewModTime(t *testing.T, path string, content string) {
+// replaceFile writes content to a temporary file, sets its modification time, and renames it
+// over path. The poller observes one transition, because the rename is atomic.
+func replaceFile(t *testing.T, path string, content string, modTime time.Time) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
-	newTime := time.Now().Add(time.Duration(len(content)) * time.Second)
-	require.NoError(t, os.Chtimes(path, newTime, newTime))
+	tmp := path + ".tmp"
+	require.NoError(t, os.WriteFile(tmp, []byte(content), 0600))
+	require.NoError(t, os.Chtimes(tmp, modTime, modTime))
+	require.NoError(t, os.Rename(tmp, path))
 }
 
-// writeFileWithModTime rewrites a file and sets its modification time to an exact value.
+// writeFileWithNewModTime replaces a file with content and a modification time that differs
+// from any previous write, so the poller must detect it regardless of filesystem timestamp
+// granularity.
+func writeFileWithNewModTime(t *testing.T, path string, content string) {
+	t.Helper()
+	replaceFile(t, path, content, time.Now().Add(time.Duration(len(content))*time.Second))
+}
+
+// writeFileWithModTime replaces a file with content and an exact modification time.
 func writeFileWithModTime(t *testing.T, path string, content string, modTime time.Time) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
-	require.NoError(t, os.Chtimes(path, modTime, modTime))
+	replaceFile(t, path, content, modTime)
 }
 
 func TestPollerDetectsModification(t *testing.T) {
