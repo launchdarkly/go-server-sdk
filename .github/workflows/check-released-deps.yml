@@ -1,0 +1,32 @@
+name: Check Released Dependencies
+
+# Fails when a published module's go.mod pins a LaunchDarkly SDK component to
+# anything other than a final released version (a pseudo-version or a
+# pre-release tag, e.g. v3.6.0-rc1), so that unreleased components cannot be
+# merged onto a release branch.
+#
+# This only runs for release branches. Feature branches routinely pin
+# unreleased components during development, so a feature-to-feature merge is
+# never gated; once a feature branch is ready, merging it to a release branch
+# is gated here. Extend the branch lists below as new release branches open
+# (v8, v9, ...).
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ['v7']
+  pull_request:
+    branches: ['v7']
+
+jobs:
+  check-released-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The script parses go.mod files directly, so no Go toolchain is needed.
+      # testservice/ is excluded: it is unpublished scaffolding with a
+      # committed `replace => ../` of the SDK itself.
+      - name: Verify go.mod references released LaunchDarkly component versions
+        run: .github/scripts/check-released-deps.sh $(git ls-files '*go.mod' | grep -v '^testservice/')
