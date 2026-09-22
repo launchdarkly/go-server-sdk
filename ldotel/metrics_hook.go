@@ -42,7 +42,6 @@ const (
 // Attribute keys. error.type and http.response.status_code follow the OpenTelemetry semantic
 // conventions; the others are LaunchDarkly specific.
 const (
-	attrDropReason            = "launchdarkly.sdk.events.drop_reason"
 	attrFlushOutcome          = "launchdarkly.sdk.events.flush.outcome"
 	attrDataSourceState       = "launchdarkly.sdk.data_source.state"
 	attrPreviousState         = "launchdarkly.sdk.data_source.state.previous"
@@ -92,6 +91,9 @@ func WithMeterProvider(provider metric.MeterProvider) MetricsHookOption {
 // interrupted, initializer outcomes, and the active synchronizer). It does not record anything per
 // evaluation; use TracingHook for evaluation telemetry.
 //
+// Data source statuses are attributed to the component that reports them. The hook learns the
+// component from the initializer and synchronizer handlers, not from the status itself.
+//
 // All instruments are created when the hook is constructed. The hook is safe for concurrent use.
 type MetricsHook struct {
 	ldhooks.Unimplemented
@@ -117,17 +119,18 @@ type MetricsHook struct {
 	synchronizerActive      metric.Int64Gauge
 
 	// Pre-built attribute options for the hot paths.
-	successAttrs      metric.MeasurementOption
-	failureAttrs      metric.MeasurementOption
-	dropCapacityAttrs metric.MeasurementOption
-	dropBackpressure  metric.MeasurementOption
+	successAttrs metric.MeasurementOption
+	failureAttrs metric.MeasurementOption
 
 	mu         sync.Mutex
 	lastStatus interfaces.DataSourceStatus
-	lastSource interfaces.DataSourceDescriptor
 	haveStatus bool
-	// seenSources lists every data source that has reported a status. The state gauges write a
-	// value for each of them so that a source that stopped reporting reads 0, not a stale value.
+	// currentSource is the component that reports statuses now, from the lifecycle handlers.
+	currentSource interfaces.DataSourceDescriptor
+	// attributedSource is the component the state gauges currently describe.
+	attributedSource interfaces.DataSourceDescriptor
+	// seenSources lists every component that has been attributed a status. The state gauges write
+	// a value for each of them so that a component that stopped reporting reads 0, not a stale value.
 	seenSources []interfaces.DataSourceDescriptor
 	// seenSynchronizers lists every synchronizer that has started, for the same reason.
 	seenSynchronizers []interfaces.DataSourceDescriptor
@@ -212,7 +215,7 @@ func NewMetricsHook(opts ...MetricsHookOption) (*MetricsHook, error) {
 	h.eventsFailed = b.int64Counter(metricEventsFailed,
 		"Analytics events lost because a batch could not be delivered after all retries", "{event}")
 	h.eventsDropped = b.int64Counter(metricEventsDropped,
-		"Analytics events discarded before delivery because the SDK event buffer was full", "{event}")
+		"Analytics events discarded before delivery because the SDK event buffer was full, reported with the next flush", "{event}")
 	h.eventsFlushes = b.int64Counter(metricEventsFlushes,
 		"Attempts to deliver a batch of analytics events", "{flush}")
 	h.eventsBatchSize = b.int64Histogram(metricEventsBatchSize,
@@ -257,10 +260,6 @@ func NewMetricsHook(opts ...MetricsHookOption) (*MetricsHook, error) {
 
 	h.successAttrs = metric.WithAttributes(attribute.String(attrFlushOutcome, flushOutcomeSuccess))
 	h.failureAttrs = metric.WithAttributes(attribute.String(attrFlushOutcome, flushOutcomeFailure))
-	h.dropCapacityAttrs = metric.WithAttributes(
-		attribute.String(attrDropReason, string(ldhooks.EventsDroppedReasonCapacity)))
-	h.dropBackpressure = metric.WithAttributes(
-		attribute.String(attrDropReason, string(ldhooks.EventsDroppedReasonBackpressure)))
 	return h, nil
 }
 
@@ -296,7 +295,7 @@ func containsDescriptor(list []interfaces.DataSourceDescriptor, d interfaces.Dat
 
 func (h *MetricsHook) observeStateDuration(_ context.Context, o metric.Float64Observer) error {
 	h.mu.Lock()
-	status, source, ok := h.lastStatus, h.lastSource, h.haveStatus
+	status, source, ok := h.lastStatus, h.attributedSource, h.haveStatus
 	sources := append([]interfaces.DataSourceDescriptor(nil), h.seenSources...)
 	h.mu.Unlock()
 	if !ok || status.State == "" {
@@ -314,21 +313,23 @@ func (h *MetricsHook) observeStateDuration(_ context.Context, o metric.Float64Ob
 	return nil
 }
 
-// rememberStatus records the latest status and returns the previously reporting source, if any.
-func (h *MetricsHook) rememberStatus(
-	status interfaces.DataSourceStatus,
-	source interfaces.DataSourceDescriptor,
-) (previousSource interfaces.DataSourceDescriptor, hadSource bool) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	previousSource, hadSource = h.lastSource, h.haveStatus
-	h.lastStatus = status
-	h.lastSource = source
-	h.haveStatus = true
-	if !containsDescriptor(h.seenSources, source) {
-		h.seenSources = append(h.seenSources, source)
+// writeStateGauge writes 1 for the given state and 0 for every other state, for one component.
+func (h *MetricsHook) writeStateGauge(ctx context.Context, source interfaces.DataSourceDescriptor,
+	current interfaces.DataSourceState) {
+	for _, state := range allDataSourceStates {
+		var value int64
+		if state == current {
+			value = 1
+		}
+		h.dataSourceState.Record(ctx, value, withSource(source, stateAttribute(state)))
 	}
-	return previousSource, hadSource
+}
+
+// clearStateGauge writes 0 for every state of a component that no longer reports statuses.
+func (h *MetricsHook) clearStateGauge(ctx context.Context, source interfaces.DataSourceDescriptor) {
+	for _, state := range allDataSourceStates {
+		h.dataSourceState.Record(ctx, 0, withSource(source, stateAttribute(state)))
+	}
 }
 
 // DataSourceStatusChanged implements the DataSourceStatusChanged handler.
@@ -337,24 +338,24 @@ func (h *MetricsHook) DataSourceStatusChanged(
 	statusContext ldhooks.DataSourceStatusContext,
 ) error {
 	previous, current := statusContext.Previous(), statusContext.Current()
-	source := statusContext.DataSource()
-	previousSource, hadSource := h.rememberStatus(current, source)
 
-	sourceChanged := hadSource && previousSource != source
+	h.mu.Lock()
+	source := h.currentSource
+	previousSource, hadStatus := h.attributedSource, h.haveStatus
+	h.lastStatus = current
+	h.haveStatus = true
+	h.attributedSource = source
+	if !containsDescriptor(h.seenSources, source) {
+		h.seenSources = append(h.seenSources, source)
+	}
+	h.mu.Unlock()
+
+	sourceChanged := hadStatus && previousSource != source
 	if current.State != previous.State || sourceChanged {
 		if sourceChanged {
-			// The source that stopped reporting reads 0 in every state.
-			for _, state := range allDataSourceStates {
-				h.dataSourceState.Record(ctx, 0, withSource(previousSource, stateAttribute(state)))
-			}
+			h.clearStateGauge(ctx, previousSource)
 		}
-		for _, state := range allDataSourceStates {
-			var value int64
-			if state == current.State {
-				value = 1
-			}
-			h.dataSourceState.Record(ctx, value, withSource(source, stateAttribute(state)))
-		}
+		h.writeStateGauge(ctx, source, current.State)
 	}
 
 	if current.State != previous.State {
@@ -400,6 +401,12 @@ func errorAttributes(e interfaces.DataSourceErrorInfo) []attribute.KeyValue {
 
 // InitializerCompleted implements the InitializerCompleted handler.
 func (h *MetricsHook) InitializerCompleted(ctx context.Context, initializerContext ldhooks.InitializerContext) error {
+	if initializerContext.Applied() {
+		// Statuses reported during the initializer phase belong to the initializer whose data was applied.
+		h.mu.Lock()
+		h.currentSource = initializerContext.DataSource()
+		h.mu.Unlock()
+	}
 	attrs := withSource(initializerContext.DataSource(),
 		attribute.String(attrInitializerOutcome, string(initializerContext.Outcome())))
 	h.initializerAttempts.Add(ctx, 1, attrs)
@@ -412,11 +419,33 @@ func (h *MetricsHook) SynchronizerChanged(ctx context.Context, changeContext ldh
 	previous, current := changeContext.Previous(), changeContext.Current()
 
 	h.mu.Lock()
-	if current.IsDefined() && !containsDescriptor(h.seenSynchronizers, current) {
-		h.seenSynchronizers = append(h.seenSynchronizers, current)
+	var reattributeFrom interfaces.DataSourceDescriptor
+	reattribute := false
+	var lastState interfaces.DataSourceState
+	if current.IsDefined() {
+		h.currentSource = current
+		if !containsDescriptor(h.seenSynchronizers, current) {
+			h.seenSynchronizers = append(h.seenSynchronizers, current)
+		}
+		// The new synchronizer reports the statuses that follow. Move the state gauge to it now so
+		// that an unchanged status is not left attributed to the previous component.
+		if h.haveStatus && h.attributedSource != current {
+			reattribute = true
+			reattributeFrom = h.attributedSource
+			lastState = h.lastStatus.State
+			h.attributedSource = current
+			if !containsDescriptor(h.seenSources, current) {
+				h.seenSources = append(h.seenSources, current)
+			}
+		}
 	}
 	seen := append([]interfaces.DataSourceDescriptor(nil), h.seenSynchronizers...)
 	h.mu.Unlock()
+
+	if reattribute {
+		h.clearStateGauge(ctx, reattributeFrom)
+		h.writeStateGauge(ctx, current, lastState)
+	}
 
 	previousName, currentName := noSynchronizer, noSynchronizer
 	if previous.IsDefined() {
@@ -454,10 +483,14 @@ func (h *MetricsHook) InitializationCompleted(
 	return nil
 }
 
-// AfterEventFlush implements the AfterEventFlush handler.
-func (h *MetricsHook) AfterEventFlush(ctx context.Context, flushContext ldhooks.EventFlushContext) error {
+// EventFlushCompleted implements the EventFlushCompleted handler.
+func (h *MetricsHook) EventFlushCompleted(ctx context.Context, flushContext ldhooks.EventFlushContext) error {
 	count := int64(flushContext.EventCount())
 	seconds := flushContext.Duration().Seconds()
+
+	if dropped := flushContext.DroppedCount(); dropped > 0 {
+		h.eventsDropped.Add(ctx, int64(dropped))
+	}
 
 	if flushContext.Success() {
 		h.eventsDelivered.Add(ctx, count)
@@ -483,16 +516,6 @@ func (h *MetricsHook) AfterEventFlush(ctx context.Context, flushContext ldhooks.
 	return nil
 }
 
-// EventsDropped implements the EventsDropped handler.
-func (h *MetricsHook) EventsDropped(ctx context.Context, droppedContext ldhooks.EventsDroppedContext) error {
-	attrs := h.dropCapacityAttrs
-	if droppedContext.Reason() == ldhooks.EventsDroppedReasonBackpressure {
-		attrs = h.dropBackpressure
-	}
-	h.eventsDropped.Add(ctx, int64(droppedContext.Count()), attrs)
-	return nil
-}
-
 // Ensure that MetricsHook conforms to the hook interfaces it is meant to implement.
 var (
 	_ ldhooks.Hook                    = (*MetricsHook)(nil)
@@ -501,5 +524,4 @@ var (
 	_ ldhooks.SynchronizerHandler     = (*MetricsHook)(nil)
 	_ ldhooks.InitializationHandler   = (*MetricsHook)(nil)
 	_ ldhooks.EventFlushHandler       = (*MetricsHook)(nil)
-	_ ldhooks.EventsDroppedHandler    = (*MetricsHook)(nil)
 )

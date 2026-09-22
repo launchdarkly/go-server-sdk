@@ -33,21 +33,17 @@ func (h *Runner) HasDataSourceHandlers() bool {
 		len(h.synchronizerHandlers) > 0 || len(h.initializationHandlers) > 0
 }
 
-// HasEventDeliveryHandlers returns true if any registered hook implements EventFlushHandler or
-// EventsDroppedHandler.
+// HasEventDeliveryHandlers returns true if any registered hook implements EventFlushHandler.
 func (h *Runner) HasEventDeliveryHandlers() bool {
-	return len(h.flushHandlers) > 0 || len(h.droppedHandlers) > 0
+	return len(h.flushHandlers) > 0
 }
 
 // OnDataSourceStatusChanged runs the DataSourceStatusChanged handler of each hook that implements it.
-func (h *Runner) OnDataSourceStatusChanged(
-	previous, current interfaces.DataSourceStatus,
-	source interfaces.DataSourceDescriptor,
-) {
+func (h *Runner) OnDataSourceStatusChanged(previous, current interfaces.DataSourceStatus) {
 	if len(h.statusHandlers) == 0 {
 		return
 	}
-	statusContext := ldhooks.NewDataSourceStatusContext(previous, current, source)
+	statusContext := ldhooks.NewDataSourceStatusContext(previous, current)
 	for _, nh := range h.statusHandlers {
 		if err := nh.handler.DataSourceStatusChanged(gocontext.Background(), statusContext); err != nil {
 			h.loggers.Errorf(
@@ -98,25 +94,12 @@ func (h *Runner) OnInitializationCompleted(initializationContext ldhooks.Initial
 	}
 }
 
-// RunAfterEventFlush runs the AfterEventFlush handler of each hook that implements it.
-func (h *Runner) RunAfterEventFlush(flushContext ldhooks.EventFlushContext) {
+// RunEventFlushCompleted runs the EventFlushCompleted handler of each hook that implements it.
+func (h *Runner) RunEventFlushCompleted(flushContext ldhooks.EventFlushContext) {
 	for _, nh := range h.flushHandlers {
-		if err := nh.handler.AfterEventFlush(gocontext.Background(), flushContext); err != nil {
+		if err := nh.handler.EventFlushCompleted(gocontext.Background(), flushContext); err != nil {
 			h.loggers.Errorf(
-				"During event delivery, an error was encountered in \"AfterEventFlush\" of the \"%s\" hook: %s",
-				nh.name,
-				err.Error(),
-			)
-		}
-	}
-}
-
-// RunEventsDropped runs the EventsDropped handler of each hook that implements it.
-func (h *Runner) RunEventsDropped(droppedContext ldhooks.EventsDroppedContext) {
-	for _, nh := range h.droppedHandlers {
-		if err := nh.handler.EventsDropped(gocontext.Background(), droppedContext); err != nil {
-			h.loggers.Errorf(
-				"During event delivery, an error was encountered in \"EventsDropped\" of the \"%s\" hook: %s",
+				"During event delivery, an error was encountered in \"EventFlushCompleted\" of the \"%s\" hook: %s",
 				nh.name,
 				err.Error(),
 			)

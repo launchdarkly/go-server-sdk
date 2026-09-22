@@ -6,6 +6,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -20,6 +21,8 @@ type FDv1 struct {
 	flagChangeEventBroadcaster  *internal.Broadcaster[interfaces.FlagChangeEvent]
 	dataStore                   subsystems.DataStore
 	dataSource                  subsystems.DataSource
+	dataSourceDescriptor        interfaces.DataSourceDescriptor
+	statusObserver              internal.DataSourceStatusObserver
 	offline                     bool
 }
 
@@ -68,7 +71,8 @@ func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsy
 		return nil, err
 	}
 	system.dataSource = dataSource
-	dataSourceUpdateSink.SetDescriptor(subsystems.DescribeDataSource(dataSource))
+	system.dataSourceDescriptor = subsystems.DescribeDataSource(dataSource)
+	system.statusObserver = clientContext.DataSourceStatusObserver
 	system.dataSourceStatusProvider = datasource.NewDataSourceStatusProviderImpl(
 		system.dataSourceStatusBroadcaster,
 		dataSourceUpdateSink,
@@ -120,6 +124,16 @@ func (f *FDv1) FlagChangeEventBroadcaster() *internal.Broadcaster[interfaces.Fla
 
 //nolint:revive // Data system implementation.
 func (f *FDv1) Start(closeWhenReady chan struct{}) {
+	if f.statusObserver != nil && !f.offline {
+		// A single data source keeps data up to date in the same way as a synchronizer. Report it
+		// once so that hooks get the same component identity as with a data system.
+		f.statusObserver.OnSynchronizerChanged(ldhooks.NewSynchronizerChangeContext(
+			interfaces.DataSourceDescriptor{},
+			f.dataSourceDescriptor,
+			ldhooks.SynchronizerChangeReasonInitial,
+			interfaces.DataSourceErrorInfo{},
+		))
+	}
 	f.dataSource.Start(closeWhenReady)
 }
 

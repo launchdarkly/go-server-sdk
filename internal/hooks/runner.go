@@ -24,7 +24,6 @@ type Runner struct {
 	synchronizerHandlers   []namedHandler[ldhooks.SynchronizerHandler]
 	initializationHandlers []namedHandler[ldhooks.InitializationHandler]
 	flushHandlers          []namedHandler[ldhooks.EventFlushHandler]
-	droppedHandlers        []namedHandler[ldhooks.EventsDroppedHandler]
 }
 
 // NewRunner creates a new hook runner.
@@ -42,7 +41,6 @@ func NewRunner(
 		synchronizerHandlers:   collectHandlers[ldhooks.SynchronizerHandler](hooks),
 		initializationHandlers: collectHandlers[ldhooks.InitializationHandler](hooks),
 		flushHandlers:          collectHandlers[ldhooks.EventFlushHandler](hooks),
-		droppedHandlers:        collectHandlers[ldhooks.EventsDroppedHandler](hooks),
 	}
 }
 

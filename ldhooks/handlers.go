@@ -25,18 +25,10 @@ type DataSourceStatusHandler interface {
 
 // EventFlushHandler is an optional hook interface for observing analytics event delivery.
 type EventFlushHandler interface {
-	// AfterEventFlush is called after each attempt to deliver a batch of analytics events to
-	// LaunchDarkly, whether the attempt succeeded or failed.
-	AfterEventFlush(ctx context.Context, flushContext EventFlushContext) error
-}
-
-// EventsDroppedHandler is an optional hook interface for observing discarded analytics events.
-type EventsDroppedHandler interface {
-	// EventsDropped is called when the SDK discards analytics events before delivery.
-	//
-	// The SDK may call this method frequently when the application produces events faster than
-	// the SDK can deliver them. Implementations should return quickly.
-	EventsDropped(ctx context.Context, droppedContext EventsDroppedContext) error
+	// EventFlushCompleted is called after each attempt to deliver a batch of analytics events to
+	// LaunchDarkly, whether the attempt succeeded or failed. The context also reports how many
+	// events the SDK discarded since the previous attempt.
+	EventFlushCompleted(ctx context.Context, flushContext EventFlushContext) error
 }
 
 // InitializerHandler is an optional hook interface for observing data initializer attempts.

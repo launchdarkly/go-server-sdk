@@ -32,19 +32,12 @@ type DataSourceUpdateSinkImpl struct {
 	lock                        sync.Mutex
 	environmentID               ldvalue.OptionalString
 	statusObserver              internal.DataSourceStatusObserver
-	descriptor                  intf.DataSourceDescriptor
 }
 
 // SetStatusObserver registers an observer that is called synchronously on each status change.
 // It must be called before the data source starts.
 func (d *DataSourceUpdateSinkImpl) SetStatusObserver(observer internal.DataSourceStatusObserver) {
 	d.statusObserver = observer
-}
-
-// SetDescriptor records which data source component reports through this sink. It must be called
-// before the data source starts.
-func (d *DataSourceUpdateSinkImpl) SetDescriptor(descriptor intf.DataSourceDescriptor) {
-	d.descriptor = descriptor
 }
 
 // NewDataSourceUpdateSinkImpl creates the internal implementation of DataSourceUpdateSink.
@@ -168,7 +161,7 @@ func (d *DataSourceUpdateSinkImpl) UpdateStatus(
 	if oldStatus, statusToBroadcast, changed := d.maybeUpdateStatus(newState, newError); changed {
 		d.dataSourceStatusBroadcaster.Broadcast(statusToBroadcast)
 		if d.statusObserver != nil {
-			d.statusObserver.OnDataSourceStatusChanged(oldStatus, statusToBroadcast, d.descriptor)
+			d.statusObserver.OnDataSourceStatusChanged(oldStatus, statusToBroadcast)
 		}
 	}
 }

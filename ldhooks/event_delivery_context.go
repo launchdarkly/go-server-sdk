@@ -11,6 +11,7 @@ type EventFlushContext struct {
 	success      bool
 	statusCode   int
 	duration     time.Duration
+	droppedCount int
 }
 
 // NewEventFlushContext creates an EventFlushContext. This is called by the SDK.
@@ -20,6 +21,7 @@ func NewEventFlushContext(
 	success bool,
 	statusCode int,
 	duration time.Duration,
+	droppedCount int,
 ) EventFlushContext {
 	return EventFlushContext{
 		eventCount:   eventCount,
@@ -27,6 +29,7 @@ func NewEventFlushContext(
 		success:      success,
 		statusCode:   statusCode,
 		duration:     duration,
+		droppedCount: droppedCount,
 	}
 }
 
@@ -57,35 +60,8 @@ func (c EventFlushContext) Duration() time.Duration {
 	return c.duration
 }
 
-// EventsDroppedReason identifies why the SDK discarded events.
-type EventsDroppedReason string
-
-const (
-	// EventsDroppedReasonCapacity means the event buffer reached its configured capacity before a flush.
-	EventsDroppedReasonCapacity EventsDroppedReason = "capacity"
-
-	// EventsDroppedReasonBackpressure means the application produced events faster than the SDK could
-	// accept them.
-	EventsDroppedReasonBackpressure EventsDroppedReason = "backpressure"
-)
-
-// EventsDroppedContext contains the information passed to the EventsDropped handler.
-type EventsDroppedContext struct {
-	count  int
-	reason EventsDroppedReason
-}
-
-// NewEventsDroppedContext creates an EventsDroppedContext. This is called by the SDK.
-func NewEventsDroppedContext(count int, reason EventsDroppedReason) EventsDroppedContext {
-	return EventsDroppedContext{count: count, reason: reason}
-}
-
-// Count returns the number of events that were discarded.
-func (c EventsDroppedContext) Count() int {
-	return c.count
-}
-
-// Reason returns why the events were discarded.
-func (c EventsDroppedContext) Reason() EventsDroppedReason {
-	return c.reason
+// DroppedCount returns the number of events the SDK discarded before delivery since the previous
+// flush attempt, because the event buffer was full.
+func (c EventFlushContext) DroppedCount() int {
+	return c.droppedCount
 }

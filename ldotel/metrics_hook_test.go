@@ -251,12 +251,9 @@ func TestMetricsHookRecordsDroppedEvents(t *testing.T) {
 
 	rm := setup.collect(t)
 	// One event fits in the buffer; the other four are discarded either because the buffer is
-	// full or because the dispatcher could not keep up. Both reasons count as dropped.
-	dropped := requireMetric(t, rm, metricEventsDropped)
-	capacityDrops := sumInt64(t, dropped, attribute.String(attrDropReason, string(ldhooks.EventsDroppedReasonCapacity)))
-	backpressureDrops := sumInt64(t, dropped,
-		attribute.String(attrDropReason, string(ldhooks.EventsDroppedReasonBackpressure)))
-	assert.Equal(t, int64(4), capacityDrops+backpressureDrops)
+	// full or because the dispatcher could not keep up. Both count as dropped.
+	// The drops are reported with the flush that follows them, not one by one.
+	assert.Equal(t, int64(4), sumInt64(t, requireMetric(t, rm, metricEventsDropped)))
 	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricEventsDelivered)))
 }
 
@@ -287,6 +284,13 @@ func TestMetricsHookRecordsDataSourceStatus(t *testing.T) {
 	statusProvider := client.GetDataSourceStatusProvider()
 	require.Equal(t, interfaces.DataSourceStateValid, statusProvider.GetStatus().State)
 
+	// A single FDv1 data source is reported once as the initial synchronizer, which is what
+	// attributes its statuses to it.
+	initial := requireMetric(t, setup.collect(t), metricSynchronizerTransitions)
+	assert.Equal(t, int64(1), sumInt64(t, initial,
+		attribute.String(attrSynchronizerCurrent, "StreamingDataSource"),
+		attribute.String(attrSynchronizerReason, string(ldhooks.SynchronizerChangeReasonInitial))))
+
 	// Drop the stream; the reconnect gets the 503 and the next reconnect succeeds.
 	firstControl.EndAll()
 	require.True(t, statusProvider.WaitFor(interfaces.DataSourceStateInterrupted, 5*time.Second))
@@ -310,7 +314,8 @@ func TestMetricsHookRecordsDataSourceStatus(t *testing.T) {
 		attribute.String(attrPreviousState, string(interfaces.DataSourceStateInterrupted))))
 
 	state := requireMetric(t, rm, metricDataSourceState)
-	valid, ok := lastGaugeInt64(t, state, stateAttribute(interfaces.DataSourceStateValid))
+	valid, ok := lastGaugeInt64(t, state, stateAttribute(interfaces.DataSourceStateValid),
+		attribute.String(attrDataSourceName, "StreamingDataSource"))
 	require.True(t, ok)
 	assert.Equal(t, int64(1), valid)
 	interrupted, ok := lastGaugeInt64(t, state, stateAttribute(interfaces.DataSourceStateInterrupted))

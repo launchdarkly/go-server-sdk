@@ -126,22 +126,15 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, int64(1), active)
 
-	// Once the synchronizer reports VALID, the state gauge is attributed to it and the
-	// initializer's series read 0.
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		rm = setup.collect(t)
-		state := requireMetric(t, rm, metricDataSourceState)
-		streamValid, ok := lastGaugeInt64(t, state, append(streaming, stateAttribute(interfaces.DataSourceStateValid))...)
-		if ok && streamValid == 1 {
-			pollValid, ok := lastGaugeInt64(t, state, append(polling, stateAttribute(interfaces.DataSourceStateValid))...)
-			require.True(t, ok)
-			assert.Equal(t, int64(0), pollValid)
-			break
-		}
-		require.True(t, time.Now().Before(deadline), "streaming synchronizer never reported VALID")
-		time.Sleep(20 * time.Millisecond)
-	}
+	// The synchronizer change re-attributes the state gauge: the streaming synchronizer now reads
+	// VALID and the initializer's series read 0.
+	state := requireMetric(t, rm, metricDataSourceState)
+	streamValid, ok := lastGaugeInt64(t, state, append(streaming, stateAttribute(interfaces.DataSourceStateValid))...)
+	require.True(t, ok)
+	assert.Equal(t, int64(1), streamValid)
+	pollValid, ok := lastGaugeInt64(t, state, append(polling, stateAttribute(interfaces.DataSourceStateValid))...)
+	require.True(t, ok)
+	assert.Equal(t, int64(0), pollValid)
 }
 
 func TestMetricsHookRecordsSynchronizerRemovalAndExhaustion(t *testing.T) {

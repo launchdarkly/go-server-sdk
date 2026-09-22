@@ -104,12 +104,9 @@ type FDv2 struct {
 	// startTime is when Start was called. It anchors the initialization duration.
 	startTime time.Time
 
-	// currentSource identifies the component whose status is being reported. Protected by mu.
+	// currentSource identifies the running component. It names the source in lifecycle events.
+	// Protected by mu.
 	currentSource interfaces.DataSourceDescriptor
-
-	// reportedSource is the source most recently passed to the observer. A status that is
-	// unchanged but comes from a different source is still reported. Protected by mu.
-	reportedSource interfaces.DataSourceDescriptor
 
 	// nextSyncReason is the reason the next synchronizer will start. Only the synchronizer task
 	// and the run task, which precedes it, touch this field.
@@ -698,16 +695,13 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 		changed = true
 	}
 	current := f.status
-	source := f.currentSource
-	sourceChanged := source != f.reportedSource
-	f.reportedSource = source
 	f.mu.Unlock()
 
 	if changed {
 		f.broadcasters.dataSourceStatus.Broadcast(current)
-	}
-	if (changed || sourceChanged) && f.statusObserver != nil {
-		f.statusObserver.OnDataSourceStatusChanged(previous, current, source)
+		if f.statusObserver != nil {
+			f.statusObserver.OnDataSourceStatusChanged(previous, current)
+		}
 	}
 }
 

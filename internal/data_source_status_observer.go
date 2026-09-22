@@ -9,9 +9,8 @@ import (
 // data system produces them. Unlike DataSourceStatusProvider listeners, which receive statuses on a
 // channel, an observer runs synchronously.
 type DataSourceStatusObserver interface {
-	// OnDataSourceStatusChanged is called after the data source status changed. source identifies
-	// the component that produced the status; it may be empty.
-	OnDataSourceStatusChanged(previous, current interfaces.DataSourceStatus, source interfaces.DataSourceDescriptor)
+	// OnDataSourceStatusChanged is called after the data source status changed.
+	OnDataSourceStatusChanged(previous, current interfaces.DataSourceStatus)
 
 	// OnInitializerCompleted is called after each attempt to obtain initial data from an initializer.
 	OnInitializerCompleted(initializerContext ldhooks.InitializerContext)
