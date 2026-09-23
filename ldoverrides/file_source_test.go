@@ -5,6 +5,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -102,11 +103,31 @@ func buildFileSourceWithLog(
 	return source, sink, mockLog
 }
 
-func lastInfoLine(t *testing.T, mockLog *ldlogtest.MockLog) string {
+// requireInfoLine waits for an Info log line that contains every substring. The source logs
+// after it hands the snapshot to the sink, so a test that has just received a snapshot may
+// run ahead of the log line.
+func requireInfoLine(t *testing.T, mockLog *ldlogtest.MockLog, substrings ...string) {
 	t.Helper()
-	lines := mockLog.GetOutput(ldlog.Info)
-	require.NotEmpty(t, lines)
-	return lines[len(lines)-1]
+	deadline := time.Now().Add(testTimeout)
+	for {
+		for _, line := range mockLog.GetOutput(ldlog.Info) {
+			matches := true
+			for _, substring := range substrings {
+				if !strings.Contains(line, substring) {
+					matches = false
+					break
+				}
+			}
+			if matches {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			require.FailNow(t, "timed out waiting for an Info line containing "+strings.Join(substrings, " and "),
+				"Info output: %v", mockLog.GetOutput(ldlog.Info))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func writeFile(t *testing.T, path string, content string) {
@@ -223,35 +244,23 @@ func TestFileSourceLogsOverridesInEffectOnEachChange(t *testing.T) {
 		b.FilePaths(first, second).PollInterval(MinimumPollInterval)
 	})
 	sink.requireSnapshot(t)
-	line := lastInfoLine(t, mockLog)
-	assert.Contains(t, line, "Flag overrides in effect: 2 flags, 1 segment")
-	assert.Contains(t, line, first+": 2 flags, 1 segment")
-	assert.Contains(t, line, second+": absent")
+	requireInfoLine(t, mockLog, "Flag overrides in effect: 2 flags, 1 segment", first+": 2 flags, 1 segment", second+": absent")
 
 	// Step 2: the absent file appears with one entry.
 	writeFile(t, second, `{"flagValues": {"flag3": true}}`)
-	sink.requireSnapshot(t)
-	line = lastInfoLine(t, mockLog)
-	assert.Contains(t, line, "Flag overrides in effect: 3 flags, 1 segment")
-	assert.Contains(t, line, second+": 1 flag")
+	requireInfoLine(t, mockLog, "Flag overrides in effect: 3 flags, 1 segment", second+": 1 flag")
 
 	// Step 3: both files are deleted. Nothing is in effect.
 	require.NoError(t, os.Remove(first))
 	require.NoError(t, os.Remove(second))
-	sink.requireSnapshot(t)
-	line = lastInfoLine(t, mockLog)
-	assert.Contains(t, line, "Flag overrides: none in effect")
-	assert.Contains(t, line, first+": absent")
-	assert.Contains(t, line, second+": absent")
+	requireInfoLine(t, mockLog, "Flag overrides: none in effect", first+": absent", second+": absent")
 }
 
 func TestFileSourceLogsNoneInEffectAtStartupWithoutFiles(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
 	sink.requireSnapshot(t)
-	line := lastInfoLine(t, mockLog)
-	assert.Contains(t, line, "Flag overrides: none in effect")
-	assert.Contains(t, line, path+": absent")
+	requireInfoLine(t, mockLog, "Flag overrides: none in effect", path+": absent")
 }
 
 func TestFileSourceWatchingModeIsQuietWhenFileIsAbsent(t *testing.T) {
