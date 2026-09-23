@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"sync"
 	"time"
@@ -156,13 +155,13 @@ func (fw *fileWatcher) isWatchedPath(name string) bool {
 
 func (fw *fileWatcher) setupWatches() error {
 	for _, p := range fw.paths {
-		absDirPath := path.Dir(p)
+		absDirPath := filepath.Dir(p)
 		realDirPath, err := filepath.EvalSymlinks(absDirPath)
 		if err != nil {
 			return fmt.Errorf(`unable to evaluate symlinks for "%s": %s`, absDirPath, err)
 		}
 
-		realPath := path.Join(realDirPath, path.Base(p))
+		realPath := filepath.Join(realDirPath, filepath.Base(p))
 		fw.absPathsMu.Lock()
 		fw.absPaths[realPath] = true
 		fw.absPathsMu.Unlock()
