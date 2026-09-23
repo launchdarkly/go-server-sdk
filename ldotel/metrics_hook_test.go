@@ -176,7 +176,7 @@ func TestMetricsHookRecordsDeliveredEvents(t *testing.T) {
 	<-requests
 
 	rm := setup.collect(t)
-	assert.Equal(t, int64(2), sumInt64(t, requireMetric(t, rm, metricEventsDelivered)))
+	assert.Equal(t, int64(2), sumInt64(t, requireMetric(t, rm, metricEventsSent)))
 	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricEventsFlushes),
 		attribute.String(attrFlushOutcome, flushOutcomeSuccess)))
 	assert.Greater(t, sumInt64(t, requireMetric(t, rm, metricEventsSentSize)), int64(0))
@@ -212,7 +212,7 @@ func TestMetricsHookRecordsFailedEvents(t *testing.T) {
 		append(failedAttrs, attribute.String(attrFlushOutcome, flushOutcomeFailure))...))
 	assert.Equal(t, uint64(1), histogramCount(t, requireMetric(t, rm, metricEventsBatchSize),
 		attribute.String(attrFlushOutcome, flushOutcomeFailure)))
-	assert.False(t, hasMetric(rm, metricEventsDelivered))
+	assert.False(t, hasMetric(rm, metricEventsSent))
 }
 
 func TestMetricsHookRecordsFailedEventsWithoutResponse(t *testing.T) {
@@ -254,7 +254,7 @@ func TestMetricsHookRecordsDroppedEvents(t *testing.T) {
 	// full or because the dispatcher could not keep up. Both count as dropped.
 	// The drops are reported with the flush that follows them, not one by one.
 	assert.Equal(t, int64(4), sumInt64(t, requireMetric(t, rm, metricEventsDropped)))
-	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricEventsDelivered)))
+	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricEventsSent)))
 }
 
 func TestMetricsHookRecordsDataSourceStatus(t *testing.T) {

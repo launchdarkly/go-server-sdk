@@ -19,7 +19,7 @@ const meterName = "launchdarkly-client"
 
 // Instrument names.
 const (
-	metricEventsDelivered         = "launchdarkly.sdk.events.delivered"
+	metricEventsSent              = "launchdarkly.sdk.events.sent"
 	metricEventsFailed            = "launchdarkly.sdk.events.failed"
 	metricEventsDropped           = "launchdarkly.sdk.events.dropped"
 	metricEventsFlushes           = "launchdarkly.sdk.events.flushes"
@@ -66,7 +66,7 @@ const (
 	// stateNone is reported as the previous state for the first status the SDK reports.
 	stateNone = "NONE"
 	// unknownValue is reported for a descriptor field the component did not provide.
-	unknownValue = "unknown"
+	unknownValue = "not_provided"
 	// noSynchronizer is reported when no synchronizer is on either side of a change.
 	noSynchronizer          = "none"
 	initializationSucceeded = "succeeded"
@@ -100,7 +100,7 @@ type MetricsHook struct {
 	metadata      ldhooks.Metadata
 	meterProvider metric.MeterProvider
 
-	eventsDelivered         metric.Int64Counter
+	eventsSent              metric.Int64Counter
 	eventsFailed            metric.Int64Counter
 	eventsDropped           metric.Int64Counter
 	eventsFlushes           metric.Int64Counter
@@ -210,7 +210,7 @@ func NewMetricsHook(opts ...MetricsHookOption) (*MetricsHook, error) {
 	}
 	b := &instrumentBuilder{meter: h.meterProvider.Meter(meterName)}
 
-	h.eventsDelivered = b.int64Counter(metricEventsDelivered,
+	h.eventsSent = b.int64Counter(metricEventsSent,
 		"Analytics events accepted by the LaunchDarkly events service", "{event}")
 	h.eventsFailed = b.int64Counter(metricEventsFailed,
 		"Analytics events lost because a batch could not be delivered after all retries", "{event}")
@@ -493,7 +493,7 @@ func (h *MetricsHook) EventFlushCompleted(ctx context.Context, flushContext ldho
 	}
 
 	if flushContext.Success() {
-		h.eventsDelivered.Add(ctx, count)
+		h.eventsSent.Add(ctx, count)
 		h.eventsSentSize.Add(ctx, int64(flushContext.PayloadBytes()))
 		h.eventsFlushes.Add(ctx, 1, h.successAttrs)
 		h.eventsBatchSize.Record(ctx, count, h.successAttrs)
