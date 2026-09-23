@@ -1,7 +1,10 @@
 package ldfilewatch
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"sync"
@@ -15,10 +18,11 @@ import (
 const retryDuration = time.Second
 
 type fileWatcher struct {
-	watcher *fsnotify.Watcher
-	loggers ldlog.Loggers
-	reload  func()
-	paths   []string
+	optionalFiles bool
+	watcher       *fsnotify.Watcher
+	loggers       ldlog.Loggers
+	reload        func()
+	paths         []string
 	// absPaths is written by setupWatches on the run goroutine and read by the pump goroutine.
 	absPathsMu sync.RWMutex
 	absPaths   map[string]bool
@@ -33,16 +37,34 @@ type fileWatcher struct {
 //	        Reloader(ldfilewatch.WatchFiles),
 //	}
 func WatchFiles(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
+	return watchFiles(paths, loggers, reload, closeCh, false)
+}
+
+// WatchOptionalFiles is the same as WatchFiles, except that a configured file that does not
+// exist is not an error. The file's directory is watched, so the file is picked up when it
+// appears. Use this for files that are allowed to be absent, such as override files.
+func WatchOptionalFiles(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
+	return watchFiles(paths, loggers, reload, closeCh, true)
+}
+
+func watchFiles(
+	paths []string,
+	loggers ldlog.Loggers,
+	reload func(),
+	closeCh <-chan struct{},
+	optionalFiles bool,
+) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil { // COVERAGE: can't simulate this condition in unit tests
 		return fmt.Errorf("unable to create file watcher: %s", err)
 	}
 	fw := &fileWatcher{
-		watcher:  watcher,
-		loggers:  loggers,
-		reload:   reload,
-		paths:    paths,
-		absPaths: make(map[string]bool),
+		optionalFiles: optionalFiles,
+		watcher:       watcher,
+		loggers:       loggers,
+		reload:        reload,
+		paths:         paths,
+		absPaths:      make(map[string]bool),
 	}
 	go fw.run(closeCh)
 	return nil
@@ -144,11 +166,18 @@ func (fw *fileWatcher) setupWatches() error {
 		fw.absPathsMu.Lock()
 		fw.absPaths[realPath] = true
 		fw.absPathsMu.Unlock()
-		if err = fw.watcher.Add(realPath); err != nil { // COVERAGE: can't simulate this condition in unit tests
-			return fmt.Errorf(`unable to watch path "%s": %s`, realPath, err)
-		}
+		// The directory watch comes first. It reports a file that appears later, so an optional
+		// file that is absent now still gets picked up.
 		if err = fw.watcher.Add(realDirPath); err != nil { // COVERAGE: can't simulate this in unit tests
 			return fmt.Errorf(`unable to watch path "%s": %s`, realDirPath, err)
+		}
+		if fw.optionalFiles {
+			if _, statErr := os.Lstat(realPath); errors.Is(statErr, fs.ErrNotExist) {
+				continue
+			}
+		}
+		if err = fw.watcher.Add(realPath); err != nil { // COVERAGE: can't simulate this condition in unit tests
+			return fmt.Errorf(`unable to watch path "%s": %s`, realPath, err)
 		}
 	}
 	return nil

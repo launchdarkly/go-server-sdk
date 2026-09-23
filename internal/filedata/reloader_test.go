@@ -110,6 +110,9 @@ func TestReloaderSkipsMissingPathsWhenConfigured(t *testing.T) {
 	result := f.requireApplied(t)
 	require.Len(t, result.Flags, 1)
 	assert.Equal(t, "flag1", result.Flags[0].Key)
+	require.Len(t, result.Files, 2)
+	assert.Equal(t, FileSummary{Path: f.path, Present: true, Flags: 1}, result.Files[0])
+	assert.Equal(t, FileSummary{Path: second, Present: false}, result.Files[1])
 
 	// Step 2: the missing file appears. Its data is merged in.
 	require.NoError(t, os.WriteFile(second, []byte(`{"flagValues": {"flag2": true}}`), 0600))

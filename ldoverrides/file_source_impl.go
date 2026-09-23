@@ -1,6 +1,8 @@
 package ldoverrides
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +43,7 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 				{Kind: ldstoreimpl.Features(), Items: merged.Flags},
 				{Kind: ldstoreimpl.Segments(), Items: merged.Segments},
 			})
+			f.logOverridesInEffect(merged)
 		},
 		DebounceDelay: filedata.DefaultDebounceDelay,
 		RetryDelay:    filedata.DefaultRetryDelay,
@@ -57,13 +60,54 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	switch f.changeDetection {
 	case Watching:
 		f.closeWatchCh = make(chan struct{})
-		if err := ldfilewatch.WatchFiles(f.paths, f.loggers, f.reloader.Trigger, f.closeWatchCh); err != nil {
+		if err := ldfilewatch.WatchOptionalFiles(f.paths, f.loggers, f.reloader.Trigger, f.closeWatchCh); err != nil {
 			// COVERAGE: constructing a watcher only fails under unusual OS conditions
 			f.loggers.Errorf("Unable to watch override files: %s", err)
 		}
 	case Polling:
 		f.poller = filedata.NewPoller(f.paths, f.pollInterval, f.reloader.Trigger)
 	}
+}
+
+// logOverridesInEffect reports the overrides now in effect and the file each came from. The
+// reloader applies a snapshot only when the content changed, so this logs each change once.
+func (f *fileOverrideSource) logOverridesInEffect(merged filedata.MergeResult) {
+	details := make([]string, 0, len(merged.Files))
+	for _, file := range merged.Files {
+		switch {
+		case !file.Present:
+			details = append(details, file.Path+": absent")
+		case file.Flags == 0 && file.Segments == 0:
+			details = append(details, file.Path+": no entries")
+		default:
+			details = append(details, file.Path+": "+countsText(file.Flags, file.Segments))
+		}
+	}
+	if len(merged.Flags) == 0 && len(merged.Segments) == 0 {
+		f.loggers.Infof("Flag overrides: none in effect (%s)", strings.Join(details, "; "))
+		return
+	}
+	f.loggers.Infof("Flag overrides in effect: %s (%s)",
+		countsText(len(merged.Flags), len(merged.Segments)), strings.Join(details, "; "))
+}
+
+// countsText formats flag and segment counts, for example "2 flags, 1 segment".
+func countsText(flags int, segments int) string {
+	parts := make([]string, 0, 2)
+	if flags > 0 {
+		parts = append(parts, pluralize(flags, "flag"))
+	}
+	if segments > 0 {
+		parts = append(parts, pluralize(segments, "segment"))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func pluralize(count int, noun string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", count, noun)
 }
 
 func (f *fileOverrideSource) Close() error {

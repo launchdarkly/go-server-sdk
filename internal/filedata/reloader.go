@@ -226,6 +226,7 @@ func (r *Reloader) reload() bool {
 	}
 
 	docs := make([]Document, 0, len(r.cfg.Paths))
+	files := make([]FileSummary, 0, len(r.cfg.Paths))
 	hasher := sha256.New()
 	for _, path := range r.cfg.Paths {
 		// One read feeds both the hash and the parse, so the skip-unchanged hash can never
@@ -234,6 +235,7 @@ func (r *Reloader) reload() bool {
 		if err != nil {
 			if r.cfg.SkipMissingPaths && errors.Is(err, fs.ErrNotExist) {
 				r.cfg.Loggers.Debugf("File %s does not exist; it contributes no data", path)
+				files = append(files, FileSummary{Path: path})
 				continue
 			}
 			return r.fail(&ReadError{Err: wrapReadError(err), Path: path})
@@ -245,12 +247,23 @@ func (r *Reloader) reload() bool {
 			return r.fail(&ReadError{Err: err, Path: path})
 		}
 		docs = append(docs, doc)
+		files = append(files, FileSummary{Path: path, Present: true})
 	}
 
 	merged, err := Merge(r.cfg.DuplicateKeysHandling, docs...)
 	if err != nil {
 		return r.fail(err)
 	}
+	// Documents are the present files in order. Copy their counts onto the file summaries.
+	next := 0
+	for i := range files {
+		if files[i].Present {
+			files[i].Flags = merged.Documents[next].Flags
+			files[i].Segments = merged.Documents[next].Segments
+			next++
+		}
+	}
+	merged.Files = files
 
 	// Close may have happened while the files were being read; deliver nothing in that
 	// case. This check is deliberately not atomic with the delivery below: Close must never

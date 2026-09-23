@@ -1,6 +1,8 @@
 package ldoverrides
 
 import (
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -81,6 +83,30 @@ func buildFileSource(t *testing.T, configure func(*FileSourceBuilder)) (subsyste
 	source.Start(sink)
 	t.Cleanup(func() { _ = source.Close() })
 	return source, sink
+}
+
+func buildFileSourceWithLog(
+	t *testing.T,
+	configure func(*FileSourceBuilder),
+) (subsystems.OverrideSource, *capturingSink, *ldlogtest.MockLog) {
+	t.Helper()
+	builder := FileSource()
+	configure(builder)
+	mockLog := ldlogtest.NewMockLog()
+	context := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
+	source, err := builder.Build(context)
+	require.NoError(t, err)
+	sink := newCapturingSink()
+	source.Start(sink)
+	t.Cleanup(func() { _ = source.Close() })
+	return source, sink, mockLog
+}
+
+func lastInfoLine(t *testing.T, mockLog *ldlogtest.MockLog) string {
+	t.Helper()
+	lines := mockLog.GetOutput(ldlog.Info)
+	require.NotEmpty(t, lines)
+	return lines[len(lines)-1]
 }
 
 func writeFile(t *testing.T, path string, content string) {
@@ -185,6 +211,62 @@ func TestFileSourceMissingFileContributesNoEntries(t *testing.T) {
 	// Step 4: the last file is deleted. The layer is cleared.
 	require.NoError(t, os.Remove(first))
 	require.Len(t, flagsByKey(t, sink.requireSnapshot(t)), 0)
+}
+
+func TestFileSourceLogsOverridesInEffectOnEachChange(t *testing.T) {
+	dir := t.TempDir()
+	first, second := filepath.Join(dir, "first.json"), filepath.Join(dir, "second.json")
+	writeFile(t, first, `{"flagValues": {"flag1": true, "flag2": false}, "segments": {"seg": {"key": "seg"}}}`)
+
+	// Step 1: at startup, one file supplies entries and the other is absent.
+	_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) {
+		b.FilePaths(first, second).PollInterval(MinimumPollInterval)
+	})
+	sink.requireSnapshot(t)
+	line := lastInfoLine(t, mockLog)
+	assert.Contains(t, line, "Flag overrides in effect: 2 flags, 1 segment")
+	assert.Contains(t, line, first+": 2 flags, 1 segment")
+	assert.Contains(t, line, second+": absent")
+
+	// Step 2: the absent file appears with one entry.
+	writeFile(t, second, `{"flagValues": {"flag3": true}}`)
+	sink.requireSnapshot(t)
+	line = lastInfoLine(t, mockLog)
+	assert.Contains(t, line, "Flag overrides in effect: 3 flags, 1 segment")
+	assert.Contains(t, line, second+": 1 flag")
+
+	// Step 3: both files are deleted. Nothing is in effect.
+	require.NoError(t, os.Remove(first))
+	require.NoError(t, os.Remove(second))
+	sink.requireSnapshot(t)
+	line = lastInfoLine(t, mockLog)
+	assert.Contains(t, line, "Flag overrides: none in effect")
+	assert.Contains(t, line, first+": absent")
+	assert.Contains(t, line, second+": absent")
+}
+
+func TestFileSourceLogsNoneInEffectAtStartupWithoutFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
+	sink.requireSnapshot(t)
+	line := lastInfoLine(t, mockLog)
+	assert.Contains(t, line, "Flag overrides: none in effect")
+	assert.Contains(t, line, path+": absent")
+}
+
+func TestFileSourceWatchingModeIsQuietWhenFileIsAbsent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) {
+		b.FilePaths(path).ChangeDetection(Watching)
+	})
+	sink.requireSnapshot(t)
+
+	time.Sleep(2500 * time.Millisecond)
+	assert.Empty(t, mockLog.GetOutput(ldlog.Error))
+	assert.Empty(t, mockLog.GetOutput(ldlog.Warn))
+
+	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
+	require.Len(t, flagsByKey(t, sink.requireSnapshot(t)), 1)
 }
 
 func TestFileSourceWatchingModeReloadsOnChange(t *testing.T) {

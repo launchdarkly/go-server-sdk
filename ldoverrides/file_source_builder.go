@@ -81,6 +81,9 @@ type FileSourceBuilder struct {
 // loaded overrides stay in effect. The source logs the failure, retries after a short
 // delay, and recovers on its own once the file is readable again.
 //
+// Whenever the set of overrides in effect changes, including at startup, the source logs
+// the overrides in effect and what each configured file supplied, at Info level.
+//
 // By default the source polls the files for changes once per second. See ChangeDetection
 // and PollInterval.
 func FileSource() *FileSourceBuilder {
