@@ -18,8 +18,9 @@ type DataSourceStatusHandler interface {
 	// DataSourceStatusChanged is called when the data source changes state, or when the data source
 	// reports a new error while remaining in the same state.
 	//
-	// The SDK calls this method in-band from the data source. Implementations should return quickly
-	// and must not call methods on the client that wait for a data source status.
+	// The SDK delivers status changes in the order they occurred, one at a time. This SDK makes the
+	// call on the data source's goroutine, so implementations return quickly and must not call methods
+	// on the client that wait for a later data source status.
 	DataSourceStatusChanged(ctx context.Context, statusContext DataSourceStatusContext) error
 }
 
