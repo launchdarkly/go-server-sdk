@@ -57,7 +57,7 @@ func (b *FDv1PollingDataSourceBuilderV2) PayloadFilter(filterKey string) *FDv1Po
 // Name sets a name for this component. The name appears in log messages and in the data source
 // telemetry that hooks receive.
 //
-// The default name is "FDv1PollingDataSource". An empty name keeps the default.
+// The default name is "fdv1_polling". An empty name keeps the default.
 func (b *FDv1PollingDataSourceBuilderV2) Name(name string) *FDv1PollingDataSourceBuilderV2 {
 	b.name = name
 	return b

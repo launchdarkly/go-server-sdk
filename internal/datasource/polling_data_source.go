@@ -196,7 +196,7 @@ func (pp *PollingProcessor) Describe() interfaces.DataSourceDescriptor {
 	return interfaces.DataSourceDescriptor{
 		Protocol:  interfaces.DataSourceProtocolFDv1,
 		Transport: interfaces.DataSourceTransportPolling,
-		Name:      "PollingDataSource",
+		Name:      "polling",
 	}
 }
 

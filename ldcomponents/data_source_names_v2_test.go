@@ -18,17 +18,17 @@ func describeBuilt(t *testing.T, cc subsystems.ComponentConfigurer[subsystems.Da
 func TestFDv2DataSourceNames(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		name, d := describeBuilt(t, StreamingDataSourceV2())
-		assert.Equal(t, "StreamingDataSourceV2", name)
+		assert.Equal(t, "streaming", name)
 		assert.Equal(t, interfaces.DataSourceDescriptor{
 			Protocol: interfaces.DataSourceProtocolFDv2, Transport: interfaces.DataSourceTransportStreaming, Name: name}, d)
 
 		name, d = describeBuilt(t, PollingDataSourceV2())
-		assert.Equal(t, "PollingDataSourceV2", name)
+		assert.Equal(t, "polling", name)
 		assert.Equal(t, interfaces.DataSourceDescriptor{
 			Protocol: interfaces.DataSourceProtocolFDv2, Transport: interfaces.DataSourceTransportPolling, Name: name}, d)
 
 		name, d = describeBuilt(t, FDv1PollingDataSourceV2())
-		assert.Equal(t, "FDv1PollingDataSource", name)
+		assert.Equal(t, "fdv1_polling", name)
 		assert.Equal(t, interfaces.DataSourceDescriptor{
 			Protocol: interfaces.DataSourceProtocolFDv1, Transport: interfaces.DataSourceTransportPolling, Name: name}, d)
 	})
@@ -51,7 +51,7 @@ func TestFDv2DataSourceNames(t *testing.T) {
 
 	t.Run("an empty name keeps the default", func(t *testing.T) {
 		name, _ := describeBuilt(t, PollingDataSourceV2().Name(""))
-		assert.Equal(t, "PollingDataSourceV2", name)
+		assert.Equal(t, "polling", name)
 	})
 
 	t.Run("a named polling builder used as an initializer keeps its name", func(t *testing.T) {

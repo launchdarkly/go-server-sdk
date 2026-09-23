@@ -18,6 +18,8 @@ import (
 //	type MyHook struct {
 //	  ldhooks.Unimplemented
 //	}
+//
+// A hook that implements io.Closer is closed when the client closes.
 type Hook interface {
 	Metadata() Metadata
 	EvaluationSeries

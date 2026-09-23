@@ -54,7 +54,7 @@ func (b *PollingDataSourceBuilderV2) BaseURI(baseURI string) *PollingDataSourceB
 // telemetry that hooks receive, so it can tell apart two components of the same type, for example a
 // polling initializer that reads from LaunchDarkly and one that reads from a Relay Proxy.
 //
-// The default name is "PollingDataSourceV2". An empty name keeps the default.
+// The default name is "polling". An empty name keeps the default.
 func (b *PollingDataSourceBuilderV2) Name(name string) *PollingDataSourceBuilderV2 {
 	b.name = name
 	return b

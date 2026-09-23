@@ -133,7 +133,7 @@ func (sp *StreamProcessor) Describe() interfaces.DataSourceDescriptor {
 	return interfaces.DataSourceDescriptor{
 		Protocol:  interfaces.DataSourceProtocolFDv1,
 		Transport: interfaces.DataSourceTransportStreaming,
-		Name:      "StreamingDataSource",
+		Name:      "streaming",
 	}
 }
 

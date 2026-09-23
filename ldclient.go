@@ -741,6 +741,12 @@ func (client *LDClient) Close() error {
 	if client.bigSegmentStoreWrapper != nil {
 		client.bigSegmentStoreWrapper.Close()
 	}
+
+	// Hooks are closed last. The data system and the event processor deliver their final handler
+	// invocations while they close.
+	if client.hookRunner != nil {
+		client.hookRunner.Close()
+	}
 	return nil
 }
 

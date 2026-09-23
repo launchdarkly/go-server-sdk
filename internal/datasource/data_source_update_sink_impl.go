@@ -40,6 +40,19 @@ func (d *DataSourceUpdateSinkImpl) SetStatusObserver(observer internal.DataSourc
 	d.statusObserver = observer
 }
 
+// ReportInitialStatus reports the current status to the observer as the first status, with an empty
+// previous status. The data system calls it once, when the data source starts, so that hooks have a
+// status before the first change.
+func (d *DataSourceUpdateSinkImpl) ReportInitialStatus() {
+	if d.statusObserver == nil {
+		return
+	}
+	d.lock.Lock()
+	current := d.currentStatus
+	d.lock.Unlock()
+	d.statusObserver.OnDataSourceStatusChanged(intf.DataSourceStatus{}, current)
+}
+
 // NewDataSourceUpdateSinkImpl creates the internal implementation of DataSourceUpdateSink.
 func NewDataSourceUpdateSinkImpl(
 	store subsystems.DataStore,

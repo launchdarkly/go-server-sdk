@@ -54,7 +54,7 @@ func (b *StreamingDataSourceBuilderV2) BaseURI(baseURI string) *StreamingDataSou
 // Name sets a name for this component. The name appears in log messages and in the data source
 // telemetry that hooks receive, so it can tell apart two components of the same type.
 //
-// The default name is "StreamingDataSourceV2". An empty name keeps the default.
+// The default name is "streaming". An empty name keeps the default.
 func (b *StreamingDataSourceBuilderV2) Name(name string) *StreamingDataSourceBuilderV2 {
 	b.name = name
 	return b

@@ -26,18 +26,18 @@ type PollingRequester interface {
 	FilterKey() string
 }
 
+// DefaultPollingDataSourceName is the name of the FDv2 polling component when none is configured.
+const DefaultPollingDataSourceName = "polling"
+
+// DefaultFDv1PollingDataSourceName is the name of the FDv1 fallback polling component when none is
+// configured.
+const DefaultFDv1PollingDataSourceName = "fdv1_polling"
+
 // PollingProcessor is the internal implementation of the polling data source.
 //
 // This type is exported from internal so that the PollingDataSourceBuilder tests can verify its
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
-// DefaultPollingDataSourceName is the name of the FDv2 polling component when none is configured.
-const DefaultPollingDataSourceName = "PollingDataSourceV2"
-
-// DefaultFDv1PollingDataSourceName is the name of the FDv1 fallback polling component when none is
-// configured.
-const DefaultFDv1PollingDataSourceName = "FDv1PollingDataSource"
-
 type PollingProcessor struct {
 	requester    PollingRequester
 	name         string

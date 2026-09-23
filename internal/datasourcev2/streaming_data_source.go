@@ -58,14 +58,14 @@ const (
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
+// DefaultStreamingDataSourceName is the name of the FDv2 streaming synchronizer when none is configured.
+const DefaultStreamingDataSourceName = "streaming"
+
 // StreamProcessor is the internal implementation of the streaming data source.
 //
 // This type is exported from internal so that the StreamingDataSourceBuilder tests can verify its
 // configuration. All other code outside of this package should interact with it only via the
 // DataSource interface.
-// DefaultStreamingDataSourceName is the name of the FDv2 streaming synchronizer when none is configured.
-const DefaultStreamingDataSourceName = "StreamingDataSourceV2"
-
 type StreamProcessor struct {
 	cfg                        datasource.StreamConfig
 	name                       string

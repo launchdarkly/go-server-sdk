@@ -2,6 +2,7 @@ package hooks
 
 import (
 	gocontext "context"
+	"io"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
@@ -47,7 +48,8 @@ func (h *Runner) OnDataSourceStatusChanged(previous, current interfaces.DataSour
 	for _, nh := range h.statusHandlers {
 		if err := nh.handler.DataSourceStatusChanged(gocontext.Background(), statusContext); err != nil {
 			h.loggers.Errorf(
-				"During a data source status change, an error was encountered in \"DataSourceStatusChanged\" of the \"%s\" hook: %s",
+				"During a data source status change, an error was encountered in \"DataSourceStatusChanged\" "+
+					"of the \"%s\" hook: %s",
 				nh.name,
 				err.Error(),
 			)
@@ -101,6 +103,24 @@ func (h *Runner) RunEventFlushCompleted(flushContext ldhooks.EventFlushContext) 
 			h.loggers.Errorf(
 				"During event delivery, an error was encountered in \"EventFlushCompleted\" of the \"%s\" hook: %s",
 				nh.name,
+				err.Error(),
+			)
+		}
+	}
+}
+
+// Close closes every hook that implements io.Closer. The client calls it when it closes, after the
+// last handler invocations have been delivered.
+func (h *Runner) Close() {
+	for _, hook := range h.hooks {
+		closer, ok := hook.(io.Closer)
+		if !ok {
+			continue
+		}
+		if err := closer.Close(); err != nil {
+			h.loggers.Errorf(
+				"During close, an error was encountered in \"Close\" of the \"%s\" hook: %s",
+				hook.Metadata().Name(),
 				err.Error(),
 			)
 		}

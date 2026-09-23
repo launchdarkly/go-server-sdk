@@ -617,6 +617,11 @@ func (f *FDv2) Stop() error {
 		f.cancel()
 	}
 	f.wg.Wait()
+	// A data system that has started reports that it is off, as a single data source does when it
+	// closes. Status listeners and hooks then see the final state.
+	if status := f.getStatus(); status.State != "" {
+		f.UpdateStatus(interfaces.DataSourceStateOff, status.LastError)
+	}
 	_ = f.store.Close()
 	f.broadcasters.Close()
 
@@ -690,7 +695,9 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 		changed = true
 	}
 
-	if err != f.status.LastError {
+	// The last error stays visible after the state recovers, as it does in the status API of a
+	// single data source.
+	if err.Kind != "" && err != f.status.LastError {
 		f.status.LastError = err
 		changed = true
 	}

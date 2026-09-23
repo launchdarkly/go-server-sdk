@@ -23,6 +23,7 @@ type FDv1 struct {
 	dataSource                  subsystems.DataSource
 	dataSourceDescriptor        interfaces.DataSourceDescriptor
 	statusObserver              internal.DataSourceStatusObserver
+	dataSourceUpdateSink        *datasource.DataSourceUpdateSinkImpl
 	offline                     bool
 }
 
@@ -78,6 +79,7 @@ func NewFDv1(offline bool, dataStoreFactory subsystems.ComponentConfigurer[subsy
 		dataSourceUpdateSink,
 	)
 	system.environmentIDProvider = dataSourceUpdateSink
+	system.dataSourceUpdateSink = dataSourceUpdateSink
 
 	return system, nil
 }
@@ -133,6 +135,9 @@ func (f *FDv1) Start(closeWhenReady chan struct{}) {
 			ldhooks.SynchronizerChangeReasonInitial,
 			interfaces.DataSourceErrorInfo{},
 		))
+		// The first status invocation carries the initial status, so that a hook has a status
+		// before the first change.
+		f.dataSourceUpdateSink.ReportInitialStatus()
 	}
 	f.dataSource.Start(closeWhenReady)
 }
