@@ -79,14 +79,14 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 		Hooks: []ldhooks.Hook{setup.hook},
 	}, 5*time.Second)
 	require.NoError(t, err)
-	defer client.Close()
+	closeClient := closeOnce(t, client)
 	require.True(t, client.Initialized())
 
 	// The synchronizer starts after initialization completes; wait for its first status.
 	rm := waitForMetric(t, setup, metricSynchronizerActive, 5*time.Second)
 
 	polling := []attribute.KeyValue{
-		attribute.String(attrDataSourceName, "PollingDataSourceV2"),
+		attribute.String(attrDataSourceName, "polling"),
 		attribute.String(attrDataSourceProtocol, "fdv2"),
 		attribute.String(attrDataSourceTransport, "polling"),
 	}
@@ -96,7 +96,7 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 		attribute.String(attrDataSourceTransport, "polling"),
 	}
 	streaming := []attribute.KeyValue{
-		attribute.String(attrDataSourceName, "StreamingDataSourceV2"),
+		attribute.String(attrDataSourceName, "streaming"),
 		attribute.String(attrDataSourceProtocol, "fdv2"),
 		attribute.String(attrDataSourceTransport, "streaming"),
 	}
@@ -117,8 +117,8 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 
 	transitions := requireMetric(t, rm, metricSynchronizerTransitions)
 	assert.Equal(t, int64(1), sumInt64(t, transitions,
-		attribute.String(attrSynchronizerPrevious, noSynchronizer),
-		attribute.String(attrSynchronizerCurrent, "StreamingDataSourceV2"),
+		attribute.String(attrSynchronizerPrevious, noneValue),
+		attribute.String(attrSynchronizerCurrent, "streaming"),
 		attribute.String(attrSynchronizerReason, string(ldhooks.SynchronizerChangeReasonInitial)),
 	))
 
@@ -126,8 +126,19 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, int64(1), active)
 
-	// The synchronizer change re-attributes the state gauge: the streaming synchronizer now reads
-	// VALID and the initializer's series read 0.
+	// The initial INITIALIZING status arrived before any initializer, so it belongs to the data
+	// system itself.
+	stateTransitions := requireMetric(t, rm, metricDataSourceTransitions)
+	assert.Equal(t, int64(1), sumInt64(t, stateTransitions,
+		stateAttribute(interfaces.DataSourceStateInitializing),
+		attribute.String(attrPreviousState, noneValue),
+		attribute.String(attrDataSourceName, dataSystemName)))
+	// The VALID status followed the applied initializer, so it belongs to that initializer.
+	assert.Equal(t, int64(1), sumInt64(t, stateTransitions,
+		append(polling, stateAttribute(interfaces.DataSourceStateValid))...))
+
+	// The synchronizer change moves the state gauge: the streaming synchronizer now reads VALID and
+	// every earlier component reads 0.
 	state := requireMetric(t, rm, metricDataSourceState)
 	streamValid, ok := lastGaugeInt64(t, state, append(streaming, stateAttribute(interfaces.DataSourceStateValid))...)
 	require.True(t, ok)
@@ -135,6 +146,19 @@ func TestMetricsHookRecordsInitializersAndSynchronizer(t *testing.T) {
 	pollValid, ok := lastGaugeInt64(t, state, append(polling, stateAttribute(interfaces.DataSourceStateValid))...)
 	require.True(t, ok)
 	assert.Equal(t, int64(0), pollValid)
+	systemValid, ok := lastGaugeInt64(t, state,
+		append(sourceAttributes(dataSystemDescriptor), stateAttribute(interfaces.DataSourceStateValid))...)
+	require.True(t, ok)
+	assert.Equal(t, int64(0), systemValid)
+
+	// Closing the client reports OFF for the streaming synchronizer before the hook stops observing.
+	closeClient()
+	rm = setup.collect(t)
+	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricDataSourceTransitions),
+		append(streaming, stateAttribute(interfaces.DataSourceStateOff),
+			attribute.String(attrPreviousState, string(interfaces.DataSourceStateValid)))...))
+	assert.False(t, hasMetric(rm, metricDataSourceState))
+	assert.False(t, hasMetric(rm, metricSynchronizerActive))
 }
 
 func TestMetricsHookRecordsSynchronizerRemovalAndExhaustion(t *testing.T) {
@@ -160,15 +184,15 @@ func TestMetricsHookRecordsSynchronizerRemovalAndExhaustion(t *testing.T) {
 
 	transitions := requireMetric(t, rm, metricSynchronizerTransitions)
 	assert.Equal(t, int64(1), sumInt64(t, transitions,
-		attribute.String(attrSynchronizerCurrent, "StreamingDataSourceV2"),
+		attribute.String(attrSynchronizerCurrent, "streaming"),
 		attribute.String(attrSynchronizerReason, string(ldhooks.SynchronizerChangeReasonInitial))))
 	assert.Equal(t, int64(1), sumInt64(t, transitions,
-		attribute.String(attrSynchronizerPrevious, "StreamingDataSourceV2"),
-		attribute.String(attrSynchronizerCurrent, noSynchronizer),
+		attribute.String(attrSynchronizerPrevious, "streaming"),
+		attribute.String(attrSynchronizerCurrent, noneValue),
 		attribute.String(attrSynchronizerReason, string(ldhooks.SynchronizerChangeReasonExhausted))))
 
 	active, ok := lastGaugeInt64(t, requireMetric(t, rm, metricSynchronizerActive),
-		attribute.String(attrDataSourceName, "StreamingDataSourceV2"))
+		attribute.String(attrDataSourceName, "streaming"))
 	require.True(t, ok)
 	assert.Equal(t, int64(0), active)
 
@@ -178,6 +202,6 @@ func TestMetricsHookRecordsSynchronizerRemovalAndExhaustion(t *testing.T) {
 
 	errors := requireMetric(t, rm, metricDataSourceErrors)
 	assert.Equal(t, int64(1), sumInt64(t, errors,
-		attribute.String(attrDataSourceName, "StreamingDataSourceV2"),
+		attribute.String(attrDataSourceName, "streaming"),
 		attribute.Int(attrHTTPStatusCode, http.StatusUnauthorized)))
 }

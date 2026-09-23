@@ -4,6 +4,7 @@ import (
 	gocontext "context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -148,6 +149,15 @@ func makeEventsClient(t *testing.T, hook ldhooks.Hook, eventsURL string, events 
 	return client
 }
 
+// closeOnce returns a function that closes the client once. The test can call it early to check
+// what closing reports; otherwise the client closes at cleanup.
+func closeOnce(t *testing.T, client *ldclient.LDClient) func() {
+	var once sync.Once
+	closeClient := func() { once.Do(func() { _ = client.Close() }) }
+	t.Cleanup(closeClient)
+	return closeClient
+}
+
 // flushAndWait flushes until the event processor confirms delivery or failure. A flush that
 // arrives while a previous payload is still waiting for a worker is skipped by the event
 // processor, so a single FlushAndWait can time out even though nothing is wrong.
@@ -178,12 +188,12 @@ func TestMetricsHookRecordsDeliveredEvents(t *testing.T) {
 	rm := setup.collect(t)
 	assert.Equal(t, int64(2), sumInt64(t, requireMetric(t, rm, metricEventsSent)))
 	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricEventsFlushes),
-		attribute.String(attrFlushOutcome, flushOutcomeSuccess)))
+		attribute.String(attrFlushOutcome, flushOutcomeSucceeded)))
 	assert.Greater(t, sumInt64(t, requireMetric(t, rm, metricEventsSentSize)), int64(0))
 	assert.Equal(t, uint64(1), histogramCount(t, requireMetric(t, rm, metricEventsBatchSize),
-		attribute.String(attrFlushOutcome, flushOutcomeSuccess)))
+		attribute.String(attrFlushOutcome, flushOutcomeSucceeded)))
 	assert.Equal(t, uint64(1), histogramCount(t, requireMetric(t, rm, metricEventsFlushDuration),
-		attribute.String(attrFlushOutcome, flushOutcomeSuccess)))
+		attribute.String(attrFlushOutcome, flushOutcomeSucceeded)))
 	assert.False(t, hasMetric(rm, metricEventsFailed))
 	assert.False(t, hasMetric(rm, metricEventsDropped))
 }
@@ -209,9 +219,9 @@ func TestMetricsHookRecordsFailedEvents(t *testing.T) {
 	}
 	assert.Equal(t, int64(3), sumInt64(t, requireMetric(t, rm, metricEventsFailed), failedAttrs...))
 	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricEventsFlushes),
-		append(failedAttrs, attribute.String(attrFlushOutcome, flushOutcomeFailure))...))
+		append(failedAttrs, attribute.String(attrFlushOutcome, flushOutcomeFailed))...))
 	assert.Equal(t, uint64(1), histogramCount(t, requireMetric(t, rm, metricEventsBatchSize),
-		attribute.String(attrFlushOutcome, flushOutcomeFailure)))
+		attribute.String(attrFlushOutcome, flushOutcomeFailed)))
 	assert.False(t, hasMetric(rm, metricEventsSent))
 }
 
@@ -279,17 +289,24 @@ func TestMetricsHookRecordsDataSourceStatus(t *testing.T) {
 		Hooks:            []ldhooks.Hook{setup.hook},
 	}, 5*time.Second)
 	require.NoError(t, err)
-	defer client.Close()
+	closeClient := closeOnce(t, client)
 
 	statusProvider := client.GetDataSourceStatusProvider()
 	require.Equal(t, interfaces.DataSourceStateValid, statusProvider.GetStatus().State)
 
 	// A single FDv1 data source is reported once as the initial synchronizer, which is what
 	// attributes its statuses to it.
-	initial := requireMetric(t, setup.collect(t), metricSynchronizerTransitions)
+	startup := setup.collect(t)
+	initial := requireMetric(t, startup, metricSynchronizerTransitions)
 	assert.Equal(t, int64(1), sumInt64(t, initial,
-		attribute.String(attrSynchronizerCurrent, "StreamingDataSource"),
+		attribute.String(attrSynchronizerCurrent, "streaming"),
 		attribute.String(attrSynchronizerReason, string(ldhooks.SynchronizerChangeReasonInitial))))
+
+	// The first status invocation carries the initial status, attributed to the data source.
+	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, startup, metricDataSourceTransitions),
+		stateAttribute(interfaces.DataSourceStateInitializing),
+		attribute.String(attrPreviousState, noneValue),
+		attribute.String(attrDataSourceName, "streaming")))
 
 	// Drop the stream; the reconnect gets the 503 and the next reconnect succeeds.
 	firstControl.EndAll()
@@ -315,7 +332,7 @@ func TestMetricsHookRecordsDataSourceStatus(t *testing.T) {
 
 	state := requireMetric(t, rm, metricDataSourceState)
 	valid, ok := lastGaugeInt64(t, state, stateAttribute(interfaces.DataSourceStateValid),
-		attribute.String(attrDataSourceName, "StreamingDataSource"))
+		attribute.String(attrDataSourceName, "streaming"))
 	require.True(t, ok)
 	assert.Equal(t, int64(1), valid)
 	interrupted, ok := lastGaugeInt64(t, state, stateAttribute(interfaces.DataSourceStateInterrupted))
@@ -340,6 +357,15 @@ func TestMetricsHookRecordsDataSourceStatus(t *testing.T) {
 			assert.Equal(t, 0.0, dp.Value)
 		}
 	}
+
+	// Closing the client reports OFF, then stops the observation of the state gauges.
+	closeClient()
+	rm = setup.collect(t)
+	assert.Equal(t, int64(1), sumInt64(t, requireMetric(t, rm, metricDataSourceTransitions),
+		stateAttribute(interfaces.DataSourceStateOff),
+		attribute.String(attrPreviousState, string(interfaces.DataSourceStateValid))))
+	assert.False(t, hasMetric(rm, metricDataSourceState))
+	assert.False(t, hasMetric(rm, metricDataSourceStateAge))
 }
 
 func TestMetricsHookMetadata(t *testing.T) {
