@@ -75,10 +75,11 @@ type FileSourceBuilder struct {
 // duplicate-key handling.
 //
 // A reload replaces the entire override set, so removing an entry from the files removes
-// the override. A file that is missing or cannot be parsed makes that whole reload fail.
-// The previously loaded overrides stay in effect. The source logs the failure, retries after
-// a short delay, and recovers on its own once the files are readable again. At startup,
-// failing to load simply means the client runs with no overrides.
+// the override. A configured file that does not exist contributes no overrides. Deleting a
+// file therefore removes its overrides, and deleting every file removes them all. A file
+// that exists but cannot be read or parsed makes that whole reload fail. The previously
+// loaded overrides stay in effect. The source logs the failure, retries after a short
+// delay, and recovers on its own once the file is readable again.
 //
 // By default the source polls the files for changes once per second. See ChangeDetection
 // and PollInterval.

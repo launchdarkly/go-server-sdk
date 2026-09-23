@@ -34,6 +34,7 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	f.reloader = filedata.NewReloader(filedata.ReloaderConfig{
 		Paths:                 f.paths,
 		DuplicateKeysHandling: f.duplicateKeysHandling,
+		SkipMissingPaths:      true,
 		Loggers:               f.loggers,
 		Apply: func(merged filedata.MergeResult) {
 			sink.SetOverrides([]ldstoretypes.Collection{
@@ -47,9 +48,10 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	})
 
 	// The initial load happens synchronously, so overrides present in the files are in
-	// effect by the time the client constructor returns. A failure here is not fatal. The
-	// client runs with no overrides and the failure is logged. The retry, plus the change
-	// signal, recovers once the files are readable.
+	// effect by the time the client constructor returns. A file that does not exist yet
+	// contributes no overrides. A file that cannot be read or parsed is not fatal. The
+	// client runs with the last good overrides, the failure is logged, and the retry, plus
+	// the change signal, recovers once the file is readable.
 	f.reloader.ReloadNow()
 
 	switch f.changeDetection {

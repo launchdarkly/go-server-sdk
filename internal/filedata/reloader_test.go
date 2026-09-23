@@ -84,6 +84,48 @@ func (f *reloaderFixture) requireQuiet(t *testing.T, duration time.Duration) {
 	}
 }
 
+func TestReloaderFailsOnMissingPathByDefault(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.json")
+	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
+		cfg.Paths = append(cfg.Paths, missing)
+	})
+	f.reloader.ReloadNow()
+	err := f.requireErrored(t)
+	var readErr *ReadError
+	require.ErrorAs(t, err, &readErr)
+	assert.Equal(t, missing, readErr.Path)
+	f.requireQuiet(t, 100*time.Millisecond)
+}
+
+func TestReloaderSkipsMissingPathsWhenConfigured(t *testing.T) {
+	second := filepath.Join(t.TempDir(), "second.json")
+	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, func(cfg *ReloaderConfig) {
+		cfg.Paths = append(cfg.Paths, second)
+		cfg.SkipMissingPaths = true
+		cfg.SkipUnchanged = true
+	})
+
+	// Step 1: one file exists and one does not. The reload succeeds with the existing file.
+	f.reloader.ReloadNow()
+	result := f.requireApplied(t)
+	require.Len(t, result.Flags, 1)
+	assert.Equal(t, "flag1", result.Flags[0].Key)
+
+	// Step 2: the missing file appears. Its data is merged in.
+	require.NoError(t, os.WriteFile(second, []byte(`{"flagValues": {"flag2": true}}`), 0600))
+	f.reloader.ReloadNow()
+	result = f.requireApplied(t)
+	require.Len(t, result.Flags, 2)
+
+	// Step 3: the file is deleted. Its data is gone and the reload still succeeds.
+	require.NoError(t, os.Remove(second))
+	f.reloader.ReloadNow()
+	result = f.requireApplied(t)
+	require.Len(t, result.Flags, 1)
+	assert.Equal(t, "flag1", result.Flags[0].Key)
+	f.requireQuiet(t, 100*time.Millisecond)
+}
+
 func TestReloaderInitialLoad(t *testing.T) {
 	f := newReloaderFixture(t, `{"flagValues": {"flag1": true}}`, nil)
 	f.reloader.ReloadNow()

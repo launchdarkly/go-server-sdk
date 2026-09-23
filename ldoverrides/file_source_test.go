@@ -149,13 +149,42 @@ func TestFileSourceStartsWithMissingFile(t *testing.T) {
 
 	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
 
-	// No snapshot at startup. The client runs with no overrides.
-	sink.requireNoSnapshot(t, 200*time.Millisecond)
+	// A missing file contributes no overrides. The initial snapshot is empty.
+	require.Len(t, flagsByKey(t, sink.requireSnapshot(t)), 0)
 
-	// Once the file appears, the watch (or the failure retry) picks it up unprompted.
+	// Once the file appears, the change signal picks it up unprompted.
 	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
 	flags := flagsByKey(t, sink.requireSnapshot(t))
 	require.Len(t, flags, 1)
+}
+
+func TestFileSourceMissingFileContributesNoEntries(t *testing.T) {
+	dir := t.TempDir()
+	first, second := filepath.Join(dir, "first.json"), filepath.Join(dir, "second.json")
+	writeFile(t, first, `{"flagValues": {"from-first": true}}`)
+
+	// Step 1: one configured file exists and one does not. The existing file applies.
+	_, sink := buildFileSource(t, func(b *FileSourceBuilder) {
+		b.FilePaths(first, second).PollInterval(MinimumPollInterval)
+	})
+	flags := flagsByKey(t, sink.requireSnapshot(t))
+	require.Len(t, flags, 1)
+	require.Contains(t, flags, "from-first")
+
+	// Step 2: the second file appears. Both apply.
+	writeFile(t, second, `{"flagValues": {"from-second": true}}`)
+	flags = flagsByKey(t, sink.requireSnapshot(t))
+	require.Len(t, flags, 2)
+
+	// Step 3: the second file is deleted. Its overrides are removed.
+	require.NoError(t, os.Remove(second))
+	flags = flagsByKey(t, sink.requireSnapshot(t))
+	require.Len(t, flags, 1)
+	require.Contains(t, flags, "from-first")
+
+	// Step 4: the last file is deleted. The layer is cleared.
+	require.NoError(t, os.Remove(first))
+	require.Len(t, flagsByKey(t, sink.requireSnapshot(t)), 0)
 }
 
 func TestFileSourceWatchingModeReloadsOnChange(t *testing.T) {

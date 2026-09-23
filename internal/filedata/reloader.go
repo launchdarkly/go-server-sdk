@@ -3,6 +3,8 @@ package filedata
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
+	"io/fs"
 	"os"
 	"sync"
 	"time"
@@ -28,6 +30,10 @@ type ReloaderConfig struct {
 	// DuplicateKeysHandling determines what happens when the same key appears in more than
 	// one file.
 	DuplicateKeysHandling DuplicateKeysHandling
+	// SkipMissingPaths, when true, treats a configured file that does not exist as a file
+	// with no content. The reload succeeds with the data of the files that exist. When
+	// false, a missing file fails the reload like any other read error.
+	SkipMissingPaths bool
 	// Loggers receives log output about reloads and failures.
 	Loggers ldlog.Loggers
 	// Apply is invoked with each successfully merged result. Calls are serialized on the
@@ -226,6 +232,10 @@ func (r *Reloader) reload() bool {
 		// disagree with the content that was actually applied.
 		rawData, err := os.ReadFile(path) //nolint:gosec // G304: ok to read file into variable
 		if err != nil {
+			if r.cfg.SkipMissingPaths && errors.Is(err, fs.ErrNotExist) {
+				r.cfg.Loggers.Debugf("File %s does not exist; it contributes no data", path)
+				continue
+			}
 			return r.fail(&ReadError{Err: wrapReadError(err), Path: path})
 		}
 		_, _ = hasher.Write(rawData)
