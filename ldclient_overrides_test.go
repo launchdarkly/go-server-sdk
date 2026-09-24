@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"strings"
 	"sync"
 	"testing"
@@ -180,6 +182,44 @@ func TestAllFlagsStateOverridesOnlyWarningIsLoggedOnce(t *testing.T) {
 		}
 	}
 	assert.Len(t, matching, 1)
+}
+
+func TestAllFlagsStateTurnsOffEventTrackingForOverrideAffectedFlags(t *testing.T) {
+	debugUntil := ldtime.UnixMillisNow() + 100000
+	plainTracked := ldbuilders.NewFlagBuilder("plain-tracked").Version(1).On(false).OffVariation(0).
+		Variations(ldvalue.Bool(true)).TrackEvents(true).DebugEventsUntilDate(debugUntil).Build()
+	dependentTracked := ldbuilders.NewFlagBuilder("dependent-tracked").Version(1).On(true).
+		Variations(ldvalue.Bool(false), ldvalue.Bool(true)).FallthroughVariation(1).
+		AddPrerequisite("overridden-flag", 0).TrackEvents(true).DebugEventsUntilDate(debugUntil).Build()
+	// The overridden flag is on and serves variation 0, so the dependent flag's prerequisite passes.
+	overriddenTracked := ldbuilders.NewFlagBuilder("overridden-flag").Version(7).On(true).FallthroughVariation(0).
+		Variations(ldvalue.Bool(true)).TrackEvents(true).DebugEventsUntilDate(debugUntil).Build()
+
+	source := sharedtest.NewTestOverrideSource(overrideTestFlagData(overriddenTracked))
+	client := makeInitializedClientWithOverrides(t, overrideTestFlagData(plainTracked, dependentTracked), source, nil)
+
+	state := client.AllFlagsState(evalTestUser, flagstate.OptionWithReasons())
+	require.True(t, state.IsValid())
+	stateJSON, err := json.Marshal(state)
+	require.NoError(t, err)
+	flagsState := ldvalue.Parse(stateJSON).GetByKey("$flagsState")
+
+	// Step 1: a flag with no override keeps its tracking fields.
+	plain := flagsState.GetByKey("plain-tracked")
+	assert.True(t, plain.GetByKey("trackEvents").BoolValue())
+	assert.Equal(t, float64(debugUntil), plain.GetByKey("debugEventsUntilDate").Float64Value())
+
+	// Step 2: the overridden flag and the flag that depends on it stay in the state with their
+	// values and marked reasons, but with no tracking fields.
+	for _, key := range []string{"overridden-flag", "dependent-tracked"} {
+		entry := flagsState.GetByKey(key)
+		assert.True(t, entry.GetByKey("reason").GetByKey("overrideAffected").BoolValue(), key)
+		assert.Equal(t, ldvalue.Null(), entry.GetByKey("trackEvents"), key+" trackEvents")
+		assert.Equal(t, ldvalue.Null(), entry.GetByKey("trackReason"), key+" trackReason")
+		assert.Equal(t, ldvalue.Null(), entry.GetByKey("debugEventsUntilDate"), key+" debugEventsUntilDate")
+	}
+	assert.Equal(t, ldvalue.Bool(true), ldvalue.Parse(stateJSON).GetByKey("overridden-flag"))
+	assert.Equal(t, ldvalue.Bool(true), ldvalue.Parse(stateJSON).GetByKey("dependent-tracked"))
 }
 
 func TestAllFlagsStateIsInvalidWhenNotInitializedAndOverrideLayerIsEmpty(t *testing.T) {

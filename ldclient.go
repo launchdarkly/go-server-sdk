@@ -863,6 +863,15 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 					}
 				})
 
+				trackEvents := flag.TrackEvents || result.IsExperiment
+				trackReason := result.IsExperiment
+				debugEventsUntilDate := flag.DebugEventsUntilDate
+				if result.OverrideAffected {
+					// A consumer of this state sends individual events according to these fields.
+					// An override-affected evaluation produces no individual events, so the state
+					// turns them off for this flag. The flag, its value, and its reason stay.
+					trackEvents, trackReason, debugEventsUntilDate = false, false, 0
+				}
 				state.AddFlag(
 					item.Key,
 					flagstate.FlagState{
@@ -870,9 +879,9 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 						Variation:            result.Detail.VariationIndex,
 						Reason:               result.Detail.Reason,
 						Version:              flag.Version,
-						TrackEvents:          flag.TrackEvents || result.IsExperiment,
-						TrackReason:          result.IsExperiment,
-						DebugEventsUntilDate: flag.DebugEventsUntilDate,
+						TrackEvents:          trackEvents,
+						TrackReason:          trackReason,
+						DebugEventsUntilDate: debugEventsUntilDate,
 						Prerequisites:        prerequisites,
 					},
 				)
