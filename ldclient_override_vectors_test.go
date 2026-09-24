@@ -24,11 +24,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This test runs the test vectors published with the OVERRIDE spec (copied verbatim from
-// sdk-specs/specs/OVERRIDE-sdk-flag-overrides/test-vectors/vectors.json). Each vector sets up
-// LaunchDarkly data, an override layer, and an initialization state. The test evaluates one
-// flag through the full client stack, and checks the result, reason, and per-evaluation
-// summary contribution.
+// This test runs the override test vectors in testdata/override-vectors/vectors.json. Each
+// vector sets up LaunchDarkly data, an override layer, and an initialization state. The test
+// evaluates one flag through the full client stack, and checks the result, reason, and
+// per-evaluation summary contribution.
 const overrideVectorsPath = "testdata/override-vectors/vectors.json"
 
 // The vectors' semantics are versioned. A schema change means this runner needs review.
@@ -181,6 +180,7 @@ func runOverrideVector(t *testing.T, vector overrideVector) {
 	if vector.Expect.VariationIndex.IsNull() {
 		assert.False(t, detail.VariationIndex.IsDefined(), "variationIndex should be undefined")
 	} else {
+		assert.True(t, detail.VariationIndex.IsDefined(), "variationIndex should be defined")
 		assert.Equal(t, vector.Expect.VariationIndex.IntValue(), detail.VariationIndex.IntValue(), "variationIndex")
 	}
 
