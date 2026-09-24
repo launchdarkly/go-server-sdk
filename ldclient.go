@@ -794,14 +794,13 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	if client.IsOffline() {
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
-	} else if client.dataSystem.DataAvailability() != datasystem.Refreshed {
-		if client.dataSystem.DataAvailability() == datasystem.Cached {
-			if !client.allFlagsCachedDataWarningLogged.GetAndSet(true) {
-				client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store. This message is logged once.") //nolint:lll
-			}
-		} else {
+	} else if availability := client.dataSystem.DataAvailability(); availability != datasystem.Refreshed {
+		if availability == datasystem.Defaults {
 			client.loggers.Warn("Called AllFlagsState before client initialization. Data store not available; returning empty state") //nolint:lll
 			valid = false
+		} else if !client.dataSystem.InitializationSucceeded() && !client.allFlagsCachedDataWarningLogged.GetAndSet(true) {
+			// The SDK logs this warning only while no data source has provided data.
+			client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store. This message is logged once.") //nolint:lll
 		}
 	}
 
@@ -1398,13 +1397,13 @@ func (client *LDClient) evaluateInternal(
 		return ldeval.Result{Detail: detail}, flag, err
 	}
 
-	if client.dataSystem.DataAvailability() != datasystem.Refreshed {
-		if client.dataSystem.DataAvailability() == datasystem.Cached {
-			if !client.evalCachedDataWarningLogged.GetAndSet(true) {
-				client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store. This message is logged once.") //nolint:lll
-			}
-		} else {
+	if availability := client.dataSystem.DataAvailability(); availability != datasystem.Refreshed {
+		if availability == datasystem.Defaults {
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, nil, ErrClientNotInitialized)
+		}
+		// The SDK logs this warning only while no data source has provided data.
+		if !client.dataSystem.InitializationSucceeded() && !client.evalCachedDataWarningLogged.GetAndSet(true) {
+			client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store. This message is logged once.") //nolint:lll
 		}
 	}
 
