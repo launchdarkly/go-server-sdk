@@ -34,6 +34,8 @@ type OverrideSink interface {
 //
 // To configure an override source, use the Overrides method of the data system
 // configuration builder in the ldcomponents package.
+//
+// Flag overrides are currently experimental and subject to change.
 type OverrideSource interface {
 	// Start begins supplying overrides to the sink and returns without blocking on
 	// long-running work. Implementations typically perform an initial load synchronously,

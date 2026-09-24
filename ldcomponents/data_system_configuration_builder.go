@@ -180,8 +180,11 @@ func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
 	return d
 }
 
-// Overrides configures the SDK with an override source. The source supplies flag and segment
-// definitions that take precedence over data received from LaunchDarkly on a per-key basis.
+// Overrides configures the SDK with an override source. Flag overrides are currently
+// experimental and subject to change.
+//
+// The source supplies flag and segment definitions that take precedence over data received
+// from LaunchDarkly on a per-key basis.
 // Overrides let an operator force one or more flags to a known state on a running client,
 // whether or not the client can reach LaunchDarkly. Flags not present in the override data
 // are unaffected.

@@ -1,4 +1,5 @@
-// Package ldoverrides provides sources for the SDK's flag override capability.
+// Package ldoverrides provides sources for the SDK's flag override capability. Flag overrides
+// are currently experimental and subject to change.
 //
 // Overrides are flag and segment definitions that take precedence over data received from
 // LaunchDarkly at evaluation time, on a per-key basis. They exist for resilience during an
