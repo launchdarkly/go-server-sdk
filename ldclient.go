@@ -805,10 +805,11 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	if client.IsOffline() {
 		client.loggers.Warn("Called AllFlagsState in offline mode. Returning empty state")
 		valid = false
-	} else if client.dataSystem.DataAvailability() != datasystem.Refreshed {
+	} else if availability := client.dataSystem.DataAvailability(); availability != datasystem.Refreshed {
 		switch {
-		case client.dataSystem.DataAvailability() == datasystem.Cached:
-			if !client.allFlagsCachedDataWarningLogged.GetAndSet(true) {
+		case availability == datasystem.Cached:
+			// The SDK logs this warning only while no data source has provided data.
+			if !client.dataSystem.InitializationSucceeded() && !client.allFlagsCachedDataWarningLogged.GetAndSet(true) {
 				client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store. This message is logged once.") //nolint:lll
 			}
 		case client.overridesConfigured:
@@ -1437,10 +1438,11 @@ func (client *LDClient) evaluateInternal(
 		return ldeval.Result{Detail: detail}, nil, err
 	}
 
-	if client.dataSystem.DataAvailability() != datasystem.Refreshed {
+	if availability := client.dataSystem.DataAvailability(); availability != datasystem.Refreshed {
 		switch {
-		case client.dataSystem.DataAvailability() == datasystem.Cached:
-			if !client.evalCachedDataWarningLogged.GetAndSet(true) {
+		case availability == datasystem.Cached:
+			// The SDK logs this warning only while no data source has provided data.
+			if !client.dataSystem.InitializationSucceeded() && !client.evalCachedDataWarningLogged.GetAndSet(true) {
 				client.loggers.Warn("Feature flag evaluation called before LaunchDarkly client initialization completed; using last known values from data store. This message is logged once.") //nolint:lll
 			}
 		case !client.overridesConfigured:

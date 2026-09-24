@@ -1083,3 +1083,48 @@ func TestEvalLogsCachedDataWarningOnlyOncePerClient(t *testing.T) {
 	assert.Len(t, mockLoggers.GetOutput(ldlog.Warn), 1)
 	assert.Contains(t, mockLoggers.GetOutput(ldlog.Warn)[0], "using last known values")
 }
+
+// A populated persistent store keeps evaluations working before the data source has initialized.
+// The client logs the cached-data warning in this state.
+func TestEvalWithPopulatedPersistentStoreLogsCachedDataWarningIfClientIsNotInitialized(t *testing.T) {
+	mockLoggers := ldlogtest.NewMockLog()
+	flag := ldbuilders.NewFlagBuilder(evalFlagKey).SingleVariation(ldvalue.Bool(true)).Build()
+	persistentStore := mocks.NewMockPersistentDataStore()
+	require.NoError(t, persistentStore.Init([]ldstoretypes.SerializedCollection{
+		{
+			Kind: datakinds.Features,
+			Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+				{
+					Key: flag.Key,
+					Item: ldstoretypes.SerializedItemDescriptor{
+						Version: flag.Version,
+						SerializedItem: datakinds.Features.Serialize(
+							ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}),
+					},
+				},
+			},
+		},
+	}))
+
+	client := makeTestClientWithConfig(func(c *Config) {
+		c.DataSource = mocks.DataSourceThatNeverInitializes()
+		c.DataStore = ldcomponents.PersistentDataStore(
+			mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: persistentStore},
+		)
+		c.Logging = ldcomponents.Logging().Loggers(mockLoggers.Loggers)
+	})
+	defer client.Close()
+
+	for i := 0; i < 2; i++ {
+		value, err := client.BoolVariation(flag.Key, evalTestUser, false)
+		assert.NoError(t, err)
+		assert.True(t, value)
+	}
+	state := client.AllFlagsState(evalTestUser)
+	assert.True(t, state.IsValid())
+
+	assert.Equal(t, 1, countWarningsContaining(mockLoggers,
+		"Feature flag evaluation called before LaunchDarkly client initialization completed"))
+	assert.Equal(t, 1, countWarningsContaining(mockLoggers,
+		"Called AllFlagsState before client initialization; using last known values"))
+}
