@@ -31,6 +31,26 @@ const (
 type MergeResult struct {
 	Flags    []ldstoretypes.KeyedItemDescriptor
 	Segments []ldstoretypes.KeyedItemDescriptor
+	// Documents holds, for each input document in order, the number of entries the merge kept
+	// from it. An entry dropped by the duplicate-key handling is not counted.
+	Documents []DocumentSummary
+	// Files is set by the Reloader. It describes each configured file in order.
+	Files []FileSummary
+}
+
+// DocumentSummary counts the entries the merge kept from one document.
+type DocumentSummary struct {
+	Flags    int
+	Segments int
+}
+
+// FileSummary describes one configured file after a reload.
+type FileSummary struct {
+	Path string
+	// Present is false when the file does not exist and missing files are skipped.
+	Present  bool
+	Flags    int
+	Segments int
 }
 
 type itemCategory string
@@ -50,31 +70,37 @@ func Merge(duplicateKeysHandling DuplicateKeysHandling, docs ...Document) (Merge
 		segmentCategory: {},
 	}
 
+	// insert adds the entry unless the key was already seen. It reports whether it added it.
 	insert := func(
 		items *[]ldstoretypes.KeyedItemDescriptor,
 		category itemCategory,
 		key string,
 		data ldstoretypes.ItemDescriptor,
-	) error {
+	) (bool, error) {
 		if seenKeys[category][key] {
 			switch duplicateKeysHandling {
 			case DuplicateKeysIgnoreAllButFirst:
-				return nil
+				return false, nil
 			default:
-				return fmt.Errorf("%s '%s' is specified by multiple files", category, key)
+				return false, fmt.Errorf("%s '%s' is specified by multiple files", category, key)
 			}
 		}
 		*items = append(*items, ldstoretypes.KeyedItemDescriptor{Key: key, Item: data})
 		seenKeys[category][key] = true
-		return nil
+		return true, nil
 	}
 
-	for _, d := range docs {
+	result.Documents = make([]DocumentSummary, len(docs))
+	for i, d := range docs {
 		if d.Flags != nil {
 			for key, f := range *d.Flags {
 				data := ldstoretypes.ItemDescriptor{Version: f.Version, Item: &f}
-				if err := insert(&result.Flags, flagCategory, key, data); err != nil {
+				added, err := insert(&result.Flags, flagCategory, key, data)
+				if err != nil {
 					return MergeResult{}, err
+				}
+				if added {
+					result.Documents[i].Flags++
 				}
 			}
 		}
@@ -82,16 +108,24 @@ func Merge(duplicateKeysHandling DuplicateKeysHandling, docs ...Document) (Merge
 			for key, value := range *d.FlagValues {
 				flag := MakeFlagWithValue(key, value)
 				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
-				if err := insert(&result.Flags, flagCategory, key, data); err != nil {
+				added, err := insert(&result.Flags, flagCategory, key, data)
+				if err != nil {
 					return MergeResult{}, err
+				}
+				if added {
+					result.Documents[i].Flags++
 				}
 			}
 		}
 		if d.Segments != nil {
 			for key, s := range *d.Segments {
 				data := ldstoretypes.ItemDescriptor{Version: s.Version, Item: &s}
-				if err := insert(&result.Segments, segmentCategory, key, data); err != nil {
+				added, err := insert(&result.Segments, segmentCategory, key, data)
+				if err != nil {
 					return MergeResult{}, err
+				}
+				if added {
+					result.Documents[i].Segments++
 				}
 			}
 		}
