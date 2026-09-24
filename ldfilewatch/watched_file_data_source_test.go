@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -266,5 +267,32 @@ func TestNewWatchedFileSurvivesNotificationBursts(t *testing.T) {
 				requireTrueWithinDuration(t, 5*time.Second, func() bool { return hasValue(p, final) })
 			}
 		})
+	})
+}
+
+func TestWatchOptionalFilesIsQuietWhenFileIsAbsent(t *testing.T) {
+	withTempDir(func(tempDir string) {
+		filename := filepath.Join(tempDir, "optional.json")
+		mockLog := ldlogtest.NewMockLog()
+		reloads := make(chan struct{}, 100)
+		closeCh := make(chan struct{})
+		defer close(closeCh)
+
+		// Step 1: the file does not exist. Watching starts without logging a problem.
+		require.NoError(t, WatchOptionalFiles([]string{filename}, mockLog.Loggers, func() { reloads <- struct{}{} }, closeCh))
+		time.Sleep(2500 * time.Millisecond)
+		assert.Empty(t, mockLog.GetOutput(ldlog.Error))
+		assert.Empty(t, mockLog.GetOutput(ldlog.Warn))
+
+		// Step 2: the file appears. The directory watch reports it and a reload follows.
+		for len(reloads) > 0 {
+			<-reloads
+		}
+		replaceFileContents(filename, `{"flagValues": {"my-flag": true}}`)
+		select {
+		case <-reloads:
+		case <-time.After(3 * time.Second):
+			require.FailNow(t, "no reload after the optional file appeared")
+		}
 	})
 }

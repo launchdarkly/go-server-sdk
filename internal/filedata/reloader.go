@@ -3,6 +3,8 @@ package filedata
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
+	"io/fs"
 	"os"
 	"sync"
 	"time"
@@ -28,6 +30,10 @@ type ReloaderConfig struct {
 	// DuplicateKeysHandling determines what happens when the same key appears in more than
 	// one file.
 	DuplicateKeysHandling DuplicateKeysHandling
+	// SkipMissingPaths, when true, treats a configured file that does not exist as a file
+	// with no content. The reload succeeds with the data of the files that exist. When
+	// false, a missing file fails the reload like any other read error.
+	SkipMissingPaths bool
 	// Loggers receives log output about reloads and failures.
 	Loggers ldlog.Loggers
 	// Apply is invoked with each successfully merged result. Calls are serialized on the
@@ -220,12 +226,18 @@ func (r *Reloader) reload() bool {
 	}
 
 	docs := make([]Document, 0, len(r.cfg.Paths))
+	files := make([]FileSummary, 0, len(r.cfg.Paths))
 	hasher := sha256.New()
 	for _, path := range r.cfg.Paths {
 		// One read feeds both the hash and the parse, so the skip-unchanged hash can never
 		// disagree with the content that was actually applied.
 		rawData, err := os.ReadFile(path) //nolint:gosec // G304: ok to read file into variable
 		if err != nil {
+			if r.cfg.SkipMissingPaths && errors.Is(err, fs.ErrNotExist) {
+				r.cfg.Loggers.Debugf("File %s does not exist; it contributes no data", path)
+				files = append(files, FileSummary{Path: path})
+				continue
+			}
 			return r.fail(&ReadError{Err: wrapReadError(err), Path: path})
 		}
 		_, _ = hasher.Write(rawData)
@@ -235,12 +247,23 @@ func (r *Reloader) reload() bool {
 			return r.fail(&ReadError{Err: err, Path: path})
 		}
 		docs = append(docs, doc)
+		files = append(files, FileSummary{Path: path, Present: true})
 	}
 
 	merged, err := Merge(r.cfg.DuplicateKeysHandling, docs...)
 	if err != nil {
 		return r.fail(err)
 	}
+	// Documents are the present files in order. Copy their counts onto the file summaries.
+	next := 0
+	for i := range files {
+		if files[i].Present {
+			files[i].Flags = merged.Documents[next].Flags
+			files[i].Segments = merged.Documents[next].Segments
+			next++
+		}
+	}
+	merged.Files = files
 
 	// Close may have happened while the files were being read; deliver nothing in that
 	// case. This check is deliberately not atomic with the delivery below: Close must never

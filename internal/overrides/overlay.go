@@ -1,0 +1,75 @@
+package overrides
+
+import (
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
+)
+
+// Overlay merges an override Layer over a base store. A read for a key returns the override
+// entry when one exists, and the base entry otherwise. The overlay sits at the store read
+// boundary. That placement makes targeting rules, prerequisites, and segment matches behave
+// identically for overridden and ordinary data. They are the same reads through the same
+// boundary.
+type Overlay struct {
+	base  subsystems.ReadOnlyStore
+	layer *Layer
+}
+
+var _ subsystems.ReadOnlyStore = (*Overlay)(nil)
+
+// NewOverlay creates an Overlay over the given base store and layer.
+func NewOverlay(base subsystems.ReadOnlyStore, layer *Layer) *Overlay {
+	return &Overlay{base: base, layer: layer}
+}
+
+// Get returns the override entry for the key if one exists, and otherwise delegates to the
+// base store. This works even when the base store is uninitialized, because an uninitialized
+// base reports not-found rather than failing.
+func (o *Overlay) Get(kind st.DataKind, key string) (st.ItemDescriptor, error) {
+	if item, ok := o.layer.Get(kind, key); ok {
+		return item, nil
+	}
+	return o.base.Get(kind, key)
+}
+
+// GetAll returns the union of the base store's items and the layer's items. The override
+// entry wins for any key present in both. This includes keys the base holds as deleted-item
+// tombstones.
+//
+// When the base store fails and the layer holds entries, the result is the layer's entries
+// alone, with no error. A per-key read serves those entries whatever the state of the base,
+// so an all-flags read does the same. When the layer is empty, the base error is returned.
+func (o *Overlay) GetAll(kind st.DataKind) ([]st.KeyedItemDescriptor, error) {
+	baseItems, err := o.base.GetAll(kind)
+	overrideItems := o.layer.All(kind)
+	if err != nil {
+		if len(overrideItems) == 0 {
+			return nil, err
+		}
+		baseItems = nil
+	} else if len(overrideItems) == 0 {
+		return baseItems, nil
+	}
+
+	result := make([]st.KeyedItemDescriptor, 0, len(baseItems)+len(overrideItems))
+	seen := make(map[string]bool, len(baseItems))
+	for _, item := range baseItems {
+		if overrideItem, ok := overrideItems[item.Key]; ok {
+			item.Item = overrideItem
+		}
+		seen[item.Key] = true
+		result = append(result, item)
+	}
+	for key, item := range overrideItems {
+		if !seen[key] {
+			result = append(result, st.KeyedItemDescriptor{Key: key, Item: item})
+		}
+	}
+	return result, nil
+}
+
+// IsInitialized delegates to the base store: the override layer never affects
+// initialization status or data availability.
+func (o *Overlay) IsInitialized() bool {
+	return o.base.IsInitialized()
+}
