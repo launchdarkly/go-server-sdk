@@ -14,9 +14,12 @@ import (
 
 var validTagKeyOrValueRegex = regexp.MustCompile(`(?s)^[\w.-]*$`)
 
+var errSDKKeyInvalidCharacters = errors.New("SDK key contains invalid characters")
+
 func newClientContextFromConfig(
 	sdkKey string,
 	config Config,
+	keyOverride *sdkKeyOverride,
 ) (*internal.ClientContextImpl, error) {
 	if !stringIsValidHTTPHeaderValue(sdkKey) {
 		// We want to fail fast in this case, because if we got as far as trying to make an HTTP request
@@ -24,7 +27,7 @@ func newClientContextFromConfig(
 		// actual Authorization header value in its error message, which could end up in logs - and the
 		// value might be a real SDK key that just has (for instance) a newline at the end of it, so it
 		// would be sensitive information.
-		return nil, errors.New("SDK key contains invalid characters")
+		return nil, errSDKKeyInvalidCharacters
 	}
 
 	// Per SCMP-server-connection-minutes-polling, every outbound request must carry a
@@ -63,6 +66,10 @@ func newClientContextFromConfig(
 		return nil, err
 	}
 	basicConfig.HTTP = http
+	// Every component creates its HTTP client from this factory. The wrapper lets
+	// LDClient.SetSDKKey change the key for all requests, including stream reconnections.
+	// GetHTTP supplies a default factory if the configuration does not have one.
+	basicConfig.HTTP.CreateHTTPClient = wrapHTTPClientFactory(basicConfig.GetHTTP().CreateHTTPClient, keyOverride)
 
 	return &internal.ClientContextImpl{BasicClientContext: basicConfig}, nil
 }

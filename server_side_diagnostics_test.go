@@ -41,7 +41,7 @@ func TestDiagnosticEventCustomConfig(t *testing.T) {
 		setConfig(&config)
 		expected := expectedDiagnosticConfigForDefaultConfig()
 		setExpected(expected)
-		context, _ := newClientContextFromConfig(testSdkKey, config)
+		context, _ := newClientContextFromConfig(testSdkKey, config, &sdkKeyOverride{})
 		actual := makeDiagnosticConfigData(context, config, testStartWaitMillis)
 		assert.JSONEq(t, expected.Build().JSONString(), actual.JSONString())
 	}
