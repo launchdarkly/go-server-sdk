@@ -114,6 +114,8 @@ var _ dataSystem = &datasystem.FDv1{}
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/server-side/go
 type LDClient struct {
 	sdkKey                           string
+	sdkKeyOverride                   *sdkKeyOverride
+	diagnosticsManager               *ldevents.DiagnosticsManager
 	loggers                          ldlog.Loggers
 	eventProcessor                   ldevents.EventProcessor
 	evaluator                        ldeval.Evaluator
@@ -224,7 +226,7 @@ func MakeClient(sdkKey string, waitFor time.Duration) (*LDClient, error) {
 // the client's status, see [LDClient.Initialized] and [LDClient.GetDataSourceStatusProvider].
 func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDClient, error) {
 	// Ensure that any intermediate components we create will be disposed of if we return an error
-	client := &LDClient{sdkKey: sdkKey}
+	client := &LDClient{sdkKey: sdkKey, sdkKeyOverride: &sdkKeyOverride{}}
 	clientValid := false
 	defer func() {
 		if !clientValid {
@@ -236,7 +238,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 
 	eventProcessorFactory := getEventProcessorFactory(config)
 
-	clientContext, err := newClientContextFromConfig(sdkKey, config)
+	clientContext, err := newClientContextFromConfig(sdkKey, config, client.sdkKeyOverride)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +247,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 	if !config.DiagnosticOptOut {
 		if reflect.TypeOf(eventProcessorFactory) == reflect.TypeOf(ldcomponents.SendEvents()) {
 			clientContext.DiagnosticsManager = createDiagnosticsManager(clientContext, sdkKey, config, waitFor)
+			client.diagnosticsManager = clientContext.DiagnosticsManager
 		}
 	}
 
@@ -682,11 +685,44 @@ func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
+// SetSDKKey changes the SDK key that the client uses to connect to LaunchDarkly.
+//
+// This method is for internal use by the LaunchDarkly Relay Proxy only. It is not supported for other
+// use. It can change or be removed in any release without notice.
+//
+// After this call, all new HTTP requests to LaunchDarkly use the new key. This includes stream
+// reconnections, polling requests, and event deliveries. The client does not close a stream
+// connection that is open. That connection continues until the service or the network ends it. Then
+// the client reconnects with the new key.
+//
+// SecureModeHash and diagnostic events also use the new key. Plugins keep the key that the client
+// was created with.
+//
+// SetSDKKey returns an error if the key contains characters that are not valid in an HTTP header.
+// In that case, the client continues to use its current key.
+func (client *LDClient) SetSDKKey(sdkKey string) error {
+	if !stringIsValidHTTPHeaderValue(sdkKey) {
+		return errSDKKeyInvalidCharacters
+	}
+	client.sdkKeyOverride.set(sdkKey)
+	if client.diagnosticsManager != nil {
+		client.diagnosticsManager.SetSDKKey(sdkKey)
+	}
+	return nil
+}
+
+func (client *LDClient) currentSDKKey() string {
+	if key, ok := client.sdkKeyOverride.get(); ok {
+		return key
+	}
+	return client.sdkKey
+}
+
 // SecureModeHash generates the secure mode hash value for an evaluation context.
 //
 // For more information, see the Reference Guide: https://docs.launchdarkly.com/sdk/features/secure-mode#go
 func (client *LDClient) SecureModeHash(context ldcontext.Context) string {
-	key := []byte(client.sdkKey)
+	key := []byte(client.currentSDKKey())
 	h := hmac.New(sha256.New, key)
 	_, _ = h.Write([]byte(context.FullyQualifiedKey()))
 	return hex.EncodeToString(h.Sum(nil))
