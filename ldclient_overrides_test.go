@@ -133,6 +133,7 @@ func TestNonOverriddenFlagStillShortCircuitsWhenClientIsNotInitialized(t *testin
 	assert.Equal(t, ErrClientNotInitialized, err)
 	assert.False(t, value)
 	assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorClientNotReady), detail.Reason)
+	assert.False(t, detail.Reason.IsOverrideAffected())
 }
 
 func TestOverrideRemovalRestoresShortCircuit(t *testing.T) {
