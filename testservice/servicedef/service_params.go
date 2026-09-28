@@ -31,6 +31,7 @@ const (
 	CapabilityPersistentDataStoreRedis      = "persistent-data-store-redis"
 	CapabilityPersistentDataStoreConsul     = "persistent-data-store-consul"
 	CapabilityPersistentDataStoreDynamoDB   = "persistent-data-store-dynamodb"
+	CapabilityPersistentDataStoreRecovery   = "persistent-data-store-recovery"
 	CapabilityFlagChangeListeners           = "flag-change-listeners"
 	CapabilityFlagValueChangeListeners      = "flag-value-change-listeners"
 	CapabilityFDv1Fallback                  = "fdv1-fallback"

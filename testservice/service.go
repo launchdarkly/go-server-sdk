@@ -50,6 +50,7 @@ var capabilities = []string{
 	servicedef.CapabilityPersistentDataStoreRedis,
 	servicedef.CapabilityPersistentDataStoreConsul,
 	servicedef.CapabilityPersistentDataStoreDynamoDB,
+	servicedef.CapabilityPersistentDataStoreRecovery,
 	servicedef.CapabilityFlagChangeListeners,
 	servicedef.CapabilityFlagValueChangeListeners,
 	servicedef.CapabilityFDv1Fallback,
