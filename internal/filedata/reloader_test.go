@@ -34,6 +34,7 @@ func newReloaderFixture(t *testing.T, initialContent string, configure func(*Rel
 	cfg := ReloaderConfig{
 		Paths:                 []string{f.path},
 		DuplicateKeysHandling: DuplicateKeysFail,
+		MakeFlagWithValue:     MakeOffFlagWithValue,
 		Loggers:               ldlog.NewDisabledLoggers(),
 		Apply:                 func(result MergeResult) { f.applied <- result },
 		OnError:               func(err error) { f.errored <- err },
@@ -216,6 +217,7 @@ func TestReloaderUnusedSpawnsNoGoroutine(t *testing.T) {
 		NewReloader(ReloaderConfig{
 			Paths:                 []string{path},
 			DuplicateKeysHandling: DuplicateKeysFail,
+			MakeFlagWithValue:     MakeOffFlagWithValue,
 			Loggers:               ldlog.NewDisabledLoggers(),
 			Apply:                 func(MergeResult) {},
 		})
@@ -241,6 +243,7 @@ func TestReloaderCloseDoesNotWaitForInFlightReload(t *testing.T) {
 	r := NewReloader(ReloaderConfig{
 		Paths:                 []string{path},
 		DuplicateKeysHandling: DuplicateKeysFail,
+		MakeFlagWithValue:     MakeOffFlagWithValue,
 		Loggers:               ldlog.NewDisabledLoggers(),
 		Apply: func(MergeResult) {
 			close(applyEntered)
@@ -372,6 +375,7 @@ func TestReloaderMergesMultipleFilesInOrder(t *testing.T) {
 	r := NewReloader(ReloaderConfig{
 		Paths:                 []string{path1, path2},
 		DuplicateKeysHandling: DuplicateKeysIgnoreAllButFirst,
+		MakeFlagWithValue:     MakeOffFlagWithValue,
 		Loggers:               ldlog.NewDisabledLoggers(),
 		Apply:                 func(result MergeResult) { applied <- result },
 	})

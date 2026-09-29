@@ -64,6 +64,7 @@ func newFileDataSourceImpl(
 	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
 		Paths:                 fs.absFilePaths,
 		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
+		MakeFlagWithValue:     filedata.MakeOffFlagWithValue,
 		Loggers:               fs.loggers,
 		Apply:                 fs.applyData,
 		OnError:               fs.handleError,

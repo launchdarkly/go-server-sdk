@@ -73,6 +73,7 @@ func newFileDataSourceImpl(
 	fs.reloader = filedata.NewReloader(filedata.ReloaderConfig{
 		Paths:                 fs.absFilePaths,
 		DuplicateKeysHandling: filedata.DuplicateKeysHandling(fs.duplicateKeysHandling),
+		MakeFlagWithValue:     filedata.MakeOffFlagWithValue,
 		Loggers:               fs.loggers,
 		Apply:                 fs.applyData,
 		OnError:               fs.handleError,
@@ -171,7 +172,8 @@ func (fs *fileDataSource) Fetch(ds subsystems.DataSelector, ctx context.Context)
 		}
 		docs = append(docs, doc)
 	}
-	merged, err := filedata.Merge(filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), docs...)
+	merged, err := filedata.Merge(
+		filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), filedata.MakeOffFlagWithValue, docs...)
 	if err != nil {
 		return nil, false, err
 	}
