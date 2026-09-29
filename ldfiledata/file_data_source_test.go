@@ -225,6 +225,11 @@ flagValues:
 
 			flag := requireFlag(t, p.updates.DataStore, "my-flag")
 			assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flag.Variations)
+			// The file data source expands a value entry into a flag that is off and serves the
+			// value as its off variation.
+			assert.False(t, flag.On)
+			assert.Equal(t, ldvalue.NewOptionalInt(0), flag.OffVariation)
+			assert.False(t, flag.Fallthrough.Variation.IsDefined())
 		})
 	})
 }

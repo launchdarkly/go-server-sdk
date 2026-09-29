@@ -17,7 +17,7 @@ func TestMergeCountsEntriesKeptFromEachDocument(t *testing.T) {
 		Segments:   &segments,
 	}
 
-	result, err := Merge(DuplicateKeysIgnoreAllButFirst, first, second)
+	result, err := Merge(DuplicateKeysIgnoreAllButFirst, MakeOffFlagWithValue, first, second)
 	require.NoError(t, err)
 	require.Len(t, result.Documents, 2)
 	assert.Equal(t, DocumentSummary{Flags: 2}, result.Documents[0])
