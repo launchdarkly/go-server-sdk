@@ -160,7 +160,10 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.fallbackCond = func(status interfaces.DataSourceStatus) bool {
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted &&
 			time.Since(status.StateSince) > 1*time.Minute
-		cannotInitialize := status.State == interfaces.DataSourceStateInitializing &&
+		// Cannot initialize is intentionally not a status check since a permanent
+		// failure during startup leaves the status on Interrupted, which made this
+		// branch unreachable for the rest of startup.
+		cannotInitialize := !fdv2.dataApplied.Get() &&
 			time.Since(status.StateSince) > 10*time.Second
 
 		return interruptedAtRuntime || cannotInitialize
