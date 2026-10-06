@@ -44,18 +44,15 @@ type FDv2 struct {
 	// List of initializers that are capable of obtaining an initial payload of data.
 	initializers []subsystems.DataInitializer
 
-	// Mutable list of synchronizer builders. Items are removed when they permanently fail.
-	// When falling back to FDv1, this list is replaced with a single FDv1 synchronizer.
-	synchronizerBuilders []func() (subsystems.DataSynchronizer, error)
-	currentSyncIndex     int
-
-	// FDv1 fallback builder, used only when a synchronizer requests fallback to FDv1
-	fdv1FallbackBuilder func() (subsystems.DataSynchronizer, error)
+	// Synchronizers, including the FDv1 fallback synchronizer if one is configured. A
+	// synchronizer that fails permanently is blocked. On a fallback to FDv1, every FDv2
+	// synchronizer is blocked and the FDv1 fallback synchronizer becomes available.
+	synchronizers *synchronizerList
 
 	// Boolean used to track whether the datasystem was originally configured
 	// with some sort of valid data source.
 	//
-	// We cannot check this at run time because synchronizers may be removed if
+	// We cannot check this at run time because synchronizers may be blocked if
 	// they permanently fail.
 	configuredWithDataSources bool
 
@@ -152,9 +149,8 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	}
 
 	fdv2.initializers = cfg.Initializers
-	fdv2.synchronizerBuilders = cfg.Synchronizers.SynchronizerBuilders
-	fdv2.currentSyncIndex = 0
-	fdv2.fdv1FallbackBuilder = cfg.Synchronizers.FDv1FallbackBuilder
+	fdv2.synchronizers = newSynchronizerList(
+		cfg.Synchronizers.SynchronizerBuilders, cfg.Synchronizers.FDv1FallbackBuilder)
 	fdv2.disabled = disabled
 
 	fdv2.fallbackCond = func(status interfaces.DataSourceStatus) bool {
@@ -172,7 +168,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		return healthyForTooLong
 	}
 
-	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || len(fdv2.synchronizerBuilders) > 0
+	fdv2.configuredWithDataSources = len(fdv2.initializers) > 0 || len(cfg.Synchronizers.SynchronizerBuilders) > 0
 
 	if cfg.OverrideSource != nil && !disabled {
 		fdv2.overrideLayer = overrides.NewLayer()
@@ -237,13 +233,14 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
 	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback {
-		if f.fdv1FallbackBuilder != nil {
+		if f.synchronizers.hasFDv1Fallback() {
 			f.loggers.Warn("Falling back to FDv1 protocol")
-			f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
-			f.currentSyncIndex = 0
+			// Block every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
+			f.synchronizers.fdv1Fallback()
 		} else {
 			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
-			f.synchronizerBuilders = nil
+			// Block every synchronizer so that none starts.
+			f.synchronizers.blockAll()
 			f.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
 		}
 	}
@@ -367,8 +364,8 @@ func (f *FDv2) completeInitialization(closeWhenReady chan struct{}) {
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
-	// If no synchronizers configured, close ready channel and return
-	if len(f.synchronizerBuilders) == 0 {
+	// If no synchronizers are available, close ready channel and return
+	if f.synchronizers.availableCount() == 0 {
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -381,32 +378,25 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			close(closeWhenReady)
 		})
 
+		f.synchronizers.next()
 		for {
 			// Check if we've run out of synchronizers
-			if len(f.synchronizerBuilders) == 0 {
+			if f.synchronizers.availableCount() == 0 {
 				f.loggers.Warn("No more synchronizers available")
 				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
 				return
 			}
 
-			// Ensure currentSyncIndex is within bounds (shouldn't happen with proper logic)
-			if f.currentSyncIndex >= len(f.synchronizerBuilders) {
-				f.currentSyncIndex = 0
-			}
-
 			// Build synchronizer
-			sync, err := f.synchronizerBuilders[f.currentSyncIndex]()
+			sync, err := f.synchronizers.build()
 			if err != nil {
-				f.loggers.Errorf("Failed to build synchronizer at index %d: %v", f.currentSyncIndex, err)
-				// Remove the failed builder from the list
-				f.synchronizerBuilders = append(
-					f.synchronizerBuilders[:f.currentSyncIndex],
-					f.synchronizerBuilders[f.currentSyncIndex+1:]...)
-				// Don't increment currentSyncIndex - it now points to the next synchronizer
+				f.loggers.Errorf("Failed to build synchronizer at index %d: %v", f.synchronizers.currentIndex(), err)
+				f.synchronizers.blockCurrent()
+				f.synchronizers.next()
 				continue
 			}
 
-			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.currentSyncIndex, sync.Name())
+			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.synchronizers.currentIndex(), sync.Name())
 			resultChan := sync.Sync(f.store)
 			action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
 
@@ -421,31 +411,31 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			// Handle action based on conditions
 			switch action {
 			case syncFDv1:
-				if f.fdv1FallbackBuilder != nil {
+				if f.synchronizers.hasFDv1Fallback() {
 					f.loggers.Warn("Falling back to FDv1 protocol")
-					// Replace entire list with single FDv1 synchronizer
-					f.synchronizerBuilders = []func() (subsystems.DataSynchronizer, error){f.fdv1FallbackBuilder}
-					f.currentSyncIndex = 0
+					// Block every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
+					f.synchronizers.fdv1Fallback()
+					f.synchronizers.next()
 					continue
 				}
 				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
 				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
 				return
-			case syncRemove:
-				f.loggers.Warnf("Permanently removing synchronizer at index %d", f.currentSyncIndex)
-				f.synchronizerBuilders = append(
-					f.synchronizerBuilders[:f.currentSyncIndex],
-					f.synchronizerBuilders[f.currentSyncIndex+1:]...)
-				// Don't increment currentSyncIndex - it now points to the next synchronizer
+			case syncBlock:
+				f.loggers.Warnf("Blocking synchronizer at index %d because it failed permanently",
+					f.synchronizers.currentIndex())
+				f.synchronizers.blockCurrent()
+				f.synchronizers.next()
 				continue
 			case syncRecover:
-				// Recovery: jump back to index 0
+				// Recovery: return to the first available synchronizer
 				f.loggers.Info("Recovery condition met, returning to first synchronizer")
-				f.currentSyncIndex = 0
+				f.synchronizers.reset()
+				f.synchronizers.next()
 			case syncFallback:
-				// Fallback: move to next index
+				// Fallback: move to the next available synchronizer
 				f.loggers.Info("Fallback condition met, trying next synchronizer")
-				f.currentSyncIndex++
+				f.synchronizers.next()
 			}
 
 			// Check for cancellation before next iteration
@@ -463,7 +453,7 @@ type syncAction int
 const (
 	syncFallback syncAction = iota
 	syncRecover
-	syncRemove
+	syncBlock
 	syncFDv1
 )
 
@@ -511,7 +501,7 @@ func (f *FDv2) consumeSynchronizerResults(
 				if result.FallbackToFDv1 {
 					return syncFDv1, nil
 				}
-				return syncRemove, nil
+				return syncBlock, nil
 			}
 
 			// FallbackToFDv1 may ride along on a Valid or Interrupted result too -- e.g. a
@@ -522,8 +512,8 @@ func (f *FDv2) consumeSynchronizerResults(
 				return syncFDv1, nil
 			}
 		case <-ticker.C:
-			// If there's only one synchronizer, don't check conditions
-			if len(f.synchronizerBuilders) == 1 {
+			// If there's only one available synchronizer, don't check conditions
+			if f.synchronizers.availableCount() == 1 {
 				continue
 			}
 
@@ -536,8 +526,8 @@ func (f *FDv2) consumeSynchronizerResults(
 				return syncFallback, nil
 			}
 
-			// If not at index 0, also check recovery condition (things are good)
-			if f.currentSyncIndex > 0 && f.recoveryCond(status) {
+			// If not at the first available synchronizer, also check recovery condition (things are good)
+			if !f.synchronizers.isFirstAvailable() && f.recoveryCond(status) {
 				f.loggers.Debugf("Recovery condition met")
 				return syncRecover, nil
 			}
