@@ -3,8 +3,12 @@ package subsystems
 import (
 	"testing"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChangeSetBuilder_New(t *testing.T) {
@@ -290,4 +294,63 @@ func TestChangeSet_Collections_MultipleItemsSameKind(t *testing.T) {
 	assert.True(t, keys["flag1"])
 	assert.True(t, keys["flag2"])
 	assert.True(t, keys["flag3"])
+}
+
+func TestChangeSetBuilder_WithDeserializeOptions(t *testing.T) {
+	// An "in" clause with this many values gets a lookup set, so the release removes its Values list.
+	const clauses = `"clauses":[{"attribute":"key","op":"in","values":["a","b","c","d","e","f","g","h"]}]`
+	flagJSON := []byte(`{"key":"flagkey","version":1,"rules":[{"id":"r",` + clauses + `}]}`)
+	segmentJSON := []byte(`{"key":"segmentkey","version":1,"rules":[{` + clauses + `}]}`)
+	// firstClauseValues returns the clause values of the flag and of the segment.
+	firstClauseValues := func(t *testing.T, changeSet *ChangeSet) ([]ldvalue.Value, []ldvalue.Value) {
+		collections, err := changeSet.Collections()
+		require.NoError(t, err)
+		var flagValues, segmentValues []ldvalue.Value
+		for _, coll := range collections {
+			require.Len(t, coll.Items, 1)
+			switch item := coll.Items[0].Item.Item.(type) {
+			case *ldmodel.FeatureFlag:
+				flagValues = item.Rules[0].Clauses[0].Values
+			case *ldmodel.Segment:
+				segmentValues = item.Rules[0].Clauses[0].Values
+			}
+		}
+		return flagValues, segmentValues
+	}
+
+	t.Run("releases values if enabled", func(t *testing.T) {
+		builder := NewChangeSetBuilder().WithDeserializeOptions(datakinds.NewDeserializeOptions(true))
+		builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferFull}})
+		builder.AddPut(FlagKind, "flagkey", 1, flagJSON)
+		builder.AddPut(SegmentKind, "segmentkey", 1, segmentJSON)
+		changeSet, err := builder.Finish(NoSelector())
+		require.NoError(t, err)
+
+		flagValues, segmentValues := firstClauseValues(t, changeSet)
+		assert.Nil(t, flagValues)
+		assert.Nil(t, segmentValues)
+
+		// The builder keeps the options for the next changeset.
+		builder.AddPut(FlagKind, "flagkey", 2, flagJSON)
+		builder.AddPut(SegmentKind, "segmentkey", 2, segmentJSON)
+		changeSet, err = builder.Finish(NoSelector())
+		require.NoError(t, err)
+
+		flagValues, segmentValues = firstClauseValues(t, changeSet)
+		assert.Nil(t, flagValues)
+		assert.Nil(t, segmentValues)
+	})
+
+	t.Run("keeps values by default", func(t *testing.T) {
+		builder := NewChangeSetBuilder()
+		builder.Start(ServerIntent{Payload: Payload{Code: IntentTransferFull}})
+		builder.AddPut(FlagKind, "flagkey", 1, flagJSON)
+		builder.AddPut(SegmentKind, "segmentkey", 1, segmentJSON)
+		changeSet, err := builder.Finish(NoSelector())
+		require.NoError(t, err)
+
+		flagValues, segmentValues := firstClauseValues(t, changeSet)
+		assert.Len(t, flagValues, 8)
+		assert.Len(t, segmentValues, 8)
+	})
 }

@@ -32,25 +32,30 @@ type persistentDataStoreWrapper struct {
 	cacheTTL         time.Duration
 	requests         singleflight.Group
 	loggers          ldlog.Loggers
-	inited           bool
-	initLock         sync.RWMutex
+	// The options that the wrapper uses to deserialize flags and segments.
+	deserializeOptions datakinds.DeserializeOptions
+	inited             bool
+	initLock           sync.RWMutex
 }
 
 const initCheckedKey = "$initChecked"
 
 // NewPersistentDataStoreWrapper creates the implementation of DataStore that we use for all persistent data
 // stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
+// The wrapper uses deserializeOptions to deserialize the flags and segments that it reads from the store.
 func NewPersistentDataStoreWrapper(
 	core subsystems.PersistentDataStore,
 	dataStoreUpdates subsystems.DataStoreUpdateSink,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
+	deserializeOptions datakinds.DeserializeOptions,
 ) subsystems.DataStore {
 	w := &persistentDataStoreWrapper{
-		core:             core,
-		dataStoreUpdates: dataStoreUpdates,
-		cacheTTL:         cacheTTL,
-		loggers:          loggers,
+		core:               core,
+		dataStoreUpdates:   dataStoreUpdates,
+		cacheTTL:           cacheTTL,
+		loggers:            loggers,
+		deserializeOptions: deserializeOptions,
 	}
 
 	if cacheTTL != 0 {
@@ -414,7 +419,7 @@ func (w *persistentDataStoreWrapper) deserialize(
 	if serializedItemDesc.Deleted || serializedItemDesc.SerializedItem == nil {
 		return st.ItemDescriptor{Version: serializedItemDesc.Version}, nil
 	}
-	deserializedItemDesc, err := kind.Deserialize(serializedItemDesc.SerializedItem)
+	deserializedItemDesc, err := datakinds.Deserialize(kind, serializedItemDesc.SerializedItem, w.deserializeOptions)
 	if err != nil {
 		return st.ItemDescriptor{}.NotFound(), err
 	}

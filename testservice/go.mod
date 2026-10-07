@@ -48,7 +48,7 @@ require (
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/launchdarkly/go-sdk-events/v3 v3.7.0 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
-	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.1.0 // indirect
+	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.1.1-0.20261007122354-8030e6487ec5 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect

@@ -169,7 +169,7 @@ func checkForHTTPError(statusCode int, url string) error {
 //
 // This representation makes up the entirety of a polling response for PollingDataSource, and is a
 // subset of the stream data for StreamingDataSource.
-func parseAllStoreDataFromJSONReader(r *jreader.Reader) []st.Collection {
+func parseAllStoreDataFromJSONReader(r *jreader.Reader, opts datakinds.DeserializeOptions) []st.Collection {
 	var ret []st.Collection
 	for dataObj := r.Object(); dataObj.Next(); {
 		var dataKind datakinds.DataKindInternal
@@ -184,7 +184,7 @@ func parseAllStoreDataFromJSONReader(r *jreader.Reader) []st.Collection {
 		coll := st.Collection{Kind: dataKind}
 		for keysToItemsObj := r.Object(); keysToItemsObj.Next(); {
 			key := string(keysToItemsObj.Name())
-			item, err := dataKind.DeserializeFromJSONReader(r)
+			item, err := dataKind.DeserializeFromJSONReaderWithOptions(r, opts)
 			if err == nil {
 				coll.Items = append(coll.Items, st.KeyedItemDescriptor{Key: key, Item: item})
 			}

@@ -7,6 +7,8 @@ import (
 	"net/url"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
@@ -25,6 +27,8 @@ type PollingRequester struct {
 	filterKey  string
 	headers    http.Header
 	loggers    ldlog.Loggers
+	// The options that the requester uses to deserialize flags and segments.
+	deserializeOptions datakinds.DeserializeOptions
 }
 
 type malformedJSONError struct {
@@ -60,6 +64,8 @@ func NewPollingRequester(
 		filterKey:  filterKey,
 		headers:    context.GetHTTP().DefaultHeaders,
 		loggers:    context.GetLogging().Loggers,
+
+		deserializeOptions: internal.DataKindDeserializeOptions(context),
 	}
 }
 
@@ -91,7 +97,7 @@ func (r *PollingRequester) Request() ([]ldstoretypes.Collection, bool, http.Head
 	}
 
 	reader := jreader.NewReader(body)
-	data := parseAllStoreDataFromJSONReader(&reader)
+	data := parseAllStoreDataFromJSONReader(&reader, r.deserializeOptions)
 	if err := reader.Error(); err != nil {
 		return nil, false, headers, malformedJSONError{err}
 	}

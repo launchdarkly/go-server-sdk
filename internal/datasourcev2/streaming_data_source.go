@@ -19,6 +19,7 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -68,6 +69,7 @@ type StreamProcessor struct {
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
+	deserializeOptions         datakinds.DeserializeOptions
 	loggers                    ldlog.Loggers
 	connectionAttemptStartTime ldtime.UnixMillisecondTime
 	connectionAttemptLock      sync.Mutex
@@ -89,6 +91,7 @@ func NewStreamProcessor(
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
 	}
+	sp.deserializeOptions = internal.DataKindDeserializeOptions(context)
 
 	sp.client = context.GetHTTP().CreateHTTPClient()
 	// Client.Timeout isn't just a connect timeout, it will break the connection if a full response
@@ -169,7 +172,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 		}
 	}()
 
-	changeSetBuilder := subsystems.NewChangeSetBuilder()
+	changeSetBuilder := subsystems.NewChangeSetBuilder().WithDeserializeOptions(sp.deserializeOptions)
 	environmentID := ldvalue.OptionalString{}
 	// fallbackRequested is set when the server's response headers carry x-ld-fd-fallback: true.
 	// We finish applying the current payload before emitting the fallback signal, so evaluations
@@ -204,7 +207,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 
 			gotMalformedEvent := func(event es.Event, err error) {
 				// The protocol should "forget" anything that happens upon receiving an error.
-				changeSetBuilder = subsystems.NewChangeSetBuilder()
+				changeSetBuilder = subsystems.NewChangeSetBuilder().WithDeserializeOptions(sp.deserializeOptions)
 				sp.reportMalformedEvent(event, err, environmentID, resultChan)
 				shouldRestart = true // scenario 1 in error handling comments at top of file
 			}
