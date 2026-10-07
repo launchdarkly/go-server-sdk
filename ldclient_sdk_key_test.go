@@ -1,6 +1,7 @@
 package ldclient
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -155,4 +156,56 @@ func TestSetSDKKeyRejectsInvalidKey(t *testing.T) {
 	// The call should fail, and the client should keep its current key.
 	assert.Equal(t, errSDKKeyInvalidCharacters, err)
 	assert.Equal(t, hashBefore, client.SecureModeHash(testUser))
+}
+
+// rejectKeyHandler returns 401 for requests that carry the rejected key and passes other
+// requests to next.
+func rejectKeyHandler(rejectedKey string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == rejectedKey {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func TestSetSDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("state", 1)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	handler, requestsCh := httphelpers.RecordingHandler(rejectKeyHandler(testSdkKey, streamHandler))
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		config := Config{
+			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(
+				ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+				ldcomponents.PollingDataSourceV2().BaseURI(server.URL),
+			),
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+		}
+
+		// Both synchronizers reject the original key, so the data system turns off.
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		defer client.Close()
+		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for stream request")
+		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for poll request")
+		require.Equal(t, interfaces.DataSourceStateOff, client.GetDataSourceStatusProvider().GetStatus().State)
+
+		// Change the key.
+		require.NoError(t, client.SetSDKKey(newTestSdkKey))
+
+		// The primary synchronizer starts again with the new key and gets data.
+		r := th.RequireValue(t, requestsCh, time.Second*5, "timed out waiting for stream request with new key")
+		assert.Equal(t, newTestSdkKey, r.Request.Header.Get("Authorization"))
+		assert.True(t, client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5))
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
+	})
 }
