@@ -226,15 +226,23 @@ func (w *persistentDataStoreWrapper) Upsert(
 	// Finite TTL: drop the "all items" entry to force a reread next time GetAll is called.
 	// Infinite TTL: update the item within the entry, whether or not the store accepted the update.
 	// The entry may be the only full copy of this kind if the store becomes unavailable, and it is
-	// what we write back to the store after an outage, so it must keep every item.
+	// what we write back to the store after an outage, so it must keep every item. Use the cached
+	// item if it is newer than ours, so that an out-of-order update can't put an older version in
+	// the entry than the store already has.
 	if infinite {
+		item := newItem
+		if data, present := c.Get(cacheKey); present {
+			if cachedItem, ok := data.(st.ItemDescriptor); ok && cachedItem.Version > newItem.Version {
+				item = cachedItem
+			}
+		}
 		var cachedItems []st.KeyedItemDescriptor
 		if data, present := c.Get(allCacheKey); present {
 			if items, ok := data.([]st.KeyedItemDescriptor); ok {
 				cachedItems = items
 			}
 		}
-		c.Set(allCacheKey, updateSingleItem(cachedItems, key, newItem), cache.DefaultExpiration)
+		c.Set(allCacheKey, updateSingleItem(cachedItems, key, item), cache.DefaultExpiration)
 	} else {
 		c.Delete(allCacheKey)
 	}

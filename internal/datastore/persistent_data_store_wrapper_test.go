@@ -589,6 +589,42 @@ func testPersistentDataStoreWrapperUpdateFailuresWithCache(t *testing.T, mode te
 				}, items)
 			})
 
+			testWithMockPersistentDataStore(t, "won't put an older item in all items after an out-of-order update", mode, func(t *testing.T, core *mocks.MockPersistentDataStore, w subsystems.DataStore) {
+				// Each item gets an update older than the newest version we know of. Each takes a
+				// different path through Upsert.
+				refused := mocks.MockDataItem{Key: "refused", Version: 1}
+				refusedReadFails := mocks.MockDataItem{Key: "refusedReadFails", Version: 3}
+				failed := mocks.MockDataItem{Key: "failed", Version: 3}
+				require.NoError(t, w.Init(mocks.MakeMockDataSet(refused, refusedReadFails, failed)))
+
+				// The store refuses the update, and the refetch returns the store's newer version.
+				refusedStored := mocks.MockDataItem{Key: refused.Key, Version: 3}
+				core.ForceSet(mocks.MockData, refused.Key, refusedStored.ToSerializedItemDescriptor())
+				updated, err := w.Upsert(mocks.MockData, refused.Key, mocks.MockDataItem{Key: refused.Key, Version: 2}.ToItemDescriptor())
+				require.NoError(t, err)
+				require.False(t, updated)
+
+				// The store refuses the update, and the refetch fails, so the newer cached item stays.
+				core.SetFakeReadError(errors.New("sorry"))
+				updated, err = w.Upsert(mocks.MockData, refusedReadFails.Key, mocks.MockDataItem{Key: refusedReadFails.Key, Version: 2}.ToItemDescriptor())
+				require.NoError(t, err)
+				require.False(t, updated)
+				core.SetFakeReadError(nil)
+
+				// The store fails the update, and the newer cached item stays.
+				core.SetFakeError(errors.New("sorry"))
+				_, err = w.Upsert(mocks.MockData, failed.Key, mocks.MockDataItem{Key: failed.Key, Version: 2}.ToItemDescriptor())
+				require.Error(t, err)
+
+				items, err := w.GetAll(mocks.MockData)
+				require.NoError(t, err)
+				assert.ElementsMatch(t, []st.KeyedItemDescriptor{
+					{Key: refused.Key, Item: refusedStored.ToItemDescriptor()},
+					{Key: refusedReadFails.Key, Item: refusedReadFails.ToItemDescriptor()},
+					{Key: failed.Key, Item: failed.ToItemDescriptor()},
+				}, items)
+			})
+
 			testWithMockPersistentDataStore(t, "will update cache even if core Init fails", mode, func(t *testing.T, core *mocks.MockPersistentDataStore, w subsystems.DataStore) {
 				key := "key"
 				itemv1 := mocks.MockDataItem{Key: key, Version: 1}
