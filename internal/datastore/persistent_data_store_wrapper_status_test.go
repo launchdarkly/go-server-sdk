@@ -35,7 +35,7 @@ func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStat
 	defer params.broadcaster.Close()
 	params.dataStoreUpdates = NewDataStoreUpdateSinkImpl(params.broadcaster)
 	params.core = mocks.NewMockPersistentDataStore()
-	params.store = NewPersistentDataStoreWrapper(params.core, params.dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers())
+	params.store = NewPersistentDataStoreWrapper(params.core, params.dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers(), datakinds.DeserializeOptions{})
 	defer params.store.Close()
 	action(params)
 }

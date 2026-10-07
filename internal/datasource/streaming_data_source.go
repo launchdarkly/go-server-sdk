@@ -12,6 +12,7 @@ import (
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
@@ -84,6 +85,7 @@ type StreamProcessor struct {
 	client                     *http.Client
 	headers                    http.Header
 	diagnosticsManager         *ldevents.DiagnosticsManager
+	deserializeOptions         datakinds.DeserializeOptions
 	loggers                    ldlog.Loggers
 	isInitialized              internal.AtomicBoolean
 	streamReqCtx               gocontext.Context
@@ -114,6 +116,7 @@ func NewStreamProcessor(
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
 	}
+	sp.deserializeOptions = internal.DataKindDeserializeOptions(context)
 
 	sp.client = context.GetHTTP().CreateHTTPClient()
 	// Client.Timeout isn't just a connect timeout, it will break the connection if a full response
@@ -198,7 +201,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 
 			switch event.Event() {
 			case putEvent:
-				put, err := parsePutData([]byte(event.Data()))
+				put, err := parsePutData([]byte(event.Data()), sp.deserializeOptions)
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break
@@ -217,7 +220,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, closeWhenReady chan<
 				}
 
 			case patchEvent:
-				patch, err := parsePatchData([]byte(event.Data()))
+				patch, err := parsePatchData([]byte(event.Data()), sp.deserializeOptions)
 				if err != nil {
 					gotMalformedEvent(event, err)
 					break

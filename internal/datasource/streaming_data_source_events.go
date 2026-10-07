@@ -80,7 +80,7 @@ type deleteData struct {
 	Version int
 }
 
-func parsePutData(data []byte) (putData, error) {
+func parsePutData(data []byte, opts datakinds.DeserializeOptions) (putData, error) {
 	var ret putData
 	r := jreader.NewReader(data)
 	for obj := r.Object().WithRequiredProperties(putDataRequiredProperties); obj.Next(); {
@@ -88,19 +88,19 @@ func parsePutData(data []byte) (putData, error) {
 		case "path":
 			ret.Path = r.String()
 		case "data":
-			ret.Data = parseAllStoreDataFromJSONReader(&r)
+			ret.Data = parseAllStoreDataFromJSONReader(&r, opts)
 		}
 	}
 	return ret, r.Error()
 }
 
-func parsePatchData(data []byte) (patchData, error) {
+func parsePatchData(data []byte, opts datakinds.DeserializeOptions) (patchData, error) {
 	var ret patchData
 	r := jreader.NewReader(data)
 	var kind datakinds.DataKindInternal
 	var key string
 	parseItem := func() (patchData, error) {
-		item, err := kind.DeserializeFromJSONReader(&r)
+		item, err := kind.DeserializeFromJSONReaderWithOptions(&r, opts)
 		if err != nil {
 			return patchData{}, err
 		}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	s "github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
@@ -52,7 +53,7 @@ func makePersistentDataStoreWrapper(
 ) subsystems.DataStore {
 	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
 	dataStoreUpdates := NewDataStoreUpdateSinkImpl(broadcaster)
-	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), s.NewTestLoggers())
+	return NewPersistentDataStoreWrapper(core, dataStoreUpdates, mode.ttl(), s.NewTestLoggers(), datakinds.DeserializeOptions{})
 }
 
 func TestPersistentDataStoreWrapper(t *testing.T) {

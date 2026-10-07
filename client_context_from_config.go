@@ -64,7 +64,10 @@ func newClientContextFromConfig(
 	}
 	basicConfig.HTTP = http
 
-	return &internal.ClientContextImpl{BasicClientContext: basicConfig}, nil
+	return &internal.ClientContextImpl{
+		BasicClientContext:  basicConfig,
+		ReleaseClauseValues: config.ReleaseClauseValues,
+	}, nil
 }
 
 func stringIsValidHTTPHeaderValue(s string) bool {

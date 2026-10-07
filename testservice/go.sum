@@ -124,8 +124,8 @@ github.com/launchdarkly/go-server-sdk-consul/v3 v3.0.2 h1:iOW5uo9cARmLFyTA++AEnn
 github.com/launchdarkly/go-server-sdk-consul/v3 v3.0.2/go.mod h1:niVvmrHvqUm1ZpsO90A+7ujMN2i9wfEHjTlWwIeWag0=
 github.com/launchdarkly/go-server-sdk-dynamodb/v4 v4.0.3 h1:1BZ+BOQ63w9pYsJ0Tiey8zL+nEnIbs8qEjKGBKzo5KA=
 github.com/launchdarkly/go-server-sdk-dynamodb/v4 v4.0.3/go.mod h1:JNBcfcuLthOG8SL+f9QUQprbVdu7y8sYPugZ7Ck5p3U=
-github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.1.0 h1:G993wkCFq2OQO3Sqd8c4FX+Z0T76eb+O0/mFswC4qRg=
-github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.1.0/go.mod h1:TlNMB48dwNz+sewt+zsCrboZLMJj4Dov8Msg/cLv5GM=
+github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.2.0 h1:yT3skSXnTMPvcIt/Oz0LubiU9emv9V5xrAZvFt71bH8=
+github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.2.0/go.mod h1:TlNMB48dwNz+sewt+zsCrboZLMJj4Dov8Msg/cLv5GM=
 github.com/launchdarkly/go-server-sdk-redis-go-redis v1.1.2 h1:qaxHvxmDEtkVoek43PICqu1hI3h4J0x9HUR7KjYsRWE=
 github.com/launchdarkly/go-server-sdk-redis-go-redis v1.1.2/go.mod h1:MCHcQhcFu7VS4J4tP6Z3qP8JvP9j4f59r2oQx9WFONI=
 github.com/launchdarkly/go-test-helpers/v2 v2.3.2 h1:WX6qSzt7v8xz6d94nVcoil9ljuLTC/6OzQt0MhWYxsQ=
