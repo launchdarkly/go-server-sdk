@@ -39,6 +39,7 @@ type MockPersistentDataStore struct {
 	data                map[ldstoretypes.DataKind]map[string]ldstoretypes.SerializedItemDescriptor
 	persistOnlyAsString bool
 	fakeError           error
+	fakeReadError       error
 	available           bool
 	inited              *bool
 	InitQueriedCount    int
@@ -142,6 +143,14 @@ func (m *MockPersistentDataStore) SetFakeError(fakeError error) {
 	m.fakeError = fakeError
 }
 
+// SetFakeReadError causes subsequent Get and GetAll operations to return an error, while other
+// operations keep working.
+func (m *MockPersistentDataStore) SetFakeReadError(fakeError error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.fakeReadError = fakeError
+}
+
 // SetPersistOnlyAsString sets whether the mock data store should behave like our Redis implementation,
 // where the item version is *not* persisted separately from the serialized item string (so the latter must
 // be parsed to get the version). If this is false (the default), it behaves instead like our DynamoDB
@@ -204,6 +213,9 @@ func (m *MockPersistentDataStore) Get(
 	if m.fakeError != nil {
 		return ldstoretypes.SerializedItemDescriptor{}.NotFound(), m.fakeError
 	}
+	if m.fakeReadError != nil {
+		return ldstoretypes.SerializedItemDescriptor{}.NotFound(), m.fakeReadError
+	}
 	m.startQuery()
 	if item, ok := m.data[kind][key]; ok {
 		return m.retrievedItem(item), nil
@@ -220,6 +232,9 @@ func (m *MockPersistentDataStore) GetAll(
 	defer m.lock.Unlock()
 	if m.fakeError != nil {
 		return nil, m.fakeError
+	}
+	if m.fakeReadError != nil {
+		return nil, m.fakeReadError
 	}
 	m.startQuery()
 	ret := []ldstoretypes.KeyedSerializedItemDescriptor{}
