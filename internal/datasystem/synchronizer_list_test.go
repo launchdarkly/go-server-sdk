@@ -88,7 +88,7 @@ func TestSynchronizerListResetReturnsToFirstAvailableSlot(t *testing.T) {
 	assert.True(t, list.isFirstAvailable())
 }
 
-func TestSynchronizerListFDv1FallbackSlotIsBlockedUntilFallback(t *testing.T) {
+func TestSynchronizerListFDv1FallbackSlotIsUnusedUntilFallback(t *testing.T) {
 	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
 	assert.True(t, list.hasFDv1Fallback())
 
@@ -103,7 +103,7 @@ func TestSynchronizerListFDv1FallbackSlotIsBlockedUntilFallback(t *testing.T) {
 	list.fdv1Fallback()
 	list.next()
 
-	// Only the FDv1 slot is available, and every FDv2 slot is blocked.
+	// Only the FDv1 slot is available.
 	assert.Equal(t, 2, list.currentIndex())
 	assert.True(t, list.slots[list.currentIndex()].isFDv1Fallback)
 	assert.Equal(t, 1, list.availableCount())
@@ -119,4 +119,51 @@ func TestSynchronizerListBlockAllLeavesNoSlotAvailable(t *testing.T) {
 	// No slot remains available.
 	list.next()
 	assert.Equal(t, -1, list.currentIndex())
+}
+
+func TestSynchronizerListUnblockKeepsCurrentFDv2Slot(t *testing.T) {
+	// Streaming, polling, and FDv1 fallback slots. Streaming is blocked, and polling is current.
+	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
+	list.next()
+	list.blockCurrent()
+	list.next()
+	assert.Equal(t, 1, list.currentIndex())
+
+	// Unblock the slots.
+	list.unblock()
+
+	// Polling stays current, and streaming is available again as the first slot.
+	assert.Equal(t, 1, list.currentIndex())
+	assert.Equal(t, 2, list.availableCount())
+	assert.False(t, list.isFirstAvailable())
+
+	// A recovery selects streaming.
+	list.reset()
+	list.next()
+	assert.Equal(t, 0, list.currentIndex())
+}
+
+func TestSynchronizerListUnblockStaysOnFDv1AfterFallback(t *testing.T) {
+	// Streaming, polling, and FDv1 fallback slots. Streaming is blocked, then the list falls
+	// back to FDv1.
+	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
+	list.next()
+	list.blockCurrent()
+	list.next()
+	list.fdv1Fallback()
+	list.next()
+	assert.Equal(t, 2, list.currentIndex())
+
+	// Unblock the slots.
+	list.unblock()
+
+	// The FDv1 slot stays current and is the only available slot.
+	assert.Equal(t, 2, list.currentIndex())
+	assert.Equal(t, 1, list.availableCount())
+
+	// On a return to FDv2 mode, streaming is selected before polling.
+	list.onFDv1 = false
+	list.reset()
+	list.next()
+	assert.Equal(t, 0, list.currentIndex())
 }
