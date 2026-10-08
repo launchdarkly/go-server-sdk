@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/diagnostics"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -121,7 +122,7 @@ func (b *PersistentDataStoreBuilder) Build(clientContext subsystems.ClientContex
 		return nil, err
 	}
 	return datastore.NewPersistentDataStoreWrapper(core, clientContext.GetDataStoreUpdateSink(), b.cacheTTL,
-		clientContext.GetLogging().Loggers), nil
+		clientContext.GetLogging().Loggers, internal.DataKindDeserializeOptions(clientContext)), nil
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.

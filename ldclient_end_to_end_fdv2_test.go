@@ -125,7 +125,7 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 
 // When an initializer requests FDv1 fallback but no FDv1 fallback is configured, the data source
 // status must transition to Off rather than staying stuck at Initializing. This mirrors the
-// synchronizer-triggered path when fdv1FallbackBuilder is nil.
+// synchronizer-triggered path when no FDv1 fallback is configured.
 func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T) {
 	header := http.Header{
 		"X-LD-FD-Fallback": []string{"true"},
@@ -168,6 +168,45 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T
 
 		assert.Contains(t, logCapture.GetOutput(ldlog.Warn),
 			"Initializer requested FDv1 fallback but none configured")
+	})
+}
+
+// When a synchronizer requests FDv1 fallback but no FDv1 fallback is configured, the data
+// source status must transition to Off. No other FDv2 synchronizer may start.
+func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T) {
+	header := http.Header{
+		"X-LD-FD-Fallback": []string{"true"},
+	}
+	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		logCapture := ldlogtest.NewMockLog()
+
+		// Custom data system: two polling synchronizers, no initializers, no FDv1 fallback.
+		config := Config{
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(logCapture.Loggers),
+			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(
+				ldcomponents.PollingDataSourceV2().BaseURI(server.URL),
+				ldcomponents.PollingDataSourceV2().BaseURI(server.URL),
+			),
+		}
+
+		// Start the client. The first synchronizer requests the fallback.
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		require.NotNil(t, client)
+		defer client.Close()
+
+		// The data system is off, and only the first synchronizer made a request.
+		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		assert.Equal(t,
+			string(interfaces.DataSourceStateOff),
+			string(client.GetDataSourceStatusProvider().GetStatus().State))
+		<-requestsCh
+		assertNoMoreRequests(t, requestsCh)
+		assert.Contains(t, logCapture.GetOutput(ldlog.Warn),
+			"Synchronizer requested FDv1 fallback but none configured")
 	})
 }
 
@@ -366,8 +405,8 @@ func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
 		expectedPollError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
 		assert.Equal(t, []string{expectedStreamError, expectedPollError}, logCapture.GetOutput(ldlog.Error))
 		assert.Equal(t, []string{
-			"Permanently removing synchronizer at index 0",
-			"Permanently removing synchronizer at index 0",
+			"Blocking synchronizer at index 0 because it failed permanently",
+			"Blocking synchronizer at index 1 because it failed permanently",
 			"No more synchronizers available",
 			initializationFailedErrorMessage,
 		}, logCapture.GetOutput(ldlog.Warn))
@@ -452,7 +491,7 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
 		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
 		assert.Equal(t, []string{
-			"Permanently removing synchronizer at index 0",
+			"Blocking synchronizer at index 0 because it failed permanently",
 			"No more synchronizers available",
 			initializationFailedErrorMessage,
 		}, logCapture.GetOutput(ldlog.Warn))

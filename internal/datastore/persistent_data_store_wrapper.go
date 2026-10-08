@@ -32,25 +32,30 @@ type persistentDataStoreWrapper struct {
 	cacheTTL         time.Duration
 	requests         singleflight.Group
 	loggers          ldlog.Loggers
-	inited           bool
-	initLock         sync.RWMutex
+	// The options that the wrapper uses to deserialize flags and segments.
+	deserializeOptions datakinds.DeserializeOptions
+	inited             bool
+	initLock           sync.RWMutex
 }
 
 const initCheckedKey = "$initChecked"
 
 // NewPersistentDataStoreWrapper creates the implementation of DataStore that we use for all persistent data
 // stores. This is not visible in the public API; it is always called through ldcomponents.PersistentDataStore().
+// The wrapper uses deserializeOptions to deserialize the flags and segments that it reads from the store.
 func NewPersistentDataStoreWrapper(
 	core subsystems.PersistentDataStore,
 	dataStoreUpdates subsystems.DataStoreUpdateSink,
 	cacheTTL time.Duration,
 	loggers ldlog.Loggers,
+	deserializeOptions datakinds.DeserializeOptions,
 ) subsystems.DataStore {
 	w := &persistentDataStoreWrapper{
-		core:             core,
-		dataStoreUpdates: dataStoreUpdates,
-		cacheTTL:         cacheTTL,
-		loggers:          loggers,
+		core:               core,
+		dataStoreUpdates:   dataStoreUpdates,
+		cacheTTL:           cacheTTL,
+		loggers:            loggers,
+		deserializeOptions: deserializeOptions,
 	}
 
 	if cacheTTL != 0 {
@@ -204,35 +209,47 @@ func (w *persistentDataStoreWrapper) Upsert(
 	if err == nil {
 		if updated {
 			c.Set(cacheKey, newItem, cache.DefaultExpiration)
-			// Finite TTL: drop the "all items" entry to force a reread next time GetAll is called.
-			// Infinite TTL: update the entry in place so things still work if the store is unavailable.
-			if infinite {
-				if data, present := c.Get(allCacheKey); present {
-					if items, ok := data.([]st.KeyedItemDescriptor); ok {
-						c.Set(allCacheKey, updateSingleItem(items, key, newItem), cache.DefaultExpiration)
-					}
-				}
-			} else {
-				c.Delete(allCacheKey)
-			}
 		} else {
-			// Concurrent modification elsewhere -- drop our cached values and refetch.
-			c.Delete(cacheKey)
-			c.Delete(allCacheKey)
-			_, _ = w.Get(kind, key) // doing this query repopulates the cache
+			// Concurrent modification elsewhere -- refresh our cached item from the store. If that read
+			// fails, keep the item we already had cached.
+			item, getErr := w.getAndDeserializeItem(kind, key)
+			w.processError(getErr)
+			if getErr == nil {
+				c.Set(cacheKey, item, cache.DefaultExpiration)
+			}
 		}
 	} else {
 		// err != nil and infinite cache mode (we already returned for the !infinite case).
 		// Update the cache so it always has the latest data; we may be able to use it to repopulate
-		// the store later if it starts working again.
-		c.Set(cacheKey, newItem, cache.DefaultExpiration)
-		cachedItems := []st.KeyedItemDescriptor{}
+		// the store later if it starts working again. Don't replace a newer item that is already cached.
+		data, present := c.Get(cacheKey)
+		if oldItem, ok := data.(st.ItemDescriptor); !present || !ok || oldItem.Version < newItem.Version {
+			c.Set(cacheKey, newItem, cache.DefaultExpiration)
+		}
+	}
+
+	// Finite TTL: drop the "all items" entry to force a reread next time GetAll is called.
+	// Infinite TTL: update the item within the entry, whether or not the store accepted the update.
+	// The entry may be the only full copy of this kind if the store becomes unavailable, and it is
+	// what we write back to the store after an outage, so it must keep every item. Use the cached
+	// item if it is newer than ours, so that an out-of-order update can't put an older version in
+	// the entry than the store already has.
+	if infinite {
+		item := newItem
+		if data, present := c.Get(cacheKey); present {
+			if cachedItem, ok := data.(st.ItemDescriptor); ok && cachedItem.Version > newItem.Version {
+				item = cachedItem
+			}
+		}
+		var cachedItems []st.KeyedItemDescriptor
 		if data, present := c.Get(allCacheKey); present {
 			if items, ok := data.([]st.KeyedItemDescriptor); ok {
 				cachedItems = items
 			}
 		}
-		c.Set(allCacheKey, updateSingleItem(cachedItems, key, newItem), cache.DefaultExpiration)
+		c.Set(allCacheKey, updateSingleItem(cachedItems, key, item), cache.DefaultExpiration)
+	} else {
+		c.Delete(allCacheKey)
 	}
 	return updated, err
 }
@@ -414,7 +431,7 @@ func (w *persistentDataStoreWrapper) deserialize(
 	if serializedItemDesc.Deleted || serializedItemDesc.SerializedItem == nil {
 		return st.ItemDescriptor{Version: serializedItemDesc.Version}, nil
 	}
-	deserializedItemDesc, err := kind.Deserialize(serializedItemDesc.SerializedItem)
+	deserializedItemDesc, err := datakinds.Deserialize(kind, serializedItemDesc.SerializedItem, w.deserializeOptions)
 	if err != nil {
 		return st.ItemDescriptor{}.NotFound(), err
 	}

@@ -2,6 +2,19 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.19.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.18.0...v7.19.0) (2026-10-07)
+
+
+### Features
+
+* Add option to release redundant in-clause value lists ([#467](https://github.com/launchdarkly/go-server-sdk/issues/467)) ([9ad54c8](https://github.com/launchdarkly/go-server-sdk/commit/9ad54c867514f40ce996b8c9bf1305b5506128dc))
+
+
+### Bug Fixes
+
+* Block permanently failed FDv2 synchronizers instead of removing them ([#463](https://github.com/launchdarkly/go-server-sdk/issues/463)) ([955ead9](https://github.com/launchdarkly/go-server-sdk/commit/955ead91e2c0988c11f647296c784979677e2621))
+* Keep the cached full data set when an upsert loses a race ([#464](https://github.com/launchdarkly/go-server-sdk/issues/464)) ([9eafbac](https://github.com/launchdarkly/go-server-sdk/commit/9eafbac705a3b75c21dc0596512c3c99cc12378a))
+
 ## [7.18.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.17.1...v7.18.0) (2026-09-24)
 
 
