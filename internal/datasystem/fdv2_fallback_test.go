@@ -16,9 +16,9 @@ import (
 )
 
 // fakeSynchronizer is a DataSynchronizer whose results are driven entirely by the test.
-// A nil results channel models a synchronizer that connects and then stays silent,
-// which is the case that exposed the startup fallback bug: a silent source produces no
-// result for the loop to act on, so the loop must rely on the fallback condition.
+// A synchronizer that is never fed a result models one that connects and then stays
+// silent: it gives the loop nothing to act on, so advancing depends on the fallback
+// condition rather than on a reported state.
 type fakeSynchronizer struct {
 	name      string
 	results   chan subsystems.DataSynchronizerResult
@@ -80,11 +80,11 @@ func makeFallbackTestFDv2(t *testing.T, syncs ...*fakeSynchronizer) *FDv2 {
 	return system
 }
 
-// TestFDv2FallbackConditionDuringStartup pins the predicate that decides whether to
-// abandon the current synchronizer. The regression this guards: a synchronizer that
-// fails permanently during startup leaves the status on Interrupted, so a condition
-// keyed on the status being Initializing became unreachable for the rest of startup
-// and only the one-minute runtime timer applied -- longer than a typical start-wait.
+// TestFDv2FallbackConditionDuringStartup covers the predicate that decides whether to
+// abandon the current synchronizer. Startup allows a short window and steady state a
+// long one, and the two are told apart by whether any data has been applied rather than
+// by the status value -- a synchronizer can report Interrupted before the first payload
+// arrives, and startup must still use the short window.
 func TestFDv2FallbackConditionDuringStartup(t *testing.T) {
 	system := makeFallbackTestFDv2(t)
 	t.Cleanup(func() { _ = system.Stop() })
@@ -109,9 +109,9 @@ func TestFDv2FallbackConditionDuringStartup(t *testing.T) {
 			want:     true,
 		},
 		{
-			// The regression. Status is Interrupted rather than Initializing because a
-			// permanent failure was reported, but no data has ever been applied, so this
-			// is still startup and the short timer must apply.
+			// Status is Interrupted rather than Initializing because a permanent failure
+			// was reported, but no data has ever been applied, so this is still startup
+			// and the short window must apply.
 			name:     "starting up after a permanent failure, past the grace period",
 			state:    interfaces.DataSourceStateInterrupted,
 			stateAge: 11 * time.Second,
@@ -190,8 +190,8 @@ func TestFDv2StartupFallsBackPastSilentSynchronizer(t *testing.T) {
 	require.True(t, silent.wasStarted(30*time.Second),
 		"should move to the second synchronizer after the permanent failure")
 	// The second synchronizer never reports, so only the startup fallback window can
-	// advance the loop. Before the fix the status was left on Interrupted and the
-	// one-minute runtime timer applied instead, so this is where it hung.
+	// advance the loop; the steady-state window is longer than a typical start-wait and
+	// would leave the client without data.
 	assert.True(t, healthy.wasStarted(30*time.Second),
 		"should fall back past the silent synchronizer to the third")
 }
