@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.19.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.19.0...v7.19.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* fall back from a silent synchronizer during FDv2 startup ([#461](https://github.com/launchdarkly/go-server-sdk/issues/461)) ([c66100e](https://github.com/launchdarkly/go-server-sdk/commit/c66100ef264a0879b76275a2d2ebe5b6e5be890f))
+
 ## [7.19.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.18.0...v7.19.0) (2026-10-07)
 
 
