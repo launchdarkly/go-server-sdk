@@ -84,55 +84,96 @@ func TestInvalidParameters(t *testing.T) {
 }
 
 func makeFakeNTLMProxyHandler() http.Handler {
-	step := 0
 	// This is an extremely minimal simulation of an NTLM proxy exchange:
 	// 1. Client sends CONNECT request, with Proxy-Authorization header containing "negotiate" message.
 	//    Server sends 407 response, with Proxy-Authenticate header containing "challenge" message.
 	// 2. Client sends CONNECT request, with Proxy-Authorization header containing "authorization" message.
 	//    Server sends 200 response.
 	// 3. Client sends GET request for target URL.
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		step = step + 1
-		expectedMethod := "CONNECT"
-		expectedURL := targetServer
-		if step == 3 {
-			expectedMethod = "GET"
-			expectedURL = targetURLPath
+	//
+	// NTLM authentication is connection-oriented: steps 2 and 3 must happen on the same connection
+	// that received the 407 in step 1. As of Go 1.27.2, net/http.Server closes the connection after
+	// responding to a CONNECT request (even a rejection), so the handler hijacks the connection on
+	// the first request and speaks raw HTTP/1.1 for the rest of the exchange, as a real NTLM proxy
+	// would.
+	return http.HandlerFunc(func(w http.ResponseWriter, firstReq *http.Request) {
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			fmt.Println("ResponseWriter does not support hijacking")
+			w.WriteHeader(500)
+			return
 		}
-		if step < 3 {
+		conn, rw, err := hijacker.Hijack()
+		if err != nil {
+			fmt.Printf("Hijack failed: %s\n", err)
+			return
+		}
+		defer conn.Close()
+
+		send := func(rawResponse string) bool {
+			_, err := rw.WriteString(rawResponse)
+			if err == nil {
+				err = rw.Flush()
+			}
+			if err != nil {
+				fmt.Printf("Error writing response: %s\n", err)
+			}
+			return err == nil
+		}
+
+		req := firstReq
+		for step := 1; step <= 3; step++ {
+			if step > 1 {
+				req, err = http.ReadRequest(rw.Reader)
+				if err != nil {
+					fmt.Printf("Error reading request for step %d: %s\n", step, err)
+					return
+				}
+			}
+			expectedMethod := "CONNECT"
+			expectedURL := targetServer
+			if step == 3 {
+				expectedMethod = "GET"
+				expectedURL = targetURLPath
+			}
 			if req.Method != expectedMethod {
 				fmt.Printf("Expected %s, got %s for step %d\n", expectedMethod, req.Method, step)
-				w.WriteHeader(405)
+				send("HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
 				return
 			}
 			if req.RequestURI != expectedURL {
 				fmt.Printf("Expected %s, got %s for step %d\n", expectedURL, req.RequestURI, step)
-				w.WriteHeader(404)
+				send("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
 				return
 			}
-		}
-		proxyAuth := req.Header.Get("Proxy-Authorization")
-		badAuth := func() {
-			fmt.Printf("Unexpected Proxy-Authorization value: %s\n", proxyAuth)
-			w.WriteHeader(401)
-		}
-		switch step {
-		case 1:
-			if proxyAuth == proxyAuthStep1Expected {
-				w.Header().Set("Proxy-Authenticate", proxyAuthStep2Challenge)
-				w.WriteHeader(407)
-			} else {
-				badAuth()
+			proxyAuth := req.Header.Get("Proxy-Authorization")
+			badAuth := func() {
+				fmt.Printf("Unexpected Proxy-Authorization value: %s\n", proxyAuth)
+				send("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n")
 			}
-		case 2:
-			if matched, _ := regexp.MatchString(proxyAuthStep3ExpectedRegex, proxyAuth); matched {
-				w.WriteHeader(200)
-			} else {
-				badAuth()
+			switch step {
+			case 1:
+				if proxyAuth != proxyAuthStep1Expected {
+					badAuth()
+					return
+				}
+				if !send("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: " +
+					proxyAuthStep2Challenge + "\r\nContent-Length: 0\r\n\r\n") {
+					return
+				}
+			case 2:
+				if matched, _ := regexp.MatchString(proxyAuthStep3ExpectedRegex, proxyAuth); !matched {
+					badAuth()
+					return
+				}
+				// A 2xx response to CONNECT must not carry body-framing headers (RFC 9112 section
+				// 6.3); after it, the connection is a tunnel to the target.
+				if !send("HTTP/1.1 200 Connection established\r\n\r\n") {
+					return
+				}
+			case 3:
+				send(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s", len(responseBody), responseBody))
 			}
-		case 3:
-			w.WriteHeader(200)
-			w.Write([]byte(responseBody))
 		}
 	})
 }
