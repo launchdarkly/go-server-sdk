@@ -46,21 +46,30 @@ func requireStopped(t *testing.T, p *Poller) {
 	}
 }
 
+// writeFileAtomic writes content and a modification time to a temporary file, then renames
+// it over the target path. The rename is atomic, so a concurrent poll tick can only observe
+// the old state or the final state, never an intermediate one.
+func writeFileAtomic(t *testing.T, path string, content string, modTime time.Time) {
+	t.Helper()
+	tempPath := path + ".tmp"
+	require.NoError(t, os.WriteFile(tempPath, []byte(content), 0600))
+	require.NoError(t, os.Chtimes(tempPath, modTime, modTime))
+	require.NoError(t, os.Rename(tempPath, path))
+}
+
 // writeFileWithNewModTime rewrites a file and guarantees the observed (modTime, size) state
 // differs from the previous state, so the poller must detect it regardless of filesystem
 // timestamp granularity.
 func writeFileWithNewModTime(t *testing.T, path string, content string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
 	newTime := time.Now().Add(time.Duration(len(content)) * time.Second)
-	require.NoError(t, os.Chtimes(path, newTime, newTime))
+	writeFileAtomic(t, path, content, newTime)
 }
 
 // writeFileWithModTime rewrites a file and sets its modification time to an exact value.
 func writeFileWithModTime(t *testing.T, path string, content string, modTime time.Time) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
-	require.NoError(t, os.Chtimes(path, modTime, modTime))
+	writeFileAtomic(t, path, content, modTime)
 }
 
 func TestPollerDetectsModification(t *testing.T) {
