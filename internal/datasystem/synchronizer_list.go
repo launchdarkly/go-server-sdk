@@ -142,10 +142,10 @@ func (l *synchronizerList) fdv1Fallback() {
 	l.current = -1
 }
 
-// unblock clears the blocked state of every slot, including FDv2 slots in FDv1 mode. The
+// unblockAll clears the blocked state of every slot, including FDv2 slots in FDv1 mode. The
 // mode does not change, so after an FDv1 fallback only the FDv1 fallback slot is available.
 // The current slot does not change.
-func (l *synchronizerList) unblock() {
+func (l *synchronizerList) unblockAll() {
 	for i := range l.slots {
 		l.slots[i].blocked = false
 	}

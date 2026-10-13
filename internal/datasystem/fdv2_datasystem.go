@@ -388,26 +388,23 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		for {
 			// Check if we've run out of synchronizers
 			if f.synchronizers.availableCount() == 0 {
-				f.loggers.Warn("No more synchronizers available")
-				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+				// The status does not change to Off. An SDK key change can make the blocked
+				// synchronizers usable again, so the data system is not permanently off. A
+				// permanent failure is reported as Interrupted, so the status normally stays
+				// Interrupted and keeps the error of the failure.
+				f.loggers.Warn("No more synchronizers available; they will restart if the SDK key changes")
 				f.readyOnce.Do(func() {
 					close(closeWhenReady)
 				})
-				// Wait for an SDK key change, which can make the blocked synchronizers usable again.
 				select {
 				case <-ctx.Done():
 					return
 				case <-f.sdkKeyChanged:
-					f.loggers.Info("SDK key changed, re-enabling synchronizers")
-					f.synchronizers.unblock()
+					f.unblockSynchronizers()
+					// Like a recovery, return to the first available synchronizer, which is the
+					// most preferred one.
+					f.synchronizers.reset()
 					f.synchronizers.next()
-					// The data system is no longer off. It is interrupted if it has data, and
-					// initializing otherwise.
-					if f.dataApplied.Get() {
-						f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
-					} else {
-						f.UpdateStatus(interfaces.DataSourceStateInitializing, f.getStatus().LastError)
-					}
 					continue
 				}
 			}
@@ -452,6 +449,14 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				f.synchronizers.blockCurrent()
 				f.synchronizers.next()
 				continue
+			case syncRestart:
+				// The synchronizer failed permanently after an SDK key change. It is not blocked,
+				// because the failure can come from a request that carried the old key. Like a
+				// recovery, return to the first available synchronizer, which uses the new key.
+				f.loggers.Infof("Synchronizer at index %d failed after the SDK key changed, returning to first synchronizer",
+					f.synchronizers.currentIndex())
+				f.synchronizers.reset()
+				f.synchronizers.next()
 			case syncRecover:
 				// Recovery: return to the first available synchronizer
 				f.loggers.Info("Recovery condition met, returning to first synchronizer")
@@ -480,6 +485,7 @@ const (
 	syncRecover
 	syncBlock
 	syncFDv1
+	syncRestart
 )
 
 func (f *FDv2) consumeSynchronizerResults(
@@ -490,6 +496,9 @@ func (f *FDv2) consumeSynchronizerResults(
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
+	// True if the SDK key changed while this synchronizer ran.
+	keyChanged := false
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -497,8 +506,8 @@ func (f *FDv2) consumeSynchronizerResults(
 		case <-f.sdkKeyChanged:
 			// The current synchronizer keeps running. The unblocked synchronizers become
 			// available for fallback and recovery.
-			f.loggers.Info("SDK key changed, re-enabling synchronizers")
-			f.synchronizers.unblock()
+			f.unblockSynchronizers()
+			keyChanged = true
 		case result, ok := <-resultChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
@@ -530,6 +539,11 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
 				if result.FallbackToFDv1 {
 					return syncFDv1, nil
+				}
+				if keyChanged {
+					// The failure can come from a request that carried the old key, so the
+					// synchronizer is not blocked.
+					return syncRestart, nil
 				}
 				return syncBlock, nil
 			}
@@ -567,11 +581,16 @@ func (f *FDv2) consumeSynchronizerResults(
 	}
 }
 
-// SDKKeyChanged tells the data system that the SDK key has changed. The data system unblocks
-// the synchronizers that failed permanently, because the failure can depend on the key. After
-// an FDv1 fallback, the data system stays on FDv1, and the unblocked FDv2 synchronizers stay
-// unused. If no synchronizer was running, the data system starts one. A running synchronizer
-// is not interrupted.
+// SDKKeyChanged tells the data system that the SDK key has changed.
+//
+// A permanent failure can depend on the key, for example a 401 response. The data system
+// unblocks the synchronizers that failed permanently, so that they can run with the new key.
+//
+// If no synchronizer is running, the data system starts the first available synchronizer. A
+// running synchronizer is not interrupted. The unblocked synchronizers become available for
+// fallback and recovery.
+//
+// After an FDv1 fallback, the data system stays on FDv1.
 //
 // SDKKeyChanged is safe to call from any goroutine. It does not block.
 func (f *FDv2) SDKKeyChanged() {
@@ -580,6 +599,24 @@ func (f *FDv2) SDKKeyChanged() {
 	default:
 		// A signal is already pending. One signal is sufficient.
 	}
+}
+
+// unblockSynchronizers unblocks every synchronizer after an SDK key change.
+//
+// Every synchronizer that failed permanently is unblocked, not only the synchronizers whose
+// failure depended on the key. The data system cannot reliably tell those failures apart. A
+// custom synchronizer may report no status code, and a proxy may answer a bad key with another
+// status. A synchronizer whose failure does not depend on the key fails again and is blocked
+// again, which costs one more attempt for each key change. A synchronizer that stayed blocked
+// after a failure that depended on the key would not run again until the application restarts.
+//
+// A server directive is not a block, so unblocking does not undo it. An FDv1 fallback is a
+// mode of the synchronizer list, and unblocking does not change the mode. A fallback directive
+// with no FDv1 fallback configured stops the synchronizer loop or keeps it from starting, so
+// no loop receives the key change.
+func (f *FDv2) unblockSynchronizers() {
+	f.loggers.Info("SDK key changed, re-enabling synchronizers")
+	f.synchronizers.unblockAll()
 }
 
 // Stop shuts down the data system. It will close any active synchronizers. If initialization is in progress,

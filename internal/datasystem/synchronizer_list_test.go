@@ -121,7 +121,7 @@ func TestSynchronizerListBlockAllLeavesNoSlotAvailable(t *testing.T) {
 	assert.Equal(t, -1, list.currentIndex())
 }
 
-func TestSynchronizerListUnblockKeepsCurrentFDv2Slot(t *testing.T) {
+func TestSynchronizerListUnblockAllKeepsCurrentFDv2Slot(t *testing.T) {
 	// Streaming, polling, and FDv1 fallback slots. Streaming is blocked, and polling is current.
 	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
 	list.next()
@@ -130,7 +130,7 @@ func TestSynchronizerListUnblockKeepsCurrentFDv2Slot(t *testing.T) {
 	assert.Equal(t, 1, list.currentIndex())
 
 	// Unblock the slots.
-	list.unblock()
+	list.unblockAll()
 
 	// Polling stays current, and streaming is available again as the first slot.
 	assert.Equal(t, 1, list.currentIndex())
@@ -143,7 +143,7 @@ func TestSynchronizerListUnblockKeepsCurrentFDv2Slot(t *testing.T) {
 	assert.Equal(t, 0, list.currentIndex())
 }
 
-func TestSynchronizerListUnblockStaysOnFDv1AfterFallback(t *testing.T) {
+func TestSynchronizerListUnblockAllStaysOnFDv1AfterFallback(t *testing.T) {
 	// Streaming, polling, and FDv1 fallback slots. Streaming is blocked, then the list falls
 	// back to FDv1.
 	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
@@ -155,7 +155,7 @@ func TestSynchronizerListUnblockStaysOnFDv1AfterFallback(t *testing.T) {
 	assert.Equal(t, 2, list.currentIndex())
 
 	// Unblock the slots.
-	list.unblock()
+	list.unblockAll()
 
 	// The FDv1 slot stays current and is the only available slot.
 	assert.Equal(t, 2, list.currentIndex())
