@@ -61,23 +61,39 @@ func (fk featureFlagStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) [
 
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (fk featureFlagStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	return fk.DeserializeWithOptions(data, DeserializeOptions{})
+}
+
+// DeserializeWithOptions is the same as Deserialize, but uses the options.
+func (fk featureFlagStoreDataKind) DeserializeWithOptions(data []byte, opts DeserializeOptions) (
+	ldstoretypes.ItemDescriptor, error) {
 	flag, err := modelSerialization.UnmarshalFeatureFlag(data)
-	return maybeFlag(flag, err)
+	return maybeFlag(flag, err, opts)
 }
 
 // DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
 func (fk featureFlagStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (
 	ldstoretypes.ItemDescriptor, error) {
-	flag := ldmodel.UnmarshalFeatureFlagFromJSONReader(reader)
-	return maybeFlag(flag, reader.Error())
+	return fk.DeserializeFromJSONReaderWithOptions(reader, DeserializeOptions{})
 }
 
-func maybeFlag(flag ldmodel.FeatureFlag, err error) (ldstoretypes.ItemDescriptor, error) {
+// DeserializeFromJSONReaderWithOptions is the same as DeserializeFromJSONReader, but uses the options.
+func (fk featureFlagStoreDataKind) DeserializeFromJSONReaderWithOptions(reader *jreader.Reader,
+	opts DeserializeOptions) (ldstoretypes.ItemDescriptor, error) {
+	flag := ldmodel.UnmarshalFeatureFlagFromJSONReader(reader)
+	return maybeFlag(flag, reader.Error(), opts)
+}
+
+func maybeFlag(flag ldmodel.FeatureFlag, err error, opts DeserializeOptions) (ldstoretypes.ItemDescriptor, error) {
 	if err != nil {
 		return ldstoretypes.ItemDescriptor{}, err
 	}
 	if flag.Deleted {
 		return ldstoretypes.ItemDescriptor{Version: flag.Version, Item: nil}, nil
+	}
+	if opts.ReleaseClauseValues() {
+		// Unmarshaling preprocesses the flag, so the lookup sets exist. No other code has the flag yet.
+		ldmodel.ReleaseClauseValues(&flag)
 	}
 	return ldstoretypes.ItemDescriptor{Version: flag.Version, Item: &flag}, nil
 }
@@ -109,22 +125,38 @@ func (sk segmentStoreDataKind) Serialize(item ldstoretypes.ItemDescriptor) []byt
 
 // Deserialize is used internally by the SDK when communicating with a PersistentDataStore.
 func (sk segmentStoreDataKind) Deserialize(data []byte) (ldstoretypes.ItemDescriptor, error) {
+	return sk.DeserializeWithOptions(data, DeserializeOptions{})
+}
+
+// DeserializeWithOptions is the same as Deserialize, but uses the options.
+func (sk segmentStoreDataKind) DeserializeWithOptions(data []byte, opts DeserializeOptions) (
+	ldstoretypes.ItemDescriptor, error) {
 	segment, err := modelSerialization.UnmarshalSegment(data)
-	return maybeSegment(segment, err)
+	return maybeSegment(segment, err, opts)
 }
 
 // DeserializeFromJSONReader is used internally by the SDK when parsing multiple flags at once.
 func (sk segmentStoreDataKind) DeserializeFromJSONReader(reader *jreader.Reader) (ldstoretypes.ItemDescriptor, error) {
-	segment := ldmodel.UnmarshalSegmentFromJSONReader(reader)
-	return maybeSegment(segment, reader.Error())
+	return sk.DeserializeFromJSONReaderWithOptions(reader, DeserializeOptions{})
 }
 
-func maybeSegment(segment ldmodel.Segment, err error) (ldstoretypes.ItemDescriptor, error) {
+// DeserializeFromJSONReaderWithOptions is the same as DeserializeFromJSONReader, but uses the options.
+func (sk segmentStoreDataKind) DeserializeFromJSONReaderWithOptions(reader *jreader.Reader,
+	opts DeserializeOptions) (ldstoretypes.ItemDescriptor, error) {
+	segment := ldmodel.UnmarshalSegmentFromJSONReader(reader)
+	return maybeSegment(segment, reader.Error(), opts)
+}
+
+func maybeSegment(segment ldmodel.Segment, err error, opts DeserializeOptions) (ldstoretypes.ItemDescriptor, error) {
 	if err != nil {
 		return ldstoretypes.ItemDescriptor{}, err
 	}
 	if segment.Deleted {
 		return ldstoretypes.ItemDescriptor{Version: segment.Version, Item: nil}, nil
+	}
+	if opts.ReleaseClauseValues() {
+		// Unmarshaling preprocesses the segment, so the lookup sets exist. No other code has the segment yet.
+		ldmodel.ReleaseSegmentClauseValues(&segment)
 	}
 	return ldstoretypes.ItemDescriptor{Version: segment.Version, Item: &segment}, nil
 }
