@@ -71,7 +71,10 @@ func newClientContextFromConfig(
 	// GetHTTP supplies a default factory if the configuration does not have one.
 	basicConfig.HTTP.CreateHTTPClient = wrapHTTPClientFactory(basicConfig.GetHTTP().CreateHTTPClient, keyOverride)
 
-	return &internal.ClientContextImpl{BasicClientContext: basicConfig}, nil
+	return &internal.ClientContextImpl{
+		BasicClientContext:  basicConfig,
+		ReleaseClauseValues: config.ReleaseClauseValues,
+	}, nil
 }
 
 func stringIsValidHTTPHeaderValue(s string) bool {

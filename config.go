@@ -227,4 +227,24 @@ type Config struct {
 	//
 	// Plugin support is currently experimental and subject to change.
 	Plugins []ldplugins.Plugin
+
+	// Set to true to reduce the memory that flags and segments use.
+	//
+	// A rule clause with the "in" operator and many values also keeps its values in a lookup set. If
+	// ReleaseClauseValues is true, these clauses do not keep their Values list in the flags and segments
+	// that the SDK gets from LaunchDarkly, or reads from a persistent data store. Evaluation and JSON
+	// serialization use the lookup set. Serialization writes the values in the order they first
+	// appeared, without duplicates.
+	//
+	// Do not set this field if code reads the Clause.Values field of flags or segments that it gets from
+	// the SDK. This includes your own code, a custom DataStore implementation, and a consumer of
+	// LDRelayDataDestination. For these clauses, Clause.Values is nil. Use Clause.AllValues instead. Do
+	// not change Clause.Values of these clauses either: if you set it and preprocess the flag again, the
+	// clause uses only the new list. A PersistentDataStore implementation is not affected, because it
+	// only receives serialized data.
+	//
+	// The SDK does not release the values of flags and segments that it gets from other data sources,
+	// such as file data or test data. If such a data source writes to a persistent data store, the SDK
+	// releases the values when it reads the items back from the store.
+	ReleaseClauseValues bool
 }

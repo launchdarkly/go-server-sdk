@@ -162,7 +162,10 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	fdv2.fallbackCond = func(status interfaces.DataSourceStatus) bool {
 		interruptedAtRuntime := status.State == interfaces.DataSourceStateInterrupted &&
 			time.Since(status.StateSince) > 1*time.Minute
-		cannotInitialize := status.State == interfaces.DataSourceStateInitializing &&
+		// Startup is defined by whether any data has been applied, not by the status
+		// value: a synchronizer that fails permanently reports Interrupted even when
+		// no payload has ever arrived.
+		cannotInitialize := !fdv2.dataApplied.Get() &&
 			time.Since(status.StateSince) > 10*time.Second
 
 		return interruptedAtRuntime || cannotInitialize

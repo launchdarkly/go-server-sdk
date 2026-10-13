@@ -12,6 +12,8 @@ import (
 	"github.com/gregjones/httpcache"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/endpoints"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
@@ -23,6 +25,8 @@ type pollingRequester struct {
 	filterKey  string
 	headers    http.Header
 	loggers    ldlog.Loggers
+	// The options that the changesets use to deserialize flags and segments.
+	deserializeOptions datakinds.DeserializeOptions
 }
 
 type malformedJSONError struct {
@@ -56,6 +60,8 @@ func newPollingRequester(
 		filterKey:  filterKey,
 		headers:    context.GetHTTP().DefaultHeaders,
 		loggers:    context.GetLogging().Loggers,
+
+		deserializeOptions: internal.DataKindDeserializeOptions(context),
 	}
 }
 
@@ -88,7 +94,7 @@ func (r *pollingRequester) Request(
 		return nil, headers, malformedJSONError{err}
 	}
 
-	changeSet := subsystems.NewChangeSetBuilder()
+	changeSet := subsystems.NewChangeSetBuilder().WithDeserializeOptions(r.deserializeOptions)
 
 	for _, event := range payload.Events {
 		select {

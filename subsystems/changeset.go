@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/launchdarkly/go-jsonstream/v3/jreader"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -37,6 +38,8 @@ type ChangeSet struct {
 
 	mu         *sync.Mutex
 	collection []ldstoretypes.Collection
+
+	deserializeOptions datakinds.DeserializeOptions
 }
 
 // IntentCode represents the intent of the changeset.
@@ -70,7 +73,7 @@ func (c *ChangeSet) Collections() ([]ldstoretypes.Collection, error) {
 		return c.collection, nil
 	}
 
-	collection, err := toStorableItems(c.changes)
+	collection, err := toStorableItems(c.changes, c.deserializeOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +84,7 @@ func (c *ChangeSet) Collections() ([]ldstoretypes.Collection, error) {
 
 // toStorableItems converts a list of FDv2 events to a list of collections suitable for insertion
 // into a data store.
-func toStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
+func toStorableItems(deltas []Change, opts datakinds.DeserializeOptions) ([]ldstoretypes.Collection, error) {
 	collections := make(kindMap)
 	for _, event := range deltas {
 		kind, ok := event.Kind.ToFDV1()
@@ -96,7 +99,7 @@ func toStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
 			// A put requires deserializing the item. We delegate to the optimized streaming JSON
 			// parser.
 			reader := jreader.NewReader(event.Object)
-			item, err := kind.DeserializeFromJSONReader(&reader)
+			item, err := kind.DeserializeFromJSONReaderWithOptions(&reader, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -121,13 +124,21 @@ func toStorableItems(deltas []Change) ([]ldstoretypes.Collection, error) {
 
 // ChangeSetBuilder is a helper for constructing a ChangeSet.
 type ChangeSetBuilder struct {
-	intent  *ServerIntent
-	changes []Change
+	intent             *ServerIntent
+	changes            []Change
+	deserializeOptions datakinds.DeserializeOptions
 }
 
 // NewChangeSetBuilder creates a new ChangeSetBuilder, which is empty by default.
 func NewChangeSetBuilder() *ChangeSetBuilder {
 	return &ChangeSetBuilder{}
+}
+
+// WithDeserializeOptions sets the options that the changesets from this builder use when they
+// deserialize their items. This method is for internal use by the SDK.
+func (c *ChangeSetBuilder) WithDeserializeOptions(opts datakinds.DeserializeOptions) *ChangeSetBuilder {
+	c.deserializeOptions = opts
+	return c
 }
 
 // NewChangeSetFromCollections creates a ChangeSet directly from collections,
@@ -270,6 +281,8 @@ func (c *ChangeSetBuilder) Finish(selector Selector) (*ChangeSet, error) {
 		selector:   selector,
 		changes:    c.changes,
 		mu:         &sync.Mutex{},
+
+		deserializeOptions: c.deserializeOptions,
 	}
 	c.changes = nil
 

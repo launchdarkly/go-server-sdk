@@ -35,7 +35,7 @@ func withDataStoreStatusTestParams(mode testCacheMode, action func(dataStoreStat
 	defer params.broadcaster.Close()
 	params.dataStoreUpdates = NewDataStoreUpdateSinkImpl(params.broadcaster)
 	params.core = mocks.NewMockPersistentDataStore()
-	params.store = NewPersistentDataStoreWrapper(params.core, params.dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers())
+	params.store = NewPersistentDataStoreWrapper(params.core, params.dataStoreUpdates, mode.ttl(), sharedtest.NewTestLoggers(), datakinds.DeserializeOptions{})
 	defer params.store.Close()
 	action(params)
 }
@@ -145,6 +145,49 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 
 			// Once that has happened, the cache should have been written to the store
 			assert.Equal(t, flag.Version, p.core.ForceGet(datakinds.Features, flag.Key).Version)
+		})
+	})
+
+	t.Run("Full data set is written to store after recovery if an earlier upsert lost a race", func(t *testing.T) {
+		withDataStoreStatusTestParams(testCachedIndefinitely, func(p dataStoreStatusTestParams) {
+			statusCh := p.broadcaster.AddListener()
+
+			flag1v1 := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
+			flag1v2 := ldbuilders.NewFlagBuilder("flag1").Version(2).Build()
+			flag2v1 := ldbuilders.NewFlagBuilder("flag2").Version(1).Build()
+			flag2v2 := ldbuilders.NewFlagBuilder("flag2").Version(2).Build()
+			require.NoError(t, p.store.Init(sharedtest.NewDataSetBuilder().Flags(flag1v1, flag2v1).Build()))
+
+			// Another writer to the same store gets the same update to flag1 in first, so ours is refused.
+			p.core.ForceSet(datakinds.Features, flag1v2.Key, ldstoretypes.SerializedItemDescriptor{
+				Version: flag1v2.Version, SerializedItem: datakinds.Features.Serialize(sharedtest.FlagDescriptor(flag1v2)),
+			})
+			updated, err := p.store.Upsert(datakinds.Features, flag1v2.Key, sharedtest.FlagDescriptor(flag1v2))
+			require.NoError(t, err)
+			require.False(t, updated)
+
+			// Then the store goes down, and an update to flag2 goes only into the cache.
+			myError := errors.New("sorry")
+			p.core.SetFakeError(myError)
+			p.core.SetAvailable(false)
+			_, err = p.store.Upsert(datakinds.Features, flag2v2.Key, sharedtest.FlagDescriptor(flag2v2))
+			require.Equal(t, myError, err)
+
+			updatedStatus := th.RequireValue(t, statusCh, statusUpdateTimeout)
+			require.Equal(t, intf.DataStoreStatus{Available: false}, updatedStatus)
+
+			flags, err := p.store.GetAll(datakinds.Features)
+			require.NoError(t, err)
+			assert.Len(t, flags, 2)
+
+			p.core.SetFakeError(nil)
+			p.core.SetAvailable(true)
+			updatedStatus = th.RequireValue(t, statusCh, statusUpdateTimeout)
+			assert.Equal(t, intf.DataStoreStatus{Available: true}, updatedStatus)
+
+			// The write-back after recovery has both flags, not just the one updated during the outage.
+			assert.Equal(t, flag1v2.Version, p.core.ForceGet(datakinds.Features, flag1v2.Key).Version)
+			assert.Equal(t, flag2v2.Version, p.core.ForceGet(datakinds.Features, flag2v2.Key).Version)
 		})
 	})
 }

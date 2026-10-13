@@ -30,7 +30,7 @@ func TestParsePutData(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		input := []byte(`{"path": "/", "data": ` + allDataJSON + `}`)
 
-		result, err := parsePutData(input)
+		result, err := parsePutData(input, datakinds.DeserializeOptions{})
 		require.NoError(t, err)
 
 		assert.Equal(t, "/", result.Path)
@@ -39,7 +39,7 @@ func TestParsePutData(t *testing.T) {
 
 	t.Run("missing path", func(t *testing.T) {
 		input := []byte(`{"data": ` + allDataJSON + `}`)
-		result, err := parsePutData(input)
+		result, err := parsePutData(input, datakinds.DeserializeOptions{})
 		require.NoError(t, err) // we don't consider this an error; some versions of Relay don't send a path
 		assert.Equal(t, "", result.Path)
 		assert.Equal(t, sharedtest.NormalizeDataSet(expectedAllData), sharedtest.NormalizeDataSet(result.Data))
@@ -47,7 +47,7 @@ func TestParsePutData(t *testing.T) {
 
 	t.Run("missing data", func(t *testing.T) {
 		input := []byte(`{"path": "/"}`)
-		_, err := parsePutData(input)
+		_, err := parsePutData(input, datakinds.DeserializeOptions{})
 		require.Error(t, err)
 	})
 }
@@ -60,7 +60,7 @@ func TestParsePatchData(t *testing.T) {
 
 	t.Run("valid flag", func(t *testing.T) {
 		input := []byte(`{"path": "/flags/flagkey", "data": ` + flagJSON + `}`)
-		result, err := parsePatchData(input)
+		result, err := parsePatchData(input, datakinds.DeserializeOptions{})
 		require.NoError(t, err)
 
 		assert.Equal(t, datakinds.Features, result.Kind)
@@ -70,7 +70,7 @@ func TestParsePatchData(t *testing.T) {
 
 	t.Run("valid segment", func(t *testing.T) {
 		input := []byte(`{"path": "/segments/segmentkey", "data": ` + segmentJSON + `}`)
-		result, err := parsePatchData(input)
+		result, err := parsePatchData(input, datakinds.DeserializeOptions{})
 		require.NoError(t, err)
 
 		assert.Equal(t, datakinds.Segments, result.Kind)
@@ -80,7 +80,7 @@ func TestParsePatchData(t *testing.T) {
 
 	t.Run("valid but data property appears before path", func(t *testing.T) {
 		input := []byte(`{"data": ` + flagJSON + `, "path": "/flags/flagkey"}`)
-		result, err := parsePatchData(input)
+		result, err := parsePatchData(input, datakinds.DeserializeOptions{})
 		require.NoError(t, err)
 
 		assert.Equal(t, datakinds.Features, result.Kind)
@@ -90,7 +90,7 @@ func TestParsePatchData(t *testing.T) {
 
 	t.Run("unrecognized path", func(t *testing.T) {
 		input := []byte(`{"path": "/cats/lucy", "data": ` + flagJSON + `}`)
-		result, err := parsePatchData(input)
+		result, err := parsePatchData(input, datakinds.DeserializeOptions{})
 		require.NoError(t, err)
 
 		assert.Nil(t, result.Kind)
@@ -99,13 +99,13 @@ func TestParsePatchData(t *testing.T) {
 
 	t.Run("missing path", func(t *testing.T) {
 		input := []byte(`{"data": ` + flagJSON + `}`)
-		_, err := parsePatchData(input)
+		_, err := parsePatchData(input, datakinds.DeserializeOptions{})
 		require.Error(t, err)
 	})
 
 	t.Run("missing data", func(t *testing.T) {
 		input := []byte(`{"path": "/flags/flagkey"}`)
-		_, err := parsePatchData(input)
+		_, err := parsePatchData(input, datakinds.DeserializeOptions{})
 		require.Error(t, err)
 	})
 }
