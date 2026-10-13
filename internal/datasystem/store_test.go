@@ -569,3 +569,100 @@ func requireCollectionsMatch(t *testing.T, expected []ldstoretypes.Collection, a
 		}
 	}
 }
+
+// makeFlagChangeSet builds a changeset with the given intent that puts one minimal
+// flag per key.
+func makeFlagChangeSet(t *testing.T, code subsystems.IntentCode, keys []string) subsystems.ChangeSet {
+	t.Helper()
+	builder := subsystems.NewChangeSetBuilder()
+	builder.Start(subsystems.ServerIntent{
+		Payload: subsystems.Payload{ID: "state", Target: 1, Code: code},
+	})
+	for _, key := range keys {
+		builder.AddPut(subsystems.FlagKind, key, 1, MinimalFlag(key, 1))
+	}
+	changeSet, err := builder.Finish(subsystems.NoSelector())
+	require.NoError(t, err)
+	return *changeSet
+}
+
+func TestStore_ApplyCompletesWhileListenerReadsStore(t *testing.T) {
+	logCapture := ldlogtest.NewMockLog()
+	flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+	store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
+	defer store.Close()
+
+	flagEvents := flagChangeBroadcaster.AddListener()
+	defer flagChangeBroadcaster.RemoveListener(flagEvents)
+	changeSetEvents := changeSetBroadcaster.AddListener()
+	defer changeSetBroadcaster.RemoveListener(changeSetEvents)
+
+	// The listener reads from the store before it takes the next event, like a flag
+	// value change listener that evaluates a flag for each event.
+	receivedFlagEvents := make(chan int, 1)
+	go func() {
+		count := 0
+		for range flagEvents {
+			_ = store.Selector()
+			count++
+		}
+		receivedFlagEvents <- count
+	}()
+
+	applyBounded := func(changeSet subsystems.ChangeSet) {
+		t.Helper()
+		done := make(chan bool, 1)
+		go func() { done <- store.Apply(changeSet, false) }()
+		select {
+		case applied := <-done:
+			require.True(t, applied)
+		case <-time.After(5 * time.Second):
+			t.Fatal("Apply must return while a listener reads from the store")
+		}
+	}
+
+	// Each changeset holds more flags than a listener channel can buffer, so delivery
+	// requires the listener to drain events while Apply runs.
+	fullKeys := make([]string, 0, 15)
+	for i := 0; i < 15; i++ {
+		fullKeys = append(fullKeys, fmt.Sprintf("full-flag-%d", i))
+	}
+	deltaKeys := make([]string, 0, 12)
+	for i := 0; i < 12; i++ {
+		deltaKeys = append(deltaKeys, fmt.Sprintf("delta-flag-%d", i))
+	}
+
+	// Both the full transfer and the delta transfer must complete.
+	applyBounded(makeFlagChangeSet(t, subsystems.IntentTransferFull, fullKeys))
+	applyBounded(makeFlagChangeSet(t, subsystems.IntentTransferChanges, deltaKeys))
+
+	// Each applied changeset produces one changeset event.
+	for i := 0; i < 2; i++ {
+		select {
+		case <-changeSetEvents:
+		case <-time.After(5 * time.Second):
+			t.Fatal("a changeset event must be delivered for each applied changeset")
+		}
+	}
+
+	// Each affected flag produces one event; no events are dropped. Removing the
+	// listener closes its channel, which ends the counting goroutine.
+	flagChangeBroadcaster.RemoveListener(flagEvents)
+	select {
+	case count := <-receivedFlagEvents:
+		assert.Equal(t, len(fullKeys)+len(deltaKeys), count)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the flag event listener must observe the end of its channel")
+	}
+
+	// Close must complete after the events are delivered.
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- store.Close() }()
+	select {
+	case err := <-closeDone:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close must complete")
+	}
+}

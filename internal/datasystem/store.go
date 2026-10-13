@@ -88,6 +88,14 @@ type Store struct {
 	// no persistent store is configured.
 	cacheDropper interface{ DropCache() }
 
+	// applyMu makes Apply calls sequential. Apply holds applyMu across the state
+	// mutation and the broadcasts that follow, so concurrent Apply calls deliver
+	// their events in changeset order. Readers do not take applyMu, so a listener
+	// can read from the store while a broadcast is in progress.
+	applyMu sync.Mutex
+
+	// mu guards the store state. applyChangeSet sends no flag change or changeset
+	// events. Apply sends them after applyChangeSet releases mu.
 	mu sync.RWMutex
 
 	loggers ldlog.Loggers
@@ -188,26 +196,50 @@ func (s *Store) Apply(changeSet subsystems.ChangeSet, persist bool) bool {
 		s.loggers.Errorf("store: couldn't set basis due to malformed data: %v", err)
 		return false
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
-	switch changeSet.IntentCode() {
-	case subsystems.IntentTransferFull:
-		s.setBasis(collections, changeSet.Selector(), persist)
-	case subsystems.IntentTransferChanges:
-		s.applyDelta(collections, changeSet.Selector(), persist)
-	case subsystems.IntentNone:
-		// Nothing to apply.
+	s.applyMu.Lock()
+	defer s.applyMu.Unlock()
+
+	affectedItems, applied := s.applyChangeSet(changeSet, collections, persist)
+	if !applied {
 		return false
 	}
 
+	// The broadcasts run after the write lock is released. A send can block until a
+	// listener reads from its channel, and a listener can call back into the store.
+	s.sendChangeEvents(affectedItems)
 	s.changeSetBroadcaster.Broadcast(changeSet)
 	return true
 }
 
+// applyChangeSet mutates the store state under the write lock. It returns the set of affected
+// items, and false when the changeset has intent none. It sends no flag change or changeset
+// events. The caller sends them after this method returns and releases the write lock.
+func (s *Store) applyChangeSet(
+	changeSet subsystems.ChangeSet, collections []ldstoretypes.Collection, persist bool,
+) (toposort.Neighbors, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var affectedItems toposort.Neighbors
+	switch changeSet.IntentCode() {
+	case subsystems.IntentTransferFull:
+		affectedItems = s.setBasis(collections, changeSet.Selector(), persist)
+	case subsystems.IntentTransferChanges:
+		affectedItems = s.applyDelta(collections, changeSet.Selector(), persist)
+	case subsystems.IntentNone:
+		// Nothing to apply.
+		return nil, false
+	}
+	return affectedItems, true
+}
+
 // setBasis sets the basis of the store. Any existing data is discarded. To request data persistence,
-// set persist to true.
-func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
+// set persist to true. setBasis returns the set of changed items which will be
+// broadcasted.
+func (s *Store) setBasis(
+	collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool,
+) toposort.Neighbors {
 	var prechangeSnapshot map[ldstoretypes.DataKind]map[string]ldstoretypes.ItemDescriptor
 	// Because flag listeners can be added and removed at any time, we need to
 	// check at a single point in time if there are listeners. If so, we can
@@ -232,11 +264,12 @@ func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsyst
 	s.memoryStore.SetBasis(collections)
 
 	s.updateDependencyTrackerFromFullDataSet(collections)
-	// If we took a snapshot, we had change listeners interested at the time.
-	// So try to notify them. If no listeners are attached now, it won't matter
-	// as they will be skipped.
+	var affectedItems toposort.Neighbors
+	// A snapshot exists only if change listeners were attached when this update began.
+	// Compute the changed items now; the caller sends the events after it releases
+	// the lock.
 	if prechangeSnapshot != nil {
-		s.sendChangeEvents(s.computeChangedItemsForFullDataSet(prechangeSnapshot, fullDataSetToMap(collections)))
+		affectedItems = s.computeChangedItemsForFullDataSet(prechangeSnapshot, fullDataSetToMap(collections))
 	}
 
 	s.persist = persist
@@ -257,15 +290,20 @@ func (s *Store) setBasis(collections []ldstoretypes.Collection, selector subsyst
 		// TODO: figure out where to handle/report the error.
 		_ = s.persistentStore.impl.Init(toposort.Sort(collections))
 	}
+
+	return affectedItems
 }
 
 func (s *Store) shouldPersist() bool {
 	return s.persist && s.persistentStore.writable()
 }
 
-// applyDelta applies a delta update to the store. applyDelta should not be called until setBasis has been called.
-// To request data persistence, set persist to true.
-func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool) {
+// applyDelta applies a delta update to the store. applyDelta should not be called until setBasis has
+// been called. To request data persistence, set persist to true.
+// applyDelta returns the set of affected items which will be broadcasted.
+func (s *Store) applyDelta(
+	collections []ldstoretypes.Collection, selector subsystems.Selector, persist bool,
+) toposort.Neighbors {
 	s.memoryStore.ApplyDelta(collections)
 
 	hasListeners := s.flagChangeEvent.HasListeners()
@@ -277,10 +315,6 @@ func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsy
 				s.dependencyTracker.AddAffectedItems(affectedItems, toposort.NewVertex(collection.Kind, item.Key))
 			}
 		}
-	}
-
-	if len(affectedItems) > 0 {
-		s.sendChangeEvents(affectedItems)
 	}
 
 	s.persist = persist
@@ -303,6 +337,7 @@ func (s *Store) applyDelta(collections []ldstoretypes.Collection, selector subsy
 			}
 		}
 	}
+	return affectedItems
 }
 
 // GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise
