@@ -168,6 +168,8 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 
 			p.control.Close()
 
+			// The stream reconnects and gets a 401. The status is Interrupted, not Off, because an
+			// SDK key change can restart the synchronizer.
 			timeout := time.NewTimer(time.Second)
 			for {
 				select {
@@ -176,7 +178,8 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 					return
 				default:
 					status := p.client.GetDataSourceStatusProvider().GetStatus()
-					if status.State == interfaces.DataSourceStateOff {
+					if status.LastError.StatusCode == 401 {
+						assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
 						return
 					}
 				}
@@ -208,11 +211,12 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)
 			assert.Equal(t, 401, status.LastError.StatusCode)
 
-			status = <-ch
-			assert.Equal(t, interfaces.DataSourceStateOff, status.State)
+			// The status does not change to Off, because an SDK key change can restart the
+			// synchronizer.
+			th.AssertNoMoreValues(t, ch, time.Millisecond*100)
 
 			status = p.client.GetDataSourceStatusProvider().GetStatus()
-			assert.Equal(t, interfaces.DataSourceStateOff, status.State)
+			assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
 		}, httphelpers.HandlerWithStatus(401))
 	})
 
@@ -232,16 +236,20 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second)
 			assert.False(t, foundIt)
 
-			// Shut it down and make sure it's stopped.
+			// Close the stream. It reconnects and gets a 401, so no synchronizer is available. The
+			// status is Interrupted, not Off, because an SDK key change can restart the synchronizer.
 			p.control.Close()
-			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateOff, time.Second)
+			assert.Eventually(t, func() bool {
+				return p.client.GetDataSourceStatusProvider().GetStatus().LastError.StatusCode == 401
+			}, time.Second, time.Millisecond*10)
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second)
 			assert.True(t, foundIt)
 
-			// Ensure that an off status doesn't require the use of a timer.
+			// A wait for the valid state is not cut short. It lasts until the timeout.
 			start = time.Now()
-			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Hour*100)
-			assert.WithinDuration(t, time.Now(), start, time.Millisecond*30)
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Millisecond*100)
 			assert.False(t, foundIt)
+			assert.GreaterOrEqual(t, time.Since(start), time.Millisecond*100)
 		}, httphelpers.HandlerWithStatus(401))
 	})
 }

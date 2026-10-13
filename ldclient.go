@@ -93,6 +93,9 @@ type dataSystem interface {
 	// which means a data source provided flag data. The result is meaningful once the channel given
 	// to Start has been closed.
 	InitializationSucceeded() bool
+
+	// SDKKeyChanged tells the data system that the SDK key has changed. It must not block.
+	SDKKeyChanged()
 }
 
 var _ dataSystem = &datasystem.FDv1{}
@@ -702,6 +705,10 @@ func (client *LDClient) IsOffline() bool {
 // connection that is open. That connection continues until the service or the network ends it. Then
 // the client reconnects with the new key.
 //
+// If the client uses the FDv2 data system, synchronizers that failed permanently can run again.
+// If no synchronizer is running, the client starts one with the new key. If the client has fallen
+// back to FDv1, it stays on FDv1.
+//
 // SecureModeHash and diagnostic events also use the new key. Plugins keep the key that the client
 // was created with.
 //
@@ -715,6 +722,9 @@ func (client *LDClient) SetSDKKey(sdkKey string) error {
 	if client.diagnosticsManager != nil {
 		client.diagnosticsManager.SetSDKKey(sdkKey)
 	}
+	// The data system is notified after the override is set, so that any synchronizer it
+	// restarts uses the new key.
+	client.dataSystem.SDKKeyChanged()
 	return nil
 }
 
