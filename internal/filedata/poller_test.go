@@ -46,30 +46,37 @@ func requireStopped(t *testing.T, p *Poller) {
 	}
 }
 
-// writeFileAtomic writes content and a modification time to a temporary file, then renames
-// it over the target path. The rename is atomic, so a concurrent poll tick can only observe
-// the old state or the final state, never an intermediate one.
-func writeFileAtomic(t *testing.T, path string, content string, modTime time.Time) {
-	t.Helper()
-	tempPath := path + ".tmp"
-	require.NoError(t, os.WriteFile(tempPath, []byte(content), 0600))
-	require.NoError(t, os.Chtimes(tempPath, modTime, modTime))
-	require.NoError(t, os.Rename(tempPath, path))
+// drainChanges discards the change callbacks that arrive within the settle window. A plain
+// rewrite is not atomic: the truncation, the write, and the modification-time update are
+// separate steps, and a poll that lands between two of them legitimately reports an extra
+// change. A test that wants to assert silence waits for the write to be fully observed first.
+func drainChanges(changed chan struct{}, settle time.Duration) {
+	deadline := time.After(settle)
+	for {
+		select {
+		case <-changed:
+		case <-deadline:
+			return
+		}
+	}
 }
 
 // writeFileWithNewModTime rewrites a file and guarantees the observed (modTime, size) state
 // differs from the previous state, so the poller must detect it regardless of filesystem
-// timestamp granularity.
+// timestamp granularity. The write is an ordinary one, in separate steps, as application
+// writes are.
 func writeFileWithNewModTime(t *testing.T, path string, content string) {
 	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
 	newTime := time.Now().Add(time.Duration(len(content)) * time.Second)
-	writeFileAtomic(t, path, content, newTime)
+	require.NoError(t, os.Chtimes(path, newTime, newTime))
 }
 
 // writeFileWithModTime rewrites a file and sets its modification time to an exact value.
 func writeFileWithModTime(t *testing.T, path string, content string, modTime time.Time) {
 	t.Helper()
-	writeFileAtomic(t, path, content, modTime)
+	require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+	require.NoError(t, os.Chtimes(path, modTime, modTime))
 }
 
 func TestPollerDetectsModification(t *testing.T) {
@@ -103,13 +110,17 @@ func TestPollerDetectsSizeChangeWithSameModTime(t *testing.T) {
 	requireChange(t, changed)
 }
 
-func TestPollerFiresOncePerChange(t *testing.T) {
+// The poller updates its baseline after a change, so it goes quiet once the file is stable. It
+// does not promise one callback per logical change: a rewrite that the poller observes in more
+// than one step is reported in more than one step, and the Reloader absorbs the excess.
+func TestPollerStopsFiringWhenFileIsStable(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "data.json")
 	writeFileWithNewModTime(t, path, "one")
 	changed := newPollerFixture(t, []string{path})
 
 	writeFileWithNewModTime(t, path, "two!")
 	requireChange(t, changed)
+	drainChanges(changed, 10*pollTestInterval)
 
 	requireNoChange(t, changed, 20*pollTestInterval)
 }
