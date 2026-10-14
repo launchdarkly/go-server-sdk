@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.19.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.19.1...v7.19.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* Prevent client hangs when a flag change listener reads the store during FDv2 data update ([#470](https://github.com/launchdarkly/go-server-sdk/issues/470)) ([0ce742d](https://github.com/launchdarkly/go-server-sdk/commit/0ce742d8956c338a3966d5d108cc87deb8e63f89))
+* Prevent ldtestdatav2.UsePreconfiguredSegment from writing segment updates as flags ([#471](https://github.com/launchdarkly/go-server-sdk/issues/471)) ([0a78469](https://github.com/launchdarkly/go-server-sdk/commit/0a78469d90d7f86cb560365e3a127ca054fd437b))
+
 ## [7.19.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.19.0...v7.19.1) (2026-10-12)
 
 
