@@ -3,6 +3,7 @@ package ldclient
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,13 +14,17 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/lduser"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservices"
 	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldservicesv2"
+	"github.com/launchdarkly/go-server-sdk/v7/testhelpers/ldtestdatav2"
 
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
@@ -284,4 +289,223 @@ func TestBigSegmentsStoreStatusProviderV2(t *testing.T) {
 				)
 			})
 	})
+}
+
+// The tests below use a flag change listener that evaluates flags while it handles events, the way
+// an application listener does. The FDv2 store used to send flag change events while it held its
+// write lock, so the listener's evaluation blocked on that lock and the listener stopped reading
+// its channel. Once the channel's buffer filled, the client hung. Every wait in these tests is
+// bounded so that a regression fails the test instead of hanging the test binary.
+
+// listenerTestEventCount is more events than a listener channel buffers.
+const listenerTestEventCount = 20
+
+const listenerTestTimeout = time.Second * 2
+
+var listenerTestUser = lduser.NewUser("listener-user")
+
+func TestFlagChangeListenerCanEvaluateDuringUpdatesV2(t *testing.T) {
+	t.Run("TestData updates flags one at a time", func(t *testing.T) {
+		td := ldtestdatav2.DataSource()
+		client := makeTestDataV2ListenerClient(t, td)
+		handled := startEvaluatingListener(client, listenerTestEventCount, time.Millisecond*5)
+
+		// Update can block once the client stops consuming changes, so it must not run on the
+		// test goroutine.
+		go func() {
+			for i := 0; i < listenerTestEventCount; i++ {
+				td.Update(td.Flag(fmt.Sprintf("flag-%d", i)).BooleanFlag().VariationForAll(true))
+			}
+		}()
+
+		th.AssertChannelClosed(t, handled, listenerTestTimeout, "listener did not handle every flag change")
+	})
+
+	t.Run("a segment change affects many flags", func(t *testing.T) {
+		segment := ldbuilders.NewSegmentBuilder("beta-users").Version(1).Build()
+		data := ldservicesv2.NewServerSDKData().Segments(segment)
+		for i := 0; i < listenerTestEventCount; i++ {
+			data.Flags(segmentMatchFlag(fmt.Sprintf("flag-%d", i), segment.Key))
+		}
+
+		streamingListenerTestV2(t, data, nil, func(p clientListenersV2TestParams) {
+			handled := startEvaluatingListener(p.client, listenerTestEventCount, 0)
+
+			// One segment change produces a flag change event for every flag that references it.
+			changed := ldbuilders.NewSegmentBuilder(segment.Key).Version(2).Included(listenerTestUser.Key()).Build()
+			p.protocol.WithPutObjects(ldservicesv2.NewServerSDKData().Segments(changed).ToPutObjects()).
+				WithTransferred("state", 2).
+				Enqueue(p.control)
+
+			th.AssertChannelClosed(t, handled, listenerTestTimeout, "listener did not handle every flag change")
+		})
+	})
+
+	t.Run("the listener is registered before the first payload", func(t *testing.T) {
+		data := ldservicesv2.NewServerSDKData()
+		for i := 0; i < listenerTestEventCount; i++ {
+			data.Flags(booleanFlagV2(fmt.Sprintf("flag-%d", i), 1, true))
+		}
+		firstPayload := make(chan struct{})
+
+		streamingListenerTestV2(t, data, firstPayload, func(p clientListenersV2TestParams) {
+			// Every flag in the first payload is new, so each one produces a flag change event.
+			handled := startEvaluatingListener(p.client, listenerTestEventCount, 0)
+			close(firstPayload)
+
+			th.AssertChannelClosed(t, handled, listenerTestTimeout, "listener did not handle every flag change")
+		})
+	})
+
+	t.Run("the stream delivers a burst of flag changes", func(t *testing.T) {
+		data := ldservicesv2.NewServerSDKData()
+		for i := 0; i < listenerTestEventCount; i++ {
+			data.Flags(booleanFlagV2(fmt.Sprintf("flag-%d", i), 1, true))
+		}
+
+		streamingListenerTestV2(t, data, nil, func(p clientListenersV2TestParams) {
+			handled := startEvaluatingListener(p.client, listenerTestEventCount, time.Millisecond*5)
+
+			// Each change is its own transfer, as when many flags are edited in quick succession.
+			for i := 0; i < listenerTestEventCount; i++ {
+				changed := booleanFlagV2(fmt.Sprintf("flag-%d", i), 2, false)
+				p.protocol.WithPutObjects(ldservicesv2.NewServerSDKData().Flags(changed).ToPutObjects()).
+					WithTransferred("state", i+2)
+			}
+			p.protocol.Enqueue(p.control)
+
+			th.AssertChannelClosed(t, handled, listenerTestTimeout, "listener did not handle every flag change")
+		})
+	})
+}
+
+func TestBusyFlagChangeListenerDoesNotBlockEvaluationsV2(t *testing.T) {
+	td := ldtestdatav2.DataSource()
+	td.Update(td.Flag("flag-0").BooleanFlag().VariationForAll(true))
+	client := makeTestDataV2ListenerClient(t, td)
+
+	// The listener is busy with its first event, as if it were waiting on a slow webhook, while
+	// more changes arrive than its channel buffers.
+	ch := client.GetFlagTracker().AddFlagChangeListener()
+	release := make(chan struct{})
+	defer close(release)
+	go func() {
+		<-ch
+		<-release
+		for range ch {
+		}
+	}()
+	go func() {
+		for i := 1; i <= listenerTestEventCount; i++ {
+			td.Update(td.Flag(fmt.Sprintf("flag-%d", i)).BooleanFlag().VariationForAll(true))
+		}
+	}()
+	// Give the changes time to fill the listener's channel.
+	time.Sleep(time.Millisecond * 100)
+
+	evaluated := make(chan struct{})
+	go func() {
+		_, _ = client.BoolVariation("flag-0", listenerTestUser, false)
+		close(evaluated)
+	}()
+	th.AssertChannelClosed(t, evaluated, listenerTestTimeout, "evaluation waited for a busy flag change listener")
+}
+
+// startEvaluatingListener registers a flag change listener that evaluates each changed flag and then
+// spends work handling the result. The returned channel is closed once the listener has handled
+// eventCount events.
+func startEvaluatingListener(client *LDClient, eventCount int, work time.Duration) <-chan struct{} {
+	ch := client.GetFlagTracker().AddFlagChangeListener()
+	handled := make(chan struct{})
+	go func() {
+		count := 0
+		for event := range ch {
+			_, _ = client.BoolVariation(event.Key, listenerTestUser, false)
+			time.Sleep(work)
+			count++
+			if count == eventCount {
+				close(handled)
+			}
+		}
+	}()
+	return handled
+}
+
+func makeTestDataV2ListenerClient(t *testing.T, td *ldtestdatav2.TestDataSynchronizer) *LDClient {
+	config := Config{
+		DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(td),
+		Events:     ldcomponents.NoEvents(),
+		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+	}
+	client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+	require.NoError(t, err)
+	t.Cleanup(func() { closeClientWithinTimeout(t, client) })
+	return client
+}
+
+// streamingListenerTestV2 is like clientListenersV2Test, but it serves the given initial data and
+// closes the client with a bound. If firstPayload is not nil, the stream holds the initial payload
+// until firstPayload is closed, and the client starts without waiting for it.
+func streamingListenerTestV2(
+	t *testing.T,
+	initialData *ldservicesv2.ServerSDKData,
+	firstPayload <-chan struct{},
+	action func(clientListenersV2TestParams),
+) {
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(initialData.ToPutObjects()).
+		WithTransferred("state", 1)
+	streamHandler, control := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+
+	handler := streamHandler
+	waitFor := time.Second * 5
+	if firstPayload != nil {
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-firstPayload:
+				streamHandler.ServeHTTP(w, r)
+			case <-r.Context().Done():
+			}
+		})
+		waitFor = 0
+	}
+
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		config := Config{
+			Events:     ldcomponents.NoEvents(),
+			Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+			DataSystem: ldcomponents.DataSystem().WithRelayProxyEndpoints(server.URL).Streaming(),
+		}
+		client, err := MakeCustomClient(testSdkKey, config, waitFor)
+		if waitFor > 0 {
+			require.NoError(t, err)
+		}
+		defer closeClientWithinTimeout(t, client)
+		action(clientListenersV2TestParams{client, protocol, control})
+	})
+}
+
+// closeClientWithinTimeout fails the test instead of hanging when Close does not return.
+func closeClientWithinTimeout(t *testing.T, client *LDClient) {
+	closed := make(chan struct{})
+	go func() {
+		_ = client.Close()
+		close(closed)
+	}()
+	th.AssertChannelClosed(t, closed, listenerTestTimeout, "client.Close did not return")
+}
+
+func booleanFlagV2(key string, version int, value bool) ldmodel.FeatureFlag {
+	return ldbuilders.NewFlagBuilder(key).Version(version).SingleVariation(ldvalue.Bool(value)).Build()
+}
+
+func segmentMatchFlag(key, segmentKey string) ldmodel.FeatureFlag {
+	return ldbuilders.NewFlagBuilder(key).Version(1).On(true).
+		Variations(ldvalue.Bool(false), ldvalue.Bool(true)).
+		AddRule(ldbuilders.NewRuleBuilder().ID("rule").Variation(1).
+			Clauses(ldbuilders.SegmentMatchClause(segmentKey))).
+		FallthroughVariation(0).OffVariation(0).Build()
 }
