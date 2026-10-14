@@ -228,6 +228,7 @@ func TestAddsOrUpdatesPreconfiguredFlag(t *testing.T) {
 
 	assert.Equal(t, flag.Key, result.ChangeSet.Changes()[0].Key)
 	assert.Equal(t, flag.Version, result.ChangeSet.Changes()[0].Version)
+	assert.Equal(t, subsystems.FlagKind, result.ChangeSet.Changes()[0].Kind)
 
 	flag = ldbuilders.NewFlagBuilder("flagkey").Version(2).On(true).Build()
 	td.UsePreconfiguredFlag(flag)
@@ -238,6 +239,7 @@ func TestAddsOrUpdatesPreconfiguredFlag(t *testing.T) {
 	assert.Equal(t, subsystems.IntentTransferChanges, result.ChangeSet.IntentCode())
 	assert.Equal(t, flag.Key, result.ChangeSet.Changes()[0].Key)
 	assert.Equal(t, flag.Version, result.ChangeSet.Changes()[0].Version)
+	assert.Equal(t, subsystems.FlagKind, result.ChangeSet.Changes()[0].Kind)
 	assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 }
 
@@ -261,6 +263,7 @@ func TestAddsOrUpdatesPreconfiguredSegment(t *testing.T) {
 
 	assert.Equal(t, segment.Key, result.ChangeSet.Changes()[0].Key)
 	assert.Equal(t, segment.Version, result.ChangeSet.Changes()[0].Version)
+	assert.Equal(t, subsystems.SegmentKind, result.ChangeSet.Changes()[0].Kind)
 
 	segment = ldbuilders.NewSegmentBuilder("segmentkey").Version(2).Included("b").Build()
 	td.UsePreconfiguredSegment(segment)
@@ -271,6 +274,7 @@ func TestAddsOrUpdatesPreconfiguredSegment(t *testing.T) {
 	assert.Equal(t, subsystems.IntentTransferChanges, result.ChangeSet.IntentCode())
 	assert.Equal(t, segment.Key, result.ChangeSet.Changes()[0].Key)
 	assert.Equal(t, segment.Version, result.ChangeSet.Changes()[0].Version)
+	assert.Equal(t, subsystems.SegmentKind, result.ChangeSet.Changes()[0].Kind)
 	assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 }
 
