@@ -292,10 +292,10 @@ func TestBigSegmentsStoreStatusProviderV2(t *testing.T) {
 }
 
 // The tests below use a flag change listener that evaluates flags while it handles events, the way
-// an application listener does. The FDv2 store used to send flag change events while it held its
-// write lock, so the listener's evaluation blocked on that lock and the listener stopped reading
-// its channel. Once the channel's buffer filled, the client hung. Every wait in these tests is
-// bounded so that a regression fails the test instead of hanging the test binary.
+// an application listener does. The client must keep delivering events to such a listener and
+// keep serving evaluations, even when more events arrive than the listener's channel buffers.
+// Every wait in these tests is bounded, so a client that stalls fails the test instead of hanging
+// the test binary.
 
 // listenerTestEventCount is more events than a listener channel buffers.
 const listenerTestEventCount = 20
