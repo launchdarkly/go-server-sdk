@@ -146,6 +146,22 @@ func (b *FileSourceBuilder) Build(context subsystems.ClientContext) (subsystems.
 	loggers := context.GetLogging().Loggers
 	loggers.SetPrefix("FileOverrideSource:")
 
+	// A path listed more than once would make every entry of that file a duplicate of itself, so
+	// the repeats are dropped and the first occurrence keeps its place in the order.
+	uniquePaths := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		uniquePaths = append(uniquePaths, p)
+	}
+	if len(uniquePaths) != len(paths) {
+		loggers.Warn("File paths list the same file more than once; the repeats are ignored")
+		paths = uniquePaths
+	}
+
 	pollInterval := b.pollInterval
 	if b.changeDetection == Polling && pollInterval < MinimumPollInterval {
 		loggers.Warnf("Poll interval %s is below the minimum; using %s", pollInterval, MinimumPollInterval)

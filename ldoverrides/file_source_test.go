@@ -167,6 +167,20 @@ func TestFileSourceExpandsValueEntriesToFallthroughFlags(t *testing.T) {
 	assert.False(t, flag.OffVariation.IsDefined())
 }
 
+func TestFileSourceDropsRepeatedPathsAndWarns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
+
+	// Under the default fail handling the same file listed twice would make every one of its
+	// keys a duplicate of itself. The repeat is ignored and the file loads once.
+	source, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) { b.FilePaths(path, path) })
+
+	flags := flagsByKey(t, sink.requireSnapshot(t))
+	require.Len(t, flags, 1)
+	require.Equal(t, []string{path}, source.(*fileOverrideSource).paths)
+	assert.Contains(t, strings.Join(mockLog.GetOutput(ldlog.Warn), "\n"), "more than once")
+}
+
 func TestFileSourceLoadsYAML(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.yaml")
 	writeFile(t, path, "flagValues:\n  flag1: true\n")
