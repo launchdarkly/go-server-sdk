@@ -30,6 +30,9 @@ type ReloaderConfig struct {
 	// DuplicateKeysHandling determines what happens when the same key appears in more than
 	// one file.
 	DuplicateKeysHandling DuplicateKeysHandling
+	// MakeFlagWithValue expands each flag-key-to-value entry into a full flag definition.
+	// Each source supplies the form its consumers expect. It must not be nil.
+	MakeFlagWithValue FlagValueExpander
 	// SkipMissingPaths, when true, treats a configured file that does not exist as a file
 	// with no content. The reload succeeds with the data of the files that exist. When
 	// false, a missing file fails the reload like any other read error.
@@ -250,7 +253,7 @@ func (r *Reloader) reload() bool {
 		files = append(files, FileSummary{Path: path, Present: true})
 	}
 
-	merged, err := Merge(r.cfg.DuplicateKeysHandling, docs...)
+	merged, err := Merge(r.cfg.DuplicateKeysHandling, r.cfg.MakeFlagWithValue, docs...)
 	if err != nil {
 		return r.fail(err)
 	}

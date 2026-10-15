@@ -86,9 +86,21 @@ func AbsFilePaths(paths []string) ([]string, error) {
 	return absPaths, nil
 }
 
-// MakeFlagWithValue expands a flag-key-to-value entry into a full flag definition that
-// returns the given value for every context.
-func MakeFlagWithValue(key string, v interface{}) *ldmodel.FeatureFlag {
-	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(ldvalue.CopyArbitraryValue(v)).Build()
+// FlagValueExpander builds the full flag definition for a flag-key-to-value entry. Each file
+// source supplies the form its consumers expect.
+type FlagValueExpander func(key string, value ldvalue.Value) *ldmodel.FeatureFlag
+
+// MakeOffFlagWithValue expands a flag-key-to-value entry into a flag that is off and serves the
+// value as its off variation. The file data sources use this form.
+func MakeOffFlagWithValue(key string, value ldvalue.Value) *ldmodel.FeatureFlag {
+	flag := ldbuilders.NewFlagBuilder(key).SingleVariation(value).Build()
+	return &flag
+}
+
+// MakeFallthroughFlagWithValue expands a flag-key-to-value entry into a flag that is on and
+// serves the value as its only variation through the fallthrough. The override source uses
+// this form.
+func MakeFallthroughFlagWithValue(key string, value ldvalue.Value) *ldmodel.FeatureFlag {
+	flag := ldbuilders.NewFlagBuilder(key).On(true).Variations(value).FallthroughVariation(0).Build()
 	return &flag
 }

@@ -69,8 +69,9 @@ type FileSourceBuilder struct {
 //
 // The files use the same document format as the file data sources (ldfiledata and
 // ldfiledatav2). Each file is a JSON or YAML document with optional "flags", "flagValues",
-// and "segments" members. "flagValues" entries are expanded into full flag definitions that
-// return the given value for every context. When multiple files are configured, their
+// and "segments" members. A "flagValues" entry is expanded into a flag that is on and serves
+// the value as its only variation through the fallthrough, so it returns the given value for
+// every context. When multiple files are configured, their
 // entries are combined. The configured order determines which file wins under the
 // duplicate-key handling.
 //
