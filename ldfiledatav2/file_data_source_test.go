@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -57,6 +59,14 @@ func TestSuccessfullyLoadsJsonFlagValues(t *testing.T) {
 		assert.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
 		assert.Equal(t, "my-flag", result.ChangeSet.Changes()[0].Key)
+		// The file data source expands a value entry into a flag that is off and serves the
+		// value as its off variation.
+		flag, err := ldmodel.NewJSONDataModelSerialization().UnmarshalFeatureFlag(result.ChangeSet.Changes()[0].Object)
+		require.NoError(t, err)
+		assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flag.Variations)
+		assert.False(t, flag.On)
+		assert.Equal(t, ldvalue.NewOptionalInt(0), flag.OffVariation)
+		assert.False(t, flag.Fallthrough.Variation.IsDefined())
 		assert.Equal(t, subsystems.NoSelector(), result.ChangeSet.Selector())
 		assert.Equal(t, subsystems.IntentTransferFull, result.ChangeSet.IntentCode())
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)

@@ -36,6 +36,7 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	f.reloader = filedata.NewReloader(filedata.ReloaderConfig{
 		Paths:                 f.paths,
 		DuplicateKeysHandling: f.duplicateKeysHandling,
+		MakeFlagWithValue:     filedata.MakeFallthroughFlagWithValue,
 		SkipMissingPaths:      true,
 		Loggers:               f.loggers,
 		Apply: func(merged filedata.MergeResult) {

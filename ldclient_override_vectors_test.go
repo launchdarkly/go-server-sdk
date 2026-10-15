@@ -11,8 +11,8 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
-	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
@@ -107,9 +107,9 @@ func (v *overrideVector) overrideCollections(t *testing.T) []st.Collection {
 	t.Helper()
 	flagItems := deserializeVectorItems(t, datakinds.Features, v.Overrides.Flags)
 	for key, value := range v.Overrides.FlagValues {
-		flag := ldbuilders.NewFlagBuilder(key).SingleVariation(value).Build()
+		flag := filedata.MakeFallthroughFlagWithValue(key, value)
 		flagItems = append(flagItems, st.KeyedItemDescriptor{
-			Key: key, Item: sharedtest.FlagDescriptor(flag),
+			Key: key, Item: sharedtest.FlagDescriptor(*flag),
 		})
 	}
 	return []st.Collection{
