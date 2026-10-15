@@ -593,9 +593,7 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 		}
 		builder := ldcomponents.SendEvents().
 			AllAttributesPrivate(config.Events.AllAttributesPrivate)
-		for _, a := range config.Events.GlobalPrivateAttributes {
-			builder.PrivateAttributes(a)
-		}
+		builder.PrivateAttributes(config.Events.GlobalPrivateAttributes...)
 		if config.Events.Capacity.IsDefined() {
 			builder.Capacity(config.Events.Capacity.IntValue())
 		}
