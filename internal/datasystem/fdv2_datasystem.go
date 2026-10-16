@@ -176,6 +176,8 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 	if cfg.OverrideSource != nil && !disabled {
 		fdv2.overrideLayer = overrides.NewLayer()
 		fdv2.overlay = overrides.NewOverlay(store, fdv2.overrideLayer)
+		// A LaunchDarkly change must also notify the flags whose overrides depend on it.
+		store.setExternalDependencies(fdv2.overrideLayer)
 		fdv2.overrideSource = cfg.OverrideSource
 	}
 

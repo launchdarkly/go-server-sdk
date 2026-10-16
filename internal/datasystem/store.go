@@ -60,6 +60,11 @@ type Store struct {
 	// we trigger the correct flag change notifications.
 	dependencyTracker *toposort.DependencyTracker
 
+	// Dependencies of definitions the store does not hold. The override layer supplies its
+	// entries' dependencies, so that a change to a LaunchDarkly item also notifies the overridden
+	// flags that reference it. Nil when no override source is configured.
+	externalDependencies externalDependencySource
+
 	// Broadcaster for flag change events.
 	flagChangeEvent *internal.Broadcaster[interfaces.FlagChangeEvent]
 
@@ -124,6 +129,13 @@ type persistentStore struct {
 
 func (p *persistentStore) writable() bool {
 	return p != nil && p.mode == subsystems.DataStoreModeReadWrite
+}
+
+// externalDependencySource knows dependency edges that live outside the LaunchDarkly data, such
+// as those of the override layer's entries. Given an item, it adds the item and everything that
+// depends on it through those edges.
+type externalDependencySource interface {
+	AddAffectedItems(itemsOut toposort.Neighbors, item toposort.Vertex)
 }
 
 // NewStore creates a new store. If a persistent store needs to be configured, call WithPersistence before any other
@@ -312,7 +324,7 @@ func (s *Store) applyDelta(
 		for _, item := range collection.Items {
 			s.dependencyTracker.UpdateDependenciesFrom(collection.Kind, item.Key, item.Item)
 			if hasListeners {
-				s.dependencyTracker.AddAffectedItems(affectedItems, toposort.NewVertex(collection.Kind, item.Key))
+				s.addAffectedItems(affectedItems, toposort.NewVertex(collection.Kind, item.Key))
 			}
 		}
 	}
@@ -338,6 +350,45 @@ func (s *Store) applyDelta(
 		}
 	}
 	return affectedItems
+}
+
+// setExternalDependencies registers dependency edges that live outside the LaunchDarkly data,
+// such as the override layer's. It is called once during construction.
+func (s *Store) setExternalDependencies(source externalDependencySource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.externalDependencies = source
+}
+
+// addAffectedItems adds the modified item and everything that depends on it to the set. The
+// LaunchDarkly data and the external dependencies each know their own edges, and a chain can
+// cross between them in either direction: an overridden flag can reference a LaunchDarkly
+// segment, and a LaunchDarkly flag can have an overridden prerequisite. Each newly reached item
+// is therefore expanded through both until nothing new is found. Called with the write lock held.
+func (s *Store) addAffectedItems(itemsOut toposort.Neighbors, item toposort.Vertex) {
+	if s.externalDependencies == nil {
+		s.dependencyTracker.AddAffectedItems(itemsOut, item)
+		return
+	}
+	pending := []toposort.Vertex{item}
+	for len(pending) > 0 {
+		next := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		// Each tracker gets its own set: a tracker skips an item that is already in the set it is
+		// given, so sharing one set would stop the second tracker at the starting item.
+		viaData := make(toposort.Neighbors)
+		s.dependencyTracker.AddAffectedItems(viaData, next)
+		viaExternal := make(toposort.Neighbors)
+		s.externalDependencies.AddAffectedItems(viaExternal, next)
+		for _, reached := range []toposort.Neighbors{viaData, viaExternal} {
+			for vertex := range reached {
+				if !itemsOut.Contains(vertex) {
+					itemsOut.Add(vertex)
+					pending = append(pending, vertex)
+				}
+			}
+		}
+	}
 }
 
 // GetDataStoreStatusProvider returns the status provider for the persistent store, if one is configured, otherwise
@@ -458,7 +509,7 @@ func (s *Store) computeChangedItemsForFullDataSet(
 
 			if haveOld || haveNew {
 				if !haveOld || !haveNew || oldItem.Version < newItem.Version {
-					s.dependencyTracker.AddAffectedItems(affectedItems, toposort.NewVertex(kind, key))
+					s.addAffectedItems(affectedItems, toposort.NewVertex(kind, key))
 				}
 			}
 		}
