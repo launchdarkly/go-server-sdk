@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
@@ -19,11 +20,14 @@ type Layer struct {
 	mu       sync.RWMutex
 	contents layerContents
 	nonEmpty atomic.Bool
+	// The dependency edges of the layer's own entries: which entries reference which flags and
+	// segments. Rebuilt with the contents on every replacement.
+	dependencies *toposort.DependencyTracker
 }
 
 // NewLayer creates an empty Layer.
 func NewLayer() *Layer {
-	return &Layer{contents: layerContents{}}
+	return &Layer{contents: layerContents{}, dependencies: toposort.NewDependencyTracker()}
 }
 
 // SetAll atomically replaces the entire layer contents. An empty or nil slice clears the
@@ -37,11 +41,14 @@ func NewLayer() *Layer {
 // Returns the previous and new contents. The returned maps must not be modified.
 func (l *Layer) SetAll(data []st.Collection) (previous, current layerContents) {
 	replacement := layerContents{}
+	dependencies := toposort.NewDependencyTracker()
 	count := 0
 	for _, coll := range data {
 		items := make(map[string]st.ItemDescriptor, len(coll.Items))
 		for _, item := range coll.Items {
-			items[item.Key] = markedCopy(item.Item)
+			copied := markedCopy(item.Item)
+			items[item.Key] = copied
+			dependencies.UpdateDependenciesFrom(coll.Kind, item.Key, copied)
 			count++
 		}
 		replacement[coll.Kind] = items
@@ -51,8 +58,19 @@ func (l *Layer) SetAll(data []st.Collection) (previous, current layerContents) {
 	defer l.mu.Unlock()
 	previous = l.contents
 	l.contents = replacement
+	l.dependencies = dependencies
 	l.nonEmpty.Store(count != 0)
 	return previous, replacement
+}
+
+// AddAffectedItems adds the given item to the set together with every item whose override entry
+// depends on it, directly or through other override entries. A LaunchDarkly update uses this so
+// that a change to a LaunchDarkly segment or prerequisite notifies the overridden flags that
+// reference it, which the data system's own dependency tracking cannot see.
+func (l *Layer) AddAffectedItems(itemsOut toposort.Neighbors, item toposort.Vertex) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	l.dependencies.AddAffectedItems(itemsOut, item)
 }
 
 // Get returns the override entry for a key, if any.

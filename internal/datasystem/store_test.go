@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/overrides"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
@@ -665,4 +668,74 @@ func TestStore_ApplyCompletesWhileListenerReadsStore(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Close must complete")
 	}
+}
+
+// collectFlagChanges takes flag change events until none arrives for a short while.
+func collectFlagChanges(ch <-chan interfaces.FlagChangeEvent) []string {
+	keys := []string{}
+	for {
+		select {
+		case event := <-ch:
+			keys = append(keys, event.Key)
+		case <-time.After(200 * time.Millisecond):
+			sort.Strings(keys)
+			return keys
+		}
+	}
+}
+
+func TestStore_LaunchDarklyChangeReachesOverrideDependents(t *testing.T) {
+	logCapture := ldlogtest.NewMockLog()
+	flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+	changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+	store := NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster)
+	defer store.Close()
+	flagEvents := flagChangeBroadcaster.AddListener()
+	defer flagChangeBroadcaster.RemoveListener(flagEvents)
+
+	// The override "overridden" matches the LaunchDarkly segment "segment1". The LaunchDarkly flag
+	// "parent" has "overridden" as a prerequisite, so a change to the segment reaches parent through
+	// the override entry: LaunchDarkly data -> override entry -> LaunchDarkly data.
+	layer := overrides.NewLayer()
+	overridden := ldbuilders.NewFlagBuilder("overridden").
+		AddRule(ldbuilders.NewRuleBuilder().ID("rule").Variation(0).Clauses(ldbuilders.SegmentMatchClause("segment1"))).
+		Build()
+	layer.SetAll([]ldstoretypes.Collection{{
+		Kind:  datakinds.Features,
+		Items: []ldstoretypes.KeyedItemDescriptor{{Key: "overridden", Item: sharedtest.FlagDescriptor(overridden)}},
+	}})
+	store.setExternalDependencies(layer)
+
+	put := func(kind subsystems.ObjectKind, key string, version int, item any) subsystems.PutObject {
+		t.Helper()
+		object, err := json.Marshal(item)
+		require.NoError(t, err)
+		return subsystems.PutObject{Kind: kind, Key: key, Version: version, Object: object}
+	}
+	applyPuts := func(code subsystems.IntentCode, target int, puts ...subsystems.PutObject) {
+		t.Helper()
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{Payload: subsystems.Payload{ID: "state", Target: target, Code: code}})
+		for _, p := range puts {
+			builder.AddPut(p.Kind, p.Key, p.Version, p.Object)
+		}
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+		require.True(t, store.Apply(*changeSet, false))
+	}
+
+	applyPuts(subsystems.IntentTransferFull, 1,
+		put(subsystems.FlagKind, "parent", 1, ldbuilders.NewFlagBuilder("parent").Version(1).AddPrerequisite("overridden", 0).Build()),
+		put(subsystems.SegmentKind, "segment1", 1, ldbuilders.NewSegmentBuilder("segment1").Version(1).Build()))
+	// The initial data set counts every item as modified; the segment reaches the override.
+	assert.Equal(t, []string{"overridden", "parent"}, collectFlagChanges(flagEvents))
+
+	applyPuts(subsystems.IntentTransferChanges, 2,
+		put(subsystems.SegmentKind, "segment1", 2, ldbuilders.NewSegmentBuilder("segment1").Version(2).Build()))
+	assert.Equal(t, []string{"overridden", "parent"}, collectFlagChanges(flagEvents))
+
+	// An item nothing references notifies no flag.
+	applyPuts(subsystems.IntentTransferChanges, 3,
+		put(subsystems.SegmentKind, "other", 1, ldbuilders.NewSegmentBuilder("other").Version(1).Build()))
+	assert.Equal(t, []string{}, collectFlagChanges(flagEvents))
 }

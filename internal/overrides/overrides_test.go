@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	"github.com/stretchr/testify/assert"
@@ -458,4 +459,44 @@ func TestSinkToleratesBaseReadFailure(t *testing.T) {
 	// Fan-out degrades, but the directly changed flags are still notified.
 	f.sink.SetOverrides([]st.Collection{flagCollection(ldbuilders.NewFlagBuilder("flag1").Build())})
 	assert.Equal(t, []string{"flag1"}, f.takeNotified())
+}
+
+func affectedFrom(layer *Layer, kind st.DataKind, key string) []string {
+	affected := make(toposort.Neighbors)
+	layer.AddAffectedItems(affected, toposort.NewVertex(kind, key))
+	items := make([]string, 0, len(affected))
+	for vertex := range affected {
+		items = append(items, vertex.Kind().GetName()+"/"+vertex.Key())
+	}
+	sort.Strings(items)
+	return items
+}
+
+func TestLayerReportsEntriesThatDependOnAnItem(t *testing.T) {
+	// a matches a segment; b has a as a prerequisite, so b depends on the segment through a.
+	a := ldbuilders.NewFlagBuilder("a").
+		AddRule(ldbuilders.NewRuleBuilder().ID("rule").Variation(0).Clauses(ldbuilders.SegmentMatchClause("seg"))).
+		Build()
+	b := ldbuilders.NewFlagBuilder("b").AddPrerequisite("a", 0).Build()
+	layer := NewLayer()
+	layer.SetAll([]st.Collection{flagCollection(a, b)})
+
+	assert.Equal(t, []string{"features/a", "features/b", "segments/seg"}, affectedFrom(layer, datakinds.Segments, "seg"))
+	assert.Equal(t, []string{"features/a", "features/b"}, affectedFrom(layer, datakinds.Features, "a"))
+	assert.Equal(t, []string{"segments/unreferenced"}, affectedFrom(layer, datakinds.Segments, "unreferenced"))
+}
+
+func TestLayerForgetsEdgesOfReplacedEntries(t *testing.T) {
+	a := ldbuilders.NewFlagBuilder("a").
+		AddRule(ldbuilders.NewRuleBuilder().ID("rule").Variation(0).Clauses(ldbuilders.SegmentMatchClause("seg"))).
+		Build()
+	c := ldbuilders.NewFlagBuilder("c").
+		AddRule(ldbuilders.NewRuleBuilder().ID("rule").Variation(0).Clauses(ldbuilders.SegmentMatchClause("seg2"))).
+		Build()
+	layer := NewLayer()
+	layer.SetAll([]st.Collection{flagCollection(a)})
+	layer.SetAll([]st.Collection{flagCollection(c)})
+
+	assert.Equal(t, []string{"segments/seg"}, affectedFrom(layer, datakinds.Segments, "seg"))
+	assert.Equal(t, []string{"features/c", "segments/seg2"}, affectedFrom(layer, datakinds.Segments, "seg2"))
 }
