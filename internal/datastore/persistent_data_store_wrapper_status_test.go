@@ -101,6 +101,7 @@ func TestDataStoreWrapperStatus(t *testing.T) {
 			<-time.After(statusPollInterval + time.Millisecond*100)
 
 			// Now simulate the data store becoming OK again; the poller detects this and publishes a new status
+			p.core.SetFakeError(nil)
 			p.core.SetAvailable(true)
 			updatedStatus = th.RequireValue(t, statusCh, statusUpdateTimeout)
 			expectedStatus := intf.DataStoreStatus{
