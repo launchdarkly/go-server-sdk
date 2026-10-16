@@ -28,11 +28,14 @@ type fakeCacheExporter struct {
 	lock  sync.Mutex
 }
 
-func (f *fakeCacheExporter) ExportAll() ([]st.Collection, bool) {
+func (f *fakeCacheExporter) ExportTo(write func([]st.Collection) error) (bool, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.calls++
-	return f.data, f.data != nil
+	if f.data == nil {
+		return false, nil
+	}
+	return true, write(f.data)
 }
 
 func (f *fakeCacheExporter) exportCalls() int {
