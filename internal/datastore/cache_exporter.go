@@ -6,7 +6,6 @@ import (
 
 // CacheExporter is a store that holds a complete copy of the current data.
 type CacheExporter interface {
-	// ExportAll returns every item the store holds. It reports false if the store has no data, or
-	// if the data must not be written to a database.
-	ExportAll() ([]st.Collection, bool)
+	// ExportTo passes every item the store holds to write, and reports whether it did.
+	ExportTo(write func([]st.Collection) error) (bool, error)
 }

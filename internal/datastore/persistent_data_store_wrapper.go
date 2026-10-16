@@ -325,8 +325,8 @@ func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 		return false
 	}
 	if exporter := w.getCacheExporter(); exporter != nil {
-		if allData, ok := exporter.ExportAll(); ok {
-			if err := w.initCore(allData); err != nil {
+		if written, err := exporter.ExportTo(w.initCore); written {
+			if err != nil {
 				// Stay in the failed state, and try again on the next poll.
 				w.loggers.Errorf("Tried to write exported data to persistent store after an outage, but failed: %s", err)
 				return false

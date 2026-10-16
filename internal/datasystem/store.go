@@ -364,21 +364,20 @@ func (s *Store) Commit() error {
 	defer s.mu.RUnlock()
 
 	if s.shouldPersist() {
-		return s.persistentStore.impl.Init(s.memoryStore.GetAllKinds())
+		return s.persistentStore.impl.Init(toposort.Sort(s.memoryStore.GetAllKinds()))
 	}
 	return nil
 }
 
-// ExportAll returns the data in the memory store. It reports false if that data must not be written
-// to a persistent store.
-func (s *Store) ExportAll() ([]ldstoretypes.Collection, bool) {
+// ExportTo passes the data in the memory store to write, and reports whether it did.
+func (s *Store) ExportTo(write func([]ldstoretypes.Collection) error) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	if !s.shouldPersist() {
-		return nil, false
+		return false, nil
 	}
-	return s.memoryStore.GetAllKinds(), true
+	return true, write(toposort.Sort(s.memoryStore.GetAllKinds()))
 }
 
 func (s *Store) getActive() subsystems.ReadOnlyStore {
