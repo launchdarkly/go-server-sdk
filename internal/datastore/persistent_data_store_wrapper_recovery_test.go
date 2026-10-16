@@ -3,13 +3,16 @@ package datastore
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest/mocks"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 
 	th "github.com/launchdarkly/go-test-helpers/v3"
@@ -36,6 +39,17 @@ func (f *fakeCacheExporter) exportCalls() int {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	return f.calls
+}
+
+// countingInitStore reports how many times the wrapper has written a full data set to the store.
+type countingInitStore struct {
+	*mocks.MockPersistentDataStore
+	inits atomic.Int32
+}
+
+func (c *countingInitStore) Init(allData []st.SerializedCollection) error {
+	c.inits.Add(1)
+	return c.MockPersistentDataStore.Init(allData)
 }
 
 // When an outage ends, the wrapper writes the registered exporter's data to the store before it
@@ -85,4 +99,45 @@ func TestPersistentDataStoreWrapperRecoveryFromCacheExporter(t *testing.T) {
 			})
 		})
 	}
+}
+
+// A failed write-back from the cache leaves the store unavailable, so that the next poll retries it.
+func TestPersistentDataStoreWrapperRetriesFailedCacheWriteBack(t *testing.T) {
+	const statusTimeout = 2 * time.Second
+
+	fakeError := errors.New("sorry")
+	flagV1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
+	flagV2 := ldbuilders.NewFlagBuilder("flag").Version(2).Build()
+
+	core := &countingInitStore{MockPersistentDataStore: mocks.NewMockPersistentDataStore()}
+	broadcaster := internal.NewBroadcaster[interfaces.DataStoreStatus]()
+	defer broadcaster.Close()
+	w := NewPersistentDataStoreWrapper(core, NewDataStoreUpdateSinkImpl(broadcaster),
+		testCachedIndefinitely.ttl(), sharedtest.NewTestLoggers(), datakinds.DeserializeOptions{})
+	defer w.Close()
+
+	statusCh := broadcaster.AddListener()
+	require.NoError(t, w.Init(sharedtest.NewDataSetBuilder().Flags(flagV1).Build()))
+
+	// Fail a write, so that the wrapper sees the store as unavailable. The update goes to the
+	// cache, which is the only full copy of the data.
+	core.SetFakeError(fakeError)
+	core.SetAvailable(false)
+	_, err := w.Upsert(datakinds.Features, flagV2.Key, sharedtest.FlagDescriptor(flagV2))
+	require.Equal(t, fakeError, err)
+	require.Equal(t, interfaces.DataStoreStatus{Available: false},
+		th.RequireValue(t, statusCh, statusTimeout))
+
+	// Let the store answer the availability check, but keep its writes failing.
+	writesBefore := core.inits.Load()
+	core.SetAvailable(true)
+	require.Eventually(t, func() bool { return core.inits.Load() > writesBefore }, statusTimeout,
+		10*time.Millisecond, "the wrapper should have attempted a write-back")
+
+	core.SetFakeError(nil)
+
+	// The store reports available only once a write-back has succeeded.
+	assert.Equal(t, interfaces.DataStoreStatus{Available: true},
+		th.RequireValue(t, statusCh, statusTimeout))
+	assert.Equal(t, flagV2.Version, core.ForceGet(datakinds.Features, flagV2.Key).Version)
 }
