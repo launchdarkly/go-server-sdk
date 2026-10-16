@@ -217,6 +217,32 @@ func TestPollingProcessorSynchronizerCanMakeSuccessfulRequest(t *testing.T) {
 	})
 }
 
+// The polling reset threshold is two consecutive successful polls, and any failure restarts it.
+func TestPollingProcessorSynchronizerSignalsResetAfterTwoSuccessfulPolls(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
+	ok := ldservices.ServerSidePollingV2ServiceHandler(data)
+
+	handler := httphelpers.SequentialHandler(ok, ok, httphelpers.HandlerWithStatus(500), ok, ok)
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Millisecond * 10,
+			},
+		)
+		defer processor.Close()
+
+		resultChan := processor.Sync(ds)
+
+		for i, want := range []bool{false, true, false, false, true} {
+			result := <-resultChan
+			assert.Equal(t, want, result.ResetExtendedBackoff, "poll %d", i+1)
+		}
+	})
+}
+
 func TestPollingProcessorSynchronizerHandlesInvalidJSON(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
@@ -294,9 +320,10 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnMalformedBody(t *testing.T
 		resultChan := processor.Sync(ds)
 		result := <-resultChan
 
-		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
 		assert.Equal(t, interfaces.DataSourceErrorKindInvalidData, result.Error.Kind)
 		assert.True(t, result.FallbackToFDv1)
+		assert.False(t, result.UnexpectedFailure, "a malformed body is recoverable")
 	})
 }
 
@@ -320,7 +347,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 		resultChan := processor.Sync(ds)
 		result := <-resultChan
 
-		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
+		assert.Equal(t, result.State, interfaces.DataSourceStateInterrupted)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
 		assert.True(t, result.FallbackToFDv1)
 	})
@@ -461,7 +488,8 @@ func TestPollingProcessorSynchronizerHandlesUnrecoverableErrors(t *testing.T) {
 				<-requestsCh
 				result := <-resultChan
 
-				assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+				assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+				assert.True(t, result.UnexpectedFailure)
 				_ = func(errorInfo interfaces.DataSourceErrorInfo) {
 					assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, errorInfo.Kind)
 					assert.Equal(t, statusCode, errorInfo.StatusCode)

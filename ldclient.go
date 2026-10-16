@@ -705,17 +705,12 @@ func (client *LDClient) IsOffline() bool {
 // connection that is open. That connection continues until the service or the network ends it. Then
 // the client reconnects with the new key.
 //
-// If the client uses the FDv2 data system, synchronizers that failed permanently can run again.
-// If no synchronizer is running, the client starts one with the new key. If the client has fallen
-// back to FDv1, it stays on FDv1.
-//
-// If every synchronizer failed permanently, the data source status is
-// [interfaces.DataSourceStateOff]. This method then moves the status to
-// [interfaces.DataSourceStateInterrupted], and the synchronizers that start again set it from then
-// on. No other method makes the status leave [interfaces.DataSourceStateOff].
+// If the client uses the FDv2 data system, synchronizers that are backing off after a failure can
+// run again at once. If no synchronizer is running, the client starts one with the new key. If the
+// client has fallen back to FDv1, it stays on FDv1.
 //
 // The client does not compare sdkKey with the key it uses now. A call with the current key also
-// starts the synchronizers that failed permanently again. The Relay Proxy uses this to try a key
+// ends the backoff of every synchronizer. The Relay Proxy uses this to try a key
 // again after LaunchDarkly rejected it.
 //
 // SecureModeHash and diagnostic events also use the new key. Plugins keep the key that the client

@@ -16,6 +16,9 @@ import (
 const (
 	pollingErrorContext     = "on polling request"
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
+
+	// Consecutive successful polls that clear the extended backoff.
+	pollResetThreshold = 2
 )
 
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
@@ -112,6 +115,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				return false
 			}
 		}
+		consecutiveSuccesses := 0
 
 		for {
 			select {
@@ -121,8 +125,17 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 			case <-ticker.C:
 				result, err := pp.poll(ctx, ds)
 
+				if err == nil {
+					consecutiveSuccesses++
+					if consecutiveSuccesses == pollResetThreshold {
+						result.ResetExtendedBackoff = true
+					}
+				} else {
+					consecutiveSuccesses = 0
+				}
+
 				// When the server requested FDv1 fallback, dispatch the result as-is -- poll has
-				// already populated State (Valid on success, Off on error) and FallbackToFDv1=true.
+				// already populated State (Valid on success, Interrupted on error) and FallbackToFDv1=true.
 				if result.FallbackToFDv1 {
 					send(result)
 					return
@@ -135,8 +148,8 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 					continue
 				}
 
-				// Non-fallback error: the caller may downgrade Off --> Interrupted when the error
-				// is recoverable. Log at the appropriate level.
+				// Non-fallback error: mark it an unexpected failure when it is not recoverable.
+				// Log at the appropriate level.
 				if hse, ok := err.(httpStatusError); ok {
 					if checkIfErrorIsRecoverableAndLog(
 						pp.loggers,
@@ -151,6 +164,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 						}
 						continue
 					}
+					result.UnexpectedFailure = true
 					send(result) // poll set State=Off
 					return
 				}
@@ -173,9 +187,9 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 // the fallback signal.
 //
 // On success: result.State = Valid, result.ChangeSet populated, err = nil.
-// On error: result.State = Off (the safer default), result.Error populated with Kind/Message/
-// StatusCode as appropriate, err returned so the caller can apply context-specific logic
-// (e.g. downgrade Off --> Interrupted when the HTTP error is recoverable).
+// On error: result.State = Interrupted, result.Error populated with Kind/Message/StatusCode as
+// appropriate, err returned so the caller can apply context-specific logic (e.g. mark the result
+// an unexpected failure when the HTTP error is not recoverable).
 //
 // The caller is responsible for publishing the result to its channel; poll does not touch any
 // resultChan so it can be unit-tested in isolation.
@@ -194,7 +208,7 @@ func (pp *PollingProcessor) poll(
 		return result, nil
 	}
 
-	result.State = interfaces.DataSourceStateOff
+	result.State = interfaces.DataSourceStateInterrupted
 	if hse, ok := err.(httpStatusError); ok {
 		result.Error = interfaces.DataSourceErrorInfo{
 			Kind:       interfaces.DataSourceErrorKindErrorResponse,

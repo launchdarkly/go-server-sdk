@@ -52,10 +52,11 @@ const (
 // 2b. If the data store doesn't support status notifications (which is normally only true of the in-memory store)
 // then we don't know the significance of the error, but we must assume that updates have been lost, so we'll
 // restart the stream.
-// 3. If we receive an unrecoverable error like HTTP 401, we close the stream and don't retry, and set the state
-// to OFF. Any other HTTP error or network error causes a retry with backoff, with a state of INTERRUPTED.
+// 3. If we receive an unexpected error like HTTP 401, we close the stream and stop retrying, reporting
+// INTERRUPTED with UnexpectedFailure set. Any other HTTP error or network error causes a retry with
+// backoff, with a state of INTERRUPTED.
 // 4. We set the Future returned by start() to tell the client initialization logic that initialization has either
-// succeeded (we got an initial payload and successfully stored it) or permanently failed (we got a 401, etc.).
+// succeeded (we got an initial payload and successfully stored it) or stopped retrying (we got a 401, etc.).
 // Otherwise, the client initialization method may time out but we will still be retrying in the background, and
 // if we succeed then the client can detect that we're initialized now by calling our Initialized method.
 
@@ -71,10 +72,13 @@ type StreamProcessor struct {
 	diagnosticsManager         *ldevents.DiagnosticsManager
 	deserializeOptions         datakinds.DeserializeOptions
 	loggers                    ldlog.Loggers
-	connectionAttemptStartTime ldtime.UnixMillisecondTime
+	connectionAttemptStartTime ldtime.UnixMillisecondTime // guarded by connectionAttemptLock
 	connectionAttemptLock      sync.Mutex
 	isClosed                   atomic.Bool
 	halt                       chan struct{}
+	healthySince               time.Time // guarded by connectionAttemptLock
+	resetSignalled             bool      // guarded by connectionAttemptLock
+	resetInterval              time.Duration
 }
 
 // NewStreamProcessor creates the internal implementation of the streaming data source.
@@ -83,10 +87,11 @@ func NewStreamProcessor(
 	cfg datasource.StreamConfig,
 ) *StreamProcessor {
 	sp := &StreamProcessor{
-		headers: context.GetHTTP().DefaultHeaders,
-		loggers: context.GetLogging().Loggers,
-		halt:    make(chan struct{}),
-		cfg:     cfg,
+		headers:       context.GetHTTP().DefaultHeaders,
+		loggers:       context.GetLogging().Loggers,
+		halt:          make(chan struct{}),
+		cfg:           cfg,
+		resetInterval: streamRetryResetInterval,
 	}
 	if cci, ok := context.(*internal.ClientContextImpl); ok {
 		sp.diagnosticsManager = cci.DiagnosticsManager
@@ -235,9 +240,10 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					}
 
 					resultChan <- subsystems.DataSynchronizerResult{
-						State:          interfaces.DataSourceStateValid,
-						EnvironmentID:  environmentID,
-						FallbackToFDv1: fallbackRequested,
+						State:                interfaces.DataSourceStateValid,
+						EnvironmentID:        environmentID,
+						FallbackToFDv1:       fallbackRequested,
+						ResetExtendedBackoff: sp.noteHealthy(),
 					}
 					payloadApplied = true
 					break
@@ -302,10 +308,11 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 				}
 
 				resultChan <- subsystems.DataSynchronizerResult{
-					ChangeSet:      changeSet,
-					State:          interfaces.DataSourceStateValid,
-					EnvironmentID:  environmentID,
-					FallbackToFDv1: fallbackRequested,
+					ChangeSet:            changeSet,
+					State:                interfaces.DataSourceStateValid,
+					EnvironmentID:        environmentID,
+					FallbackToFDv1:       fallbackRequested,
+					ResetExtendedBackoff: sp.noteHealthy(),
 				}
 				payloadApplied = true
 
@@ -342,12 +349,13 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 			reqErr,
 		)
 		resultChan <- subsystems.DataSynchronizerResult{
-			State: interfaces.DataSourceStateOff,
+			State: interfaces.DataSourceStateInterrupted,
 			Error: interfaces.DataSourceErrorInfo{
 				Kind:    interfaces.DataSourceErrorKindUnknown,
 				Message: reqErr.Error(),
 				Time:    time.Now(),
 			},
+			UnexpectedFailure: true,
 		}
 		close(resultChan)
 		sp.logConnectionResult(false)
@@ -386,7 +394,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 
 			if isFDv1FallbackRequested(se.Header) {
 				resultChan <- subsystems.DataSynchronizerResult{
-					State:          interfaces.DataSourceStateOff,
+					State:          interfaces.DataSourceStateInterrupted,
 					Error:          errorInfo,
 					FallbackToFDv1: true,
 					EnvironmentID:  environmentID,
@@ -411,9 +419,10 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				return es.StreamErrorHandlerResult{CloseNow: false}
 			}
 			resultChan <- subsystems.DataSynchronizerResult{
-				State:         interfaces.DataSourceStateOff,
-				Error:         errorInfo,
-				EnvironmentID: environmentID,
+				State:             interfaces.DataSourceStateInterrupted,
+				Error:             errorInfo,
+				EnvironmentID:     environmentID,
+				UnexpectedFailure: true,
 			}
 			return es.StreamErrorHandlerResult{CloseNow: true}
 		}
@@ -460,12 +469,13 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 		sp.logConnectionResult(false)
 
 		resultChan <- subsystems.DataSynchronizerResult{
-			State: interfaces.DataSourceStateOff,
+			State: interfaces.DataSourceStateInterrupted,
 			Error: interfaces.DataSourceErrorInfo{
 				Kind:    interfaces.DataSourceErrorKindUnknown,
 				Message: err.Error(),
 				Time:    time.Now(),
 			},
+			UnexpectedFailure: true,
 		}
 		close(resultChan)
 
@@ -475,10 +485,28 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 	sp.consumeStream(stream, resultChan)
 }
 
+// noteHealthy starts the healthy-operation measurement and reports whether the reset threshold
+// has just been met.
+func (sp *StreamProcessor) noteHealthy() bool {
+	sp.connectionAttemptLock.Lock()
+	defer sp.connectionAttemptLock.Unlock()
+	if sp.healthySince.IsZero() {
+		sp.healthySince = time.Now()
+		return false
+	}
+	if sp.resetSignalled || time.Since(sp.healthySince) < sp.resetInterval {
+		return false
+	}
+	sp.resetSignalled = true
+	return true
+}
+
 func (sp *StreamProcessor) logConnectionStarted() {
 	sp.connectionAttemptLock.Lock()
 	defer sp.connectionAttemptLock.Unlock()
 	sp.connectionAttemptStartTime = ldtime.UnixMillisNow()
+	sp.healthySince = time.Time{}
+	sp.resetSignalled = false
 }
 
 func (sp *StreamProcessor) logConnectionResult(success bool) {

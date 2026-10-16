@@ -27,6 +27,7 @@ import (
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -81,7 +82,8 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 	resultChan := sp.Sync(ds)
 
 	result := <-resultChan
-	assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+	assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+	assert.True(t, result.UnexpectedFailure)
 	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
 }
 
@@ -180,9 +182,10 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 		resultChan := sp.Sync(ds)
 		result := <-resultChan
 
-		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
+		assert.Equal(t, result.State, interfaces.DataSourceStateInterrupted)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
 		assert.True(t, result.FallbackToFDv1)
+		assert.False(t, result.UnexpectedFailure, "a 500 is recoverable")
 	})
 }
 
@@ -538,9 +541,49 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 		assert.Equal(t, 1, event.GetByKey("streamInits").Count())
 		assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
 
-		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+		assert.True(t, result.UnexpectedFailure)
 		assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, result.Error.Kind)
 		assert.Equal(t, statusCode, result.Error.StatusCode)
+	})
+}
+
+// Healthy operation is measured from the first Valid result on a newly established stream. No
+// time has elapsed at that point, so the reset can only ride on a later result.
+func TestStreamingProcessorSignalsResetAfterHealthyOperation(t *testing.T) {
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{
+			Payload: subsystems.Payload{ID: "up-to-date", Code: subsystems.IntentNone, Reason: "initial-state"},
+		})
+
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	handler, _ := httphelpers.RecordingHandler(streamHandler)
+
+	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
+		sp := NewStreamProcessor(sharedtest.BasicClientContext(), datasource.StreamConfig{URI: streamServer.URL})
+		sp.resetInterval = 20 * time.Millisecond
+		defer sp.Close()
+
+		resultChan := sp.Sync(dd)
+
+		first := <-resultChan
+		require.Equal(t, interfaces.DataSourceStateValid, first.State)
+		assert.False(t, first.ResetExtendedBackoff)
+
+		time.Sleep(50 * time.Millisecond)
+
+		protocol.WithPutObjects([]subsystems.PutObject{{
+			Kind:    "flag",
+			Key:     "test-flag",
+			Version: 1,
+			Object:  json.RawMessage(`{"key": "test-flag", "version": 1}`),
+		}})
+		protocol.WithTransferred("state", 1)
+		protocol.Enqueue(stream)
+
+		second := <-resultChan
+		assert.True(t, second.ResetExtendedBackoff)
 	})
 }
 

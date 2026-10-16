@@ -45,20 +45,19 @@ type FDv2 struct {
 	initializers []subsystems.DataInitializer
 
 	// Synchronizers, including the FDv1 fallback synchronizer if one is configured. A
-	// synchronizer that fails permanently is blocked. On a fallback to FDv1, the list switches
-	// to FDv1 mode, and only the FDv1 fallback synchronizer can run.
+	// synchronizer that reports an unexpected failure is parked. On a fallback to FDv1, every
+	// FDv2 synchronizer is excluded and the FDv1 fallback synchronizer becomes available.
 	synchronizers *synchronizerList
 
-	// Receives a signal when the SDK key changes. The synchronizer loop then unblocks the
-	// blocked synchronizers. The buffer holds one signal, so a signal that arrives while the
+	// Receives a signal when the SDK key changes. The synchronizer loop then unparks the
+	// parked synchronizers. The buffer holds one signal, so a signal that arrives while the
 	// loop is busy is not lost.
 	sdkKeyChanged chan struct{}
 
 	// Boolean used to track whether the datasystem was originally configured
 	// with some sort of valid data source.
 	//
-	// We cannot check this at run time because synchronizers may be blocked if
-	// they permanently fail.
+	// We cannot check this at run time because synchronizers may be parked or excluded.
 	configuredWithDataSources bool
 
 	// Whether the SDK should make use of persistent store/initializers/synchronizers or not.
@@ -246,13 +245,13 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback {
 		if f.synchronizers.hasFDv1Fallback() {
 			f.loggers.Warn("Falling back to FDv1 protocol")
-			// Switch to FDv1 mode, so only the FDv1 fallback synchronizer can run.
-			f.synchronizers.fdv1Fallback()
+			// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
+			f.synchronizers.fallBackToFDv1()
 		} else {
 			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
-			// Block every synchronizer so that none starts.
-			f.synchronizers.blockAll()
-			f.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
+			// Exclude every synchronizer so that none starts.
+			f.synchronizers.excludeAll()
+			f.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		}
 	}
 
@@ -376,7 +375,7 @@ func (f *FDv2) completeInitialization(closeWhenReady chan struct{}) {
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
 	// If no synchronizers are available, close ready channel and return
-	if f.synchronizers.availableCount() == 0 {
+	if f.synchronizers.eligibleCount() == 0 {
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -391,39 +390,36 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 		f.synchronizers.next()
 		for {
-			// Check if we've run out of synchronizers
-			if f.synchronizers.availableCount() == 0 {
-				f.loggers.Warn("No more synchronizers available")
-				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
-				f.readyOnce.Do(func() {
-					close(closeWhenReady)
-				})
-				// Only an SDK key change can make the blocked synchronizers usable again. Only the
-				// Relay Proxy changes the key, with LDClient.LDRelayApplySDKKey, so for every other
-				// application the data system stays off.
+			// Nothing is eligible. Wait out the soonest unpark, then start the preferred slot.
+			if f.synchronizers.eligibleCount() == 0 {
+				unpark, parked := f.synchronizers.earliestUnpark()
+				if !parked {
+					f.loggers.Warn("No synchronizers available")
+					return
+				}
+				delay := time.Until(unpark)
+				f.loggers.Warnf("All synchronizers are backing off, the next attempt is in %s", delay)
 				select {
 				case <-ctx.Done():
 					return
 				case <-f.sdkKeyChanged:
-					f.unblockSynchronizers()
-					// Like a recovery, return to the first available synchronizer, which is the
-					// most preferred one.
-					f.synchronizers.reset()
-					f.synchronizers.next()
-					// The data system is no longer off. Until the synchronizer reports, it is
-					// interrupted and keeps the error of the failure. The state change also
-					// restarts StateSince, so the fallback conditions do not count the time
-					// spent off.
-					f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
-					continue
+					// An SDK key change can make the parked synchronizers usable again. Only the
+					// Relay Proxy changes the key, with LDClient.LDRelayApplySDKKey.
+					f.loggers.Info("SDK key changed, re-enabling synchronizers")
+					f.synchronizers.unparkAll()
+				case <-time.After(delay):
 				}
+				f.synchronizers.reset()
+				f.synchronizers.next()
+				continue
 			}
 
 			// Build synchronizer
 			sync, err := f.synchronizers.build()
 			if err != nil {
-				f.loggers.Errorf("Failed to build synchronizer at index %d: %v", f.synchronizers.currentIndex(), err)
-				f.synchronizers.blockCurrent()
+				delay := f.synchronizers.parkCurrent()
+				f.loggers.Errorf("Failed to build synchronizer at index %d, backing off for %s: %v",
+					f.synchronizers.currentIndex(), delay, err)
 				f.synchronizers.next()
 				continue
 			}
@@ -445,26 +441,25 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			case syncFDv1:
 				if f.synchronizers.hasFDv1Fallback() {
 					f.loggers.Warn("Falling back to FDv1 protocol")
-					// Switch to FDv1 mode, so only the FDv1 fallback synchronizer can run.
-					f.synchronizers.fdv1Fallback()
+					// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
+					f.synchronizers.fallBackToFDv1()
 					f.synchronizers.next()
 					continue
 				}
 				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
-				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+				f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
 				return
-			case syncBlock:
-				f.loggers.Warnf("Blocking synchronizer at index %d because it failed permanently",
-					f.synchronizers.currentIndex())
-				f.synchronizers.blockCurrent()
+			case syncPark:
+				delay := f.synchronizers.parkCurrent()
+				f.loggers.Warnf("Synchronizer %s is backing off for %s after an unexpected error (%s)",
+					sync.Name(), delay, f.getStatus().LastError)
 				f.synchronizers.next()
 				continue
 			case syncRestart:
-				// The synchronizer failed permanently after an SDK key change. It is not blocked,
-				// because the failure can come from a request that carried the old key. Like a
-				// recovery, return to the first available synchronizer, which uses the new key.
-				f.loggers.Infof("Synchronizer at index %d failed after the SDK key changed, returning to first synchronizer",
-					f.synchronizers.currentIndex())
+				// The synchronizer failed after an SDK key change. Like a recovery, return to the
+				// first eligible synchronizer, which uses the new key.
+				f.loggers.Infof("Synchronizer %s failed after the SDK key changed, returning to first synchronizer",
+					sync.Name())
 				f.synchronizers.reset()
 				f.synchronizers.next()
 			case syncRecover:
@@ -491,12 +486,27 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 type syncAction int
 
 const (
-	syncFallback syncAction = iota
+	syncNone syncAction = iota
+	syncFallback
 	syncRecover
-	syncBlock
+	syncPark
 	syncFDv1
 	syncRestart
 )
+
+// conditionAction returns the action the configured conditions call for, or syncNone. Recovery
+// is checked first, so it takes precedence when both conditions hold.
+func (f *FDv2) conditionAction(status interfaces.DataSourceStatus) syncAction {
+	if !f.synchronizers.isFirstEligible() && f.recoveryCond(status) {
+		f.loggers.Debugf("Recovery condition met")
+		return syncRecover
+	}
+	if f.fallbackCond(status) {
+		f.loggers.Debugf("Fallback condition met")
+		return syncFallback
+	}
+	return syncNone
+}
 
 func (f *FDv2) consumeSynchronizerResults(
 	ctx context.Context,
@@ -514,9 +524,10 @@ func (f *FDv2) consumeSynchronizerResults(
 		case <-ctx.Done():
 			return syncFallback, ctx.Err()
 		case <-f.sdkKeyChanged:
-			// The current synchronizer keeps running. The unblocked synchronizers become
+			// The current synchronizer keeps running. The unparked synchronizers become
 			// available for fallback and recovery.
-			f.unblockSynchronizers()
+			f.loggers.Info("SDK key changed, re-enabling synchronizers")
+			f.synchronizers.unparkAll()
 			keyChanged = true
 		case result, ok := <-resultChan:
 			// The status channel being closed means that we won't be receiving
@@ -528,6 +539,10 @@ func (f *FDv2) consumeSynchronizerResults(
 
 			if result.EnvironmentID.IsDefined() {
 				f.environmentIDProvider.SetEnvironmentID(result.EnvironmentID)
+			}
+
+			if result.ResetExtendedBackoff {
+				f.synchronizers.resetCurrentBackoff()
 			}
 
 			switch result.State {
@@ -545,17 +560,6 @@ func (f *FDv2) consumeSynchronizerResults(
 				})
 			case interfaces.DataSourceStateInterrupted:
 				f.UpdateStatus(result.State, result.Error)
-			case interfaces.DataSourceStateOff:
-				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
-				if result.FallbackToFDv1 {
-					return syncFDv1, nil
-				}
-				if keyChanged {
-					// The failure can come from a request that carried the old key, so the
-					// synchronizer is not blocked.
-					return syncRestart, nil
-				}
-				return syncBlock, nil
 			}
 
 			// FallbackToFDv1 may ride along on a Valid or Interrupted result too -- e.g. a
@@ -565,25 +569,26 @@ func (f *FDv2) consumeSynchronizerResults(
 			if result.FallbackToFDv1 {
 				return syncFDv1, nil
 			}
+
+			// An unexpected failure moves the data system on at once, without a fallback condition.
+			if result.UnexpectedFailure {
+				if keyChanged {
+					// The key changed after this synchronizer started, so return to the first one instead of parking.
+					return syncRestart, nil
+				}
+				return syncPark, nil
+			}
 		case <-ticker.C:
 			// If there's only one available synchronizer, don't check conditions
-			if f.synchronizers.availableCount() == 1 {
+			if f.synchronizers.eligibleCount() == 1 {
 				continue
 			}
 
 			status := f.getStatus()
 			f.loggers.Debugf("Data source status used to evaluate condition: %s", status.String())
 
-			// Check fallback condition first (things are bad)
-			if f.fallbackCond(status) {
-				f.loggers.Debugf("Fallback condition met")
-				return syncFallback, nil
-			}
-
-			// If not at the first available synchronizer, also check recovery condition (things are good)
-			if !f.synchronizers.isFirstAvailable() && f.recoveryCond(status) {
-				f.loggers.Debugf("Recovery condition met")
-				return syncRecover, nil
+			if action := f.conditionAction(status); action != syncNone {
+				return action, nil
 			}
 
 			f.loggers.Debugf("No condition met, continue with current synchronizer")
@@ -593,22 +598,10 @@ func (f *FDv2) consumeSynchronizerResults(
 
 // SDKKeyChanged tells the data system that the SDK key has changed.
 //
-// A permanent failure can depend on the key, for example a 401 response. The data system
-// unblocks the synchronizers that failed permanently, so that they can run with the new key.
-//
-// If no synchronizer is running, the data system starts the first available synchronizer. A
-// running synchronizer is not interrupted. The unblocked synchronizers become available for
-// fallback and recovery.
-//
-// If every synchronizer failed permanently, the data source status is Off. The key change
-// moves the status to Interrupted. Only the Relay Proxy changes the key, so for every other
-// application Off stays permanent.
-//
-// The data system does not know the key, so it cannot tell whether the key is different. A
-// call after LDClient.LDRelayApplySDKKey with the current key has the same effect as a call
-// after a change to a new key.
-//
-// After an FDv1 fallback, the data system stays on FDv1.
+// An unexpected failure, such as a 401 response, might be due to the SDK key.
+// This method signals that the key changed, so that synchronizers in an extended backoff
+// regime can unpark and be used again. If no synchronizer is running, the data system
+// starts the first available synchronizer. A running synchronizer is not interrupted.
 //
 // SDKKeyChanged is safe to call from any goroutine. It does not block.
 func (f *FDv2) SDKKeyChanged() {
@@ -617,24 +610,6 @@ func (f *FDv2) SDKKeyChanged() {
 	default:
 		// A signal is already pending. One signal is sufficient.
 	}
-}
-
-// unblockSynchronizers unblocks every synchronizer after an SDK key change.
-//
-// Every synchronizer that failed permanently is unblocked, not only the synchronizers whose
-// failure depended on the key. The data system cannot reliably tell those failures apart. A
-// custom synchronizer may report no status code, and a proxy may answer a bad key with another
-// status. A synchronizer whose failure does not depend on the key fails again and is blocked
-// again, which costs one more attempt for each key change. A synchronizer that stayed blocked
-// after a failure that depended on the key would not run again until the application restarts.
-//
-// A server directive is not a block, so unblocking does not undo it. An FDv1 fallback is a
-// mode of the synchronizer list, and unblocking does not change the mode. A fallback directive
-// with no FDv1 fallback configured stops the synchronizer loop or keeps it from starting, so
-// no loop receives the key change.
-func (f *FDv2) unblockSynchronizers() {
-	f.loggers.Info("SDK key changed, re-enabling synchronizers")
-	f.synchronizers.unblockAll()
 }
 
 // Stop shuts down the data system. It will close any active synchronizers. If initialization is in progress,
@@ -647,6 +622,7 @@ func (f *FDv2) Stop() error {
 		f.cancel()
 	}
 	f.wg.Wait()
+	f.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	_ = f.store.Close()
 	f.broadcasters.Close()
 

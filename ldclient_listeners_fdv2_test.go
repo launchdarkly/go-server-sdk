@@ -181,7 +181,8 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 					return
 				default:
 					status := p.client.GetDataSourceStatusProvider().GetStatus()
-					if status.State == interfaces.DataSourceStateOff {
+					if status.State == interfaces.DataSourceStateInterrupted &&
+						status.LastError.StatusCode == 401 {
 						return
 					}
 				}
@@ -213,11 +214,9 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 			assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, status.LastError.Kind)
 			assert.Equal(t, 401, status.LastError.StatusCode)
 
-			status = <-ch
-			assert.Equal(t, interfaces.DataSourceStateOff, status.State)
-
+			// The 401 parks the synchronizer, so the status stays Interrupted.
 			status = p.client.GetDataSourceStatusProvider().GetStatus()
-			assert.Equal(t, interfaces.DataSourceStateOff, status.State)
+			assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
 		}, httphelpers.HandlerWithStatus(401))
 	})
 
@@ -237,15 +236,13 @@ func TestDataSourceStatusProviderV2(t *testing.T) {
 			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second)
 			assert.False(t, foundIt)
 
-			// Shut it down and make sure it's stopped.
+			// Closing the stream leads to a 401, which parks the synchronizer.
 			p.control.Close()
-			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateOff, time.Second)
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second)
 			assert.True(t, foundIt)
 
-			// Ensure that an off status doesn't require the use of a timer.
-			start = time.Now()
-			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Hour*100)
-			assert.WithinDuration(t, time.Now(), start, time.Millisecond*30)
+			// A parked synchronizer never becomes valid, so the wait expires.
+			foundIt = p.client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Millisecond*100)
 			assert.False(t, foundIt)
 		}, httphelpers.HandlerWithStatus(401))
 	})
