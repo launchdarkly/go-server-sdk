@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
@@ -458,6 +459,71 @@ type fakeCacheDroppingStore struct {
 
 func (f *fakeCacheDroppingStore) DropCache() {
 	f.dropCacheCalls++
+}
+
+// fakeExportingStore is a fakeStore that also accepts a CacheExporter, as the wrapper does.
+type fakeExportingStore struct {
+	fakeStore
+	exporter datastore.CacheExporter
+}
+
+func (f *fakeExportingStore) SetCacheExporter(exporter datastore.CacheExporter) {
+	f.exporter = exporter
+}
+
+func TestStore_CacheExporter(t *testing.T) {
+	newStoreWithPersistence := func(spy *fakeExportingStore, mode subsystems.DataStoreMode) *Store {
+		logCapture := ldlogtest.NewMockLog()
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		return NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).
+			WithPersistence(spy, mode, nil)
+	}
+
+	t.Run("the store registers itself with a read-write persistent store", func(t *testing.T) {
+		spy := &fakeExportingStore{}
+		store := newStoreWithPersistence(spy, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		assert.Same(t, store, spy.exporter)
+	})
+
+	t.Run("the store does not register itself with a read-only persistent store", func(t *testing.T) {
+		spy := &fakeExportingStore{}
+		store := newStoreWithPersistence(spy, subsystems.DataStoreModeRead)
+		defer store.Close()
+
+		assert.Nil(t, spy.exporter)
+	})
+
+	t.Run("ExportAll returns the data held in the memory store", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), true)
+
+		data, ok := store.ExportAll()
+		assert.True(t, ok)
+		requireCollectionsMatch(t, []ldstoretypes.Collection{
+			{
+				Kind: ldstoreimpl.Features(),
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{Key: "foo", Item: sharedtest.FlagDescriptor(ldbuilders.NewFlagBuilder("foo").Version(1).Build())},
+				},
+			},
+		}, data)
+	})
+
+	t.Run("ExportAll reports no data when the data must not be persisted", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), false)
+
+		data, ok := store.ExportAll()
+		assert.False(t, ok)
+		assert.Nil(t, data)
+	})
 }
 
 func TestStore_CacheDroppedAfterFullPayload(t *testing.T) {
