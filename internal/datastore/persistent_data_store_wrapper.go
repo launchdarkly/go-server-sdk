@@ -36,6 +36,8 @@ type persistentDataStoreWrapper struct {
 	deserializeOptions datakinds.DeserializeOptions
 	inited             bool
 	initLock           sync.RWMutex
+	exporter           CacheExporter
+	exporterLock       sync.RWMutex
 }
 
 const initCheckedKey = "$initChecked"
@@ -303,9 +305,35 @@ func (w *persistentDataStoreWrapper) DropCache() {
 	}
 }
 
+// SetCacheExporter registers the store whose data the wrapper writes to the database after an outage.
+func (w *persistentDataStoreWrapper) SetCacheExporter(exporter CacheExporter) {
+	w.exporterLock.Lock()
+	defer w.exporterLock.Unlock()
+	w.exporter = exporter
+	// The wrapper makes the write-back itself now, so the SDK does not need to repeat it.
+	w.statusPoller.SetRefreshOnRecovery(false)
+}
+
+func (w *persistentDataStoreWrapper) getCacheExporter() CacheExporter {
+	w.exporterLock.RLock()
+	defer w.exporterLock.RUnlock()
+	return w.exporter
+}
+
 func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	if !w.core.IsStoreAvailable() {
 		return false
+	}
+	if exporter := w.getCacheExporter(); exporter != nil {
+		if allData, ok := exporter.ExportAll(); ok {
+			if err := w.initCore(allData); err != nil {
+				// Stay in the failed state, and try again on the next poll.
+				w.loggers.Errorf("Tried to write exported data to persistent store after an outage, but failed: %s", err)
+				return false
+			}
+			w.loggers.Warn("Successfully updated persistent store from exported data")
+			return true
+		}
 	}
 	c := w.cache.Load()
 	if c == nil || w.cacheTTL >= 0 {
