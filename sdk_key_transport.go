@@ -6,7 +6,7 @@ import (
 )
 
 // sdkKeyOverride holds an SDK key that replaces the key that the client was created with.
-// It is empty until LDClient.SetSDKKey is called.
+// It is empty until LDClient.LDRelayApplySDKKey is called.
 type sdkKeyOverride struct {
 	key atomic.Pointer[string]
 }

@@ -695,7 +695,7 @@ func (client *LDClient) IsOffline() bool {
 	return client.offline
 }
 
-// SetSDKKey changes the SDK key that the client uses to connect to LaunchDarkly.
+// LDRelayApplySDKKey changes the SDK key that the client uses to connect to LaunchDarkly.
 //
 // This method is for internal use by the LaunchDarkly Relay Proxy only. It is not supported for other
 // use. It can change or be removed in any release without notice.
@@ -721,9 +721,9 @@ func (client *LDClient) IsOffline() bool {
 // SecureModeHash and diagnostic events also use the new key. Plugins keep the key that the client
 // was created with.
 //
-// SetSDKKey returns an error if the key contains characters that are not valid in an HTTP header.
-// In that case, the client continues to use its current key.
-func (client *LDClient) SetSDKKey(sdkKey string) error {
+// LDRelayApplySDKKey returns an error if the key contains characters that are not valid in an HTTP
+// header. In that case, the client continues to use its current key.
+func (client *LDClient) LDRelayApplySDKKey(sdkKey string) error {
 	if !stringIsValidHTTPHeaderValue(sdkKey) {
 		return errSDKKeyInvalidCharacters
 	}
