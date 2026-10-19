@@ -391,14 +391,14 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		for {
 			// Check if we've run out of synchronizers
 			if f.synchronizers.availableCount() == 0 {
-				// The status does not change to Off. An SDK key change can make the blocked
-				// synchronizers usable again, so the data system is not permanently off. A
-				// permanent failure is reported as Interrupted, so the status normally stays
-				// Interrupted and keeps the error of the failure.
-				f.loggers.Warn("No more synchronizers available; they will restart if the SDK key changes")
+				f.loggers.Warn("No more synchronizers available")
+				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
 				f.readyOnce.Do(func() {
 					close(closeWhenReady)
 				})
+				// Only an SDK key change can make the blocked synchronizers usable again. Only the
+				// Relay Proxy changes the key, with LDClient.SetSDKKey, so for every other
+				// application the data system stays off.
 				select {
 				case <-ctx.Done():
 					return
@@ -408,6 +408,11 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 					// most preferred one.
 					f.synchronizers.reset()
 					f.synchronizers.next()
+					// The data system is no longer off. Until the synchronizer reports, it is
+					// interrupted and keeps the error of the failure. The state change also
+					// restarts StateSince, so the fallback conditions do not count the time
+					// spent off.
+					f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
 					continue
 				}
 			}
@@ -592,6 +597,10 @@ func (f *FDv2) consumeSynchronizerResults(
 // If no synchronizer is running, the data system starts the first available synchronizer. A
 // running synchronizer is not interrupted. The unblocked synchronizers become available for
 // fallback and recovery.
+//
+// If every synchronizer failed permanently, the data source status is Off. The key change
+// moves the status to Interrupted. Only the Relay Proxy changes the key, so for every other
+// application Off stays permanent.
 //
 // After an FDv1 fallback, the data system stays on FDv1.
 //

@@ -709,6 +709,11 @@ func (client *LDClient) IsOffline() bool {
 // If no synchronizer is running, the client starts one with the new key. If the client has fallen
 // back to FDv1, it stays on FDv1.
 //
+// If every synchronizer failed permanently, the data source status is
+// [interfaces.DataSourceStateOff]. This method then moves the status to
+// [interfaces.DataSourceStateInterrupted], and the synchronizers that start again set it from then
+// on. No other method makes the status leave [interfaces.DataSourceStateOff].
+//
 // SecureModeHash and diagnostic events also use the new key. Plugins keep the key that the client
 // was created with.
 //

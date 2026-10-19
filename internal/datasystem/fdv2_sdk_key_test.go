@@ -76,10 +76,25 @@ var (
 
 func makeSDKKeyTestFDv2(t *testing.T, syncs ...*scriptedSynchronizer) *FDv2 {
 	t.Helper()
+	return makeSDKKeyTestFDv2WithFDv1Fallback(t, nil, syncs...)
+}
+
+// makeSDKKeyTestFDv2WithFDv1Fallback makes a data system with the synchronizers syncs and the FDv1
+// fallback synchronizer fdv1. If fdv1 is nil, no FDv1 fallback is configured.
+func makeSDKKeyTestFDv2WithFDv1Fallback(
+	t *testing.T,
+	fdv1 *scriptedSynchronizer,
+	syncs ...*scriptedSynchronizer,
+) *FDv2 {
+	t.Helper()
 	builders := make([]func() (subsystems.DataSynchronizer, error), 0, len(syncs))
 	for _, s := range syncs {
 		s := s
 		builders = append(builders, func() (subsystems.DataSynchronizer, error) { return s, nil })
+	}
+	var fdv1Builder func() (subsystems.DataSynchronizer, error)
+	if fdv1 != nil {
+		fdv1Builder = func() (subsystems.DataSynchronizer, error) { return fdv1, nil }
 	}
 	clientContext := &internal.ClientContextImpl{
 		BasicClientContext: subsystems.BasicClientContext{
@@ -88,7 +103,10 @@ func makeSDKKeyTestFDv2(t *testing.T, syncs ...*scriptedSynchronizer) *FDv2 {
 		},
 	}
 	system, err := NewFDv2(false, fixedConfig{
-		Synchronizers: subsystems.SynchronizersConfiguration{SynchronizerBuilders: builders},
+		Synchronizers: subsystems.SynchronizersConfiguration{
+			SynchronizerBuilders: builders,
+			FDv1FallbackBuilder:  fdv1Builder,
+		},
 	}, clientContext, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = system.Stop() })
@@ -110,7 +128,7 @@ func requireKeyChangeTaken(t *testing.T, system *FDv2) {
 	require.Eventually(t, func() bool { return len(system.sdkKeyChanged) == 0 }, time.Second, time.Millisecond)
 }
 
-func TestFDv2StaysInterruptedWhenEverySynchronizerFailsPermanently(t *testing.T) {
+func TestFDv2TurnsOffWhenEverySynchronizerFailsPermanently(t *testing.T) {
 	primary := newScriptedSynchronizer("primary")
 	system := makeSDKKeyTestFDv2(t, primary)
 	ready := make(chan struct{})
@@ -120,16 +138,17 @@ func TestFDv2StaysInterruptedWhenEverySynchronizerFailsPermanently(t *testing.T)
 	primary.requireRun(t) <- unauthorizedResult
 	requireReady(t, ready)
 
-	// The status is Interrupted with the error of the failure. It is not Off, because an SDK
-	// key change can restart the synchronizer.
+	// The status is Off with the error of the failure.
 	status := system.DataSourceStatusProvider().GetStatus()
-	assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
+	assert.Equal(t, interfaces.DataSourceStateOff, status.State)
 	assert.Equal(t, 401, status.LastError.StatusCode)
 
-	// A wait for the valid state is not cut short. It lasts until the timeout.
+	// Without a key change, Off is permanent. A wait for the valid state returns at once, and
+	// the synchronizer does not start again.
 	start := time.Now()
-	assert.False(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 100*time.Millisecond))
-	assert.GreaterOrEqual(t, time.Since(start), 100*time.Millisecond)
+	assert.False(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
+	assert.WithinDuration(t, time.Now(), start, 30*time.Millisecond)
+	primary.assertNoRun(t)
 }
 
 func TestFDv2KeyChangeRestartsFirstSynchronizerWhenEverySynchronizerFailed(t *testing.T) {
@@ -139,23 +158,52 @@ func TestFDv2KeyChangeRestartsFirstSynchronizerWhenEverySynchronizerFailed(t *te
 	ready := make(chan struct{})
 	system.Start(ready)
 
-	// Both synchronizers fail permanently.
+	// Both synchronizers fail permanently, so the data system turns off.
 	primary.requireRun(t) <- unauthorizedResult
 	secondary.requireRun(t) <- unauthorizedResult
 	requireReady(t, ready)
+	off := system.DataSourceStatusProvider().GetStatus()
+	require.Equal(t, interfaces.DataSourceStateOff, off.State)
 
-	// A wait for the valid state keeps waiting while no synchronizer is available.
-	valid := make(chan bool, 1)
-	go func() {
-		valid <- system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, 5*time.Second)
-	}()
-	th.AssertNoMoreValues(t, valid, 100*time.Millisecond)
-
-	// After a key change, the primary synchronizer starts again and gets data. The wait ends.
+	// After a key change, the data system leaves the off state. It is interrupted and keeps the
+	// error of the failure. StateSince restarts, so the fallback conditions do not count the time
+	// spent off.
+	statuses := system.DataSourceStatusProvider().AddStatusListener()
 	system.SDKKeyChanged()
+	status := th.RequireValue(t, statuses, time.Second)
+	assert.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
+	assert.Equal(t, 401, status.LastError.StatusCode)
+	assert.True(t, status.StateSince.After(off.StateSince))
+
+	// The primary synchronizer starts again and gets data. The secondary synchronizer does not
+	// start.
 	primary.requireRun(t) <- validResult
-	assert.True(t, th.RequireValue(t, valid, time.Second))
+	assert.True(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
 	secondary.assertNoRun(t)
+}
+
+func TestFDv2KeyChangeRestartsFDv1FallbackSynchronizerAfterPermanentFailure(t *testing.T) {
+	// The primary synchronizer directs a fallback to FDv1. Then the FDv1 fallback synchronizer
+	// fails permanently, so the data system turns off.
+	primary := newScriptedSynchronizer("primary")
+	fdv1 := newScriptedSynchronizer("fdv1")
+	system := makeSDKKeyTestFDv2WithFDv1Fallback(t, fdv1, primary)
+	ready := make(chan struct{})
+	system.Start(ready)
+	primary.requireRun(t) <- subsystems.DataSynchronizerResult{
+		State:          interfaces.DataSourceStateOff,
+		FallbackToFDv1: true,
+	}
+	fdv1.requireRun(t) <- unauthorizedResult
+	requireReady(t, ready)
+	require.Equal(t, interfaces.DataSourceStateOff, system.DataSourceStatusProvider().GetStatus().State)
+
+	// After a key change, the FDv1 fallback synchronizer starts again and gets data. The data
+	// system stays on FDv1, so the primary synchronizer does not start.
+	system.SDKKeyChanged()
+	fdv1.requireRun(t) <- validResult
+	assert.True(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
+	primary.assertNoRun(t)
 }
 
 func TestFDv2KeyChangeDuringRunReturnsToFirstSynchronizerAfterPermanentFailure(t *testing.T) {
@@ -218,6 +266,6 @@ func TestFDv2KeyChangeDoesNotUndoFallbackDirectiveWithoutFDv1Fallback(t *testing
 
 	// Off is permanent, so a wait for the valid state returns at once.
 	start := time.Now()
-	assert.False(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Hour))
+	assert.False(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
 	assert.WithinDuration(t, time.Now(), start, 30*time.Millisecond)
 }

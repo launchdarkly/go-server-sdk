@@ -190,18 +190,17 @@ func TestSetSDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
 			Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 		}
 
-		// Both synchronizers reject the original key, so no synchronizer is available. The status
-		// is Interrupted, not Off, because a key change can restart the synchronizers.
+		// Both synchronizers reject the original key, so the data system turns off.
 		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
 		require.Error(t, err)
 		defer client.Close()
 		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for stream request")
 		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for poll request")
 		status := client.GetDataSourceStatusProvider().GetStatus()
-		require.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
+		require.Equal(t, interfaces.DataSourceStateOff, status.State)
 		require.Equal(t, 401, status.LastError.StatusCode)
 
-		// Change the key.
+		// Change the key. The data system leaves the off state.
 		require.NoError(t, client.SetSDKKey(newTestSdkKey))
 
 		// The primary synchronizer starts again with the new key and gets data.

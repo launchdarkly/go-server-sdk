@@ -362,7 +362,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 	})
 }
 
-func TestFDV2InterruptedIfBothSynchronizersFail(t *testing.T) {
+func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(server *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
@@ -385,8 +385,7 @@ func TestFDV2InterruptedIfBothSynchronizersFail(t *testing.T) {
 
 		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 
-		// The status is Interrupted, not Off, because an SDK key change can restart the synchronizers.
-		assert.Equal(t, string(interfaces.DataSourceStateInterrupted), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
@@ -408,7 +407,7 @@ func TestFDV2InterruptedIfBothSynchronizersFail(t *testing.T) {
 		assert.Equal(t, []string{
 			"Blocking synchronizer at index 0 because it failed permanently",
 			"Blocking synchronizer at index 1 because it failed permanently",
-			"No more synchronizers available; they will restart if the SDK key changes",
+			"No more synchronizers available",
 			initializationFailedErrorMessage,
 		}, logCapture.GetOutput(ldlog.Warn))
 	})
@@ -480,8 +479,7 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 
 		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 
-		// The status is Interrupted, not Off, because an SDK key change can restart the synchronizer.
-		assert.Equal(t, string(interfaces.DataSourceStateInterrupted), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
@@ -494,7 +492,7 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
 		assert.Equal(t, []string{
 			"Blocking synchronizer at index 0 because it failed permanently",
-			"No more synchronizers available; they will restart if the SDK key changes",
+			"No more synchronizers available",
 			initializationFailedErrorMessage,
 		}, logCapture.GetOutput(ldlog.Warn))
 	})
