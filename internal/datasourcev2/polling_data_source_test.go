@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -465,5 +468,111 @@ func TestPollingProcessorSynchronizerHandlesUnrecoverableErrors(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+func TestPollingProcessorSynchronizerStopsItsGoroutinesWhenItStops(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
+
+	for _, testCase := range []struct {
+		name    string
+		handler http.Handler
+	}{
+		// The synchronizer polls until it is closed.
+		{"closed after a valid result", ldservices.ServerSidePollingV2ServiceHandler(data)},
+		// The synchronizer stops itself after the Off result, and is then closed.
+		{"closed after an unrecoverable error", httphelpers.HandlerWithStatus(401)},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+			httphelpers.WithServer(testCase.handler, func(ts *httptest.Server) {
+				before := countGoroutinesStartedByThisPackage()
+
+				// The data system builds and starts a new synchronizer each time it moves to one, so
+				// anything a synchronizer leaves running accumulates.
+				for i := 0; i < 20; i++ {
+					processor := NewPollingProcessor(
+						sharedtest.BasicClientContext(),
+						datasource.PollingConfig{
+							BaseURI:      ts.URL,
+							PollInterval: time.Minute * 30,
+						},
+					)
+					resultChan := processor.Sync(ds)
+					<-resultChan
+					processor.Close()
+				}
+
+				requireGoroutinesStartedByThisPackageToExit(t, before)
+			})
+		})
+	}
+}
+
+func TestPollingProcessorSynchronizerClosingDuringPollStopsItsGoroutines(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
+
+	// The handler holds the poll open until the test releases it.
+	release := make(chan struct{})
+	underlying := ldservices.ServerSidePollingV2ServiceHandler(data)
+	handler, requestsCh := httphelpers.RecordingHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		underlying.ServeHTTP(w, r)
+	}))
+	httphelpers.WithServer(handler, func(ts *httptest.Server) {
+		before := countGoroutinesStartedByThisPackage()
+
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		resultChan := processor.Sync(ds)
+		<-requestsCh // Wait for the poll to be in flight
+		during := countGoroutinesStartedByThisPackage()
+
+		// Like the data system, close the processor and stop reading results. The poll in flight
+		// then completes with no reader for its result.
+		processor.Close()
+		close(release)
+
+		require.Greater(t, during, before, "the synchronizer should have goroutines running during the poll")
+		requireGoroutinesStartedByThisPackageToExit(t, before)
+		th.AssertChannelClosed(t, resultChan, time.Second, "closing the processor should close the result channel")
+	})
+}
+
+// countGoroutinesStartedByThisPackage returns how many running goroutines were started by code in
+// this package.
+func countGoroutinesStartedByThisPackage() int {
+	createdByThisPackage := "created by " + reflect.TypeOf(PollingProcessor{}).PkgPath() + "."
+	// Grow the buffer until the dump of every goroutine fits, so that the count is not cut short.
+	for size := 1 << 16; ; size *= 2 {
+		buf := make([]byte, size)
+		if n := runtime.Stack(buf, true); n < size {
+			return strings.Count(string(buf[:n]), createdByThisPackage)
+		}
+	}
+}
+
+// requireGoroutinesStartedByThisPackageToExit waits until no more goroutines started by this
+// package are running than were running before the test started its synchronizers.
+func requireGoroutinesStartedByThisPackageToExit(t *testing.T, before int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		count := countGoroutinesStartedByThisPackage()
+		if count <= before {
+			return
+		}
+		if time.Now().After(deadline) {
+			require.Failf(t, "goroutine leak",
+				"goroutines started by this package: %d before, still %d after the synchronizers stopped", before, count)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
