@@ -67,7 +67,7 @@ func newClientContextFromConfig(
 	}
 	basicConfig.HTTP = http
 	// Every component creates its HTTP client from this factory. The wrapper lets
-	// LDClient.SetSDKKey change the key for all requests, including stream reconnections.
+	// LDClient.LDRelayApplySDKKey change the key for all requests, including stream reconnections.
 	// GetHTTP supplies a default factory if the configuration does not have one.
 	basicConfig.HTTP.CreateHTTPClient = wrapHTTPClientFactory(basicConfig.GetHTTP().CreateHTTPClient, keyOverride)
 

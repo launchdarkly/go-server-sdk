@@ -22,7 +22,7 @@ import (
 
 const newTestSdkKey = "new-test-sdk-key-123456"
 
-func TestSetSDKKeyStreamReconnectUsesNewKey(t *testing.T) {
+func TestLDRelayApplySDKKeyStreamReconnectUsesNewKey(t *testing.T) {
 	data := ldservices.NewServerSDKData().Flags(&alwaysTrueFlag)
 	streamHandler, streamControl := ldservices.ServerSideStreamingServiceHandler(data.ToPutEvent())
 	handler, requestsCh := httphelpers.RecordingHandler(streamHandler)
@@ -41,7 +41,7 @@ func TestSetSDKKeyStreamReconnectUsesNewKey(t *testing.T) {
 		assert.Equal(t, testSdkKey, first.Request.Header.Get("Authorization"))
 
 		// Change the key, then end the open stream so that the client reconnects.
-		require.NoError(t, client.SetSDKKey(newTestSdkKey))
+		require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 		streamControl.EndAll()
 
 		// The reconnection should use the new key.
@@ -50,7 +50,7 @@ func TestSetSDKKeyStreamReconnectUsesNewKey(t *testing.T) {
 	})
 }
 
-func TestSetSDKKeyFDv2StreamReconnectUsesNewKey(t *testing.T) {
+func TestLDRelayApplySDKKeyFDv2StreamReconnectUsesNewKey(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
@@ -77,7 +77,7 @@ func TestSetSDKKeyFDv2StreamReconnectUsesNewKey(t *testing.T) {
 		assert.Equal(t, testSdkKey, first.Request.Header.Get("Authorization"))
 
 		// Change the key, then end the open stream so that the client reconnects.
-		require.NoError(t, client.SetSDKKey(newTestSdkKey))
+		require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 		streamControl.EndAll()
 
 		// The reconnection should use the new key.
@@ -86,7 +86,7 @@ func TestSetSDKKeyFDv2StreamReconnectUsesNewKey(t *testing.T) {
 	})
 }
 
-func TestSetSDKKeyEventsUseNewKey(t *testing.T) {
+func TestLDRelayApplySDKKeyEventsUseNewKey(t *testing.T) {
 	eventsHandler, eventRequestsCh := httphelpers.RecordingHandler(ldservices.ServerSideEventsServiceHandler())
 	httphelpers.WithServer(eventsHandler, func(eventsServer *httptest.Server) {
 		config := Config{
@@ -101,7 +101,7 @@ func TestSetSDKKeyEventsUseNewKey(t *testing.T) {
 		defer client.Close()
 
 		// Change the key, then send an event.
-		require.NoError(t, client.SetSDKKey(newTestSdkKey))
+		require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 		client.Identify(testUser)
 		client.Flush()
 
@@ -112,7 +112,7 @@ func TestSetSDKKeyEventsUseNewKey(t *testing.T) {
 	})
 }
 
-func TestSetSDKKeyChangesDiagnosticIDSuffix(t *testing.T) {
+func TestLDRelayApplySDKKeyChangesDiagnosticIDSuffix(t *testing.T) {
 	config := Config{
 		DataSource: ldcomponents.ExternalUpdatesOnly(),
 		Logging:    ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
@@ -123,7 +123,7 @@ func TestSetSDKKeyChangesDiagnosticIDSuffix(t *testing.T) {
 	originalID := client.diagnosticsManager.CreateStatsEventAndReset(0, 0, 0).GetByKey("id")
 
 	// Change the key.
-	require.NoError(t, client.SetSDKKey(newTestSdkKey))
+	require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 
 	// The diagnostic ID should carry the new suffix and keep its unique identifier.
 	id := client.diagnosticsManager.CreateStatsEventAndReset(0, 0, 0).GetByKey("id")
@@ -131,26 +131,26 @@ func TestSetSDKKeyChangesDiagnosticIDSuffix(t *testing.T) {
 	assert.Equal(t, originalID.GetByKey("diagnosticId"), id.GetByKey("diagnosticId"))
 }
 
-func TestSetSDKKeyChangesSecureModeHash(t *testing.T) {
+func TestLDRelayApplySDKKeyChangesSecureModeHash(t *testing.T) {
 	client, _ := MakeCustomClient(testSdkKey, Config{Offline: true}, 0)
 	defer client.Close()
 	expected, _ := MakeCustomClient(newTestSdkKey, Config{Offline: true}, 0)
 	defer expected.Close()
 
 	// Change the key.
-	require.NoError(t, client.SetSDKKey(newTestSdkKey))
+	require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 
 	// The hash should match the hash of a client created with the new key.
 	assert.Equal(t, expected.SecureModeHash(testUser), client.SecureModeHash(testUser))
 }
 
-func TestSetSDKKeyRejectsInvalidKey(t *testing.T) {
+func TestLDRelayApplySDKKeyRejectsInvalidKey(t *testing.T) {
 	client, _ := MakeCustomClient(testSdkKey, Config{Offline: true}, 0)
 	defer client.Close()
 	hashBefore := client.SecureModeHash(testUser)
 
 	// Try to set a key that is not a valid HTTP header value.
-	err := client.SetSDKKey("bad-key\n")
+	err := client.LDRelayApplySDKKey("bad-key\n")
 
 	// The call should fail, and the client should keep its current key.
 	assert.Equal(t, errSDKKeyInvalidCharacters, err)
