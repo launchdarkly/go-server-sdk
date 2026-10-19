@@ -316,9 +316,12 @@ func (d *testDataSourceImpl) Name() string {
 	return "TestDataSynchronizer"
 }
 
-func (d *testDataSourceImpl) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
+func (d *testDataSourceImpl) Fetch(
+	ds subsystems.DataSelector,
+	ctx context.Context,
+) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
 	basis, err := d.owner.makeBasis()
-	return basis, false, err
+	return basis, subsystems.FDv1Fallback{}, err
 }
 
 func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {

@@ -21,7 +21,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, error)
+	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, subsystems.FDv1Fallback, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -68,9 +68,11 @@ func (pp *PollingProcessor) Name() string {
 }
 
 //nolint:revive // DataInitializer method.
-func (pp *PollingProcessor) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
-	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
-	fallback := isFDv1FallbackRequested(headers)
+func (pp *PollingProcessor) Fetch(
+	ds subsystems.DataSelector,
+	ctx context.Context,
+) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
+	changeSet, headers, fallback, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
 		return nil, fallback, err
 	}
@@ -150,9 +152,9 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 }
 
 // poll performs a single polling request and builds a DataSynchronizerResult describing the
-// outcome. The result's FallbackToFDv1 flag is always populated from the x-ld-fd-fallback response
-// header, whether or not the request succeeded -- a 500 or a malformed-JSON body can still carry
-// the fallback signal.
+// outcome. The result's FallbackToFDv1 flag and FDv1FallbackTTL are always populated from the
+// fallback instruction in the response, whether or not the request succeeded -- a 500 or a
+// malformed-JSON body can still carry the fallback signal.
 //
 // On success: result.State = Valid, result.ChangeSet populated, err = nil.
 // On error: result.State = Off (the safer default), result.Error populated with Kind/Message/
@@ -164,10 +166,11 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 func (pp *PollingProcessor) poll(
 	ctx context.Context, ds subsystems.DataSelector,
 ) (subsystems.DataSynchronizerResult, error) {
-	changeSet, headers, err := pp.requester.Request(ctx, ds.Selector())
+	changeSet, headers, fallback, err := pp.requester.Request(ctx, ds.Selector())
 	result := subsystems.DataSynchronizerResult{
-		EnvironmentID:  internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
-		FallbackToFDv1: isFDv1FallbackRequested(headers),
+		EnvironmentID:   internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
+		FallbackToFDv1:  fallback.Requested,
+		FDv1FallbackTTL: fallback.TTL,
 	}
 
 	if err == nil {
@@ -189,8 +192,11 @@ func (pp *PollingProcessor) poll(
 			Message: err.Error(),
 			Time:    time.Now(),
 		}
-		if _, ok := err.(malformedJSONError); ok {
+		switch err.(type) {
+		case malformedJSONError:
 			result.Error.Kind = interfaces.DataSourceErrorKindInvalidData
+		case goodbyeError:
+			result.Error.Kind = interfaces.DataSourceErrorKindUnknown
 		}
 	}
 	return result, err

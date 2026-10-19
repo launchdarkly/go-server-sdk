@@ -2,6 +2,7 @@ package datasourcev2
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -301,7 +302,8 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 	header := http.Header{
-		"X-LD-FD-Fallback": []string{"true"},
+		"X-LD-FD-Fallback":     []string{"true"},
+		"X-LD-FD-Fallback-TTL": []string{"120"},
 	}
 	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -320,6 +322,40 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
 		assert.True(t, result.FallbackToFDv1)
+		assert.Equal(t, 120*time.Second, result.FDv1FallbackTTL)
+	})
+}
+
+func TestPollingProcessorSynchronizerFallsBackOnGoodbyeWithFallbackTTL(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	payload := subsystems.PollingPayload{Events: []subsystems.RawEvent{
+		{
+			Name: subsystems.EventServerIntent,
+			Data: json.RawMessage(`{"payloads":[{"id":"id","target":1,"intentCode":"xfer-full","reason":"r"}]}`),
+		},
+		{
+			Name: subsystems.EventGoodbye,
+			Data: json.RawMessage(`{"reason":"fall back","protocolFallbackTTL":120}`),
+		},
+	}}
+
+	httphelpers.WithServer(ldservices.ServerSidePollingV2ServiceHandler(payload), func(ts *httptest.Server) {
+		processor := NewPollingProcessor(
+			sharedtest.BasicClientContext(),
+			datasource.PollingConfig{
+				BaseURI:      ts.URL,
+				PollInterval: time.Minute * 30,
+			},
+		)
+		defer processor.Close()
+
+		result := <-processor.Sync(ds)
+
+		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+		assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
+		assert.True(t, result.FallbackToFDv1)
+		assert.Equal(t, 120*time.Second, result.FDv1FallbackTTL)
 	})
 }
 
@@ -345,7 +381,7 @@ func TestPollingProcessorInitializerHandlesFallbackOnSuccessfulResponse(t *testi
 		defer processor.Close()
 
 		basis, fallback, err := processor.Fetch(ds, context.Background())
-		assert.True(t, fallback)
+		assert.True(t, fallback.Requested)
 		assert.NoError(t, err)
 		// Even when the server signals fallback, a valid payload in the same response
 		// should still be surfaced so the caller can apply it before switching protocols.
@@ -374,7 +410,7 @@ func TestPollingProcessorInitializerHandlesFallbackOnErrorResponse(t *testing.T)
 
 		basis, fallback, err := processor.Fetch(ds, context.Background())
 		assert.Nil(t, basis)
-		assert.True(t, fallback)
+		assert.True(t, fallback.Requested)
 		assert.Error(t, err, "underlying HTTP error should still be surfaced alongside the fallback signal")
 	})
 }
@@ -395,7 +431,7 @@ func TestPollingProcessorInitializerErrorWithoutFallbackHeaderReturnsRegularErro
 
 		basis, fallback, err := processor.Fetch(ds, context.Background())
 		assert.Nil(t, basis)
-		assert.False(t, fallback)
+		assert.False(t, fallback.Requested)
 		assert.Error(t, err)
 	})
 }

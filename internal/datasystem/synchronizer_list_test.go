@@ -109,14 +109,43 @@ func TestSynchronizerListFDv1FallbackSlotIsBlockedUntilFallback(t *testing.T) {
 	assert.Equal(t, 1, list.availableCount())
 }
 
-func TestSynchronizerListBlockAllLeavesNoSlotAvailable(t *testing.T) {
-	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
+func TestSynchronizerListFDv1FallbackWithoutFDv1SlotLeavesNoSlotAvailable(t *testing.T) {
+	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, nil)
 	list.next()
 
-	// Block every slot, including the FDv1 fallback slot.
-	list.blockAll()
+	list.fdv1Fallback()
 
 	// No slot remains available.
 	list.next()
 	assert.Equal(t, -1, list.currentIndex())
+}
+
+func TestSynchronizerListFDv2RecoveryRestoresPausedSlots(t *testing.T) {
+	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder, noopBuilder}, noopBuilder)
+
+	// Block the second slot as if it failed permanently.
+	list.next()
+	list.next()
+	list.blockCurrent()
+
+	list.fdv1Fallback()
+	list.fdv2Recovery()
+	list.next()
+
+	// The first slot is current again, the FDv1 slot is blocked, and the failed slot stays blocked.
+	assert.Equal(t, 0, list.currentIndex())
+	assert.Equal(t, 2, list.availableCount())
+	assert.True(t, list.slots[1].blocked)
+	assert.True(t, list.slots[3].blocked)
+}
+
+func TestSynchronizerListFDv2RecoveryWithoutFDv1SlotRestoresPausedSlots(t *testing.T) {
+	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, nil)
+
+	list.fdv1Fallback()
+	list.fdv2Recovery()
+	list.next()
+
+	assert.Equal(t, 0, list.currentIndex())
+	assert.Equal(t, 2, list.availableCount())
 }

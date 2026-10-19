@@ -37,6 +37,16 @@ func (e malformedJSONError) Error() string {
 	return e.innerError.Error()
 }
 
+// goodbyeError is returned when a polling payload ends with a goodbye event that tells the SDK
+// to fall back to FDv1, so the payload carries no data.
+type goodbyeError struct {
+	reason string
+}
+
+func (e goodbyeError) Error() string {
+	return fmt.Sprintf("polling payload ended with goodbye: %s", e.reason)
+}
+
 func newPollingRequester(
 	context subsystems.ClientContext,
 	httpClient *http.Client,
@@ -76,22 +86,34 @@ func (r *pollingRequester) FilterKey() string {
 func (r *pollingRequester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, error) {
+) (*subsystems.ChangeSet, http.Header, subsystems.FDv1Fallback, error) {
+	changeSet, headers, goodbyeFallback, err := r.request(ctx, selector)
+	fallback := fdv1FallbackFromHeaders(headers)
+	if goodbyeFallback.Requested {
+		fallback = goodbyeFallback
+	}
+	return changeSet, headers, fallback, err
+}
+
+func (r *pollingRequester) request(
+	ctx context.Context,
+	selector subsystems.Selector,
+) (*subsystems.ChangeSet, http.Header, subsystems.FDv1Fallback, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}
 
 	body, cached, headers, err := r.makeRequest(ctx, endpoints.PollingRequestV2Path, selector)
 	if err != nil {
-		return nil, headers, err
+		return nil, headers, subsystems.FDv1Fallback{}, err
 	}
 	if cached {
-		return subsystems.NewChangeSetBuilder().NoChanges(), headers, nil
+		return subsystems.NewChangeSetBuilder().NoChanges(), headers, subsystems.FDv1Fallback{}, nil
 	}
 
 	var payload subsystems.PollingPayload
 	if err = json.Unmarshal(body, &payload); err != nil {
-		return nil, headers, malformedJSONError{err}
+		return nil, headers, subsystems.FDv1Fallback{}, malformedJSONError{err}
 	}
 
 	changeSet := subsystems.NewChangeSetBuilder().WithDeserializeOptions(r.deserializeOptions)
@@ -99,43 +121,52 @@ func (r *pollingRequester) Request(
 	for _, event := range payload.Events {
 		select {
 		case <-ctx.Done():
-			return nil, headers, ctx.Err()
+			return nil, headers, subsystems.FDv1Fallback{}, ctx.Err()
 		default:
 			switch event.Name {
 			case subsystems.EventServerIntent:
 				var serverIntent subsystems.ServerIntent
 				err := json.Unmarshal(event.Data, &serverIntent)
 				if err != nil {
-					return nil, headers, err
+					return nil, headers, subsystems.FDv1Fallback{}, err
 				}
 				if serverIntent.Payload.Code == subsystems.IntentNone {
-					return changeSet.NoChanges(), headers, nil
+					return changeSet.NoChanges(), headers, subsystems.FDv1Fallback{}, nil
 				}
 				changeSet.Start(serverIntent)
 			case subsystems.EventPutObject:
 				var put subsystems.PutObject
 				if err := json.Unmarshal(event.Data, &put); err != nil {
-					return nil, headers, err
+					return nil, headers, subsystems.FDv1Fallback{}, err
 				}
 				changeSet.AddPut(put.Kind, put.Key, put.Version, put.Object)
 			case subsystems.EventDeleteObject:
 				var deleteObject subsystems.DeleteObject
 				if err := json.Unmarshal(event.Data, &deleteObject); err != nil {
-					return nil, headers, err
+					return nil, headers, subsystems.FDv1Fallback{}, err
 				}
 				changeSet.AddDelete(deleteObject.Kind, deleteObject.Key, deleteObject.Version)
+			case subsystems.EventGoodbye:
+				var goodbye subsystems.Goodbye
+				if err := json.Unmarshal(event.Data, &goodbye); err != nil {
+					return nil, headers, subsystems.FDv1Fallback{}, err
+				}
+				if fallback := fdv1FallbackFromGoodbye(goodbye); fallback.Requested {
+					return nil, headers, fallback, goodbyeError{reason: goodbye.Reason}
+				}
 			case subsystems.EventPayloadTransferred:
 				var selector subsystems.Selector
 				if err := json.Unmarshal(event.Data, &selector); err != nil {
-					return nil, headers, err
+					return nil, headers, subsystems.FDv1Fallback{}, err
 				}
 				changeset, err := changeSet.Finish(selector)
-				return changeset, headers, err
+				return changeset, headers, subsystems.FDv1Fallback{}, err
 			}
 		}
 	}
 
-	return nil, headers, fmt.Errorf("didn't receive any known protocol events in polling payload")
+	err = fmt.Errorf("didn't receive any known protocol events in polling payload")
+	return nil, headers, subsystems.FDv1Fallback{}, err
 }
 
 func (r *pollingRequester) makeRequest(

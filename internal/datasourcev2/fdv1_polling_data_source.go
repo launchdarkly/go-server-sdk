@@ -17,10 +17,10 @@ type fdv1ToFDv2Requester struct {
 func (r *fdv1ToFDv2Requester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, error) {
+) (*subsystems.ChangeSet, http.Header, subsystems.FDv1Fallback, error) {
 	data, cached, headers, err := r.requester.Request()
 	if err != nil {
-		return nil, headers, err
+		return nil, headers, subsystems.FDv1Fallback{}, err
 	}
 
 	code := subsystems.IntentTransferFull
@@ -47,7 +47,7 @@ func (r *fdv1ToFDv2Requester) Request(
 		subsystems.NewSelector("state", 1),
 		data,
 	)
-	return changeset, headers, err
+	return changeset, headers, subsystems.FDv1Fallback{}, err
 }
 
 func (r *fdv1ToFDv2Requester) BaseURI() string {

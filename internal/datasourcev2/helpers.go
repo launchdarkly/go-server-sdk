@@ -6,10 +6,15 @@ package datasourcev2
 // v2 implementation, we should clean this up.
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
 // fdv1FallbackHeader is the response header LaunchDarkly uses to instruct an SDK to abandon the
@@ -20,6 +25,44 @@ const fdv1FallbackHeader = "X-LD-FD-Fallback"
 // back to the FDv1 protocol.
 func isFDv1FallbackRequested(h http.Header) bool {
 	return h.Get(fdv1FallbackHeader) == "true"
+}
+
+// fdv1FallbackTTLHeader is the response header that says how many seconds the SDK should stay
+// on FDv1 before trying FDv2 again.
+const fdv1FallbackTTLHeader = "X-LD-FD-Fallback-TTL"
+
+// fdv1FallbackFromHeaders returns the FDv1 fallback instruction carried by the response headers.
+func fdv1FallbackFromHeaders(h http.Header) subsystems.FDv1Fallback {
+	if !isFDv1FallbackRequested(h) {
+		return subsystems.FDv1Fallback{}
+	}
+	seconds, err := strconv.ParseInt(h.Get(fdv1FallbackTTLHeader), 10, 64)
+	if err != nil {
+		return subsystems.FDv1Fallback{Requested: true}
+	}
+	return subsystems.FDv1Fallback{Requested: true, TTL: fdv1FallbackTTLFromSeconds(seconds)}
+}
+
+// fdv1FallbackFromGoodbye returns the FDv1 fallback instruction carried by a goodbye event. A
+// goodbye event is an instruction to fall back only if it has a protocolFallbackTTL.
+func fdv1FallbackFromGoodbye(goodbye subsystems.Goodbye) subsystems.FDv1Fallback {
+	if len(goodbye.ProtocolFallbackTTL) == 0 || string(goodbye.ProtocolFallbackTTL) == "null" {
+		return subsystems.FDv1Fallback{}
+	}
+	var seconds int64
+	if err := json.Unmarshal(goodbye.ProtocolFallbackTTL, &seconds); err != nil {
+		return subsystems.FDv1Fallback{Requested: true}
+	}
+	return subsystems.FDv1Fallback{Requested: true, TTL: fdv1FallbackTTLFromSeconds(seconds)}
+}
+
+// fdv1FallbackTTLFromSeconds converts a TTL in seconds to a duration. A value that is too large to
+// convert gives zero, which means that the TTL is not usable.
+func fdv1FallbackTTLFromSeconds(seconds int64) time.Duration {
+	if seconds > math.MaxInt64/int64(time.Second) {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 type httpStatusError struct {
