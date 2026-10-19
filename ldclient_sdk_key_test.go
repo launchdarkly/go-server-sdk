@@ -171,7 +171,7 @@ func rejectKeyHandler(rejectedKey string, next http.Handler) http.Handler {
 	})
 }
 
-func TestSetSDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
+func TestLDRelayApplySDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
@@ -202,7 +202,7 @@ func TestSetSDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
 		require.Equal(t, 401, status.LastError.StatusCode)
 
 		// Change the key. The data system leaves the off state.
-		require.NoError(t, client.SetSDKKey(newTestSdkKey))
+		require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 
 		// The primary synchronizer starts again with the new key and gets data.
 		r := th.RequireValue(t, requestsCh, time.Second*5, "timed out waiting for stream request with new key")
@@ -213,7 +213,7 @@ func TestSetSDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
 	})
 }
 
-func TestSetSDKKeyWithTheCurrentKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
+func TestLDRelayApplySDKKeyWithTheCurrentKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
@@ -251,7 +251,7 @@ func TestSetSDKKeyWithTheCurrentKeyRestartsFDv2SynchronizersAfterPermanentFailur
 
 		// LaunchDarkly accepts the key again. A call with the same key starts the synchronizers again.
 		rejecting.Store(false)
-		require.NoError(t, client.SetSDKKey(testSdkKey))
+		require.NoError(t, client.LDRelayApplySDKKey(testSdkKey))
 
 		// The primary synchronizer starts again with the same key and gets data.
 		r := th.RequireValue(t, requestsCh, time.Second*5, "timed out waiting for stream request after the retry")

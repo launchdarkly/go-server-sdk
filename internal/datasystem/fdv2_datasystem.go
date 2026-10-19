@@ -397,7 +397,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 					close(closeWhenReady)
 				})
 				// Only an SDK key change can make the blocked synchronizers usable again. Only the
-				// Relay Proxy changes the key, with LDClient.SetSDKKey, so for every other
+				// Relay Proxy changes the key, with LDClient.LDRelayApplySDKKey, so for every other
 				// application the data system stays off.
 				select {
 				case <-ctx.Done():
@@ -603,8 +603,8 @@ func (f *FDv2) consumeSynchronizerResults(
 // application Off stays permanent.
 //
 // The data system does not know the key, so it cannot tell whether the key is different. A
-// call after LDClient.SetSDKKey with the current key has the same effect as a call after a
-// change to a new key.
+// call after LDClient.LDRelayApplySDKKey with the current key has the same effect as a call
+// after a change to a new key.
 //
 // After an FDv1 fallback, the data system stays on FDv1.
 //
