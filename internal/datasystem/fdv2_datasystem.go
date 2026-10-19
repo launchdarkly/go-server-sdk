@@ -602,6 +602,10 @@ func (f *FDv2) consumeSynchronizerResults(
 // moves the status to Interrupted. Only the Relay Proxy changes the key, so for every other
 // application Off stays permanent.
 //
+// The data system does not know the key, so it cannot tell whether the key is different. A
+// call after LDClient.SetSDKKey with the current key has the same effect as a call after a
+// change to a new key.
+//
 // After an FDv1 fallback, the data system stays on FDv1.
 //
 // SDKKeyChanged is safe to call from any goroutine. It does not block.

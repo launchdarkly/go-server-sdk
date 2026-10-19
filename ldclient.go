@@ -714,6 +714,10 @@ func (client *LDClient) IsOffline() bool {
 // [interfaces.DataSourceStateInterrupted], and the synchronizers that start again set it from then
 // on. No other method makes the status leave [interfaces.DataSourceStateOff].
 //
+// The client does not compare sdkKey with the key it uses now. A call with the current key also
+// starts the synchronizers that failed permanently again. The Relay Proxy uses this to try a key
+// again after LaunchDarkly rejected it.
+//
 // SecureModeHash and diagnostic events also use the new key. Plugins keep the key that the client
 // was created with.
 //

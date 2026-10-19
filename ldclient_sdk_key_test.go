@@ -3,6 +3,7 @@ package ldclient
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -206,6 +207,55 @@ func TestSetSDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
 		// The primary synchronizer starts again with the new key and gets data.
 		r := th.RequireValue(t, requestsCh, time.Second*5, "timed out waiting for stream request with new key")
 		assert.Equal(t, newTestSdkKey, r.Request.Header.Get("Authorization"))
+		assert.True(t, client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5))
+		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
+		assert.True(t, value)
+	})
+}
+
+func TestSetSDKKeyWithTheCurrentKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
+	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "fake-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithPutObjects(data.ToPutObjects()).
+		WithTransferred("state", 1)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	var rejecting atomic.Bool
+	rejecting.Store(true)
+	handler, requestsCh := httphelpers.RecordingHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rejecting.Load() {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		streamHandler.ServeHTTP(w, r)
+	}))
+	httphelpers.WithServer(handler, func(server *httptest.Server) {
+		config := Config{
+			DataSystem: ldcomponents.DataSystem().Custom().Synchronizers(
+				ldcomponents.StreamingDataSourceV2().BaseURI(server.URL),
+				ldcomponents.PollingDataSourceV2().BaseURI(server.URL),
+			),
+			Events:  ldcomponents.NoEvents(),
+			Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
+		}
+
+		// LaunchDarkly rejects the key, so both synchronizers fail and the data system turns off.
+		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		require.Error(t, err)
+		defer client.Close()
+		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for stream request")
+		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for poll request")
+		require.Equal(t, interfaces.DataSourceStateOff, client.GetDataSourceStatusProvider().GetStatus().State)
+
+		// LaunchDarkly accepts the key again. A call with the same key starts the synchronizers again.
+		rejecting.Store(false)
+		require.NoError(t, client.SetSDKKey(testSdkKey))
+
+		// The primary synchronizer starts again with the same key and gets data.
+		r := th.RequireValue(t, requestsCh, time.Second*5, "timed out waiting for stream request after the retry")
+		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assert.True(t, client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5))
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.True(t, value)
