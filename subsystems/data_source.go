@@ -48,30 +48,24 @@ type DataInitializer interface {
 	Name() string
 	// Fetch returns a Basis, or an error if the Basis could not be retrieved. If the context has
 	// expired, it returns the context's error. If the LaunchDarkly server has instructed the SDK
-	// to fall back to the FDv1 protocol, fdv1Fallback is not nil; in that case the Basis may
+	// to fall back to the FDv1 protocol, fdv1FallbackTTL is not nil; in that case the Basis may
 	// still carry data from the same response, and err may be nil or carry the underlying HTTP
-	// error for logging. Callers should branch on fdv1Fallback before err.
-	Fetch(ds DataSelector, ctx context.Context) (basis *Basis, fdv1Fallback *FDv1Fallback, err error)
-}
-
-// FDv1Fallback is an instruction from LaunchDarkly to stop using the FDv2 protocol and fall back
-// to FDv1 for a while.
-type FDv1Fallback struct {
-	// TTL is how long LaunchDarkly asked the SDK to stay on FDv1 before trying FDv2 again. Zero
-	// means that LaunchDarkly did not supply a usable TTL, so the SDK uses its default.
-	TTL time.Duration
+	// error for logging. Callers should branch on fdv1FallbackTTL before err.
+	//
+	// fdv1FallbackTTL is how long LaunchDarkly asked the SDK to stay on FDv1 before trying FDv2
+	// again. Zero means that LaunchDarkly did not supply a usable TTL, so the SDK uses its default.
+	Fetch(ds DataSelector, ctx context.Context) (basis *Basis, fdv1FallbackTTL *time.Duration, err error)
 }
 
 // DataSynchronizerResult represents the results of a Synchronizer's ongoing Sync method.
 type DataSynchronizerResult struct {
-	ChangeSet      *ChangeSet
-	State          interfaces.DataSourceState
-	Error          interfaces.DataSourceErrorInfo
-	FallbackToFDv1 bool
-	// FDv1FallbackTTL is how long to stay on FDv1 before trying FDv2 again, when FallbackToFDv1
-	// is true. Zero means that LaunchDarkly did not supply a usable TTL, so the SDK uses its
-	// default.
-	FDv1FallbackTTL time.Duration
+	ChangeSet *ChangeSet
+	State     interfaces.DataSourceState
+	Error     interfaces.DataSourceErrorInfo
+	// FDv1FallbackTTL is not nil if LaunchDarkly instructed the SDK to fall back to the FDv1
+	// protocol. It is how long to stay on FDv1 before trying FDv2 again. Zero means that
+	// LaunchDarkly did not supply a usable TTL, so the SDK uses its default.
+	FDv1FallbackTTL *time.Duration
 	EnvironmentID   ldvalue.OptionalString
 }
 

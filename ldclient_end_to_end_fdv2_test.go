@@ -259,7 +259,7 @@ func TestFDV2CanFallBackToV1FromStreamingSuccess(t *testing.T) {
 		reached := client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second*5)
 		require.True(t, reached, "timed out waiting for data source to reach VALID state")
 
-		// Status becomes Valid as soon as the FDv2 stream applies its payload (with FallbackToFDv1
+		// Status becomes Valid as soon as the FDv2 stream applies its payload (with FDv1FallbackTTL
 		// riding along on the same result), which happens before FDv1 has fetched its own data.
 		// Poll until the flag value reflects FDv1 data to verify the handoff completed.
 		assert.Eventually(t, func() bool {
@@ -911,18 +911,18 @@ func healthyStreamHandler() http.Handler {
 // fetchInitializer is a DataInitializer with a canned Fetch result.
 type fetchInitializer struct {
 	name  string
-	fetch func(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error)
+	fetch func(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *time.Duration, error)
 }
 
 func (i *fetchInitializer) Name() string { return i.name }
 
-func (i *fetchInitializer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+func (i *fetchInitializer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *time.Duration, error) {
 	return i.fetch(ds, ctx)
 }
 
 func initializerReturning(
 	name string,
-	fetch func(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error),
+	fetch func(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *time.Duration, error),
 ) subsystems.ComponentConfigurer[subsystems.DataInitializer] {
 	return mocks.SingleComponentConfigurer[subsystems.DataInitializer]{
 		Instance: &fetchInitializer{name: name, fetch: fetch},
@@ -947,7 +947,7 @@ func malformedBasis(t *testing.T) *subsystems.Basis {
 // neither complete nor fail on that result; the synchronizer decides.
 func TestFDV2InitializerWithNoDataDefersToSynchronizer(t *testing.T) {
 	noData := initializerReturning("no-data",
-		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *time.Duration, error) {
 			return noDataBasis(), nil, nil
 		})
 
@@ -975,7 +975,7 @@ func TestFDV2InitializerWithNoDataDefersToSynchronizer(t *testing.T) {
 // An initializer whose data cannot be applied has not provided data. The synchronizer decides.
 func TestFDV2InitializerWithMalformedDataDefersToSynchronizer(t *testing.T) {
 	malformed := initializerReturning("malformed",
-		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *time.Duration, error) {
 			return malformedBasis(t), nil, nil
 		})
 
@@ -1038,8 +1038,8 @@ func TestFDV2FallbackDirectiveWithDataCompletesInitialization(t *testing.T) {
 func TestFDV2FallbackDirectiveWithNoDataDefersToFDv1Synchronizer(t *testing.T) {
 	dataV1 := ldservices.NewServerSDKData().Flags(alwaysFalseFlag)
 	fallbackWithNoData := initializerReturning("fallback-no-data",
-		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
-			return noDataBasis(), &subsystems.FDv1Fallback{}, nil
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *time.Duration, error) {
+			return noDataBasis(), new(time.Duration), nil
 		})
 	pollV1Handler, pollV1Requests := httphelpers.RecordingHandler(ldservices.ServerSidePollingServiceHandler(dataV1))
 
@@ -1119,8 +1119,8 @@ func TestFDV2SelectorlessSynchronizerCompletesInitialization(t *testing.T) {
 // synchronizer.
 func TestFDV2FallbackDirectiveAfterEarlierInitializerDataCompletesInitialization(t *testing.T) {
 	fallbackWithoutData := initializerReturning("fallback-without-data",
-		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
-			return nil, &subsystems.FDv1Fallback{}, errors.New("server requested fallback")
+		func(subsystems.DataSelector, context.Context) (*subsystems.Basis, *time.Duration, error) {
+			return nil, new(time.Duration), errors.New("server requested fallback")
 		})
 
 	testHelpers.WithTempFileData(fileDataWithOneFlag, func(filename string) {

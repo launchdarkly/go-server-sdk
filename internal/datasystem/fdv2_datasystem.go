@@ -238,7 +238,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 
 	var recovery *time.Timer
 	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback != nil {
-		recovery = f.fallBackToFDv1(fallback.TTL, errorInfo)
+		recovery = f.fallBackToFDv1(*fallback, errorInfo)
 	}
 
 	if f.configuredWithDataSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
@@ -334,7 +334,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 // configured. It is empty when the fallback accompanied a successful response.
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
-) (fallback *subsystems.FDv1Fallback, errorInfo interfaces.DataSourceErrorInfo) {
+) (fallback *time.Duration, errorInfo interfaces.DataSourceErrorInfo) {
 	// Name of the last initializer whose data was applied to the store.
 	appliedFrom := ""
 	for _, initializer := range f.initializers {
@@ -573,18 +573,18 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
 				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
-				if result.FallbackToFDv1 {
-					return syncFDv1, result.FDv1FallbackTTL, nil
+				if result.FDv1FallbackTTL != nil {
+					return syncFDv1, *result.FDv1FallbackTTL, nil
 				}
 				return syncBlock, 0, nil
 			}
 
-			// FallbackToFDv1 may ride along on a Valid or Interrupted result too -- e.g. a
+			// FDv1FallbackTTL may ride along on a Valid or Interrupted result too -- e.g. a
 			// successful response whose headers also requested the fallback. The Valid/
 			// Interrupted branches above already applied any ChangeSet and updated status;
 			// now hand control to the FDv1 fallback synchronizer.
-			if result.FallbackToFDv1 {
-				return syncFDv1, result.FDv1FallbackTTL, nil
+			if result.FDv1FallbackTTL != nil {
+				return syncFDv1, *result.FDv1FallbackTTL, nil
 			}
 		case <-ticker.C:
 			// If there's only one available synchronizer, don't check conditions

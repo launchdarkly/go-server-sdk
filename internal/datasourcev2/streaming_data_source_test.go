@@ -27,6 +27,7 @@ import (
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -183,8 +184,8 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		assert.True(t, result.FallbackToFDv1)
-		assert.Equal(t, 120*time.Second, result.FDv1FallbackTTL)
+		require.NotNil(t, *result.FDv1FallbackTTL)
+		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
 
@@ -206,8 +207,8 @@ func TestStreamingProcessorFallsBackOnGoodbyeWithFallbackTTL(t *testing.T) {
 
 		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
 		assert.Nil(t, result.ChangeSet)
-		assert.True(t, result.FallbackToFDv1)
-		assert.Equal(t, 120*time.Second, result.FDv1FallbackTTL)
+		require.NotNil(t, *result.FDv1FallbackTTL)
+		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
 
@@ -240,13 +241,13 @@ func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
 		defer sp.Close()
 		resultChan := sp.Sync(ds)
 
-		// A single Valid result carries both the payload and the FallbackToFDv1 signal -- the
+		// A single Valid result carries both the payload and the FDv1FallbackTTL signal -- the
 		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
 		result := <-resultChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		assert.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		assert.True(t, result.FallbackToFDv1)
+		require.NotNil(t, *result.FDv1FallbackTTL)
 	})
 }
 

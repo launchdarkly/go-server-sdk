@@ -166,7 +166,7 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 func (fs *fileDataSource) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *time.Duration, error) {
 	docs := make([]filedata.Document, 0, len(fs.absFilePaths))
 	for _, path := range fs.absFilePaths {
 		doc, err := filedata.ReadFile(path)
@@ -213,7 +213,6 @@ func (fs *fileDataSource) handleError(err error) {
 			Message:    err.Error(),
 			Time:       time.Time{},
 		},
-		FallbackToFDv1: false,
 	})
 }
 

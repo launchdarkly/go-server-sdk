@@ -32,36 +32,32 @@ func isFDv1FallbackRequested(h http.Header) bool {
 const fdv1FallbackTTLHeader = "X-LD-FD-Fallback-TTL"
 
 // fdv1FallbackFromHeaders returns the FDv1 fallback instruction carried by the response headers.
-func fdv1FallbackFromHeaders(h http.Header) *subsystems.FDv1Fallback {
+func fdv1FallbackFromHeaders(h http.Header) *time.Duration {
 	if !isFDv1FallbackRequested(h) {
 		return nil
 	}
 	seconds, err := strconv.ParseInt(h.Get(fdv1FallbackTTLHeader), 10, 64)
 	if err != nil {
-		return &subsystems.FDv1Fallback{}
+		return new(time.Duration)
 	}
-	return &subsystems.FDv1Fallback{TTL: fdv1FallbackTTLFromSeconds(seconds)}
+	return ttlPointer(fdv1FallbackTTLFromSeconds(seconds))
 }
 
 // fdv1FallbackFromGoodbye returns the FDv1 fallback instruction carried by a goodbye event. A
 // goodbye event is an instruction to fall back only if it has a protocolFallbackTTL.
-func fdv1FallbackFromGoodbye(goodbye subsystems.Goodbye) *subsystems.FDv1Fallback {
+func fdv1FallbackFromGoodbye(goodbye subsystems.Goodbye) *time.Duration {
 	if len(goodbye.ProtocolFallbackTTL) == 0 || string(goodbye.ProtocolFallbackTTL) == "null" {
 		return nil
 	}
 	var seconds int64
 	if err := json.Unmarshal(goodbye.ProtocolFallbackTTL, &seconds); err != nil {
-		return &subsystems.FDv1Fallback{}
+		return new(time.Duration)
 	}
-	return &subsystems.FDv1Fallback{TTL: fdv1FallbackTTLFromSeconds(seconds)}
+	return ttlPointer(fdv1FallbackTTLFromSeconds(seconds))
 }
 
-// fdv1FallbackTTL returns the TTL of a fallback instruction, or zero if there is none.
-func fdv1FallbackTTL(fallback *subsystems.FDv1Fallback) time.Duration {
-	if fallback == nil {
-		return 0
-	}
-	return fallback.TTL
+func ttlPointer(ttl time.Duration) *time.Duration {
+	return &ttl
 }
 
 // fdv1FallbackTTLFromSeconds converts a TTL in seconds to a duration. A value that is too large to

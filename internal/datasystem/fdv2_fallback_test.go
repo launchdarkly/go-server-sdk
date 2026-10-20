@@ -39,7 +39,7 @@ func (f *fakeSynchronizer) Name() string { return f.name }
 func (f *fakeSynchronizer) Fetch(
 	_ subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *time.Duration, error) {
 	return nil, nil, nil
 }
 

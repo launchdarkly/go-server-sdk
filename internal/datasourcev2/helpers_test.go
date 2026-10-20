@@ -63,15 +63,15 @@ func TestFDv1FallbackFromHeaders(t *testing.T) {
 		name     string
 		fallback string
 		ttl      string
-		want     *subsystems.FDv1Fallback
+		want     *time.Duration
 	}{
 		{name: "no fallback header", ttl: "120", want: nil},
-		{name: "no TTL header", fallback: "true", want: &subsystems.FDv1Fallback{}},
-		{name: "valid TTL", fallback: "true", ttl: "120", want: &subsystems.FDv1Fallback{TTL: 120 * time.Second}},
-		{name: "malformed TTL", fallback: "true", ttl: "soon", want: &subsystems.FDv1Fallback{}},
-		{name: "fractional TTL", fallback: "true", ttl: "1.5", want: &subsystems.FDv1Fallback{}},
-		{name: "negative TTL", fallback: "true", ttl: "-5", want: &subsystems.FDv1Fallback{TTL: -5 * time.Second}},
-		{name: "huge TTL", fallback: "true", ttl: "9223372036854775807", want: &subsystems.FDv1Fallback{}},
+		{name: "no TTL header", fallback: "true", want: new(time.Duration)},
+		{name: "valid TTL", fallback: "true", ttl: "120", want: ttlPointer(120 * time.Second)},
+		{name: "malformed TTL", fallback: "true", ttl: "soon", want: new(time.Duration)},
+		{name: "fractional TTL", fallback: "true", ttl: "1.5", want: new(time.Duration)},
+		{name: "negative TTL", fallback: "true", ttl: "-5", want: ttlPointer(-5 * time.Second)},
+		{name: "huge TTL", fallback: "true", ttl: "9223372036854775807", want: new(time.Duration)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := http.Header{}
@@ -90,13 +90,13 @@ func TestFDv1FallbackFromGoodbye(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		ttl  string
-		want *subsystems.FDv1Fallback
+		want *time.Duration
 	}{
 		{name: "no TTL", want: nil},
 		{name: "null TTL", ttl: "null", want: nil},
-		{name: "valid TTL", ttl: "120", want: &subsystems.FDv1Fallback{TTL: 120 * time.Second}},
-		{name: "zero TTL", ttl: "0", want: &subsystems.FDv1Fallback{}},
-		{name: "malformed TTL", ttl: `"soon"`, want: &subsystems.FDv1Fallback{}},
+		{name: "valid TTL", ttl: "120", want: ttlPointer(120 * time.Second)},
+		{name: "zero TTL", ttl: "0", want: new(time.Duration)},
+		{name: "malformed TTL", ttl: `"soon"`, want: new(time.Duration)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			goodbye := subsystems.Goodbye{Reason: "test", ProtocolFallbackTTL: json.RawMessage(tc.ttl)}
@@ -109,5 +109,5 @@ func TestGoodbyeUnmarshalsProtocolFallbackTTL(t *testing.T) {
 	var goodbye subsystems.Goodbye
 	require.NoError(t, json.Unmarshal([]byte(`{"reason":"r","protocolFallbackTTL":120}`), &goodbye))
 
-	assert.Equal(t, &subsystems.FDv1Fallback{TTL: 120 * time.Second}, fdv1FallbackFromGoodbye(goodbye))
+	assert.Equal(t, ttlPointer(120*time.Second), fdv1FallbackFromGoodbye(goodbye))
 }

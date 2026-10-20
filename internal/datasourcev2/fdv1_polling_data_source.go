@@ -3,6 +3,7 @@ package datasourcev2
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -17,7 +18,7 @@ type fdv1ToFDv2Requester struct {
 func (r *fdv1ToFDv2Requester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, *subsystems.FDv1Fallback, error) {
+) (*subsystems.ChangeSet, http.Header, *time.Duration, error) {
 	data, cached, headers, err := r.requester.Request()
 	if err != nil {
 		return nil, headers, nil, err

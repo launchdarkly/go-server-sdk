@@ -260,13 +260,13 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnSuccessfulResponse(t *test
 
 		resultChan := processor.Sync(ds)
 
-		// A single Valid result carries both the payload and the FallbackToFDv1 signal -- the
+		// A single Valid result carries both the payload and the FDv1FallbackTTL signal -- the
 		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
 		result := <-resultChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		require.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		assert.True(t, result.FallbackToFDv1)
+		require.NotNil(t, *result.FDv1FallbackTTL)
 	})
 }
 
@@ -294,7 +294,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnMalformedBody(t *testing.T
 
 		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 		assert.Equal(t, interfaces.DataSourceErrorKindInvalidData, result.Error.Kind)
-		assert.True(t, result.FallbackToFDv1)
+		require.NotNil(t, *result.FDv1FallbackTTL)
 	})
 }
 
@@ -321,8 +321,8 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		assert.True(t, result.FallbackToFDv1)
-		assert.Equal(t, 120*time.Second, result.FDv1FallbackTTL)
+		require.NotNil(t, *result.FDv1FallbackTTL)
+		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
 
@@ -354,8 +354,8 @@ func TestPollingProcessorSynchronizerFallsBackOnGoodbyeWithFallbackTTL(t *testin
 
 		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 		assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
-		assert.True(t, result.FallbackToFDv1)
-		assert.Equal(t, 120*time.Second, result.FDv1FallbackTTL)
+		require.NotNil(t, *result.FDv1FallbackTTL)
+		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
 

@@ -72,7 +72,7 @@ type vectorInitializer struct {
 
 func (v *vectorInitializer) Name() string { return "VectorInitializer" }
 
-func (v *vectorInitializer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+func (v *vectorInitializer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *time.Duration, error) {
 	return &subsystems.Basis{ChangeSet: *v.changeSet, Persist: false}, nil, nil
 }
 

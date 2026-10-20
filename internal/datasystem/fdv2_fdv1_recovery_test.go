@@ -20,6 +20,10 @@ import (
 // A TTL that is valid, so that it is used as-is, and short, so that recovery is quick.
 const shortFallbackTTL = 10 * time.Millisecond
 
+func ttlPointer(ttl time.Duration) *time.Duration {
+	return &ttl
+}
+
 // lifecycleSynchronizer is a DataSynchronizer that reports when it starts and closes. Each
 // build of a lifecycleBuilder creates a new one.
 type lifecycleSynchronizer struct {
@@ -33,7 +37,7 @@ func (s *lifecycleSynchronizer) Name() string { return s.name }
 func (s *lifecycleSynchronizer) Fetch(
 	_ subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *time.Duration, error) {
 	return nil, nil, nil
 }
 
@@ -77,8 +81,8 @@ func (i fallbackInitializer) Name() string { return "fallback-initializer" }
 func (i fallbackInitializer) Fetch(
 	_ subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
-	return nil, &subsystems.FDv1Fallback{TTL: i.ttl}, nil
+) (*subsystems.Basis, *time.Duration, error) {
+	return nil, ttlPointer(i.ttl), nil
 }
 
 func makeRecoveryTestFDv2(
@@ -145,8 +149,7 @@ func TestFDv2RecoversAfterSynchronizerFallbackWithoutFDv1Synchronizer(t *testing
 	first := th.RequireValue(t, fdv2.built, time.Second)
 	first.results <- subsystems.DataSynchronizerResult{
 		State:           interfaces.DataSourceStateOff,
-		FallbackToFDv1:  true,
-		FDv1FallbackTTL: shortFallbackTTL,
+		FDv1FallbackTTL: ttlPointer(shortFallbackTTL),
 	}
 
 	// The FDv2 synchronizer is closed and, after the TTL, started again.
@@ -165,8 +168,7 @@ func TestFDv2RecoversAfterSynchronizerFallbackToFDv1Synchronizer(t *testing.T) {
 	first := th.RequireValue(t, fdv2.built, time.Second)
 	first.results <- subsystems.DataSynchronizerResult{
 		State:           interfaces.DataSourceStateValid,
-		FallbackToFDv1:  true,
-		FDv1FallbackTTL: shortFallbackTTL,
+		FDv1FallbackTTL: ttlPointer(shortFallbackTTL),
 	}
 
 	// Each synchronizer is closed before the next one starts, so FDv1 and FDv2 never write to

@@ -112,7 +112,7 @@ func (sp *StreamProcessor) Name() string {
 func (sp *StreamProcessor) Fetch(
 	ds subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *time.Duration, error) {
 	return nil, nil, errors.New("StreamProcessor does not implement Fetch capability")
 }
 
@@ -180,7 +180,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 	// fallback is set when the server's response headers carry x-ld-fd-fallback: true. We
 	// finish applying the current payload before emitting the fallback signal, so evaluations
 	// can serve the server-provided data while FDv1 takes over.
-	var fallback *subsystems.FDv1Fallback
+	var fallback *time.Duration
 
 	for {
 		select {
@@ -240,8 +240,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					resultChan <- subsystems.DataSynchronizerResult{
 						State:           interfaces.DataSourceStateValid,
 						EnvironmentID:   environmentID,
-						FallbackToFDv1:  fallback != nil,
-						FDv1FallbackTTL: fdv1FallbackTTL(fallback),
+						FDv1FallbackTTL: fallback,
 					}
 					payloadApplied = true
 					break
@@ -279,8 +278,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					resultChan <- subsystems.DataSynchronizerResult{
 						State:           interfaces.DataSourceStateInterrupted,
 						EnvironmentID:   environmentID,
-						FallbackToFDv1:  true,
-						FDv1FallbackTTL: goodbyeFallback.TTL,
+						FDv1FallbackTTL: goodbyeFallback,
 					}
 					stream.Close()
 					return
@@ -322,8 +320,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					ChangeSet:       changeSet,
 					State:           interfaces.DataSourceStateValid,
 					EnvironmentID:   environmentID,
-					FallbackToFDv1:  fallback != nil,
-					FDv1FallbackTTL: fdv1FallbackTTL(fallback),
+					FDv1FallbackTTL: fallback,
 				}
 				payloadApplied = true
 
@@ -336,7 +333,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			}
 
 			// Once a payload has been applied with a pending FDv1 fallback signal, the Valid
-			// result emitted above carries FallbackToFDv1=true; close the stream so we stop
+			// result emitted above carries FDv1FallbackTTL; close the stream so we stop
 			// consuming. Events that don't complete a payload leave payloadApplied false so we
 			// keep consuming (fallback persists across iterations).
 			if fallback != nil && payloadApplied {
@@ -406,8 +403,7 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				resultChan <- subsystems.DataSynchronizerResult{
 					State:           interfaces.DataSourceStateOff,
 					Error:           errorInfo,
-					FallbackToFDv1:  true,
-					FDv1FallbackTTL: fdv1FallbackTTL(fallback),
+					FDv1FallbackTTL: fallback,
 					EnvironmentID:   environmentID,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}

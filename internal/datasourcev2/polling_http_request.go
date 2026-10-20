@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gregjones/httpcache"
 
@@ -86,7 +87,7 @@ func (r *pollingRequester) FilterKey() string {
 func (r *pollingRequester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, *subsystems.FDv1Fallback, error) {
+) (*subsystems.ChangeSet, http.Header, *time.Duration, error) {
 	changeSet, headers, goodbyeFallback, err := r.request(ctx, selector)
 	fallback := fdv1FallbackFromHeaders(headers)
 	if goodbyeFallback != nil {
@@ -98,7 +99,7 @@ func (r *pollingRequester) Request(
 func (r *pollingRequester) request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, *subsystems.FDv1Fallback, error) {
+) (*subsystems.ChangeSet, http.Header, *time.Duration, error) {
 	if r.loggers.IsDebugEnabled() {
 		r.loggers.Debug("Polling LaunchDarkly for feature flag updates")
 	}

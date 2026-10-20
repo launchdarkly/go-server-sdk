@@ -21,7 +21,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, *subsystems.FDv1Fallback, error)
+	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, *time.Duration, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -71,7 +71,7 @@ func (pp *PollingProcessor) Name() string {
 func (pp *PollingProcessor) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *time.Duration, error) {
 	changeSet, headers, fallback, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
 		return nil, fallback, err
@@ -112,8 +112,8 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				result, err := pp.poll(ctx, ds)
 
 				// When the server requested FDv1 fallback, dispatch the result as-is -- poll has
-				// already populated State (Valid on success, Off on error) and FallbackToFDv1=true.
-				if result.FallbackToFDv1 {
+				// already populated State (Valid on success, Off on error) and FDv1FallbackTTL.
+				if result.FDv1FallbackTTL != nil {
 					resultChan <- result
 					return
 				}
@@ -152,7 +152,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 }
 
 // poll performs a single polling request and builds a DataSynchronizerResult describing the
-// outcome. The result's FallbackToFDv1 flag and FDv1FallbackTTL are always populated from the
+// outcome. The result's FDv1FallbackTTL is always populated from the
 // fallback instruction in the response, whether or not the request succeeded -- a 500 or a
 // malformed-JSON body can still carry the fallback signal.
 //
@@ -169,8 +169,7 @@ func (pp *PollingProcessor) poll(
 	changeSet, headers, fallback, err := pp.requester.Request(ctx, ds.Selector())
 	result := subsystems.DataSynchronizerResult{
 		EnvironmentID:   internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
-		FallbackToFDv1:  fallback != nil,
-		FDv1FallbackTTL: fdv1FallbackTTL(fallback),
+		FDv1FallbackTTL: fallback,
 	}
 
 	if err == nil {

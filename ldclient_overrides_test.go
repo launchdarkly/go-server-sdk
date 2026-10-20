@@ -42,7 +42,7 @@ func newHangingSynchronizer() *hangingSynchronizer {
 
 func (h *hangingSynchronizer) Name() string { return "HangingSynchronizer" }
 
-func (h *hangingSynchronizer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+func (h *hangingSynchronizer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *time.Duration, error) {
 	return nil, nil, errors.New("no data available")
 }
 
@@ -284,7 +284,7 @@ func (s *staticBasisInitializer) Name() string { return "StaticBasisInitializer"
 func (s *staticBasisInitializer) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *time.Duration, error) {
 	return &subsystems.Basis{ChangeSet: *s.changeSet, Persist: false}, nil, nil
 }
 
