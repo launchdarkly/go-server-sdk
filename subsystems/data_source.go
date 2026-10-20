@@ -3,6 +3,7 @@ package subsystems
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -47,19 +48,25 @@ type DataInitializer interface {
 	Name() string
 	// Fetch returns a Basis, or an error if the Basis could not be retrieved. If the context has
 	// expired, it returns the context's error. If the LaunchDarkly server has instructed the SDK
-	// to fall back to the FDv1 protocol (via the x-ld-fd-fallback response header), fallbackToFDv1
-	// is true; in that case the Basis is nil and err may be nil or carry the underlying HTTP
-	// error for logging. Callers should branch on fallbackToFDv1 before err.
-	Fetch(ds DataSelector, ctx context.Context) (basis *Basis, fallbackToFDv1 bool, err error)
+	// to fall back to the FDv1 protocol, fdv1FallbackTTL is not nil; in that case the Basis may
+	// still carry data from the same response, and err may be nil or carry the underlying HTTP
+	// error for logging. Callers should branch on fdv1FallbackTTL before err.
+	//
+	// fdv1FallbackTTL is how long LaunchDarkly asked the SDK to stay on FDv1 before trying FDv2
+	// again. Zero means that LaunchDarkly did not supply a usable TTL, so the SDK uses its default.
+	Fetch(ds DataSelector, ctx context.Context) (basis *Basis, fdv1FallbackTTL *time.Duration, err error)
 }
 
 // DataSynchronizerResult represents the results of a Synchronizer's ongoing Sync method.
 type DataSynchronizerResult struct {
-	ChangeSet      *ChangeSet
-	State          interfaces.DataSourceState
-	Error          interfaces.DataSourceErrorInfo
-	FallbackToFDv1 bool
-	EnvironmentID  ldvalue.OptionalString
+	ChangeSet *ChangeSet
+	State     interfaces.DataSourceState
+	Error     interfaces.DataSourceErrorInfo
+	// FDv1FallbackTTL is not nil if LaunchDarkly instructed the SDK to fall back to the FDv1
+	// protocol. It is how long to stay on FDv1 before trying FDv2 again. Zero means that
+	// LaunchDarkly did not supply a usable TTL, so the SDK uses its default.
+	FDv1FallbackTTL *time.Duration
+	EnvironmentID   ldvalue.OptionalString
 }
 
 // DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.

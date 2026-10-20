@@ -154,6 +154,9 @@ func (e Error) Name() EventName {
 // Goodbye represents a goodbye event.
 type Goodbye struct {
 	Reason string `json:"reason"`
+	// ProtocolFallbackTTL, if present, is an instruction to fall back to FDv1 for this many
+	// seconds. It is kept as raw JSON so that a malformed value still counts as an instruction.
+	ProtocolFallbackTTL json.RawMessage `json:"protocolFallbackTTL,omitempty"`
 }
 
 //nolint:revive // Event method.

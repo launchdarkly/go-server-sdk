@@ -3,6 +3,7 @@ package datasystem
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -235,17 +236,9 @@ func (f *FDv2) launchTask(task func()) {
 func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
-	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback {
-		if f.synchronizers.hasFDv1Fallback() {
-			f.loggers.Warn("Falling back to FDv1 protocol")
-			// Block every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
-			f.synchronizers.fdv1Fallback()
-		} else {
-			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
-			// Block every synchronizer so that none starts.
-			f.synchronizers.blockAll()
-			f.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
-		}
+	var recovery *time.Timer
+	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback != nil {
+		recovery = f.fallBackToFDv1(*fallback, errorInfo)
 	}
 
 	if f.configuredWithDataSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
@@ -254,7 +247,54 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 		})
 	}
 
-	f.runSynchronizers(ctx, closeWhenReady)
+	f.runSynchronizers(ctx, closeWhenReady, recovery)
+}
+
+const (
+	maxFDv1FallbackTTL         = time.Hour
+	defaultFDv1FallbackTTL     = time.Hour
+	maxFDv1FallbackTTLJitter   = 30 * time.Minute
+	fdv1FallbackTTLJitterRange = int64(maxFDv1FallbackTTLJitter) + 1
+)
+
+// fdv1FallbackDuration returns how long to stay on FDv1 before trying FDv2 again. A TTL from
+// LaunchDarkly in (0, 1 hour] is used as-is. Any other TTL means the 1 hour default, minus a
+// random jitter of up to 30 minutes.
+func fdv1FallbackDuration(ttl time.Duration) time.Duration {
+	if ttl > 0 && ttl <= maxFDv1FallbackTTL {
+		return ttl
+	}
+	//nolint:gosec // jitter does not need a cryptographically secure source
+	return defaultFDv1FallbackTTL - time.Duration(rand.Int63n(fdv1FallbackTTLJitterRange))
+}
+
+// fallBackToFDv1 pauses every FDv2 synchronizer and makes the FDv1 fallback synchronizer
+// available, if there is one. It returns a timer that fires when it is time to try FDv2 again,
+// or nil if there is no synchronizer to recover to. errorInfo is reported in the status if there
+// is no FDv1 fallback synchronizer.
+func (f *FDv2) fallBackToFDv1(ttl time.Duration, errorInfo interfaces.DataSourceErrorInfo) *time.Timer {
+	if !f.synchronizers.hasFDv1Fallback() && f.synchronizers.availableCount() == 0 {
+		f.loggers.Warn("FDv1 fallback requested but no synchronizers are configured")
+		f.UpdateStatus(interfaces.DataSourceStateOff, errorInfo)
+		return nil
+	}
+	duration := fdv1FallbackDuration(ttl)
+	if f.synchronizers.hasFDv1Fallback() {
+		f.loggers.Warnf("Falling back to FDv1 protocol; will try FDv2 again in %s", duration)
+	} else {
+		f.loggers.Warnf("FDv1 fallback requested but none configured; will try FDv2 again in %s", duration)
+		f.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
+	}
+	f.synchronizers.fdv1Fallback()
+	return time.NewTimer(duration)
+}
+
+// recoverFDv2 ends an FDv1 fallback. The FDv1 fallback synchronizer, if any, must already be
+// closed, so that FDv1 and FDv2 never write to the store at the same time.
+func (f *FDv2) recoverFDv2() {
+	f.loggers.Info("FDv1 fallback TTL has expired, trying FDv2 again")
+	f.synchronizers.fdv2Recovery()
+	f.synchronizers.next()
 }
 
 func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-chan interfaces.DataStoreStatus) {
@@ -285,7 +325,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 // applied to the store, even if that data had no selector. A basis that carries no data, or data
 // that cannot be applied, does not count; the synchronizers then decide readiness.
 //
-// fallbackToFDv1 is true when an initializer asked the SDK to switch to FDv1. If the fallback is
+// fallback is not nil when an initializer asked the SDK to switch to FDv1. If the fallback is
 // signalled alongside a basis, that basis is applied before returning, so evaluations can serve
 // the server-provided data while the FDv1 synchronizer spins up. If any initializer's data was
 // applied by then, initialization is complete before returning.
@@ -294,16 +334,16 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 // configured. It is empty when the fallback accompanied a successful response.
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
-) (fallbackToFDv1 bool, errorInfo interfaces.DataSourceErrorInfo) {
+) (fallback *time.Duration, errorInfo interfaces.DataSourceErrorInfo) {
 	// Name of the last initializer whose data was applied to the store.
 	appliedFrom := ""
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, fallback, err := initializer.Fetch(f.store, ctx)
 		if errors.Is(err, context.Canceled) {
-			return false, interfaces.DataSourceErrorInfo{}
+			return nil, interfaces.DataSourceErrorInfo{}
 		}
-		if fallback {
+		if fallback != nil {
 			if err != nil {
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol: %v", initializer.Name(), err)
 				errorInfo = interfaces.DataSourceErrorInfo{
@@ -321,7 +361,7 @@ func (f *FDv2) runInitializers(
 				f.loggers.Infof("Initialized via %s before falling back to FDv1", appliedFrom)
 				f.completeInitialization(closeWhenReady)
 			}
-			return true, errorInfo
+			return fallback, errorInfo
 		}
 		if err != nil {
 			f.loggers.Warnf("Initializer %s failed: %v", initializer.Name(), err)
@@ -334,14 +374,14 @@ func (f *FDv2) runInitializers(
 		if basis.ChangeSet.Selector().IsDefined() {
 			f.loggers.Infof("Initialized via %s", initializer.Name())
 			f.completeInitialization(closeWhenReady)
-			return false, interfaces.DataSourceErrorInfo{}
+			return nil, interfaces.DataSourceErrorInfo{}
 		}
 	}
 	if appliedFrom != "" {
 		f.loggers.Infof("Initialized via %s; the data has no selector", appliedFrom)
 		f.completeInitialization(closeWhenReady)
 	}
-	return false, interfaces.DataSourceErrorInfo{}
+	return nil, interfaces.DataSourceErrorInfo{}
 }
 
 // applyBasis applies an initializer's basis to the store. It reports whether the store received
@@ -366,9 +406,11 @@ func (f *FDv2) completeInitialization(closeWhenReady chan struct{}) {
 	})
 }
 
-func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
+// runSynchronizers runs the synchronizers. If recovery is not nil, an FDv1 fallback is in
+// effect, and FDv2 recovers when the timer fires.
+func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}, recovery *time.Timer) {
 	// If no synchronizers are available, close ready channel and return
-	if f.synchronizers.availableCount() == 0 {
+	if f.synchronizers.availableCount() == 0 && recovery == nil {
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -380,14 +422,33 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 		defer f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
+		defer func() {
+			if recovery != nil {
+				recovery.Stop()
+			}
+		}()
 
 		f.synchronizers.next()
 		for {
 			// Check if we've run out of synchronizers
 			if f.synchronizers.availableCount() == 0 {
-				f.loggers.Warn("No more synchronizers available")
-				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
-				return
+				if recovery == nil {
+					f.loggers.Warn("No more synchronizers available")
+					f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
+					return
+				}
+				// Nothing can run until FDv2 recovers, so stop waiting for initialization.
+				f.readyOnce.Do(func() {
+					close(closeWhenReady)
+				})
+				select {
+				case <-ctx.Done():
+					return
+				case <-recovery.C:
+				}
+				recovery = nil
+				f.recoverFDv2()
+				continue
 			}
 
 			// Build synchronizer
@@ -401,7 +462,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.synchronizers.currentIndex(), sync.Name())
 			resultChan := sync.Sync(f.store)
-			action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
+			action, fallbackTTL, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady, timerChannel(recovery))
 
 			if err := sync.Close(); err != nil {
 				f.loggers.Errorf("Synchronizer %s failed to close: %v", sync.Name(), err)
@@ -414,16 +475,15 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			// Handle action based on conditions
 			switch action {
 			case syncFDv1:
-				if f.synchronizers.hasFDv1Fallback() {
-					f.loggers.Warn("Falling back to FDv1 protocol")
-					// Block every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
-					f.synchronizers.fdv1Fallback()
-					f.synchronizers.next()
-					continue
+				if recovery == nil {
+					recovery = f.fallBackToFDv1(fallbackTTL, f.getStatus().LastError)
 				}
-				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
-				f.UpdateStatus(interfaces.DataSourceStateOff, f.getStatus().LastError)
-				return
+				f.synchronizers.next()
+				continue
+			case syncFDv2Recovery:
+				recovery = nil
+				f.recoverFDv2()
+				continue
 			case syncBlock:
 				f.loggers.Warnf("Blocking synchronizer at index %d because it failed permanently",
 					f.synchronizers.currentIndex())
@@ -458,26 +518,38 @@ const (
 	syncRecover
 	syncBlock
 	syncFDv1
+	syncFDv2Recovery
 )
+
+// timerChannel returns the timer's channel, or nil if there is no timer.
+func timerChannel(timer *time.Timer) <-chan time.Time {
+	if timer == nil {
+		return nil
+	}
+	return timer.C
+}
 
 func (f *FDv2) consumeSynchronizerResults(
 	ctx context.Context,
 	resultChan <-chan subsystems.DataSynchronizerResult,
 	closeWhenReady chan<- struct{},
-) (action syncAction, err error) {
+	recovery <-chan time.Time,
+) (action syncAction, fdv1FallbackTTL time.Duration, err error) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return syncFallback, ctx.Err()
+			return syncFallback, 0, ctx.Err()
+		case <-recovery:
+			return syncFDv2Recovery, 0, nil
 		case result, ok := <-resultChan:
 			// The status channel being closed means that we won't be receiving
 			// any more information from that synchronizer and we should
 			// probably fall back.
 			if !ok {
-				return syncFallback, nil
+				return syncFallback, 0, nil
 			}
 
 			if result.EnvironmentID.IsDefined() {
@@ -501,18 +573,18 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.UpdateStatus(result.State, result.Error)
 			case interfaces.DataSourceStateOff:
 				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
-				if result.FallbackToFDv1 {
-					return syncFDv1, nil
+				if result.FDv1FallbackTTL != nil {
+					return syncFDv1, *result.FDv1FallbackTTL, nil
 				}
-				return syncBlock, nil
+				return syncBlock, 0, nil
 			}
 
-			// FallbackToFDv1 may ride along on a Valid or Interrupted result too -- e.g. a
+			// FDv1FallbackTTL may ride along on a Valid or Interrupted result too -- e.g. a
 			// successful response whose headers also requested the fallback. The Valid/
 			// Interrupted branches above already applied any ChangeSet and updated status;
 			// now hand control to the FDv1 fallback synchronizer.
-			if result.FallbackToFDv1 {
-				return syncFDv1, nil
+			if result.FDv1FallbackTTL != nil {
+				return syncFDv1, *result.FDv1FallbackTTL, nil
 			}
 		case <-ticker.C:
 			// If there's only one available synchronizer, don't check conditions
@@ -526,13 +598,13 @@ func (f *FDv2) consumeSynchronizerResults(
 			// Check fallback condition first (things are bad)
 			if f.fallbackCond(status) {
 				f.loggers.Debugf("Fallback condition met")
-				return syncFallback, nil
+				return syncFallback, 0, nil
 			}
 
 			// If not at the first available synchronizer, also check recovery condition (things are good)
 			if !f.synchronizers.isFirstAvailable() && f.recoveryCond(status) {
 				f.loggers.Debugf("Recovery condition met")
-				return syncRecover, nil
+				return syncRecover, 0, nil
 			}
 
 			f.loggers.Debugf("No condition met, continue with current synchronizer")

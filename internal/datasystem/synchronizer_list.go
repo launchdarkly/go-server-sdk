@@ -11,17 +11,19 @@ type synchronizerBuilder = func() (subsystems.DataSynchronizer, error)
 var errNoCurrentSynchronizer = errors.New("no current synchronizer")
 
 // synchronizerSlot holds one synchronizer builder and its state. A blocked slot is not
-// eligible for use.
+// eligible for use. A slot that is paused for an FDv1 fallback is also blocked, and is
+// unblocked again when FDv2 recovers.
 type synchronizerSlot struct {
 	build          synchronizerBuilder
 	isFDv1Fallback bool
 	blocked        bool
+	pausedForFDv1  bool
 }
 
 // synchronizerList is the ordered list of synchronizers that the data system can use. A
 // synchronizer that fails permanently stays in the list and is marked as blocked. The FDv1
 // fallback synchronizer, if configured, is the last slot. It is blocked until an FDv1
-// fallback occurs.
+// fallback occurs, and blocked again when FDv2 recovers.
 //
 // The list is not safe for concurrent use. Only the goroutine that runs the synchronizers
 // uses it.
@@ -113,19 +115,35 @@ func (l *synchronizerList) hasFDv1Fallback() bool {
 	return l.hasFDv1
 }
 
-// blockAll blocks every slot and clears the current slot.
-func (l *synchronizerList) blockAll() {
+// fdv1Fallback pauses every available FDv2 slot and unblocks the FDv1 fallback slot, if there
+// is one. It also clears the current slot, so the next call to next selects the FDv1 fallback
+// slot.
+func (l *synchronizerList) fdv1Fallback() {
 	for i := range l.slots {
-		l.slots[i].blocked = true
+		slot := &l.slots[i]
+		if slot.isFDv1Fallback {
+			slot.blocked = false
+		} else if !slot.blocked {
+			slot.blocked = true
+			slot.pausedForFDv1 = true
+		}
 	}
 	l.current = -1
 }
 
-// fdv1Fallback blocks every FDv2 slot and unblocks the FDv1 fallback slot. It also clears
-// the current slot, so the next call to next selects the FDv1 fallback slot.
-func (l *synchronizerList) fdv1Fallback() {
+// fdv2Recovery undoes fdv1Fallback. It unblocks every FDv2 slot that fdv1Fallback paused and
+// blocks the FDv1 fallback slot. An FDv2 slot that was blocked because it failed permanently
+// stays blocked. It also clears the current slot, so the next call to next selects the first
+// available FDv2 slot.
+func (l *synchronizerList) fdv2Recovery() {
 	for i := range l.slots {
-		l.slots[i].blocked = !l.slots[i].isFDv1Fallback
+		slot := &l.slots[i]
+		if slot.isFDv1Fallback {
+			slot.blocked = true
+		} else if slot.pausedForFDv1 {
+			slot.blocked = false
+			slot.pausedForFDv1 = false
+		}
 	}
 	l.current = -1
 }

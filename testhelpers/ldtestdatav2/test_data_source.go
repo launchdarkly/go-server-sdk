@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -316,9 +317,12 @@ func (d *testDataSourceImpl) Name() string {
 	return "TestDataSynchronizer"
 }
 
-func (d *testDataSourceImpl) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
+func (d *testDataSourceImpl) Fetch(
+	ds subsystems.DataSelector,
+	ctx context.Context,
+) (*subsystems.Basis, *time.Duration, error) {
 	basis, err := d.owner.makeBasis()
-	return basis, false, err
+	return basis, nil, err
 }
 
 func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
@@ -328,8 +332,7 @@ func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.
 	statusChan := d.owner.statusBroadcaster.AddListener()
 
 	result := subsystems.DataSynchronizerResult{
-		State:          interfaces.DataSourceStateInitializing,
-		FallbackToFDv1: false,
+		State: interfaces.DataSourceStateInitializing,
 	}
 
 	go func() {

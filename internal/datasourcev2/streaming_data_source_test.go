@@ -27,6 +27,7 @@ import (
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -62,7 +63,7 @@ func TestStreamingDoesNotWorkAsInitializer(t *testing.T) {
 	defer sp.Close()
 	basis, fallback, err := sp.Fetch(ds, context.Background())
 	assert.Nil(t, basis)
-	assert.False(t, fallback)
+	assert.Nil(t, fallback)
 	assert.NotNil(t, err)
 }
 
@@ -164,7 +165,8 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 
 	header := http.Header{
-		"X-LD-FD-Fallback": []string{"true"},
+		"X-LD-FD-Fallback":     []string{"true"},
+		"X-LD-FD-Fallback-TTL": []string{"120"},
 	}
 	handler, _ := httphelpers.RecordingHandler(httphelpers.HandlerWithResponse(500, header, nil))
 	httphelpers.WithServer(handler, func(ts *httptest.Server) {
@@ -182,7 +184,31 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		assert.True(t, result.FallbackToFDv1)
+		require.NotNil(t, result.FDv1FallbackTTL)
+		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
+	})
+}
+
+func TestStreamingProcessorFallsBackOnGoodbyeWithFallbackTTL(t *testing.T) {
+	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
+
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
+			ID: "something-id", Target: 0, Code: subsystems.IntentTransferFull, Reason: "payload-missing",
+		}}).
+		WithGoodbye(subsystems.Goodbye{Reason: "fall back", ProtocolFallbackTTL: json.RawMessage("120")})
+
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	httphelpers.WithServer(streamHandler, func(ts *httptest.Server) {
+		sp := NewStreamProcessor(sharedtest.BasicClientContext(), datasource.StreamConfig{URI: ts.URL})
+		defer sp.Close()
+
+		result := <-sp.Sync(ds)
+
+		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+		assert.Nil(t, result.ChangeSet)
+		require.NotNil(t, result.FDv1FallbackTTL)
+		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
 
@@ -215,13 +241,13 @@ func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
 		defer sp.Close()
 		resultChan := sp.Sync(ds)
 
-		// A single Valid result carries both the payload and the FallbackToFDv1 signal -- the
+		// A single Valid result carries both the payload and the FDv1FallbackTTL signal -- the
 		// consumer applies the ChangeSet first, then switches to the FDv1 synchronizer.
 		result := <-resultChan
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		assert.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		assert.True(t, result.FallbackToFDv1)
+		require.NotNil(t, result.FDv1FallbackTTL)
 	})
 }
 

@@ -76,7 +76,7 @@ func TestPollingRequesterReleaseClauseValues(t *testing.T) {
 			httphelpers.WithServer(ldservices.ServerSidePollingV2ServiceHandler(payload), func(ts *httptest.Server) {
 				r := newPollingRequester(makeReleaseClauseValuesContext(release), nil, ts.URL, "")
 
-				changeSet, _, err := r.Request(context.Background(), subsystems.NoSelector())
+				changeSet, _, _, err := r.Request(context.Background(), subsystems.NoSelector())
 
 				require.NoError(t, err)
 				assertChangeSetClauseValuesReleased(t, release, changeSet)
@@ -95,7 +95,7 @@ func TestFDv1FallbackPollingReleaseClauseValues(t *testing.T) {
 				p := NewFDv1PollingProcessor(makeReleaseClauseValuesContext(release),
 					datasource.PollingConfig{BaseURI: ts.URL})
 
-				changeSet, _, err := p.requester.Request(context.Background(), subsystems.NoSelector())
+				changeSet, _, _, err := p.requester.Request(context.Background(), subsystems.NoSelector())
 
 				require.NoError(t, err)
 				assertChangeSetClauseValuesReleased(t, release, changeSet)

@@ -42,8 +42,8 @@ func newHangingSynchronizer() *hangingSynchronizer {
 
 func (h *hangingSynchronizer) Name() string { return "HangingSynchronizer" }
 
-func (h *hangingSynchronizer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, bool, error) {
-	return nil, false, errors.New("no data available")
+func (h *hangingSynchronizer) Fetch(ds subsystems.DataSelector, ctx context.Context) (*subsystems.Basis, *time.Duration, error) {
+	return nil, nil, errors.New("no data available")
 }
 
 func (h *hangingSynchronizer) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
@@ -284,8 +284,8 @@ func (s *staticBasisInitializer) Name() string { return "StaticBasisInitializer"
 func (s *staticBasisInitializer) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, bool, error) {
-	return &subsystems.Basis{ChangeSet: *s.changeSet, Persist: false}, false, nil
+) (*subsystems.Basis, *time.Duration, error) {
+	return &subsystems.Basis{ChangeSet: *s.changeSet, Persist: false}, nil, nil
 }
 
 func (s *staticBasisInitializer) Build(subsystems.ClientContext) (subsystems.DataInitializer, error) {

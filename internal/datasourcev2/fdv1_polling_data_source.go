@@ -3,6 +3,7 @@ package datasourcev2
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datasource"
@@ -17,10 +18,10 @@ type fdv1ToFDv2Requester struct {
 func (r *fdv1ToFDv2Requester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, error) {
+) (changeSet *subsystems.ChangeSet, headers http.Header, fdv1FallbackTTL *time.Duration, err error) {
 	data, cached, headers, err := r.requester.Request()
 	if err != nil {
-		return nil, headers, err
+		return nil, headers, nil, err
 	}
 
 	code := subsystems.IntentTransferFull
@@ -47,7 +48,7 @@ func (r *fdv1ToFDv2Requester) Request(
 		subsystems.NewSelector("state", 1),
 		data,
 	)
-	return changeset, headers, err
+	return changeset, headers, nil, err
 }
 
 func (r *fdv1ToFDv2Requester) BaseURI() string {

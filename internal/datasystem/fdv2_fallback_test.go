@@ -39,8 +39,8 @@ func (f *fakeSynchronizer) Name() string { return f.name }
 func (f *fakeSynchronizer) Fetch(
 	_ subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, bool, error) {
-	return nil, false, nil
+) (*subsystems.Basis, *time.Duration, error) {
+	return nil, nil, nil
 }
 
 func (f *fakeSynchronizer) Sync(_ subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
