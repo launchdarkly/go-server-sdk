@@ -237,7 +237,7 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
 	var recovery *time.Timer
-	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback.Requested {
+	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback != nil {
 		recovery = f.fallBackToFDv1(fallback.TTL, errorInfo)
 	}
 
@@ -325,7 +325,7 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 // applied to the store, even if that data had no selector. A basis that carries no data, or data
 // that cannot be applied, does not count; the synchronizers then decide readiness.
 //
-// fallback.Requested is true when an initializer asked the SDK to switch to FDv1. If the fallback is
+// fallback is not nil when an initializer asked the SDK to switch to FDv1. If the fallback is
 // signalled alongside a basis, that basis is applied before returning, so evaluations can serve
 // the server-provided data while the FDv1 synchronizer spins up. If any initializer's data was
 // applied by then, initialization is complete before returning.
@@ -334,16 +334,16 @@ func (f *FDv2) runPersistentStoreOutageRecovery(ctx context.Context, statuses <-
 // configured. It is empty when the fallback accompanied a successful response.
 func (f *FDv2) runInitializers(
 	ctx context.Context, closeWhenReady chan struct{},
-) (fallback subsystems.FDv1Fallback, errorInfo interfaces.DataSourceErrorInfo) {
+) (fallback *subsystems.FDv1Fallback, errorInfo interfaces.DataSourceErrorInfo) {
 	// Name of the last initializer whose data was applied to the store.
 	appliedFrom := ""
 	for _, initializer := range f.initializers {
 		f.loggers.Infof("Attempting to initialize via %s", initializer.Name())
 		basis, fallback, err := initializer.Fetch(f.store, ctx)
 		if errors.Is(err, context.Canceled) {
-			return subsystems.FDv1Fallback{}, interfaces.DataSourceErrorInfo{}
+			return nil, interfaces.DataSourceErrorInfo{}
 		}
-		if fallback.Requested {
+		if fallback != nil {
 			if err != nil {
 				f.loggers.Warnf("Initializer %s requested fallback to FDv1 protocol: %v", initializer.Name(), err)
 				errorInfo = interfaces.DataSourceErrorInfo{
@@ -374,14 +374,14 @@ func (f *FDv2) runInitializers(
 		if basis.ChangeSet.Selector().IsDefined() {
 			f.loggers.Infof("Initialized via %s", initializer.Name())
 			f.completeInitialization(closeWhenReady)
-			return subsystems.FDv1Fallback{}, interfaces.DataSourceErrorInfo{}
+			return nil, interfaces.DataSourceErrorInfo{}
 		}
 	}
 	if appliedFrom != "" {
 		f.loggers.Infof("Initialized via %s; the data has no selector", appliedFrom)
 		f.completeInitialization(closeWhenReady)
 	}
-	return subsystems.FDv1Fallback{}, interfaces.DataSourceErrorInfo{}
+	return nil, interfaces.DataSourceErrorInfo{}
 }
 
 // applyBasis applies an initializer's basis to the store. It reports whether the store received

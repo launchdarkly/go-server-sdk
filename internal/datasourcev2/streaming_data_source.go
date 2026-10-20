@@ -112,8 +112,8 @@ func (sp *StreamProcessor) Name() string {
 func (sp *StreamProcessor) Fetch(
 	ds subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
-	return nil, subsystems.FDv1Fallback{}, errors.New("StreamProcessor does not implement Fetch capability")
+) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+	return nil, nil, errors.New("StreamProcessor does not implement Fetch capability")
 }
 
 //nolint:revive // DataSynchronizer method.
@@ -180,7 +180,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 	// fallback is set when the server's response headers carry x-ld-fd-fallback: true. We
 	// finish applying the current payload before emitting the fallback signal, so evaluations
 	// can serve the server-provided data while FDv1 takes over.
-	fallback := subsystems.FDv1Fallback{}
+	var fallback *subsystems.FDv1Fallback
 
 	for {
 		select {
@@ -203,7 +203,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			if eventWithHeaders, ok := event.(es.EventWithHeaders); ok {
 				headers := eventWithHeaders.Headers()
 				environmentID = internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID()
-				if headerFallback := fdv1FallbackFromHeaders(headers); headerFallback.Requested {
+				if headerFallback := fdv1FallbackFromHeaders(headers); headerFallback != nil {
 					fallback = headerFallback
 				}
 			}
@@ -240,8 +240,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					resultChan <- subsystems.DataSynchronizerResult{
 						State:           interfaces.DataSourceStateValid,
 						EnvironmentID:   environmentID,
-						FallbackToFDv1:  fallback.Requested,
-						FDv1FallbackTTL: fallback.TTL,
+						FallbackToFDv1:  fallback != nil,
+						FDv1FallbackTTL: fdv1FallbackTTL(fallback),
 					}
 					payloadApplied = true
 					break
@@ -275,7 +275,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 
 				// A goodbye with a fallback TTL tells the SDK to fall back to FDv1. Any
 				// payload in progress is incomplete, so it is discarded.
-				if goodbyeFallback := fdv1FallbackFromGoodbye(goodbye); goodbyeFallback.Requested {
+				if goodbyeFallback := fdv1FallbackFromGoodbye(goodbye); goodbyeFallback != nil {
 					resultChan <- subsystems.DataSynchronizerResult{
 						State:           interfaces.DataSourceStateInterrupted,
 						EnvironmentID:   environmentID,
@@ -322,8 +322,8 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					ChangeSet:       changeSet,
 					State:           interfaces.DataSourceStateValid,
 					EnvironmentID:   environmentID,
-					FallbackToFDv1:  fallback.Requested,
-					FDv1FallbackTTL: fallback.TTL,
+					FallbackToFDv1:  fallback != nil,
+					FDv1FallbackTTL: fdv1FallbackTTL(fallback),
 				}
 				payloadApplied = true
 
@@ -339,7 +339,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			// result emitted above carries FallbackToFDv1=true; close the stream so we stop
 			// consuming. Events that don't complete a payload leave payloadApplied false so we
 			// keep consuming (fallback persists across iterations).
-			if fallback.Requested && payloadApplied {
+			if fallback != nil && payloadApplied {
 				stream.Close()
 				return
 			}
@@ -402,12 +402,12 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 				Time:       time.Now(),
 			}
 
-			if fallback := fdv1FallbackFromHeaders(se.Header); fallback.Requested {
+			if fallback := fdv1FallbackFromHeaders(se.Header); fallback != nil {
 				resultChan <- subsystems.DataSynchronizerResult{
 					State:           interfaces.DataSourceStateOff,
 					Error:           errorInfo,
 					FallbackToFDv1:  true,
-					FDv1FallbackTTL: fallback.TTL,
+					FDv1FallbackTTL: fdv1FallbackTTL(fallback),
 					EnvironmentID:   environmentID,
 				}
 				return es.StreamErrorHandlerResult{CloseNow: true}

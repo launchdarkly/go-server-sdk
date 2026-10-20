@@ -62,7 +62,7 @@ func TestStreamingDoesNotWorkAsInitializer(t *testing.T) {
 	defer sp.Close()
 	basis, fallback, err := sp.Fetch(ds, context.Background())
 	assert.Nil(t, basis)
-	assert.False(t, fallback.Requested)
+	assert.Nil(t, fallback)
 	assert.NotNil(t, err)
 }
 

@@ -308,7 +308,7 @@ func TestSuccessfullyLoadsJsonFlagsAsInitializer(t *testing.T) {
 
 		basis, fallback, err := initializer.Fetch(mocks.NewMockDataSelector(subsystems.NoSelector()), context.Background())
 		assert.NoError(t, err)
-		assert.False(t, fallback.Requested)
+		assert.Nil(t, fallback)
 		assert.NotNil(t, basis)
 
 		assert.Len(t, basis.ChangeSet.Changes(), 2)

@@ -166,28 +166,28 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 func (fs *fileDataSource) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
 	docs := make([]filedata.Document, 0, len(fs.absFilePaths))
 	for _, path := range fs.absFilePaths {
 		doc, err := filedata.ReadFile(path)
 		if err != nil {
-			return nil, subsystems.FDv1Fallback{}, &filedata.ReadError{Err: err, Path: path}
+			return nil, nil, &filedata.ReadError{Err: err, Path: path}
 		}
 		docs = append(docs, doc)
 	}
 	merged, err := filedata.Merge(
 		filedata.DuplicateKeysHandling(fs.duplicateKeysHandling), filedata.MakeOffFlagWithValue, docs...)
 	if err != nil {
-		return nil, subsystems.FDv1Fallback{}, err
+		return nil, nil, err
 	}
 	changeSet, err := fs.makeChangeSet(merged)
 	if err != nil {
-		return nil, subsystems.FDv1Fallback{}, err
+		return nil, nil, err
 	}
 	return &subsystems.Basis{
 		ChangeSet: *changeSet,
 		Persist:   false,
-	}, subsystems.FDv1Fallback{}, nil
+	}, nil, nil
 }
 
 func (fs *fileDataSource) applyData(merged filedata.MergeResult) {

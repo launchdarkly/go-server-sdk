@@ -21,7 +21,7 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, subsystems.FDv1Fallback, error)
+	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, *subsystems.FDv1Fallback, error)
 	BaseURI() string
 	FilterKey() string
 }
@@ -71,7 +71,7 @@ func (pp *PollingProcessor) Name() string {
 func (pp *PollingProcessor) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
 	changeSet, headers, fallback, err := pp.requester.Request(ctx, ds.Selector())
 	if err != nil {
 		return nil, fallback, err
@@ -169,8 +169,8 @@ func (pp *PollingProcessor) poll(
 	changeSet, headers, fallback, err := pp.requester.Request(ctx, ds.Selector())
 	result := subsystems.DataSynchronizerResult{
 		EnvironmentID:   internal.NewInitMetadataFromHeaders(headers).GetEnvironmentID(),
-		FallbackToFDv1:  fallback.Requested,
-		FDv1FallbackTTL: fallback.TTL,
+		FallbackToFDv1:  fallback != nil,
+		FDv1FallbackTTL: fdv1FallbackTTL(fallback),
 	}
 
 	if err == nil {

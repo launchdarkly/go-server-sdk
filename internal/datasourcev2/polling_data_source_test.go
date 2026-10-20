@@ -381,7 +381,7 @@ func TestPollingProcessorInitializerHandlesFallbackOnSuccessfulResponse(t *testi
 		defer processor.Close()
 
 		basis, fallback, err := processor.Fetch(ds, context.Background())
-		assert.True(t, fallback.Requested)
+		assert.NotNil(t, fallback)
 		assert.NoError(t, err)
 		// Even when the server signals fallback, a valid payload in the same response
 		// should still be surfaced so the caller can apply it before switching protocols.
@@ -410,7 +410,7 @@ func TestPollingProcessorInitializerHandlesFallbackOnErrorResponse(t *testing.T)
 
 		basis, fallback, err := processor.Fetch(ds, context.Background())
 		assert.Nil(t, basis)
-		assert.True(t, fallback.Requested)
+		assert.NotNil(t, fallback)
 		assert.Error(t, err, "underlying HTTP error should still be surfaced alongside the fallback signal")
 	})
 }
@@ -431,7 +431,7 @@ func TestPollingProcessorInitializerErrorWithoutFallbackHeaderReturnsRegularErro
 
 		basis, fallback, err := processor.Fetch(ds, context.Background())
 		assert.Nil(t, basis)
-		assert.False(t, fallback.Requested)
+		assert.Nil(t, fallback)
 		assert.Error(t, err)
 	})
 }

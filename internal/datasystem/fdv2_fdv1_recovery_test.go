@@ -33,8 +33,8 @@ func (s *lifecycleSynchronizer) Name() string { return s.name }
 func (s *lifecycleSynchronizer) Fetch(
 	_ subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
-	return nil, subsystems.FDv1Fallback{}, nil
+) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+	return nil, nil, nil
 }
 
 func (s *lifecycleSynchronizer) Sync(_ subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
@@ -77,8 +77,8 @@ func (i fallbackInitializer) Name() string { return "fallback-initializer" }
 func (i fallbackInitializer) Fetch(
 	_ subsystems.DataSelector,
 	_ context.Context,
-) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
-	return nil, subsystems.FDv1Fallback{Requested: true, TTL: i.ttl}, nil
+) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
+	return nil, &subsystems.FDv1Fallback{TTL: i.ttl}, nil
 }
 
 func makeRecoveryTestFDv2(

@@ -319,9 +319,9 @@ func (d *testDataSourceImpl) Name() string {
 func (d *testDataSourceImpl) Fetch(
 	ds subsystems.DataSelector,
 	ctx context.Context,
-) (*subsystems.Basis, subsystems.FDv1Fallback, error) {
+) (*subsystems.Basis, *subsystems.FDv1Fallback, error) {
 	basis, err := d.owner.makeBasis()
-	return basis, subsystems.FDv1Fallback{}, err
+	return basis, nil, err
 }
 
 func (d *testDataSourceImpl) Sync(ds subsystems.DataSelector) <-chan subsystems.DataSynchronizerResult {
