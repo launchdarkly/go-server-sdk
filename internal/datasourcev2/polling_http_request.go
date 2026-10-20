@@ -87,7 +87,7 @@ func (r *pollingRequester) FilterKey() string {
 func (r *pollingRequester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, *time.Duration, error) {
+) (changeSet *subsystems.ChangeSet, headers http.Header, fdv1FallbackTTL *time.Duration, err error) {
 	changeSet, headers, goodbyeFallback, err := r.request(ctx, selector)
 	fallback := fdv1FallbackFromHeaders(headers)
 	if goodbyeFallback != nil {

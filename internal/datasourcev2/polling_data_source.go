@@ -21,7 +21,14 @@ const (
 // PollingRequester allows PollingProcessor to delegate fetching data to another component.
 // This is useful for testing the PollingProcessor without needing to set up a test HTTP server.
 type PollingRequester interface {
-	Request(context.Context, subsystems.Selector) (*subsystems.ChangeSet, http.Header, *time.Duration, error)
+	// Request fetches a change set. If LaunchDarkly instructed the SDK to fall back to FDv1,
+	// fdv1FallbackTTL is not nil; zero means that no usable TTL was supplied.
+	Request(ctx context.Context, selector subsystems.Selector) (
+		changeSet *subsystems.ChangeSet,
+		headers http.Header,
+		fdv1FallbackTTL *time.Duration,
+		err error,
+	)
 	BaseURI() string
 	FilterKey() string
 }

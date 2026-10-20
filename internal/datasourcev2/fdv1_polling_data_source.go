@@ -18,7 +18,7 @@ type fdv1ToFDv2Requester struct {
 func (r *fdv1ToFDv2Requester) Request(
 	ctx context.Context,
 	selector subsystems.Selector,
-) (*subsystems.ChangeSet, http.Header, *time.Duration, error) {
+) (changeSet *subsystems.ChangeSet, headers http.Header, fdv1FallbackTTL *time.Duration, err error) {
 	data, cached, headers, err := r.requester.Request()
 	if err != nil {
 		return nil, headers, nil, err
