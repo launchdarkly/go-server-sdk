@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.20.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.19.2...v7.20.0) (2026-10-20)
+
+
+### Features
+
+* Let each file source choose how a value entry expands into a flag ([#460](https://github.com/launchdarkly/go-server-sdk/issues/460)) ([81146c0](https://github.com/launchdarkly/go-server-sdk/commit/81146c0c2525de58690a7e747113231d4e1a8092))
+
 ## [7.19.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.19.1...v7.19.2) (2026-10-14)
 
 
