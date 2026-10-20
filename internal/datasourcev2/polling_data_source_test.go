@@ -266,7 +266,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnSuccessfulResponse(t *test
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		require.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 	})
 }
 
@@ -294,7 +294,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackOnMalformedBody(t *testing.T
 
 		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 		assert.Equal(t, interfaces.DataSourceErrorKindInvalidData, result.Error.Kind)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 	})
 }
 
@@ -321,7 +321,7 @@ func TestPollingProcessorSynchronizerHandlesFallbackToFDv2(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
@@ -354,7 +354,7 @@ func TestPollingProcessorSynchronizerFallsBackOnGoodbyeWithFallbackTTL(t *testin
 
 		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
 		assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }

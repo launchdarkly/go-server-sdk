@@ -2,6 +2,7 @@ package datasourcev2
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,6 +44,27 @@ func TestV2RequestorImplRequestAll(t *testing.T) {
 				req := <-requestsCh
 				assert.Equal(t, "/sdk/poll", req.Request.URL.Path)
 				assert.Equal(t, filter.query, req.Request.URL.RawQuery)
+			})
+		})
+
+		t.Run("goodbye without fallback TTL", func(t *testing.T) {
+			flag := ldbuilders.NewFlagBuilder("flagkey").Version(1).Build()
+			payload := ldservicesv2.NewServerSDKData().Flags(flag).ToInitializerPayload(subsystems.NewSelector("test-state", 1))
+			goodbye := subsystems.RawEvent{
+				Name: subsystems.EventGoodbye,
+				Data: json.RawMessage(`{"reason":"just saying"}`),
+			}
+			payload.Events = append([]subsystems.RawEvent{payload.Events[0], goodbye}, payload.Events[1:]...)
+
+			httphelpers.WithServer(ldservices.ServerSidePollingV2ServiceHandler(payload), func(ts *httptest.Server) {
+				r := newPollingRequester(sharedtest.BasicClientContext(), nil, ts.URL, filter.key)
+
+				changeSet, _, fallback, err := r.Request(context.Background(), subsystems.NoSelector())
+
+				require.NoError(t, err)
+				assert.Nil(t, fallback)
+				assert.Equal(t, subsystems.IntentTransferFull, changeSet.IntentCode())
+				assert.Equal(t, "test-state", changeSet.Selector().State())
 			})
 		})
 

@@ -152,6 +152,8 @@ func (r *pollingRequester) request(
 				if err := json.Unmarshal(event.Data, &goodbye); err != nil {
 					return nil, headers, nil, err
 				}
+				r.loggers.Infof("Polling payload contained goodbye: %s", goodbye.Reason)
+				// A goodbye without a fallback TTL is informational, so keep reading the payload.
 				if fallback := fdv1FallbackFromGoodbye(goodbye); fallback != nil {
 					return nil, headers, fallback, goodbyeError{reason: goodbye.Reason}
 				}

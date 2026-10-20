@@ -184,7 +184,7 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 
 		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
@@ -207,7 +207,7 @@ func TestStreamingProcessorFallsBackOnGoodbyeWithFallbackTTL(t *testing.T) {
 
 		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
 		assert.Nil(t, result.ChangeSet)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 		assert.Equal(t, 120*time.Second, *result.FDv1FallbackTTL)
 	})
 }
@@ -247,7 +247,7 @@ func TestStreamingProcessorHandlesFallbackOnSuccessfulResponse(t *testing.T) {
 		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
 		assert.NotNil(t, result.ChangeSet)
 		assert.Len(t, result.ChangeSet.Changes(), 1)
-		require.NotNil(t, *result.FDv1FallbackTTL)
+		require.NotNil(t, result.FDv1FallbackTTL)
 	})
 }
 
