@@ -514,36 +514,57 @@ func TestPollingProcessorSynchronizerClosingDuringPollStopsItsGoroutines(t *test
 	ds := mocks.NewMockDataSelector(subsystems.NoSelector())
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag).ToInitializerPayload(subsystems.NoSelector())
 
-	// The handler holds the poll open until the test releases it.
-	release := make(chan struct{})
-	underlying := ldservices.ServerSidePollingV2ServiceHandler(data)
-	handler, requestsCh := httphelpers.RecordingHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-release
-		underlying.ServeHTTP(w, r)
-	}))
-	httphelpers.WithServer(handler, func(ts *httptest.Server) {
-		before := countGoroutinesStartedByThisPackage()
+	// The synchronizer sends each kind of result from a different place, so each one needs a case.
+	for _, testCase := range []struct {
+		name         string
+		handler      http.Handler
+		pollInterval time.Duration
+		// holdBeforeClose is how long the poll stays in flight before the test closes the processor.
+		holdBeforeClose time.Duration
+	}{
+		{"valid result", ldservices.ServerSidePollingV2ServiceHandler(data), time.Minute * 30, 0},
+		{"unrecoverable error", httphelpers.HandlerWithStatus(401), time.Minute * 30, 0},
+		{"recoverable error", httphelpers.HandlerWithStatus(500), time.Minute * 30, 0},
+		{"malformed data", httphelpers.HandlerWithResponse(200, nil, []byte("not json")), time.Minute * 30, 0},
+		{"FDv1 fallback requested",
+			httphelpers.HandlerWithJSONResponse(data, http.Header{"X-LD-FD-Fallback": {"true"}}), time.Minute * 30, 0},
+		// The poll outlasts the interval, so the ticker has a tick waiting to be delivered when the
+		// processor closes.
+		{"tick waiting", ldservices.ServerSidePollingV2ServiceHandler(data), time.Millisecond, time.Millisecond * 20},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			// The handler holds the poll open until the test releases it.
+			release := make(chan struct{})
+			handler, requestsCh := httphelpers.RecordingHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				<-release
+				testCase.handler.ServeHTTP(w, r)
+			}))
+			httphelpers.WithServer(handler, func(ts *httptest.Server) {
+				before := countGoroutinesStartedByThisPackage()
 
-		processor := NewPollingProcessor(
-			sharedtest.BasicClientContext(),
-			datasource.PollingConfig{
-				BaseURI:      ts.URL,
-				PollInterval: time.Minute * 30,
-			},
-		)
-		resultChan := processor.Sync(ds)
-		<-requestsCh // Wait for the poll to be in flight
-		during := countGoroutinesStartedByThisPackage()
+				processor := NewPollingProcessor(
+					sharedtest.BasicClientContext(),
+					datasource.PollingConfig{
+						BaseURI:      ts.URL,
+						PollInterval: testCase.pollInterval,
+					},
+				)
+				resultChan := processor.Sync(ds)
+				<-requestsCh // Wait for the poll to be in flight
+				during := countGoroutinesStartedByThisPackage()
+				time.Sleep(testCase.holdBeforeClose)
 
-		// Like the data system, close the processor and stop reading results. The poll in flight
-		// then completes with no reader for its result.
-		processor.Close()
-		close(release)
+				// Like the data system, close the processor and stop reading results. The poll in flight
+				// then completes with no reader for its result.
+				processor.Close()
+				close(release)
 
-		require.Greater(t, during, before, "the synchronizer should have goroutines running during the poll")
-		requireGoroutinesStartedByThisPackageToExit(t, before)
-		th.AssertChannelClosed(t, resultChan, time.Second, "closing the processor should close the result channel")
-	})
+				require.Greater(t, during, before, "the synchronizer should have goroutines running during the poll")
+				requireGoroutinesStartedByThisPackageToExit(t, before)
+				th.AssertChannelClosed(t, resultChan, time.Second, "closing the processor should close the result channel")
+			})
+		})
+	}
 }
 
 // countGoroutinesStartedByThisPackage returns how many running goroutines were started by code in
