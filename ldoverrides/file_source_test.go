@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -151,6 +152,19 @@ func TestFileSourceLoadsInitialDataSynchronously(t *testing.T) {
 	// The flag-value entry was expanded into a full flag definition.
 	require.Len(t, flags["flag1"].Variations, 1)
 	assert.Equal(t, 3, flags["flag2"].Version)
+}
+
+func TestFileSourceExpandsValueEntriesToFallthroughFlags(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
+
+	_, sink := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
+
+	flag := flagsByKey(t, sink.requireSnapshot(t))["flag1"]
+	assert.True(t, flag.On)
+	assert.Equal(t, []ldvalue.Value{ldvalue.Bool(true)}, flag.Variations)
+	assert.Equal(t, ldvalue.NewOptionalInt(0), flag.Fallthrough.Variation)
+	assert.False(t, flag.OffVariation.IsDefined())
 }
 
 func TestFileSourceLoadsYAML(t *testing.T) {

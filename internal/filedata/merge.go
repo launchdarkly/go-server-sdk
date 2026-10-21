@@ -60,10 +60,14 @@ const (
 	segmentCategory itemCategory = "segment"
 )
 
-// Merge combines the items of the given documents, expanding flag-value entries into full
-// flag definitions and applying the given duplicate-key handling. An unrecognized
-// DuplicateKeysHandling value behaves as DuplicateKeysFail.
-func Merge(duplicateKeysHandling DuplicateKeysHandling, docs ...Document) (MergeResult, error) {
+// Merge combines the items of the given documents and applies the given duplicate-key
+// handling. Each flag-key-to-value entry is expanded with makeFlagWithValue, which must not be
+// nil. An unrecognized DuplicateKeysHandling value behaves as DuplicateKeysFail.
+func Merge(
+	duplicateKeysHandling DuplicateKeysHandling,
+	makeFlagWithValue FlagValueExpander,
+	docs ...Document,
+) (MergeResult, error) {
 	var result MergeResult
 	seenKeys := map[itemCategory]map[string]bool{
 		flagCategory:    {},
@@ -106,7 +110,7 @@ func Merge(duplicateKeysHandling DuplicateKeysHandling, docs ...Document) (Merge
 		}
 		if d.FlagValues != nil {
 			for key, value := range *d.FlagValues {
-				flag := MakeFlagWithValue(key, value)
+				flag := makeFlagWithValue(key, value)
 				data := ldstoretypes.ItemDescriptor{Version: flag.Version, Item: flag}
 				added, err := insert(&result.Flags, flagCategory, key, data)
 				if err != nil {

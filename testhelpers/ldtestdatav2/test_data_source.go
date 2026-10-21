@@ -134,9 +134,9 @@ func (t *TestDataSynchronizer) UsePreconfiguredFlag(flag ldmodel.FeatureFlag) *T
 
 // UsePreconfiguredSegment copies a full user segment data model object into the test data.
 //
-// It immediately propagates the flag change to any LDClient instance(s) that you have already
+// It immediately propagates the segment change to any LDClient instance(s) that you have already
 // configured to use this TestDataSource. If no LDClient has been started yet, it simply adds
-// this flag to the test data which will be provided to any LDClient that you subsequently
+// this segment to the test data which will be provided to any LDClient that you subsequently
 // configure.
 //
 // This method is currently the only way to inject user segment data, since there is no builder
@@ -155,7 +155,7 @@ func (t *TestDataSynchronizer) UsePreconfiguredSegment(segment ldmodel.Segment) 
 	t.currentSegments[segment.Key] = newItem
 	t.lock.Unlock()
 
-	changeSet, err := t.makeTransferChangesForObject(subsystems.FlagKind, segment.Key, newItem)
+	changeSet, err := t.makeTransferChangesForObject(subsystems.SegmentKind, segment.Key, newItem)
 	if err != nil {
 		return t
 	}

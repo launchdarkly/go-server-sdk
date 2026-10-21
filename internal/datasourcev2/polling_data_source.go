@@ -101,6 +101,18 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 	go func() {
 		defer ticker.Stop()
 
+		// send delivers a result and reports whether it did. The consumer stops reading when it
+		// closes the processor, so send gives up on Close instead of blocking this goroutine forever.
+		send := func(result subsystems.DataSynchronizerResult) bool {
+			select {
+			case resultChan <- result:
+				return true
+			case <-pp.quit:
+				close(resultChan)
+				return false
+			}
+		}
+
 		for {
 			select {
 			case <-pp.quit:
@@ -112,12 +124,14 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				// When the server requested FDv1 fallback, dispatch the result as-is -- poll has
 				// already populated State (Valid on success, Off on error) and FallbackToFDv1=true.
 				if result.FallbackToFDv1 {
-					resultChan <- result
+					send(result)
 					return
 				}
 
 				if err == nil {
-					resultChan <- result
+					if !send(result) {
+						return
+					}
 					continue
 				}
 
@@ -132,16 +146,20 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 						pollingWillRetryMessage,
 					) {
 						result.State = interfaces.DataSourceStateInterrupted
-						resultChan <- result
+						if !send(result) {
+							return
+						}
 						continue
 					}
-					resultChan <- result // poll set State=Off
+					send(result) // poll set State=Off
 					return
 				}
 
 				checkIfErrorIsRecoverableAndLog(pp.loggers, err.Error(), pollingErrorContext, 0, pollingWillRetryMessage)
 				result.State = interfaces.DataSourceStateInterrupted
-				resultChan <- result
+				if !send(result) {
+					return
+				}
 			}
 		}
 	}()
@@ -219,23 +237,42 @@ func (pp *PollingProcessor) GetFilterKey() string {
 	return pp.requester.FilterKey()
 }
 
+// tickerWithInitialTick is like a time.Ticker, but it also ticks once as soon as it is created.
 type tickerWithInitialTick struct {
-	*time.Ticker
-	C <-chan time.Time
+	ticker *time.Ticker
+	C      <-chan time.Time
+	stop   chan struct{}
 }
 
 func newTickerWithInitialTick(interval time.Duration) *tickerWithInitialTick {
 	c := make(chan time.Time)
-	ticker := time.NewTicker(interval)
 	t := &tickerWithInitialTick{
+		ticker: time.NewTicker(interval),
 		C:      c,
-		Ticker: ticker,
+		stop:   make(chan struct{}),
 	}
 	go func() {
-		c <- time.Now() // Ensure we do an initial poll immediately
-		for tt := range ticker.C {
-			c <- tt
+		tick := time.Now() // Ensure we do an initial poll immediately
+		for {
+			select {
+			case c <- tick:
+			case <-t.stop:
+				return
+			}
+			select {
+			case tick = <-t.ticker.C:
+			case <-t.stop:
+				return
+			}
 		}
 	}()
 	return t
+}
+
+// Stop stops the ticker and ends the goroutine that forwards its ticks. Stopping a time.Ticker
+// does not close its channel, so that goroutine cannot rely on the channel to end. Call Stop
+// only once.
+func (t *tickerWithInitialTick) Stop() {
+	t.ticker.Stop()
+	close(t.stop)
 }
