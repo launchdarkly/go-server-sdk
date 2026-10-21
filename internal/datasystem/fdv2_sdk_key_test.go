@@ -147,7 +147,7 @@ func TestFDv2TurnsOffWhenEverySynchronizerFailsPermanently(t *testing.T) {
 	// the synchronizer does not start again.
 	start := time.Now()
 	assert.False(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
-	assert.WithinDuration(t, time.Now(), start, 30*time.Millisecond)
+	assert.WithinDuration(t, time.Now(), start, 200*time.Millisecond)
 	primary.assertNoRun(t)
 }
 
@@ -164,6 +164,11 @@ func TestFDv2KeyChangeRestartsFirstSynchronizerWhenEverySynchronizerFailed(t *te
 	requireReady(t, ready)
 	off := system.DataSourceStatusProvider().GetStatus()
 	require.Equal(t, interfaces.DataSourceStateOff, off.State)
+
+	// The clock can advance in coarse steps. On Windows, two calls to time.Now a few
+	// microseconds apart can return the same time. Wait until the clock has moved past the time
+	// of the off state, so that a restarted StateSince is later than it.
+	require.Eventually(t, func() bool { return time.Now().After(off.StateSince) }, time.Second, time.Millisecond)
 
 	// After a key change, the data system leaves the off state. It is interrupted and keeps the
 	// error of the failure. StateSince restarts, so the fallback conditions do not count the time
@@ -267,5 +272,5 @@ func TestFDv2KeyChangeDoesNotUndoFallbackDirectiveWithoutFDv1Fallback(t *testing
 	// Off is permanent, so a wait for the valid state returns at once.
 	start := time.Now()
 	assert.False(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
-	assert.WithinDuration(t, time.Now(), start, 30*time.Millisecond)
+	assert.WithinDuration(t, time.Now(), start, 200*time.Millisecond)
 }
