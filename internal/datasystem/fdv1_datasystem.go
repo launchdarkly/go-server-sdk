@@ -119,6 +119,10 @@ func (f *FDv1) Start(closeWhenReady chan struct{}) {
 	f.dataSource.Start(closeWhenReady)
 }
 
+// SDKKeyChanged does nothing. The FDv1 data system does not restart a data source that has
+// stopped.
+func (f *FDv1) SDKKeyChanged() {}
+
 //nolint:revive // Data system implementation.
 func (f *FDv1) Stop() error {
 	if f.dataSource != nil {
