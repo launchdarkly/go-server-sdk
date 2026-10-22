@@ -180,7 +180,7 @@ func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems
 	}
 	if sink, ok := persistent.(interface {
 		SetCacheExporter(datastore.CacheExporter)
-	}); ok && s.persistentStore.writable() {
+	}); ok {
 		sink.SetCacheExporter(s)
 	}
 

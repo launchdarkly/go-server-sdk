@@ -104,6 +104,41 @@ func TestPersistentDataStoreWrapperRecoveryFromCacheExporter(t *testing.T) {
 	}
 }
 
+// An exporter that declines to write means the data may not be persisted, so the wrapper must not
+// write its own cache instead. It still reports the store available.
+func TestPersistentDataStoreWrapperDoesNotWriteCacheWhenExporterDeclines(t *testing.T) {
+	const statusTimeout = 2 * time.Second
+
+	fakeError := errors.New("sorry")
+	flagV1 := ldbuilders.NewFlagBuilder("flag").Version(1).Build()
+	flagV2 := ldbuilders.NewFlagBuilder("flag").Version(2).Build()
+
+	withDataStoreStatusTestParams(testCachedIndefinitely, func(p dataStoreStatusTestParams) {
+		w := p.store.(*persistentDataStoreWrapper)
+		statusCh := p.broadcaster.AddListener()
+		require.NoError(t, p.store.Init(sharedtest.NewDataSetBuilder().Flags(flagV1).Build()))
+
+		// An exporter built with no data declines to write. The cache is left in place, holding
+		// the update made during the outage.
+		w.SetCacheExporter(&fakeCacheExporter{})
+
+		p.core.SetFakeError(fakeError)
+		p.core.SetAvailable(false)
+		_, err := p.store.Upsert(datakinds.Features, flagV2.Key, sharedtest.FlagDescriptor(flagV2))
+		require.Equal(t, fakeError, err)
+		require.Equal(t, interfaces.DataStoreStatus{Available: false},
+			th.RequireValue(t, statusCh, statusTimeout))
+
+		p.core.SetFakeError(nil)
+		p.core.SetAvailable(true)
+
+		// The store recovers holding the data it had before the outage.
+		assert.Equal(t, interfaces.DataStoreStatus{Available: true},
+			th.RequireValue(t, statusCh, statusTimeout))
+		assert.Equal(t, flagV1.Version, p.core.ForceGet(datakinds.Features, flagV1.Key).Version)
+	})
+}
+
 // A failed write-back from the cache leaves the store unavailable, so that the next poll retries it.
 func TestPersistentDataStoreWrapperRetriesFailedCacheWriteBack(t *testing.T) {
 	const statusTimeout = 2 * time.Second

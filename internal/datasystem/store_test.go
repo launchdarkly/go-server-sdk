@@ -480,20 +480,34 @@ func TestStore_CacheExporter(t *testing.T) {
 			WithPersistence(spy, mode, nil)
 	}
 
-	t.Run("the store registers itself with a read-write persistent store", func(t *testing.T) {
-		spy := &fakeExportingStore{}
-		store := newStoreWithPersistence(spy, subsystems.DataStoreModeReadWrite)
+	for _, mode := range []struct {
+		name string
+		mode subsystems.DataStoreMode
+	}{
+		{"read-only", subsystems.DataStoreModeRead},
+		{"read-write", subsystems.DataStoreModeReadWrite},
+	} {
+		t.Run("the store registers itself with a "+mode.name+" persistent store", func(t *testing.T) {
+			spy := &fakeExportingStore{}
+			store := newStoreWithPersistence(spy, mode.mode)
+			defer store.Close()
+
+			assert.Same(t, store, spy.exporter)
+		})
+	}
+
+	t.Run("ExportTo does not write to a read-only persistent store", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeRead)
 		defer store.Close()
 
-		assert.Same(t, store, spy.exporter)
-	})
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), true)
 
-	t.Run("the store does not register itself with a read-only persistent store", func(t *testing.T) {
-		spy := &fakeExportingStore{}
-		store := newStoreWithPersistence(spy, subsystems.DataStoreModeRead)
-		defer store.Close()
-
-		assert.Nil(t, spy.exporter)
+		exported, err := store.ExportTo(func(data []ldstoretypes.Collection) error {
+			assert.Fail(t, "a read-only store must not be written")
+			return nil
+		})
+		assert.False(t, exported)
+		assert.NoError(t, err)
 	})
 
 	t.Run("ExportTo passes the data held in the memory store to the write", func(t *testing.T) {
