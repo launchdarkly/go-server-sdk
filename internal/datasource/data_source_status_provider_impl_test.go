@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -114,6 +115,44 @@ func TestDataSourceStatusProviderImpl(t *testing.T) {
 				success := p.dataSourceStatusProvider.WaitFor(interfaces.DataSourceStateValid, 300*time.Millisecond)
 				assert.False(t, success)
 				assert.True(t, time.Now().Sub(timeStart) >= 270*time.Millisecond)
+			})
+		})
+
+		t.Run("returns after timeout while status updates are queued", func(t *testing.T) {
+			dataSourceStatusProviderImplTest(func(p dataSourceStatusProviderImplTestParams) {
+				// Flood the status broadcaster so that, when the wait times out, broadcasts
+				// wait on the full listener channel. The removal of the listener inside
+				// WaitFor must still complete.
+				stop := make(chan struct{})
+				var flooders sync.WaitGroup
+				for i := 0; i < 8; i++ {
+					flooders.Add(1)
+					go func() {
+						defer flooders.Done()
+						status := intf.DataSourceStatus{State: intf.DataSourceStateInterrupted}
+						for {
+							select {
+							case <-stop:
+								return
+							default:
+								p.dataSourceUpdates.dataSourceStatusBroadcaster.Broadcast(status)
+							}
+						}
+					}()
+				}
+
+				returned := make(chan bool, 1)
+				go func() {
+					returned <- p.dataSourceStatusProvider.WaitFor(interfaces.DataSourceStateValid, 50*time.Millisecond)
+				}()
+				select {
+				case success := <-returned:
+					assert.False(t, success)
+				case <-time.After(2 * time.Second):
+					t.Error("WaitFor did not return after its timeout")
+				}
+				close(stop)
+				flooders.Wait()
 			})
 		})
 

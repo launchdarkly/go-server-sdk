@@ -216,7 +216,15 @@ func (d *DataSourceUpdateSinkImpl) waitFor(desiredState intf.DataSourceState, ti
 	}
 
 	statusCh := d.dataSourceStatusBroadcaster.AddListener()
-	defer d.dataSourceStatusBroadcaster.RemoveListener(statusCh)
+	defer func() {
+		// A broadcast that waits on this full channel blocks RemoveListener. Drain the
+		// channel until RemoveListener closes it, so that the removal always completes.
+		go func() {
+			for range statusCh {
+			}
+		}()
+		d.dataSourceStatusBroadcaster.RemoveListener(statusCh)
+	}()
 	d.lock.Unlock()
 
 	var deadline <-chan time.Time
