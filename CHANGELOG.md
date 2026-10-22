@@ -2,6 +2,22 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.21.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.20.0...v7.21.0) (2026-10-22)
+
+
+### Features
+
+* Allow the Relay Proxy to change the SDK key of a running client ([#457](https://github.com/launchdarkly/go-server-sdk/issues/457)) ([605d1ae](https://github.com/launchdarkly/go-server-sdk/commit/605d1aec5de3b8b4b4869958b2a3d3026c7d6992))
+* Re-enable blocked FDv2 synchronizers when the SDK key changes ([#466](https://github.com/launchdarkly/go-server-sdk/issues/466)) ([2a3ce4c](https://github.com/launchdarkly/go-server-sdk/commit/2a3ce4c49e5934ed37fa0d964fbf58b7107e27f9))
+
+
+### Bug Fixes
+
+* Drop a file path listed more than once instead of treating its entries as duplicate keys ([#477](https://github.com/launchdarkly/go-server-sdk/issues/477)) ([8b5641e](https://github.com/launchdarkly/go-server-sdk/commit/8b5641ecb6cb0b217d62af52dc7a7aa9cc80e4d7))
+* Notify overridden flags when the LaunchDarkly data they depend on changes ([#479](https://github.com/launchdarkly/go-server-sdk/issues/479)) ([ceff41c](https://github.com/launchdarkly/go-server-sdk/commit/ceff41c9dad59ba90abd5d0e5a6beba92da65a6b))
+* Stop the polling synchronizer's goroutines when the synchronizer stops ([#482](https://github.com/launchdarkly/go-server-sdk/issues/482)) ([592d1d3](https://github.com/launchdarkly/go-server-sdk/commit/592d1d3c84204662106680efd4e9eb25d279d435))
+* Update go-sdk-events to v3.8.1 ([#485](https://github.com/launchdarkly/go-server-sdk/issues/485)) ([151ca66](https://github.com/launchdarkly/go-server-sdk/commit/151ca66350b813eadd9ec0d17a61204e7422a160))
+
 ## [7.20.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.19.2...v7.20.0) (2026-10-20)
 
 
