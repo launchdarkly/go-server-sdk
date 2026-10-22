@@ -30,6 +30,7 @@ type DataSourceUpdateSinkImpl struct {
 	currentStatus               intf.DataSourceStatus
 	lastStoreUpdateFailed       bool
 	lock                        sync.Mutex
+	environmentIDLock           sync.RWMutex
 	environmentID               ldvalue.OptionalString
 }
 
@@ -300,11 +301,15 @@ func (d *DataSourceUpdateSinkImpl) computeChangedItemsForFullDataSet(
 
 //nolint:revive // EnvironmentIDProvider method.
 func (d *DataSourceUpdateSinkImpl) GetEnvironmentID() ldvalue.OptionalString {
+	d.environmentIDLock.RLock()
+	defer d.environmentIDLock.RUnlock()
 	return d.environmentID
 }
 
 //nolint:revive // DataSourceUpdateSinkWithEnvironmentID method.
 func (d *DataSourceUpdateSinkImpl) SetEnvironmentID(environmentID ldvalue.OptionalString) {
+	d.environmentIDLock.Lock()
+	defer d.environmentIDLock.Unlock()
 	d.environmentID = environmentID
 }
 
