@@ -29,12 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Pinned to a commit until gh-actions releases the action (see
-      # launchdarkly/gh-actions#123); then pin the check-released-go-deps-v0.1.0
-      # release tag instead.
       # testservice/ is excluded: it is unpublished scaffolding with a
       # committed `replace => ../` of the SDK itself.
       - name: Verify go.mod references released LaunchDarkly component versions
-        uses: launchdarkly/gh-actions/actions/check-released-go-deps@5348acde6c487916234ecd544adc528b99754eac # unreleased
+        uses: launchdarkly/gh-actions/actions/check-released-go-deps@check-released-go-deps-v0.1.0
         with:
           exclude: testservice/
