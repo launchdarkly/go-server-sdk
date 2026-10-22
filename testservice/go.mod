@@ -46,7 +46,7 @@ require (
 	github.com/launchdarkly/ccache v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.14.0 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
-	github.com/launchdarkly/go-sdk-events/v3 v3.8.0 // indirect
+	github.com/launchdarkly/go-sdk-events/v3 v3.8.1 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.2.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
