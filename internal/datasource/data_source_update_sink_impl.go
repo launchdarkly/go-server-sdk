@@ -30,8 +30,7 @@ type DataSourceUpdateSinkImpl struct {
 	currentStatus               intf.DataSourceStatus
 	lastStoreUpdateFailed       bool
 	lock                        sync.Mutex
-	environmentIDLock           sync.RWMutex
-	environmentID               ldvalue.OptionalString
+	environmentID               internal.EnvironmentIDHolder
 }
 
 // NewDataSourceUpdateSinkImpl creates the internal implementation of DataSourceUpdateSink.
@@ -301,16 +300,12 @@ func (d *DataSourceUpdateSinkImpl) computeChangedItemsForFullDataSet(
 
 //nolint:revive // EnvironmentIDProvider method.
 func (d *DataSourceUpdateSinkImpl) GetEnvironmentID() ldvalue.OptionalString {
-	d.environmentIDLock.RLock()
-	defer d.environmentIDLock.RUnlock()
-	return d.environmentID
+	return d.environmentID.Get()
 }
 
 //nolint:revive // DataSourceUpdateSinkWithEnvironmentID method.
 func (d *DataSourceUpdateSinkImpl) SetEnvironmentID(environmentID ldvalue.OptionalString) {
-	d.environmentIDLock.Lock()
-	defer d.environmentIDLock.Unlock()
-	d.environmentID = environmentID
+	d.environmentID.Set(environmentID)
 }
 
 type outageTracker struct {

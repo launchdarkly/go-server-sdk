@@ -789,20 +789,15 @@ func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, ti
 var _ interfaces.DataSourceStatusProvider = (*dataStatusProvider)(nil)
 
 type environmentIDProvider struct {
-	lock          sync.RWMutex
-	environmentID ldvalue.OptionalString
+	environmentID internal.EnvironmentIDHolder
 }
 
 func (e *environmentIDProvider) GetEnvironmentID() ldvalue.OptionalString {
-	e.lock.RLock()
-	defer e.lock.RUnlock()
-	return e.environmentID
+	return e.environmentID.Get()
 }
 
 func (e *environmentIDProvider) SetEnvironmentID(environmentID ldvalue.OptionalString) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	e.environmentID = environmentID
+	e.environmentID.Set(environmentID)
 }
 
 var _ internal.EnvironmentIDProvider = (*environmentIDProvider)(nil)
