@@ -32,6 +32,6 @@ jobs:
       # testservice/ is excluded: it is unpublished scaffolding with a
       # committed `replace => ../` of the SDK itself.
       - name: Verify go.mod references released LaunchDarkly component versions
-        uses: launchdarkly/gh-actions/actions/check-released-go-deps@check-released-go-deps-v0.1.0
+        uses: launchdarkly/gh-actions/actions/check-released-go-deps@check-released-go-deps-v0
         with:
           exclude: testservice/
