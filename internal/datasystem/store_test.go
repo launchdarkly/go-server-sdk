@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
@@ -458,6 +459,150 @@ type fakeCacheDroppingStore struct {
 
 func (f *fakeCacheDroppingStore) DropCache() {
 	f.dropCacheCalls++
+}
+
+// fakeExportingStore is a fakeStore that also accepts a CacheExporter, as the wrapper does.
+type fakeExportingStore struct {
+	fakeStore
+	exporter datastore.CacheExporter
+}
+
+func (f *fakeExportingStore) SetCacheExporter(exporter datastore.CacheExporter) {
+	f.exporter = exporter
+}
+
+func TestStore_CacheExporter(t *testing.T) {
+	newStoreWithPersistence := func(spy *fakeExportingStore, mode subsystems.DataStoreMode) *Store {
+		logCapture := ldlogtest.NewMockLog()
+		flagChangeBroadcaster := internal.NewBroadcaster[interfaces.FlagChangeEvent]()
+		changeSetBroadcaster := internal.NewBroadcaster[subsystems.ChangeSet]()
+		return NewStore(logCapture.Loggers, flagChangeBroadcaster, changeSetBroadcaster).
+			WithPersistence(spy, mode, nil)
+	}
+
+	for _, mode := range []struct {
+		name string
+		mode subsystems.DataStoreMode
+	}{
+		{"read-only", subsystems.DataStoreModeRead},
+		{"read-write", subsystems.DataStoreModeReadWrite},
+	} {
+		t.Run("the store registers itself with a "+mode.name+" persistent store", func(t *testing.T) {
+			spy := &fakeExportingStore{}
+			store := newStoreWithPersistence(spy, mode.mode)
+			defer store.Close()
+
+			assert.Same(t, store, spy.exporter)
+		})
+	}
+
+	t.Run("ExportTo does not write to a read-only persistent store", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeRead)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), true)
+
+		exported, err := store.ExportTo(func(data []ldstoretypes.Collection) error {
+			assert.Fail(t, "a read-only store must not be written")
+			return nil
+		})
+		assert.False(t, exported)
+		assert.NoError(t, err)
+	})
+
+	t.Run("ExportTo passes the data held in the memory store to the write", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), true)
+
+		var written []ldstoretypes.Collection
+		exported, err := store.ExportTo(func(data []ldstoretypes.Collection) error {
+			written = data
+			return nil
+		})
+		assert.True(t, exported)
+		assert.NoError(t, err)
+		requireCollectionsMatch(t, []ldstoretypes.Collection{
+			{
+				Kind: ldstoreimpl.Features(),
+				Items: []ldstoretypes.KeyedItemDescriptor{
+					{Key: "foo", Item: sharedtest.FlagDescriptor(ldbuilders.NewFlagBuilder("foo").Version(1).Build())},
+				},
+			},
+		}, written)
+	})
+
+	t.Run("ExportTo does not write when the data must not be persisted", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), false)
+
+		exported, err := store.ExportTo(func(data []ldstoretypes.Collection) error {
+			assert.Fail(t, "the store must not be written")
+			return nil
+		})
+		assert.False(t, exported)
+		assert.NoError(t, err)
+	})
+
+	t.Run("ExportTo returns the error from the write", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), true)
+
+		writeError := errors.New("store is down")
+		exported, err := store.ExportTo(func(data []ldstoretypes.Collection) error { return writeError })
+		assert.True(t, exported)
+		assert.Equal(t, writeError, err)
+	})
+
+	// A persistent store must receive segments before the flags that reference them.
+	t.Run("ExportTo writes segments before flags", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		builder := subsystems.NewChangeSetBuilder()
+		builder.Start(subsystems.ServerIntent{
+			Payload: subsystems.Payload{ID: "state", Target: 1, Code: subsystems.IntentTransferFull},
+		})
+		builder.AddPut(subsystems.FlagKind, "foo", 1, MinimalFlag("foo", 1))
+		builder.AddPut(subsystems.SegmentKind, "bar", 1, MinimalSegment("bar", 1))
+		changeSet, err := builder.Finish(subsystems.NoSelector())
+		require.NoError(t, err)
+		store.Apply(*changeSet, true)
+
+		var written []ldstoretypes.Collection
+		_, err = store.ExportTo(func(data []ldstoretypes.Collection) error {
+			written = data
+			return nil
+		})
+		require.NoError(t, err)
+		require.Len(t, written, 2)
+		assert.Equal(t, ldstoreimpl.Segments(), written[0].Kind)
+		assert.Equal(t, ldstoreimpl.Features(), written[1].Kind)
+	})
+
+	// An update applied while the write is in progress would otherwise be overwritten by the
+	// older data the write is still sending.
+	t.Run("ExportTo blocks updates until the write completes", func(t *testing.T) {
+		store := newStoreWithPersistence(&fakeExportingStore{}, subsystems.DataStoreModeReadWrite)
+		defer store.Close()
+
+		store.Apply(makeFlagChangeSet(t, subsystems.IntentTransferFull, []string{"foo"}), true)
+
+		exported, err := store.ExportTo(func(data []ldstoretypes.Collection) error {
+			if store.mu.TryLock() {
+				store.mu.Unlock()
+				assert.Fail(t, "an update could have been applied during the write")
+			}
+			return nil
+		})
+		assert.True(t, exported)
+		assert.NoError(t, err)
+	})
 }
 
 func TestStore_CacheDroppedAfterFullPayload(t *testing.T) {

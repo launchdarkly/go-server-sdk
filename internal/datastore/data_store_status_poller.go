@@ -66,6 +66,13 @@ func (m *dataStoreStatusPoller) UpdateAvailability(available bool) {
 	}
 }
 
+// SetRefreshOnRecovery sets whether a recovery status asks the SDK to rewrite its data to the store.
+func (m *dataStoreStatusPoller) SetRefreshOnRecovery(refresh bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.refreshOnRecovery = refresh
+}
+
 // Close shuts down all channels and goroutines used by the manager.
 func (m *dataStoreStatusPoller) Close() {
 	m.closeOnce.Do(func() {

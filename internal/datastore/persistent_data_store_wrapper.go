@@ -36,6 +36,8 @@ type persistentDataStoreWrapper struct {
 	deserializeOptions datakinds.DeserializeOptions
 	inited             bool
 	initLock           sync.RWMutex
+	exporter           CacheExporter
+	exporterLock       sync.RWMutex
 }
 
 const initCheckedKey = "$initChecked"
@@ -303,9 +305,36 @@ func (w *persistentDataStoreWrapper) DropCache() {
 	}
 }
 
+// SetCacheExporter registers the store whose data the wrapper writes to the database after an outage.
+func (w *persistentDataStoreWrapper) SetCacheExporter(exporter CacheExporter) {
+	w.exporterLock.Lock()
+	defer w.exporterLock.Unlock()
+	w.exporter = exporter
+	// The wrapper makes the write-back itself now, so the SDK does not need to repeat it.
+	w.statusPoller.SetRefreshOnRecovery(false)
+}
+
+func (w *persistentDataStoreWrapper) getCacheExporter() CacheExporter {
+	w.exporterLock.RLock()
+	defer w.exporterLock.RUnlock()
+	return w.exporter
+}
+
 func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 	if !w.core.IsStoreAvailable() {
 		return false
+	}
+	if exporter := w.getCacheExporter(); exporter != nil {
+		written, err := exporter.ExportTo(w.initCore)
+		if err != nil {
+			// Stay in the failed state, and try again on the next poll.
+			w.loggers.Errorf("Tried to write exported data to persistent store after an outage, but failed: %s", err)
+			return false
+		}
+		if written {
+			w.loggers.Warn("Successfully updated persistent store from exported data")
+		}
+		return true
 	}
 	c := w.cache.Load()
 	if c == nil || w.cacheTTL >= 0 {
@@ -325,15 +354,14 @@ func (w *persistentDataStoreWrapper) pollAvailabilityAfterOutage() bool {
 			}
 		}
 	}
-	err := w.initCore(allData)
-	if err != nil {
-		// initCore has already put us back into the failed state. Just log a note.
+	if err := w.initCore(allData); err != nil {
+		// Stay in the failed state, and try again on the next poll.
 		w.loggers.Errorf("Tried to write cached data to persistent store after a store outage, but failed: %s", err)
-	} else {
-		w.loggers.Warn("Successfully updated persistent store from cached data")
-		// Note that w.inited should have already been set when InitInternal was originally called -
-		// in infinite cache mode, we set it even if the database update failed.
+		return false
 	}
+	w.loggers.Warn("Successfully updated persistent store from cached data")
+	// Note that w.inited should have already been set when InitInternal was originally called -
+	// in infinite cache mode, we set it even if the database update failed.
 	return true
 }
 
