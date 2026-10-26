@@ -5,6 +5,7 @@ import (
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/toposort"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/memorystorev2"
@@ -176,6 +177,11 @@ func (s *Store) WithPersistence(persistent subsystems.DataStore, mode subsystems
 	}
 	if dropper, ok := persistent.(interface{ DropCache() }); ok {
 		s.cacheDropper = dropper
+	}
+	if sink, ok := persistent.(interface {
+		SetCacheExporter(datastore.CacheExporter)
+	}); ok {
+		sink.SetCacheExporter(s)
 	}
 
 	s.active = s.persistentStore.impl
@@ -409,9 +415,20 @@ func (s *Store) Commit() error {
 	defer s.mu.RUnlock()
 
 	if s.shouldPersist() {
-		return s.persistentStore.impl.Init(s.memoryStore.GetAllKinds())
+		return s.persistentStore.impl.Init(toposort.Sort(s.memoryStore.GetAllKinds()))
 	}
 	return nil
+}
+
+// ExportTo passes the data in the memory store to write, and reports whether it did.
+func (s *Store) ExportTo(write func([]ldstoretypes.Collection) error) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if !s.shouldPersist() {
+		return false, nil
+	}
+	return true, write(toposort.Sort(s.memoryStore.GetAllKinds()))
 }
 
 func (s *Store) getActive() subsystems.ReadOnlyStore {
