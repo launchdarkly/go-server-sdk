@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.21.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.0...v7.21.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* Prevent WaitFor from hanging past its timeout when status updates are queued ([#475](https://github.com/launchdarkly/go-server-sdk/issues/475)) ([7a2fa47](https://github.com/launchdarkly/go-server-sdk/commit/7a2fa471d2dab76784057680d1e41a56ad0141d5))
+* Rewrite the persistent store from the in-memory store after an outage ([#480](https://github.com/launchdarkly/go-server-sdk/issues/480)) ([218b905](https://github.com/launchdarkly/go-server-sdk/commit/218b9058c0882863884d6f2e4a61df61b05e9a13))
+
 ## [7.21.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.20.0...v7.21.0) (2026-10-22)
 
 
