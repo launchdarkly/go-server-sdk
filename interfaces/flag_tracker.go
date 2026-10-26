@@ -27,12 +27,18 @@ type FlagTracker interface {
 	// If the SDK is only reading flags from a database (ldcomponents.ExternalUpdatesOnly) then it cannot
 	// know when there is a change, because flags are read on an as-needed basis.
 	//
-	// It is the caller's responsibility to consume values from the channel. Allowing values to accumulate in
-	// the channel can cause an SDK goroutine to be blocked.
+	// It is the caller's responsibility to consume values from the channel. If values accumulate in
+	// the channel, an SDK goroutine blocks. While it is blocked, the SDK does not apply flag updates,
+	// does not notify any listener, and Close does not return. See RemoveFlagChangeListener for how
+	// to remove a listener safely.
 	AddFlagChangeListener() <-chan FlagChangeEvent
 
 	// RemoveFlagChangeListener unsubscribes from notifications of feature flag changes. The specified channel
 	// must be one that was previously returned by AddFlagChangeListener(); otherwise, the method has no effect.
+	//
+	// This method can block if unread values are queued on the channel. Do not call it from the
+	// goroutine that consumes the channel. To remove a listener safely, call this method from a
+	// different goroutine, and continue to consume the channel until it is closed.
 	RemoveFlagChangeListener(listener <-chan FlagChangeEvent)
 
 	// AddFlagValueChangeListener subscribes for notifications of changes in a specific feature flag's value
@@ -50,6 +56,10 @@ type FlagTracker interface {
 	//
 	// The defaultValue parameter is used if the flag cannot be evaluated; it is the same as the corresponding
 	// parameter in LDClient.JSONVariation().
+	//
+	// It is the caller's responsibility to consume values from the channel. If values accumulate in
+	// the channel, an SDK goroutine blocks, with the same effects as for AddFlagChangeListener. See
+	// RemoveFlagValueChangeListener for how to remove a listener safely.
 	AddFlagValueChangeListener(
 		flagKey string,
 		context ldcontext.Context,
@@ -59,6 +69,10 @@ type FlagTracker interface {
 	// RemoveFlagValueChangeListener unsubscribes from notifications of feature flag value changes. The
 	// specified channel must be one that was previously returned by AddFlagValueChangeListener(); otherwise,
 	// the method has no effect.
+	//
+	// This method can block if unread values are queued on the channel. Do not call it from the
+	// goroutine that consumes the channel. To remove a listener safely, call this method from a
+	// different goroutine, and continue to consume the channel until it is closed.
 	RemoveFlagValueChangeListener(listener <-chan FlagValueChangeEvent)
 }
 

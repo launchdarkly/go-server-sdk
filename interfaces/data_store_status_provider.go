@@ -52,13 +52,18 @@ type DataStoreStatusProvider interface {
 	// If the data store implementation does not support status tracking, such as if you are using the default
 	// in-memory store rather than a persistent store, it will return a channel that never receives values.
 	//
-	// It is the caller's responsibility to consume values from the channel. Allowing values to accumulate in
-	// the channel can cause an SDK goroutine to be blocked. If you no longer need the channel, call
-	// RemoveStatusListener.
+	// It is the caller's responsibility to consume values from the channel. If values accumulate in
+	// the channel, an SDK goroutine blocks. While it is blocked, the SDK does not notify any status
+	// listener, and other SDK operations, including Close, can block. If you no longer need the
+	// channel, call RemoveStatusListener. See RemoveStatusListener for how to remove a listener safely.
 	AddStatusListener() <-chan DataStoreStatus
 
 	// RemoveStatusListener unsubscribes from notifications of status changes. The specified channel must be
 	// one that was previously returned by AddStatusListener(); otherwise, the method has no effect.
+	//
+	// This method can block if unread values are queued on the channel. Do not call it from the
+	// goroutine that consumes the channel. To remove a listener safely, call this method from a
+	// different goroutine, and continue to consume the channel until it is closed.
 	RemoveStatusListener(<-chan DataStoreStatus)
 }
 
