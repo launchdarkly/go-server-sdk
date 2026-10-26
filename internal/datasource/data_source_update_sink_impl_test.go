@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
+	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
@@ -386,5 +388,27 @@ func TestDataSourceOutageLoggingTimeout(t *testing.T) {
 			assert.Contains(t, message, "UNKNOWN (1 time)")
 			assert.Contains(t, message, "ERROR_RESPONSE(500) (1 time)")
 		})
+	})
+}
+
+func TestDataSourceUpdateSinkImplEnvironmentIDConcurrentAccess(t *testing.T) {
+	dataSourceUpdateSinkImplTest(func(p dataSourceUpdateSinkImplTestParams) {
+		const iterations = 1000
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for i := range iterations {
+				p.dataSourceUpdates.SetEnvironmentID(ldvalue.NewOptionalString(fmt.Sprintf("env-%d", i)))
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for range iterations {
+				_ = p.dataSourceUpdates.GetEnvironmentID()
+			}
+		}()
+		wg.Wait()
+		assert.Equal(t, ldvalue.NewOptionalString(fmt.Sprintf("env-%d", iterations-1)), p.dataSourceUpdates.GetEnvironmentID())
 	})
 }
