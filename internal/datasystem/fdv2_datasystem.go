@@ -425,6 +425,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 
 			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.synchronizers.currentIndex(), sync.Name())
+			f.restartStatusClock()
 			resultChan := sync.Sync(f.store)
 			action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
 
@@ -453,6 +454,12 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				delay := f.synchronizers.parkCurrent()
 				f.loggers.Warnf("Synchronizer %s is backing off for %s after an unexpected error (%s)",
 					sync.Name(), delay, f.getStatus().LastError)
+				// Always wait a minimal amount after parking before starting anything else.
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(f.synchronizers.failoverDelay()):
+				}
 				f.synchronizers.next()
 				continue
 			case syncRestart:
@@ -713,6 +720,13 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 	if changed {
 		f.broadcasters.dataSourceStatus.Broadcast(f.status)
 	}
+}
+
+// restartStatusClock sets the time the current status has been held since to now.
+func (f *FDv2) restartStatusClock() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.status.StateSince = time.Now()
 }
 
 func (f *FDv2) getStatus() interfaces.DataSourceStatus {

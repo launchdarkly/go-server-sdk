@@ -219,6 +219,32 @@ func TestFDv2RecoveryTakesPrecedenceOverFallback(t *testing.T) {
 	assert.Equal(t, syncRecover, system.conditionAction(status))
 }
 
+// After a park the data system waits a jittered second before starting the next synchronizer, so
+// that a fleet-wide failure does not restart every instance at the same moment.
+func TestFDv2WaitsFailoverDelayAfterParking(t *testing.T) {
+	failing := newFakeSynchronizer("failing")
+	next := newFakeSynchronizer("next")
+
+	system := makeFallbackTestFDv2(t, failing, next)
+	t.Cleanup(func() { _ = system.Stop() })
+
+	failing.results <- subsystems.DataSynchronizerResult{
+		State:             interfaces.DataSourceStateInterrupted,
+		UnexpectedFailure: true,
+		Error: interfaces.DataSourceErrorInfo{
+			Kind:       interfaces.DataSourceErrorKindErrorResponse,
+			StatusCode: 401,
+		},
+	}
+
+	system.Start(make(chan struct{}))
+	require.True(t, failing.wasStarted(5*time.Second), "first synchronizer should start")
+
+	start := time.Now()
+	require.True(t, next.wasStarted(5*time.Second), "second synchronizer should start")
+	assert.Greater(t, time.Since(start), 400*time.Millisecond)
+}
+
 // TestFDv2ParksSynchronizerOnUnexpectedFailure checks that an unexpected failure moves the
 // data system on immediately. The startup fallback window is ten seconds, so a move inside
 // two seconds can only have come from the failure itself.

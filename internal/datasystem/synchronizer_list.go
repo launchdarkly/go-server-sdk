@@ -15,6 +15,7 @@ type synchronizerBuilder = func() (subsystems.DataSynchronizer, error)
 const (
 	parkInitialDelay = 5 * time.Minute
 	parkMaxDelay     = 1 * time.Hour
+	afterParkDelay   = 1 * time.Second
 )
 
 var errNoCurrentSynchronizer = errors.New("no current synchronizer")
@@ -141,6 +142,11 @@ func (l *synchronizerList) unparkAll() {
 	for i := range l.slots {
 		l.slots[i].parkedUntil = time.Time{}
 	}
+}
+
+// failoverDelay returns the delay to wait before starting another synchronizer after a park.
+func (l *synchronizerList) failoverDelay() time.Duration {
+	return afterParkDelay - time.Duration(l.rng.Int63n(int64(afterParkDelay/2)))
 }
 
 // resetCurrentBackoff clears the current slot's park escalation.
