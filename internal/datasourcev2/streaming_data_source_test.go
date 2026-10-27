@@ -577,6 +577,44 @@ func TestStreamingProcessorReportsResetOnAQuietStream(t *testing.T) {
 	})
 }
 
+// A malformed event ends the healthy period. The reset is not reported while the stream reconnects, and a new
+// healthy period starts after the reconnect.
+func TestStreamingProcessorRestartsHealthyPeriodAfterMalformedEvent(t *testing.T) {
+	upToDate := func() *ldservicesv2.StreamingProtocol {
+		return ldservicesv2.NewStreamingProtocol().
+			WithIntent(subsystems.ServerIntent{
+				Payload: subsystems.Payload{ID: "up-to-date", Code: subsystems.IntentNone, Reason: "initial-state"},
+			})
+	}
+
+	// Each handler sends its intent on its first connection, so the reconnect also reports Valid.
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(upToDate())
+	reconnectHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(upToDate())
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+
+	httphelpers.WithServer(httphelpers.SequentialHandler(streamHandler, reconnectHandler), func(ts *httptest.Server) {
+		// The reset interval is shorter than the default reconnect delay.
+		sp := NewStreamProcessor(sharedtest.BasicClientContext(), datasource.StreamConfig{URI: ts.URL})
+		sp.resetInterval = 100 * time.Millisecond
+		defer sp.Close()
+
+		resultChan := sp.Sync(dd)
+		require.Equal(t, interfaces.DataSourceStateValid, (<-resultChan).State)
+
+		// Send a malformed event to make the stream restart.
+		stream.Send(httphelpers.SSEEvent{Event: putObjectEvent, Data: `{"data": }`})
+		require.Equal(t, interfaces.DataSourceErrorKindInvalidData, (<-resultChan).Error.Kind)
+
+		// The next result should be the reconnect, and then the reset for the new healthy period.
+		reconnected := th.RequireValue(t, resultChan, 5*time.Second, "expected a result after the reconnect")
+		assert.Equal(t, interfaces.DataSourceStateValid, reconnected.State)
+		assert.False(t, reconnected.ResetExtendedBackoff)
+
+		reset := th.RequireValue(t, resultChan, time.Second, "expected a reset result")
+		assert.True(t, reset.ResetExtendedBackoff)
+	})
+}
+
 func TestStreamingDataSourceHandlesUpToDateAndSubsequentChanges(t *testing.T) {
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{

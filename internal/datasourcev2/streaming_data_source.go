@@ -216,6 +216,7 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			gotMalformedEvent := func(event es.Event, err error) {
 				// The protocol should "forget" anything that happens upon receiving an error.
 				changeSetBuilder = subsystems.NewChangeSetBuilder().WithDeserializeOptions(sp.deserializeOptions)
+				sp.noteUnhealthy()
 				sp.reportMalformedEvent(event, err, environmentID, resultChan)
 				shouldRestart = true // scenario 1 in error handling comments at top of file
 			}
@@ -517,6 +518,13 @@ func (sp *StreamProcessor) healthyLongEnough() bool {
 	sp.connectionAttemptLock.Lock()
 	defer sp.connectionAttemptLock.Unlock()
 	return !sp.healthySince.IsZero() && time.Since(sp.healthySince) >= sp.resetInterval
+}
+
+// noteUnhealthy ends the healthy period.
+func (sp *StreamProcessor) noteUnhealthy() {
+	sp.connectionAttemptLock.Lock()
+	defer sp.connectionAttemptLock.Unlock()
+	sp.healthySince = time.Time{}
 }
 
 func (sp *StreamProcessor) logConnectionStarted() {
