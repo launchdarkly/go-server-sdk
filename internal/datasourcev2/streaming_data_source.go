@@ -165,6 +165,7 @@ func (sp *StreamProcessor) reportMalformedEvent(
 	}
 }
 
+//nolint:gocyclo // TODO: refactor to make this function simpler.
 func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- subsystems.DataSynchronizerResult) {
 	// Consume remaining Events and Errors so we can garbage collect
 	defer func() {
