@@ -548,15 +548,15 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 	})
 }
 
-// Healthy operation is measured from the first Valid result on a newly established stream. No
-// time has elapsed at that point, so the reset can only ride on a later result.
-func TestStreamingProcessorSignalsResetAfterHealthyOperation(t *testing.T) {
+// A stream that goes quiet after its first Valid result still reports the reset when the
+// threshold is reached, with no changeSet to carry.
+func TestStreamingProcessorReportsResetOnAQuietStream(t *testing.T) {
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{
 			Payload: subsystems.Payload{ID: "up-to-date", Code: subsystems.IntentNone, Reason: "initial-state"},
 		})
 
-	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
 	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
 	handler, _ := httphelpers.RecordingHandler(streamHandler)
 
@@ -569,21 +569,11 @@ func TestStreamingProcessorSignalsResetAfterHealthyOperation(t *testing.T) {
 
 		first := <-resultChan
 		require.Equal(t, interfaces.DataSourceStateValid, first.State)
-		assert.False(t, first.ResetExtendedBackoff)
-
-		time.Sleep(50 * time.Millisecond)
-
-		protocol.WithPutObjects([]subsystems.PutObject{{
-			Kind:    "flag",
-			Key:     "test-flag",
-			Version: 1,
-			Object:  json.RawMessage(`{"key": "test-flag", "version": 1}`),
-		}})
-		protocol.WithTransferred("state", 1)
-		protocol.Enqueue(stream)
+		require.False(t, first.ResetExtendedBackoff)
 
 		second := <-resultChan
 		assert.True(t, second.ResetExtendedBackoff)
+		assert.Nil(t, second.ChangeSet)
 	})
 }
 

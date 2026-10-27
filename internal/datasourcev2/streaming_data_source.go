@@ -77,7 +77,6 @@ type StreamProcessor struct {
 	isClosed                   atomic.Bool
 	halt                       chan struct{}
 	healthySince               time.Time // guarded by connectionAttemptLock
-	resetSignalled             bool      // guarded by connectionAttemptLock
 	resetInterval              time.Duration
 }
 
@@ -184,6 +183,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 	// can serve the server-provided data while FDv1 takes over.
 	fallbackRequested := false
 
+	// Fires when healthy operation has lasted the reset interval.
+	var resetThreshold <-chan time.Time
+
 	for {
 		select {
 		case event, ok := <-stream.Events:
@@ -239,11 +241,13 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 						break
 					}
 
+					if sp.noteHealthy() {
+						resetThreshold = time.After(sp.resetInterval)
+					}
 					resultChan <- subsystems.DataSynchronizerResult{
-						State:                interfaces.DataSourceStateValid,
-						EnvironmentID:        environmentID,
-						FallbackToFDv1:       fallbackRequested,
-						ResetExtendedBackoff: sp.noteHealthy(),
+						State:          interfaces.DataSourceStateValid,
+						EnvironmentID:  environmentID,
+						FallbackToFDv1: fallbackRequested,
 					}
 					payloadApplied = true
 					break
@@ -307,12 +311,14 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 					break
 				}
 
+				if sp.noteHealthy() {
+					resetThreshold = time.After(sp.resetInterval)
+				}
 				resultChan <- subsystems.DataSynchronizerResult{
-					ChangeSet:            changeSet,
-					State:                interfaces.DataSourceStateValid,
-					EnvironmentID:        environmentID,
-					FallbackToFDv1:       fallbackRequested,
-					ResetExtendedBackoff: sp.noteHealthy(),
+					ChangeSet:      changeSet,
+					State:          interfaces.DataSourceStateValid,
+					EnvironmentID:  environmentID,
+					FallbackToFDv1: fallbackRequested,
 				}
 				payloadApplied = true
 
@@ -331,6 +337,15 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 			if fallbackRequested && payloadApplied {
 				stream.Close()
 				return
+			}
+
+		case <-resetThreshold:
+			if sp.healthyLongEnough() {
+				resultChan <- subsystems.DataSynchronizerResult{
+					State:                interfaces.DataSourceStateValid,
+					EnvironmentID:        environmentID,
+					ResetExtendedBackoff: true,
+				}
 			}
 
 		case <-sp.halt:
@@ -485,20 +500,22 @@ func (sp *StreamProcessor) subscribe(ds subsystems.DataSelector, resultChan chan
 	sp.consumeStream(stream, resultChan)
 }
 
-// noteHealthy starts the healthy-operation measurement and reports whether the reset threshold
-// has just been met.
+// noteHealthy records healthy operation, and reports whether this call began the period.
 func (sp *StreamProcessor) noteHealthy() bool {
 	sp.connectionAttemptLock.Lock()
 	defer sp.connectionAttemptLock.Unlock()
-	if sp.healthySince.IsZero() {
-		sp.healthySince = time.Now()
+	if !sp.healthySince.IsZero() {
 		return false
 	}
-	if sp.resetSignalled || time.Since(sp.healthySince) < sp.resetInterval {
-		return false
-	}
-	sp.resetSignalled = true
+	sp.healthySince = time.Now()
 	return true
+}
+
+// healthyLongEnough reports whether healthy operation has lasted the reset interval.
+func (sp *StreamProcessor) healthyLongEnough() bool {
+	sp.connectionAttemptLock.Lock()
+	defer sp.connectionAttemptLock.Unlock()
+	return !sp.healthySince.IsZero() && time.Since(sp.healthySince) >= sp.resetInterval
 }
 
 func (sp *StreamProcessor) logConnectionStarted() {
@@ -506,7 +523,6 @@ func (sp *StreamProcessor) logConnectionStarted() {
 	defer sp.connectionAttemptLock.Unlock()
 	sp.connectionAttemptStartTime = ldtime.UnixMillisNow()
 	sp.healthySince = time.Time{}
-	sp.resetSignalled = false
 }
 
 func (sp *StreamProcessor) logConnectionResult(success bool) {
