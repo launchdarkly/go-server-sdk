@@ -2,6 +2,7 @@ package datasystem
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -242,6 +243,23 @@ func TestFDv2WaitsFailoverDelayAfterParking(t *testing.T) {
 	require.True(t, failing.wasStarted(5*time.Second), "first synchronizer should start")
 
 	start := time.Now()
+	require.True(t, next.wasStarted(5*time.Second), "second synchronizer should start")
+	assert.Greater(t, time.Since(start), 400*time.Millisecond)
+}
+
+// A synchronizer that fails to build is parked like any other unexpected failure, so the same
+// failover delay follows.
+func TestFDv2WaitsFailoverDelayAfterBuildFailure(t *testing.T) {
+	next := newFakeSynchronizer("next")
+
+	system := makeFallbackTestFDv2(t, newFakeSynchronizer("unbuildable"), next)
+	t.Cleanup(func() { _ = system.Stop() })
+	system.synchronizers.slots[0].build = func() (subsystems.DataSynchronizer, error) {
+		return nil, errors.New("build failed")
+	}
+
+	start := time.Now()
+	system.Start(make(chan struct{}))
 	require.True(t, next.wasStarted(5*time.Second), "second synchronizer should start")
 	assert.Greater(t, time.Since(start), 400*time.Millisecond)
 }

@@ -420,6 +420,9 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				delay := f.synchronizers.parkCurrent()
 				f.loggers.Errorf("Failed to build synchronizer at index %d, backing off for %s: %v",
 					f.synchronizers.currentIndex(), delay, err)
+				if !f.waitFailoverDelay(ctx) {
+					return
+				}
 				f.synchronizers.next()
 				continue
 			}
@@ -455,10 +458,8 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				f.loggers.Warnf("Synchronizer %s is backing off for %s after an unexpected error (%s)",
 					sync.Name(), delay, f.getStatus().LastError)
 				// Always wait a minimal amount after parking before starting anything else.
-				select {
-				case <-ctx.Done():
+				if !f.waitFailoverDelay(ctx) {
 					return
-				case <-time.After(f.synchronizers.failoverDelay()):
 				}
 				f.synchronizers.next()
 				continue
@@ -513,6 +514,16 @@ func (f *FDv2) conditionAction(status interfaces.DataSourceStatus) syncAction {
 		return syncFallback
 	}
 	return syncNone
+}
+
+// waitFailoverDelay waits a short, jittered delay after a park. It returns false if ctx ends first.
+func (f *FDv2) waitFailoverDelay(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(f.synchronizers.failoverDelay()):
+		return true
+	}
 }
 
 func (f *FDv2) consumeSynchronizerResults(
