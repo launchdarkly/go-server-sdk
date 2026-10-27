@@ -554,7 +554,8 @@ func (f *FDv2) consumeSynchronizerResults(
 
 			switch result.State {
 			case interfaces.DataSourceStateValid:
-				if result.ChangeSet != nil && f.store.Apply(*result.ChangeSet, true) {
+				applied := result.ChangeSet != nil && f.store.Apply(*result.ChangeSet, true)
+				if applied {
 					f.dataApplied.Set(true)
 				}
 
@@ -562,9 +563,11 @@ func (f *FDv2) consumeSynchronizerResults(
 				// the signal must observe the updated status.
 				f.UpdateStatus(result.State, result.Error)
 
-				f.readyOnce.Do(func() {
-					close(closeWhenReady)
-				})
+				if applied && result.ChangeSet.IntentCode() == subsystems.IntentTransferFull {
+					f.readyOnce.Do(func() {
+						close(closeWhenReady)
+					})
+				}
 			case interfaces.DataSourceStateInterrupted:
 				f.UpdateStatus(result.State, result.Error)
 			}

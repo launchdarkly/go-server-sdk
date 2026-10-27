@@ -169,6 +169,7 @@ func TestFDv2ResetSignalClearsParkEscalation(t *testing.T) {
 
 	only.results <- subsystems.DataSynchronizerResult{
 		State:                interfaces.DataSourceStateValid,
+		ChangeSet:            subsystems.NewChangeSetBuilder().Empty(subsystems.NewSelector("state", 1)),
 		ResetExtendedBackoff: true,
 	}
 
