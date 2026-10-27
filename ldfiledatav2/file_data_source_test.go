@@ -384,7 +384,7 @@ func TestInitializerBuildAndFetchLeaksNoGoroutines(t *testing.T) {
 	})
 }
 
-func TestSyncReturnsOffWhenReloaderFactoryFails(t *testing.T) {
+func TestSyncReportsUnexpectedFailureWhenReloaderFactoryFails(t *testing.T) {
 	th.WithTempFileData([]byte(`{"flags": {"my-flag": {"on": true}}}`), func(filename string) {
 		f := func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error {
 			return errors.New("no watches available")
@@ -395,7 +395,7 @@ func TestSyncReturnsOffWhenReloaderFactoryFails(t *testing.T) {
 		assert.NoError(t, err)
 		defer sync.Close()
 
-		// The failure must surface as an Off result rather than a hang.
+		// The failure must surface as an unexpected failure rather than a hang.
 		results := make(chan subsystems.DataSynchronizerResult, 1)
 		go func() {
 			resultChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
@@ -405,7 +405,8 @@ func TestSyncReturnsOffWhenReloaderFactoryFails(t *testing.T) {
 		}()
 		select {
 		case result := <-results:
-			assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+			assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+			assert.True(t, result.UnexpectedFailure)
 		case <-time.After(5 * time.Second):
 			require.FailNow(t, "Sync hung after the reloader factory failed")
 		}
@@ -428,7 +429,8 @@ func TestSecondSyncIsRejected(t *testing.T) {
 		secondChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
 		select {
 		case second := <-secondChan:
-			assert.Equal(t, interfaces.DataSourceStateOff, second.State)
+			assert.Equal(t, interfaces.DataSourceStateInterrupted, second.State)
+			assert.True(t, second.UnexpectedFailure)
 		case <-time.After(5 * time.Second):
 			require.FailNow(t, "second Sync produced no result")
 		}
