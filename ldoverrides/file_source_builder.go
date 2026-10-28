@@ -2,6 +2,8 @@ package ldoverrides
 
 import (
 	"fmt"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
@@ -148,15 +150,7 @@ func (b *FileSourceBuilder) Build(context subsystems.ClientContext) (subsystems.
 
 	// A path listed more than once would make every entry of that file a duplicate of itself, so
 	// the repeats are dropped and the first occurrence keeps its place in the order.
-	uniquePaths := make([]string, 0, len(paths))
-	seen := make(map[string]struct{}, len(paths))
-	for _, p := range paths {
-		if _, ok := seen[p]; ok {
-			continue
-		}
-		seen[p] = struct{}{}
-		uniquePaths = append(uniquePaths, p)
-	}
+	uniquePaths := uniqueFilePaths(paths, runtime.GOOS == "windows")
 	if len(uniquePaths) != len(paths) {
 		loggers.Warn("File paths list the same file more than once; the repeats are ignored")
 		paths = uniquePaths
@@ -175,4 +169,24 @@ func (b *FileSourceBuilder) Build(context subsystems.ClientContext) (subsystems.
 		pollInterval:          pollInterval,
 		loggers:               loggers,
 	}, nil
+}
+
+// uniqueFilePaths returns the paths without repeats, each first occurrence in its place. Where
+// file names ignore case, as on Windows, a path repeated in a different case names the same file
+// and is a repeat too.
+func uniqueFilePaths(paths []string, ignoreCase bool) []string {
+	unique := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		comparable := p
+		if ignoreCase {
+			comparable = strings.ToLower(p)
+		}
+		if _, ok := seen[comparable]; ok {
+			continue
+		}
+		seen[comparable] = struct{}{}
+		unique = append(unique, p)
+	}
+	return unique
 }
