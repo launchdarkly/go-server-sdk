@@ -185,6 +185,8 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		// A LaunchDarkly change must also notify the flags whose overrides depend on it.
 		store.setExternalDependencies(fdv2.overrideLayer)
 		fdv2.overrideSource = cfg.OverrideSource
+	} else if cfg.OverrideSource != nil {
+		fdv2.loggers.Warn("Offline mode is enabled; the override source is not started and no overrides are served")
 	}
 
 	if cfg.Store != nil && !disabled {

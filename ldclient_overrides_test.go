@@ -504,3 +504,37 @@ func TestWrongTypeResultOfOverriddenFlagStaysMarked(t *testing.T) {
 	assert.Equal(t, ldvalue.Bool(false), record.Value)
 	assert.False(t, record.Variation.IsDefined())
 }
+
+func makeOfflineClient(t *testing.T, dataSystem *ldcomponents.DataSystemConfigurationBuilder, mockLog *ldlogtest.MockLog) *LDClient {
+	t.Helper()
+	config := Config{
+		Offline:    true,
+		Logging:    ldcomponents.Logging().Loggers(mockLog.Loggers),
+		DataSystem: dataSystem,
+	}
+	client, err := MakeCustomClient(testSdkKey, config, time.Duration(0))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	return client
+}
+
+func TestOverrideSourceIsNotStartedAndAWarningIsLoggedWhenOffline(t *testing.T) {
+	source := sharedtest.NewTestOverrideSource(
+		overrideTestFlagData(singleValueFlag("overridden-flag", ldvalue.Bool(true))))
+	mockLog := ldlogtest.NewMockLog()
+	client := makeOfflineClient(t, ldcomponents.DataSystem().Custom().Overrides(source), mockLog)
+
+	assert.False(t, source.IsStarted())
+	assert.Equal(t, 1, countWarningsContaining(mockLog,
+		"Offline mode is enabled; the override source is not started and no overrides are served"))
+	value, err := client.BoolVariation("overridden-flag", evalTestUser, false)
+	require.NoError(t, err)
+	assert.False(t, value)
+}
+
+func TestNoOverrideWarningIsLoggedWhenOfflineWithoutAnOverrideSource(t *testing.T) {
+	mockLog := ldlogtest.NewMockLog()
+	makeOfflineClient(t, ldcomponents.DataSystem().Custom(), mockLog)
+
+	assert.Equal(t, 0, countWarningsContaining(mockLog, "override source"))
+}
