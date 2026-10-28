@@ -1,6 +1,7 @@
 package ldoverrides
 
 import (
+	"errors"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"os"
@@ -321,6 +322,33 @@ func TestFileSourceWatchingModeReloadsOnChange(t *testing.T) {
 	writeFile(t, path, `{}`)
 	flags = flagsByKey(t, sink.requireSnapshot(t))
 	require.Len(t, flags, 0)
+}
+
+func TestFileSourceWatchingModeFallsBackToPollingWhenTheWatcherCannotBeCreated(t *testing.T) {
+	// Without change detection a later edit would never take effect. The source polls instead, at
+	// no less than the minimum poll interval, which watching mode otherwise ignores.
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	writeFile(t, path, `{"flagValues": {"flag1": true}}`)
+
+	mockLog := ldlogtest.NewMockLog()
+	context := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
+	source, err := FileSource().FilePaths(path).ChangeDetection(Watching).PollInterval(time.Millisecond).Build(context)
+	require.NoError(t, err)
+	source.(*fileOverrideSource).watchFiles = func([]string, ldlog.Loggers, func(), <-chan struct{}) error {
+		return errors.New("watcher unavailable")
+	}
+	sink := newCapturingSink()
+	source.Start(sink)
+	t.Cleanup(func() { _ = source.Close() })
+	sink.requireSnapshot(t)
+
+	writeFile(t, path, `{"flagValues": {"flag1": true, "flag2": false}}`)
+	newTime := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(path, newTime, newTime))
+	flags := flagsByKey(t, sink.requireSnapshot(t))
+	require.Len(t, flags, 2)
+	mockLog.AssertMessageMatch(t, true, ldlog.Error,
+		"Unable to watch override files; polling them instead every 1s: watcher unavailable")
 }
 
 func TestFileSourcePollingModeReloadsOnChange(t *testing.T) {
