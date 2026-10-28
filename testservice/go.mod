@@ -44,7 +44,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/launchdarkly/ccache v1.1.0 // indirect
-	github.com/launchdarkly/eventsource v1.14.0 // indirect
+	github.com/launchdarkly/eventsource v1.14.2 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/launchdarkly/go-sdk-events/v3 v3.8.1 // indirect
 	github.com/launchdarkly/go-semver v1.0.3 // indirect
