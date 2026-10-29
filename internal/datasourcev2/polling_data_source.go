@@ -17,7 +17,7 @@ const (
 	pollingErrorContext     = "on polling request"
 	pollingWillRetryMessage = "will retry at next scheduled poll interval"
 
-	// Consecutive successful polls that clear the extended backoff.
+	// Consecutive successful polls required to report ResetThresholdMet.
 	pollResetThreshold = 2
 )
 
@@ -128,7 +128,7 @@ func (pp *PollingProcessor) Sync(ds subsystems.DataSelector) <-chan subsystems.D
 				if err == nil {
 					consecutiveSuccesses++
 					if consecutiveSuccesses == pollResetThreshold {
-						result.ResetExtendedBackoff = true
+						result.ResetThresholdMet = true
 					}
 				} else {
 					consecutiveSuccesses = 0

@@ -64,8 +64,8 @@ type DataSynchronizerResult struct {
 	// UnexpectedFailure is true when the reported failure will not resolve on retry, such as an HTTP 401.
 	UnexpectedFailure bool
 
-	// ResetExtendedBackoff is true when the synchronizer has met its reset threshold.
-	ResetExtendedBackoff bool
+	// ResetThresholdMet is true when the synchronizer has met its reset threshold.
+	ResetThresholdMet bool
 }
 
 // DataSynchronizer represents a component capable of obtaining a Basis and subsequent delta updates asynchronously.

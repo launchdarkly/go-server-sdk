@@ -169,9 +169,9 @@ func TestFDv2ResetSignalClearsParkEscalation(t *testing.T) {
 	system.synchronizers.slots[0].parkAttempts = 2
 
 	only.results <- subsystems.DataSynchronizerResult{
-		State:                interfaces.DataSourceStateValid,
-		ChangeSet:            subsystems.NewChangeSetBuilder().Empty(subsystems.NewSelector("state", 1)),
-		ResetExtendedBackoff: true,
+		State:             interfaces.DataSourceStateValid,
+		ChangeSet:         subsystems.NewChangeSetBuilder().Empty(subsystems.NewSelector("state", 1)),
+		ResetThresholdMet: true,
 	}
 
 	ready := make(chan struct{})

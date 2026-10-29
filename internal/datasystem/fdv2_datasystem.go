@@ -559,7 +559,7 @@ func (f *FDv2) consumeSynchronizerResults(
 				f.environmentIDProvider.SetEnvironmentID(result.EnvironmentID)
 			}
 
-			if result.ResetExtendedBackoff {
+			if result.ResetThresholdMet {
 				f.synchronizers.resetCurrentBackoff()
 			}
 

@@ -238,7 +238,7 @@ func TestPollingProcessorSynchronizerSignalsResetAfterTwoSuccessfulPolls(t *test
 
 		for i, want := range []bool{false, true, false, false, true} {
 			result := <-resultChan
-			assert.Equal(t, want, result.ResetExtendedBackoff, "poll %d", i+1)
+			assert.Equal(t, want, result.ResetThresholdMet, "poll %d", i+1)
 		}
 	})
 }

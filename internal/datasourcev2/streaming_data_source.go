@@ -344,9 +344,9 @@ func (sp *StreamProcessor) consumeStream(stream *es.Stream, resultChan chan<- su
 		case <-resetThreshold:
 			if sp.healthyLongEnough() {
 				resultChan <- subsystems.DataSynchronizerResult{
-					State:                interfaces.DataSourceStateValid,
-					EnvironmentID:        environmentID,
-					ResetExtendedBackoff: true,
+					State:             interfaces.DataSourceStateValid,
+					EnvironmentID:     environmentID,
+					ResetThresholdMet: true,
 				}
 			}
 

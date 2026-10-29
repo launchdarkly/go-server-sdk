@@ -569,10 +569,10 @@ func TestStreamingProcessorReportsResetOnAQuietStream(t *testing.T) {
 
 		first := <-resultChan
 		require.Equal(t, interfaces.DataSourceStateValid, first.State)
-		require.False(t, first.ResetExtendedBackoff)
+		require.False(t, first.ResetThresholdMet)
 
 		second := <-resultChan
-		assert.True(t, second.ResetExtendedBackoff)
+		assert.True(t, second.ResetThresholdMet)
 		assert.Nil(t, second.ChangeSet)
 	})
 }
@@ -608,10 +608,10 @@ func TestStreamingProcessorRestartsHealthyPeriodAfterMalformedEvent(t *testing.T
 		// The next result should be the reconnect, and then the reset for the new healthy period.
 		reconnected := th.RequireValue(t, resultChan, 5*time.Second, "expected a result after the reconnect")
 		assert.Equal(t, interfaces.DataSourceStateValid, reconnected.State)
-		assert.False(t, reconnected.ResetExtendedBackoff)
+		assert.False(t, reconnected.ResetThresholdMet)
 
 		reset := th.RequireValue(t, resultChan, time.Second, "expected a reset result")
-		assert.True(t, reset.ResetExtendedBackoff)
+		assert.True(t, reset.ResetThresholdMet)
 	})
 }
 
