@@ -32,8 +32,8 @@ func (e httpStatusError) Error() string {
 	return e.Message
 }
 
-// Tests whether an HTTP error status represents a condition that might resolve on its own if we retry,
-// or at least should not make us permanently stop sending requests.
+// Tests whether an HTTP error status represents a condition that might resolve on its own if we
+// retry, or one that should stop this synchronizer until the data system restarts it.
 func isHTTPErrorRecoverable(statusCode int) bool {
 	if statusCode >= 400 && statusCode < 500 {
 		switch statusCode {
@@ -67,7 +67,7 @@ func checkIfErrorIsRecoverableAndLog(
 	recoverableMessage string,
 ) bool {
 	if statusCode > 0 && !isHTTPErrorRecoverable(statusCode) {
-		loggers.Errorf("Error %s (giving up permanently): %s", errorContext, errorDesc)
+		loggers.Errorf("Error %s (will not retry until restarted): %s", errorContext, errorDesc)
 		return false
 	}
 	loggers.Warnf("Error %s (%s): %s", errorContext, recoverableMessage, errorDesc)
