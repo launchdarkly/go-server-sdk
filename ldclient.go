@@ -463,7 +463,11 @@ func (client *LDClient) migrationVariation(
 
 			_, err = ldmigration.ParseStage(detail.Value.StringValue())
 			if err != nil {
+				// The unrecognized stage replaces the reason. The evaluation read the same
+				// definitions, so the new reason keeps the override-affected marking.
+				overrideAffected := detail.Reason.IsOverrideAffected()
 				detail = ldreason.NewEvaluationDetailForError(ldreason.EvalErrorWrongType, ldvalue.String(string(defaultStage)))
+				detail.Reason = ldreason.NewEvalReasonFromReasonWithOverrideAffected(detail.Reason, overrideAffected)
 				return detail, flag, fmt.Errorf("%s; returning default stage %s", err, defaultStage)
 			}
 

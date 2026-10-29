@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldreason"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	ldevents "github.com/launchdarkly/go-sdk-events/v3"
@@ -503,4 +504,22 @@ func TestWrongTypeResultOfOverriddenFlagStaysMarked(t *testing.T) {
 	assert.True(t, record.OverrideAffected)
 	assert.Equal(t, ldvalue.Bool(false), record.Value)
 	assert.False(t, record.Variation.IsDefined())
+}
+
+func TestUnrecognizedStageOfOverriddenMigrationFlagStaysMarked(t *testing.T) {
+	source := sharedtest.NewTestOverrideSource(
+		overrideTestFlagData(singleValueFlag("migration-flag", ldvalue.String("not-a-stage"))))
+	client := makeUninitializedClientWithOverrides(t, source, nil)
+
+	stage, tracker, err := client.MigrationVariation("migration-flag", evalTestUser, ldmigration.Live)
+	assert.Error(t, err)
+	assert.Equal(t, ldmigration.Live, stage)
+
+	tracker.Operation(ldmigration.Read)
+	tracker.TrackInvoked(ldmigration.Old)
+	event, err := tracker.Build()
+	require.NoError(t, err)
+	reason := event.Evaluation.Reason
+	assert.Equal(t, ldreason.EvalErrorWrongType, reason.GetErrorKind())
+	assert.True(t, reason.IsOverrideAffected())
 }
