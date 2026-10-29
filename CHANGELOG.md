@@ -2,6 +2,18 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.22.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.2...v7.22.0) (2026-10-29)
+
+
+### Features
+
+* Park FDv2 synchronizers instead of retiring them on unexpected failures ([#489](https://github.com/launchdarkly/go-server-sdk/issues/489)) ([644253a](https://github.com/launchdarkly/go-server-sdk/commit/644253a1978e63792c794e282f91a0b78fb0e119))
+
+
+### Bug Fixes
+
+* Keep the override marking when a migration flag serves an unrecognized stage ([#492](https://github.com/launchdarkly/go-server-sdk/issues/492)) ([9f9911f](https://github.com/launchdarkly/go-server-sdk/commit/9f9911f50e322afbb2d13439663bffee2d9d399a))
+
 ## [7.21.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.1...v7.21.2) (2026-10-28)
 
 
