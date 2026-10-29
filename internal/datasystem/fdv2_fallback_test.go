@@ -207,7 +207,7 @@ func TestFDv2RecoveryTakesPrecedenceOverFallback(t *testing.T) {
 	// Select the second synchronizer, so that a more-preferred one is eligible.
 	system.synchronizers.next()
 	system.synchronizers.next()
-	require.False(t, system.synchronizers.isFirstEligible())
+	require.False(t, system.synchronizers.isCurrentFirstEligible())
 
 	status := interfaces.DataSourceStatus{
 		State:      interfaces.DataSourceStateValid,

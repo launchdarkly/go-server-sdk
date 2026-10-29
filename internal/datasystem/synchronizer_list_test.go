@@ -158,17 +158,17 @@ func TestSynchronizerListResetReturnsToMostPreferredEligibleSlot(t *testing.T) {
 	list.next()
 	list.next()
 	assert.Equal(t, 2, list.currentIndex())
-	assert.False(t, list.isFirstEligible())
+	assert.False(t, list.isCurrentFirstEligible())
 
 	// Recovery returns to the most-preferred eligible slot, which is the second while the first is parked.
 	list.reset()
 	list.next()
 	assert.Equal(t, 1, list.currentIndex())
-	assert.True(t, list.isFirstEligible())
+	assert.True(t, list.isCurrentFirstEligible())
 
 	// When the first slot re-enters, it becomes the most-preferred eligible slot.
 	list.slots[0].parkedUntil = now.Add(-time.Second)
-	assert.False(t, list.isFirstEligible())
+	assert.False(t, list.isCurrentFirstEligible())
 	list.reset()
 	list.next()
 	assert.Equal(t, 0, list.currentIndex())
@@ -254,7 +254,7 @@ func TestSynchronizerListUnparkAllKeepsCurrentFDv2Slot(t *testing.T) {
 	// Polling stays current, and streaming is eligible again as the first slot.
 	assert.Equal(t, 1, list.currentIndex())
 	assert.Equal(t, 2, list.eligibleCount())
-	assert.False(t, list.isFirstEligible())
+	assert.False(t, list.isCurrentFirstEligible())
 
 	// A recovery selects streaming.
 	list.reset()

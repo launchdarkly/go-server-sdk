@@ -156,8 +156,8 @@ func (l *synchronizerList) resetCurrentBackoff() {
 	}
 }
 
-// isFirstEligible returns true if the current slot is the most-preferred eligible slot.
-func (l *synchronizerList) isFirstEligible() bool {
+// isCurrentFirstEligible returns true if the current slot is the most-preferred eligible slot.
+func (l *synchronizerList) isCurrentFirstEligible() bool {
 	for i := range l.slots {
 		if l.isEligible(i) {
 			return i == l.current

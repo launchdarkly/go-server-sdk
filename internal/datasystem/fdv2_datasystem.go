@@ -394,7 +394,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			if f.synchronizers.eligibleCount() == 0 {
 				unpark, parked := f.synchronizers.earliestUnpark()
 				if !parked {
-					f.loggers.Warn("No synchronizers available")
+					f.loggers.Warn("No synchronizers eligible")
 					return
 				}
 				delay := time.Until(unpark)
@@ -505,7 +505,7 @@ const (
 // conditionAction returns the action the configured conditions call for, or syncNone. Recovery
 // is checked first, so it takes precedence when both conditions hold.
 func (f *FDv2) conditionAction(status interfaces.DataSourceStatus) syncAction {
-	if !f.synchronizers.isFirstEligible() && f.recoveryCond(status) {
+	if !f.synchronizers.isCurrentFirstEligible() && f.recoveryCond(status) {
 		f.loggers.Debugf("Recovery condition met")
 		return syncRecover
 	}
