@@ -327,7 +327,7 @@ func TestAllFlagsStateIsInvalidWithTheOverridesWhenStoreFails(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, flag.Reason.IsOverrideAffected())
 	assert.False(t, flag.TrackEvents)
-	assert.Equal(t, 1, countWarningsContaining(mockLog, "Unable to fetch flags from data store"))
+	assert.Equal(t, 1, countWarningsContaining(mockLog, "Unable to fetch flags from data store. Returning an invalid state with only the override flags"))
 }
 
 // Without override flags, a store failure gives the same invalid, empty state as without a source.
@@ -352,7 +352,7 @@ func TestAllFlagsStateIsInvalidAndEmptyWhenStoreFailsAndTheLayerHoldsNoFlags(t *
 	state := client.AllFlagsState(evalTestUser)
 	assert.False(t, state.IsValid())
 	assert.Len(t, state.ToValuesMap(), 0)
-	assert.Equal(t, 1, countWarningsContaining(mockLog, "Unable to fetch flags from data store"))
+	assert.Equal(t, 1, countWarningsContaining(mockLog, "Unable to fetch flags from data store. Returning empty state"))
 }
 
 func TestOverrideEvaluationEventsCarryOverrideAffectedMarking(t *testing.T) {

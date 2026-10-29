@@ -896,18 +896,20 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		var err error
 		items, err = client.dataSystem.Store().GetAll(datakinds.Features)
 		if err != nil {
-			client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 			// Overrides only add to the state. Without them the state is invalid and empty here, so it
 			// holds the override layer's flags and stays invalid. A client-side SDK bootstrapped from the
 			// state uses its flags whatever $valid says (js-client-sdk 3.x and the 4.x browser SDK only
 			// warn), so the overridden values still reach it.
-			if client.overrideItems == nil {
+			var overrideItems []ldstoretypes.KeyedItemDescriptor
+			if client.overrideItems != nil {
+				overrideItems = client.overrideItems(datakinds.Features)
+			}
+			if len(overrideItems) == 0 {
+				client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
 				return flagstate.AllFlags{}
 			}
-			items = client.overrideItems(datakinds.Features)
-			if len(items) == 0 {
-				return flagstate.AllFlags{}
-			}
+			client.loggers.Warn("Unable to fetch flags from data store. Returning an invalid state with only the override flags. Error: " + err.Error()) //nolint:lll
+			items = overrideItems
 			stateValid = false
 		}
 	}
