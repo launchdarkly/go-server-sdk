@@ -195,8 +195,21 @@ func TestAllFlagsJSON(t *testing.T) {
 }
 
 func TestAllFlagsBuilder(t *testing.T) {
-	t.Run("result is always valid", func(t *testing.T) {
+	t.Run("result is valid by default", func(t *testing.T) {
 		assert.True(t, NewAllFlagsBuilder().Build().IsValid())
+	})
+
+	t.Run("result can be marked invalid and still hold flags", func(t *testing.T) {
+		a := NewAllFlagsBuilder().
+			AddFlag("flag1", FlagState{Value: ldvalue.Bool(true), Version: 1}).
+			Valid(false).
+			Build()
+		assert.False(t, a.IsValid())
+		assert.Equal(t, map[string]ldvalue.Value{"flag1": ldvalue.Bool(true)}, a.ToValuesMap())
+
+		bytes, err := a.MarshalJSON()
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{"$valid":false,"flag1":true,"$flagsState":{"flag1":{"version":1}}}`, string(bytes))
 	})
 
 	t.Run("add flags without reasons", func(t *testing.T) {

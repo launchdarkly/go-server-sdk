@@ -887,6 +887,7 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	}
 
 	var items []ldstoretypes.KeyedItemDescriptor
+	stateValid := true
 	if overridesOnly {
 		// The layer is read directly rather than through the store, so data in a store that is not
 		// initialized stays out of the state, as it does without an override source.
@@ -896,7 +897,18 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		items, err = client.dataSystem.Store().GetAll(datakinds.Features)
 		if err != nil {
 			client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
-			return flagstate.AllFlags{}
+			// Overrides only add to the state. Without them the state is invalid and empty here, so it
+			// holds the override layer's flags and stays invalid. A client-side SDK bootstrapped from the
+			// state uses its flags whatever $valid says (js-client-sdk 3.x and the 4.x browser SDK only
+			// warn), so the overridden values still reach it.
+			if client.overrideItems == nil {
+				return flagstate.AllFlags{}
+			}
+			items = client.overrideItems(datakinds.Features)
+			if len(items) == 0 {
+				return flagstate.AllFlags{}
+			}
+			stateValid = false
 		}
 	}
 	if overridesOnly {
@@ -917,7 +929,7 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		}
 	}
 
-	state := flagstate.NewAllFlagsBuilder(options...)
+	state := flagstate.NewAllFlagsBuilder(options...).Valid(stateValid)
 	for _, item := range items {
 		if item.Item.Item != nil {
 			if flag, ok := item.Item.Item.(*ldmodel.FeatureFlag); ok {
