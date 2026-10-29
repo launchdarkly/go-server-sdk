@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/datastore"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/overrides"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 var (
@@ -665,6 +666,20 @@ func (f *FDv2) Store() subsystems.ReadOnlyStore {
 // The value is fixed at construction.
 func (f *FDv2) OverrideSourceConfigured() bool {
 	return f.overrideSource != nil
+}
+
+// OverrideItems returns the entries of the given kind that the override layer holds, without
+// LaunchDarkly data. It returns nil when no override source is configured.
+func (f *FDv2) OverrideItems(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor {
+	if f.overrideLayer == nil {
+		return nil
+	}
+	entries := f.overrideLayer.All(kind)
+	items := make([]ldstoretypes.KeyedItemDescriptor, 0, len(entries))
+	for key, item := range entries {
+		items = append(items, ldstoretypes.KeyedItemDescriptor{Key: key, Item: item})
+	}
+	return items
 }
 
 //nolint:revive // DataSystem method.

@@ -232,6 +232,130 @@ func TestAllFlagsStateIsInvalidWhenNotInitializedAndOverrideLayerIsEmpty(t *test
 	assert.Len(t, state.ToValuesMap(), 0)
 }
 
+// persistentStoreHoldingFlagWithoutInitMarker returns a mock persistent store that holds the flag
+// but was never initialized, so its data does not count as available LaunchDarkly data.
+func persistentStoreHoldingFlagWithoutInitMarker(t *testing.T, flag ldmodel.FeatureFlag) *mocks.MockPersistentDataStore {
+	store := mocks.NewMockPersistentDataStore()
+	require.NoError(t, store.Init([]st.SerializedCollection{{
+		Kind: datakinds.Features,
+		Items: []st.KeyedSerializedItemDescriptor{{
+			Key: flag.Key,
+			Item: st.SerializedItemDescriptor{
+				Version:        flag.Version,
+				SerializedItem: datakinds.Features.Serialize(st.ItemDescriptor{Version: flag.Version, Item: &flag}),
+			},
+		}},
+	}}))
+	store.ForceSetInited(false)
+	return store
+}
+
+// makeUninitializedClientWithStoreAndOverrides builds a client whose data sources never provide
+// data, reading the given persistent store, with the given override source contents.
+func makeUninitializedClientWithStoreAndOverrides(
+	t *testing.T,
+	store subsystems.PersistentDataStore,
+	source *sharedtest.TestOverrideSource,
+) *LDClient {
+	t.Helper()
+	config := Config{
+		Events:  ldcomponents.NoEvents(),
+		Logging: ldcomponents.Logging().Loggers(ldlogtest.NewMockLog().Loggers),
+		DataSystem: ldcomponents.DataSystem().Custom().
+			Synchronizers(newHangingSynchronizer()).
+			DataStore(ldcomponents.PersistentDataStore(
+				mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: store},
+			).NoCaching(), subsystems.DataStoreModeRead).
+			Overrides(source),
+	}
+	client, _ := MakeCustomClient(testSdkKey, config, time.Duration(0))
+	require.NotNil(t, client)
+	t.Cleanup(func() { _ = client.Close() })
+	require.False(t, client.Initialized())
+	return client
+}
+
+// A configured override source with no entries changes nothing: the store's data without an init
+// marker is not served, the same as without an override source.
+func TestAllFlagsStateIsInvalidWhenOverrideLayerIsEmptyAndStoreIsNotInitialized(t *testing.T) {
+	store := persistentStoreHoldingFlagWithoutInitMarker(t, singleValueFlag("store-flag", ldvalue.Bool(true)))
+	client := makeUninitializedClientWithStoreAndOverrides(t, store, sharedtest.NewTestOverrideSource(nil))
+
+	state := client.AllFlagsState(evalTestUser)
+	assert.False(t, state.IsValid())
+	assert.Len(t, state.ToValuesMap(), 0)
+}
+
+func TestAllFlagsStateContainsOnlyOverridesWhenStoreIsNotInitialized(t *testing.T) {
+	store := persistentStoreHoldingFlagWithoutInitMarker(t, singleValueFlag("store-flag", ldvalue.Bool(true)))
+	source := sharedtest.NewTestOverrideSource(
+		overrideTestFlagData(singleValueFlag("overridden-flag", ldvalue.Bool(true))))
+	client := makeUninitializedClientWithStoreAndOverrides(t, store, source)
+
+	state := client.AllFlagsState(evalTestUser)
+	assert.True(t, state.IsValid())
+	values := state.ToValuesMap()
+	require.Len(t, values, 1)
+	assert.Equal(t, ldvalue.Bool(true), values["overridden-flag"])
+}
+
+// A store failure makes the state invalid, the same as without an override source, and it is logged.
+// Overrides only add to the state, so it still holds the override layer's flags: a client-side SDK
+// bootstrapped from it uses them whatever $valid says.
+func TestAllFlagsStateIsInvalidWithTheOverridesWhenStoreFails(t *testing.T) {
+	store := persistentStoreWithAlwaysTrueFlag(t)
+	source := sharedtest.NewTestOverrideSource(
+		overrideTestFlagData(singleValueFlag("overridden-flag", ldvalue.Bool(true))))
+	mockLog := ldlogtest.NewMockLog()
+	config := Config{
+		Events:  ldcomponents.NoEvents(),
+		Logging: ldcomponents.Logging().Loggers(mockLog.Loggers),
+		DataSystem: ldcomponents.DataSystem().Daemon(ldcomponents.PersistentDataStore(
+			mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: store},
+		).NoCaching()).Overrides(source),
+	}
+	client, err := MakeCustomClient(testSdkKey, config, 5*time.Second)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	require.True(t, client.AllFlagsState(evalTestUser).IsValid())
+
+	store.SetFakeReadError(errors.New("sinkhole"))
+
+	state := client.AllFlagsState(evalTestUser, flagstate.OptionWithReasons())
+	assert.False(t, state.IsValid())
+	assert.Equal(t, map[string]ldvalue.Value{"overridden-flag": ldvalue.Bool(true)}, state.ToValuesMap())
+	flag, ok := state.GetFlag("overridden-flag")
+	require.True(t, ok)
+	assert.True(t, flag.Reason.IsOverrideAffected())
+	assert.False(t, flag.TrackEvents)
+	assert.Equal(t, 1, countWarningsContaining(mockLog, "Unable to fetch flags from data store. Returning an invalid state with only the override flags"))
+}
+
+// Without override flags, a store failure gives the same invalid, empty state as without a source.
+func TestAllFlagsStateIsInvalidAndEmptyWhenStoreFailsAndTheLayerHoldsNoFlags(t *testing.T) {
+	store := persistentStoreWithAlwaysTrueFlag(t)
+	source := sharedtest.NewTestOverrideSource(nil)
+	mockLog := ldlogtest.NewMockLog()
+	config := Config{
+		Events:  ldcomponents.NoEvents(),
+		Logging: ldcomponents.Logging().Loggers(mockLog.Loggers),
+		DataSystem: ldcomponents.DataSystem().Daemon(ldcomponents.PersistentDataStore(
+			mocks.SingleComponentConfigurer[subsystems.PersistentDataStore]{Instance: store},
+		).NoCaching()).Overrides(source),
+	}
+	client, err := MakeCustomClient(testSdkKey, config, 5*time.Second)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	require.True(t, client.AllFlagsState(evalTestUser).IsValid())
+
+	store.SetFakeReadError(errors.New("sinkhole"))
+
+	state := client.AllFlagsState(evalTestUser)
+	assert.False(t, state.IsValid())
+	assert.Len(t, state.ToValuesMap(), 0)
+	assert.Equal(t, 1, countWarningsContaining(mockLog, "Unable to fetch flags from data store. Returning empty state"))
+}
+
 func TestOverrideEvaluationEventsCarryOverrideAffectedMarking(t *testing.T) {
 	events := &mocks.CapturingEventProcessor{}
 	source := sharedtest.NewTestOverrideSource(

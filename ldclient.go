@@ -30,6 +30,7 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/internal/hooks"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
 
 // Version is the SDK version.
@@ -143,6 +144,9 @@ type LDClient struct {
 	// overridesConfigured is true when the data system was built with an override source. The
 	// value is fixed at construction.
 	overridesConfigured bool
+	// overrideItems returns the entries of a kind that the override layer holds. It is set when
+	// overridesConfigured is true.
+	overrideItems func(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor
 }
 
 // Initialization errors
@@ -281,6 +285,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		}
 		client.dataSystem = system
 		client.overridesConfigured = system.OverrideSourceConfigured()
+		client.overrideItems = system.OverrideItems
 	}
 
 	bigSegments := config.BigSegments
@@ -872,8 +877,8 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 				client.loggers.Warn("Called AllFlagsState before client initialization; using last known values from data store. This message is logged once.") //nolint:lll
 			}
 		case client.overridesConfigured:
-			// No data from LaunchDarkly is available. The store read below returns only the
-			// entries that the override layer holds. The result decides the state.
+			// No data from LaunchDarkly is available. The state is built from the flags that the
+			// override layer holds, and the result decides the state.
 			overridesOnly = true
 		default:
 			client.loggers.Warn(allFlagsStateNotAvailableMessage)
@@ -885,10 +890,35 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		return flagstate.AllFlags{}
 	}
 
-	items, err := client.dataSystem.Store().GetAll(datakinds.Features)
-	if err != nil {
-		client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
-		return flagstate.AllFlags{}
+	var items []ldstoretypes.KeyedItemDescriptor
+	stateValid := true
+	if overridesOnly {
+		// The layer is read directly rather than through the store, so data in a store that is not
+		// initialized stays out of the state, as it does without an override source.
+		items = client.overrideItems(datakinds.Features)
+	} else {
+		var err error
+		items, err = client.dataSystem.Store().GetAll(datakinds.Features)
+		if err != nil {
+			// Overrides only add flags to the state, never remove one. Without an override source,
+			// a store failure gives an invalid, empty state. So when the override layer holds flags,
+			// the state holds them and is still marked invalid.
+			//
+			// Marking the state invalid does not keep its flags from a client-side SDK bootstrapped
+			// from it: js-client-sdk 3.x and the 4.x browser SDK use the flags whatever $valid says
+			// and only log a warning. The overridden values therefore still reach that SDK.
+			var overrideItems []ldstoretypes.KeyedItemDescriptor
+			if client.overrideItems != nil {
+				overrideItems = client.overrideItems(datakinds.Features)
+			}
+			if len(overrideItems) == 0 {
+				client.loggers.Warn("Unable to fetch flags from data store. Returning empty state. Error: " + err.Error())
+				return flagstate.AllFlags{}
+			}
+			client.loggers.Warn("Unable to fetch flags from data store. Returning an invalid state with only the override flags. Error: " + err.Error()) //nolint:lll
+			items = overrideItems
+			stateValid = false
+		}
 	}
 	if overridesOnly {
 		if len(items) == 0 {
@@ -908,7 +938,7 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		}
 	}
 
-	state := flagstate.NewAllFlagsBuilder(options...)
+	state := flagstate.NewAllFlagsBuilder(options...).Valid(stateValid)
 	for _, item := range items {
 		if item.Item.Item != nil {
 			if flag, ok := item.Item.Item.(*ldmodel.FeatureFlag); ok {
