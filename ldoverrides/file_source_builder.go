@@ -71,7 +71,10 @@ type FileSourceBuilder struct {
 // ldfiledatav2). Each file is a JSON or YAML document with optional "flags", "flagValues",
 // and "segments" members. A "flagValues" entry is expanded into a flag that is on and serves
 // the value as its only variation through the fallthrough, so it returns the given value for
-// every context. When multiple files are configured, their
+// every context. Such a flag is not available to client-side SDKs, so LDClient.AllFlagsState
+// with flagstate.OptionClientSideOnly() leaves it out, even when the flag it overrides is
+// available to them. To override such a flag, define it in "flags" with "clientSide": true.
+// When multiple files are configured, their
 // entries are combined. The configured order determines which file wins under the
 // duplicate-key handling.
 //
