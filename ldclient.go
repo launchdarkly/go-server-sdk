@@ -896,10 +896,13 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 		var err error
 		items, err = client.dataSystem.Store().GetAll(datakinds.Features)
 		if err != nil {
-			// Overrides only add to the state. Without them the state is invalid and empty here, so it
-			// holds the override layer's flags and stays invalid. A client-side SDK bootstrapped from the
-			// state uses its flags whatever $valid says (js-client-sdk 3.x and the 4.x browser SDK only
-			// warn), so the overridden values still reach it.
+			// Overrides only add flags to the state, never remove one. Without an override source,
+			// a store failure gives an invalid, empty state. So when the override layer holds flags,
+			// the state holds them and is still marked invalid.
+			//
+			// Marking the state invalid does not keep its flags from a client-side SDK bootstrapped
+			// from it: js-client-sdk 3.x and the 4.x browser SDK use the flags whatever $valid says
+			// and only log a warning. The overridden values therefore still reach that SDK.
 			var overrideItems []ldstoretypes.KeyedItemDescriptor
 			if client.overrideItems != nil {
 				overrideItems = client.overrideItems(datakinds.Features)
