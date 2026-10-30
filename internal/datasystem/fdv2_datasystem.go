@@ -774,15 +774,7 @@ func (d *dataStatusProvider) RemoveStatusListener(listener <-chan interfaces.Dat
 
 func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, timeout time.Duration) bool {
 	ch := d.AddStatusListener()
-	defer func() {
-		// A broadcast that waits on this full channel blocks RemoveStatusListener. Drain the
-		// channel until the removal closes it, so that the removal always completes.
-		go func() {
-			for range ch {
-			}
-		}()
-		d.RemoveStatusListener(ch)
-	}()
+	defer d.RemoveStatusListener(ch)
 
 	switch d.system.getStatus().State {
 	case desiredState:
