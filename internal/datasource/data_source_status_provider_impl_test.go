@@ -168,5 +168,18 @@ func TestDataSourceStatusProviderImpl(t *testing.T) {
 				assert.True(t, time.Now().Sub(timeStart) < 500*time.Millisecond)
 			})
 		})
+
+		t.Run("ends if status broadcaster is closed", func(t *testing.T) {
+			dataSourceStatusProviderImplTest(func(p dataSourceStatusProviderImplTestParams) {
+				go func() {
+					<-time.After(100 * time.Millisecond)
+					p.dataSourceUpdates.dataSourceStatusBroadcaster.Close()
+				}()
+				timeStart := time.Now()
+				success := p.dataSourceStatusProvider.WaitFor(interfaces.DataSourceStateValid, 500*time.Millisecond)
+				assert.False(t, success)
+				assert.True(t, time.Now().Sub(timeStart) < 500*time.Millisecond)
+			})
+		})
 	})
 }

@@ -226,7 +226,10 @@ func (d *DataSourceUpdateSinkImpl) waitFor(desiredState intf.DataSourceState, ti
 
 	for {
 		select {
-		case newStatus := <-statusCh:
+		case newStatus, ok := <-statusCh:
+			if !ok {
+				return false
+			}
 			if newStatus.State == desiredState {
 				return true
 			}

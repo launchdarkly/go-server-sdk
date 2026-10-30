@@ -787,7 +787,10 @@ func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, ti
 
 	for {
 		select {
-		case status := <-ch:
+		case status, ok := <-ch:
+			if !ok {
+				return false
+			}
 			if status.State == desiredState {
 				return true
 			}
