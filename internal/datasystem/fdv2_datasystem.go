@@ -643,7 +643,8 @@ func (f *FDv2) Stop() error {
 		f.cancel()
 	}
 	f.wg.Wait()
-	f.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
+	// Do not broadcast Off. Status listeners learn of shutdown when their channels close.
+	_, _ = f.maybeUpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	_ = f.store.Close()
 	f.broadcasters.Close()
 

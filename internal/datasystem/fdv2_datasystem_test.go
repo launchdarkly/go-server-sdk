@@ -75,6 +75,30 @@ func TestFDv2GetStatusReturnsWhileStatusListenerIsFull(t *testing.T) {
 	th.AssertChannelClosed(t, returned, time.Second)
 }
 
+func TestFDv2StopReturnsWhileStatusListenerIsFull(t *testing.T) {
+	system := makeFallbackTestFDv2(t)
+	provider := &dataStatusProvider{system: system}
+	listener := provider.AddStatusListener()
+	t.Cleanup(func() { provider.RemoveStatusListener(listener) })
+
+	// Fill the listener's 10-value buffer.
+	for i := 0; i < 10; i++ {
+		system.UpdateStatus(interfaces.DataSourceStateInterrupted, interfaces.DataSourceErrorInfo{StatusCode: 500 + i})
+	}
+
+	// Stop without reading from the listener.
+	stopped := make(chan struct{})
+	go func() {
+		_ = system.Stop()
+		close(stopped)
+	}()
+
+	// Stop should return, and the status should be Off.
+	if th.AssertChannelClosed(t, stopped, time.Second) {
+		assert.Equal(t, interfaces.DataSourceStateOff, provider.GetStatus().State)
+	}
+}
+
 func TestFDv2SynchronizerSignalsReadinessOnlyForAFullPayload(t *testing.T) {
 	primary := newScriptedSynchronizer("primary")
 	system := makeSDKKeyTestFDv2(t, primary)
