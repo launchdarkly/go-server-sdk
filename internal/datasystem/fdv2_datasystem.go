@@ -716,6 +716,14 @@ func (f *FDv2) Offline() bool {
 
 //nolint:revive // DataSourceStatusReporter method.
 func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
+	if status, changed := f.maybeUpdateStatus(state, err); changed {
+		f.broadcasters.dataSourceStatus.Broadcast(status)
+	}
+}
+
+func (f *FDv2) maybeUpdateStatus(
+	state interfaces.DataSourceState, err interfaces.DataSourceErrorInfo,
+) (interfaces.DataSourceStatus, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -731,9 +739,7 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 		changed = true
 	}
 
-	if changed {
-		f.broadcasters.dataSourceStatus.Broadcast(f.status)
-	}
+	return f.status, changed
 }
 
 // restartStatusClock sets the time the current status has been held since to now.
