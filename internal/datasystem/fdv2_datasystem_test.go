@@ -52,6 +52,23 @@ func TestFDv2WaitForReturnsAfterTimeoutWhileStatusUpdatesAreQueued(t *testing.T)
 	flooders.Wait()
 }
 
+func TestFDv2WaitForEndsWhenStopped(t *testing.T) {
+	system := makeFallbackTestFDv2(t)
+	provider := &dataStatusProvider{system: system}
+	go func() {
+		<-time.After(100 * time.Millisecond)
+		_ = system.Stop()
+	}()
+
+	// Wait for a state that never arrives.
+	timeStart := time.Now()
+	success := provider.WaitFor(interfaces.DataSourceStateValid, 500*time.Millisecond)
+
+	// WaitFor should return false when the system stops, before the timeout.
+	assert.False(t, success)
+	assert.Less(t, time.Since(timeStart), 500*time.Millisecond)
+}
+
 func TestFDv2GetStatusReturnsWhileStatusListenerIsFull(t *testing.T) {
 	system := makeFallbackTestFDv2(t)
 	t.Cleanup(func() { _ = system.Stop() })
