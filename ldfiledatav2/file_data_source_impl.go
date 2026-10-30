@@ -95,7 +95,10 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 	// unread rejection cannot block.
 	if fs.closed.Load() || !fs.syncStarted.CompareAndSwap(false, true) {
 		rejected := make(chan subsystems.DataSynchronizerResult, 1)
-		rejected <- subsystems.DataSynchronizerResult{State: interfaces.DataSourceStateOff}
+		rejected <- subsystems.DataSynchronizerResult{
+			State:             interfaces.DataSourceStateInterrupted,
+			UnexpectedFailure: true,
+		}
 		close(rejected)
 		return rejected
 	}
@@ -123,7 +126,15 @@ func (fs *fileDataSource) Sync(ds subsystems.DataSelector) <-chan subsystems.Dat
 			fs.changeSetBroadcaster.RemoveListener(changeSetChan)
 			fs.statusBroadcaster.RemoveListener(statusChan)
 			rejected := make(chan subsystems.DataSynchronizerResult, 1)
-			rejected <- subsystems.DataSynchronizerResult{State: interfaces.DataSourceStateOff}
+			rejected <- subsystems.DataSynchronizerResult{
+				State: interfaces.DataSourceStateInterrupted,
+				Error: interfaces.DataSourceErrorInfo{
+					Kind:    interfaces.DataSourceErrorKindUnknown,
+					Message: err.Error(),
+					Time:    time.Now(),
+				},
+				UnexpectedFailure: true,
+			}
 			close(rejected)
 			return rejected
 		}

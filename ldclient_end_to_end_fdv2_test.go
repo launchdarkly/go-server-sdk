@@ -126,7 +126,7 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 // When an initializer requests FDv1 fallback but no FDv1 fallback is configured, the data source
 // status must transition to Off rather than staying stuck at Initializing. This mirrors the
 // synchronizer-triggered path when no FDv1 fallback is configured.
-func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T) {
+func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *testing.T) {
 	header := http.Header{
 		"X-LD-FD-Fallback": []string{"true"},
 	}
@@ -157,9 +157,9 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T
 		// should end up Off, so assert that directly.
 		status := client.GetDataSourceStatusProvider().GetStatus()
 		assert.Equal(t,
-			interfaces.DataSourceStateOff,
+			interfaces.DataSourceStateInterrupted,
 			status.State,
-			"status should transition to Off when initializer fallback requested but no FDv1 fallback configured")
+			"status should be Interrupted when initializer fallback requested but no FDv1 fallback configured")
 		// The underlying initializer error must be preserved on the Off status so programmatic
 		// monitors can see why the data source shut down, not just that it did.
 		assert.NotEqual(t, interfaces.DataSourceErrorInfo{}, status.LastError,
@@ -173,7 +173,7 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T
 
 // When a synchronizer requests FDv1 fallback but no FDv1 fallback is configured, the data
 // source status must transition to Off. No other FDv2 synchronizer may start.
-func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.T) {
+func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *testing.T) {
 	header := http.Header{
 		"X-LD-FD-Fallback": []string{"true"},
 	}
@@ -201,7 +201,7 @@ func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToOff(t *testing.
 		// The data system is off, and only the first synchronizer made a request.
 		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 		assert.Equal(t,
-			string(interfaces.DataSourceStateOff),
+			string(interfaces.DataSourceStateInterrupted),
 			string(client.GetDataSourceStatusProvider().GetStatus().State))
 		<-requestsCh
 		assertNoMoreRequests(t, requestsCh)
@@ -362,7 +362,7 @@ func TestFDV2StreamingSynchronizer(t *testing.T) {
 	})
 }
 
-func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
+func TestFDV2ParksBothSynchronizersOn401(t *testing.T) {
 	handler, requestsCh := httphelpers.RecordingHandler(httphelpers.HandlerWithStatus(401))
 	httphelpers.WithServer(handler, func(server *httptest.Server) {
 		logCapture := ldlogtest.NewMockLog()
@@ -383,9 +383,11 @@ func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
 		require.NotNil(t, client)
 		defer client.Close()
 
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		assert.ErrorIs(t, err, ErrInitializationTimeout)
 
-		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		// Both synchronizers are parked, so nothing is running, but neither is retired.
+		assert.Equal(t, string(interfaces.DataSourceStateInterrupted),
+			string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
@@ -401,15 +403,12 @@ func TestFDV2ShutdownDownIfBothSynchronizersFail(t *testing.T) {
 		// Ensure no further requests
 		assertNoMoreRequests(t, requestsCh)
 
-		expectedStreamError := "Error in stream connection (giving up permanently): HTTP error 401 (invalid SDK key)"
-		expectedPollError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
-		assert.Equal(t, []string{expectedStreamError, expectedPollError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{
-			"Blocking synchronizer at index 0 because it failed permanently",
-			"Blocking synchronizer at index 1 because it failed permanently",
-			"No more synchronizers available",
-			initializationFailedErrorMessage,
-		}, logCapture.GetOutput(ldlog.Warn))
+		// Each synchronizer reports its failure at error level, identifying the status code.
+		errorLogs := logCapture.GetOutput(ldlog.Error)
+		require.Len(t, errorLogs, 2)
+		for _, logged := range errorLogs {
+			assert.Contains(t, logged, "401")
+		}
 	})
 }
 
@@ -477,9 +476,11 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 		require.NotNil(t, client)
 		defer client.Close()
 
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		assert.ErrorIs(t, err, ErrInitializationTimeout)
 
-		assert.Equal(t, string(interfaces.DataSourceStateOff), string(client.GetDataSourceStatusProvider().GetStatus().State))
+		// A 401 is an unexpected failure, so the synchronizer is parked rather than retired.
+		assert.Equal(t, string(interfaces.DataSourceStateInterrupted),
+			string(client.GetDataSourceStatusProvider().GetStatus().State))
 
 		value, _ := client.BoolVariation(alwaysTrueFlag.Key, testUser, false)
 		assert.False(t, value)
@@ -488,13 +489,10 @@ func TestFDV2PollingSynchronizerFailsToStartWith401Error(t *testing.T) {
 		assert.Equal(t, testSdkKey, r.Request.Header.Get("Authorization"))
 		assertNoMoreRequests(t, requestsCh)
 
-		expectedError := "Error on polling request (giving up permanently): HTTP error 401 (invalid SDK key)"
-		assert.Equal(t, []string{expectedError}, logCapture.GetOutput(ldlog.Error))
-		assert.Equal(t, []string{
-			"Blocking synchronizer at index 0 because it failed permanently",
-			"No more synchronizers available",
-			initializationFailedErrorMessage,
-		}, logCapture.GetOutput(ldlog.Warn))
+		// The failure is reported at error level and identifies the status code.
+		errorLogs := logCapture.GetOutput(ldlog.Error)
+		require.Len(t, errorLogs, 1)
+		assert.Contains(t, errorLogs[0], "401")
 	})
 }
 
@@ -703,7 +701,7 @@ func TestFDV2PopulatedPersistentStoreDoesNotSatisfyInitSuccess(t *testing.T) {
 		require.Error(t, err)
 		require.NotNil(t, client)
 		defer client.Close()
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		assert.ErrorIs(t, err, ErrInitializationTimeout)
 
 		// The persisted data is still available: the client reports Initialized and evaluates
 		// with the stored flag.

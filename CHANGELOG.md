@@ -2,6 +2,14 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.21.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.1...v7.21.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* Prevent a leaked streaming connection after back-to-back malformed events ([#490](https://github.com/launchdarkly/go-server-sdk/issues/490)) ([e83af25](https://github.com/launchdarkly/go-server-sdk/commit/e83af258ed325fa009782149b7889bfe39c029a5))
+* Synchronize access to the environment ID ([#486](https://github.com/launchdarkly/go-server-sdk/issues/486)) ([83d31ed](https://github.com/launchdarkly/go-server-sdk/commit/83d31ed0feff648f02c38214724d72ee87371aac))
+
 ## [7.21.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.0...v7.21.1) (2026-10-26)
 
 

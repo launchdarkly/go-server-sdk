@@ -171,7 +171,7 @@ func rejectKeyHandler(rejectedKey string, next http.Handler) http.Handler {
 	})
 }
 
-func TestLDRelayApplySDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
+func TestLDRelayApplySDKKeyRestartsParkedFDv2Synchronizers(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
@@ -191,17 +191,17 @@ func TestLDRelayApplySDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *tes
 			Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 		}
 
-		// Both synchronizers reject the original key, so the data system turns off.
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		// Both synchronizers reject the original key, so the data system parks both.
+		client, err := MakeCustomClient(testSdkKey, config, time.Second)
 		require.Error(t, err)
 		defer client.Close()
 		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for stream request")
 		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for poll request")
 		status := client.GetDataSourceStatusProvider().GetStatus()
-		require.Equal(t, interfaces.DataSourceStateOff, status.State)
+		require.Equal(t, interfaces.DataSourceStateInterrupted, status.State)
 		require.Equal(t, 401, status.LastError.StatusCode)
 
-		// Change the key. The data system leaves the off state.
+		// Change the key.
 		require.NoError(t, client.LDRelayApplySDKKey(newTestSdkKey))
 
 		// The primary synchronizer starts again with the new key and gets data.
@@ -213,7 +213,7 @@ func TestLDRelayApplySDKKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *tes
 	})
 }
 
-func TestLDRelayApplySDKKeyWithTheCurrentKeyRestartsFDv2SynchronizersAfterPermanentFailure(t *testing.T) {
+func TestLDRelayApplySDKKeyWithTheCurrentKeyRestartsParkedFDv2Synchronizers(t *testing.T) {
 	data := ldservicesv2.NewServerSDKData().Flags(alwaysTrueFlag)
 	protocol := ldservicesv2.NewStreamingProtocol().
 		WithIntent(subsystems.ServerIntent{Payload: subsystems.Payload{
@@ -241,13 +241,13 @@ func TestLDRelayApplySDKKeyWithTheCurrentKeyRestartsFDv2SynchronizersAfterPerman
 			Logging: ldcomponents.Logging().Loggers(sharedtest.NewTestLoggers()),
 		}
 
-		// LaunchDarkly rejects the key, so both synchronizers fail and the data system turns off.
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
+		// LaunchDarkly rejects the key, so both synchronizers fail and the data system parks both.
+		client, err := MakeCustomClient(testSdkKey, config, time.Second)
 		require.Error(t, err)
 		defer client.Close()
 		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for stream request")
 		th.RequireValue(t, requestsCh, time.Second, "timed out waiting for poll request")
-		require.Equal(t, interfaces.DataSourceStateOff, client.GetDataSourceStatusProvider().GetStatus().State)
+		require.Equal(t, interfaces.DataSourceStateInterrupted, client.GetDataSourceStatusProvider().GetStatus().State)
 
 		// LaunchDarkly accepts the key again. A call with the same key starts the synchronizers again.
 		rejecting.Store(false)

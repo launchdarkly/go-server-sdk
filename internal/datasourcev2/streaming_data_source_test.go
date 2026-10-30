@@ -27,6 +27,7 @@ import (
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/launchdarkly/go-test-helpers/v3/httphelpers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -81,7 +82,8 @@ func TestMalformedStreamBaseURI(t *testing.T) {
 	resultChan := sp.Sync(ds)
 
 	result := <-resultChan
-	assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+	assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+	assert.True(t, result.UnexpectedFailure)
 	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, result.Error.Kind)
 }
 
@@ -180,9 +182,10 @@ func TestStreamingProcessorHandlesFallbackToFDv1(t *testing.T) {
 		resultChan := sp.Sync(ds)
 		result := <-resultChan
 
-		assert.Equal(t, result.State, interfaces.DataSourceStateOff)
+		assert.Equal(t, result.State, interfaces.DataSourceStateInterrupted)
 		assert.Equal(t, result.Error.Kind, interfaces.DataSourceErrorKindErrorResponse)
 		assert.True(t, result.FallbackToFDv1)
+		assert.False(t, result.UnexpectedFailure, "a 500 is recoverable")
 	})
 }
 
@@ -538,9 +541,77 @@ func testStreamProcessorUnrecoverableHTTPError(t *testing.T, statusCode int) {
 		assert.Equal(t, 1, event.GetByKey("streamInits").Count())
 		assert.Equal(t, ldvalue.Bool(true), event.GetByKey("streamInits").GetByIndex(0).GetByKey("failed"))
 
-		assert.Equal(t, interfaces.DataSourceStateOff, result.State)
+		assert.Equal(t, interfaces.DataSourceStateInterrupted, result.State)
+		assert.True(t, result.UnexpectedFailure)
 		assert.Equal(t, interfaces.DataSourceErrorKindErrorResponse, result.Error.Kind)
 		assert.Equal(t, statusCode, result.Error.StatusCode)
+	})
+}
+
+// A stream that goes quiet after its first Valid result still reports the reset when the
+// threshold is reached, with no changeSet to carry.
+func TestStreamingProcessorReportsResetOnAQuietStream(t *testing.T) {
+	protocol := ldservicesv2.NewStreamingProtocol().
+		WithIntent(subsystems.ServerIntent{
+			Payload: subsystems.Payload{ID: "up-to-date", Code: subsystems.IntentNone, Reason: "initial-state"},
+		})
+
+	streamHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(protocol)
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+	handler, _ := httphelpers.RecordingHandler(streamHandler)
+
+	httphelpers.WithServer(handler, func(streamServer *httptest.Server) {
+		sp := NewStreamProcessor(sharedtest.BasicClientContext(), datasource.StreamConfig{URI: streamServer.URL})
+		sp.resetInterval = 20 * time.Millisecond
+		defer sp.Close()
+
+		resultChan := sp.Sync(dd)
+
+		first := <-resultChan
+		require.Equal(t, interfaces.DataSourceStateValid, first.State)
+		require.False(t, first.ResetThresholdMet)
+
+		second := <-resultChan
+		assert.True(t, second.ResetThresholdMet)
+		assert.Nil(t, second.ChangeSet)
+	})
+}
+
+// A malformed event ends the healthy period. The reset is not reported while the stream reconnects, and a new
+// healthy period starts after the reconnect.
+func TestStreamingProcessorRestartsHealthyPeriodAfterMalformedEvent(t *testing.T) {
+	upToDate := func() *ldservicesv2.StreamingProtocol {
+		return ldservicesv2.NewStreamingProtocol().
+			WithIntent(subsystems.ServerIntent{
+				Payload: subsystems.Payload{ID: "up-to-date", Code: subsystems.IntentNone, Reason: "initial-state"},
+			})
+	}
+
+	// Each handler sends its intent on its first connection, so the reconnect also reports Valid.
+	streamHandler, stream := ldservices.ServerSideStreamingV2ServiceProtocolHandler(upToDate())
+	reconnectHandler, _ := ldservices.ServerSideStreamingV2ServiceProtocolHandler(upToDate())
+	dd := mocks.NewMockDataDestination(datastore.NewInMemoryDataStore(sharedtest.NewTestLoggers()))
+
+	httphelpers.WithServer(httphelpers.SequentialHandler(streamHandler, reconnectHandler), func(ts *httptest.Server) {
+		// The reset interval is shorter than the default reconnect delay.
+		sp := NewStreamProcessor(sharedtest.BasicClientContext(), datasource.StreamConfig{URI: ts.URL})
+		sp.resetInterval = 100 * time.Millisecond
+		defer sp.Close()
+
+		resultChan := sp.Sync(dd)
+		require.Equal(t, interfaces.DataSourceStateValid, (<-resultChan).State)
+
+		// Send a malformed event to make the stream restart.
+		stream.Send(httphelpers.SSEEvent{Event: putObjectEvent, Data: `{"data": }`})
+		require.Equal(t, interfaces.DataSourceErrorKindInvalidData, (<-resultChan).Error.Kind)
+
+		// The next result should be the reconnect, and then the reset for the new healthy period.
+		reconnected := th.RequireValue(t, resultChan, 5*time.Second, "expected a result after the reconnect")
+		assert.Equal(t, interfaces.DataSourceStateValid, reconnected.State)
+		assert.False(t, reconnected.ResetThresholdMet)
+
+		reset := th.RequireValue(t, resultChan, time.Second, "expected a reset result")
+		assert.True(t, reset.ResetThresholdMet)
 	})
 }
 
