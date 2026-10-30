@@ -17,16 +17,28 @@ import (
 const subscriberChannelBufferLength = 10
 
 // Broadcaster is our generalized implementation of broadcasters.
+//
+// Lock order: acquire releaseLock before lock.
 type Broadcaster[V any] struct {
+	// Reading subscribers requires lock (read or write) or releaseLock.
+	// Modifying subscribers requires both releaseLock and lock (write).
 	subscribers []channelPair[V]
-	lock        sync.RWMutex
+
+	// Sending to a subscriber requires lock (read).
+	lock sync.RWMutex
+
+	// Closing a subscriber's done channel requires releaseLock.
+	// Do not hold releaseLock while sending to a subscriber.
+	releaseLock sync.Mutex
 }
 
-// We need to keep track of both the channel we use for sending (stored as a reflect.Value, because Value
-// has methods for sending and closing), and also the channel for receiving.
+// We need to keep track of both the channel we use for sending and the channel for receiving.
 type channelPair[V any] struct {
 	sendCh    chan<- V
 	receiveCh <-chan V
+
+	// A send to sendCh must stop when done is closed.
+	done chan struct{}
 }
 
 // NewBroadcaster creates a Broadcaster that operates on the specified value type.
@@ -38,7 +50,9 @@ func NewBroadcaster[V any]() *Broadcaster[V] {
 func (b *Broadcaster[V]) AddListener() <-chan V {
 	ch := make(chan V, subscriberChannelBufferLength)
 	var receiveCh <-chan V = ch
-	chPair := channelPair[V]{sendCh: ch, receiveCh: receiveCh}
+	chPair := channelPair[V]{sendCh: ch, receiveCh: receiveCh, done: make(chan struct{})}
+	b.releaseLock.Lock()
+	defer b.releaseLock.Unlock()
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.subscribers = append(b.subscribers, chPair)
@@ -48,6 +62,13 @@ func (b *Broadcaster[V]) AddListener() <-chan V {
 // RemoveListener removes a subscriber. The parameter is the same channel that was returned by
 // AddListener.
 func (b *Broadcaster[V]) RemoveListener(ch <-chan V) {
+	b.releaseLock.Lock()
+	defer b.releaseLock.Unlock()
+	for _, pair := range b.subscribers {
+		if pair.receiveCh == ch {
+			close(pair.done)
+		}
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.subscribers = slices.DeleteFunc(b.subscribers, func(pair channelPair[V]) bool {
@@ -74,12 +95,20 @@ func (b *Broadcaster[V]) Broadcast(value V) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 	for _, ch := range b.subscribers {
-		ch.sendCh <- value
+		select {
+		case ch.sendCh <- value:
+		case <-ch.done:
+		}
 	}
 }
 
 // Close closes all current subscriber channels.
 func (b *Broadcaster[V]) Close() {
+	b.releaseLock.Lock()
+	defer b.releaseLock.Unlock()
+	for _, s := range b.subscribers {
+		close(s.done)
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	for _, s := range b.subscribers {

@@ -48,6 +48,28 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 		})
 	})
 
+	t.Run("broadcast to full listener delivers every value", func(t *testing.T) {
+		withBroadcaster(t, func(b *Broadcaster[V]) {
+			ch := b.AddListener()
+			values := make([]V, subscriberChannelBufferLength+1)
+			for i := range values {
+				values[i] = valueFactory()
+			}
+
+			// Broadcast one more value than the channel can hold.
+			go func() {
+				for _, v := range values {
+					b.Broadcast(v)
+				}
+			}()
+
+			// The listener should receive every value in order.
+			for _, v := range values {
+				assert.Equal(t, v, th.RequireValue(t, ch, timeout))
+			}
+		})
+	})
+
 	t.Run("unregister subscriber", func(t *testing.T) {
 		withBroadcaster(t, func(b *Broadcaster[V]) {
 			ch1 := b.AddListener()
@@ -62,6 +84,48 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 			assert.Equal(t, value, th.RequireValue(t, ch2, timeout))
 		})
 	})
+
+	unblockTests := []struct {
+		name    string
+		release func(b *Broadcaster[V], ch <-chan V)
+	}{
+		{"remove listener unblocks broadcast to full listener",
+			func(b *Broadcaster[V], ch <-chan V) { b.RemoveListener(ch) }},
+		{"close unblocks broadcast to full listener",
+			func(b *Broadcaster[V], _ <-chan V) { b.Close() }},
+	}
+	for _, tt := range unblockTests {
+		t.Run(tt.name, func(t *testing.T) {
+			withBroadcaster(t, func(b *Broadcaster[V]) {
+				ch := b.AddListener()
+				for i := 0; i < subscriberChannelBufferLength; i++ {
+					b.Broadcast(valueFactory())
+				}
+
+				broadcastDone := make(chan struct{})
+				go func() {
+					b.Broadcast(valueFactory())
+					close(broadcastDone)
+				}()
+				// Give Broadcast time to block on the full channel.
+				time.Sleep(10 * time.Millisecond)
+
+				// Release the listener without reading from it.
+				releaseDone := make(chan struct{})
+				go func() {
+					tt.release(b, ch)
+					close(releaseDone)
+				}()
+
+				// Both calls should return.
+				ok := th.AssertChannelClosed(t, broadcastDone, timeout) &&
+					th.AssertChannelClosed(t, releaseDone, timeout)
+				if !ok {
+					<-ch
+				}
+			})
+		})
+	}
 
 	t.Run("hasListeners", func(t *testing.T) {
 		withBroadcaster(t, func(b *Broadcaster[V]) {

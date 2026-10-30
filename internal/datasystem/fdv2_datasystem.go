@@ -643,7 +643,8 @@ func (f *FDv2) Stop() error {
 		f.cancel()
 	}
 	f.wg.Wait()
-	f.UpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
+	// Do not broadcast Off. Status listeners learn of shutdown when their channels close.
+	_, _ = f.maybeUpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	_ = f.store.Close()
 	f.broadcasters.Close()
 
@@ -716,6 +717,14 @@ func (f *FDv2) Offline() bool {
 
 //nolint:revive // DataSourceStatusReporter method.
 func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.DataSourceErrorInfo) {
+	if status, changed := f.maybeUpdateStatus(state, err); changed {
+		f.broadcasters.dataSourceStatus.Broadcast(status)
+	}
+}
+
+func (f *FDv2) maybeUpdateStatus(
+	state interfaces.DataSourceState, err interfaces.DataSourceErrorInfo,
+) (interfaces.DataSourceStatus, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -731,9 +740,7 @@ func (f *FDv2) UpdateStatus(state interfaces.DataSourceState, err interfaces.Dat
 		changed = true
 	}
 
-	if changed {
-		f.broadcasters.dataSourceStatus.Broadcast(f.status)
-	}
+	return f.status, changed
 }
 
 // restartStatusClock sets the time the current status has been held since to now.
@@ -767,15 +774,7 @@ func (d *dataStatusProvider) RemoveStatusListener(listener <-chan interfaces.Dat
 
 func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, timeout time.Duration) bool {
 	ch := d.AddStatusListener()
-	defer func() {
-		// A broadcast that waits on this full channel blocks RemoveStatusListener. Drain the
-		// channel until the removal closes it, so that the removal always completes.
-		go func() {
-			for range ch {
-			}
-		}()
-		d.RemoveStatusListener(ch)
-	}()
+	defer d.RemoveStatusListener(ch)
 
 	switch d.system.getStatus().State {
 	case desiredState:
@@ -788,7 +787,10 @@ func (d *dataStatusProvider) WaitFor(desiredState interfaces.DataSourceState, ti
 
 	for {
 		select {
-		case status := <-ch:
+		case status, ok := <-ch:
+			if !ok {
+				return false
+			}
 			if status.State == desiredState {
 				return true
 			}
