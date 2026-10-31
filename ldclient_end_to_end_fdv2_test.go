@@ -124,7 +124,7 @@ func TestFDV2CanFallBackToV1(t *testing.T) {
 }
 
 // When an initializer requests FDv1 fallback but no FDv1 fallback is configured, the data source
-// status must transition to Off rather than staying stuck at Initializing. This mirrors the
+// status must transition to Interrupted rather than staying stuck at Initializing. This mirrors the
 // synchronizer-triggered path when no FDv1 fallback is configured.
 func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *testing.T) {
 	header := http.Header{
@@ -144,35 +144,32 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *t
 			),
 		}
 
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-		require.Error(t, err)
+		// The fallback brings no data, so the client does not become ready before the timeout.
+		client, err := MakeCustomClient(testSdkKey, config, 100*time.Millisecond)
+		require.Equal(t, ErrInitializationTimeout, err)
 		require.NotNil(t, client)
 		defer client.Close()
 
 		<-requestsCh
 
 		// With no FDv1 fallback configured, an initializer-triggered fallback must transition the
-		// status to Off — if it stays at Initializing, MakeCustomClient treats it as an init
-		// failure and we see initializationFailedErrorMessage here. Either way the status field
-		// should end up Off, so assert that directly.
+		// status to Interrupted.
 		status := client.GetDataSourceStatusProvider().GetStatus()
 		assert.Equal(t,
 			interfaces.DataSourceStateInterrupted,
 			status.State,
 			"status should be Interrupted when initializer fallback requested but no FDv1 fallback configured")
-		// The underlying initializer error must be preserved on the Off status so programmatic
-		// monitors can see why the data source shut down, not just that it did.
+		// The underlying initializer error must be preserved on the Interrupted status so programmatic
+		// monitors can see why the data source is interrupted, not just that it is.
 		assert.NotEqual(t, interfaces.DataSourceErrorInfo{}, status.LastError,
 			"LastError should carry the initializer error that accompanied the fallback signal")
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
 
-		assert.Contains(t, logCapture.GetOutput(ldlog.Warn),
-			"Initializer requested FDv1 fallback but none configured")
+		logCapture.AssertMessageMatch(t, true, ldlog.Warn, "^Initializer requested FDv1 fallback but none configured")
 	})
 }
 
 // When a synchronizer requests FDv1 fallback but no FDv1 fallback is configured, the data
-// source status must transition to Off. No other FDv2 synchronizer may start.
+// source status must transition to Interrupted. No other FDv2 synchronizer may start.
 func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *testing.T) {
 	header := http.Header{
 		"X-LD-FD-Fallback": []string{"true"},
@@ -192,21 +189,20 @@ func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *
 			),
 		}
 
-		// Start the client. The first synchronizer requests the fallback.
-		client, err := MakeCustomClient(testSdkKey, config, time.Second*5)
-		require.Error(t, err)
+		// Start the client. The first synchronizer requests the fallback, which brings no data, so the
+		// client does not become ready before the timeout.
+		client, err := MakeCustomClient(testSdkKey, config, 100*time.Millisecond)
+		require.Equal(t, ErrInitializationTimeout, err)
 		require.NotNil(t, client)
 		defer client.Close()
 
-		// The data system is off, and only the first synchronizer made a request.
-		assert.Equal(t, initializationFailedErrorMessage, err.Error())
+		// The data system is interrupted, and only the first synchronizer made a request.
 		assert.Equal(t,
 			string(interfaces.DataSourceStateInterrupted),
 			string(client.GetDataSourceStatusProvider().GetStatus().State))
 		<-requestsCh
 		assertNoMoreRequests(t, requestsCh)
-		assert.Contains(t, logCapture.GetOutput(ldlog.Warn),
-			"Synchronizer requested FDv1 fallback but none configured")
+		logCapture.AssertMessageMatch(t, true, ldlog.Warn, "^Synchronizer requested FDv1 fallback but none configured")
 	})
 }
 

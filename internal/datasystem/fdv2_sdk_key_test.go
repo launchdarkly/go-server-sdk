@@ -225,19 +225,21 @@ func TestFDv2KeyChangeDoesNotInterruptRunningSynchronizer(t *testing.T) {
 }
 
 func TestFDv2KeyChangeDoesNotUndoFallbackDirectiveWithoutFDv1Fallback(t *testing.T) {
-	// No FDv1 fallback is configured, so a fallback directive stops every synchronizer for good.
+	// No FDv1 fallback is configured, so a fallback directive stops every synchronizer until the TTL elapses.
 	primary := newScriptedSynchronizer("primary")
 	system := makeSDKKeyTestFDv2(t, primary)
-	ready := make(chan struct{})
-	system.Start(ready)
+	system.Start(make(chan struct{}))
 	primary.requireRun(t) <- subsystems.DataSynchronizerResult{
 		State:          interfaces.DataSourceStateInterrupted,
 		FallbackToFDv1: true,
 	}
-	requireReady(t, ready)
+	require.Eventually(t, func() bool {
+		return system.DataSourceStatusProvider().GetStatus().State == interfaces.DataSourceStateInterrupted
+	}, time.Second, time.Millisecond)
 
 	// A key change does not start a synchronizer, and the data system stays interrupted.
 	system.SDKKeyChanged()
+	requireKeyChangeTaken(t, system)
 	primary.assertNoRun(t)
 	assert.Equal(t, interfaces.DataSourceStateInterrupted, system.DataSourceStatusProvider().GetStatus().State)
 }

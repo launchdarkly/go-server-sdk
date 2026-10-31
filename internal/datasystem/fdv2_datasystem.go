@@ -102,6 +102,9 @@ type FDv2 struct {
 	fallbackCond func(status interfaces.DataSourceStatus) bool
 	recoveryCond func(status interfaces.DataSourceStatus) bool
 
+	// The default duration of a directed fallback to FDv1, before jitter.
+	defaultFDv1FallbackTTL time.Duration
+
 	// The following are non-nil only when an override source is configured. The layer holds
 	// override entries. The overlay serves them in preference to the store's data at the
 	// store read boundary. The source populates the layer at runtime. The override system is
@@ -138,6 +141,7 @@ func NewFDv2(disabled bool, cfgBuilder subsystems.ComponentConfigurer[subsystems
 		dataSourceStatusProvider: &dataStatusProvider{},
 		environmentIDProvider:    &environmentIDProvider{},
 		sdkKeyChanged:            make(chan struct{}, 1),
+		defaultFDv1FallbackTTL:   defaultFDv1FallbackTTL,
 	}
 
 	// Unfortunate circular reference.
@@ -243,16 +247,15 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	f.UpdateStatus(interfaces.DataSourceStateInitializing, interfaces.DataSourceErrorInfo{})
 
 	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback {
+		ttl := jittered(f.defaultFDv1FallbackTTL)
 		if f.synchronizers.hasFDv1Fallback() {
-			f.loggers.Warn("Falling back to FDv1 protocol")
-			// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
-			f.synchronizers.fallBackToFDv1()
+			f.loggers.Warnf("Falling back to FDv1 protocol, retrying FDv2 in %s", ttl)
 		} else {
-			f.loggers.Warn("Initializer requested FDv1 fallback but none configured")
-			// Exclude every synchronizer so that none starts.
-			f.synchronizers.excludeAll()
+			f.loggers.Warnf("Initializer requested FDv1 fallback but none configured, retrying FDv2 in %s", ttl)
 			f.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		}
+		// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available, if there is one.
+		f.synchronizers.fallBackToFDv1(ttl)
 	}
 
 	if f.configuredWithDataSources && f.dataStoreStatusProvider.IsStatusMonitoringEnabled() {
@@ -374,8 +377,9 @@ func (f *FDv2) completeInitialization(closeWhenReady chan struct{}) {
 }
 
 func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{}) {
-	// If no synchronizers are available, close ready channel and return
-	if f.synchronizers.eligibleCount() == 0 {
+	// If no synchronizer can become available, close ready channel and return
+	_, pending := f.synchronizers.earliestUnpark()
+	if f.synchronizers.eligibleCount() == 0 && !pending {
 		f.readyOnce.Do(func() {
 			close(closeWhenReady)
 		})
@@ -390,7 +394,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 
 		f.synchronizers.next()
 		for {
-			// Nothing is eligible. Wait out the soonest unpark, then start the preferred slot.
+			// Nothing is eligible. Wait for the soonest unpark or fallback end, then start the preferred slot.
 			if f.synchronizers.eligibleCount() == 0 {
 				unpark, parked := f.synchronizers.earliestUnpark()
 				if !parked {
@@ -408,6 +412,9 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 					f.loggers.Info("SDK key changed, re-enabling synchronizers")
 					f.synchronizers.unparkAll()
 				case <-time.After(delay):
+				}
+				if f.synchronizers.maybeEndFDv1Fallback() {
+					f.loggers.Info("FDv1 fallback ended, returning to FDv2 synchronizers")
 				}
 				f.synchronizers.reset()
 				f.synchronizers.next()
@@ -443,16 +450,17 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			// Handle action based on conditions
 			switch action {
 			case syncFDv1:
+				ttl := jittered(f.defaultFDv1FallbackTTL)
 				if f.synchronizers.hasFDv1Fallback() {
-					f.loggers.Warn("Falling back to FDv1 protocol")
-					// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available.
-					f.synchronizers.fallBackToFDv1()
-					f.synchronizers.next()
-					continue
+					f.loggers.Warnf("Falling back to FDv1 protocol, retrying FDv2 in %s", ttl)
+				} else {
+					f.loggers.Warnf("Synchronizer requested FDv1 fallback but none configured, retrying FDv2 in %s", ttl)
+					f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
 				}
-				f.loggers.Warn("Synchronizer requested FDv1 fallback but none configured")
-				f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
-				return
+				// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available, if there is one.
+				f.synchronizers.fallBackToFDv1(ttl)
+				f.synchronizers.next()
+				continue
 			case syncPark:
 				delay := f.synchronizers.parkCurrent()
 				f.loggers.Warnf("Synchronizer %s is backing off for %s after an unexpected error (%s)",
@@ -473,6 +481,10 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			case syncRecover:
 				// Recovery: return to the first available synchronizer
 				f.loggers.Info("Recovery condition met, returning to first synchronizer")
+				f.synchronizers.reset()
+				f.synchronizers.next()
+			case syncFDv1FallbackEnded:
+				f.loggers.Info("FDv1 fallback ended, returning to FDv2 synchronizers")
 				f.synchronizers.reset()
 				f.synchronizers.next()
 			case syncFallback:
@@ -500,6 +512,7 @@ const (
 	syncPark
 	syncFDv1
 	syncRestart
+	syncFDv1FallbackEnded
 )
 
 // conditionAction returns the action the configured conditions call for, or syncNone. Recovery
@@ -600,6 +613,10 @@ func (f *FDv2) consumeSynchronizerResults(
 				return syncPark, nil
 			}
 		case <-ticker.C:
+			if f.synchronizers.maybeEndFDv1Fallback() {
+				return syncFDv1FallbackEnded, nil
+			}
+
 			// If there's only one available synchronizer, don't check conditions
 			if f.synchronizers.eligibleCount() == 1 {
 				continue
