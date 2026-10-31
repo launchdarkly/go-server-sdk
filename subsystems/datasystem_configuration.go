@@ -8,8 +8,8 @@ type SynchronizersConfiguration struct {
 	SynchronizerBuilders []func() (DataSynchronizer, error)
 
 	// FDv1FallbackBuilder is a special fallback used only when a synchronizer
-	// returns FallbackToFDv1=true. When activated, the system abandons the synchronizer list
-	// and switches to FDv1-only mode.
+	// returns FallbackToFDv1=true. When activated, the system stops the synchronizer list and
+	// uses only this synchronizer until the fallback TTL elapses.
 	FDv1FallbackBuilder func() (DataSynchronizer, error)
 }
 
