@@ -437,3 +437,27 @@ func TestFDv2ParksSynchronizerThatClosesItsResults(t *testing.T) {
 	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, system.DataSourceStatusProvider().GetStatus().LastError.Kind)
 	primary.assertNoRun(t)
 }
+
+func TestFDv2StartingSynchronizerDoesNotChangeStateSince(t *testing.T) {
+	primary := newScriptedSynchronizer("primary")
+	secondary := newScriptedSynchronizer("secondary")
+	system := makeSDKKeyTestFDv2(t, primary, secondary)
+	system.Start(make(chan struct{}))
+
+	// The primary synchronizer fails, so the data system is interrupted.
+	primary.requireRun(t) <- unauthorizedResult
+	require.Eventually(t, func() bool {
+		return system.DataSourceStatusProvider().GetStatus().State == interfaces.DataSourceStateInterrupted
+	}, time.Second, time.Millisecond)
+	stateSince := system.DataSourceStatusProvider().GetStatus().StateSince
+
+	// The secondary synchronizer starts after the failover delay.
+	select {
+	case <-secondary.runs:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for the secondary synchronizer to start")
+	}
+
+	// The state did not change, so neither did the time it changed.
+	assert.Equal(t, stateSince, system.DataSourceStatusProvider().GetStatus().StateSince)
+}

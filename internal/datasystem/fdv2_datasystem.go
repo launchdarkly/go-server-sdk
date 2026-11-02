@@ -102,6 +102,9 @@ type FDv2 struct {
 	fallbackCond func(status interfaces.DataSourceStatus) bool
 	recoveryCond func(status interfaces.DataSourceStatus) bool
 
+	// The time the current synchronizer started. Only the goroutine that runs the synchronizers uses it.
+	syncStartedAt time.Time
+
 	// The default duration of a directed fallback to FDv1, before jitter.
 	defaultFDv1FallbackTTL time.Duration
 
@@ -438,7 +441,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			}
 
 			f.loggers.Infof("Synchronizer at index %d (%s) is starting", f.synchronizers.currentIndex(), sync.Name())
-			f.restartStatusClock()
+			f.syncStartedAt = time.Now()
 			resultChan := sync.Sync(f.store)
 			action, err := f.consumeSynchronizerResults(ctx, resultChan, closeWhenReady)
 
@@ -523,6 +526,10 @@ const (
 // conditionAction returns the action the configured conditions call for, or syncNone. Recovery
 // is checked first, so it takes precedence when both conditions hold.
 func (f *FDv2) conditionAction(status interfaces.DataSourceStatus) syncAction {
+	// The conditions measure from the later of the last state change and the start of the current synchronizer.
+	if f.syncStartedAt.After(status.StateSince) {
+		status.StateSince = f.syncStartedAt
+	}
 	if !f.synchronizers.isCurrentFirstEligible() && f.recoveryCond(status) {
 		f.loggers.Debugf("Recovery condition met")
 		return syncRecover
@@ -773,13 +780,6 @@ func (f *FDv2) maybeUpdateStatus(
 	}
 
 	return f.status, changed
-}
-
-// restartStatusClock sets the time the current status has been held since to now.
-func (f *FDv2) restartStatusClock() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.status.StateSince = time.Now()
 }
 
 func (f *FDv2) getStatus() interfaces.DataSourceStatus {
