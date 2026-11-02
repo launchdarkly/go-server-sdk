@@ -147,6 +147,9 @@ type LDClient struct {
 	// overrideItems returns the entries of a kind that the override layer holds. It is set when
 	// overridesConfigured is true.
 	overrideItems func(kind ldstoretypes.DataKind) []ldstoretypes.KeyedItemDescriptor
+	// overrideItem returns the entry of a kind and key that the override layer holds. It is set
+	// when overridesConfigured is true.
+	overrideItem func(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, bool)
 }
 
 // Initialization errors
@@ -286,6 +289,7 @@ func MakeCustomClient(sdkKey string, config Config, waitFor time.Duration) (*LDC
 		client.dataSystem = system
 		client.overridesConfigured = system.OverrideSourceConfigured()
 		client.overrideItems = system.OverrideItems
+		client.overrideItem = system.OverrideItem
 	}
 
 	bigSegments := config.BigSegments
@@ -1533,19 +1537,28 @@ func (client *LDClient) evaluateInternal(
 		case !client.overridesConfigured:
 			return evalErrorResult(ldreason.EvalErrorClientNotReady, ErrClientNotInitialized)
 		default:
-			// No data from LaunchDarkly is available. The store read below still finds an entry
-			// that the override layer holds, and the SDK serves it. A miss returns the
-			// not-ready default.
+			// No data from LaunchDarkly is available. A flag that the override layer holds is
+			// served. Every other flag returns the not-ready default, as it does without an
+			// override source.
 			noLaunchDarklyData = true
 		}
 	}
 
-	itemDesc, storeErr := client.dataSystem.Store().Get(datakinds.Features, key)
-
-	if storeErr != nil {
-		client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)
-		detail := newEvaluationError(defaultVal, ldreason.EvalErrorException)
-		return ldeval.Result{Detail: detail}, nil, storeErr
+	var itemDesc ldstoretypes.ItemDescriptor
+	if noLaunchDarklyData {
+		// The layer is read directly rather than through the store, so data in a store that is not
+		// initialized is not served, the same as without an override source.
+		var found bool
+		if itemDesc, found = client.overrideItem(datakinds.Features, key); !found {
+			return evalErrorResult(ldreason.EvalErrorClientNotReady, ErrClientNotInitialized)
+		}
+	} else {
+		itemDesc, storeErr = client.dataSystem.Store().Get(datakinds.Features, key)
+		if storeErr != nil {
+			client.loggers.Errorf("Encountered error fetching feature from store: %+v", storeErr)
+			detail := newEvaluationError(defaultVal, ldreason.EvalErrorException)
+			return ldeval.Result{Detail: detail}, nil, storeErr
+		}
 	}
 
 	if itemDesc.Item != nil {

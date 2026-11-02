@@ -682,6 +682,16 @@ func (f *FDv2) OverrideItems(kind ldstoretypes.DataKind) []ldstoretypes.KeyedIte
 	return items
 }
 
+// OverrideItem returns the entry of the given kind and key that the override layer holds, without
+// LaunchDarkly data. It reports false when the layer does not hold the key or when no override
+// source is configured.
+func (f *FDv2) OverrideItem(kind ldstoretypes.DataKind, key string) (ldstoretypes.ItemDescriptor, bool) {
+	if f.overrideLayer == nil {
+		return ldstoretypes.ItemDescriptor{}, false
+	}
+	return f.overrideLayer.Get(kind, key)
+}
+
 //nolint:revive // DataSystem method.
 func (f *FDv2) DataAvailability() DataAvailability {
 	if f.store.Selector().IsDefined() {

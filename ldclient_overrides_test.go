@@ -298,6 +298,38 @@ func TestAllFlagsStateContainsOnlyOverridesWhenStoreIsNotInitialized(t *testing.
 	assert.Equal(t, ldvalue.Bool(true), values["overridden-flag"])
 }
 
+// A configured override source with no entries changes nothing: a flag in a store without an init
+// marker returns the not-ready default, the same as without an override source.
+func TestVariationReturnsNotReadyWhenOverrideLayerIsEmptyAndStoreIsNotInitialized(t *testing.T) {
+	store := persistentStoreHoldingFlagWithoutInitMarker(t, singleValueFlag("store-flag", ldvalue.Bool(true)))
+	client := makeUninitializedClientWithStoreAndOverrides(t, store, sharedtest.NewTestOverrideSource(nil))
+
+	value, detail, err := client.BoolVariationDetail("store-flag", evalTestUser, false)
+	assert.Equal(t, ErrClientNotInitialized, err)
+	assert.False(t, value)
+	assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorClientNotReady), detail.Reason)
+}
+
+// A flag that the override layer does not hold returns the not-ready default, the same as without
+// an override source, while an overridden flag is served.
+func TestVariationServesOnlyOverridesWhenStoreIsNotInitialized(t *testing.T) {
+	store := persistentStoreHoldingFlagWithoutInitMarker(t, singleValueFlag("store-flag", ldvalue.Bool(true)))
+	source := sharedtest.NewTestOverrideSource(
+		overrideTestFlagData(singleValueFlag("overridden-flag", ldvalue.Bool(true))))
+	client := makeUninitializedClientWithStoreAndOverrides(t, store, source)
+
+	value, detail, err := client.BoolVariationDetail("store-flag", evalTestUser, false)
+	assert.Equal(t, ErrClientNotInitialized, err)
+	assert.False(t, value)
+	assert.Equal(t, ldreason.NewEvalReasonError(ldreason.EvalErrorClientNotReady), detail.Reason)
+	assert.False(t, detail.Reason.IsOverrideAffected())
+
+	value, detail, err = client.BoolVariationDetail("overridden-flag", evalTestUser, false)
+	require.NoError(t, err)
+	assert.True(t, value)
+	assert.True(t, detail.Reason.IsOverrideAffected())
+}
+
 // A store failure makes the state invalid, the same as without an override source, and it is logged.
 // Overrides only add to the state, so it still holds the override layer's flags: a client-side SDK
 // bootstrapped from it uses them whatever $valid says.
