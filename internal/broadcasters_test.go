@@ -127,6 +127,53 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 		})
 	}
 
+	concurrentCallTests := []struct {
+		name string
+		call func(b *Broadcaster[V], other <-chan V)
+	}{
+		{"close unblocks broadcast to full listener while a listener is added",
+			func(b *Broadcaster[V], _ <-chan V) { b.AddListener() }},
+		{"close unblocks broadcast to full listener while another listener is removed",
+			func(b *Broadcaster[V], other <-chan V) { b.RemoveListener(other) }},
+	}
+	for _, tt := range concurrentCallTests {
+		t.Run(tt.name, func(t *testing.T) {
+			withBroadcaster(t, func(b *Broadcaster[V]) {
+				other := b.AddListener()
+				ch := b.AddListener()
+				for i := 0; i < subscriberChannelBufferLength; i++ {
+					b.Broadcast(valueFactory())
+				}
+
+				go b.Broadcast(valueFactory())
+				// Give Broadcast time to block on a full channel.
+				time.Sleep(10 * time.Millisecond)
+				go tt.call(b, other)
+				// Give the call time to start.
+				time.Sleep(10 * time.Millisecond)
+
+				// Close without reading from either listener.
+				closeDone := make(chan struct{})
+				go func() {
+					b.Close()
+					close(closeDone)
+				}()
+
+				// Close should return.
+				if !th.AssertChannelClosed(t, closeDone, timeout) {
+					go func() {
+						for range ch {
+						}
+					}()
+					go func() {
+						for range other {
+						}
+					}()
+				}
+			})
+		})
+	}
+
 	t.Run("hasListeners", func(t *testing.T) {
 		withBroadcaster(t, func(b *Broadcaster[V]) {
 			assert.False(t, b.HasListeners())
