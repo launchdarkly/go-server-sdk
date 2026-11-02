@@ -424,9 +424,16 @@ func TestFDv2ParksSynchronizerThatClosesItsResults(t *testing.T) {
 	system := makeSDKKeyTestFDv2(t, primary)
 	system.Start(make(chan struct{}))
 
-	// The only synchronizer closes its result channel on its own.
-	close(primary.requireRun(t))
+	// The only synchronizer gets data, then closes its result channel on its own.
+	results := primary.requireRun(t)
+	results <- validResult
+	require.True(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
+	close(results)
 
-	// The synchronizer is parked, so it does not start again.
+	// The data system is interrupted, and the synchronizer is parked, so it does not start again.
+	require.Eventually(t, func() bool {
+		return system.DataSourceStatusProvider().GetStatus().State == interfaces.DataSourceStateInterrupted
+	}, time.Second, time.Millisecond)
+	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, system.DataSourceStatusProvider().GetStatus().LastError.Kind)
 	primary.assertNoRun(t)
 }

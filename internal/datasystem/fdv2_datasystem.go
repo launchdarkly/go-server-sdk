@@ -568,6 +568,11 @@ func (f *FDv2) consumeSynchronizerResults(
 		case result, ok := <-resultChan:
 			if !ok {
 				// The synchronizer closed its result channel on its own. Treat it as an unexpected failure.
+				f.UpdateStatus(interfaces.DataSourceStateInterrupted, interfaces.DataSourceErrorInfo{
+					Kind:    interfaces.DataSourceErrorKindUnknown,
+					Message: "synchronizer closed its result channel",
+					Time:    time.Now(),
+				})
 				if keyChanged {
 					return syncRestart, nil
 				}
