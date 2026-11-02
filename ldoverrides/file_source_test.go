@@ -410,6 +410,44 @@ func TestFileSourceRetainsLastGoodDataAcrossMalformedEdit(t *testing.T) {
 	require.Len(t, flags, 1)
 }
 
+func TestFileSourceInPlaceRewriteNeverEmptiesTheOverrides(t *testing.T) {
+	// The file is empty for 300 ms while it is rewritten in place, longer than the settle
+	// window after a change, so a reload reads it empty. An empty snapshot would remove every
+	// override for that time.
+	contents := map[string][2]string{
+		".json": {`{"flagValues": {"flag1": "a"}}`, `{"flagValues": {"flag1": "b"}}`},
+		".yaml": {"flagValues:\n  flag1: a\n", "flagValues:\n  flag1: b\n"},
+	}
+	for _, extension := range []string{".json", ".yaml"} {
+		for _, mode := range []ChangeDetection{Watching, Polling} {
+			t.Run(extension+" "+string(mode), func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "overrides"+extension)
+				writeFile(t, path, contents[extension][0])
+				source, err := FileSource().FilePaths(path).ChangeDetection(mode).Build(sharedtest.BasicClientContext())
+				require.NoError(t, err)
+				// With the minimum interval of a second, a rewrite can fall between two polls. A
+				// short interval makes a poll see the file while it is empty.
+				source.(*fileOverrideSource).pollInterval = 20 * time.Millisecond
+				sink := newCapturingSink()
+				source.Start(sink)
+				t.Cleanup(func() { _ = source.Close() })
+				require.Equal(t, "a", flagsByKey(t, sink.requireSnapshot(t))["flag1"].Variations[0].StringValue())
+
+				sharedtest.RewriteFileInPlace(t, path, contents[extension][1], 300*time.Millisecond)
+
+				// Every snapshot until the rewritten one still has the override.
+				for {
+					flags := flagsByKey(t, sink.requireSnapshot(t))
+					require.Contains(t, flags, "flag1", "a snapshot without the override was applied")
+					if flags["flag1"].Variations[0].StringValue() == "b" {
+						break
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestFileSourcePollsByDefault(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	writeFile(t, path, `{}`)

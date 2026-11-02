@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -25,8 +26,18 @@ type reloaderFixture struct {
 
 func newReloaderFixture(t *testing.T, initialContent string, configure func(*ReloaderConfig)) *reloaderFixture {
 	t.Helper()
+	return newReloaderFixtureAt(t, "data.json", initialContent, configure)
+}
+
+func newReloaderFixtureAt(
+	t *testing.T,
+	fileName string,
+	initialContent string,
+	configure func(*ReloaderConfig),
+) *reloaderFixture {
+	t.Helper()
 	f := &reloaderFixture{
-		path:    filepath.Join(t.TempDir(), "data.json"),
+		path:    filepath.Join(t.TempDir(), fileName),
 		applied: make(chan MergeResult, 100),
 		errored: make(chan error, 100),
 	}
@@ -59,6 +70,30 @@ func (f *reloaderFixture) requireApplied(t *testing.T) MergeResult {
 		return result
 	case <-time.After(testTimeout):
 		require.FailNow(t, "timed out waiting for Apply")
+		return MergeResult{}
+	}
+}
+
+func (f *reloaderFixture) requireAppliedWithin(t *testing.T, duration time.Duration) MergeResult {
+	t.Helper()
+	select {
+	case result := <-f.applied:
+		return result
+	case <-time.After(duration):
+		require.FailNow(t, "no Apply within "+duration.String())
+		return MergeResult{}
+	}
+}
+
+// requireAppliedAlready returns the result of an Apply that has already happened, such as one
+// made by a ReloadNow that has returned.
+func (f *reloaderFixture) requireAppliedAlready(t *testing.T) MergeResult {
+	t.Helper()
+	select {
+	case result := <-f.applied:
+		return result
+	default:
+		require.FailNow(t, "the load did not call Apply")
 		return MergeResult{}
 	}
 }
@@ -423,4 +458,191 @@ func TestReloaderDebounceWindowIsExtendedByEachTrigger(t *testing.T) {
 	}
 	f.requireApplied(t)
 	f.requireQuiet(t, 2*window)
+}
+
+// The retry delay for the tests of a file that is found empty. The retry comes long enough
+// after the change signal for a test to finish rewriting the file before it, even on a slow
+// machine.
+const emptyFileRetryDelay = 1500 * time.Millisecond
+
+// Shorter than emptyFileRetryDelay, so a load that happens within it after a change signal
+// is not the retry.
+const beforeTheRetry = time.Second
+
+const readAgainLog = "reading it again"
+
+const (
+	yamlFlag1 = "flagValues:\n  flag1: true\n"
+	yamlFlag2 = "flagValues:\n  flag2: true\n"
+)
+
+// newEmptyFileFixture configures a reloader for a YAML file that defines flag1, with the
+// retry delay of the tests of a file that is found empty, and a log that keeps debug output.
+func newEmptyFileFixture(t *testing.T, configure func(*ReloaderConfig)) (*reloaderFixture, *ldlogtest.MockLog) {
+	t.Helper()
+	mockLog := ldlogtest.NewMockLog()
+	mockLog.Loggers.SetMinLevel(ldlog.Debug)
+	f := newReloaderFixtureAt(t, "data.yaml", yamlFlag1, func(cfg *ReloaderConfig) {
+		cfg.Loggers = mockLog.Loggers
+		cfg.RetryDelay = emptyFileRetryDelay
+		if configure != nil {
+			configure(cfg)
+		}
+	})
+	return f, mockLog
+}
+
+func flagKeys(result MergeResult) []string {
+	keys := make([]string, 0, len(result.Flags))
+	for _, flag := range result.Flags {
+		keys = append(keys, flag.Key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func requireLogged(t *testing.T, mockLog *ldlogtest.MockLog, level ldlog.LogLevel, pattern string) {
+	t.Helper()
+	require.Eventually(t, func() bool { return mockLog.HasMessageMatch(level, pattern) }, testTimeout,
+		10*time.Millisecond, "no %s log matching %q", level, pattern)
+}
+
+func TestReloaderReadsAFileThatIsEmptiedAgainBeforeApplyingIt(t *testing.T) {
+	// A writer that rewrites the file in place truncates it and then writes the new content.
+	// A load that finds the file empty after it had content keeps the data. An empty file is
+	// a YAML document with no entries, so applying it would briefly remove every entry.
+	for name, emptied := range map[string]string{"empty": "", "white space only": " \n\r\n  "} {
+		t.Run(name, func(t *testing.T) {
+			f, mockLog := newEmptyFileFixture(t, nil)
+			f.reloader.ReloadNow()
+			assert.Equal(t, []string{"flag1"}, flagKeys(f.requireApplied(t)))
+
+			f.write(t, emptied)
+			f.reloader.Trigger()
+			requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
+			f.requireQuiet(t, 100*time.Millisecond)
+
+			// No change signal: the retry reads the rewritten file.
+			f.write(t, yamlFlag2)
+			assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
+			f.requireQuiet(t, 100*time.Millisecond)
+		})
+	}
+}
+
+func TestReloaderAppliesAnEmptiedFileThatIsStillEmptyWhenReadAgain(t *testing.T) {
+	f, _ := newEmptyFileFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	f.write(t, "")
+	f.reloader.Trigger()
+	f.requireQuiet(t, 200*time.Millisecond)
+
+	// The file is still empty when the retry reads it, so it is a document with no entries.
+	assert.Empty(t, f.requireApplied(t).Flags)
+}
+
+func TestReloaderReadsAnEmptiedFileAgainOnlyOnce(t *testing.T) {
+	f, mockLog := newEmptyFileFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	f.write(t, "")
+	f.reloader.Trigger()
+	requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
+	f.requireQuiet(t, 100*time.Millisecond)
+
+	// A further change signal does not postpone the empty file again: it was empty when it
+	// was last read, so this load applies it, before the retry would have.
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireAppliedWithin(t, beforeTheRetry).Flags)
+}
+
+func TestReloaderDoesNotReadAgainAFileThatIsEmptyFromTheStart(t *testing.T) {
+	// An empty file next to the data, such as a placeholder for later entries, has never had
+	// content. It does not hold back the changes of the other file.
+	placeholder := filepath.Join(t.TempDir(), "placeholder.yaml")
+	require.NoError(t, os.WriteFile(placeholder, nil, 0600))
+	f, mockLog := newEmptyFileFixture(t, func(cfg *ReloaderConfig) {
+		cfg.Paths = append(cfg.Paths, placeholder)
+	})
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	f.write(t, yamlFlag2)
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireAppliedWithin(t, beforeTheRetry)))
+	assert.False(t, mockLog.HasMessageMatch(ldlog.Debug, readAgainLog))
+}
+
+func TestReloaderAppliesAFileThatIsEmptyAtTheInitialLoad(t *testing.T) {
+	f, _ := newEmptyFileFixture(t, nil)
+	f.write(t, "")
+
+	// The initial load applies what it reads, without waiting for a retry.
+	f.reloader.ReloadNow()
+	assert.Empty(t, f.requireAppliedAlready(t).Flags)
+}
+
+func TestReloaderRetryReadsAnEmptiedFileAgain(t *testing.T) {
+	// A retry left over from a failure can run while the file is being rewritten in place. It
+	// reads the file again too, rather than applying it empty.
+	f, mockLog := newEmptyFileFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+	f.write(t, "flagValues: [")
+	f.reloader.Trigger()
+	f.requireErrored(t)
+
+	// No change signal: only the retry reads the file.
+	f.write(t, "")
+	requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
+	f.write(t, yamlFlag2)
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
+}
+
+func TestReloaderDoesNotReadAgainAFileThatWasMissing(t *testing.T) {
+	f, _ := newEmptyFileFixture(t, func(cfg *ReloaderConfig) { cfg.SkipMissingPaths = true })
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+	require.NoError(t, os.Remove(f.path))
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireApplied(t).Flags)
+
+	// A missing file had no content, so the empty file that replaces it is applied right away.
+	require.NoError(t, os.WriteFile(f.path, nil, 0600))
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireAppliedWithin(t, beforeTheRetry).Flags)
+}
+
+func TestReloaderParsesAnEmptiedFileRightAwayWithoutRetries(t *testing.T) {
+	f, _ := newEmptyFileFixture(t, func(cfg *ReloaderConfig) { cfg.RetryDelay = 0 })
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	// Without a retry, nothing would read the file again, so the load applies it as it is.
+	f.write(t, "")
+	f.reloader.ReloadNow()
+	assert.Empty(t, f.requireAppliedAlready(t).Flags)
+}
+
+func TestReloaderReadingAnEmptiedFileAgainIsNotAFailure(t *testing.T) {
+	// Reading a file again reports nothing. A consumer that tracks failures through OnError
+	// hears of none, and a failure that was reported once is not reported again when the
+	// same content comes back after the file was read again.
+	f, mockLog := newEmptyFileFixture(t, nil)
+	f.write(t, "flagValues: [")
+	f.reloader.ReloadNow()
+	f.requireErrored(t)
+
+	// No change signal: the retry finds the file emptied and reads it again later.
+	f.write(t, "")
+	requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
+	f.write(t, "flagValues: [")
+
+	// The next retry fails as before the file was emptied, which is a repeat.
+	requireLogged(t, mockLog, ldlog.Debug, "Unable to load flags")
+	f.requireQuiet(t, 100*time.Millisecond)
+	assert.Len(t, mockLog.GetOutput(ldlog.Error), 1)
 }

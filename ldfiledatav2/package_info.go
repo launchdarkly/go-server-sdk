@@ -25,6 +25,15 @@
 // file that is rewritten continuously, faster than that interval, does not reload until
 // the writes pause.
 //
+// A file can be rewritten in place, so a reload can read it before it has been fully
+// written. Content that cannot be parsed is retried about a second later. A file that had
+// content and is found empty is read again after the same delay before it is applied, so
+// the data source keeps its flags while the file is rewritten. A file that is still empty
+// then is a YAML document with no flags (see the format below). YAML that is cut off can
+// still parse, as a part of its entries or with its last value cut short, so for a YAML
+// file, replacing its entire contents in one operation, such as renaming a fully written
+// temporary file over it, avoids briefly loading only a part of it.
+//
 // Files may contain either JSON or YAML; if the first non-whitespace character is '{', the file is parsed
 // as JSON, otherwise it is parsed as YAML. The file data should consist of an object with up to three
 // properties:
