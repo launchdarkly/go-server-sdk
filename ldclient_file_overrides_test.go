@@ -62,3 +62,16 @@ func TestFileOverridesEndToEnd(t *testing.T) {
 		return err == ErrClientNotInitialized
 	}, 10*time.Second, 50*time.Millisecond)
 }
+
+func TestFileOverrideSourceConfigurationErrorIsReportedWhenOffline(t *testing.T) {
+	// Offline, the source is built but not started, so an invalid configuration still fails
+	// client creation.
+	config := Config{
+		Offline:    true,
+		Logging:    ldcomponents.Logging().Loggers(ldlogtest.NewMockLog().Loggers),
+		DataSystem: ldcomponents.DataSystem().Custom().Overrides(ldoverrides.FileSource()),
+	}
+	_, err := MakeCustomClient(testSdkKey, config, time.Duration(0))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no file paths")
+}

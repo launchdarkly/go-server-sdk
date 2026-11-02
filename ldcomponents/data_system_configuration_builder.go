@@ -192,6 +192,10 @@ func (d *DataSystemConfigurationBuilder) FDv1CompatibleSynchronizer(
 // The override source is not a data source. It has no effect on the client's initialization
 // status or data source status. Configuring it changes nothing until the source actually
 // supplies an override.
+//
+// When the client is offline, the source is not started: no overrides are served. The SDK logs a
+// warning instead. A configuration error in the source is still reported when the client is
+// created.
 func (d *DataSystemConfigurationBuilder) Overrides(
 	source ss.ComponentConfigurer[ss.OverrideSource],
 ) *DataSystemConfigurationBuilder {
