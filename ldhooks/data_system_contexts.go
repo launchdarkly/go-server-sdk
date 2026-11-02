@@ -25,8 +25,8 @@ const (
 	// InitializerOutcomeFailed means the initializer returned an error.
 	InitializerOutcomeFailed InitializerOutcome = "failed"
 
-	// InitializerOutcomeFallback means the initializer asked the SDK to fall back to the FDv1 protocol.
-	InitializerOutcomeFallback InitializerOutcome = "fallback"
+	// InitializerOutcomeFDv1Fallback means the initializer asked the SDK to fall back to the FDv1 protocol.
+	InitializerOutcomeFDv1Fallback InitializerOutcome = "fdv1_fallback"
 
 	// InitializerOutcomeCancelled means the SDK was closed while the initializer was running.
 	InitializerOutcomeCancelled InitializerOutcome = "cancelled"
@@ -82,9 +82,9 @@ const (
 	// the SDK returned to the primary one.
 	SynchronizerChangeReasonRecover SynchronizerChangeReason = "recover"
 
-	// SynchronizerChangeReasonRemoved means the previous synchronizer failed permanently and will not
+	// SynchronizerChangeReasonParked means the previous synchronizer failed with an unexpected error and is parked. It will not
 	// be tried again.
-	SynchronizerChangeReasonRemoved SynchronizerChangeReason = "removed"
+	SynchronizerChangeReasonParked SynchronizerChangeReason = "parked"
 
 	// SynchronizerChangeReasonFDv1Fallback means LaunchDarkly asked the SDK to use the FDv1 protocol.
 	SynchronizerChangeReasonFDv1Fallback SynchronizerChangeReason = "fdv1_fallback"

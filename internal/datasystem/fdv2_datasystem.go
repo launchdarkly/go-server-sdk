@@ -316,7 +316,7 @@ func (f *FDv2) runInitializers(
 				appliedFrom = initializer.Name()
 				appliedSource = source
 			}
-			f.reportInitializer(source, ldhooks.InitializerOutcomeFallback, err, elapsed, applied)
+			f.reportInitializer(source, ldhooks.InitializerOutcomeFDv1Fallback, err, elapsed, applied)
 			if appliedFrom != "" {
 				f.loggers.Infof("Initialized via %s before falling back to FDv1", appliedFrom)
 				f.completeInitialization(closeWhenReady, appliedSource)
@@ -494,7 +494,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 					ldhooks.SynchronizerChangeReasonExhausted)
 				return
 			case syncRemove:
-				f.nextSyncReason = ldhooks.SynchronizerChangeReasonRemoved
+				f.nextSyncReason = ldhooks.SynchronizerChangeReasonParked
 				f.loggers.Warnf("Permanently removing synchronizer at index %d", f.currentSyncIndex)
 				f.synchronizerBuilders = append(
 					f.synchronizerBuilders[:f.currentSyncIndex],
