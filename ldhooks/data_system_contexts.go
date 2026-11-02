@@ -82,8 +82,8 @@ const (
 	// the SDK returned to the primary one.
 	SynchronizerChangeReasonRecover SynchronizerChangeReason = "recover"
 
-	// SynchronizerChangeReasonParked means the previous synchronizer failed with an unexpected error and is parked. It will not
-	// be tried again.
+	// SynchronizerChangeReasonParked means the previous synchronizer reported an unexpected failure and
+	// is parked for a bounded time. The SDK can select it again when its unpark time arrives.
 	SynchronizerChangeReasonParked SynchronizerChangeReason = "parked"
 
 	// SynchronizerChangeReasonFDv1Fallback means LaunchDarkly asked the SDK to use the FDv1 protocol.
