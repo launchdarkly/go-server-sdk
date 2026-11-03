@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -26,10 +28,12 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
 	"github.com/launchdarkly/go-server-sdk/v7/ldhooks"
+	"github.com/launchdarkly/go-server-sdk/v7/ldhttp"
 	"github.com/launchdarkly/go-server-sdk/v7/ldoverrides"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/testservice/servicedef"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
@@ -85,11 +89,16 @@ func (c *SDKClientEntity) Close() {
 	c.logger.SetOutput(io.Discard)
 }
 
-func contextOrUser(context ldcontext.Context, maybeUser *ldcontext.Context) ldcontext.Context {
+// contextOrUser returns the old-style user if the harness sent one, or else the context. The harness
+// sends "context": null along with a user, and ldcontext parses the old user schema into a context.
+func contextOrUser(maybeContext *ldcontext.Context, maybeUser *ldcontext.Context) ldcontext.Context {
 	if maybeUser != nil {
 		return *maybeUser
 	}
-	return context
+	if maybeContext != nil {
+		return *maybeContext
+	}
+	return ldcontext.Context{}
 }
 
 func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{}, error) {
@@ -100,10 +109,10 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 	case servicedef.CommandEvaluateAllFlags:
 		return c.evaluateAllFlags(*params.EvaluateAll)
 	case servicedef.CommandIdentifyEvent:
-		err := c.sdk.Identify(params.IdentifyEvent.Context)
+		err := c.sdk.Identify(contextOrUser(params.IdentifyEvent.Context, params.IdentifyEvent.User))
 		return nil, err
 	case servicedef.CommandCustomEvent:
-		context := params.CustomEvent.Context
+		context := contextOrUser(params.CustomEvent.Context, params.CustomEvent.User)
 		if params.CustomEvent.MetricValue != nil {
 			return nil, c.sdk.TrackMetric(params.CustomEvent.EventKey, context,
 				*params.CustomEvent.MetricValue, params.CustomEvent.Data)
@@ -122,8 +131,10 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 		return c.contextBuild(*params.ContextBuild)
 	case servicedef.CommandContextConvert:
 		return c.contextConvert(*params.ContextConvert)
+	case servicedef.CommandContextComparison:
+		return c.contextComparison(*params.ContextComparison)
 	case servicedef.CommandSecureModeHash:
-		hash := c.sdk.SecureModeHash(params.SecureModeHash.Context)
+		hash := c.sdk.SecureModeHash(contextOrUser(params.SecureModeHash.Context, params.SecureModeHash.User))
 		return servicedef.SecureModeHashResponse{Result: hash}, nil
 	case servicedef.CommandMigrationVariation:
 		// Normal operation should inspect this err. However, the test harness
@@ -154,7 +165,7 @@ func (c *SDKClientEntity) DoCommand(params servicedef.CommandParams) (interface{
 }
 
 func (c *SDKClientEntity) evaluateFlag(p servicedef.EvaluateFlagParams) (*servicedef.EvaluateFlagResponse, error) {
-	context := p.Context
+	context := contextOrUser(p.Context, p.User)
 	var result ldreason.EvaluationDetail
 	if p.Detail {
 		switch p.ValueType {
@@ -223,7 +234,7 @@ func (c *SDKClientEntity) evaluateAllFlags(p servicedef.EvaluateAllFlagsParams) 
 		options = append(options, flagstate.OptionWithReasons())
 	}
 
-	flagsState := c.sdk.AllFlagsState(p.Context, options...)
+	flagsState := c.sdk.AllFlagsState(contextOrUser(p.Context, p.User), options...)
 	flagsJSON, _ := json.Marshal(flagsState)
 	var mapOut map[string]ldvalue.Value
 	_ = json.Unmarshal(flagsJSON, &mapOut)
@@ -288,6 +299,40 @@ func (c *SDKClientEntity) contextConvert(p servicedef.ContextConvertParams) (*se
 		return &servicedef.ContextBuildResponse{Error: "re-marshaling failed: " + err.Error()}, nil
 	}
 	return &servicedef.ContextBuildResponse{Output: string(data)}, nil
+}
+
+func (c *SDKClientEntity) contextComparison(
+	p servicedef.ContextComparisonPairParams,
+) (*servicedef.ContextComparisonResponse, error) {
+	context1 := makeComparisonContext(p.Context1)
+	context2 := makeComparisonContext(p.Context2)
+	return &servicedef.ContextComparisonResponse{Equals: context1.Equal(context2)}, nil
+}
+
+func makeComparisonContext(p servicedef.ContextComparisonParams) ldcontext.Context {
+	if p.Single != nil {
+		return makeComparisonSingleContext(*p.Single)
+	}
+	builder := ldcontext.NewMultiBuilder()
+	for _, single := range p.Multi {
+		builder.Add(makeComparisonSingleContext(single))
+	}
+	return builder.Build()
+}
+
+func makeComparisonSingleContext(p servicedef.ContextComparisonSingleParams) ldcontext.Context {
+	b := ldcontext.NewBuilder(p.Key).Kind(ldcontext.Kind(p.Kind))
+	for _, attr := range p.Attributes {
+		b.SetValue(attr.Name, attr.Value)
+	}
+	for _, attr := range p.PrivateAttributes {
+		if attr.Literal {
+			b.PrivateRef(ldattr.NewLiteralRef(attr.Value))
+		} else {
+			b.PrivateRef(ldattr.NewRef(attr.Value))
+		}
+	}
+	return b.Build()
 }
 
 func (c *SDKClientEntity) migrationOperation(p servicedef.MigrationOperationParams) (*servicedef.MigrationOperationResponse, error) {
@@ -460,6 +505,9 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 				cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
 					awsconfig.WithRegion("us-east-1"),
 					awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")),
+					// The store recovery tests need a failed write to surface within a second. The
+					// default retryer backs off for several seconds and can hide a short outage.
+					awsconfig.WithRetryMaxAttempts(1),
 				)
 				if err != nil {
 					return ret, err
@@ -630,6 +678,14 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 		ret.BigSegments = builder
 	}
 
+	if config.Wrapper != nil || config.Proxy != nil || config.TLS != nil {
+		httpConfig, err := makeHTTPConfig(config)
+		if err != nil {
+			return ret, err
+		}
+		ret.HTTP = httpConfig
+	}
+
 	if config.Tags != nil {
 		ret.ApplicationInfo = interfaces.ApplicationInfo{
 			ApplicationID:      config.Tags.ApplicationID.StringValue(),
@@ -647,6 +703,38 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 	}
 
 	return ret, nil
+}
+
+func makeHTTPConfig(config servicedef.SDKConfigParams) (*ldcomponents.HTTPConfigurationBuilder, error) {
+	builder := ldcomponents.HTTPConfiguration()
+	if config.Wrapper != nil {
+		builder.Wrapper(config.Wrapper.Name, config.Wrapper.Version)
+	}
+	hasProxy := config.Proxy != nil && config.Proxy.HTTPProxy != ""
+	if hasProxy {
+		builder.ProxyURL(config.Proxy.HTTPProxy)
+	}
+	if config.TLS != nil && config.TLS.SkipVerifyPeer {
+		// The SDK has no option to skip peer verification, so supply a client whose transport
+		// does. A client factory replaces the SDK's proxy setting, so apply the proxy here too.
+		var opts []ldhttp.TransportOption
+		if hasProxy {
+			proxyURL, err := url.Parse(config.Proxy.HTTPProxy)
+			if err != nil {
+				return nil, err
+			}
+			opts = append(opts, ldhttp.ProxyOption(*proxyURL))
+		}
+		transport, _, err := ldhttp.NewHTTPTransport(opts...)
+		if err != nil {
+			return nil, err
+		}
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // only when the harness asks
+		builder.HTTPClientFactory(func() *http.Client {
+			return &http.Client{Transport: transport}
+		})
+	}
+	return builder, nil
 }
 
 func asJSON(value interface{}) string {

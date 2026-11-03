@@ -17,6 +17,7 @@ const (
 	CommandGetBigSegmentStoreStatus        = "getBigSegmentStoreStatus"
 	CommandContextBuild                    = "contextBuild"
 	CommandContextConvert                  = "contextConvert"
+	CommandContextComparison               = "contextComparison"
 	CommandSecureModeHash                  = "secureModeHash"
 	CommandMigrationVariation              = "migrationVariation"
 	CommandMigrationOperation              = "migrationOperation"
@@ -36,27 +37,29 @@ const (
 )
 
 type CommandParams struct {
-	Command                         string                                  `json:"command"`
-	Evaluate                        *EvaluateFlagParams                     `json:"evaluate,omitempty"`
-	EvaluateAll                     *EvaluateAllFlagsParams                 `json:"evaluateAll,omitempty"`
-	CustomEvent                     *CustomEventParams                      `json:"customEvent,omitempty"`
-	IdentifyEvent                   *IdentifyEventParams                    `json:"identifyEvent,omitempty"`
-	ContextBuild                    *ContextBuildParams                     `json:"contextBuild,omitempty"`
-	ContextConvert                  *ContextConvertParams                   `json:"contextConvert,omitempty"`
-	SecureModeHash                  *SecureModeHashParams                   `json:"secureModeHash,omitempty"`
-	MigrationVariation              *MigrationVariationParams               `json:"migrationVariation,omitempty"`
-	MigrationOperation              *MigrationOperationParams               `json:"migrationOperation,omitempty"`
-	RegisterFlagChangeListener      *RegisterFlagChangeListenerParams       `json:"registerFlagChangeListener,omitempty"`      //nolint:lll
-	RegisterFlagValueChangeListener *RegisterFlagValueChangeListenerParams  `json:"registerFlagValueChangeListener,omitempty"` //nolint:lll
-	UnregisterListener              *UnregisterListenerParams               `json:"unregisterListener,omitempty"`
+	Command                         string                                 `json:"command"`
+	Evaluate                        *EvaluateFlagParams                    `json:"evaluate,omitempty"`
+	EvaluateAll                     *EvaluateAllFlagsParams                `json:"evaluateAll,omitempty"`
+	CustomEvent                     *CustomEventParams                     `json:"customEvent,omitempty"`
+	IdentifyEvent                   *IdentifyEventParams                   `json:"identifyEvent,omitempty"`
+	ContextBuild                    *ContextBuildParams                    `json:"contextBuild,omitempty"`
+	ContextConvert                  *ContextConvertParams                  `json:"contextConvert,omitempty"`
+	ContextComparison               *ContextComparisonPairParams           `json:"contextComparison,omitempty"`
+	SecureModeHash                  *SecureModeHashParams                  `json:"secureModeHash,omitempty"`
+	MigrationVariation              *MigrationVariationParams              `json:"migrationVariation,omitempty"`
+	MigrationOperation              *MigrationOperationParams              `json:"migrationOperation,omitempty"`
+	RegisterFlagChangeListener      *RegisterFlagChangeListenerParams      `json:"registerFlagChangeListener,omitempty"`      //nolint:lll
+	RegisterFlagValueChangeListener *RegisterFlagValueChangeListenerParams `json:"registerFlagValueChangeListener,omitempty"` //nolint:lll
+	UnregisterListener              *UnregisterListenerParams              `json:"unregisterListener,omitempty"`
 }
 
 type EvaluateFlagParams struct {
-	FlagKey      string            `json:"flagKey"`
-	Context      ldcontext.Context `json:"context"`
-	ValueType    ValueType         `json:"valueType"`
-	DefaultValue ldvalue.Value     `json:"defaultValue"`
-	Detail       bool              `json:"detail"`
+	FlagKey      string             `json:"flagKey"`
+	Context      *ldcontext.Context `json:"context"`
+	User         *ldcontext.Context `json:"user,omitempty"`
+	ValueType    ValueType          `json:"valueType"`
+	DefaultValue ldvalue.Value      `json:"defaultValue"`
+	Detail       bool               `json:"detail"`
 }
 
 type EvaluateFlagResponse struct {
@@ -66,10 +69,11 @@ type EvaluateFlagResponse struct {
 }
 
 type EvaluateAllFlagsParams struct {
-	Context                    ldcontext.Context `json:"context"`
-	WithReasons                bool              `json:"withReasons"`
-	ClientSideOnly             bool              `json:"clientSideOnly"`
-	DetailsOnlyForTrackedFlags bool              `json:"detailsOnlyForTrackedFlags"`
+	Context                    *ldcontext.Context `json:"context"`
+	User                       *ldcontext.Context `json:"user,omitempty"`
+	WithReasons                bool               `json:"withReasons"`
+	ClientSideOnly             bool               `json:"clientSideOnly"`
+	DetailsOnlyForTrackedFlags bool               `json:"detailsOnlyForTrackedFlags"`
 }
 
 type EvaluateAllFlagsResponse struct {
@@ -77,15 +81,17 @@ type EvaluateAllFlagsResponse struct {
 }
 
 type CustomEventParams struct {
-	EventKey     string            `json:"eventKey"`
-	Context      ldcontext.Context `json:"context"`
-	Data         ldvalue.Value     `json:"data,omitempty"`
-	OmitNullData bool              `json:"omitNullData"`
-	MetricValue  *float64          `json:"metricValue,omitempty"`
+	EventKey     string             `json:"eventKey"`
+	Context      *ldcontext.Context `json:"context"`
+	User         *ldcontext.Context `json:"user,omitempty"`
+	Data         ldvalue.Value      `json:"data,omitempty"`
+	OmitNullData bool               `json:"omitNullData"`
+	MetricValue  *float64           `json:"metricValue,omitempty"`
 }
 
 type IdentifyEventParams struct {
-	Context ldcontext.Context `json:"context"`
+	Context *ldcontext.Context `json:"context"`
+	User    *ldcontext.Context `json:"user,omitempty"`
 }
 
 type BigSegmentStoreStatusResponse struct {
@@ -117,8 +123,42 @@ type ContextConvertParams struct {
 	Input string `json:"input"`
 }
 
+type ContextComparisonPairParams struct {
+	Context1 ContextComparisonParams `json:"context1"`
+	Context2 ContextComparisonParams `json:"context2"`
+}
+
+type ContextComparisonParams struct {
+	Single *ContextComparisonSingleParams  `json:"single,omitempty"`
+	Multi  []ContextComparisonSingleParams `json:"multi,omitempty"`
+}
+
+type ContextComparisonSingleParams struct {
+	Kind              string                `json:"kind"`
+	Key               string                `json:"key"`
+	Attributes        []AttributeDefinition `json:"attributes,omitempty"`
+	PrivateAttributes []PrivateAttribute    `json:"privateAttributes,omitempty"`
+}
+
+type AttributeDefinition struct {
+	Name  string        `json:"name"`
+	Value ldvalue.Value `json:"value,omitempty"`
+}
+
+// PrivateAttribute marks an attribute as private. If Literal is true, Value is an attribute name;
+// otherwise it is an attribute reference.
+type PrivateAttribute struct {
+	Value   string `json:"value"`
+	Literal bool   `json:"literal"`
+}
+
+type ContextComparisonResponse struct {
+	Equals bool `json:"equals"`
+}
+
 type SecureModeHashParams struct {
-	Context ldcontext.Context `json:"context"`
+	Context *ldcontext.Context `json:"context"`
+	User    *ldcontext.Context `json:"user,omitempty"`
 }
 
 type SecureModeHashResponse struct {
@@ -186,7 +226,7 @@ type HookExecutionEvaluationPayload struct {
 
 type HookExecutionTrackPayload struct {
 	TrackSeriesContext TrackSeriesContext `json:"trackSeriesContext,omitempty"`
-	Stage              HookStage         `json:"stage,omitempty"`
+	Stage              HookStage          `json:"stage,omitempty"`
 }
 
 // RegisterFlagChangeListenerParams defines parameters for registering a general flag change listener.

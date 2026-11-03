@@ -19,6 +19,22 @@ type SDKConfigParams struct {
 	PersistentDataStore *SDKConfigPersistentDataStoreParams `json:"persistentDataStore,omitempty"`
 	DataSystem          *DataSystem                         `json:"dataSystem,omitempty"`
 	Overrides           *SDKConfigOverridesParams           `json:"overrides,omitempty"`
+	TLS                 *SDKConfigTLSParams                 `json:"tls,omitempty"`
+	Proxy               *SDKConfigProxyParams               `json:"proxy,omitempty"`
+	Wrapper             *SDKConfigWrapperParams             `json:"wrapper,omitempty"`
+}
+
+type SDKConfigTLSParams struct {
+	SkipVerifyPeer bool `json:"skipVerifyPeer,omitempty"`
+}
+
+type SDKConfigProxyParams struct {
+	HTTPProxy string `json:"httpProxy,omitempty"`
+}
+
+type SDKConfigWrapperParams struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 // SDKConfigOverridesParams configures a file-based flag override source.
