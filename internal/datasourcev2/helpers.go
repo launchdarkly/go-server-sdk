@@ -67,7 +67,7 @@ func checkIfErrorIsRecoverableAndLog(
 	recoverableMessage string,
 ) bool {
 	if statusCode > 0 && !isHTTPErrorRecoverable(statusCode) {
-		loggers.Errorf("Error %s (will not retry until restarted): %s", errorContext, errorDesc)
+		loggers.Errorf("Error %s (the data system will retry it after a delay): %s", errorContext, errorDesc)
 		return false
 	}
 	loggers.Warnf("Error %s (%s): %s", errorContext, recoverableMessage, errorDesc)
