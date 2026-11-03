@@ -93,17 +93,18 @@ type FileSourceBuilder struct {
 // finds empty, or holding only a YAML comment or "---", may be in the middle of a rewrite,
 // so the source holds it back: the overrides in effect stay until the file has stayed that
 // way, without being written, for about a second, or for at most about five seconds while
-// it keeps being rewritten. A rewrite that leaves the file empty for less than a second
-// therefore never removes them. A reload applies all of the files or none, so changes to
-// the other files wait while a file is held back. The source tells the formats apart by the
-// content: a file whose first character other than white space is "{" is JSON, and any
-// other file is YAML. An empty file is therefore a YAML document with no entries, whatever
-// its name, and a file that stays empty, even one named .json, removes its overrides once
-// it is no longer held back. JSON that is cut off fails to parse, so the overrides in
-// effect stay until the file is complete. YAML that is cut off can still parse, as a part
-// of its entries or with its last value cut short, so for a YAML file, replacing its entire
-// contents in one operation, such as renaming a fully written temporary file over it,
-// avoids briefly applying only a part of it.
+// it keeps being rewritten; several files that keep being rewritten one after another can
+// hold the reload back for about five seconds each. A rewrite that leaves the file empty
+// for less than a second therefore never removes them. A reload applies all of the files or
+// none, so changes to the other files wait while a file is held back. The source tells the
+// formats apart by the content: a file whose first character other than white space is "{"
+// is JSON, and any other file is YAML. An empty file is therefore a YAML document with no
+// entries, whatever its name, and a file that stays empty, even one named .json, removes
+// its overrides once it is no longer held back. JSON that is cut off fails to parse, so the
+// overrides in effect stay until the file is complete. YAML that is cut off can still
+// parse, as a part of its entries or with its last value cut short, so for a YAML file,
+// replacing its entire contents in one operation, such as renaming a fully written
+// temporary file over it, avoids briefly applying only a part of it.
 //
 // Whenever the set of overrides in effect changes, including at startup, the source logs
 // the overrides in effect and what each configured file supplied, at Info level.

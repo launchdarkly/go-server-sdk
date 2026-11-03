@@ -289,12 +289,16 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 	// The files that holdBack holds back. The other files are still read, so that every file
 	// that is found empty starts its delay in this load.
 	var heldBack []string
+	// The files that the load got to and did not hold back, including one that it failed to
+	// read or parse.
+	var reached []string
 	defer func() {
 		// A load that holds nothing back, whether it applies, skips or fails, starts the bound
-		// over for every file that it read: such a file is no longer held back, so its next
-		// rewrite is a new one. A file that the load did not get to keeps its bound.
+		// over for every file that it got to: such a file is no longer held back, so its next
+		// rewrite is a new one. A file after the one that failed, which the load did not get to,
+		// keeps its bound.
 		if len(heldBack) == 0 {
-			for path := range hadContent {
+			for _, path := range reached {
 				if empty, ok := r.emptyFiles[path]; ok {
 					empty.firstHeld = time.Time{}
 				}
@@ -309,10 +313,12 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 		if err != nil {
 			if r.cfg.SkipMissingPaths && errors.Is(err, fs.ErrNotExist) {
 				r.cfg.Loggers.Debugf("File %s does not exist; it contributes no data", path)
+				reached = r.noteNotEmpty(path, reached)
 				hadContent[path] = false
 				files = append(files, FileSummary{Path: path})
 				continue
 			}
+			reached = append(reached, path)
 			return r.fail(&ReadError{Err: wrapReadError(err), Path: path})
 		}
 		// A file with no content, or with content that is no YAML document, such as only a
@@ -324,19 +330,21 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 		if hasContent {
 			doc, hasContent, err = parseFileContent(rawData)
 			if err != nil {
+				reached = r.noteNotEmpty(path, reached)
 				return r.fail(&ReadError{Err: err, Path: path})
 			}
 			parsed = true
 		}
-		if hasContent {
-			if empty, ok := r.emptyFiles[path]; ok {
-				empty.since = time.Time{}
-			}
-		} else if r.holdBack(path, r.now()) {
+		switch {
+		case hasContent:
+			reached = r.noteNotEmpty(path, reached)
+		case r.holdBack(path, r.now()):
 			// The clock is read after this file's own read, so a slow read of another file
 			// does not make its emptiness look older than it is.
 			heldBack = append(heldBack, path)
 			continue
+		default:
+			reached = append(reached, path)
 		}
 		hadContent[path] = hasContent
 		_, _ = hasher.Write(rawData)
@@ -400,22 +408,39 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 	return 0
 }
 
+// noteNotEmpty records a file that a load found with content, even content that fails to
+// parse, or found missing, among the files that the load got to. If the file was empty
+// before, its empty state has ended, so its next emptying starts a new delay even where a
+// coarse modification time makes it look the same.
+func (r *Reloader) noteNotEmpty(path string, reached []string) []string {
+	if empty, ok := r.emptyFiles[path]; ok {
+		empty.since = time.Time{}
+	}
+	return append(reached, path)
+}
+
 // holdBack reports whether a load that found the file with no entries holds it back. A file
-// whose content is in effect and that has no entries now may be in the middle of an in-place
-// rewrite: a writer that truncates the file and then writes the new content. Such a file is
-// held back until it has stayed so, without being written, for the retry delay, however many
-// loads find it so in that time. A change of its state, its modification time and size read
-// through any symbolic link, means that it was written since a load last found it so, for
-// example rewritten and truncated again between two loads, so the delay starts over; so does
-// a read with entries. A file is held back for at most maxHoldRetryDelays retry delays from
+// whose content is in effect and that has no entries now may be in the middle of an
+// in-place rewrite: a writer that truncates the file and then writes the new content. Such
+// a file is held back until it has stayed so, without being written, for the retry delay,
+// however many loads find it so in that time. A change of its state, its modification time
+// and size read through any symbolic link, means that it was written since a load last
+// found it so, for example rewritten and truncated again between two loads, so the delay
+// starts over; so does a read with content, even content that fails to parse, or finding
+// the file missing. A file is held back for at most maxHoldRetryDelays retry delays from
 // when a load first held it back, so that a file that keeps being written while every load
 // finds it empty, or files that are rewritten or emptied in turn, are not held back without
-// end. The bound is the file's own, and it starts over only at a load that holds nothing back
-// and reads the file, whether that load applies, skips or fails: while any file holds the
-// loads back, a read with entries, a failure, or the file staying empty for the whole delay
-// does not restart it. A file whose content is not in effect, such as a placeholder that has
-// always been empty or an emptied file whose empty state has been applied, is parsed right
-// away, and so is any file when retries are off, since nothing would read it again.
+// end. The bound is the file's own, and it starts over only at a load that holds nothing
+// back and gets to the file, whether that load applies, skips or fails, including a load
+// that fails on this file: while any file holds the loads back, a read with entries, a
+// failure, or the file staying empty for the whole delay does not restart it. A file after
+// the one that a load failed on keeps its bound. The bounds of different files do not
+// overlap, so n files that each keep being written while empty, started a little less than
+// the bound apart, hold the loads back for about n bounds, and a failure timed to every
+// expiry of a bound could hold them back without end. A file whose content is not in
+// effect, such as a placeholder that has always been empty or an emptied file whose empty
+// state has been applied, is parsed right away, and so is any file when retries are off,
+// since nothing would read it again.
 func (r *Reloader) holdBack(path string, now time.Time) bool {
 	if r.cfg.RetryDelay <= 0 || !r.appliedHadContent[path] {
 		return false

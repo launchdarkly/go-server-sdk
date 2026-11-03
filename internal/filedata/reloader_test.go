@@ -507,9 +507,19 @@ func (c *fakeClock) Advance(d time.Duration) {
 // retry delay of the tests of a file that is found empty, and a log that keeps debug output.
 func newEmptyFileFixture(t *testing.T, configure func(*ReloaderConfig)) (*reloaderFixture, *ldlogtest.MockLog) {
 	t.Helper()
+	return newEmptyFileFixtureAt(t, "data.yaml", yamlFlag1, configure)
+}
+
+func newEmptyFileFixtureAt(
+	t *testing.T,
+	fileName string,
+	initialContent string,
+	configure func(*ReloaderConfig),
+) (*reloaderFixture, *ldlogtest.MockLog) {
+	t.Helper()
 	mockLog := ldlogtest.NewMockLog()
 	mockLog.Loggers.SetMinLevel(ldlog.Debug)
-	f := newReloaderFixtureAt(t, "data.yaml", yamlFlag1, func(cfg *ReloaderConfig) {
+	f := newReloaderFixtureAt(t, fileName, initialContent, func(cfg *ReloaderConfig) {
 		cfg.Loggers = mockLog.Loggers
 		cfg.RetryDelay = emptyFileRetryDelay
 		if configure != nil {
@@ -526,7 +536,17 @@ func newFakeClockFixture(
 	configure func(*ReloaderConfig),
 ) (*reloaderFixture, *ldlogtest.MockLog, *fakeClock) {
 	t.Helper()
-	f, mockLog := newEmptyFileFixture(t, func(cfg *ReloaderConfig) {
+	return newFakeClockFixtureAt(t, "data.yaml", yamlFlag1, configure)
+}
+
+func newFakeClockFixtureAt(
+	t *testing.T,
+	fileName string,
+	initialContent string,
+	configure func(*ReloaderConfig),
+) (*reloaderFixture, *ldlogtest.MockLog, *fakeClock) {
+	t.Helper()
+	f, mockLog := newEmptyFileFixtureAt(t, fileName, initialContent, func(cfg *ReloaderConfig) {
 		cfg.RetryDelay = fakeClockRetryDelay
 		if configure != nil {
 			configure(cfg)
@@ -1122,6 +1142,135 @@ func TestReloaderKeepsTheBoundOfAFileThatAFailedLoadDidNotRead(t *testing.T) {
 	emptyInPlace(t, second)
 	clock.Advance(fakeClockRetryDelay * 8 / 10)
 	assert.Equal(t, []string{"flag3"}, flagKeys(f.requireLoadApplies(t)))
+}
+
+func TestReloaderHoldsBackAFixOfAFileSavedInPlaceWithAnError(t *testing.T) {
+	// An operator saves a file in place with a typo, and some time later saves the fix in
+	// place. Each save truncates the file first. The loads that fail on the typo read the file,
+	// so the save of the fix gets a delay and a bound of its own.
+	cases := []struct {
+		name, fileName, good, broken, fixed string
+		sameModTime                         bool
+	}{
+		{"yaml", "data.yaml", yamlFlag1, "flagValues: [", yamlFlag2, false},
+		{"json", "data.json", `{"flagValues": {"flag1": true}}`, `{"flagValues": {"flag1": tru`,
+			`{"flagValues": {"flag2": true}}`, false},
+		{"yaml with the same modification time", "data.yaml", yamlFlag1, "flagValues: [", yamlFlag2, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f, mockLog, clock := newFakeClockFixtureAt(t, c.fileName, c.good, nil)
+			f.requireLoadApplies(t)
+			f.write(t, "")
+			info, err := os.Stat(f.path)
+			require.NoError(t, err)
+			holds := f.requireLoadHolds(t, mockLog, 0, 1)
+
+			f.write(t, c.broken)
+			f.reloader.ReloadNow()
+			f.requireErrored(t)
+			for range 6 {
+				clock.Advance(fakeClockRetryDelay)
+				f.reloader.ReloadNow()
+			}
+
+			f.write(t, "")
+			if c.sameModTime {
+				// As a file system with coarse timestamps can record it.
+				require.NoError(t, os.Chtimes(f.path, info.ModTime(), info.ModTime()))
+			}
+			f.requireLoadHolds(t, mockLog, holds, 1)
+			assert.Len(t, mockLog.GetOutput(ldlog.Error), 1)
+			f.write(t, c.fixed)
+			assert.Equal(t, []string{"flag2"}, flagKeys(f.requireLoadApplies(t)))
+		})
+	}
+}
+
+func TestReloaderStartsTheBoundOfAFileThatFailsToReadOver(t *testing.T) {
+	// Without SkipMissingPaths, as for the file data sources, a missing file fails the load.
+	// The file is emptied and held back, then deleted for a while, then created empty again.
+	// The loads that fail to read it get to it, so its new emptying gets a bound of its own.
+	f, mockLog, clock := newFakeClockFixture(t, nil)
+	f.requireLoadApplies(t)
+	f.write(t, "")
+	holds := f.requireLoadHolds(t, mockLog, 0, 1)
+
+	require.NoError(t, os.Remove(f.path))
+	f.reloader.ReloadNow()
+	f.requireErrored(t)
+	for range 6 {
+		clock.Advance(fakeClockRetryDelay)
+		f.reloader.ReloadNow()
+	}
+
+	emptyInPlace(t, f.path)
+	f.requireLoadHolds(t, mockLog, holds, 1)
+}
+
+func TestReloaderLoadThatHoldsAFileBackAndThenFailsDoesNotStartBoundsOver(t *testing.T) {
+	// The first two files are rewritten in place in turn, so that every load holds one of them
+	// back, and every other load then fails on a third file. A load that holds a file back does
+	// not start any bound over, even when it fails afterwards, so the first file reaches its
+	// bound.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	third := filepath.Join(filepath.Dir(second), "third.yaml")
+	require.NoError(t, os.WriteFile(third, []byte(yamlFlag3), 0600))
+	f.reloader.cfg.Paths = append(f.reloader.cfg.Paths, third)
+	f.requireLoadApplies(t)
+	f.write(t, "")
+	f.requireLoadHolds(t, mockLog, 0, 1)
+
+	applied := false
+	for i := 1; i <= 12 && !applied; i++ {
+		clock.Advance(fakeClockRetryDelay / 2)
+		if i%2 == 1 {
+			f.write(t, yamlFlag1)
+			emptyInPlace(t, second)
+			require.NoError(t, os.WriteFile(third, []byte("flagValues: ["), 0600))
+		} else {
+			require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+			emptyInPlace(t, f.path)
+			require.NoError(t, os.WriteFile(third, []byte(yamlFlag3), 0600))
+		}
+		f.reloader.ReloadNow()
+		select {
+		case <-f.applied:
+			applied = true
+		default:
+		}
+	}
+	assert.True(t, applied, "the files were held back without end")
+}
+
+func TestReloaderFileFoundMissingStartsANewDelayWhenItIsCreatedEmptyAgain(t *testing.T) {
+	// The first file is emptied and held back, then deleted, then created empty again, while
+	// the second file fails to load, so nothing is applied. Finding the file missing ends its
+	// empty state, so its new emptying gets a delay of its own even though it has the same
+	// modification time as the first one, as a file system with coarse timestamps can record.
+	var second string
+	f, mockLog, clock := newFakeClockFixture(t, func(cfg *ReloaderConfig) {
+		second = filepath.Join(filepath.Dir(cfg.Paths[0]), "second.yaml")
+		cfg.Paths = append(cfg.Paths, second)
+		cfg.SkipMissingPaths = true
+	})
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+	f.requireLoadApplies(t)
+
+	require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
+	f.write(t, "")
+	info, err := os.Stat(f.path)
+	require.NoError(t, err)
+	f.reloader.ReloadNow()
+	f.requireErrored(t)
+	require.NoError(t, os.Remove(f.path))
+	f.reloader.ReloadNow()
+
+	clock.Advance(fakeClockRetryDelay * 70 / 60)
+	require.NoError(t, os.WriteFile(f.path, nil, 0600))
+	require.NoError(t, os.Chtimes(f.path, info.ModTime(), info.ModTime()))
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+	f.requireLoadHolds(t, mockLog, 0, 1)
 }
 
 func TestReloaderAnotherFilesBoundDoesNotCutShortARewrite(t *testing.T) {

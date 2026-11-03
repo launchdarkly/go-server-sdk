@@ -30,16 +30,17 @@
 // whose content is in effect and that a reload finds empty, or holding only a YAML comment
 // or "---", is held back: the flags in effect stay until the file has stayed that way,
 // without being written, for about a second, or for at most about five seconds while it
-// keeps being rewritten. A rewrite that leaves the file empty for less than a second
-// therefore keeps the flags in effect throughout. A reload applies all of the files or
-// none, so changes to the other files wait while a file is held back. A file that stays
-// empty is a YAML document with no flags, whatever its name (see the format below), and is
-// applied once it is no longer held back. JSON that is cut off fails to parse, so the flags
-// in effect stay until the file is complete. Without a reloader, the files are loaded once,
-// with no retry. YAML that is cut off can still parse, as a part of its entries or with its
-// last value cut short, so for a YAML file, replacing its entire contents in one operation,
-// such as renaming a fully written temporary file over it, avoids briefly loading only a
-// part of it.
+// keeps being rewritten; several files that keep being rewritten one after another can hold
+// the reload back for about five seconds each. A rewrite that leaves the file empty for
+// less than a second therefore keeps the flags in effect throughout. A reload applies all
+// of the files or none, so changes to the other files wait while a file is held back. A
+// file that stays empty is a YAML document with no flags, whatever its name (see the format
+// below), and is applied once it is no longer held back. JSON that is cut off fails to
+// parse, so the flags in effect stay until the file is complete. Without a reloader, the
+// files are loaded once, with no retry. YAML that is cut off can still parse, as a part of
+// its entries or with its last value cut short, so for a YAML file, replacing its entire
+// contents in one operation, such as renaming a fully written temporary file over it,
+// avoids briefly loading only a part of it.
 //
 // Files may contain either JSON or YAML; if the first non-whitespace character is '{', the file is parsed
 // as JSON, otherwise it is parsed as YAML. The file data should consist of an object with up to three
