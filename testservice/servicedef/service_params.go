@@ -38,6 +38,12 @@ const (
 	CapabilityRetryConformanceFDv1Streaming = "retry-conformance-fdv1-streaming"
 	CapabilityRetryConformanceFDv1Polling   = "retry-conformance-fdv1-polling"
 	CapabilityFlagOverrides                 = "flag-overrides"
+	CapabilityWrapper                       = "wrapper"
+	CapabilityHTTPProxy                     = "http-proxy"
+	CapabilityTLSSkipVerifyPeer             = "tls:skip-verify-peer"
+	CapabilityUserType                      = "user-type"
+	CapabilityContextComparison             = "context-comparison"
+	CapabilityPersistentDataStoreRecovery   = "persistent-data-store-recovery"
 )
 
 type StatusRep struct {
