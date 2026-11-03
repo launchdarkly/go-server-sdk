@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -580,21 +581,20 @@ func (f *reloaderFixture) requireHeldBack(t *testing.T, mockLog *ldlogtest.MockL
 }
 
 // emptyInPlace truncates the file without removing it, as a writer that rewrites it in place
-// does first. It also moves the file's modification time a second later, so that the write is
-// visible to the reloader even on a file system that records the time coarsely.
+// does first. It also moves the file's modification time later than any that it set before,
+// so that the write is visible to the reloader even where the file system records the time
+// coarsely, or the clock only advances every few milliseconds, as on Windows.
 func emptyInPlace(t *testing.T, path string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, nil, 0600))
-	moveModTimeLater(t, path)
-}
-
-func moveModTimeLater(t *testing.T, path string) {
-	t.Helper()
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	later := info.ModTime().Add(time.Second)
+	later := info.ModTime().Add(time.Duration(modTimeShifts.Add(1)) * time.Second)
 	require.NoError(t, os.Chtimes(path, later, later))
 }
+
+// modTimeShifts counts the calls of emptyInPlace, so that each moves the time further.
+var modTimeShifts atomic.Int64
 
 func TestReloaderHoldsBackAnEmptiedFileUntilItIsRewritten(t *testing.T) {
 	// A writer that rewrites the file in place truncates it and then writes the new content.
