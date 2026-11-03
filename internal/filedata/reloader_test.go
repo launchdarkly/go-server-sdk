@@ -3,8 +3,11 @@ package filedata
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -460,21 +463,44 @@ func TestReloaderDebounceWindowIsExtendedByEachTrigger(t *testing.T) {
 	f.requireQuiet(t, 2*window)
 }
 
-// The retry delay for the tests of a file that is found empty. The retry comes long enough
-// after the change signal for a test to finish rewriting the file before it, even on a slow
-// machine.
+// The retry delay for the tests of a file that is found empty that run on the real clock. The
+// retry comes long enough after the change signal for a test to finish rewriting the file
+// before it, even on a slow machine.
 const emptyFileRetryDelay = 1500 * time.Millisecond
 
 // Shorter than emptyFileRetryDelay, so a load that happens within it after a change signal
 // is not the retry.
 const beforeTheRetry = time.Second
 
+// The retry delay for the tests that move a fake clock. The retry never runs during such a
+// test, so only the test's change signals start loads, and the clock decides how long a file
+// has been empty.
+const fakeClockRetryDelay = time.Hour
+
 const readAgainLog = "reading it again"
 
 const (
 	yamlFlag1 = "flagValues:\n  flag1: true\n"
 	yamlFlag2 = "flagValues:\n  flag2: true\n"
+	yamlFlag3 = "flagValues:\n  flag3: true\n"
 )
+
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
 
 // newEmptyFileFixture configures a reloader for a YAML file that defines flag1, with the
 // retry delay of the tests of a file that is found empty, and a log that keeps debug output.
@@ -492,6 +518,24 @@ func newEmptyFileFixture(t *testing.T, configure func(*ReloaderConfig)) (*reload
 	return f, mockLog
 }
 
+// newFakeClockFixture is like newEmptyFileFixture, but the reloader reads a fake clock and its
+// retry never runs during the test.
+func newFakeClockFixture(
+	t *testing.T,
+	configure func(*ReloaderConfig),
+) (*reloaderFixture, *ldlogtest.MockLog, *fakeClock) {
+	t.Helper()
+	f, mockLog := newEmptyFileFixture(t, func(cfg *ReloaderConfig) {
+		cfg.RetryDelay = fakeClockRetryDelay
+		if configure != nil {
+			configure(cfg)
+		}
+	})
+	clock := &fakeClock{now: time.Unix(1_000_000, 0)}
+	f.reloader.now = clock.Now
+	return f, mockLog, clock
+}
+
 func flagKeys(result MergeResult) []string {
 	keys := make([]string, 0, len(result.Flags))
 	for _, flag := range result.Flags {
@@ -507,10 +551,55 @@ func requireLogged(t *testing.T, mockLog *ldlogtest.MockLog, level ldlog.LogLeve
 		10*time.Millisecond, "no %s log matching %q", level, pattern)
 }
 
-func TestReloaderReadsAFileThatIsEmptiedAgainBeforeApplyingIt(t *testing.T) {
+func holdCount(mockLog *ldlogtest.MockLog) int {
+	count := 0
+	for _, line := range mockLog.GetOutput(ldlog.Debug) {
+		if strings.Contains(line, readAgainLog) {
+			count++
+		}
+	}
+	return count
+}
+
+// requireHeldBack waits for a load to hold back the given number of files, counted by the
+// debug lines, and checks that it neither applied nor reported anything. It returns the
+// number of files held back so far.
+func (f *reloaderFixture) requireHeldBack(t *testing.T, mockLog *ldlogtest.MockLog, before int, files int) int {
+	t.Helper()
+	require.Eventually(t, func() bool { return holdCount(mockLog) >= before+files }, testTimeout,
+		10*time.Millisecond, "the load did not hold back %d file(s)", files)
+	require.Equal(t, before+files, holdCount(mockLog))
+	select {
+	case <-f.applied:
+		require.FailNow(t, "a load that held back a file called Apply")
+	case <-f.errored:
+		require.FailNow(t, "a load that held back a file called OnError")
+	default:
+	}
+	return before + files
+}
+
+// emptyInPlace truncates the file without removing it, as a writer that rewrites it in place
+// does first. It also moves the file's modification time a second later, so that the write is
+// visible to the reloader even on a file system that records the time coarsely.
+func emptyInPlace(t *testing.T, path string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, nil, 0600))
+	moveModTimeLater(t, path)
+}
+
+func moveModTimeLater(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	later := info.ModTime().Add(time.Second)
+	require.NoError(t, os.Chtimes(path, later, later))
+}
+
+func TestReloaderHoldsBackAnEmptiedFileUntilItIsRewritten(t *testing.T) {
 	// A writer that rewrites the file in place truncates it and then writes the new content.
-	// A load that finds the file empty after it had content keeps the data. An empty file is
-	// a YAML document with no entries, so applying it would briefly remove every entry.
+	// A load that finds the file empty after its content was applied keeps the data. An empty
+	// file is a YAML document with no entries, so applying it would briefly remove every entry.
 	for name, emptied := range map[string]string{"empty": "", "white space only": " \n\r\n  "} {
 		t.Run(name, func(t *testing.T) {
 			f, mockLog := newEmptyFileFixture(t, nil)
@@ -519,7 +608,7 @@ func TestReloaderReadsAFileThatIsEmptiedAgainBeforeApplyingIt(t *testing.T) {
 
 			f.write(t, emptied)
 			f.reloader.Trigger()
-			requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
+			f.requireHeldBack(t, mockLog, 0, 1)
 			f.requireQuiet(t, 100*time.Millisecond)
 
 			// No change signal: the retry reads the rewritten file.
@@ -530,7 +619,7 @@ func TestReloaderReadsAFileThatIsEmptiedAgainBeforeApplyingIt(t *testing.T) {
 	}
 }
 
-func TestReloaderAppliesAnEmptiedFileThatIsStillEmptyWhenReadAgain(t *testing.T) {
+func TestReloaderAppliesAnEmptiedFileThatStaysEmptyAtTheFirstRetry(t *testing.T) {
 	f, _ := newEmptyFileFixture(t, nil)
 	f.reloader.ReloadNow()
 	f.requireApplied(t)
@@ -539,29 +628,54 @@ func TestReloaderAppliesAnEmptiedFileThatIsStillEmptyWhenReadAgain(t *testing.T)
 	f.reloader.Trigger()
 	f.requireQuiet(t, 200*time.Millisecond)
 
-	// The file is still empty when the retry reads it, so it is a document with no entries.
-	assert.Empty(t, f.requireApplied(t).Flags)
+	// The file has stayed empty, without being written, for the retry delay when the retry
+	// reads it, so the retry parses it: a document with no entries. The second retry would
+	// come one more retry delay later.
+	assert.Empty(t, f.requireAppliedWithin(t, emptyFileRetryDelay+500*time.Millisecond).Flags)
 }
 
-func TestReloaderReadsAnEmptiedFileAgainOnlyOnce(t *testing.T) {
+func TestReloaderRetryHoldsBackAnEmptiedFile(t *testing.T) {
+	// A retry left over from a failure can run while the file is being rewritten in place. It
+	// holds the file back too, rather than applying it empty.
 	f, mockLog := newEmptyFileFixture(t, nil)
 	f.reloader.ReloadNow()
 	f.requireApplied(t)
+	f.write(t, "flagValues: [")
+	f.reloader.Trigger()
+	f.requireErrored(t)
 
+	// No change signal: only the retry reads the file.
 	f.write(t, "")
-	f.reloader.Trigger()
-	requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
-	f.requireQuiet(t, 100*time.Millisecond)
-
-	// A further change signal does not postpone the empty file again: it was empty when it
-	// was last read, so this load applies it, before the retry would have.
-	f.reloader.Trigger()
-	assert.Empty(t, f.requireAppliedWithin(t, beforeTheRetry).Flags)
+	f.requireHeldBack(t, mockLog, 0, 1)
+	f.write(t, yamlFlag2)
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
 }
 
-func TestReloaderDoesNotReadAgainAFileThatIsEmptyFromTheStart(t *testing.T) {
+func TestReloaderHoldingBackAFileReportsNoFailure(t *testing.T) {
+	// Holding a file back reports nothing. A consumer that tracks failures through OnError
+	// hears of none, and a failure that was reported once is not reported again when the
+	// same content comes back after the file was held back.
+	f, mockLog := newEmptyFileFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+	f.write(t, "flagValues: [")
+	f.reloader.Trigger()
+	f.requireErrored(t)
+
+	// No change signal: the retry finds the file emptied and holds it back.
+	f.write(t, "")
+	f.requireHeldBack(t, mockLog, 0, 1)
+	f.write(t, "flagValues: [")
+
+	// The next retry fails as before the file was emptied, which is a repeat.
+	requireLogged(t, mockLog, ldlog.Debug, "Unable to load flags")
+	f.requireQuiet(t, 100*time.Millisecond)
+	assert.Len(t, mockLog.GetOutput(ldlog.Error), 1)
+}
+
+func TestReloaderDoesNotHoldBackAFileThatIsEmptyFromTheStart(t *testing.T) {
 	// An empty file next to the data, such as a placeholder for later entries, has never had
-	// content. It does not hold back the changes of the other file.
+	// content in effect. It does not hold back the changes of the other file.
 	placeholder := filepath.Join(t.TempDir(), "placeholder.yaml")
 	require.NoError(t, os.WriteFile(placeholder, nil, 0600))
 	f, mockLog := newEmptyFileFixture(t, func(cfg *ReloaderConfig) {
@@ -573,7 +687,7 @@ func TestReloaderDoesNotReadAgainAFileThatIsEmptyFromTheStart(t *testing.T) {
 	f.write(t, yamlFlag2)
 	f.reloader.Trigger()
 	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireAppliedWithin(t, beforeTheRetry)))
-	assert.False(t, mockLog.HasMessageMatch(ldlog.Debug, readAgainLog))
+	assert.Equal(t, 0, holdCount(mockLog))
 }
 
 func TestReloaderAppliesAFileThatIsEmptyAtTheInitialLoad(t *testing.T) {
@@ -585,24 +699,7 @@ func TestReloaderAppliesAFileThatIsEmptyAtTheInitialLoad(t *testing.T) {
 	assert.Empty(t, f.requireAppliedAlready(t).Flags)
 }
 
-func TestReloaderRetryReadsAnEmptiedFileAgain(t *testing.T) {
-	// A retry left over from a failure can run while the file is being rewritten in place. It
-	// reads the file again too, rather than applying it empty.
-	f, mockLog := newEmptyFileFixture(t, nil)
-	f.reloader.ReloadNow()
-	f.requireApplied(t)
-	f.write(t, "flagValues: [")
-	f.reloader.Trigger()
-	f.requireErrored(t)
-
-	// No change signal: only the retry reads the file.
-	f.write(t, "")
-	requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
-	f.write(t, yamlFlag2)
-	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
-}
-
-func TestReloaderDoesNotReadAgainAFileThatWasMissing(t *testing.T) {
+func TestReloaderDoesNotHoldBackAFileThatWasMissing(t *testing.T) {
 	f, _ := newEmptyFileFixture(t, func(cfg *ReloaderConfig) { cfg.SkipMissingPaths = true })
 	f.reloader.ReloadNow()
 	f.requireApplied(t)
@@ -610,7 +707,8 @@ func TestReloaderDoesNotReadAgainAFileThatWasMissing(t *testing.T) {
 	f.reloader.Trigger()
 	assert.Empty(t, f.requireApplied(t).Flags)
 
-	// A missing file had no content, so the empty file that replaces it is applied right away.
+	// A missing file contributed no content, so the empty file that replaces it is applied
+	// right away.
 	require.NoError(t, os.WriteFile(f.path, nil, 0600))
 	f.reloader.Trigger()
 	assert.Empty(t, f.requireAppliedWithin(t, beforeTheRetry).Flags)
@@ -627,22 +725,218 @@ func TestReloaderParsesAnEmptiedFileRightAwayWithoutRetries(t *testing.T) {
 	assert.Empty(t, f.requireAppliedAlready(t).Flags)
 }
 
-func TestReloaderReadingAnEmptiedFileAgainIsNotAFailure(t *testing.T) {
-	// Reading a file again reports nothing. A consumer that tracks failures through OnError
-	// hears of none, and a failure that was reported once is not reported again when the
-	// same content comes back after the file was read again.
-	f, mockLog := newEmptyFileFixture(t, nil)
-	f.write(t, "flagValues: [")
+func TestReloaderHoldsBackAnEmptiedFileForTheWholeDelay(t *testing.T) {
+	// Any load can find the file empty while it is rewritten: a change signal for another
+	// file, a touch, a poll. Every load within the delay holds it back. The delay counts as
+	// over at nine tenths of the retry delay, so that the retry that the hold arms parses a
+	// file that stayed empty.
+	f, mockLog, clock := newFakeClockFixture(t, nil)
 	f.reloader.ReloadNow()
-	f.requireErrored(t)
+	f.requireApplied(t)
 
-	// No change signal: the retry finds the file emptied and reads it again later.
 	f.write(t, "")
-	requireLogged(t, mockLog, ldlog.Debug, readAgainLog)
-	f.write(t, "flagValues: [")
+	f.reloader.Trigger()
+	holds := f.requireHeldBack(t, mockLog, 0, 1)
 
-	// The next retry fails as before the file was emptied, which is a repeat.
+	clock.Advance(fakeClockRetryDelay * 85 / 100)
+	f.reloader.Trigger()
+	holds = f.requireHeldBack(t, mockLog, holds, 1)
+
+	clock.Advance(fakeClockRetryDelay * 10 / 100)
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireApplied(t).Flags)
+	assert.Equal(t, holds, holdCount(mockLog))
+}
+
+func TestReloaderDoesNotHoldBackAFileWhoseEmptyStateIsInEffect(t *testing.T) {
+	f, mockLog, clock := newFakeClockFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+	f.write(t, "")
+	f.reloader.Trigger()
+	holds := f.requireHeldBack(t, mockLog, 0, 1)
+	clock.Advance(fakeClockRetryDelay)
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireApplied(t).Flags)
+
+	// The file is written again, and still empty. Its empty state is in effect, so there is
+	// nothing to keep.
+	emptyInPlace(t, f.path)
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireApplied(t).Flags)
+	assert.Equal(t, holds, holdCount(mockLog))
+}
+
+func TestReloaderRestartsTheDelayWhenAnEmptiedFileIsWrittenAgain(t *testing.T) {
+	// Two quick rewrites in place: the second truncation comes before any load reads the
+	// content of the first. The file was written since a load last found it empty, so the
+	// delay starts over.
+	f, mockLog, clock := newFakeClockFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	f.write(t, "")
+	f.reloader.Trigger()
+	holds := f.requireHeldBack(t, mockLog, 0, 1)
+
+	f.write(t, yamlFlag2)
+	emptyInPlace(t, f.path)
+	clock.Advance(fakeClockRetryDelay * 8 / 10)
+	f.reloader.Trigger()
+	holds = f.requireHeldBack(t, mockLog, holds, 1)
+
+	// Longer than the delay since a load first found the file empty, shorter since it was
+	// written.
+	clock.Advance(fakeClockRetryDelay * 8 / 10)
+	f.reloader.Trigger()
+	f.requireHeldBack(t, mockLog, holds, 1)
+
+	f.write(t, yamlFlag3)
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag3"}, flagKeys(f.requireApplied(t)))
+}
+
+func TestReloaderAppliesAnEmptiedFileThatKeepsBeingWrittenAfterFiveDelays(t *testing.T) {
+	// A file that is written again before every load, so that every load finds it empty, is
+	// not held back for ever.
+	f, mockLog, clock := newFakeClockFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+	f.write(t, "")
+	f.reloader.Trigger()
+	holds := f.requireHeldBack(t, mockLog, 0, 1)
+
+	for range 6 {
+		f.write(t, yamlFlag2)
+		emptyInPlace(t, f.path)
+		clock.Advance(fakeClockRetryDelay * 8 / 10)
+		f.reloader.Trigger()
+		holds = f.requireHeldBack(t, mockLog, holds, 1)
+	}
+
+	// Five retry delays after a load first found the file empty, it is applied.
+	f.write(t, yamlFlag2)
+	emptyInPlace(t, f.path)
+	clock.Advance(fakeClockRetryDelay * 8 / 10)
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireApplied(t).Flags)
+}
+
+// newTwoFileFakeClockFixture configures a fake clock reloader for two YAML files, the
+// fixture's file with flag1 and a second file with flag2, and applies them.
+func newTwoFileFakeClockFixture(t *testing.T) (*reloaderFixture, string, *ldlogtest.MockLog, *fakeClock) {
+	t.Helper()
+	second := filepath.Join(t.TempDir(), "second.yaml")
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+	f, mockLog, clock := newFakeClockFixture(t, func(cfg *ReloaderConfig) {
+		cfg.Paths = append(cfg.Paths, second)
+	})
+	f.reloader.ReloadNow()
+	require.Equal(t, []string{"flag1", "flag2"}, flagKeys(f.requireApplied(t)))
+	return f, second, mockLog, clock
+}
+
+func TestReloaderHoldsBackAnEmptiedFileWhenAnotherFileChanges(t *testing.T) {
+	// The second file is rewritten in place. A change to the first file starts a load, and
+	// later another one, while the second file is still empty.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	require.NoError(t, os.WriteFile(second, nil, 0600))
+	f.reloader.Trigger()
+	holds := f.requireHeldBack(t, mockLog, 0, 1)
+
+	clock.Advance(fakeClockRetryDelay * 3 / 10)
+	f.write(t, yamlFlag3)
+	f.reloader.Trigger()
+	f.requireHeldBack(t, mockLog, holds, 1)
+
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag2", "flag3"}, flagKeys(f.requireApplied(t)))
+}
+
+func TestReloaderStartsTheDelayOfEveryEmptiedFileInOneLoad(t *testing.T) {
+	// Both files are emptied at once. The load that finds them empty holds back both, so both
+	// are applied once the delay is over, rather than one retry delay per file.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	f.write(t, "")
+	require.NoError(t, os.WriteFile(second, nil, 0600))
+	f.reloader.Trigger()
+	f.requireHeldBack(t, mockLog, 0, 2)
+
+	clock.Advance(fakeClockRetryDelay * 95 / 100)
+	f.reloader.Trigger()
+	assert.Empty(t, f.requireApplied(t).Flags)
+}
+
+func TestReloaderStartsANewDelayForEachEmptying(t *testing.T) {
+	// The file is rewritten in place twice, a while apart, and the second time a poll reads it
+	// empty twice. The second emptying gets a delay of its own: the time since the first one
+	// does not count towards it.
+	f, mockLog, clock := newFakeClockFixture(t, nil)
+	f.reloader.ReloadNow()
+	f.requireApplied(t)
+
+	f.write(t, "")
+	f.reloader.Trigger()
+	holds := f.requireHeldBack(t, mockLog, 0, 1)
+	f.write(t, yamlFlag2)
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
+
+	clock.Advance(fakeClockRetryDelay * 49 / 10)
+	emptyInPlace(t, f.path)
+	f.reloader.Trigger()
+	holds = f.requireHeldBack(t, mockLog, holds, 1)
+	clock.Advance(fakeClockRetryDelay * 3 / 10)
+	f.reloader.Trigger()
+	f.requireHeldBack(t, mockLog, holds, 1)
+
+	f.write(t, yamlFlag3)
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag3"}, flagKeys(f.requireApplied(t)))
+}
+
+func TestReloaderKeepsParsingAnEmptiedFileAfterItsDelay(t *testing.T) {
+	// The first file is emptied while the second cannot be parsed. Holding back the first file
+	// does not hide the failure of the second.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	f.write(t, "")
+	require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
+	f.reloader.Trigger()
+	require.ErrorContains(t, f.requireErrored(t), second)
+
+	// After the delay, loads parse the first file, as long as it is not written.
+	clock.Advance(fakeClockRetryDelay * 95 / 100)
+	f.reloader.Trigger()
 	requireLogged(t, mockLog, ldlog.Debug, "Unable to load flags")
-	f.requireQuiet(t, 100*time.Millisecond)
-	assert.Len(t, mockLog.GetOutput(ldlog.Error), 1)
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
+	assert.Equal(t, 0, holdCount(mockLog))
+}
+
+func TestReloaderRecordsWhatEachFileContributesWhenALoadIsSkippedAsUnchanged(t *testing.T) {
+	// The content moves from the second file to the first, so the files' combined content is
+	// the same and the load is skipped as unchanged. The data in effect now comes from the
+	// first file, so emptying it holds it back.
+	second := filepath.Join(t.TempDir(), "second.yaml")
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag1), 0600))
+	f, mockLog, _ := newFakeClockFixture(t, func(cfg *ReloaderConfig) {
+		cfg.Paths = append(cfg.Paths, second)
+		cfg.SkipMissingPaths = true
+		cfg.SkipUnchanged = true
+	})
+	require.NoError(t, os.Remove(f.path))
+	f.reloader.ReloadNow()
+	require.Equal(t, []string{"flag1"}, flagKeys(f.requireApplied(t)))
+
+	f.write(t, yamlFlag1)
+	require.NoError(t, os.Remove(second))
+	f.reloader.Trigger()
+	requireLogged(t, mockLog, ldlog.Debug, regexp.QuoteMeta(second)+" does not exist")
+	f.requireQuiet(t, 50*time.Millisecond)
+
+	f.write(t, "")
+	f.reloader.Trigger()
+	f.requireHeldBack(t, mockLog, 0, 1)
 }

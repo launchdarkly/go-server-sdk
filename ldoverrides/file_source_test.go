@@ -423,7 +423,10 @@ func TestFileSourceInPlaceRewriteNeverEmptiesTheOverrides(t *testing.T) {
 			t.Run(extension+" "+string(mode), func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "overrides"+extension)
 				writeFile(t, path, contents[extension][0])
-				source, err := FileSource().FilePaths(path).ChangeDetection(mode).Build(sharedtest.BasicClientContext())
+				mockLog := ldlogtest.NewMockLog()
+				mockLog.Loggers.SetMinLevel(ldlog.Debug)
+				context := sharedtest.NewTestContext("", nil, &subsystems.LoggingConfiguration{Loggers: mockLog.Loggers})
+				source, err := FileSource().FilePaths(path).ChangeDetection(mode).Build(context)
 				require.NoError(t, err)
 				// With the minimum interval of a second, a rewrite can fall between two polls. A
 				// short interval makes a poll see the file while it is empty.
@@ -443,6 +446,8 @@ func TestFileSourceInPlaceRewriteNeverEmptiesTheOverrides(t *testing.T) {
 						break
 					}
 				}
+				// A reload did read the file while it was empty.
+				assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, "reading it again"), "no reload found the file empty")
 			})
 		}
 	}

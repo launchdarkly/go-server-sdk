@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
@@ -21,7 +22,17 @@ import (
 
 // The tests in this file rewrite a data file in place while a client serves its flags. The file
 // is empty for 300 ms, longer than the settle window after a change, so a reload reads it empty.
-// The client must keep serving the old value until the new one is written.
+// The client must keep serving the old value until the new one is written. Each test also checks
+// the debug line of that reload, so that it does not pass only because no reload read the file
+// while it was empty.
+
+const holdBackLog = "reading it again"
+
+// debugLog returns a log that keeps debug output, for the client's logging configuration.
+func debugLog() (*ldlogtest.MockLog, *ldcomponents.LoggingConfigurationBuilder) {
+	mockLog := ldlogtest.NewMockLog()
+	return mockLog, ldcomponents.Logging().Loggers(mockLog.Loggers).MinLevel(ldlog.Debug)
+}
 
 // inPlaceRewriteContents is the content of a file that serves "a" for flag1, and of the same
 // file rewritten to serve "b", in each format.
@@ -90,8 +101,9 @@ func TestFileDataSourceInPlaceRewriteNeverServesAnEmptyFile(t *testing.T) {
 	for _, extension := range []string{".json", ".yaml"} {
 		t.Run(extension, func(t *testing.T) {
 			path := writeInPlaceRewriteFile(t, "flags", extension)
+			mockLog, logging := debugLog()
 			config := Config{
-				Logging:    ldcomponents.Logging().Loggers(ldlogtest.NewMockLog().Loggers),
+				Logging:    logging,
 				Events:     ldcomponents.NoEvents(),
 				DataSource: ldfiledata.DataSource().FilePaths(path).Reloader(ldfilewatch.WatchFiles),
 			}
@@ -103,6 +115,7 @@ func TestFileDataSourceInPlaceRewriteNeverServesAnEmptyFile(t *testing.T) {
 
 			served := servedDuringInPlaceRewrite(t, client, path, inPlaceRewriteContents[extension][1])
 			assert.Equal(t, []string{"a", "b"}, served)
+			assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, holdBackLog), "no reload found the file empty")
 		})
 	}
 }
@@ -111,8 +124,9 @@ func TestFileDataSynchronizerInPlaceRewriteNeverServesAnEmptyFile(t *testing.T) 
 	for _, extension := range []string{".json", ".yaml"} {
 		t.Run(extension, func(t *testing.T) {
 			path := writeInPlaceRewriteFile(t, "flags", extension)
+			mockLog, logging := debugLog()
 			config := Config{
-				Logging: ldcomponents.Logging().Loggers(ldlogtest.NewMockLog().Loggers),
+				Logging: logging,
 				Events:  ldcomponents.NoEvents(),
 				DataSystem: ldcomponents.DataSystem().Custom().
 					Synchronizers(ldfiledatav2.DataSource().FilePaths(path).Reloader(ldfilewatch.WatchFiles)),
@@ -125,6 +139,7 @@ func TestFileDataSynchronizerInPlaceRewriteNeverServesAnEmptyFile(t *testing.T) 
 
 			served := servedDuringInPlaceRewrite(t, client, path, inPlaceRewriteContents[extension][1])
 			assert.Equal(t, []string{"a", "b"}, served)
+			assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, holdBackLog), "no reload found the file empty")
 		})
 	}
 }
@@ -133,8 +148,9 @@ func TestFileOverridesInPlaceRewriteNeverServesAnEmptyFile(t *testing.T) {
 	for _, extension := range []string{".json", ".yaml"} {
 		t.Run(extension, func(t *testing.T) {
 			path := writeInPlaceRewriteFile(t, "overrides", extension)
+			mockLog, logging := debugLog()
 			config := Config{
-				Logging: ldcomponents.Logging().Loggers(ldlogtest.NewMockLog().Loggers),
+				Logging: logging,
 				Events:  ldcomponents.NoEvents(),
 				DataSystem: ldcomponents.DataSystem().Custom().
 					Synchronizers(newHangingSynchronizer()).
@@ -149,6 +165,7 @@ func TestFileOverridesInPlaceRewriteNeverServesAnEmptyFile(t *testing.T) {
 			// Without the override the client, which has no LaunchDarkly data, serves the default.
 			served := servedDuringInPlaceRewrite(t, client, path, inPlaceRewriteContents[extension][1])
 			assert.Equal(t, []string{"a", "b"}, served)
+			assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, holdBackLog), "no reload found the file empty")
 		})
 	}
 }
