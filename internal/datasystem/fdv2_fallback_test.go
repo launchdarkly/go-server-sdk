@@ -399,3 +399,41 @@ func TestFDv2ReturnsToFDv2AfterFallbackTTLWhileFDv1FallbackRuns(t *testing.T) {
 		require.FailNow(t, "timed out waiting for the primary synchronizer to start again")
 	}
 }
+
+func TestFDv2ParksSynchronizerThatReportsOff(t *testing.T) {
+	primary := newScriptedSynchronizer("primary")
+	system := makeSDKKeyTestFDv2(t, primary)
+	system.Start(make(chan struct{}))
+
+	// The only synchronizer reports Off with an error.
+	primary.requireRun(t) <- subsystems.DataSynchronizerResult{
+		State: interfaces.DataSourceStateOff,
+		Error: interfaces.DataSourceErrorInfo{Kind: interfaces.DataSourceErrorKindUnknown, Message: "bad data"},
+	}
+
+	// The data system is interrupted with the error, and the synchronizer is parked.
+	require.Eventually(t, func() bool {
+		return system.DataSourceStatusProvider().GetStatus().LastError.Message == "bad data"
+	}, time.Second, time.Millisecond)
+	assert.Equal(t, interfaces.DataSourceStateInterrupted, system.DataSourceStatusProvider().GetStatus().State)
+	primary.assertNoRun(t)
+}
+
+func TestFDv2ParksSynchronizerThatClosesItsResults(t *testing.T) {
+	primary := newScriptedSynchronizer("primary")
+	system := makeSDKKeyTestFDv2(t, primary)
+	system.Start(make(chan struct{}))
+
+	// The only synchronizer gets data, then closes its result channel on its own.
+	results := primary.requireRun(t)
+	results <- validResult
+	require.True(t, system.DataSourceStatusProvider().WaitFor(interfaces.DataSourceStateValid, time.Second))
+	close(results)
+
+	// The data system is interrupted, and the synchronizer is parked, so it does not start again.
+	require.Eventually(t, func() bool {
+		return system.DataSourceStatusProvider().GetStatus().State == interfaces.DataSourceStateInterrupted
+	}, time.Second, time.Millisecond)
+	assert.Equal(t, interfaces.DataSourceErrorKindUnknown, system.DataSourceStatusProvider().GetStatus().LastError.Kind)
+	primary.assertNoRun(t)
+}

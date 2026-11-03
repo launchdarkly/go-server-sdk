@@ -566,11 +566,17 @@ func (f *FDv2) consumeSynchronizerResults(
 			f.synchronizers.unparkAll()
 			keyChanged = true
 		case result, ok := <-resultChan:
-			// The status channel being closed means that we won't be receiving
-			// any more information from that synchronizer and we should
-			// probably fall back.
 			if !ok {
-				return syncFallback, nil
+				// The synchronizer closed its result channel on its own. Treat it as an unexpected failure.
+				f.UpdateStatus(interfaces.DataSourceStateInterrupted, interfaces.DataSourceErrorInfo{
+					Kind:    interfaces.DataSourceErrorKindUnknown,
+					Message: "synchronizer closed its result channel",
+					Time:    time.Now(),
+				})
+				if keyChanged {
+					return syncRestart, nil
+				}
+				return syncPark, nil
 			}
 
 			if result.EnvironmentID.IsDefined() {
@@ -599,6 +605,10 @@ func (f *FDv2) consumeSynchronizerResults(
 				}
 			case interfaces.DataSourceStateInterrupted:
 				f.UpdateStatus(result.State, result.Error)
+			case interfaces.DataSourceStateOff:
+				// A synchronizer must not report Off. Treat it as an unexpected failure.
+				f.UpdateStatus(interfaces.DataSourceStateInterrupted, result.Error)
+				result.UnexpectedFailure = true
 			}
 
 			// FallbackToFDv1 may ride along on a Valid or Interrupted result too -- e.g. a
