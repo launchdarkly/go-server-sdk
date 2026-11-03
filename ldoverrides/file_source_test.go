@@ -5,6 +5,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -179,6 +180,27 @@ func TestFileSourceDropsRepeatedPathsAndWarns(t *testing.T) {
 	require.Len(t, flags, 1)
 	require.Equal(t, []string{path}, source.(*fileOverrideSource).paths)
 	assert.Contains(t, strings.Join(mockLog.GetOutput(ldlog.Warn), "\n"), "more than once")
+}
+
+func TestUniqueFilePathsIgnoresCaseOnlyWhenFileNamesIgnoreCase(t *testing.T) {
+	paths := []string{`C:\overrides\a.json`, `c:\Overrides\A.JSON`, `C:\overrides\b.json`}
+	assert.Equal(t, []string{`C:\overrides\a.json`, `C:\overrides\b.json`}, uniqueFilePaths(paths, true))
+	assert.Equal(t, paths, uniqueFilePaths(paths, false))
+}
+
+func TestFileSourceTreatsAPathRepeatedInDifferentCaseAsARepeatOnlyOnWindows(t *testing.T) {
+	dir := t.TempDir()
+	lower := filepath.Join(dir, "overrides.json")
+	upper := filepath.Join(dir, "OVERRIDES.JSON")
+
+	source, _, _ := buildFileSourceWithLog(t, func(b *FileSourceBuilder) { b.FilePaths(lower, upper) })
+
+	paths := source.(*fileOverrideSource).paths
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, []string{lower}, paths)
+	} else {
+		assert.Equal(t, []string{lower, upper}, paths)
+	}
 }
 
 func TestFileSourceLoadsYAML(t *testing.T) {
