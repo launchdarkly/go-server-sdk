@@ -289,14 +289,20 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 	// The files that holdBack holds back. The other files are still read, so that every file
 	// that is found empty starts its delay in this load.
 	var heldBack []string
-	// The files that the load got to and did not hold back, including one that it failed to
-	// read or parse.
+	// The files that the load did not hold back, including those that it failed to read or
+	// parse. A failure does not stop the reads: the load fails with the first failure, but
+	// every file is classified, so that no file's bound is left over from before the failure.
 	var reached []string
+	var failure error
+	fail := func(err error) {
+		if failure == nil {
+			failure = err
+		}
+	}
 	defer func() {
 		// A load that holds nothing back, whether it applies, skips or fails, starts the bound
-		// over for every file that it got to: such a file is no longer held back, so its next
-		// rewrite is a new one. A file after the one that failed, which the load did not get to,
-		// keeps its bound.
+		// over for every file: such a file is no longer held back, so its next rewrite is a
+		// new one.
 		if len(heldBack) == 0 {
 			for _, path := range reached {
 				if empty, ok := r.emptyFiles[path]; ok {
@@ -319,7 +325,8 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 				continue
 			}
 			reached = append(reached, path)
-			return r.fail(&ReadError{Err: wrapReadError(err), Path: path})
+			fail(&ReadError{Err: wrapReadError(err), Path: path})
+			continue
 		}
 		// A file with no content, or with content that is no YAML document, such as only a
 		// comment or "---", has no entries. A read can see that much of a file that is being
@@ -331,7 +338,8 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 			doc, hasContent, err = parseFileContent(rawData)
 			if err != nil {
 				reached = r.noteNotEmpty(path, reached)
-				return r.fail(&ReadError{Err: err, Path: path})
+				fail(&ReadError{Err: err, Path: path})
+				continue
 			}
 			parsed = true
 		}
@@ -352,11 +360,17 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 		if !parsed {
 			doc, err = parseDocument(rawData)
 			if err != nil {
-				return r.fail(&ReadError{Err: err, Path: path})
+				fail(&ReadError{Err: err, Path: path})
+				continue
 			}
 		}
 		docs = append(docs, doc)
 		files = append(files, FileSummary{Path: path, Present: true})
+	}
+	// A failure comes first, then a hold, then the merge, which runs only once every file has
+	// been read.
+	if failure != nil {
+		return r.fail(failure)
 	}
 	if len(heldBack) > 0 {
 		return r.readAgainLater(heldBack, r.now())
@@ -431,16 +445,15 @@ func (r *Reloader) noteNotEmpty(path string, reached []string) []string {
 // when a load first held it back, so that a file that keeps being written while every load
 // finds it empty, or files that are rewritten or emptied in turn, are not held back without
 // end. The bound is the file's own, and it starts over only at a load that holds nothing
-// back and gets to the file, whether that load applies, skips or fails, including a load
-// that fails on this file: while any file holds the loads back, a read with entries, a
-// failure, or the file staying empty for the whole delay does not restart it. A file after
-// the one that a load failed on keeps its bound. The bounds of different files do not
-// overlap, so n files that each keep being written while empty, started a little less than
-// the bound apart, hold the loads back for about n bounds, and a failure timed to every
-// expiry of a bound could hold them back without end. A file whose content is not in
-// effect, such as a placeholder that has always been empty or an emptied file whose empty
-// state has been applied, is parsed right away, and so is any file when retries are off,
-// since nothing would read it again.
+// back, whether that load applies, skips or fails, on this file or another one: every load
+// reads every file. While any file holds the loads back, a read with entries, a failure, or
+// the file staying empty for the whole delay does not restart it. The bounds of different
+// files do not overlap, so n files that each keep being written while empty, started a
+// little less than the bound apart, hold the loads back for about n bounds, and a failure
+// timed to every expiry of a bound could hold them back without end. A file whose content
+// is not in effect, such as a placeholder that has always been empty or an emptied file
+// whose empty state has been applied, is parsed right away, and so is any file when retries
+// are off, since nothing would read it again.
 func (r *Reloader) holdBack(path string, now time.Time) bool {
 	if r.cfg.RetryDelay <= 0 || !r.appliedHadContent[path] {
 		return false

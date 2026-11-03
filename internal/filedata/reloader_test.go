@@ -1111,10 +1111,10 @@ func TestReloaderFailedLoadsDoNotRestartTheBoundOfAFileThatIsHeldBack(t *testing
 	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireLoadApplies(t)))
 }
 
-func TestReloaderKeepsTheBoundOfAFileThatAFailedLoadDidNotRead(t *testing.T) {
+func TestReloaderAppliesAFileKeptWrittenWhileEmptyAfterItsBoundWhileAnEarlierFileFails(t *testing.T) {
 	// The second file is written again before every load, so that every load finds it empty,
-	// and every other load fails on the first file, before it reads the second. Those loads
-	// hold nothing back, but they do not start the bound of a file they did not read over.
+	// and every other load fails on the first file. Those loads still read the second file
+	// and hold it back, so they do not start its bound over.
 	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
 	require.NoError(t, os.WriteFile(second, nil, 0600))
 	holds := f.requireLoadHolds(t, mockLog, 0, 1)
@@ -1271,6 +1271,67 @@ func TestReloaderFileFoundMissingStartsANewDelayWhenItIsCreatedEmptyAgain(t *tes
 	require.NoError(t, os.Chtimes(f.path, info.ModTime(), info.ModTime()))
 	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
 	f.requireLoadHolds(t, mockLog, 0, 1)
+}
+
+func TestReloaderStartsTheBoundOfAFileAfterAFailingFileOverOnceItIsReadAgain(t *testing.T) {
+	// The second file is held back. Then the first file fails while the second gets its
+	// content back, and loads fail on the first file for a long time. They still read the
+	// second file, so when the first file is fixed while the second is in the middle of
+	// another rewrite, that rewrite is held back with a bound of its own.
+	cases := []struct {
+		name           string
+		firstFromStart string
+		breakFirst     func(t *testing.T, f *reloaderFixture)
+		fixFirst       func(t *testing.T, f *reloaderFixture)
+	}{
+		{"parse failure", yamlFlag1,
+			func(t *testing.T, f *reloaderFixture) { f.write(t, "flagValues: [") },
+			func(t *testing.T, f *reloaderFixture) { f.write(t, yamlFlag1) }},
+		{"read failure", yamlFlag1,
+			func(t *testing.T, f *reloaderFixture) { require.NoError(t, os.Remove(f.path)) },
+			func(t *testing.T, f *reloaderFixture) { f.write(t, yamlFlag1) }},
+		// A placeholder is not held back, so white space that YAML cannot parse fails the load.
+		{"white space that cannot be parsed", "",
+			func(t *testing.T, f *reloaderFixture) { f.write(t, " \t\n") },
+			func(t *testing.T, f *reloaderFixture) { f.write(t, "") }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			second := filepath.Join(t.TempDir(), "second.yaml")
+			require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+			f, mockLog, clock := newFakeClockFixture(t, func(cfg *ReloaderConfig) {
+				cfg.Paths = append(cfg.Paths, second)
+			})
+			f.write(t, c.firstFromStart)
+			f.requireLoadApplies(t)
+			require.NoError(t, os.WriteFile(second, nil, 0600))
+			holds := f.requireLoadHolds(t, mockLog, 0, 1)
+
+			c.breakFirst(t, f)
+			require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+			f.reloader.ReloadNow()
+			f.requireErrored(t)
+			for range 6 {
+				clock.Advance(fakeClockRetryDelay)
+				f.reloader.ReloadNow()
+			}
+
+			c.fixFirst(t, f)
+			emptyInPlace(t, second)
+			f.requireLoadHolds(t, mockLog, holds, 1)
+		})
+	}
+}
+
+func TestReloaderFailingLoadReportsTheFirstFailure(t *testing.T) {
+	f, second, _, _ := newTwoFileFakeClockFixture(t)
+	f.write(t, "flagValues: [")
+	require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
+	f.reloader.ReloadNow()
+	var readErr *ReadError
+	require.ErrorAs(t, f.requireErrored(t), &readErr)
+	assert.Equal(t, f.path, readErr.Path)
+	f.requireQuiet(t, 50*time.Millisecond)
 }
 
 func TestReloaderAnotherFilesBoundDoesNotCutShortARewrite(t *testing.T) {
