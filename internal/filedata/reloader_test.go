@@ -915,28 +915,33 @@ func TestReloaderKeepsParsingAnEmptiedFileAfterItsDelay(t *testing.T) {
 	assert.Equal(t, 0, holdCount(mockLog))
 }
 
-func TestReloaderRecordsWhatEachFileContributesWhenALoadIsSkippedAsUnchanged(t *testing.T) {
-	// The content moves from the second file to the first, so the files' combined content is
-	// the same and the load is skipped as unchanged. The data in effect now comes from the
-	// first file, so emptying it holds it back.
-	second := filepath.Join(t.TempDir(), "second.yaml")
-	require.NoError(t, os.WriteFile(second, []byte(yamlFlag1), 0600))
+func TestReloaderHoldsBackAFileWhoseContentWasMovedFromAnotherFile(t *testing.T) {
+	// The content of one configured file is moved to the other (mv second.yaml data.yaml). The
+	// files' combined content is the same, so the load is skipped as unchanged, but the data in
+	// effect now comes from the file it was moved to. A rewrite of that file in place holds it
+	// back like any other.
+	var second string
 	f, mockLog, _ := newFakeClockFixture(t, func(cfg *ReloaderConfig) {
+		second = filepath.Join(filepath.Dir(cfg.Paths[0]), "second.yaml")
 		cfg.Paths = append(cfg.Paths, second)
 		cfg.SkipMissingPaths = true
 		cfg.SkipUnchanged = true
 	})
 	require.NoError(t, os.Remove(f.path))
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag1), 0600))
 	f.reloader.ReloadNow()
 	require.Equal(t, []string{"flag1"}, flagKeys(f.requireApplied(t)))
 
-	f.write(t, yamlFlag1)
-	require.NoError(t, os.Remove(second))
+	require.NoError(t, os.Rename(second, f.path))
 	f.reloader.Trigger()
 	requireLogged(t, mockLog, ldlog.Debug, regexp.QuoteMeta(second)+" does not exist")
 	f.requireQuiet(t, 50*time.Millisecond)
 
+	// The file is rewritten in place: truncated, then written after a load has found it empty.
 	f.write(t, "")
 	f.reloader.Trigger()
 	f.requireHeldBack(t, mockLog, 0, 1)
+	f.write(t, yamlFlag2)
+	f.reloader.Trigger()
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
 }
