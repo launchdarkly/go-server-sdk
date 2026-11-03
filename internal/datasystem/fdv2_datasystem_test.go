@@ -7,6 +7,7 @@ import (
 
 	th "github.com/launchdarkly/go-test-helpers/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/launchdarkly/go-server-sdk/v7/interfaces"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
@@ -67,6 +68,34 @@ func TestFDv2WaitForEndsWhenStopped(t *testing.T) {
 	// WaitFor should return false when the system stops, before the timeout.
 	assert.False(t, success)
 	assert.Less(t, time.Since(timeStart), 500*time.Millisecond)
+}
+
+func TestFDv2StatusListenerReceivesOffWhenStopped(t *testing.T) {
+	system := makeFallbackTestFDv2(t)
+	provider := &dataStatusProvider{system: system}
+	listener := provider.AddStatusListener()
+
+	// Stop the system.
+	require.NoError(t, system.Stop())
+
+	// The listener should receive Off, and then its channel should close.
+	assert.Equal(t, interfaces.DataSourceStateOff, th.RequireValue(t, listener, time.Second).State)
+	th.AssertChannelClosed(t, listener, time.Second)
+}
+
+func TestFDv2WaitForOffReturnsTrueWhenStopped(t *testing.T) {
+	system := makeFallbackTestFDv2(t)
+	provider := &dataStatusProvider{system: system}
+	go func() {
+		<-time.After(100 * time.Millisecond)
+		_ = system.Stop()
+	}()
+
+	// Wait for Off while the system stops.
+	success := provider.WaitFor(interfaces.DataSourceStateOff, time.Second)
+
+	// WaitFor should see Off.
+	assert.True(t, success)
 }
 
 func TestFDv2GetStatusReturnsWhileStatusListenerIsFull(t *testing.T) {

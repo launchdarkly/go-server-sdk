@@ -27,8 +27,9 @@ type broadcasters struct {
 	changeSetBroadcaster *internal.Broadcaster[subsystems.ChangeSet]
 }
 
-func (b *broadcasters) Close() {
-	b.dataSourceStatus.Close()
+// Close sends status to each data source status listener that has room for it, then closes every broadcaster.
+func (b *broadcasters) Close(status interfaces.DataSourceStatus) {
+	b.dataSourceStatus.CloseWith(status)
 	b.dataStoreStatus.Close()
 	b.flagChangeEvent.Close()
 	b.changeSetBroadcaster.Close()
@@ -682,10 +683,9 @@ func (f *FDv2) Stop() error {
 		f.cancel()
 	}
 	f.wg.Wait()
-	// Do not broadcast Off. Status listeners learn of shutdown when their channels close.
-	_, _ = f.maybeUpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
+	status, _ := f.maybeUpdateStatus(interfaces.DataSourceStateOff, interfaces.DataSourceErrorInfo{})
 	_ = f.store.Close()
-	f.broadcasters.Close()
+	f.broadcasters.Close(status)
 
 	return nil
 }
