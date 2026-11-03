@@ -154,6 +154,7 @@ func TestFDV2InitializerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *t
 
 		// With no FDv1 fallback configured, an initializer-triggered fallback must transition the
 		// status to Interrupted.
+		require.True(t, client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second))
 		status := client.GetDataSourceStatusProvider().GetStatus()
 		assert.Equal(t,
 			interfaces.DataSourceStateInterrupted,
@@ -197,10 +198,8 @@ func TestFDV2SynchronizerFallbackWithoutFDv1FallbackTransitionsToInterrupted(t *
 		defer client.Close()
 
 		// The data system is interrupted, and only the first synchronizer made a request.
-		assert.Equal(t,
-			string(interfaces.DataSourceStateInterrupted),
-			string(client.GetDataSourceStatusProvider().GetStatus().State))
 		<-requestsCh
+		require.True(t, client.GetDataSourceStatusProvider().WaitFor(interfaces.DataSourceStateInterrupted, time.Second))
 		assertNoMoreRequests(t, requestsCh)
 		logCapture.AssertMessageMatch(t, true, ldlog.Warn, "^Synchronizer requested FDv1 fallback but none configured")
 	})
