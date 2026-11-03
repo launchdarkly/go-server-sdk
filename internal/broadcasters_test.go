@@ -174,6 +174,43 @@ func testBroadcasterGenerically[V any](t *testing.T, broadcasterFactory func() *
 		})
 	}
 
+	t.Run("close with value delivers it to a listener with room", func(t *testing.T) {
+		withBroadcaster(t, func(b *Broadcaster[V]) {
+			ch := b.AddListener()
+
+			// Close with a final value.
+			value := valueFactory()
+			b.CloseWith(value)
+
+			// The listener should receive the value, and then the channel should close.
+			assert.Equal(t, value, th.RequireValue(t, ch, timeout))
+			th.AssertChannelClosed(t, ch, timeout)
+		})
+	})
+
+	t.Run("close with value does not wait for a full listener", func(t *testing.T) {
+		withBroadcaster(t, func(b *Broadcaster[V]) {
+			ch := b.AddListener()
+			for i := 0; i < subscriberChannelBufferLength; i++ {
+				b.Broadcast(valueFactory())
+			}
+
+			// Close with a final value without reading from the listener.
+			closeDone := make(chan struct{})
+			go func() {
+				b.CloseWith(valueFactory())
+				close(closeDone)
+			}()
+
+			// CloseWith should return, and the listener should get only the values that fit.
+			th.AssertChannelClosed(t, closeDone, timeout)
+			for i := 0; i < subscriberChannelBufferLength; i++ {
+				th.RequireValue(t, ch, timeout)
+			}
+			th.AssertChannelClosed(t, ch, timeout)
+		})
+	})
+
 	t.Run("hasListeners", func(t *testing.T) {
 		withBroadcaster(t, func(b *Broadcaster[V]) {
 			assert.False(t, b.HasListeners())

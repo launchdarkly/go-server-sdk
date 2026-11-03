@@ -51,11 +51,18 @@ func (p *channelPair[V]) send(value V) {
 	}
 }
 
-// close stops any send in progress and closes sendCh. Call it once per subscriber.
-func (p *channelPair[V]) close() {
+// close stops any send in progress and closes sendCh. If final is not nil, close first sends *final to
+// sendCh if it has room. Call it once per subscriber.
+func (p *channelPair[V]) close(final *V) {
 	close(p.done)
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	if final != nil {
+		select {
+		case p.sendCh <- *final:
+		default:
+		}
+	}
 	close(p.sendCh)
 }
 
@@ -92,7 +99,7 @@ func (b *Broadcaster[V]) RemoveListener(ch <-chan V) {
 	})
 	b.lock.Unlock()
 	for _, pair := range removed {
-		pair.close()
+		pair.close(nil)
 	}
 }
 
@@ -115,11 +122,21 @@ func (b *Broadcaster[V]) Broadcast(value V) {
 
 // Close closes all current subscriber channels.
 func (b *Broadcaster[V]) Close() {
+	b.closeAll(nil)
+}
+
+// CloseWith sends value to each current subscriber that has room for it, then closes all current subscriber
+// channels. It does not wait for a subscriber to read.
+func (b *Broadcaster[V]) CloseWith(value V) {
+	b.closeAll(&value)
+}
+
+func (b *Broadcaster[V]) closeAll(final *V) {
 	b.lock.Lock()
 	subscribers := b.subscribers
 	b.subscribers = nil
 	b.lock.Unlock()
 	for _, pair := range subscribers {
-		pair.close()
+		pair.close(final)
 	}
 }
