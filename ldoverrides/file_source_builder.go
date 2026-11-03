@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
+	"github.com/launchdarkly/go-server-sdk/v7/ldfilewatch"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 )
 
@@ -171,6 +172,7 @@ func (b *FileSourceBuilder) Build(context subsystems.ClientContext) (subsystems.
 		changeDetection:       b.changeDetection,
 		pollInterval:          pollInterval,
 		loggers:               loggers,
+		watchFiles:            ldfilewatch.WatchOptionalFiles,
 	}, nil
 }
 

@@ -8,7 +8,6 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
-	"github.com/launchdarkly/go-server-sdk/v7/ldfilewatch"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
@@ -20,6 +19,8 @@ type fileOverrideSource struct {
 	changeDetection       ChangeDetection
 	pollInterval          time.Duration
 	loggers               ldlog.Loggers
+	// watchFiles sets up watching mode. Tests replace it with one that fails.
+	watchFiles func(paths []string, loggers ldlog.Loggers, reload func(), closeCh <-chan struct{}) error
 
 	reloader     *filedata.Reloader
 	poller       *filedata.Poller
@@ -61,9 +62,16 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	switch f.changeDetection {
 	case Watching:
 		f.closeWatchCh = make(chan struct{})
-		if err := ldfilewatch.WatchOptionalFiles(f.paths, f.loggers, f.reloader.Trigger, f.closeWatchCh); err != nil {
-			// COVERAGE: constructing a watcher only fails under unusual OS conditions
-			f.loggers.Errorf("Unable to watch override files: %s", err)
+		if err := f.watchFiles(f.paths, f.loggers, f.reloader.Trigger, f.closeWatchCh); err != nil {
+			// The watcher itself cannot be created, for example because the limit on inotify
+			// instances is reached. Without change detection a later edit would never take effect,
+			// so the source polls the files instead, no more often than polling mode allows.
+			interval := f.pollInterval
+			if interval < MinimumPollInterval {
+				interval = MinimumPollInterval
+			}
+			f.loggers.Errorf("Unable to watch override files; polling them instead every %s: %s", interval, err)
+			f.poller = filedata.NewPoller(f.paths, interval, f.reloader.Trigger)
 		}
 	case Polling:
 		f.poller = filedata.NewPoller(f.paths, f.pollInterval, f.reloader.Trigger)
