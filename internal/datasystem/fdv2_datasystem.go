@@ -251,9 +251,10 @@ func (f *FDv2) run(ctx context.Context, closeWhenReady chan struct{}) {
 	if fallback, errorInfo := f.runInitializers(ctx, closeWhenReady); fallback {
 		ttl := jittered(f.defaultFDv1FallbackTTL)
 		if f.synchronizers.hasFDv1Fallback() {
-			f.loggers.Warnf("Falling back to FDv1 protocol, retrying FDv2 in %s", ttl)
+			f.loggers.Warnf("Falling back to FDv1 protocol, retrying the configured synchronizers in %s", ttl)
 		} else {
-			f.loggers.Warnf("Initializer requested FDv1 fallback but none configured, retrying FDv2 in %s", ttl)
+			f.loggers.Warnf(
+				"Initializer requested FDv1 fallback but none configured, retrying the configured synchronizers in %s", ttl)
 			f.UpdateStatus(interfaces.DataSourceStateInterrupted, errorInfo)
 		}
 		// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available, if there is one.
@@ -416,7 +417,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				case <-time.After(delay):
 				}
 				if f.synchronizers.maybeEndFDv1Fallback() {
-					f.loggers.Info("FDv1 fallback ended, returning to FDv2 synchronizers")
+					f.loggers.Info("FDv1 fallback ended, returning to the configured synchronizers")
 				}
 				f.synchronizers.reset()
 				f.synchronizers.next()
@@ -454,9 +455,11 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 			case syncFDv1:
 				ttl := jittered(f.defaultFDv1FallbackTTL)
 				if f.synchronizers.hasFDv1Fallback() {
-					f.loggers.Warnf("Falling back to FDv1 protocol, retrying FDv2 in %s", ttl)
+					f.loggers.Warnf("Falling back to FDv1 protocol, retrying the configured synchronizers in %s", ttl)
 				} else {
-					f.loggers.Warnf("Synchronizer requested FDv1 fallback but none configured, retrying FDv2 in %s", ttl)
+					f.loggers.Warnf(
+						"Synchronizer requested FDv1 fallback but none configured, retrying the configured synchronizers in %s",
+						ttl)
 					f.UpdateStatus(interfaces.DataSourceStateInterrupted, f.getStatus().LastError)
 				}
 				// Exclude every FDv2 synchronizer and make the FDv1 fallback synchronizer available, if there is one.
@@ -486,7 +489,7 @@ func (f *FDv2) runSynchronizers(ctx context.Context, closeWhenReady chan struct{
 				f.synchronizers.reset()
 				f.synchronizers.next()
 			case syncFDv1FallbackEnded:
-				f.loggers.Info("FDv1 fallback ended, returning to FDv2 synchronizers")
+				f.loggers.Info("FDv1 fallback ended, returning to the configured synchronizers")
 				f.synchronizers.reset()
 				f.synchronizers.next()
 			case syncFallback:
