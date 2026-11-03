@@ -92,8 +92,8 @@ type FileSourceBuilder struct {
 // document with no entries, such as {}. A file whose content is in effect and that a reload
 // finds empty, or holding only a YAML comment or "---", may be in the middle of a rewrite,
 // so the source holds it back: the overrides in effect stay until the file has stayed that
-// way, without being written, for about a second, or at most about five seconds while files
-// keep being rewritten. A rewrite that leaves the file empty for less than a second
+// way, without being written, for about a second, or for at most about five seconds while
+// it keeps being rewritten. A rewrite that leaves the file empty for less than a second
 // therefore never removes them. A reload applies all of the files or none, so changes to
 // the other files wait while a file is held back. The source tells the formats apart by the
 // content: a file whose first character other than white space is "{" is JSON, and any

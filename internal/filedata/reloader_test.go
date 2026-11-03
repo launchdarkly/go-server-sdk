@@ -632,6 +632,8 @@ func TestReloaderAppliesAnEmptiedFileThatStaysEmptyAtTheFirstRetry(t *testing.T)
 	// being written, for the retry delay, so it parses it: a document with no entries. A
 	// second retry would come one more retry delay later.
 	assert.Empty(t, f.requireAppliedWithin(t, emptyFileRetryDelay+500*time.Millisecond).Flags)
+	assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, "Reading file data again after a file was found empty"))
+	assert.False(t, mockLog.HasMessageMatch(ldlog.Debug, "after earlier failure"))
 }
 
 func TestReloaderRetriesAHeldBackFileWhenItsDelayIsOver(t *testing.T) {
@@ -667,8 +669,10 @@ func TestReloaderRetryHoldsBackAnEmptiedFile(t *testing.T) {
 	// No change signal: only the retry reads the file.
 	f.write(t, "")
 	f.requireHeldBack(t, mockLog, 0, 1)
+	assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, "Retrying flag data load after earlier failure"))
 	f.write(t, yamlFlag2)
 	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireApplied(t)))
+	assert.True(t, mockLog.HasMessageMatch(ldlog.Debug, "Reading file data again after a file was found empty"))
 }
 
 func TestReloaderHoldingBackAFileReportsNoFailure(t *testing.T) {
@@ -890,14 +894,15 @@ func newTwoFileFakeClockFixture(t *testing.T) (*reloaderFixture, string, *ldlogt
 
 func TestReloaderStopsHoldingBackFilesThatAreRewrittenInTurnAfterFiveDelays(t *testing.T) {
 	// The two files are rewritten in place in turn, so that every load finds one of them
-	// empty. Each of them is read with content in between, but the run of loads that hold
-	// files back is still bounded.
+	// empty. Each of them is read with content in between, which does not restart its bound.
+	// The first file reaches its bound first, five retry delays after a load first held it
+	// back.
 	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
 	f.write(t, "")
 	holds := f.requireLoadHolds(t, mockLog, 0, 1)
 
 	emptied, written := second, f.path
-	for range 6 {
+	for range 7 {
 		require.NoError(t, os.WriteFile(written, []byte(yamlFlag3), 0600))
 		emptyInPlace(t, emptied)
 		clock.Advance(fakeClockRetryDelay * 8 / 10)
@@ -939,10 +944,10 @@ func TestReloaderStartsTheDelayOfEveryEmptiedFileInOneLoad(t *testing.T) {
 	assert.Empty(t, f.requireLoadApplies(t).Flags)
 }
 
-func TestReloaderStartsANewDelayAndRunForEachEmptying(t *testing.T) {
+func TestReloaderStartsANewDelayAndBoundForEachEmptying(t *testing.T) {
 	// The file is rewritten in place twice, a while apart, and the second time a poll reads it
-	// empty twice. The load that applies the first rewrite ends the run of loads that hold
-	// files back, so the time since the first emptying does not count against the second.
+	// empty twice. The load that applies the first rewrite ends the file's bound, so the time
+	// since the first emptying does not count against the second.
 	f, mockLog, clock := newFakeClockFixture(t, nil)
 	f.requireLoadApplies(t)
 
@@ -961,24 +966,56 @@ func TestReloaderStartsANewDelayAndRunForEachEmptying(t *testing.T) {
 	assert.Equal(t, []string{"flag3"}, flagKeys(f.requireLoadApplies(t)))
 }
 
-func TestReloaderEndsAnEmptyingWhenTheFileIsReadWithContent(t *testing.T) {
-	// The file is emptied, then written and applied, then emptied again with the same
-	// modification time and size as at the first emptying, as a file system with coarse
-	// timestamps can record. The second emptying still gets a delay of its own.
-	f, mockLog, clock := newFakeClockFixture(t, nil)
-	f.requireLoadApplies(t)
+func TestReloaderRestartsTheDelayWhenTheFileIsReadWithContent(t *testing.T) {
+	// The first file is emptied, then written while the second cannot be parsed, so nothing
+	// is applied. Then it is emptied again with the same modification time and size as at the
+	// first emptying, as a file system with coarse timestamps can record. The read with
+	// content still starts its delay over.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
 	f.write(t, "")
 	info, err := os.Stat(f.path)
 	require.NoError(t, err)
 	holds := f.requireLoadHolds(t, mockLog, 0, 1)
 
 	clock.Advance(fakeClockRetryDelay / 2)
-	f.write(t, yamlFlag2)
-	f.requireLoadApplies(t)
+	f.write(t, yamlFlag3)
+	require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
+	f.reloader.ReloadNow()
+	f.requireErrored(t)
 
 	clock.Advance(fakeClockRetryDelay * 6 / 10)
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
 	f.write(t, "")
 	require.NoError(t, os.Chtimes(f.path, info.ModTime(), info.ModTime()))
+	f.requireLoadHolds(t, mockLog, holds, 1)
+}
+
+func TestReloaderHoldsBackAFileEmptiedAgainAfterContentWhenItsStateLooksTheSame(t *testing.T) {
+	// On a file system that records modification times coarsely, a file emptied a second time
+	// can look exactly as it did the first time. The read of its content in between still
+	// starts its delay over. The second file is kept written while empty, so that no load
+	// applies.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	f.write(t, "")
+	info, err := os.Stat(f.path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(second, nil, 0600))
+	holds := f.requireLoadHolds(t, mockLog, 0, 2)
+
+	clock.Advance(fakeClockRetryDelay * 50 / 60)
+	f.write(t, yamlFlag1)
+	emptyInPlace(t, second)
+	holds = f.requireLoadHolds(t, mockLog, holds, 1)
+
+	clock.Advance(fakeClockRetryDelay * 20 / 60)
+	f.write(t, "")
+	require.NoError(t, os.Chtimes(f.path, info.ModTime(), info.ModTime()))
+	emptyInPlace(t, second)
+	holds = f.requireLoadHolds(t, mockLog, holds, 2)
+
+	// The second file gets its content back while the first is still within its new delay.
+	clock.Advance(fakeClockRetryDelay * 10 / 60)
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
 	f.requireLoadHolds(t, mockLog, holds, 1)
 }
 
@@ -1001,14 +1038,15 @@ func TestReloaderKeepsParsingAnEmptiedFileAfterItsDelay(t *testing.T) {
 }
 
 func TestReloaderHoldsBackALongEmptyFileAgainWhenItIsWritten(t *testing.T) {
-	// The first file has been empty for longer than the delay while loads failed on the
-	// second. When it is written again, still empty, its delay starts over.
+	// The first file has been empty for longer than the delay, and than its bound, while loads
+	// failed on the second. When it is written again, still empty, its delay and its bound
+	// start over: it stayed empty for the whole delay, so it was no rewrite.
 	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
 	f.write(t, "")
 	require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
 	f.reloader.ReloadNow()
 	f.requireErrored(t)
-	clock.Advance(fakeClockRetryDelay * 3)
+	clock.Advance(fakeClockRetryDelay * 6)
 	f.reloader.ReloadNow()
 
 	emptyInPlace(t, f.path)
@@ -1018,51 +1056,173 @@ func TestReloaderHoldsBackALongEmptyFileAgainWhenItIsWritten(t *testing.T) {
 	assert.Equal(t, []string{"flag2", "flag3"}, flagKeys(f.requireLoadApplies(t)))
 }
 
-func TestReloaderStartsANewRunOfHoldsAfterAFailedLoad(t *testing.T) {
-	// A load that fails holds nothing back, so it ends the run of loads that hold files back.
+func TestReloaderFailedLoadsDoNotRestartTheBoundOfAFileThatIsHeldBack(t *testing.T) {
+	// The first file is written again before every load, so that every load finds it empty,
+	// and every other load fails on the second file. The failures do not restart the first
+	// file's bound.
 	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
 	f.write(t, "")
 	holds := f.requireLoadHolds(t, mockLog, 0, 1)
 
-	clock.Advance(fakeClockRetryDelay * 3)
-	f.write(t, yamlFlag1)
-	require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
-	f.reloader.ReloadNow()
-	f.requireErrored(t)
+	for i := range 7 {
+		emptyInPlace(t, f.path)
+		clock.Advance(fakeClockRetryDelay * 8 / 10)
+		if i%2 == 0 {
+			// The load fails. Only the first of these identical failures is reported.
+			require.NoError(t, os.WriteFile(second, []byte("flagValues: ["), 0600))
+			f.reloader.ReloadNow()
+			require.Equal(t, holds, holdCount(mockLog))
+			select {
+			case <-f.applied:
+				require.FailNow(t, "a failed load called Apply")
+			case <-f.errored:
+			default:
+			}
+			continue
+		}
+		require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+		holds = f.requireLoadHolds(t, mockLog, holds, 1)
+	}
 
-	clock.Advance(fakeClockRetryDelay * 3)
+	// 5.6 retry delays after the first file was first held back.
 	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
 	emptyInPlace(t, f.path)
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireLoadApplies(t)))
+}
+
+func TestReloaderAnotherFilesBoundDoesNotCutShortARewrite(t *testing.T) {
+	// The first file is written again before every load, so that every load finds it empty,
+	// until it reaches its bound. The second file is rewritten in place just before that, and
+	// is still held back for its own delay.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	f.write(t, "")
+	holds := f.requireLoadHolds(t, mockLog, 0, 1)
+	for range 5 {
+		emptyInPlace(t, f.path)
+		clock.Advance(fakeClockRetryDelay * 8 / 10)
+		holds = f.requireLoadHolds(t, mockLog, holds, 1)
+	}
+
+	// 4.8 retry delays after the first file was first held back, the second file is emptied.
+	emptyInPlace(t, f.path)
+	emptyInPlace(t, second)
+	clock.Advance(fakeClockRetryDelay * 8 / 10)
+	holds = f.requireLoadHolds(t, mockLog, holds, 2)
+
+	// The first file's bound is over; the second file has been empty for 0.4 retry delays.
+	emptyInPlace(t, f.path)
+	clock.Advance(fakeClockRetryDelay * 4 / 10)
+	f.requireLoadHolds(t, mockLog, holds, 1)
+	require.NoError(t, os.WriteFile(second, []byte(yamlFlag2), 0600))
+	assert.Equal(t, []string{"flag2"}, flagKeys(f.requireLoadApplies(t)))
+}
+
+func TestReloaderSlowReadOfAnotherFileDoesNotShortenTheDelay(t *testing.T) {
+	// The read of the first file takes most of a retry delay, and the second file is emptied
+	// meanwhile. Its delay starts when it is read, not when the load started.
+	f, second, mockLog, clock := newTwoFileFakeClockFixture(t)
+	var slow atomic.Bool
+	f.reloader.readFile = func(path string) ([]byte, error) {
+		if path == f.path && slow.Load() {
+			clock.Advance(fakeClockRetryDelay * 9 / 10)
+			require.NoError(t, os.WriteFile(second, nil, 0600))
+		}
+		return os.ReadFile(path) //nolint:gosec // test file path
+	}
+	slow.Store(true)
+	holds := f.requireLoadHolds(t, mockLog, 0, 1)
+	slow.Store(false)
+
+	clock.Advance(fakeClockRetryDelay * 3 / 10)
 	f.requireLoadHolds(t, mockLog, holds, 1)
 }
 
-func TestReloaderArmsTheRetryOfAHoldForTheTimeRemaining(t *testing.T) {
+func TestReloaderHoldAsksForTheRetryWhenTheFirstHeldFileIsDue(t *testing.T) {
 	// A load that holds files back asks for a retry when the first of them has stayed empty
-	// for the retry delay, or when the run of loads that hold files back reaches its bound,
-	// plus a tenth of the retry delay. A failure asks for the retry delay.
+	// for the retry delay, or has been held back for as long as it may be, plus a tenth of the
+	// retry delay. A failure asks for the retry delay.
 	const delay = fakeClockRetryDelay
 	f, _, clock := newFakeClockFixture(t, nil)
-	require.Equal(t, time.Duration(0), f.reloader.reload())
+	require.Equal(t, time.Duration(0), f.reloader.reload(false))
 	f.requireAppliedAlready(t)
 
+	// The first hold asks for the whole delay, a later one for the rest of it.
 	f.write(t, "")
-	assert.Equal(t, delay+delay/10, f.reloader.reload())
+	assert.Equal(t, delay+delay/10, f.reloader.reload(false))
 	clock.Advance(delay * 6 / 10)
-	assert.Equal(t, delay*4/10+delay/10, f.reloader.reload())
+	assert.Equal(t, delay*4/10+delay/10, f.reloader.reload(false))
 
-	// Written again before every load: the delay starts over each time, until the run's bound
+	// Written again before every load: the delay starts over each time, until the file's bound
 	// comes first.
 	for range 4 {
 		emptyInPlace(t, f.path)
-		assert.Equal(t, delay+delay/10, f.reloader.reload())
+		assert.Equal(t, delay+delay/10, f.reloader.reload(false))
 		clock.Advance(delay)
 	}
-	// 4.6 retry delays into the run.
+	// 4.6 retry delays after the file was first held back.
 	emptyInPlace(t, f.path)
-	assert.Equal(t, delay*4/10+delay/10, f.reloader.reload())
+	assert.Equal(t, delay*4/10+delay/10, f.reloader.reload(false))
 
 	f.write(t, "flagValues: [")
-	assert.Equal(t, delay, f.reloader.reload())
+	assert.Equal(t, delay, f.reloader.reload(false))
+}
+
+func TestReloaderHoldAsksForTheRetryOfTheFileThatIsDueFirst(t *testing.T) {
+	// The first file was emptied earlier than the second, so its delay is over first.
+	const delay = fakeClockRetryDelay
+	f, second, _, clock := newTwoFileFakeClockFixture(t)
+	f.write(t, "")
+	assert.Equal(t, delay+delay/10, f.reloader.reload(false))
+	clock.Advance(delay * 3 / 10)
+	require.NoError(t, os.WriteFile(second, nil, 0600))
+	assert.Equal(t, delay*7/10+delay/10, f.reloader.reload(false))
+}
+
+func TestReloaderHoldAsksForTheRetryFromTheEndOfTheLoad(t *testing.T) {
+	// The read of the second file takes half a retry delay. The retry is measured from the
+	// end of the load.
+	const delay = fakeClockRetryDelay
+	f, second, _, clock := newTwoFileFakeClockFixture(t)
+	f.reloader.readFile = func(path string) ([]byte, error) {
+		if path == second {
+			clock.Advance(delay / 2)
+		}
+		return os.ReadFile(path) //nolint:gosec // test file path
+	}
+	f.write(t, "")
+	assert.Equal(t, delay/2+delay/10, f.reloader.reload(false))
+}
+
+func TestReloaderArmsTheRetryThatTheHoldAsksFor(t *testing.T) {
+	// The retry is armed for what the hold asks for, whether the load came from a change
+	// signal or from ReloadNow.
+	const delay = fakeClockRetryDelay
+	requireArmed := func(t *testing.T, f *reloaderFixture, expected time.Duration) {
+		t.Helper()
+		require.Eventually(t, func() bool { return f.reloader.lastArmedRetryDelay.Load() == int64(expected) },
+			testTimeout, 10*time.Millisecond, "the retry was not armed for %s", expected)
+	}
+	t.Run("change signal", func(t *testing.T) {
+		f, mockLog, clock := newFakeClockFixture(t, nil)
+		f.requireLoadApplies(t)
+		f.write(t, "")
+		f.reloader.Trigger()
+		holds := f.requireHeldBack(t, mockLog, 0, 1)
+		requireArmed(t, f, delay+delay/10)
+		clock.Advance(delay * 6 / 10)
+		f.reloader.Trigger()
+		f.requireHeldBack(t, mockLog, holds, 1)
+		requireArmed(t, f, delay*4/10+delay/10)
+	})
+	t.Run("ReloadNow", func(t *testing.T) {
+		f, mockLog, clock := newFakeClockFixture(t, nil)
+		f.requireLoadApplies(t)
+		clock.Advance(delay)
+		f.write(t, "")
+		clock.Advance(delay / 10)
+		f.requireLoadHolds(t, mockLog, 0, 1)
+		requireArmed(t, f, delay+delay/10)
+	})
 }
 
 func TestReloaderHoldsBackAFileWhoseContentWasMovedFromAnotherFile(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
@@ -58,9 +59,9 @@ type ReloaderConfig struct {
 	// so that a failure observed while a file was being rewritten recovers even if no
 	// further change notification arrives. A file whose content is in effect and that is
 	// found with no entries is not applied until it has stayed so, without being written,
-	// for the same delay, or for at most maxHoldRetryDelays delays while loads keep holding
-	// files back. If zero or negative, there is no automatic retry, and such a file is
-	// parsed as it is.
+	// for the same delay, or for at most maxHoldRetryDelays delays while it keeps being
+	// written. If zero or negative, there is no automatic retry, and such a file is parsed as
+	// it is.
 	RetryDelay time.Duration
 	// SkipUnchanged, if true, suppresses the Apply call when the files' raw contents are
 	// byte-identical to the last successfully applied contents.
@@ -90,29 +91,35 @@ type Reloader struct {
 	// unchanged. A missing or empty file contributed none. Guarded by reloadMu.
 	appliedHadContent map[string]bool
 	// emptyFiles holds the paths whose content is in effect and that loads have found with no
-	// entries since. An entry is removed when a load reads the file with entries. See
-	// holdBack. Guarded by reloadMu.
+	// entries since the data in effect was applied. Applying data clears it. See holdBack.
+	// Guarded by reloadMu.
 	emptyFiles map[string]*emptyFile
-	// holding is true while the loads hold files back, from the first load of such a run,
-	// at holdingSince, until a load holds none back. heldBack is set by a load that holds
-	// files back. Guarded by reloadMu.
-	holding      bool
-	holdingSince time.Time
-	heldBack     bool
-	// now returns the current time. Tests replace it.
-	now func() time.Time
+	// heldBack is true from a load that held files back until the next load starts, so that
+	// the retry it armed can say why it reads the files again. Guarded by reloadMu.
+	heldBack bool
+	// now returns the current time, and readFile reads a file. Tests replace them.
+	now      func() time.Time
+	readFile func(string) ([]byte, error)
+	// lastArmedRetryDelay is the delay of the retry that the run goroutine armed last, in
+	// nanoseconds, for tests.
+	lastArmedRetryDelay atomic.Int64
 }
 
-// emptyFile records since when a file has had no entries without being written, and the
-// file's state then.
+// emptyFile records what loads found of a file whose content is in effect and that they found
+// with no entries.
 type emptyFile struct {
+	// since is when a load found the file with no entries after a read with entries or a
+	// write, and state is the file's state then. since is zero after a read with entries.
 	since time.Time
 	state fileState
+	// firstHeld is when a load first held the file back since the data in effect was applied,
+	// or zero when the file has not been held back since, or stayed empty for the whole delay.
+	firstHeld time.Time
 }
 
-// maxHoldRetryDelays bounds a run of loads that hold files back. A file that keeps being
-// written so that every load finds it with no entries, or files that are rewritten in turn
-// so that every load finds one of them so, would otherwise be held back without end.
+// maxHoldRetryDelays bounds how long a file is held back. A file that keeps being written so
+// that every load finds it with no entries, or files that are rewritten in turn, would
+// otherwise be held back without end.
 const maxHoldRetryDelays = 5
 
 // NewReloader creates a Reloader. The caller should perform the initial load with
@@ -131,6 +138,7 @@ func NewReloader(cfg ReloaderConfig) *Reloader {
 		appliedHadContent: make(map[string]bool, len(cfg.Paths)),
 		emptyFiles:        make(map[string]*emptyFile),
 		now:               time.Now,
+		readFile:          os.ReadFile,
 	}
 }
 
@@ -151,7 +159,7 @@ func (r *Reloader) ensureStarted() {
 // failed triggered reload.
 func (r *Reloader) ReloadNow() {
 	r.ensureStarted()
-	if retryAfter := r.reload(); retryAfter > 0 {
+	if retryAfter := r.reload(false); retryAfter > 0 {
 		select {
 		case r.retryRequestCh <- retryAfter:
 		default:
@@ -195,19 +203,22 @@ func (r *Reloader) run() {
 		stopTimer(retryTimer)
 	}()
 
+	armRetry := func(retryAfter time.Duration) {
+		retryTimer = time.NewTimer(retryAfter)
+		retryC = retryTimer.C
+		r.lastArmedRetryDelay.Store(int64(retryAfter))
+	}
+
 	reloadAndMaybeRetry := func(isRetry bool) {
-		if isRetry {
-			r.cfg.Loggers.Debug("Retrying flag data load after earlier failure")
-		} else {
+		if !isRetry {
 			r.cfg.Loggers.Info("Reloading flag data after detecting a change")
 		}
 		// A pending retry is superseded by this reload: it either succeeded, or it failed
 		// and arms a fresh retry below.
 		stopTimer(retryTimer)
 		retryTimer, retryC = nil, nil
-		if retryAfter := r.reload(); retryAfter > 0 {
-			retryTimer = time.NewTimer(retryAfter)
-			retryC = retryTimer.C
+		if retryAfter := r.reload(isRetry); retryAfter > 0 {
+			armRetry(retryAfter)
 		}
 	}
 
@@ -235,8 +246,7 @@ func (r *Reloader) run() {
 			// A synchronous ReloadNow failed or held a file back; arm the retry timer without
 			// reloading again immediately. An already-armed retry keeps its deadline.
 			if retryTimer == nil {
-				retryTimer = time.NewTimer(retryAfter)
-				retryC = retryTimer.C
+				armRetry(retryAfter)
 			}
 		case <-debounceC:
 			debounceTimer, debounceC = nil, nil
@@ -254,7 +264,7 @@ func (r *Reloader) run() {
 // applied, and a skipped no-op application counts as done. The whole set is re-read on every
 // reload: entries are combined across files in order, so a change to one file can alter
 // which file wins for a key.
-func (r *Reloader) reload() time.Duration {
+func (r *Reloader) reload(isRetry bool) time.Duration {
 	r.reloadMu.Lock()
 	defer r.reloadMu.Unlock()
 
@@ -264,16 +274,15 @@ func (r *Reloader) reload() time.Duration {
 		return 0
 	}
 
-	r.heldBack = false
-	defer func() {
-		// A run of loads that hold files back ends with any load that does not, whether it
-		// succeeded or failed.
-		if !r.heldBack {
-			r.holding = false
+	if isRetry {
+		if r.heldBack {
+			r.cfg.Loggers.Debug("Reading file data again after a file was found empty")
+		} else {
+			r.cfg.Loggers.Debug("Retrying flag data load after earlier failure")
 		}
-	}()
+	}
+	r.heldBack = false
 
-	now := r.now()
 	docs := make([]Document, 0, len(r.cfg.Paths))
 	files := make([]FileSummary, 0, len(r.cfg.Paths))
 	hadContent := make(map[string]bool, len(r.cfg.Paths))
@@ -284,7 +293,7 @@ func (r *Reloader) reload() time.Duration {
 	for _, path := range r.cfg.Paths {
 		// One read feeds both the hash and the parse, so the skip-unchanged hash can never
 		// disagree with the content that was actually applied.
-		rawData, err := os.ReadFile(path) //nolint:gosec // G304: ok to read file into variable
+		rawData, err := r.readFile(path)
 		if err != nil {
 			if r.cfg.SkipMissingPaths && errors.Is(err, fs.ErrNotExist) {
 				r.cfg.Loggers.Debugf("File %s does not exist; it contributes no data", path)
@@ -308,8 +317,12 @@ func (r *Reloader) reload() time.Duration {
 			parsed = true
 		}
 		if hasContent {
-			delete(r.emptyFiles, path)
-		} else if r.holdBack(path, now) {
+			if empty, ok := r.emptyFiles[path]; ok {
+				empty.since = time.Time{}
+			}
+		} else if r.holdBack(path, r.now()) {
+			// The clock is read after this file's own read, so a slow read of another file
+			// does not make its emptiness look older than it is.
 			heldBack = append(heldBack, path)
 			continue
 		}
@@ -326,7 +339,7 @@ func (r *Reloader) reload() time.Duration {
 		files = append(files, FileSummary{Path: path, Present: true})
 	}
 	if len(heldBack) > 0 {
-		return r.readAgainLater(heldBack, now)
+		return r.readAgainLater(heldBack, r.now())
 	}
 
 	merged, err := Merge(r.cfg.DuplicateKeysHandling, r.cfg.MakeFlagWithValue, docs...)
@@ -360,10 +373,11 @@ func (r *Reloader) reload() time.Duration {
 	r.lastErrorMsg = ""
 	hash := hasher.Sum(nil)
 	// The data of this load is in effect from here on, whether it is applied or is the same
-	// as the data already applied.
+	// as the data already applied, so the bounds of the files that were held back start over.
 	for path, had := range hadContent {
 		r.appliedHadContent[path] = had
 	}
+	clear(r.emptyFiles)
 	if r.cfg.SkipUnchanged && !recovering && bytes.Equal(hash, r.lastGoodHash) {
 		return 0
 	}
@@ -380,13 +394,15 @@ func (r *Reloader) reload() time.Duration {
 // held back until it has stayed so, without being written, for the retry delay, however many
 // loads find it so in that time. A change of its state, its modification time and size read
 // through any symbolic link, means that it was written since a load last found it so, for
-// example rewritten and truncated again between two loads, so the delay starts over. Loads
-// stop holding files back once they have held some back for maxHoldRetryDelays retry delays
-// in a row, so that a file that keeps being written, or files that are rewritten in turn,
-// are not held back without end. A file whose content is not in effect, such as a
-// placeholder that has always been empty or an emptied file whose empty state has been
-// applied, is parsed right away, and so is any file when retries are off, since nothing
-// would read it again.
+// example rewritten and truncated again between two loads, so the delay starts over; so does
+// a read with entries. A file is held back for at most maxHoldRetryDelays retry delays from
+// when a load first held it back, so that a file that keeps being written while every load
+// finds it empty, or files that are rewritten in turn, are not held back without end. The
+// bound is the file's own: a read with entries or a failed load does not restart it, and
+// applying data, or the file staying empty for the whole delay, ends it. A file whose content
+// is not in effect, such as a placeholder that has always been empty or an emptied file whose
+// empty state has been applied, is parsed right away, and so is any file when retries are
+// off, since nothing would read it again.
 func (r *Reloader) holdBack(path string, now time.Time) bool {
 	if r.cfg.RetryDelay <= 0 || !r.appliedHadContent[path] {
 		return false
@@ -394,17 +410,25 @@ func (r *Reloader) holdBack(path string, now time.Time) bool {
 	state := observe(path)
 	empty, ok := r.emptyFiles[path]
 	if !ok {
-		empty = &emptyFile{since: now, state: state}
+		empty = &emptyFile{}
 		r.emptyFiles[path] = empty
-	} else if !empty.state.equal(state) {
+	}
+	if empty.since.IsZero() || !empty.state.equal(state) {
 		empty.since = now
 		empty.state = state
 	}
-	holdingSince := now
-	if r.holding {
-		holdingSince = r.holdingSince
+	if now.Sub(empty.since) >= r.cfg.RetryDelay {
+		// The file has stayed empty for the whole delay; it is no rewrite.
+		empty.firstHeld = time.Time{}
+		return false
 	}
-	return now.Sub(empty.since) < r.cfg.RetryDelay && now.Sub(holdingSince) < r.maxHold()
+	if !empty.firstHeld.IsZero() && now.Sub(empty.firstHeld) >= r.maxHold() {
+		return false
+	}
+	if empty.firstHeld.IsZero() {
+		empty.firstHeld = now
+	}
+	return true
 }
 
 func (r *Reloader) maxHold() time.Duration {
@@ -413,26 +437,27 @@ func (r *Reloader) maxHold() time.Duration {
 
 // readAgainLater handles the files that holdBack holds back. Whatever their content would
 // parse as, the load keeps the current data and arms the retry, without reporting a failure.
-// The retry comes when the first of the files has stayed so for the retry delay, or when the
-// loads have held files back for as long as they may, plus a tenth of the retry delay, so
-// that it finds the delay over; the change signal for a write starts a load sooner. Once a
-// file has stayed so for the delay, a load parses it: a file that is still empty, or holds
-// only a YAML comment, is a YAML document with no entries.
+// The retry comes when the first of the files has stayed so for the retry delay, or has been
+// held back for as long as it may be, plus a tenth of the retry delay, so that it finds that
+// time over; the change signal for a write starts a load sooner. Once a file has stayed so for
+// the delay, a load parses it: a file that is still empty, or holds only a YAML comment, is a
+// YAML document with no entries.
 func (r *Reloader) readAgainLater(paths []string, now time.Time) time.Duration {
 	// Close may have happened while the files were being read; arm no retry in that case.
 	if r.isClosed() {
 		return 0
 	}
-	if !r.holding {
-		r.holding = true
-		r.holdingSince = now
-	}
-	until := r.holdingSince.Add(r.maxHold())
-	for _, path := range paths {
+	var until time.Time
+	for i, path := range paths {
 		r.cfg.Loggers.Debugf("File %s is empty, possibly while it is being rewritten; reading it again before applying it",
 			path)
-		if delayOver := r.emptyFiles[path].since.Add(r.cfg.RetryDelay); delayOver.Before(until) {
-			until = delayOver
+		empty := r.emptyFiles[path]
+		over := empty.since.Add(r.cfg.RetryDelay)
+		if boundOver := empty.firstHeld.Add(r.maxHold()); boundOver.Before(over) {
+			over = boundOver
+		}
+		if i == 0 || over.Before(until) {
+			until = over
 		}
 	}
 	r.heldBack = true
