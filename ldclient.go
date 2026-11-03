@@ -710,8 +710,8 @@ func (client *LDClient) IsOffline() bool {
 // the client reconnects with the new key.
 //
 // If the client uses the FDv2 data system, synchronizers that are backing off after a failure can
-// run again at once. If no synchronizer is running, the client starts one with the new key. If the
-// client has fallen back to FDv1, it stays on FDv1.
+// run again at once. If no synchronizer is running, the client starts one with the new key. The key
+// change does not end a fallback to FDv1.
 //
 // The client does not compare sdkKey with the key it uses now. A call with the current key also
 // ends the backoff of every synchronizer. The Relay Proxy uses this to try a key

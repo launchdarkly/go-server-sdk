@@ -18,6 +18,9 @@ const (
 	afterParkDelay   = 1 * time.Second
 )
 
+// The default duration of a directed fallback to FDv1, before jitter.
+const defaultFDv1FallbackTTL = 1 * time.Hour
+
 var errNoCurrentSynchronizer = errors.New("no current synchronizer")
 
 // synchronizerSlot holds one synchronizer builder and its state.
@@ -36,19 +39,23 @@ type synchronizerSlot struct {
 	parkAttempts int
 }
 
+// jittered returns d minus a random jitter of up to half of d.
+func jittered(d time.Duration) time.Duration {
+	if half := int64(d / 2); half > 0 {
+		return d - time.Duration(rand.Int63n(half)) //nolint:gosec // weak RNG is acceptable for jitter
+	}
+	return d
+}
+
 // park parks the slot and returns the delay until its unpark time. Each successive park
 // doubles the delay, up to parkMaxDelay.
-func (s *synchronizerSlot) park(rng *rand.Rand) time.Duration {
+func (s *synchronizerSlot) park() time.Duration {
 	s.parkAttempts++
 	t := time.Duration(math.Min(
 		float64(parkInitialDelay)*math.Pow(2, float64(s.parkAttempts-1)),
 		float64(parkMaxDelay),
 	))
-	var jitter time.Duration
-	if halfT := int64(t / 2); halfT > 0 {
-		jitter = time.Duration(rng.Int63n(halfT))
-	}
-	delay := t - jitter
+	delay := jittered(t)
 	s.parkedUntil = time.Now().Add(delay)
 	return delay
 }
@@ -64,8 +71,8 @@ type synchronizerList struct {
 	// Index of the current slot, or -1 if there is no current slot.
 	current int
 
-	// Source of jitter for park delays.
-	rng *rand.Rand
+	// The end of the directed fallback to FDv1. Zero means no fallback is in effect.
+	fdv1FallbackUntil time.Time
 }
 
 func newSynchronizerList(builders []synchronizerBuilder, fdv1Fallback synchronizerBuilder) *synchronizerList {
@@ -80,8 +87,6 @@ func newSynchronizerList(builders []synchronizerBuilder, fdv1Fallback synchroniz
 		slots:   slots,
 		hasFDv1: fdv1Fallback != nil,
 		current: -1,
-		//nolint:gosec // not a cryptographic use-case, weak RNG is acceptable for jitter
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
@@ -134,7 +139,7 @@ func (l *synchronizerList) parkCurrent() time.Duration {
 	if l.current < 0 {
 		return 0
 	}
-	return l.slots[l.current].park(l.rng)
+	return l.slots[l.current].park()
 }
 
 // unparkAll unparks every slot, including synchronizers that are currently excluded.
@@ -146,7 +151,7 @@ func (l *synchronizerList) unparkAll() {
 
 // failoverDelay returns the delay to wait before starting another synchronizer after a park.
 func (l *synchronizerList) failoverDelay() time.Duration {
-	return afterParkDelay - time.Duration(l.rng.Int63n(int64(afterParkDelay/2)))
+	return jittered(afterParkDelay)
 }
 
 // resetCurrentBackoff clears the current slot's park escalation.
@@ -177,10 +182,10 @@ func (l *synchronizerList) eligibleCount() int {
 	return count
 }
 
-// earliestUnpark returns the soonest unpark time among the parked slots, and whether there
-// is one. Excluded slots are skipped.
+// earliestUnpark returns the soonest of the unpark times of the parked slots and the end of the
+// FDv1 fallback, and whether there is one. Excluded slots are skipped.
 func (l *synchronizerList) earliestUnpark() (time.Time, bool) {
-	var earliest time.Time
+	earliest := l.fdv1FallbackUntil
 	for i := range l.slots {
 		if l.slots[i].excluded || !l.isParked(i) {
 			continue
@@ -197,20 +202,26 @@ func (l *synchronizerList) hasFDv1Fallback() bool {
 	return l.hasFDv1
 }
 
-// excludeAll excludes every slot and clears the current slot.
-func (l *synchronizerList) excludeAll() {
-	for i := range l.slots {
-		l.slots[i].excluded = true
-	}
-	l.current = -1
-}
-
-// fallBackToFDv1 excludes every FDv2 slot and includes the FDv1 fallback slot. It also clears
-// the current slot, so the next call to next selects the FDv1 fallback slot. Any park on the
-// FDv1 fallback slot stays in force.
-func (l *synchronizerList) fallBackToFDv1() {
+// fallBackToFDv1 excludes every FDv2 slot and includes the FDv1 fallback slot until ttl elapses.
+// It also clears the current slot, so the next call to next selects the FDv1 fallback slot. Any
+// park on the FDv1 fallback slot stays in force.
+func (l *synchronizerList) fallBackToFDv1(ttl time.Duration) {
 	for i := range l.slots {
 		l.slots[i].excluded = !l.slots[i].isFDv1Fallback
 	}
 	l.current = -1
+	l.fdv1FallbackUntil = time.Now().Add(ttl)
+}
+
+// maybeEndFDv1Fallback includes every FDv2 slot and excludes the FDv1 fallback slot if the FDv1
+// fallback TTL has elapsed. It reports whether it ended the fallback.
+func (l *synchronizerList) maybeEndFDv1Fallback() bool {
+	if l.fdv1FallbackUntil.IsZero() || time.Now().Before(l.fdv1FallbackUntil) {
+		return false
+	}
+	for i := range l.slots {
+		l.slots[i].excluded = l.slots[i].isFDv1Fallback
+	}
+	l.fdv1FallbackUntil = time.Time{}
+	return true
 }

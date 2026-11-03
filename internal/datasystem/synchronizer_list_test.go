@@ -203,7 +203,7 @@ func TestSynchronizerListFDv1FallbackSlotIsExcludedUntilFallback(t *testing.T) {
 	assert.Equal(t, 0, list.currentIndex())
 
 	// Fall back to FDv1 and select again.
-	list.fallBackToFDv1()
+	list.fallBackToFDv1(time.Hour)
 	list.next()
 
 	// Only the FDv1 slot is eligible, and every FDv2 slot is excluded.
@@ -219,7 +219,7 @@ func TestSynchronizerListExcludedSlotIsNotEligibleWhenItsParkExpires(t *testing.
 	// Park the first slot past its unpark time, then engage a directed fallback to FDv1.
 	list.next()
 	list.slots[0].parkedUntil = now.Add(-time.Second)
-	list.fallBackToFDv1()
+	list.fallBackToFDv1(time.Hour)
 
 	// The FDv2 slot is past its unpark time but excluded, so it still does not run.
 	assert.Equal(t, 1, list.eligibleCount())
@@ -228,18 +228,6 @@ func TestSynchronizerListExcludedSlotIsNotEligibleWhenItsParkExpires(t *testing.
 	assert.True(t, list.slots[list.currentIndex()].isFDv1Fallback)
 }
 
-func TestSynchronizerListExcludeAllLeavesNoSlotEligible(t *testing.T) {
-	list := newSynchronizerList([]synchronizerBuilder{noopBuilder, noopBuilder}, noopBuilder)
-	list.next()
-
-	// Exclude every slot, including the FDv1 fallback slot.
-	list.excludeAll()
-
-	// No slot remains eligible.
-	list.next()
-	assert.Equal(t, -1, list.currentIndex())
-	assert.Equal(t, 0, list.eligibleCount())
-}
 
 func TestSynchronizerListUnparkAllKeepsCurrentFDv2Slot(t *testing.T) {
 	// Streaming, polling, and FDv1 fallback slots. Streaming is parked, and polling is current.
@@ -268,7 +256,7 @@ func TestSynchronizerListUnparkAllStaysOnFDv1AfterFallback(t *testing.T) {
 	list.next()
 	list.parkCurrent()
 	list.next()
-	list.fallBackToFDv1()
+	list.fallBackToFDv1(time.Hour)
 	list.next()
 	assert.Equal(t, 2, list.currentIndex())
 

@@ -353,3 +353,49 @@ func TestFDv2StartupFallsBackPastSilentSynchronizer(t *testing.T) {
 	assert.True(t, healthy.wasStarted(30*time.Second),
 		"should fall back past the silent synchronizer to the third")
 }
+
+func TestFDv2ReturnsToFDv2AfterFallbackTTLWithoutFDv1Fallback(t *testing.T) {
+	primary := newScriptedSynchronizer("primary")
+	system := makeSDKKeyTestFDv2(t, primary)
+	system.defaultFDv1FallbackTTL = 200 * time.Millisecond
+	system.Start(make(chan struct{}))
+
+	// The primary synchronizer directs a fallback to FDv1, but no FDv1 fallback is configured.
+	primary.requireRun(t) <- subsystems.DataSynchronizerResult{
+		State:          interfaces.DataSourceStateInterrupted,
+		Error:          interfaces.DataSourceErrorInfo{Kind: interfaces.DataSourceErrorKindErrorResponse, StatusCode: 503},
+		FallbackToFDv1: true,
+	}
+
+	// The data system is interrupted and keeps the error of the directive.
+	require.Eventually(t, func() bool {
+		return system.DataSourceStatusProvider().GetStatus().LastError.StatusCode == 503
+	}, time.Second, time.Millisecond)
+	assert.Equal(t, interfaces.DataSourceStateInterrupted, system.DataSourceStatusProvider().GetStatus().State)
+
+	// The primary synchronizer starts again after the TTL.
+	primary.requireRun(t)
+}
+
+// The data system checks the TTL on its ten-second condition ticker, so this test takes about ten seconds.
+func TestFDv2ReturnsToFDv2AfterFallbackTTLWhileFDv1FallbackRuns(t *testing.T) {
+	primary := newScriptedSynchronizer("primary")
+	fdv1 := newScriptedSynchronizer("fdv1")
+	system := makeSDKKeyTestFDv2WithFDv1Fallback(t, fdv1, primary)
+	system.defaultFDv1FallbackTTL = 200 * time.Millisecond
+	system.Start(make(chan struct{}))
+
+	// The primary synchronizer directs a fallback to FDv1, and the FDv1 synchronizer gets data.
+	primary.requireRun(t) <- subsystems.DataSynchronizerResult{
+		State:          interfaces.DataSourceStateInterrupted,
+		FallbackToFDv1: true,
+	}
+	fdv1.requireRun(t) <- validResult
+
+	// The primary synchronizer starts again after the TTL, on the next condition check.
+	select {
+	case <-primary.runs:
+	case <-time.After(15 * time.Second):
+		require.FailNow(t, "timed out waiting for the primary synchronizer to start again")
+	}
+}
