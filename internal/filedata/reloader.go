@@ -112,8 +112,8 @@ type emptyFile struct {
 	// write, and state is the file's state then. since is zero after a read with entries.
 	since time.Time
 	state fileState
-	// firstHeld is when a load first held the file back since the data in effect was applied,
-	// or zero when the file has not been held back since, or stayed empty for the whole delay.
+	// firstHeld is when a load first held the file back, or zero when the file has not been
+	// held back since a load that held nothing back read it.
 	firstHeld time.Time
 }
 
@@ -289,6 +289,18 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 	// The files that holdBack holds back. The other files are still read, so that every file
 	// that is found empty starts its delay in this load.
 	var heldBack []string
+	defer func() {
+		// A load that holds nothing back, whether it applies, skips or fails, starts the bound
+		// over for every file that it read: such a file is no longer held back, so its next
+		// rewrite is a new one. A file that the load did not get to keeps its bound.
+		if len(heldBack) == 0 {
+			for path := range hadContent {
+				if empty, ok := r.emptyFiles[path]; ok {
+					empty.firstHeld = time.Time{}
+				}
+			}
+		}
+	}()
 	hasher := sha256.New()
 	for _, path := range r.cfg.Paths {
 		// One read feeds both the hash and the parse, so the skip-unchanged hash can never
@@ -397,12 +409,13 @@ func (r *Reloader) reload(isRetry bool) time.Duration {
 // example rewritten and truncated again between two loads, so the delay starts over; so does
 // a read with entries. A file is held back for at most maxHoldRetryDelays retry delays from
 // when a load first held it back, so that a file that keeps being written while every load
-// finds it empty, or files that are rewritten in turn, are not held back without end. The
-// bound is the file's own: a read with entries or a failed load does not restart it, and
-// applying data, or the file staying empty for the whole delay, ends it. A file whose content
-// is not in effect, such as a placeholder that has always been empty or an emptied file whose
-// empty state has been applied, is parsed right away, and so is any file when retries are
-// off, since nothing would read it again.
+// finds it empty, or files that are rewritten or emptied in turn, are not held back without
+// end. The bound is the file's own, and it starts over only at a load that holds nothing back
+// and reads the file, whether that load applies, skips or fails: while any file holds the
+// loads back, a read with entries, a failure, or the file staying empty for the whole delay
+// does not restart it. A file whose content is not in effect, such as a placeholder that has
+// always been empty or an emptied file whose empty state has been applied, is parsed right
+// away, and so is any file when retries are off, since nothing would read it again.
 func (r *Reloader) holdBack(path string, now time.Time) bool {
 	if r.cfg.RetryDelay <= 0 || !r.appliedHadContent[path] {
 		return false
@@ -418,8 +431,6 @@ func (r *Reloader) holdBack(path string, now time.Time) bool {
 		empty.state = state
 	}
 	if now.Sub(empty.since) >= r.cfg.RetryDelay {
-		// The file has stayed empty for the whole delay; it is no rewrite.
-		empty.firstHeld = time.Time{}
 		return false
 	}
 	if !empty.firstHeld.IsZero() && now.Sub(empty.firstHeld) >= r.maxHold() {
