@@ -303,25 +303,23 @@ func TestOverlayGetAllWithEmptyLayerIsPassthrough(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestOverlayGetAllServesOverridesWhenBaseFails(t *testing.T) {
-	base := &fakeBaseStore{getAllErr: errors.New("sinkhole"), initialized: true}
+func TestOverlayGetAllReturnsTheBaseErrorWhenTheLayerHoldsEntries(t *testing.T) {
+	baseErr := errors.New("sinkhole")
+	base := &fakeBaseStore{getAllErr: baseErr, initialized: true}
 	layer := NewLayer()
 	layer.SetAll([]st.Collection{flagCollection(
 		ldbuilders.NewFlagBuilder("override-1").Version(1).Build(),
-		ldbuilders.NewFlagBuilder("override-2").Version(2).Build(),
 	)})
 	overlay := NewOverlay(base, layer)
 
 	items, err := overlay.GetAll(datakinds.Features)
+	assert.Equal(t, baseErr, err)
+	assert.Nil(t, items)
+
+	// A per-key read still serves the override entry without the base.
+	item, err := overlay.Get(datakinds.Features, "override-1")
 	require.NoError(t, err)
-	require.Len(t, items, 2)
-	keys := map[string]bool{}
-	for _, item := range items {
-		keys[item.Key] = true
-		assert.True(t, requireFlag(t, item.Item).IsOverride)
-	}
-	assert.True(t, keys["override-1"])
-	assert.True(t, keys["override-2"])
+	assert.True(t, requireFlag(t, item).IsOverride)
 }
 
 type sinkFixture struct {

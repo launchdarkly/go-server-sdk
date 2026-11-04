@@ -189,6 +189,14 @@ func NewAllFlagsBuilder(options ...Option) *AllFlagsBuilder {
 	return b
 }
 
+// Valid sets whether the AllFlags that the builder produces is valid. The result is valid unless
+// this is called with false. The SDK reports an invalid state that still holds flags when it could
+// not read the LaunchDarkly flags but has flag overrides to report.
+func (b *AllFlagsBuilder) Valid(valid bool) *AllFlagsBuilder {
+	b.state.valid = valid
+	return b
+}
+
 // Build returns an immutable State instance copied from the current builder data.
 func (b *AllFlagsBuilder) Build() AllFlags {
 	return AllFlags{valid: b.state.valid, flags: maps.Clone(b.state.flags)}
