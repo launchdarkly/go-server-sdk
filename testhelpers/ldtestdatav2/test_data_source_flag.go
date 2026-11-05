@@ -178,7 +178,7 @@ func (f *FlagBuilder) VariationForAllIndex(variationIndex int) *FlagBuilder {
 // whether targeting is on or off. Any existing targets or rules are removed.
 func (f *FlagBuilder) ValueForAll(value ldvalue.Value) *FlagBuilder {
 	f.variations = []ldvalue.Value{value}
-	return f.VariationForAllIndex(0)
+	return f.VariationForAllIndex(0).OffVariationIndex(0)
 }
 
 // VariationForUser sets the flag to return the specified boolean variation for a specific user key
