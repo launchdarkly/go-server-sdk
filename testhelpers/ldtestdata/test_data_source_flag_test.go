@@ -2,17 +2,20 @@ package ldtestdata
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	ldeval "github.com/launchdarkly/go-server-sdk-evaluation/v3"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
 
 	m "github.com/launchdarkly/go-test-helpers/v3/matchers"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -282,4 +285,19 @@ func TestRuleConfig(t *testing.T) {
 			),
 		))
 	})
+}
+
+func TestValueForAllReturnsValueWhetherTargetingIsOnOrOff(t *testing.T) {
+	for _, on := range []bool{true, false} {
+		t.Run(fmt.Sprintf("on=%t", on), func(t *testing.T) {
+			td := DataSource()
+			flag := td.Flag("flagkey").ValueForAll(ldvalue.String("x")).On(on).createFlag(1)
+
+			assert.Equal(t, ldvalue.NewOptionalInt(0), flag.OffVariation)
+
+			result := ldeval.NewEvaluator(nil).Evaluate(&flag, ldcontext.New("user-key"), nil)
+			assert.Equal(t, ldvalue.String("x"), result.Detail.Value)
+			assert.Equal(t, ldvalue.NewOptionalInt(0), result.Detail.VariationIndex)
+		})
+	}
 }
