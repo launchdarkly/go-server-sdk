@@ -2,6 +2,29 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.22.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.2...v7.22.0) (2026-11-06)
+
+
+### Features
+
+* Broadcast Off to FDv2 status listeners when the data system stops ([#505](https://github.com/launchdarkly/go-server-sdk/issues/505)) ([5c5b8ce](https://github.com/launchdarkly/go-server-sdk/commit/5c5b8ce4c49ac7aa9bdfac0340513cfe9cdbba68))
+* End an FDv1 fallback after a default TTL of one hour ([#499](https://github.com/launchdarkly/go-server-sdk/issues/499)) ([1f03a5f](https://github.com/launchdarkly/go-server-sdk/commit/1f03a5f1f4f8687459993ae4151ef0f713270b1a))
+* Park FDv2 synchronizers instead of retiring them on unexpected failures ([#489](https://github.com/launchdarkly/go-server-sdk/issues/489)) ([644253a](https://github.com/launchdarkly/go-server-sdk/commit/644253a1978e63792c794e282f91a0b78fb0e119))
+
+
+### Bug Fixes
+
+* Keep data from a store that is not initialized out of override evaluations and AllFlagsState, and report a store failure ([#491](https://github.com/launchdarkly/go-server-sdk/issues/491)) ([1005a1a](https://github.com/launchdarkly/go-server-sdk/commit/1005a1a9e52666517a35554d5855a21d1b5f3e52))
+* Keep the override marking when a migration flag serves an unrecognized stage ([#492](https://github.com/launchdarkly/go-server-sdk/issues/492)) ([9f9911f](https://github.com/launchdarkly/go-server-sdk/commit/9f9911f50e322afbb2d13439663bffee2d9d399a))
+* Leave StateSince alone when a synchronizer starts ([#502](https://github.com/launchdarkly/go-server-sdk/issues/502)) ([823b9aa](https://github.com/launchdarkly/go-server-sdk/commit/823b9aac2732d2cf569742e907ad81e9aec2afcb))
+* Make TestData ValueForAll return its value when targeting is off ([#507](https://github.com/launchdarkly/go-server-sdk/issues/507)) ([7300bc1](https://github.com/launchdarkly/go-server-sdk/commit/7300bc132be654a7f7f36efb83388721c3fbd2aa))
+* Park a synchronizer that reports Off or closes its results ([#500](https://github.com/launchdarkly/go-server-sdk/issues/500)) ([f6e9910](https://github.com/launchdarkly/go-server-sdk/commit/f6e9910adafa3588d7a8dcd8fc901f25fe8eb738))
+* Poll the override files when they cannot be watched ([#495](https://github.com/launchdarkly/go-server-sdk/issues/495)) ([170ad3b](https://github.com/launchdarkly/go-server-sdk/commit/170ad3bf90e75e65e81f9f995962a0cd101f142a))
+* Prevent a full status listener from hanging Close ([#498](https://github.com/launchdarkly/go-server-sdk/issues/498)) ([9efd570](https://github.com/launchdarkly/go-server-sdk/commit/9efd57041a5738f0480d4d32697a2012eb3cefcf))
+* Say that the data system retries after an unrecoverable HTTP error ([#501](https://github.com/launchdarkly/go-server-sdk/issues/501)) ([d4066cc](https://github.com/launchdarkly/go-server-sdk/commit/d4066cc8b79ad13833e5a2e05e02eeaac65d8755))
+* Treat a repeated override file path in a different case as a repeat on Windows ([#494](https://github.com/launchdarkly/go-server-sdk/issues/494)) ([eeb68d3](https://github.com/launchdarkly/go-server-sdk/commit/eeb68d380ca5f2bbe214fa88316bec69fa76033f))
+* Warn when offline mode skips the override source ([#493](https://github.com/launchdarkly/go-server-sdk/issues/493)) ([69bbe61](https://github.com/launchdarkly/go-server-sdk/commit/69bbe61f4e431b90788b59fac616d5933d925553))
+
 ## [7.21.2](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.1...v7.21.2) (2026-10-28)
 
 
