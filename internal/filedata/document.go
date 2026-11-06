@@ -3,6 +3,7 @@
 package filedata
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -65,6 +66,23 @@ func parseDocument(rawData []byte) (Document, error) {
 		err = fmt.Errorf("error parsing file: %s", err)
 	}
 	return data, err
+}
+
+// parseFileContent parses a file's content like parseDocument, and also reports whether the
+// content holds a document. YAML with no document, such as only a comment or "---", parses
+// as a document with no entries, like an empty file. JSON content is always an object, so it
+// always holds one, even "{}".
+func parseFileContent(rawData []byte) (Document, bool, error) {
+	doc, err := parseDocument(rawData)
+	if err != nil || detectJSON(rawData) || doc.Flags != nil || doc.FlagValues != nil || doc.Segments != nil {
+		return doc, true, err
+	}
+	asJSON, err := yaml.YAMLToJSON(rawData)
+	if err != nil {
+		// COVERAGE: unreachable, because parseDocument converted the same content
+		return doc, true, nil
+	}
+	return doc, !bytes.Equal(bytes.TrimSpace(asJSON), []byte("null")), nil
 }
 
 func detectJSON(rawData []byte) bool {
