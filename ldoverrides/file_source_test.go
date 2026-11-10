@@ -14,6 +14,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/sharedtest"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
@@ -111,9 +112,15 @@ func buildFileSourceWithLog(
 // run ahead of the log line.
 func requireInfoLine(t *testing.T, mockLog *ldlogtest.MockLog, substrings ...string) {
 	t.Helper()
+	requireLogLine(t, mockLog, ldlog.Info, substrings...)
+}
+
+// requireLogLine waits for a log line at the given level that contains every substring.
+func requireLogLine(t *testing.T, mockLog *ldlogtest.MockLog, level ldlog.LogLevel, substrings ...string) {
+	t.Helper()
 	deadline := time.Now().Add(testTimeout)
 	for {
-		for _, line := range mockLog.GetOutput(ldlog.Info) {
+		for _, line := range mockLog.GetOutput(level) {
 			matches := true
 			for _, substring := range substrings {
 				if !strings.Contains(line, substring) {
@@ -126,8 +133,8 @@ func requireInfoLine(t *testing.T, mockLog *ldlogtest.MockLog, substrings ...str
 			}
 		}
 		if time.Now().After(deadline) {
-			require.FailNow(t, "timed out waiting for an Info line containing "+strings.Join(substrings, " and "),
-				"Info output: %v", mockLog.GetOutput(ldlog.Info))
+			require.FailNow(t, "timed out waiting for a "+level.String()+" line containing "+
+				strings.Join(substrings, " and "), "%s output: %v", level, mockLog.GetOutput(level))
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -450,4 +457,108 @@ func TestFileSourceCloseIsIdempotent(t *testing.T) {
 	source, _ := buildFileSource(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
 	require.NoError(t, source.Close())
 	require.NoError(t, source.Close())
+}
+
+func TestFileSourceRejectsAFileWithAnEntryMarkedAsDeleted(t *testing.T) {
+	cases := []struct {
+		name        string
+		content     string
+		expectedLog string
+	}{
+		{
+			"flag",
+			`{"flags": {"flag1": {"key": "flag1", "version": 2, "on": true},
+				"flag2": {"key": "flag2", "version": 1, "deleted": true}}}`,
+			`flag "flag2" is marked as deleted; remove the entry to remove its override`,
+		},
+		{
+			"segment",
+			`{"flags": {"flag1": {"key": "flag1", "version": 2, "on": true}},
+				"segments": {"segment1": {"key": "segment1", "version": 1, "deleted": true}}}`,
+			`segment "segment1" is marked as deleted; remove the entry to remove its override`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "overrides.json")
+			writeFile(t, path, `{"flags": {"flag1": {"key": "flag1", "version": 1}}}`)
+
+			_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) {
+				b.FilePaths(path).ChangeDetection(Watching)
+			})
+			require.Len(t, flagsByKey(t, sink.requireSnapshot(t)), 1)
+
+			// The edit fails to load like a malformed edit: the sink is not called, so the
+			// overrides in effect stay, and the failure names the file and the key.
+			writeFile(t, path, c.content)
+			requireLogLine(t, mockLog, ldlog.Error, c.expectedLog, path)
+			sink.requireNoSnapshot(t, 300*time.Millisecond)
+
+			// Removing the entry recovers.
+			writeFile(t, path, `{"flags": {"flag1": {"key": "flag1", "version": 3}}}`)
+			flags := flagsByKey(t, sink.requireSnapshot(t))
+			require.Len(t, flags, 1)
+			assert.Equal(t, 3, flags["flag1"].Version)
+		})
+	}
+}
+
+func TestFileSourceRejectsADeletedEntryInAnyConfiguredFile(t *testing.T) {
+	// The second file's entry is a duplicate that the duplicate-key handling would discard, and
+	// it still fails the load.
+	dir := t.TempDir()
+	path1 := filepath.Join(dir, "first.yaml")
+	path2 := filepath.Join(dir, "second.yaml")
+	writeFile(t, path1, "flagValues:\n  flag1: true\n")
+	writeFile(t, path2, "flags:\n  flag1:\n    key: flag1\n    deleted: true\n")
+
+	_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) {
+		b.FilePaths(path1, path2).DuplicateKeysHandling(DuplicateKeysKeepFirst)
+	})
+
+	requireLogLine(t, mockLog, ldlog.Error, `flag "flag1" is marked as deleted`, path2)
+	sink.requireNoSnapshot(t, 200*time.Millisecond)
+}
+
+func TestFileSourceLoadsEntriesWithDeletedFalse(t *testing.T) {
+	// Entries copied from LaunchDarkly data carry "deleted": false.
+	path := filepath.Join(t.TempDir(), "overrides.json")
+	writeFile(t, path, `{"flags": {"flag1": {"key": "flag1", "version": 1, "deleted": false}},
+		"segments": {"segment1": {"key": "segment1", "version": 1, "deleted": false}}}`)
+
+	_, sink, mockLog := buildFileSourceWithLog(t, func(b *FileSourceBuilder) { b.FilePaths(path) })
+
+	snapshot := sink.requireSnapshot(t)
+	require.Len(t, flagsByKey(t, snapshot), 1)
+	segmentCount := 0
+	for _, coll := range snapshot {
+		if coll.Kind.GetName() == "segments" {
+			segmentCount += len(coll.Items)
+		}
+	}
+	assert.Equal(t, 1, segmentCount)
+	assert.Empty(t, mockLog.GetOutput(ldlog.Error))
+}
+
+func TestRejectDeletedEntriesNamesTheSameKeyEveryTime(t *testing.T) {
+	// A retry of an unchanged file must report the same failure, so that the reloader logs it
+	// once rather than on every retry.
+	flags := map[string]ldmodel.FeatureFlag{}
+	for _, key := range []string{"f", "c", "a-live", "e", "b", "d"} {
+		flags[key] = ldmodel.FeatureFlag{Key: key, Deleted: key != "a-live"}
+	}
+	segments := map[string]ldmodel.Segment{"s": {Key: "s", Deleted: true}}
+	doc := filedata.Document{Flags: &flags, Segments: &segments}
+
+	for i := 0; i < 20; i++ {
+		err := rejectDeletedEntries(doc)
+		require.Error(t, err)
+		assert.Equal(t, `flag "b" is marked as deleted; remove the entry to remove its override`, err.Error())
+	}
+
+	err := rejectDeletedEntries(filedata.Document{Segments: &segments})
+	require.Error(t, err)
+	assert.Equal(t, `segment "s" is marked as deleted; remove the entry to remove its override`, err.Error())
+
+	assert.NoError(t, rejectDeletedEntries(filedata.Document{}))
 }

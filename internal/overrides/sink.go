@@ -4,6 +4,8 @@ import (
 	"sync"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
+	"github.com/launchdarkly/go-server-sdk/v7/internal/datakinds"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	st "github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoretypes"
 )
@@ -44,7 +46,17 @@ func NewSink(
 // SetOverrides atomically replaces the entire override layer, then notifies listeners of
 // every flag whose merged-view evaluation may have changed. Calls are serialized, so
 // overlapping updates from a source cannot interleave.
+//
+// A snapshot that contains a deleted item is rejected as a whole and logged: the layer stays
+// unchanged and no listener is notified. Overrides only add or replace definitions, and a
+// deleted item in the layer would hide the LaunchDarkly data for its key.
 func (s *Sink) SetOverrides(data []st.Collection) {
+	if kind, key, found := findDeletedItem(data); found {
+		s.loggers.Errorf("Rejected an override snapshot that contains the deleted %s %q; the overrides in "+
+			"effect are unchanged. To remove an override, leave its entry out of the snapshot", kind, key)
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -66,4 +78,40 @@ func (s *Sink) SetOverrides(data []st.Collection) {
 	for _, key := range affected {
 		s.notify(key)
 	}
+}
+
+// findDeletedItem returns the kind, as "flag" or "segment", and the key of the first deleted
+// item in the snapshot.
+func findDeletedItem(data []st.Collection) (kind, key string, found bool) {
+	for _, coll := range data {
+		for _, item := range coll.Items {
+			if isDeletedItem(item.Item) {
+				return itemKindName(coll.Kind), item.Key, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+// isDeletedItem reports whether the item is a deleted item: a flag or segment marked as
+// deleted, or a descriptor with no item, which is the placeholder the data store uses for a
+// deleted item.
+func isDeletedItem(item st.ItemDescriptor) bool {
+	switch entity := item.Item.(type) {
+	case *ldmodel.FeatureFlag:
+		return entity == nil || entity.Deleted
+	case *ldmodel.Segment:
+		return entity == nil || entity.Deleted
+	}
+	return item.Item == nil
+}
+
+func itemKindName(kind st.DataKind) string {
+	switch kind {
+	case datakinds.Features:
+		return "flag"
+	case datakinds.Segments:
+		return "segment"
+	}
+	return kind.GetName()
 }

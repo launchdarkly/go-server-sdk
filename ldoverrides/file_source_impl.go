@@ -2,11 +2,13 @@ package ldoverrides
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
 	"github.com/launchdarkly/go-server-sdk/v7/internal/filedata"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems/ldstoreimpl"
@@ -38,6 +40,7 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 		Paths:                 f.paths,
 		DuplicateKeysHandling: f.duplicateKeysHandling,
 		MakeFlagWithValue:     filedata.MakeFallthroughFlagWithValue,
+		CheckDocument:         rejectDeletedEntries,
 		SkipMissingPaths:      true,
 		Loggers:               f.loggers,
 		Apply: func(merged filedata.MergeResult) {
@@ -76,6 +79,41 @@ func (f *fileOverrideSource) Start(sink subsystems.OverrideSink) {
 	case Polling:
 		f.poller = filedata.NewPoller(f.paths, f.pollInterval, f.reloader.Trigger)
 	}
+}
+
+// rejectDeletedEntries fails the load of a file that contains a flag or segment entry marked as
+// deleted. Such an entry is a mistake rather than a way to remove an override, and the override
+// layer must not hold it. The ordinary file data sources do not apply this check. When several
+// entries are marked, the error names the first flag key in sorted order, or else the first
+// segment key, so that a retry of the same file reports the same failure.
+func rejectDeletedEntries(doc filedata.Document) error {
+	if key, ok := firstDeletedKey(doc.Flags, func(f ldmodel.FeatureFlag) bool { return f.Deleted }); ok {
+		return deletedEntryError("flag", key)
+	}
+	if key, ok := firstDeletedKey(doc.Segments, func(s ldmodel.Segment) bool { return s.Deleted }); ok {
+		return deletedEntryError("segment", key)
+	}
+	return nil
+}
+
+func firstDeletedKey[T any](entries *map[string]T, isDeleted func(T) bool) (string, bool) {
+	if entries == nil {
+		return "", false
+	}
+	var deletedKeys []string
+	for key, entry := range *entries {
+		if isDeleted(entry) {
+			deletedKeys = append(deletedKeys, key)
+		}
+	}
+	if len(deletedKeys) == 0 {
+		return "", false
+	}
+	return slices.Min(deletedKeys), true
+}
+
+func deletedEntryError(kind string, key string) error {
+	return fmt.Errorf("%s %q is marked as deleted; remove the entry to remove its override", kind, key)
 }
 
 // logOverridesInEffect reports the overrides now in effect and the file each came from. The

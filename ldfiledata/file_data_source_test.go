@@ -330,3 +330,21 @@ func TestIsInitializedIsSafeToReadWhileALateLoadCompletes(t *testing.T) {
 		assert.True(t, p.dataSource.IsInitialized())
 	})
 }
+
+func TestLoadsEntriesMarkedAsDeleted(t *testing.T) {
+	// The file data source loads entries marked as deleted as it always has. Only the file
+	// override source rejects them.
+	fileData := `{"flags": {"my-flag": {"on": true, "deleted": true}}, "segments": {"my-segment": {"deleted": true}}}`
+	th.WithTempFileData([]byte(fileData), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		withFileDataSourceTestParams(factory, func(p fileDataSourceTestParams) {
+			p.waitForStart()
+			require.True(t, p.dataSource.IsInitialized())
+			p.updates.RequireStatusOf(t, interfaces.DataSourceStateValid)
+
+			assert.True(t, requireFlag(t, p.updates.DataStore, "my-flag").Deleted)
+			assert.True(t, requireSegment(t, p.updates.DataStore, "my-segment").Deleted)
+			assert.Empty(t, p.mockLog.GetOutput(ldlog.Error))
+		})
+	})
+}

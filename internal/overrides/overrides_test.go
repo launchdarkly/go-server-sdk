@@ -8,6 +8,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldattr"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldbuilders"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v3/ldmodel"
@@ -328,14 +329,15 @@ type sinkFixture struct {
 	sink     *Sink
 	notified []string
 	listen   bool
+	mockLog  *ldlogtest.MockLog
 }
 
 func newSinkFixture(base *fakeBaseStore) *sinkFixture {
-	f := &sinkFixture{base: base, layer: NewLayer(), listen: true}
+	f := &sinkFixture{base: base, layer: NewLayer(), listen: true, mockLog: ldlogtest.NewMockLog()}
 	f.sink = NewSink(f.layer, base,
 		func(key string) { f.notified = append(f.notified, key) },
 		func() bool { return f.listen },
-		ldlog.NewDisabledLoggers())
+		f.mockLog.Loggers)
 	return f
 }
 
@@ -457,6 +459,83 @@ func TestSinkToleratesBaseReadFailure(t *testing.T) {
 	// Fan-out degrades, but the directly changed flags are still notified.
 	f.sink.SetOverrides([]st.Collection{flagCollection(ldbuilders.NewFlagBuilder("flag1").Build())})
 	assert.Equal(t, []string{"flag1"}, f.takeNotified())
+}
+
+func TestSinkRejectsSnapshotThatContainsADeletedItem(t *testing.T) {
+	deletedFlag := ldbuilders.NewFlagBuilder("deleted-flag").Version(2).Build()
+	deletedFlag.Deleted = true
+	deletedSegment := ldbuilders.NewSegmentBuilder("deleted-segment").Version(2).Build()
+	deletedSegment.Deleted = true
+	// The data store's placeholder for a deleted item is a descriptor with a version and no item.
+	placeholder := func(kind st.DataKind, key string) st.Collection {
+		return st.Collection{Kind: kind, Items: []st.KeyedItemDescriptor{{Key: key, Item: st.ItemDescriptor{Version: 3}}}}
+	}
+
+	cases := []struct {
+		name        string
+		deleted     st.Collection
+		expectedLog string
+	}{
+		{"flag marked as deleted", flagCollection(deletedFlag), `deleted flag "deleted-flag"`},
+		{"segment marked as deleted", segmentCollection(deletedSegment), `deleted segment "deleted-segment"`},
+		{"flag placeholder", placeholder(datakinds.Features, "placeholder-flag"), `deleted flag "placeholder-flag"`},
+		{"segment placeholder", placeholder(datakinds.Segments, "placeholder-segment"),
+			`deleted segment "placeholder-segment"`},
+		{"nil flag", st.Collection{Kind: datakinds.Features, Items: []st.KeyedItemDescriptor{
+			{Key: "nil-flag", Item: st.ItemDescriptor{Version: 3, Item: (*ldmodel.FeatureFlag)(nil)}}}},
+			`deleted flag "nil-flag"`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			base := &fakeBaseStore{
+				flags: map[string]st.ItemDescriptor{
+					"flag1": sharedtest.FlagDescriptor(ldbuilders.NewFlagBuilder("flag1").Version(1).Build()),
+				},
+				initialized: true,
+			}
+			f := newSinkFixture(base)
+			f.sink.SetOverrides([]st.Collection{
+				flagCollection(ldbuilders.NewFlagBuilder("flag1").Version(5).Build()),
+				segmentCollection(ldbuilders.NewSegmentBuilder("segment1").Version(5).Build()),
+			})
+			assert.Equal(t, []string{"flag1"}, f.takeNotified())
+			flagsBefore := f.layer.All(datakinds.Features)
+			segmentsBefore := f.layer.All(datakinds.Segments)
+
+			// Apart from the deleted item, the snapshot changes flag1 and adds flag2. None of it
+			// is applied.
+			snapshot := []st.Collection{
+				flagCollection(
+					ldbuilders.NewFlagBuilder("flag1").Version(6).Build(),
+					ldbuilders.NewFlagBuilder("flag2").Version(1).Build(),
+				),
+				c.deleted,
+			}
+			f.sink.SetOverrides(snapshot)
+
+			assert.Equal(t, flagsBefore, f.layer.All(datakinds.Features))
+			assert.Equal(t, segmentsBefore, f.layer.All(datakinds.Segments))
+			assert.Empty(t, f.takeNotified())
+			errorLines := f.mockLog.GetOutput(ldlog.Error)
+			require.Len(t, errorLines, 1)
+			assert.Contains(t, errorLines[0], c.expectedLog)
+		})
+	}
+}
+
+func TestSinkAcceptsDefinitionsWithDeletedFalse(t *testing.T) {
+	f := newSinkFixture(&fakeBaseStore{initialized: true})
+	flag := ldbuilders.NewFlagBuilder("flag1").Version(1).Build()
+	flag.Deleted = false
+	segment := ldbuilders.NewSegmentBuilder("segment1").Version(1).Build()
+	segment.Deleted = false
+
+	f.sink.SetOverrides([]st.Collection{flagCollection(flag), segmentCollection(segment)})
+
+	assert.True(t, layerHasFlag(f.layer, "flag1"))
+	_, ok := f.layer.Get(datakinds.Segments, "segment1")
+	assert.True(t, ok)
+	assert.Empty(t, f.mockLog.GetOutput(ldlog.Error))
 }
 
 func affectedFrom(layer *Layer, kind st.DataKind, key string) []string {
