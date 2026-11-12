@@ -438,3 +438,26 @@ func TestSecondSyncIsRejected(t *testing.T) {
 		assert.False(t, stillOpen, "second Sync's channel should be closed")
 	})
 }
+
+func TestSyncLoadsEntriesMarkedAsDeleted(t *testing.T) {
+	// The file data source loads entries marked as deleted as it always has. Only the file
+	// override source rejects them.
+	fileData := `{"flags": {"my-flag": {"on": true, "deleted": true}}, "segments": {"my-segment": {"deleted": true}}}`
+	th.WithTempFileData([]byte(fileData), func(filename string) {
+		factory := DataSource().FilePaths(filename)
+		sync, err := factory.Build(subsystems.BasicClientContext{})
+		require.NoError(t, err)
+
+		defer sync.Close()
+		resultChan := sync.Sync(mocks.NewMockDataSelector(subsystems.NoSelector()))
+
+		result := <-resultChan
+		require.NotNil(t, result.ChangeSet)
+		assert.Equal(t, interfaces.DataSourceStateValid, result.State)
+		keys := map[string]bool{}
+		for _, change := range result.ChangeSet.Changes() {
+			keys[change.Key] = true
+		}
+		assert.Equal(t, map[string]bool{"my-flag": true, "my-segment": true}, keys)
+	})
+}

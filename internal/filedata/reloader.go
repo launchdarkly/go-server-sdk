@@ -33,6 +33,11 @@ type ReloaderConfig struct {
 	// MakeFlagWithValue expands each flag-key-to-value entry into a full flag definition.
 	// Each source supplies the form its consumers expect. It must not be nil.
 	MakeFlagWithValue FlagValueExpander
+	// CheckDocument, if not nil, checks each parsed document before the merge. An error fails
+	// the reload in the same way as a file that cannot be parsed, with a *ReadError that names
+	// the file. Each source supplies the checks its consumers need. The error must be the same
+	// for the same document, so that retries recognize a repeated failure.
+	CheckDocument func(Document) error
 	// SkipMissingPaths, when true, treats a configured file that does not exist as a file
 	// with no content. The reload succeeds with the data of the files that exist. When
 	// false, a missing file fails the reload like any other read error.
@@ -46,8 +51,8 @@ type ReloaderConfig struct {
 	Apply func(MergeResult)
 	// OnError is invoked when a reload fails, once per distinct failure: with automatic
 	// retries, repeats of an identical failure do not re-invoke it (a success re-arms it).
-	// The error is a *ReadError when a file could not be read or parsed, or a merge error
-	// otherwise. The reloader logs failures itself, so implementations only need to update
+	// The error is a *ReadError when a file could not be read or parsed or failed
+	// CheckDocument, or a merge error otherwise. The reloader logs failures itself, so implementations only need to update
 	// their own state.
 	OnError func(err error)
 	// DebounceDelay is how long to wait after a Trigger call for further calls to settle
@@ -253,6 +258,9 @@ func (r *Reloader) reload() bool {
 		files = append(files, FileSummary{Path: path, Present: true})
 	}
 
+	if err := r.checkDocuments(docs, files); err != nil {
+		return r.fail(err)
+	}
 	merged, err := Merge(r.cfg.DuplicateKeysHandling, r.cfg.MakeFlagWithValue, docs...)
 	if err != nil {
 		return r.fail(err)
@@ -322,4 +330,23 @@ func (r *Reloader) isClosed() bool {
 	default:
 		return false
 	}
+}
+
+// checkDocuments applies CheckDocument to each document. The documents are the present files
+// in order.
+func (r *Reloader) checkDocuments(docs []Document, files []FileSummary) error {
+	if r.cfg.CheckDocument == nil {
+		return nil
+	}
+	next := 0
+	for _, file := range files {
+		if !file.Present {
+			continue
+		}
+		if err := r.cfg.CheckDocument(docs[next]); err != nil {
+			return &ReadError{Err: err, Path: file.Path}
+		}
+		next++
+	}
+	return nil
 }

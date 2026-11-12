@@ -81,6 +81,10 @@ type FileSourceBuilder struct {
 // entries are combined. The configured order determines which file wins under the
 // duplicate-key handling.
 //
+// A file that contains a flag or segment entry marked as deleted ("deleted": true) fails to
+// load, and the overrides in effect stay; to remove an override, remove its entry or delete
+// the file.
+//
 // A reload replaces the entire override set, so removing an entry from the files removes
 // the override. A configured file that does not exist contributes no overrides. Deleting a
 // file therefore removes its overrides, and deleting every file removes them all. A file
