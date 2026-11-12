@@ -44,7 +44,7 @@ func (r *fdv1ToFDv2Requester) Request(
 	// to avoid the overhead of converting Collections -> Changes -> Collections
 	changeset, err := subsystems.NewChangeSetFromCollections(
 		intent,
-		subsystems.NewSelector("state", 1),
+		subsystems.NoSelector(),
 		data,
 	)
 	return changeset, headers, err
