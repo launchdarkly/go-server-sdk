@@ -44,6 +44,7 @@ const (
 	CapabilityUserType                      = "user-type"
 	CapabilityContextComparison             = "context-comparison"
 	CapabilityPersistentDataStoreRecovery   = "persistent-data-store-recovery"
+	CapabilityEventDeliveryCooldown         = "event-delivery-cooldown"
 )
 
 type StatusRep struct {
