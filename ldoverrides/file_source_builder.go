@@ -92,6 +92,15 @@ type FileSourceBuilder struct {
 // loaded overrides stay in effect. The source logs the failure, retries after a short
 // delay, and recovers on its own once the file is readable again.
 //
+// Files can be rewritten in place: if the source finds a file empty while it is being
+// rewritten, it keeps the overrides in effect until the new content is written. To remove a
+// file's overrides, delete the file or write a document with no entries, such as {}. The
+// source tells JSON from YAML by the content: a file whose first character other than white
+// space is "{" is JSON, and any other file is YAML. A file that stays empty, whatever its
+// name, is therefore a YAML document with no entries, and removes its overrides. For a YAML
+// file, replacing its contents in one operation, such as by renaming a fully written
+// temporary file over it, avoids briefly applying a partly written file.
+//
 // Whenever the set of overrides in effect changes, including at startup, the source logs
 // the overrides in effect and what each configured file supplied, at Info level.
 //
