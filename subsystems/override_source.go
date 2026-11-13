@@ -7,6 +7,8 @@ import (
 // OverrideSink receives the contents of the SDK's flag/segment override layer. The SDK
 // implements it and passes it to an OverrideSource's Start method. Override sources call
 // it, they do not implement it.
+//
+// Flag overrides are currently experimental and subject to change.
 type OverrideSink interface {
 	// SetOverrides atomically replaces the entire override layer with the given flag and
 	// segment entries. An empty or nil slice clears the layer. Each call is a full snapshot.
@@ -17,6 +19,10 @@ type OverrideSink interface {
 	// *ldmodel.Segment respectively. Sources supply ordinary, fully parsed entities, such as
 	// those produced by the ldmodel serialization or the ldbuilders package. The SDK itself
 	// marks the entries as overrides.
+	//
+	// A snapshot that contains a deleted flag or segment, either an entity marked as deleted
+	// or an item descriptor with a nil Item, is rejected as a whole: the SDK logs an error and
+	// the overrides in effect stay unchanged.
 	//
 	// SetOverrides is safe to call from any goroutine. Calls are serialized by the SDK, and
 	// the new layer contents are visible to evaluations when the call returns.
