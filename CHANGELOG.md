@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.23.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.22.0...v7.23.0) (2026-11-13)
+
+
+### Features
+
+* adopt the event-delivery cooldown ([#512](https://github.com/launchdarkly/go-server-sdk/issues/512)) ([276dfcc](https://github.com/launchdarkly/go-server-sdk/commit/276dfcc44010867d74f487433d2da20317e0bef3))
+
+
+### Bug Fixes
+
+* Give FDv1 fallback data no selector ([#511](https://github.com/launchdarkly/go-server-sdk/issues/511)) ([2006348](https://github.com/launchdarkly/go-server-sdk/commit/2006348a30ecbbfd07d6152a47e5fee6df26b5e6))
+* Reject override entries that are marked as deleted ([#510](https://github.com/launchdarkly/go-server-sdk/issues/510)) ([8b0e02d](https://github.com/launchdarkly/go-server-sdk/commit/8b0e02d7adb47d692f8c46faae4b4904184589b2))
+* Update go-server-sdk-evaluation to v3.2.1 ([#508](https://github.com/launchdarkly/go-server-sdk/issues/508)) ([733322c](https://github.com/launchdarkly/go-server-sdk/commit/733322c53634729eb8d267622b0242e0152370eb))
+
 ## [7.22.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.21.2...v7.22.0) (2026-11-06)
 
 
