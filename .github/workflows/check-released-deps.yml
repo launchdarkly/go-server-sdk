@@ -28,7 +28,7 @@ jobs:
   check-released-dependencies:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # testservice/ is excluded: it is unpublished scaffolding with a
       # committed `replace => ../` of the SDK itself.
       - name: Verify go.mod references released LaunchDarkly component versions

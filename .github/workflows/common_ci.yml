@@ -19,9 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     name: 'Unit Tests and Coverage'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
       - uses: ./.github/actions/unit-tests
@@ -39,14 +39,14 @@ jobs:
       TEST_SERVICE_PORT: 10000
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: launchdarkly/gh-actions/actions/persistent-stores@persistent-stores-v0
         with:
           redis: 'true'
           consul: 'true'
           dynamodb: 'true'
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
       - uses: ./.github/actions/get-go-version
@@ -74,7 +74,7 @@ jobs:
           version: v3
 
       - name: Upload test service logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Contract-test-service-logs-${{ steps.go-version.outputs.version }}
           path: /tmp/sdk-contract-test-service.log
@@ -83,9 +83,9 @@ jobs:
     name: 'Benchmarks'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ inputs.go-version }}
       - uses: ./.github/actions/benchmarks
