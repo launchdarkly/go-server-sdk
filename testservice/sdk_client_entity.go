@@ -429,6 +429,12 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 	ret := ld.Config{}
 	ret.Logging = ldcomponents.Logging().Loggers(sdkLog)
 
+	if config.ServiceEndpoints != nil {
+		ret.ServiceEndpoints.Streaming = config.ServiceEndpoints.Streaming
+		ret.ServiceEndpoints.Polling = config.ServiceEndpoints.Polling
+		ret.ServiceEndpoints.Events = config.ServiceEndpoints.Events
+	}
+
 	if config.DataSystem != nil {
 		dataSystemBuilder := ldcomponents.DataSystem().Custom()
 
@@ -548,12 +554,6 @@ func makeSDKConfig(config servicedef.SDKConfigParams, sdkLog ldlog.Loggers) (ld.
 	} else if config.Overrides != nil {
 		return ret, errors.New("flag overrides require the data system to be configured")
 	} else {
-		if config.ServiceEndpoints != nil {
-			ret.ServiceEndpoints.Streaming = config.ServiceEndpoints.Streaming
-			ret.ServiceEndpoints.Polling = config.ServiceEndpoints.Polling
-			ret.ServiceEndpoints.Events = config.ServiceEndpoints.Events
-		}
-
 		if config.Streaming != nil {
 			if config.Streaming.BaseURI != "" {
 				ret.ServiceEndpoints.Streaming = config.Streaming.BaseURI
