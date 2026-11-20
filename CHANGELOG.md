@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [7.23.1](https://github.com/launchdarkly/go-server-sdk/compare/v7.23.0...v7.23.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* Accept flag and segment data that sets an optional property to null ([#516](https://github.com/launchdarkly/go-server-sdk/issues/516)) ([9d3dddc](https://github.com/launchdarkly/go-server-sdk/commit/9d3dddce307066f64260d0222271d45b7e2a3147))
+
 ## [7.23.0](https://github.com/launchdarkly/go-server-sdk/compare/v7.22.0...v7.23.0) (2026-11-13)
 
 
